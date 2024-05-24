@@ -1,6 +1,6 @@
 import functions_framework
 from flask import jsonify, abort
-from shared.orm.line_notify_tokens import LineNotifyTokens
+from shared.orm.line_notify_tokens import LineNotifyToken
 
 response_400 = jsonify(
     {"status": "error", "message": f"Invalid JSON format or missing required fields"}
@@ -24,11 +24,11 @@ def add(request):
     try:
         # 解析 POST 請求中的資訊
         request_json = request.get_json(silent=True)
-        if not LineNotifyTokens.is_add_json_valid(request_json):
+        if not LineNotifyToken.is_add_json_valid(request_json):
             return response_400, 400
 
         # 寫入資訊到資料庫
-        LineNotifyTokens().insert(request_json)
+        LineNotifyToken().insert(request_json)
         return jsonify({"status": "success", "message": "Token added successfully"})
 
     except Exception as e:
@@ -52,11 +52,11 @@ def get(request):
     try:
         # 解析 POST 請求
         request_json = request.get_json(silent=True)
-        if not LineNotifyTokens.is_get_json_valid(request_json):
+        if not LineNotifyToken.is_get_json_valid(request_json):
             return response_400, 400
 
         # 讀取token，輸出
-        token = LineNotifyTokens().get_token_by_id(request_json)
+        token = LineNotifyToken().get_token_by_id(request_json)
 
         return jsonify({"status": "success", "token": token})
 

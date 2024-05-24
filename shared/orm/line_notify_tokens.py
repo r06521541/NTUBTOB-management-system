@@ -13,7 +13,7 @@ metadata = MetaData()
 
 
 @dataclass
-class LineNotifyTokens:
+class LineNotifyToken:
     _required_fields: ClassVar[List[str]] = ["token", "description"]
     table: Table = field(init=False)
 
