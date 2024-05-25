@@ -1,5 +1,6 @@
 import functions_framework
-from flask import jsonify, abort
+from flask import abort, jsonify
+
 from shared.orm.line_notify_tokens import LineNotifyToken
 
 response_400 = jsonify(

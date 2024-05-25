@@ -1,9 +1,9 @@
-from typing import List, ClassVar
 from dataclasses import dataclass, field
+from typing import ClassVar, List
+
 from sqlalchemy import MetaData, Table, insert
 
-from shared.db.connect import get_schema_name, get_db_name, connect_with_connector
-
+from shared.db.connect import connect_with_connector, get_db_name, get_schema_name
 
 # 配置 SQLAlchemy 引擎
 engine = connect_with_connector()
@@ -37,9 +37,7 @@ class LineNotifyToken:
         # 創建連線
         with engine.connect() as connection:
             # 執行 SELECT 查詢
-            select_statement = self.table.select().where(
-                self.table.c.id == id
-            )
+            select_statement = self.table.select().where(self.table.c.id == id)
             result = connection.execute(select_statement).first()
 
             return result.token if result else ""
