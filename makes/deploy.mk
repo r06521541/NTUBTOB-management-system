@@ -1,6 +1,6 @@
 deploy-notify-token-service-add:
 	gcloud functions deploy notify_token_service_add \
-		--env-vars-file functions/notify_token_service/.env.yaml \
+		--env-vars-file envs/notify_token_service/.env.yaml \
 		--runtime python310 \
 		--trigger-http \
 		--allow-unauthenticated \
@@ -9,7 +9,7 @@ deploy-notify-token-service-add:
 
 deploy-notify-token-service-get:
 	gcloud functions deploy notify_token_service_get \
-		--env-vars-file functions/notify_token_service/.env.yaml \
+		--env-vars-file envs/notify_token_service/.env.yaml \
 		--runtime python310 \
 		--trigger-http \
 		--allow-unauthenticated \
@@ -18,7 +18,7 @@ deploy-notify-token-service-get:
 
 deploy-weekly-game-notify:
 	gcloud functions deploy weekly_game_notify \
-		--env-vars-file functions/weekly_game_notify/.env.yaml \
+		--env-vars-file envs/weekly_game_notify/.env.yaml \
 		--runtime python310 \
 		--trigger-http \
 		--allow-unauthenticated \
