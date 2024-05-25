@@ -1,10 +1,9 @@
 import envs
 import functions_framework
+from games import Game
+from games_crawler_client import CrawlerClient
 from message import generate_error_message, generate_schedule_message_for_team
-
-from shared.orm.games import Game
-from shared.utils.games_crawler_client import CrawlerClient
-from shared.utils.notify_client import NotifyClient
+from notify_client import NotifyClient
 
 
 @functions_framework.http

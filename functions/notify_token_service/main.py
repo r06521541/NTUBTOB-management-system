@@ -1,7 +1,6 @@
 import functions_framework
 from flask import abort, jsonify
-
-from shared.orm.line_notify_tokens import LineNotifyToken
+from line_notify_tokens import LineNotifyToken
 
 response_400 = jsonify(
     {"status": "error", "message": f"Invalid JSON format or missing required fields"}

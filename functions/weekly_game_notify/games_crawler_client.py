@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 
 import requests
-
-from shared.utils.gcloud import get_id_token
+from gcloud import get_id_token
 
 
 @dataclass

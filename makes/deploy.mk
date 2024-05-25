@@ -4,8 +4,8 @@ deploy-notify-token-service-add:
 		--runtime python310 \
 		--trigger-http \
 		--allow-unauthenticated \
-		--entry-point notify_token_service_add \
-		--source .
+		--entry-point add \
+		--source functions/notify_token_service/
 
 deploy-notify-token-service-get:
 	gcloud functions deploy notify_token_service_get \
@@ -13,8 +13,8 @@ deploy-notify-token-service-get:
 		--runtime python310 \
 		--trigger-http \
 		--allow-unauthenticated \
-		--entry-point notify_token_service_get \
-		--source .
+		--entry-point get \
+		--source functions/notify_token_service/
 
 deploy-weekly-game-notify:
 	gcloud functions deploy weekly_game_notify \
@@ -22,5 +22,5 @@ deploy-weekly-game-notify:
 		--runtime python310 \
 		--trigger-http \
 		--allow-unauthenticated \
-		--entry-point weekly_game_notify \
-		--source .
+		--entry-point main \
+		--source functions/weekly_game_notify/
