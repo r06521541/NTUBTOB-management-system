@@ -5,3 +5,4 @@ help:  ## Help
 
 include makes/deploy.mk
 include makes/dev.mk
+include makes/build_shared_lib.mk

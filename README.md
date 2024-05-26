@@ -2,6 +2,38 @@
 
 NTUBTOB management system
 
-## Note
+## Setup Instructions
 
-Run `make format` before commit
+Before you start developing locally, make sure to complete the following steps:
+
+1. **Build the Shared Library**:
+
+   ```sh
+   make build-shared-lib
+   ```
+
+2. **Install Required Python Packages**:
+
+   ```sh
+   pip3 install -r requirements.txt
+   ```
+
+## Development Notes
+
+- **Shared Library Changes**:
+  If you make any changes to the shared library, remember to rebuild it and reinstall the dependencies by running:
+
+  ```sh
+  make build-shared-lib
+  pip3 install -r requirements.txt
+  ```
+
+- **Cloud Function Deployment**:
+  After adding a new cloud function, add a corresponding deployment script in `makes/deploy.mk`.
+
+- **Code Formatting**:
+  Run the following command to format your code before committing:
+
+  ```sh
+  make format
+  ```
