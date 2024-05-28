@@ -3,6 +3,9 @@ from setuptools import find_packages, setup
 setup(
     name="shared_lib",
     version="0.0.1",
+    author="",
+    author_email="",
+    url="",
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,

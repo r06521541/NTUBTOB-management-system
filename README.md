@@ -6,16 +6,16 @@ NTUBTOB management system
 
 Before you start developing locally, make sure to complete the following steps:
 
-1. **Build the Shared Library**:
-
-   ```sh
-   make build-shared-lib
-   ```
-
-2. **Install Required Python Packages**:
+1. **Install Required Python Packages**:
 
    ```sh
    pip3 install -r requirements.txt
+   ```
+
+2. **Build and Install the Shared Library**:
+
+   ```sh
+   make build-and-install-shared-lib
    ```
 
 ## Development Notes

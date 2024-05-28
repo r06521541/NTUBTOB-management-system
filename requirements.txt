@@ -11,5 +11,3 @@ psycopg2
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
-
-shared_lib/dist/shared_lib-0.0.1.tar.gz
