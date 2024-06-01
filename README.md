@@ -24,8 +24,7 @@ Before you start developing locally, make sure to complete the following steps:
   If you make any changes to the shared library, remember to rebuild it and reinstall the dependencies by running:
 
   ```sh
-  make build-shared-lib
-  pip3 install -r requirements.txt
+  make build-and-install-shared-lib
   ```
 
 - **Cloud Function Deployment**:
