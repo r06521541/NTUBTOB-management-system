@@ -3,9 +3,9 @@ from setuptools import find_packages, setup
 setup(
     name="shared_lib",
     version="0.0.1",
-    author="",
-    author_email="",
-    url="",
+    author="r06521541",
+    author_email="r06521541@ntu.edu.tw",
+    url="https://github.com/r06521541/NTUBTOB-management-system",
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
