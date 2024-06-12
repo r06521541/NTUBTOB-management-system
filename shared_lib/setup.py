@@ -14,7 +14,7 @@ setup(
         "requests==2.26.0",
         "sqlalchemy==2.0.23",
         "cloud-sql-python-connector",
-        "psycopg2",
+        "psycopg2-binary",
         "google-api-python-client",
         "google-auth-httplib2",
         "google-auth-oauthlib",
