@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from typing import ClassVar, List
 
-from db import connect_with_connector, get_db_name, get_schema_name
 from sqlalchemy import MetaData, Table, insert
+
+from .db import connect_with_connector, get_db_name, get_schema_name
 
 # 配置 SQLAlchemy 引擎
 engine = connect_with_connector()
