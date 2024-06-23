@@ -3,34 +3,38 @@ from shared_module.line_users import LineUser
 
 app = Flask(__name__)
 
-with app.app_context():
-    response_400 = jsonify({'status': 'error', 'message': f'Invalid JSON format or missing required fields'})
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({'status': 'error', 'message': 'Invalid JSON format or missing required fields'}), 400
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'status': 'error', 'message': f'Internal server error: {error}'}), 500
 
 @app.route('/add_user', methods=['POST'])
 def add_user():
     try:
         request_json = request.get_json(silent=True)
         if (not LineUser.is_add_json_valid(request_json)):
-            return response_400, 400
+            abort(400)
         
         LineUser().insert(request_json)
         return jsonify({'status': 'success', 'message': 'New LINE user added successfully'})
 
     except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({'status': 'error', 'message': f'Failed to add New LINE user: {e}'}), 500
-
+        print(f"Failed to add New LINE user. Error: {e}")
+        abort(500, description=str(e))
+       
 @app.route('/search_user_by_id', methods=['POST'])
 def search_user():
     try:
         line_user_id = request.get_json(silent=True)
         user = LineUser().get_user_by_id(str(line_user_id))
-        print(user)
         return jsonify({'status': 'success', 'user': user})
 
     except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({'status': 'error', 'message': f'Failed to search user: {e}'}), 500
+        print(f"Failed to search user. Error: {e}")
+        abort(500, description=str(e))
     
 @app.route('/update_member_id', methods=['POST'])
 def update_member():
@@ -43,8 +47,8 @@ def update_member():
         return jsonify({'status': 'success', 'message': 'Update member ID successfully'})
 
     except Exception as e:
-        print(f"Error: {e}")
-        return jsonify({'status': 'error', 'message': f'Failed to update member ID: {e}'}), 500
+        print(f"Failed to update member ID. Error: {e}")
+        abort(500, description=str(e))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
