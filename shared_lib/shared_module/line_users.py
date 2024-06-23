@@ -43,7 +43,7 @@ class LineUser:
 
         return row_mapping
     
-    def insert(self, json):        
+    def insert(self, json: dict[str, str]):
         # 創建一個插入操作
         insert_statement = insert(self.table).values(
             nickname=json["nickname"], line_user_id=json["line_user_id"]
