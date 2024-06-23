@@ -5,7 +5,7 @@ REGION = east-asia1  # 选择一个区域
 IMAGE = gcr.io/$(PROJECT_ID)/$(SERVICE_NAME)
 
 deploy-line-user-service:
-	make build-and-install-shared-lib
+	make build-shared-lib
 	mkdir -p apps/line_user_service/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		apps/line_user_service/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
