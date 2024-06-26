@@ -7,7 +7,7 @@ def get_schema_name():
     return os.environ.get("DB_NAME")
 
 
-def get_db_name():
+def get_table_name():
     return os.environ.get("DB_TABLE")
 
 

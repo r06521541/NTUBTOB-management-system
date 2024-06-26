@@ -1,0 +1,104 @@
+# line-user-service
+## Description
+This Flask application provides endpoints to interact with LineUser objects, allowing you to add new users, search for users by their ID, and update member IDs.
+
+## Base URL
+The base URL for all API requests is:
+
+https://line-user-service-7uz453jt3a-de.a.run.app/
+
+## Endpoints
+### `POST /add_user`
+
+Adds a new LINE user to the database.
+
+#### Parameters
+- `line_user_id` (required): The ID of the LINE user.
+- `name` (required): The name of the LINE user.
+- `member_id` (optional): The member ID associated with the LINE user.
+
+#### Response
+Returns a JSON object with the following properties:
+
+- `status`: The status of the request (e.g., "success").
+- `message`: A message describing the outcome of the request.
+#### Example
+Request:
+
+    POST /add_user
+    Content-Type: application/json
+
+    {
+        "line_user_id": "12345",
+        "name": "John Doe",
+    }
+Response:
+
+    {
+        "status": "success",
+        "message": "New LINE user added successfully"
+    }
+#### Errors
+- `400 Bad Request`: The request was malformed or missing required fields.
+- `500 Internal Server Error`: An unexpected error occurred on the server.
+### `POST /search_user_by_id`
+Searches for a LINE user in the database by their user ID.
+#### Parameters
+- `line_user_id` (required): The ID of the LINE user to search for.
+
+#### Response
+Returns a JSON object with the following properties:
+- `status`: The status of the request (e.g., "success").
+- `user`: The user object if found.
+
+#### Example
+Request:
+
+    POST /search_user_by_id
+    Content-Type: application/json
+    
+    12345
+
+Response:
+
+    {
+        "status": "success",
+        "user": {
+		    "id": 111,
+            "line_user_id": "12345",
+            "member_id": "98765"
+            "nickname": "John Doe",
+		    "submit_time": "2024-06-02T21:20:30.000000+00:00"
+        }
+    }
+#### Errors
+- `500 Internal Server Error`: An unexpected error occurred on the server.
+### `POST /update_member_id`
+Updates the member ID for a LINE user in the database. A member ID is a foreing key indicating the ID of a member listed in the dataset of the membership.
+
+#### Parameters
+- `line_user_id` (required): The ID of the LINE user.
+- `new_member_id` (required): The new member ID to associate with the LINE user.
+#### Response
+Returns a JSON object with the following properties:
+
+- `status`: The status of the request (e.g., "success").
+- `message`: A message describing the outcome of the request.
+#### Example
+Request:
+
+    POST /update_member_id
+    Content-Type: application/json
+
+    {
+        "line_user_id": "12345",
+        "new_member_id": "54321"
+    }
+Response:
+
+    {
+        "status": "success",
+        "message": "Update member ID successfully"
+    }
+#### Errors
+- `500 Internal Server Error`: An unexpected error occurred on the server.

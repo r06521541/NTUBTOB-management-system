@@ -3,7 +3,7 @@ from typing import ClassVar, List
 
 from sqlalchemy import MetaData, Table, insert
 
-from .db import connect_with_connector, get_db_name, get_schema_name
+from .db import connect_with_connector, get_table_name, get_schema_name
 
 # 配置 SQLAlchemy 引擎
 engine = connect_with_connector()
@@ -20,7 +20,7 @@ class LineNotifyToken:
     def __post_init__(self):
         # 從資料庫中反射資料表
         self.table = Table(
-            get_db_name(), metadata, autoload_with=engine, schema=get_schema_name()
+            get_table_name(), metadata, autoload_with=engine, schema=get_schema_name()
         )
 
     @classmethod

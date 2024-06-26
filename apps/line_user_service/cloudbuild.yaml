@@ -1,0 +1,24 @@
+steps:
+
+- name: 'gcr.io/cloud-builders/docker'
+  script: |
+    docker build -t asia-east1-docker.pkg.dev/$PROJECT_ID/management-system-docker-repo/line-user-service-image:tag1 .
+  automapSubstitutions: true
+  
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  entrypoint: 'bash'
+  args:
+  - '-c'
+  - |
+    # Fetch secret from Secret Manager
+    SECRET_VALUE=$(gcloud secrets versions access latest --secret=supabase-database-password)
+
+    # Deploy to Cloud Run with the secret as environment variable
+    gcloud run deploy line-user-service \
+      --image asia-east1-docker.pkg.dev/$PROJECT_ID/management-system-docker-repo/line-user-service-image:tag1 \
+      --region asia-east1 \
+      --platform managed \
+      --no-allow-unauthenticated \
+      --env-vars-file .env.yaml
+  env:
+  - 'CLOUDSDK_CORE_PROJECT=$PROJECT_ID'

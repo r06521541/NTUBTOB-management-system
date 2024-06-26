@@ -2,7 +2,7 @@ SHARED_LIB_VERSION = 0.0.1
 
 deploy-notify-token-service-add:
 	make build-shared-lib
-	midir -p functions/notify_token_service/dist
+	mkdir -p functions/notify_token_service/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		functions/notify_token_service/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 	gcloud functions deploy notify_token_service_add \
