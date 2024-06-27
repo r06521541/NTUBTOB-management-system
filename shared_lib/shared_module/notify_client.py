@@ -9,7 +9,6 @@ from .gcloud import get_id_token
 class NotifyClient:
     token_id: str
     notify_api: str
-    notify_api_token: str
 
     def _get_api_token(self):
         return get_id_token(self.notify_api)
