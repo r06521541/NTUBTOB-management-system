@@ -1,4 +1,4 @@
-# weekly_game_notify
+# weekly-game-notify
 ## Description
 This API endpoint is designed to be triggered by a cron job. It fetches game information using a crawler API, processes the data, and sends notifications to a LINE group using the LINE Notify service.
 

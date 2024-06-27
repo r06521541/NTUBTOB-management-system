@@ -1,9 +1,9 @@
-# notify_token_service
+# notify-token-service
 ## Description
 These API provides endpoints to interact with the `line-notify-tokens` database, allowing you to add new tokens and retrieve existing tokens by their IDs.
 
 ## Endpoint 1 - add
-URL: `https://asia-east2-ntubtob-schedule-405614.cloudfunctions.net/notify_token_service_add`
+URL: `https://asia-east2-ntubtob-schedule-405614.cloudfunctions.net/notify-token-service-add`
 
 `POST /`
 
@@ -40,7 +40,7 @@ Response:
 
 
 ## Endpoint 2 - get
-URL: `https://asia-east2-ntubtob-schedule-405614.cloudfunctions.net/notify_token_service_add`
+URL: `https://asia-east2-ntubtob-schedule-405614.cloudfunctions.net/notify-token-service-get`
 
 `POST /`
 
