@@ -5,7 +5,7 @@ deploy-notify-token-service-add:
 	mkdir -p functions/notify_token_service/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		functions/notify_token_service/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
-	gcloud functions deploy notify_token_service_add \
+	gcloud functions deploy notify-token-service-add \
 		--region asia-east1 \
 		--gen2 \
 		--env-vars-file envs/notify_token_service/.env.yaml \
@@ -20,7 +20,7 @@ deploy-notify-token-service-get:
 	mkdir -p functions/notify_token_service/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		functions/notify_token_service/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
-	gcloud functions deploy notify_token_service_get \
+	gcloud functions deploy notify-token-service-get \
 		--region asia-east1 \
 		--gen2 \
 		--env-vars-file envs/notify_token_service/.env.yaml \
@@ -35,7 +35,7 @@ deploy-weekly-game-notify:
 	mkdir -p functions/weekly_game_notify/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		functions/weekly_game_notify/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
-	gcloud functions deploy weekly_game_notify \
+	gcloud functions deploy weekly-game-notify \
 		--region asia-east1 \
 		--gen2 \
 		--env-vars-file envs/weekly_game_notify/.env.yaml \
