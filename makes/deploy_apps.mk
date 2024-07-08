@@ -1,21 +1,24 @@
 SHARED_LIB_VERSION = 0.0.1
 PROJECT_ID = ntubtob-schedule-405614
-SERVICE_NAME = line-user-service
-REGION = east-asia1  # 选择一个区域
-IMAGE = gcr.io/$(PROJECT_ID)/$(SERVICE_NAME)
+REGION = asia-east1
+
+DIR_LINE_USER_SERVICE = line_user_service
+LINE_USER_SERVICE_NAME = line-user-service
 
 deploy-line-user-service:
 	make build-shared-lib
-	mkdir -p apps/line_user_service/dist
+	mkdir -p apps/${DIR_LINE_USER_SERVICE}/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
-		apps/line_user_service/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
+		apps/${DIR_LINE_USER_SERVICE}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 		
 	# copy temp env file
-	cp envs/line_user_service/.env.yaml \
-		apps/line_user_service/.env.yaml
+	cp envs/${DIR_LINE_USER_SERVICE}/.env.yaml \
+		apps/${DIR_LINE_USER_SERVICE}/.env.yaml
 
 	@echo "Building Docker image..."
-	cd apps/line_user_service && gcloud builds submit --region=asia-east1 --config cloudbuild.yaml
+	cd apps/${DIR_LINE_USER_SERVICE} && gcloud builds submit --region=${REGION} \
+		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${LINE_USER_SERVICE_NAME}",_REGION="${REGION}" .
 		
 	# delete temp env file
-	rm apps/line_user_service/.env.yaml
+	rm apps/${DIR_LINE_USER_SERVICE}/.env.yaml
+

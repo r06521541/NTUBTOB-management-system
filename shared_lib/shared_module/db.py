@@ -4,7 +4,7 @@ import sqlalchemy
 
 
 def get_schema_name():
-    return os.environ.get("DB_NAME")
+    return os.environ.get("DB_SCHEMA")
 
 
 def get_table_name():
