@@ -18,8 +18,8 @@ class Base(DeclarativeBase):
 
 @dataclass
 class Game(Base):
-    __tablename__ = get_table_name()
-    __table_args__ = {'schema': get_schema_name()}
+    __tablename__ = 'games'
+    __table_args__ = {'schema': 'ntubtob'}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     year: Mapped[int] = mapped_column(Integer)
@@ -40,7 +40,26 @@ class Game(Base):
             if key in result and isinstance(result[key], datetime):
                 result[key] = result[key].isoformat()
         return result
-        
+    
+    def __eq__(self, other):
+        if isinstance(other, Game):
+            if self.year != other.year: 
+                return False
+            if self.season != other.season: 
+                return False
+            if self.start_datetime != other.start_datetime: 
+                return False
+            if self.duration != other.duration: 
+                return False
+            if self.location != other.location: 
+                return False
+            if self.home_team != other.home_team: 
+                return False
+            if self.away_team != other.away_team: 
+                return False
+            return True
+        return False
+    
     @classmethod
     def get_datetime(cls, datetime_str: str):               
         time = datetime.fromisoformat(datetime_str)
