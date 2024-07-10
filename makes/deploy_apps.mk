@@ -38,6 +38,7 @@ deploy-game-schedule-service:
 
 	@echo "Building Docker image..."
 	cd apps/${DIR_GAME_SCHEDULE_SERVICE} && gcloud builds submit --region=${REGION} \
+        --update-secrets=DSN_PASSWORD=supabase-database-password:latest \
 		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${GAME_SCHEDULE_SERVICE_NAME}",_REGION="${REGION}" .
 		
 	# delete temp env file
