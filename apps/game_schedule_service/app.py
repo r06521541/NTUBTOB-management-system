@@ -30,7 +30,7 @@ def add_game():
             abort(400)
 
         # 寫入比賽資訊到資料庫
-        Game.add_game(request_json)
+        Game.add_game_by_dict(request_json)
         return jsonify({'status': 'success', 'message': 'Game added successfully'})
 
     except Exception as e:

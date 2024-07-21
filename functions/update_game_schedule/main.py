@@ -28,12 +28,12 @@ def main(request):
     
     is_successful = True
     for game_to_add in games_to_add:
-        Game.add_game(game_to_add.to_dict())
+        Game.add_game(game_to_add)
 
     for game_to_cancel in games_to_cancel:
         if game_to_cancel.start_datetime < now:
             continue        
-        Game.update_cancellation_time(game_to_cancel, now)
+        Game.update_cancellation_time(game_to_cancel.id, now)
 
     if is_successful:
         apis.notify_successful("賽程更新 -- 已成功將賽程更新到games資料表")
