@@ -82,9 +82,9 @@ class Game(Base):
         return all(field in game_json for field in required_fields)
 
     @classmethod 
-    def add_game(cls, game_json: dict[str, str]):
+    def add_game_by_dict(cls, game_json: dict[str, str]):
         # 建立新比賽物件
-        new_game = Game(year = game_json['year'], 
+        game = Game(year = game_json['year'], 
                         season = game_json['season'],
                         start_datetime = game_json['start_datetime'],
                         duration = game_json['duration'],
@@ -94,7 +94,14 @@ class Game(Base):
         
         with Session(engine) as session:
             # 加入資料庫
-            session.add(new_game)
+            session.add(game)
+            session.commit()
+            
+    @classmethod 
+    def add_game(cls, game: 'Game'):        
+        with Session(engine) as session:
+            # 加入資料庫
+            session.add(game)
             session.commit()
 
     @classmethod 
