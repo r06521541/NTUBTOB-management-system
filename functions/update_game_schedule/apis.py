@@ -21,7 +21,7 @@ def game_crawl(team_name, start_time, end_time):
 
 
 def notify_successful(message):
-    NotifyClient(envs.notify_token_id, envs.notify_api).send(message)
+    NotifyClient(envs.notify_success_token_id, envs.notify_api).send(message)
 
 def notify_alarm(message):
     NotifyClient(envs.notify_alarm_token_id, envs.notify_api).send(
