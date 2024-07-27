@@ -1,17 +1,11 @@
 from datetime import datetime, timedelta
-
-weekday_mapping = {
-    "Monday": "一",
-    "Tuesday": "二",
-    "Wednesday": "三",
-    "Thursday": "四",
-    "Friday": "五",
-    "Saturday": "六",
-    "Sunday": "日",
-}
-season_mapping = {1: "上半季", 2: "下半季", 3: "季後賽"}
-normal_game_sign = "\U000026BE"
-offseason_game_sign = "\U0001F94E"
+from .games import Game
+from .general_message import (
+    weekday_mapping,
+    offseason_game_sign,
+    normal_game_sign,
+    season_mapping
+)
 
 
 def generate_no_game_message():
@@ -32,7 +26,7 @@ def generate_error_message():
     return message
 
 
-def generate_schedule_message_for_team(games, your_team):
+def generate_schedule_message_for_team(games: list[Game], your_team: str):
     message = "\n一週一度的通知又來囉！\n"
 
     this_week_games, this_month_games = get_this_week_and_month_games(games)
@@ -44,7 +38,7 @@ def generate_schedule_message_for_team(games, your_team):
     if len(this_week_games) > 0:
         message = message + "\n本週的比賽如下：\n"
     for game in this_week_games:
-        message = message + generate_summary_for_team(game, your_team) + "\n"
+        message = message + game.generate_summary_for_team(your_team) + "\n"
         if game.season == 3:
             has_offseason = True
 
@@ -54,7 +48,7 @@ def generate_schedule_message_for_team(games, your_team):
         else:
             message = message + "\n近一個月的比賽如下：\n"
     for game in this_month_games:
-        message = message + generate_summary_for_team(game, your_team) + "\n"
+        message = message + game.generate_summary_for_team(your_team) + "\n"
         if game.season == 3:
             has_offseason = True
 
@@ -64,7 +58,7 @@ def generate_schedule_message_for_team(games, your_team):
     return message
 
 
-def get_this_week_and_month_games(total_games):
+def get_this_week_and_month_games(total_games: list[Game]) -> tuple[list[Game], list[Game]]:
     this_week_games = []
     this_month_games = []
     aware_now = datetime.now().astimezone()
@@ -88,45 +82,3 @@ def get_this_week_and_month_games(total_games):
     this_month_games.sort(key=lambda x: x.start_datetime)
 
     return this_week_games, this_month_games
-
-
-def generate_summary(game):
-    # 獲取星期的中文表示
-    chinese_weekday = weekday_mapping[game.start_datetime.strftime("%A")]
-
-    # 格式化日期和時間
-    formatted_date = game.start_datetime.strftime("%m/%d（%a）").replace(
-        game.start_datetime.strftime("%a"), chinese_weekday
-    )
-    formatted_start_time = game.start_datetime.strftime("%H%M")
-    formatted_end_time = (game.start_datetime + game.duration).strftime("%H%M")
-
-    # 生成格式化字串
-    summary = f"{game.year}{season_mapping[game.season]} {formatted_date} {formatted_start_time} - {formatted_end_time} {game.home_team} vs {game.away_team} @{game.location}"
-    return summary
-
-
-def generate_summary_for_team(game, your_team):
-    if your_team != game.home_team and your_team != game.away_team:
-        return generate_summary(game)
-
-    # 獲取星期的中文表示
-    chinese_weekday = weekday_mapping[game.start_datetime.strftime("%A")]
-
-    # 格式化日期和時間
-    formatted_date = game.start_datetime.strftime("%m/%d（%a）").replace(
-        game.start_datetime.strftime("%a"), chinese_weekday
-    )
-    formatted_start_time = game.start_datetime.strftime("%H%M")
-    formatted_end_time = (
-        game.start_datetime + timedelta(minutes=game.duration)
-    ).strftime("%H%M")
-
-    # 判斷先後攻
-    is_home = your_team == game.home_team
-    another_team = game.away_team if is_home else game.home_team
-
-    # 生成格式化字串
-    game_sign = offseason_game_sign if game.season == 3 else normal_game_sign
-    summary = f"{game_sign} {formatted_date} {formatted_start_time} - {formatted_end_time} vs {another_team} {'先守' if is_home else '先攻'} @{game.location}"
-    return summary
