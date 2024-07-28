@@ -1,32 +1,43 @@
-from dataclasses import dataclass, field
-from typing import ClassVar, List
+from dataclasses import dataclass, asdict
+from typing import Optional
 
 from datetime import datetime
 
+from sqlalchemy import MetaData, Integer, String, DateTime, Table, ForeignKey, and_, insert, update
+from sqlalchemy.orm import relationship, mapped_column, Mapped, Session, DeclarativeBase
+
 from .db import connect_with_connector, get_table_name, get_schema_name
-from sqlalchemy import MetaData, Table, insert, update
+from .base import Base
 
 # 配置 SQLAlchemy 引擎
 engine = connect_with_connector()
 
-# 定義資料表的 metadata
-metadata = MetaData()
-
-
 @dataclass
-class LineUser:
-    _required_fields: ClassVar[List[str]] = ['nickname', 'line_user_id']
-    table: Table = field(init=False)
+class LineUser(Base):
+    __tablename__ = 'line_users'
+    __table_args__ = {'schema': 'ntubtob'}
 
-    def __post_init__(self):
-        # 從資料庫中反射資料表
-        self.table = Table(
-            get_table_name(), metadata, autoload_with=engine, schema=get_schema_name()
-        )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nickname: Mapped[str] = mapped_column(String)
+    line_user_id: Mapped[str] = mapped_column(String)
+    member_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('ntubtob.members.id'))
+    submit_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    # 與 Member 的關聯是在 relationships.py 做定義
+    member = relationship("Member", back_populates="line_users")
+
+    def __init__(self, nickname: str, line_user_id: int):
+        self.nickname = nickname
+        self.line_user_id = line_user_id
+
+    @classmethod 
+    def from_dict(cls, data_dict: dict) -> 'LineUser':
+        return cls(**data_dict)
 
     @classmethod
     def is_add_json_valid(cls, json: dict):
-        return all(field in json for field in cls._required_fields)
+        required_fields = ['nickname', 'line_user_id']
+        return all(field in json for field in required_fields)
     
     @classmethod
     def is_search_json_valid(cls, json: str | None):
@@ -34,51 +45,36 @@ class LineUser:
             return False
         return True
        
-    @classmethod
-    def as_dict(cls, row):
-        row_mapping = dict(row)
+
+    def as_dict(self):
+        result = asdict(self)
         # Convert datetime to ISO 8601 format
-        if 'submit_time' in row_mapping and isinstance(row_mapping['submit_time'], datetime):
-            row_mapping['submit_time'] = row_mapping['submit_time'].isoformat()
-
-        return row_mapping
+        key = 'submit_time'
+        print(result[key])
+        if key in result and isinstance(result[key], datetime):
+            result[key] = result[key].isoformat()
+        return result
     
-    def insert(self, json: dict[str, str]):
-        # 創建一個插入操作
-        insert_statement = insert(self.table).values(
-            nickname=json["nickname"], line_user_id=json["line_user_id"]
-        )
-        
-        # 使用引擎執行插入操作
-        with engine.connect() as connection:
-            result = connection.execute(insert_statement)
-            connection.commit()
-            
-        # 檢查插入結果
-        if result.rowcount == 1:
-            print(f"成功插入一筆新資料到 {get_table_name()} 資料表")
-        else:
-            print("插入資料失敗")
+    @classmethod
+    def add_user(cls, line_user: 'LineUser'):
+        with Session(engine) as session:
+            # 加入資料庫
+            session.add(line_user)
+            session.commit()
 
-    def get_user_by_id(self, line_user_id: str):
-        # 創建連線
-        with engine.connect() as connection:
-            # 執行 SELECT 查詢
-            select_statement = self.table.select().where(self.table.c.line_user_id == line_user_id)
-            row = connection.execute(select_statement).first()
-            
-            return LineUser.as_dict(row._mapping) if row else ""
+    @classmethod 
+    def search_by_id(cls, line_user_id: str) -> 'LineUser':
+        with Session(engine) as session:
+            users = session.query(LineUser).filter(
+                and_(
+                    LineUser.line_user_id == line_user_id
+                )
+            ).all()
 
-    def update_member_id(self, line_user_id: str, new_member_id: str):
-        
-        update_statement = update(self.table).where(
-            self.table.c.line_user_id == line_user_id).values(
-            member_id=new_member_id
-        )
-        
-        with engine.connect() as connection:
-            connection.execute(update_statement)
-            connection.commit()  # 確保更改被提交
-        
-        
+        return users[0] if users else None
 
+    @classmethod 
+    def update_member_id(cls, line_user_id: str, new_member_id: str):        
+        with Session(engine) as session:
+            session.execute(update(LineUser).where(LineUser.line_user_id == line_user_id).values(member_id=new_member_id))
+            session.commit()

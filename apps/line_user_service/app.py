@@ -18,8 +18,12 @@ def add_user():
         if (not LineUser.is_add_json_valid(request_json)):
             abort(400)
         
-        LineUser().insert(request_json)
-        return jsonify({'status': 'success', 'message': 'New LINE user added successfully'})
+        user = LineUser.search_by_id(str(request_json['line_user_id']))
+        if user:
+            return jsonify({'status': 'success', 'message': 'LINE user of the same ID already exists'})
+        else:
+            LineUser.add_user(LineUser.from_dict(request_json))
+            return jsonify({'status': 'success', 'message': 'New LINE user added successfully'})
 
     except Exception as e:
         print(f"Failed to add New LINE user. Error: {e}")
@@ -29,8 +33,12 @@ def add_user():
 def search_user():
     try:
         line_user_id = request.get_json(silent=True)
-        user = LineUser().get_user_by_id(str(line_user_id))
-        return jsonify({'status': 'success', 'user': user})
+        user = LineUser.search_by_id(str(line_user_id))
+        if user:
+            return jsonify({'status': 'success', 'user': user.as_dict()})
+        else:
+            return jsonify({'status': 'success', 'user': None})
+
 
     except Exception as e:
         print(f"Failed to search user. Error: {e}")
@@ -43,7 +51,7 @@ def update_member():
         request_json = request.get_json(silent=True)
 
         # 寫入比賽資訊到資料庫
-        LineUser().update_member_id(request_json['line_user_id'], request_json['new_member_id'])
+        LineUser.update_member_id(request_json['line_user_id'], request_json['new_member_id'])
         return jsonify({'status': 'success', 'message': 'Update member ID successfully'})
 
     except Exception as e:
