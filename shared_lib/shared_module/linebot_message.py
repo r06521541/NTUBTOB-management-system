@@ -23,14 +23,16 @@ from .general_message import (
     weekday_mapping,
     offseason_game_sign,
     normal_game_sign,
-    reply_text_mapping
+    reply_text_mapping,
+    offseason_game_reminder,
+    game_reminder
 )
 
 # announce cancellation
-def produce_cancellation_messages(games: list[Game]):
+def produce_cancellation_messages_by_games(games: list[Game]):
     sorted_games = sorted(games, key=lambda x: x.start_datetime)
     
-    message_text = '通知一下！這些比賽已經沒有出現在賽程表上，可能是賽程有調整。有任何疑問請跟幹部聯絡！\n'
+    message_text = ''
     for game in sorted_games:
         message_text += '\n'
         message_text += game.generate_game_summary(current_team)
@@ -42,7 +44,10 @@ def produce_cancellation_messages(games: list[Game]):
 
 
 # invite
-def produce_invite_messages(games: list[Game], is_broadcasting=False) -> str:
+def produce_invitation_messages_by_games(games: list[Game]) -> str:
+    if not games:
+        return []
+    
     sorted_games = sorted(games, key=lambda x: x.start_datetime)
     games_in_days = defaultdict(list)
     for game in sorted_games:
@@ -51,18 +56,12 @@ def produce_invite_messages(games: list[Game], is_broadcasting=False) -> str:
         games_in_days[game_date].append(game)
 
     messages = []
-    if is_broadcasting:
-        messages.append(_produce_intro_message())
     for date, games_in_a_day in games_in_days.items():
-        messages.append(_produce_game_message(games_in_a_day))
+        messages.append(_produce_invitation_message_by_games_in_a_day(games_in_a_day))
 
     return messages
 
-def _produce_intro_message() -> TextMessage:
-    reply_text = "熱騰騰的比賽消息來啦！麻煩回覆一下出席狀況唷～"
-    return TextMessage(text=reply_text)
-
-def _produce_game_message(games_in_a_day: list[Game]) -> FlexMessage:
+def _produce_invitation_message_by_games_in_a_day(games_in_a_day: list[Game]) -> FlexMessage:
     first_game = games_in_a_day[0]
     first_game_datetime = first_game.start_datetime.astimezone(local_timezone)
     
@@ -103,7 +102,7 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
     home_or_away = '先攻（一壘側）' if game.home_team == current_team else '先守（三壘側）'
     is_postseason = game.season == 3
     postseason_text = '季後賽 - ' if is_postseason else ''
-    reminder = '身分證要記得帶！' if is_postseason else '無'
+    reminder = offseason_game_reminder if is_postseason else game_reminder
 
     fake_api = "https://linecorp.com"
     attend_api = fake_api

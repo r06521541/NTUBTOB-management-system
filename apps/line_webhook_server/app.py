@@ -1,6 +1,7 @@
 from flask import Flask, request, abort, g
 from datetime import datetime, timedelta, timezone
 import threading
+import requests
 
 from linebot.v3 import (
     WebhookHandler
@@ -8,25 +9,30 @@ from linebot.v3 import (
 from linebot.v3.exceptions import (
     InvalidSignatureError,
 )
+from linebot.v3.messaging.models.message import Message
 from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
     TextMessage,
+    FlexMessage,
     PushMessageRequest,
     ApiException
 )
 from linebot.v3.webhooks import (
     Event,
+    FollowEvent,
+    UnfollowEvent,
     MessageEvent,
     TextMessageContent,
     PostbackEvent
 )
 
+from shared_module.line_users import LineUser
 from shared_module.games import Game
 from shared_module.linebot_message import (
-    produce_invite_messages,
+    produce_invitation_messages_by_games,
 )
 
 from envs import (
@@ -40,6 +46,8 @@ app = Flask(__name__)
 
 configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
+
+line_user_info_api = 'https://api.line.me/v2/bot/profile/'
 
 @app.route("/callback", methods=['POST'])
 def callback():
@@ -66,6 +74,7 @@ def handle_event(body: str, signature: str):
         line_bot_api = MessagingApi(api_client)
         
         g.line_bot_api = line_bot_api
+        g.messages_to_reply = [] # list[Message]
         try:
             handler.handle(body, signature)
         except ApiException as e:
@@ -73,10 +82,8 @@ def handle_event(body: str, signature: str):
 
 @handler.default()
 def handle_event_default(event: Event):
-    print('handle_event_default')
     if hasattr(event, 'reply_token'):
         g.reply_token = event.reply_token
-        print(g.reply_token)
     g.user_id = event.source.user_id
 
     if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
@@ -85,43 +92,78 @@ def handle_event_default(event: Event):
     elif isinstance(event, PostbackEvent):
         # 相當於@handler.add(PostbackEvent)
         handle_postback(event)
+    elif isinstance(event, FollowEvent):
+        # 相當於@handler.add(FollowEvent)
+        handle_follow(event)
+    elif isinstance(event, UnfollowEvent):
+        # 相當於@handler.add(UnfollowEvent)
+        handle_unfollow(event)
     # 還可以在這添加對其他事件類型的處理
 
+    reply_messages()
+
+def get_user_nickname(user_id: str):
+    headers = {"Authorization": "Bearer " + channel_access_token}
+    user_info = requests.get(line_user_info_api + user_id, headers=headers).json()
+    return user_info['displayName']
+
+def reply_messages():
+    if len(g.messages_to_reply) > 0:
+        try:
+            g.line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=g.reply_token,
+                    messages=g.messages_to_reply
+                )
+            )
+        except ApiException as e:
+            print(f"Exception when calling MessagingApi->reply_message: {e}\n")
+
+def add_message_to_reply(message: Message):
+    g.messages_to_reply.append(message)
+
+def add_messages_to_reply(messages: list[Message]):
+    g.messages_to_reply.extend(messages)
+    
+def add_text_message_to_reply(text):
+    g.messages_to_reply.append(TextMessage(text=text))
+
+def handle_follow(event: FollowEvent):
+    user = LineUser.search_by_id(g.user_id)
+    if user:
+        add_text_message_to_reply(general_message.welcome_back_message.format(name=user.nickname))
+    else:
+        add_text_message_to_reply(general_message.welcome_message)
+        LineUser.add_user(LineUser(get_user_nickname(g.user_id), g.user_id))
+
+    invitation_messages = produce_invitation_messages()
+    if (invitation_messages):
+        add_text_message_to_reply(general_message.welcome_inviting_game_message)
+        add_messages_to_reply(invitation_messages)
+    else:
+        add_text_message_to_reply(general_message.welcome_no_inviting_game_message)
+
+def handle_unfollow(event: UnfollowEvent):
+    user = LineUser.search_by_id(event.source.user_id)
+    print(f'Line user {user.nickname} unfollowed.')
 
 def handle_message(event: MessageEvent):
     message_text = event.message.text
     if message_text == '邀請':
-        reply_invitation()
+        add_messages_to_reply(produce_invitation_messages())
     elif message_text == '加入':
-        reply_text(general_message.welcome_message)
+        add_text_message_to_reply(general_message.welcome_message)
     else:
-        reply_text(message_text)
+        add_text_message_to_reply(message_text)
 
-def reply_text(text):
-    try:
-        g.line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=g.reply_token,
-                messages=[TextMessage(text=text)]
-            )
-        )
-    except ApiException as e:
-        print(f"Exception when calling MessagingApi->reply_message: {e}\n")
-
-def reply_invitation():
+def produce_invitation_messages() -> list[FlexMessage]:
     now = datetime.now(timezone.utc)
     end = now + timedelta(days=10)
-    games = Game.search_for_invitation(now, end)
-    messages = produce_invite_messages(games)
-    try:
-        g.line_bot_api.reply_message_with_http_info(
-            ReplyMessageRequest(
-                reply_token=g.reply_token,
-                messages=messages
-            )
-        )
-    except ApiException as e:
-        print(f"Exception when calling MessagingApi->reply_message: {e}\n")
+    games = Game.search_for_invited(now, end)
+    if games:
+        messages = produce_invitation_messages_by_games(games)
+        return messages
+    return []
 
 def handle_postback(event: PostbackEvent):
     postback_data = event.postback.data
@@ -129,7 +171,7 @@ def handle_postback(event: PostbackEvent):
     print(event.postback)
     print(event.source.user_id)
     reply_text_msg = f"Received postback data: {postback_data}"
-    reply_text(reply_text_msg)
+    add_text_message_to_reply(reply_text_msg)
 
 
 if __name__ == "__main__":
