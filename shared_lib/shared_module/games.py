@@ -6,9 +6,15 @@ from typing import Optional
 from dataclasses import dataclass, asdict
 
 from .db import connect_with_connector, get_table_name, get_schema_name
-
-
-local_timezone = timezone(timedelta(hours=8))  # 台北時間（UTC+08:00）
+from .settings import (
+    local_timezone
+)
+from .general_message import (
+    weekday_mapping,
+    offseason_game_sign,
+    normal_game_sign,
+    season_mapping
+)
 
 # 配置 SQLAlchemy 引擎
 engine = connect_with_connector()
@@ -59,6 +65,47 @@ class Game(Base):
                 return False
             return True
         return False
+    
+    def generate_summary(self):
+        game = self
+        start_datetime = game.start_datetime.astimezone(local_timezone)
+
+        # 獲取星期的中文表示
+        chinese_weekday = weekday_mapping[start_datetime.strftime("%A")]
+
+        # 格式化日期和時間
+        formatted_date = start_datetime.strftime("%m/%d（%a）").replace(
+            start_datetime.strftime("%a"), chinese_weekday
+        )
+        formatted_start_time = start_datetime.strftime("%H%M")
+        formatted_end_time = (start_datetime + game.duration).strftime("%H%M")
+
+        # 生成格式化字串
+        summary = f"{game.year}{season_mapping[game.season]} {formatted_date} {formatted_start_time} - {formatted_end_time} {game.home_team} vs {game.away_team} @{game.location}"
+        return summary
+
+    def generate_summary_for_team(self, current_team: str) -> str:
+        game = self
+        if current_team != game.home_team and current_team != game.away_team:
+            return game.generate_summary()
+        start_datetime = game.start_datetime.astimezone(local_timezone)
+
+        # 獲取星期的中文表示
+        chinese_weekday = weekday_mapping[start_datetime.strftime('%A')]
+        
+        # 格式化日期和時間
+        formatted_date = start_datetime.strftime("%m/%d（%a）").replace(start_datetime.strftime('%a'), chinese_weekday)
+        formatted_start_time = start_datetime.strftime("%H%M")
+        formatted_end_time = (start_datetime + timedelta(minutes=game.duration)).strftime("%H%M")
+        
+        # 判斷先後攻
+        is_home = current_team == game.home_team
+        another_team = game.away_team if is_home else game.home_team
+
+        # 生成格式化字串
+        game_sign = offseason_game_sign if game.season == 3 else normal_game_sign
+        summary = f"{game_sign} {formatted_date} {formatted_start_time} - {formatted_end_time} vs {another_team} {'先守' if is_home else '先攻'} @{game.location}"
+        return summary
     
     @classmethod
     def get_datetime(cls, datetime_str: str):               

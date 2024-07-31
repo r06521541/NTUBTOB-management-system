@@ -1,7 +1,7 @@
 import functions_framework
 from shared_module.games import Game
 from shared_module.games_crawler_client import CrawlerClient
-from shared_module.message import (
+from shared_module.line_notify_message import (
     generate_error_message,
     generate_schedule_message_for_team,
 )

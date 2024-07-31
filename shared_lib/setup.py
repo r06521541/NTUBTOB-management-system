@@ -11,7 +11,7 @@ setup(
     zip_safe=False,
     python_requires=">=3.10",
     install_requires=[
-        "requests==2.26.0",
+        "requests",
         "sqlalchemy==2.0.23",
         "cloud-sql-python-connector",
         "psycopg2-binary",
