@@ -8,6 +8,7 @@ from sqlalchemy.orm import relationship, mapped_column, Mapped, Session, Declara
 
 from .db import engine
 from .base import Base
+from ..settings import local_timezone
 
 @dataclass
 class LineUser(Base):
@@ -18,7 +19,7 @@ class LineUser(Base):
     nickname: Mapped[str] = mapped_column(String)
     line_user_id: Mapped[str] = mapped_column(String)
     member_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('ntubtob.members.id'))
-    submit_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    submit_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
     # 與 Member 的關聯是在 relationships.py 做定義
     member = relationship("Member", back_populates="line_users")
@@ -26,6 +27,7 @@ class LineUser(Base):
     def __init__(self, nickname: str, line_user_id: int):
         self.nickname = nickname
         self.line_user_id = line_user_id
+        self.submit_time = datetime.now(local_timezone)
 
     @classmethod 
     def from_dict(cls, data_dict: dict) -> 'LineUser':
@@ -53,7 +55,7 @@ class LineUser(Base):
         return result
     
     @classmethod
-    def add_user(cls, line_user: 'LineUser'):
+    def add(cls, line_user: 'LineUser'):
         with Session(engine) as session:
             # 加入資料庫
             session.add(line_user)

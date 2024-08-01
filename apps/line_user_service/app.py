@@ -22,7 +22,7 @@ def add_user():
         if user:
             return jsonify({'status': 'success', 'message': 'LINE user of the same ID already exists'})
         else:
-            LineUser.add_user(LineUser.from_dict(request_json))
+            LineUser.add(LineUser.from_dict(request_json))
             return jsonify({'status': 'success', 'message': 'New LINE user added successfully'})
 
     except Exception as e:

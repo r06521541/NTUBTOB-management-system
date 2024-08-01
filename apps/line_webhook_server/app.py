@@ -31,9 +31,11 @@ from linebot.v3.webhooks import (
 
 from shared_module.models.line_users import LineUser
 from shared_module.models.games import Game
+from shared_module.models.members import Member
 from shared_module.linebot_message import (
     produce_invitation_messages_by_games,
 )
+import shared_module.line_notify as line_notify
 
 from envs import (
     channel_access_token,
@@ -102,10 +104,20 @@ def handle_event_default(event: Event):
 
     reply_messages()
 
-def get_user_nickname(user_id: str):
+def get_user_nickname(user_id: str) -> str:
     headers = {"Authorization": "Bearer " + channel_access_token}
     user_info = requests.get(line_user_info_api + user_id, headers=headers).json()
     return user_info['displayName']
+
+def get_user_name(user: LineUser) -> str:
+    return get_member_name(user.member_id) if user else None
+
+def get_member_name(member_id: int) -> str:
+    member = Member.search_by_id(member_id)
+    return '' if member == None else member.name
+
+def get_user_note(real_name: str, nickname: str) -> str:
+    return '身分尚不明' if not real_name else '此為本名' if nickname == real_name else f'本名為{real_name}'
 
 def reply_messages():
     if len(g.messages_to_reply) > 0:
@@ -131,10 +143,15 @@ def add_text_message_to_reply(text):
 def handle_follow(event: FollowEvent):
     user = LineUser.search_by_id(g.user_id)
     if user:
-        add_text_message_to_reply(general_message.welcome_back_message.format(name=user.nickname))
+        nickname = get_user_nickname(event.source.user_id)
+        real_name = get_user_name(user)
+        add_text_message_to_reply(general_message.welcome_back_message.format(name=get_user_name(user)))
+        line_notify.notify_management_message(f'{nickname}（{get_user_note(real_name, nickname)}）已重返追蹤')
     else:
         add_text_message_to_reply(general_message.welcome_message)
-        LineUser.add_user(LineUser(get_user_nickname(g.user_id), g.user_id))
+        nickname = get_user_nickname(g.user_id)
+        LineUser.add(LineUser(nickname, g.user_id))
+        line_notify.notify_management_message(f'{nickname}已加入！')
 
     invitation_messages = produce_invitation_messages()
     if (invitation_messages):
@@ -145,12 +162,19 @@ def handle_follow(event: FollowEvent):
 
 def handle_unfollow(event: UnfollowEvent):
     user = LineUser.search_by_id(event.source.user_id)
-    print(f'Line user {user.nickname} unfollowed.')
+    nickname = user.nickname if user else None
+    real_name = get_user_name(user)
+    line_notify.notify_management_message(f'{nickname}（{get_user_note(real_name, nickname)}）已退追蹤')
 
 def handle_message(event: MessageEvent):
     message_text = event.message.text
     if message_text == '邀請':
         add_messages_to_reply(produce_invitation_messages())
+    elif message_text == '回來':
+        user = LineUser.search_by_id(g.user_id)
+        name = get_member_name(user.member_id) if user.member_id else None
+        name = name if name else user.nickname
+        add_text_message_to_reply(general_message.welcome_back_message.format(name=name))
     elif message_text == '加入':
         add_text_message_to_reply(general_message.welcome_message)
     else:
