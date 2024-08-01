@@ -6,11 +6,8 @@ from datetime import datetime
 from sqlalchemy import MetaData, Integer, String, DateTime, Table, ForeignKey, and_, insert, update
 from sqlalchemy.orm import relationship, mapped_column, Mapped, Session, DeclarativeBase
 
-from .db import connect_with_connector, get_table_name, get_schema_name
+from .db import engine
 from .base import Base
-
-# 配置 SQLAlchemy 引擎
-engine = connect_with_connector()
 
 @dataclass
 class LineUser(Base):

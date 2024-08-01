@@ -15,7 +15,7 @@ from linebot.v3.messaging import (
     FlexContainer,
 )
 
-from .games import Game
+from .models.games import Game
 from .settings import (
     current_team, local_timezone
 )

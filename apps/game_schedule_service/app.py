@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, abort
-from shared_module.games import Game
+from shared_module.models.games import Game
 
 from flask import Flask, request, jsonify, abort, Request
 from datetime import datetime

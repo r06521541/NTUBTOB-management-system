@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from .games import Game
 from .general_message import (
     weekday_mapping,
     offseason_game_sign,
     normal_game_sign,
     season_mapping
 )
+from .models.games import Game
 
 
 def generate_no_game_message():

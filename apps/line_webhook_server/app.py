@@ -29,8 +29,8 @@ from linebot.v3.webhooks import (
     PostbackEvent
 )
 
-from shared_module.line_users import LineUser
-from shared_module.games import Game
+from shared_module.models.line_users import LineUser
+from shared_module.models.games import Game
 from shared_module.linebot_message import (
     produce_invitation_messages_by_games,
 )

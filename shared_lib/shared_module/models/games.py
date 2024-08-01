@@ -5,22 +5,17 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from dataclasses import dataclass, asdict
 
-from .db import connect_with_connector, get_table_name, get_schema_name
-from .settings import (
+from .db import engine
+from ..settings import (
     local_timezone
 )
-from .general_message import (
+from ..general_message import (
     weekday_mapping,
     offseason_game_sign,
     normal_game_sign,
     season_mapping
 )
-
-# 配置 SQLAlchemy 引擎
-engine = connect_with_connector()
-
-class Base(DeclarativeBase):
-    pass
+from .base import Base
 
 @dataclass
 class Game(Base):

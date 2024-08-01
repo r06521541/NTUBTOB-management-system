@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, abort
-from shared_module.line_users import LineUser
+from shared_module.models.line_users import LineUser
 
 app = Flask(__name__)
 
