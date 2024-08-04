@@ -17,7 +17,7 @@ def main(request):
 
     try:
         game_list = [Game.from_dict(data) for data in games]
-        message = generate_schedule_message_for_team(game_list, envs.team_name)
+        message = generate_schedule_message_for_team(game_list)
         NotifyClient(envs.notify_token_id, envs.notify_api).send(message)
     except Exception as e:
         message = generate_error_message()

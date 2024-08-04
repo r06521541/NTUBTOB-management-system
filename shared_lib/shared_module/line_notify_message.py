@@ -26,7 +26,7 @@ def generate_error_message():
     return message
 
 
-def generate_schedule_message_for_team(games: list[Game], your_team: str):
+def generate_schedule_message_for_team(games: list[Game]):
     message = "\n一週一度的通知又來囉！\n"
 
     this_week_games, this_month_games = get_this_week_and_month_games(games)
@@ -38,7 +38,7 @@ def generate_schedule_message_for_team(games: list[Game], your_team: str):
     if len(this_week_games) > 0:
         message = message + "\n本週的比賽如下：\n"
     for game in this_week_games:
-        message = message + game.generate_summary_for_team(your_team) + "\n"
+        message = message + game.generate_summary_for_team() + "\n"
         if game.season == 3:
             has_offseason = True
 
@@ -48,7 +48,7 @@ def generate_schedule_message_for_team(games: list[Game], your_team: str):
         else:
             message = message + "\n近一個月的比賽如下：\n"
     for game in this_month_games:
-        message = message + game.generate_summary_for_team(your_team) + "\n"
+        message = message + game.generate_summary_for_team() + "\n"
         if game.season == 3:
             has_offseason = True
 

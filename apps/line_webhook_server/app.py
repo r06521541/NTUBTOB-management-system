@@ -2,6 +2,7 @@ from flask import Flask, request, abort, g
 from datetime import datetime, timedelta, timezone
 import threading
 import requests
+from urllib.parse import urlparse, parse_qs
 
 from linebot.v3 import (
     WebhookHandler
@@ -32,16 +33,22 @@ from linebot.v3.webhooks import (
 from shared_module.models.line_users import LineUser
 from shared_module.models.games import Game
 from shared_module.models.members import Member
+from shared_module.models.game_attendance_replies import GameAttendanceReply
 from shared_module.linebot_message import (
     produce_invitation_messages_by_games,
+    produce_message_of_game_query_attendance
 )
 import shared_module.line_notify as line_notify
+from shared_module.general_message import (
+    reply_text_mapping
+)
 
 from envs import (
     channel_access_token,
     channel_secret
 )
-import general_message
+import message_templates_user
+import message_templates_management
 
 
 app = Flask(__name__)
@@ -145,38 +152,43 @@ def handle_follow(event: FollowEvent):
     if user:
         nickname = get_user_nickname(event.source.user_id)
         real_name = get_user_name(user)
-        add_text_message_to_reply(general_message.welcome_back_message.format(name=get_user_name(user)))
-        line_notify.notify_management_message(f'{nickname}（{get_user_note(real_name, nickname)}）已重返追蹤')
+        add_text_message_to_reply(message_templates_user.welcome_back.format(name=get_user_name(user)))
+        line_notify.notify_management_message(message_templates_management.member_come_back(nickname=nickname, note=get_user_note(real_name, nickname)))
     else:
-        add_text_message_to_reply(general_message.welcome_message)
+        add_text_message_to_reply(message_templates_user.welcome)
         nickname = get_user_nickname(g.user_id)
         LineUser.add(LineUser(nickname, g.user_id))
-        line_notify.notify_management_message(f'{nickname}已加入！')
+        line_notify.notify_management_message(message_templates_management.new_user(nickname=nickname))
 
     invitation_messages = produce_invitation_messages()
     if (invitation_messages):
-        add_text_message_to_reply(general_message.welcome_inviting_game_message)
+        add_text_message_to_reply(message_templates_user.welcome_inviting_game)
         add_messages_to_reply(invitation_messages)
     else:
-        add_text_message_to_reply(general_message.welcome_no_inviting_game_message)
+        add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
 
 def handle_unfollow(event: UnfollowEvent):
     user = LineUser.search_by_id(event.source.user_id)
     nickname = user.nickname if user else None
     real_name = get_user_name(user)
-    line_notify.notify_management_message(f'{nickname}（{get_user_note(real_name, nickname)}）已退追蹤')
+    line_notify.notify_management_message(message_templates_management.user_left(nickname=nickname, note=get_user_note(real_name, nickname)))
 
 def handle_message(event: MessageEvent):
     message_text = event.message.text
     if message_text == '邀請':
-        add_messages_to_reply(produce_invitation_messages())
+        invitation_messages = produce_invitation_messages()
+        if (invitation_messages):
+            add_text_message_to_reply(message_templates_user.welcome_inviting_game)
+            add_messages_to_reply(invitation_messages)
+        else:
+            add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
     elif message_text == '回來':
         user = LineUser.search_by_id(g.user_id)
         name = get_member_name(user.member_id) if user.member_id else None
         name = name if name else user.nickname
-        add_text_message_to_reply(general_message.welcome_back_message.format(name=name))
+        add_text_message_to_reply(message_templates_user.welcome_back.format(name=name))
     elif message_text == '加入':
-        add_text_message_to_reply(general_message.welcome_message)
+        add_text_message_to_reply(message_templates_user.welcome)
     else:
         add_text_message_to_reply(message_text)
 
@@ -190,13 +202,57 @@ def produce_invitation_messages() -> list[FlexMessage]:
     return []
 
 def handle_postback(event: PostbackEvent):
-    postback_data = event.postback.data
+    parsed_url = urlparse(event.postback.data)
+    path = parsed_url.path
+    if path == 'reply_game_attendance':    
+        handle_postback_reply_game_attendance(parsed_url.query)
 
-    print(event.postback)
-    print(event.source.user_id)
-    reply_text_msg = f"Received postback data: {postback_data}"
-    add_text_message_to_reply(reply_text_msg)
+    if path == 'query_attendance_of_game':
+        handle_postback_query_attendance_of_game(parsed_url.query)
 
+def handle_postback_reply_game_attendance(query: str):
+    user = LineUser.search_by_id(g.user_id)    
+    member_id = user.member_id
+
+    if not member_id:
+        add_text_message_to_reply(message_templates_user.not_authenticated)
+        return
+
+    query_params = parse_qs(query)
+    game_id = int(query_params.get('id', [-1])[0])
+    reply = int(query_params.get('reply', [-1])[0])
+    
+    game = Game.search_by_id(game_id)
+
+    if game.start_datetime < datetime.now(timezone.utc):
+        add_text_message_to_reply(message_templates_user.game_already_past.format(game_verbal_summary=game.generate_verbal_summary_for_team()))
+        return
+    if game.cancellation_time:
+        add_text_message_to_reply(message_templates_user.game_already_cancelled.format(game_verbal_summary=game.generate_verbal_summary_for_team()))
+        return
+
+    is_different_reply = True
+    old_replies = GameAttendanceReply.search_single_game_reply_of_member(game_id, member_id)
+    if old_replies:
+        if old_replies[-1].reply == reply:
+            is_different_reply = False
+    else:
+        add_message_to_reply(produce_message_of_game_query_attendance(game))
+    
+    if is_different_reply:
+        GameAttendanceReply.add(GameAttendanceReply(game_id, user.id, member_id, reply))
+        add_text_message_to_reply(message_templates_user.game_reply.format(game_verbal_summary=game.generate_verbal_summary_for_team(), reply=reply_text_mapping[reply]))
+        line_notify.notify_management_message(message_templates_management.member_reply_attendance.format(game_short_summary=game.generate_short_summary_for_team(),
+                                                                                                          member=get_member_name(member_id),
+                                                                                                          reply=reply_text_mapping[reply]))
+    else:
+        add_text_message_to_reply(message_templates_user.game_same_reply.format(game_verbal_summary=game.generate_verbal_summary_for_team()))
+
+
+def handle_postback_query_attendance_of_game(query: str):
+    add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
+
+    
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)
