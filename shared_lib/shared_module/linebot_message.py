@@ -15,7 +15,7 @@ from linebot.v3.messaging import (
     FlexContainer,
 )
 
-from .games import Game
+from .models.games import Game
 from .settings import (
     current_team, local_timezone
 )
@@ -44,7 +44,7 @@ def produce_cancellation_messages_by_games(games: list[Game]):
 
 
 # invite
-def produce_invitation_messages_by_games(games: list[Game]) -> str:
+def produce_invitation_messages_by_games(games: list[Game]) -> list[FlexMessage]:
     if not games:
         return []
     
@@ -346,3 +346,63 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
     }
 
     return bubble
+
+def produce_message_of_game_query_attendance(game: Game) -> FlexMessage:
+    game_datetime = game.start_datetime.astimezone(local_timezone)
+    
+    # 獲取星期的中文表示
+    chinese_weekday = weekday_mapping[game_datetime.strftime('%A')]    
+    # 格式化日期和時間
+    date = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
+
+    opponent = game.away_team if game.home_team == current_team else game.home_team
+    location = game.location
+
+    hint = f"點開訊息，查看一下{date}在{location}打{opponent}的比賽有誰會到！"
+    
+    contents = {
+      "type": "carousel",
+      "contents": [_produce_bubble_of_game_query_attendance(game)],
+    }
+    contents_string = json.dumps(contents, indent=4)
+    return FlexMessage(alt_text=hint, contents=FlexContainer.from_json(contents_string))
+
+
+def _produce_bubble_of_game_query_attendance(game: Game) -> dict[str, Any]:
+    return {
+          "type": "bubble",
+          "size": "giga",
+          "body": {
+            "type": "box",
+            "layout": "vertical",
+            "contents": [
+              {
+                "type": "text",
+                "text": game.generate_short_summary_for_team(),
+                "weight": "bold",
+                "size": "sm"
+              }
+            ],
+            "margin": "none",
+            "spacing": "none"
+          },
+          "footer": {
+            "type": "box",
+            "layout": "vertical",
+            "spacing": "none",
+            "contents": [
+              {
+                "type": "button",
+                "action": {
+                  "type": "postback",
+                  "label": "這場有誰來❓",
+                  "data": "query_attendance_of_game?id=111",
+                  "displayText": f"{game.generate_verbal_summary_for_team()}這場有誰來？"
+                },
+                "height": "sm",
+                "style": "primary"
+              }
+            ],
+            "margin": "sm"
+          }
+        }

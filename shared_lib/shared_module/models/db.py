@@ -2,15 +2,6 @@ import os
 
 import sqlalchemy
 
-
-def get_schema_name():
-    return os.environ.get("DB_SCHEMA")
-
-
-def get_table_name():
-    return os.environ.get("DB_TABLE")
-
-
 def connect_with_connector() -> sqlalchemy.engine.base.Engine:
     # PostgreSQL 連線字串格式：postgresql://username:password@hostname:port/database_name
     dsn_database = os.environ.get("DSN_DATABASE")
@@ -26,3 +17,6 @@ def connect_with_connector() -> sqlalchemy.engine.base.Engine:
     engine = sqlalchemy.create_engine(connection_string)
 
     return engine
+
+# 配置 SQLAlchemy 引擎
+engine = connect_with_connector()

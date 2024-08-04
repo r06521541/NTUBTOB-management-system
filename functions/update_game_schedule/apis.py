@@ -1,6 +1,6 @@
 from shared_module.games_crawler_client import CrawlerClient
 from shared_module.notify_client import NotifyClient
-from shared_module.games import Game
+from shared_module.models.games import Game
 
 import envs
 

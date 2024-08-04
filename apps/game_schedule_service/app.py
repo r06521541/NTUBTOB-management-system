@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, abort
-from shared_module.games import Game
+from shared_module.models.games import Game
 
 from flask import Flask, request, jsonify, abort, Request
 from datetime import datetime
@@ -79,9 +79,9 @@ def search_cancelled_to_announce():
 def search_by_id():
     try:
         # 讀取比賽資訊，輸出
-        games = Game.search_by_id(get_id_from_json(request))
+        game = Game.search_by_id(get_id_from_json(request))
         # 使用列表推導式將每個物件轉換為字典
-        game_list = [game.as_dict() for game in games]
+        game_list = [game.as_dict()]
         return jsonify({'status': 'success', 'games': game_list})
 
     except Exception as e:

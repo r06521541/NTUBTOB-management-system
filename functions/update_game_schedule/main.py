@@ -1,6 +1,6 @@
 import functions_framework
 from datetime import datetime, timedelta, timezone
-from shared_module.games import Game
+from shared_module.models.games import Game
 
 import envs
 import apis

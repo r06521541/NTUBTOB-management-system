@@ -5,22 +5,18 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from dataclasses import dataclass, asdict
 
-from .db import connect_with_connector, get_table_name, get_schema_name
-from .settings import (
-    local_timezone
+from .db import engine
+from ..settings import (
+    local_timezone,
+    current_team
 )
-from .general_message import (
+from ..general_message import (
     weekday_mapping,
     offseason_game_sign,
     normal_game_sign,
     season_mapping
 )
-
-# 配置 SQLAlchemy 引擎
-engine = connect_with_connector()
-
-class Base(DeclarativeBase):
-    pass
+from .base import Base
 
 @dataclass
 class Game(Base):
@@ -74,7 +70,7 @@ class Game(Base):
         chinese_weekday = weekday_mapping[start_datetime.strftime("%A")]
 
         # 格式化日期和時間
-        formatted_date = start_datetime.strftime("%m/%d（%a）").replace(
+        formatted_date = start_datetime.strftime("%-m/%-d（%a）").replace(
             start_datetime.strftime("%a"), chinese_weekday
         )
         formatted_start_time = start_datetime.strftime("%H%M")
@@ -84,7 +80,7 @@ class Game(Base):
         summary = f"{game.year}{season_mapping[game.season]} {formatted_date} {formatted_start_time} - {formatted_end_time} {game.home_team} vs {game.away_team} @{game.location}"
         return summary
 
-    def generate_summary_for_team(self, current_team: str) -> str:
+    def generate_summary_for_team(self) -> str:
         game = self
         if current_team != game.home_team and current_team != game.away_team:
             return game.generate_summary()
@@ -94,7 +90,7 @@ class Game(Base):
         chinese_weekday = weekday_mapping[start_datetime.strftime('%A')]
         
         # 格式化日期和時間
-        formatted_date = start_datetime.strftime("%m/%d（%a）").replace(start_datetime.strftime('%a'), chinese_weekday)
+        formatted_date = start_datetime.strftime("%-m/%-d（%a）").replace(start_datetime.strftime('%a'), chinese_weekday)
         formatted_start_time = start_datetime.strftime("%H%M")
         formatted_end_time = (start_datetime + timedelta(minutes=game.duration)).strftime("%H%M")
         
@@ -106,6 +102,29 @@ class Game(Base):
         game_sign = offseason_game_sign if game.season == 3 else normal_game_sign
         summary = f"{game_sign} {formatted_date} {formatted_start_time} - {formatted_end_time} vs {another_team} {'先守' if is_home else '先攻'} @{game.location}"
         return summary
+    
+    def generate_short_summary_for_team(self) -> str:
+        game = self
+        game_datetime = game.start_datetime.astimezone(local_timezone)    
+        # 獲取星期的中文表示
+        chinese_weekday = weekday_mapping[game_datetime.strftime('%A')]    
+        # 格式化日期和時間
+        date = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
+        begin_time = game_datetime.strftime("%H:%M")
+        location = game.location
+        opponent = game.away_team if game.home_team == current_team else game.home_team
+        return f"{date} {begin_time} vs {opponent} @{location}"
+
+    def generate_verbal_summary_for_team(self) -> str:
+        game = self
+        game_datetime = game.start_datetime.astimezone(local_timezone)    
+        # 獲取星期的中文表示
+        chinese_weekday = weekday_mapping[game_datetime.strftime('%A')]    
+        # 格式化日期和時間
+        date = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
+        opponent = game.away_team if game.home_team == current_team else game.home_team
+        
+        return f"{date}打{opponent}"
     
     @classmethod
     def get_datetime(cls, datetime_str: str):               
@@ -157,7 +176,7 @@ class Game(Base):
         return all(field in json for field in required_fields)
 
     @classmethod 
-    def search_by_id(cls, game_id: str):
+    def search_by_id(cls, game_id: str) -> 'Game':
         with Session(engine) as session:
             games = session.query(Game).filter(
                 and_(
@@ -165,7 +184,7 @@ class Game(Base):
                 )
             ).all()
 
-        return games
+        return games[0] if games else None
 
     @classmethod 
     def is_start_end_time_json_valid(cls, json):
