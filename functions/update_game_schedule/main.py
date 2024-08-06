@@ -31,14 +31,16 @@ def main(request):
     is_successful = True
     for game_to_add in games_to_add:
         Game.add_game(game_to_add)
+        line_notify.notify_successful_log(f"賽程更新 -- 已成功添加新比賽\n{game_to_add.generate_short_summary_for_team()}")
 
     for game_to_cancel in games_to_cancel:
         if game_to_cancel.start_datetime < now:
             continue        
         Game.update_cancellation_time(game_to_cancel.id, now)
+        line_notify.notify_successful_log(f"賽程更新 -- 已成功取消這場比賽\n{game_to_cancel.generate_short_summary_for_team()}")
 
     if is_successful:
-        line_notify.notify_successful_log("賽程更新 -- 已成功將賽程更新到games資料表")
+        line_notify.notify_successful_log("賽程更新 -- 已成功完成此次games資料表的更新")
     return ''
 
 def game_crawl(team_name: str, start_time: datetime, end_time: datetime) -> list[Game]:
