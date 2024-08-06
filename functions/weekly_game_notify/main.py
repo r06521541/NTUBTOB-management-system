@@ -4,8 +4,9 @@ from shared_module.line_notify_message import (
     generate_error_message,
     generate_schedule_message_for_team,
 )
-from shared_module.notify_client import NotifyClient
-from shared_module.models.games import Game
+import shared_module.line_notify as line_notify
+import shared_module.settings as settings
+import shared_module.models.games as Game
 
 import envs
 
@@ -17,12 +18,10 @@ def main(request):
 
     try:
         game_list = [Game.from_dict(data) for data in games]
-        message = generate_schedule_message_for_team(game_list)
-        NotifyClient(envs.notify_token_id, envs.notify_api).send(message)
+        message = generate_schedule_message_for_team(game_list, settings.current_team)
+        line_notify.notify_announcement(message)
     except Exception as e:
         message = generate_error_message()
-        NotifyClient(envs.notify_alarm_token_id, envs.notify_api).send(
-            "weekly-game-notify: " + repr(e)
-        )
+        line_notify.notify_alarm_log("weekly-game-notify: " + repr(e))
 
     return ""

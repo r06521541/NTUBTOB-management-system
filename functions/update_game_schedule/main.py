@@ -1,23 +1,25 @@
 import functions_framework
 from datetime import datetime, timedelta, timezone
 from shared_module.models.games import Game
+from shared_module.games_crawler_client import CrawlerClient
+import shared_module.line_notify as line_notify
+import shared_module.settings as settings
 
 import envs
-import apis
 
 
 @functions_framework.http
 def main(request):    
-    team_name = envs.team_name
+    team_name = settings.current_team
     now = datetime.now(timezone.utc)
     end_time = now + timedelta(days=30)
-    games_after = apis.game_crawl(team_name, now, end_time)
+    games_after = game_crawl(team_name, now, end_time)
     if games_after is None:
-        apis.notify_alarm("賽程更新失敗 -- 爬蟲撈不到比賽")
+        line_notify.notify_alarm_log("賽程更新失敗 -- 爬蟲撈不到比賽")
         return ''
     games_before_update = Game.search_between(now, end_time)
     if games_before_update is None:
-        apis.notify_alarm("賽程更新失敗 -- 搜不到資料表中的比賽")
+        line_notify.notify_alarm_log("賽程更新失敗 -- 搜不到資料表中的比賽")
         return ''    
 
     # 找到需要新增的比賽
@@ -36,6 +38,19 @@ def main(request):
         Game.update_cancellation_time(game_to_cancel.id, now)
 
     if is_successful:
-        apis.notify_successful("賽程更新 -- 已成功將賽程更新到games資料表")
+        line_notify.notify_successful_log("賽程更新 -- 已成功將賽程更新到games資料表")
     return ''
 
+def game_crawl(team_name: str, start_time: datetime, end_time: datetime) -> list[Game]:
+    games_crawler_client = CrawlerClient(envs.game_crawl_api)
+    games = games_crawler_client.get_games()
+    game_list = [Game.from_dict(data) for data in games]
+    try:
+        games = [game for game in game_list if game.home_team == team_name or game.away_team == team_name]
+        games = [game for game in game_list if game.start_datetime >= start_time and game.start_datetime <= end_time]
+        return games
+    
+    except Exception as e:
+        line_notify.notify_alarm_log(repr(e))
+
+    return None
