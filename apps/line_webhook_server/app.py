@@ -42,6 +42,8 @@ import shared_module.line_notify as line_notify
 from shared_module.general_message import (
     reply_text_mapping
 )
+import shared_module.attendance_analyzer as attendance_analyzer
+import shared_module.linebot_attendance_message as linebot_attendance_message
 
 from envs import (
     channel_access_token,
@@ -248,7 +250,15 @@ def handle_postback_reply_game_attendance(query: str):
         add_message_to_reply(produce_message_of_game_query_attendance(game))
 
 def handle_postback_query_attendance_of_game(query: str):
-    add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
+
+    query_params = parse_qs(query)
+    game_id = int(query_params.get('id', [-1])[0])
+    mapping = attendance_analyzer.get_attendance_of_game(game_id)
+    game = Game.search_by_id(game_id)
+    message = linebot_attendance_message.produce_attendance_message(game, mapping)
+    add_message_to_reply(message)
+    
+    #add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
 
     
 

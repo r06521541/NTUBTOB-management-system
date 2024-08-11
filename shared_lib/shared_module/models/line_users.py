@@ -23,6 +23,7 @@ class LineUser(Base):
 
     # 與 Member 的關聯是在 relationships.py 做定義
     member = relationship("Member", back_populates="line_users")
+    #attendance_replies = relationship("GameAttendanceReply", back_populates="line_user")
 
     def __init__(self, nickname: str, line_user_id: int):
         self.nickname = nickname

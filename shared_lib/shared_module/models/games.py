@@ -1,6 +1,6 @@
 from sqlalchemy import Integer, String, DateTime
 from sqlalchemy import update, and_
-from sqlalchemy.orm import Session, DeclarativeBase, mapped_column, Mapped
+from sqlalchemy.orm import Session, DeclarativeBase, mapped_column, Mapped, relationship
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from dataclasses import dataclass, asdict
@@ -35,6 +35,8 @@ class Game(Base):
     cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     
+    #attendance_replies = relationship("GameAttendanceReply", back_populates="game")
+
     def as_dict(self):
         result = asdict(self)
         # Convert datetime to ISO 8601 format
