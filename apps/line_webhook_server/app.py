@@ -34,7 +34,7 @@ from shared_module.models.line_users import LineUser
 from shared_module.models.games import Game
 from shared_module.models.members import Member
 from shared_module.models.game_attendance_replies import GameAttendanceReply
-from shared_module.linebot_message import (
+from shared_module.linebot_game_message import (
     produce_invitation_messages_by_games,
     produce_message_of_game_query_attendance
 )
@@ -223,12 +223,13 @@ def handle_postback_reply_game_attendance(query: str):
     reply = int(query_params.get('reply', [-1])[0])
     
     game = Game.search_by_id(game_id)
+    game_verbal_summary = game.generate_verbal_summary_for_team()
 
     if game.start_datetime < datetime.now(timezone.utc):
-        add_text_message_to_reply(message_templates_user.game_already_past.format(game_verbal_summary=game.generate_verbal_summary_for_team()))
+        add_text_message_to_reply(message_templates_user.game_already_past.format(game_verbal_summary=game_verbal_summary))
         return
     if game.cancellation_time:
-        add_text_message_to_reply(message_templates_user.game_already_cancelled.format(game_verbal_summary=game.generate_verbal_summary_for_team()))
+        add_text_message_to_reply(message_templates_user.game_already_cancelled.format(game_verbal_summary=game_verbal_summary))
         return
 
     is_different_reply = True
@@ -236,18 +237,15 @@ def handle_postback_reply_game_attendance(query: str):
     if old_replies:
         if old_replies[-1].reply == reply:
             is_different_reply = False
-    else:
-        add_message_to_reply(produce_message_of_game_query_attendance(game))
     
     if is_different_reply:
         GameAttendanceReply.add(GameAttendanceReply(game_id, user.id, member_id, reply))
-        add_text_message_to_reply(message_templates_user.game_reply.format(game_verbal_summary=game.generate_verbal_summary_for_team(), reply=reply_text_mapping[reply]))
-        line_notify.notify_management_message(message_templates_management.member_reply_attendance.format(game_short_summary=game.generate_short_summary_for_team(),
-                                                                                                          member=get_member_name(member_id),
-                                                                                                          reply=reply_text_mapping[reply]))
+        add_text_message_to_reply(message_templates_user.game_reply.format(game_verbal_summary=game_verbal_summary, reply=reply_text_mapping[reply]))
     else:
-        add_text_message_to_reply(message_templates_user.game_same_reply.format(game_verbal_summary=game.generate_verbal_summary_for_team()))
+        add_text_message_to_reply(message_templates_user.game_same_reply.format(game_verbal_summary=game_verbal_summary))
 
+    if not old_replies:
+        add_message_to_reply(produce_message_of_game_query_attendance(game))
 
 def handle_postback_query_attendance_of_game(query: str):
     add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
