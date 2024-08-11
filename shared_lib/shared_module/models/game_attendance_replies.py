@@ -23,9 +23,9 @@ class GameAttendanceReply(Base):
     reply: Mapped[int] = mapped_column(SmallInteger)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
-    # game = relationship("Game", back_populates="attendance_replies")
-    # line_user = relationship("LineUser", back_populates="attendance_replies")
-    # member = relationship("Member", back_populates="attendance_replies")
+    game = relationship("Game", back_populates="attendance_replies")
+    line_user = relationship("LineUser", back_populates="attendance_replies")
+    member = relationship("Member", back_populates="attendance_replies")
 
     def __init__(self, game_id: int, user_id: int, member_id: int, reply: int):
         self.game_id = game_id

@@ -19,7 +19,7 @@ class Member(Base):
 
     # 與 LineUser 的關聯是在 relationships.py 做定義
     line_users = relationship("LineUser", back_populates="member")
-    # attendance_replies = relationship("GameAttendanceReply", back_populates="member")
+    attendance_replies = relationship("GameAttendanceReply", back_populates="member")
 
     @classmethod 
     def search_by_id(cls, id: str) -> 'Member':

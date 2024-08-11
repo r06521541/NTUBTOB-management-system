@@ -35,7 +35,7 @@ class Game(Base):
     cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     
-    #attendance_replies = relationship("GameAttendanceReply", back_populates="game")
+    attendance_replies = relationship("GameAttendanceReply", back_populates="game")
 
     def as_dict(self):
         result = asdict(self)
