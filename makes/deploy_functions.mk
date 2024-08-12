@@ -39,6 +39,7 @@ deploy-weekly-game-notify:
 	gcloud functions deploy weekly-game-notify \
 		--region asia-east1 \
 		--gen2 \
+        --set-secrets '${SECRET_STRING_DSN_PASSWORD}' \
 		--env-vars-file envs/weekly_game_notify/.env.yaml \
 		--runtime python310 \
 		--trigger-http \
