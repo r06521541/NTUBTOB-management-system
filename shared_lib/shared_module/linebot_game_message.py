@@ -20,6 +20,7 @@ from .settings import (
     current_team, local_timezone
 )
 from .general_message import (
+    cancellation_announcement_opening,
     weekday_mapping,
     offseason_game_sign,
     normal_game_sign,
@@ -29,19 +30,17 @@ from .general_message import (
 )
 
 # announce cancellation
-def produce_cancellation_messages_by_games(games: list[Game]):
+def produce_cancellation_messages_by_games(games: list[Game]) -> TextMessage:
+    if not games:
+        return None
     sorted_games = sorted(games, key=lambda x: x.start_datetime)
     
-    message_text = ''
+    message_text = cancellation_announcement_opening
     for game in sorted_games:
         message_text += '\n'
         message_text += game.generate_game_summary(current_team)
 
-    return [{
-            "type": "text",
-            "text": message_text
-        }]
-
+    return TextMessage(text=message_text)
 
 # invite
 def produce_invitation_messages_by_games(games: list[Game]) -> list[FlexMessage]:
@@ -103,13 +102,6 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
     is_postseason = game.season == 3
     postseason_text = '季後賽 - ' if is_postseason else ''
     reminder = offseason_game_reminder if is_postseason else game_reminder
-
-    fake_api = "https://linecorp.com"
-    attend_api = fake_api
-    not_attend_api = fake_api
-    arrive_late_api = fake_api
-    leave_early_api = fake_api
-    undecided_api = fake_api
 
     header_text = f"{postseason_text}{date} vs {opponent}"
     time_text = f"{date_with_weekday} {begin_time} - {end_time}"
@@ -396,7 +388,7 @@ def _produce_bubble_of_game_query_attendance(game: Game) -> dict[str, Any]:
                 "action": {
                   "type": "postback",
                   "label": "這場有誰來❓",
-                  "data": "query_attendance_of_game?id=111",
+                  "data": f"query_attendance_of_game?id={game.id}",
                   "displayText": f"{game.generate_verbal_summary_for_team()}這場有誰來？"
                 },
                 "height": "sm",
