@@ -4,9 +4,11 @@ from typing import Optional
 from datetime import datetime
 
 from sqlalchemy import MetaData, Integer, String, DateTime, Table, ForeignKey, and_, insert, update
-from sqlalchemy.orm import relationship, mapped_column, Mapped, Session, DeclarativeBase
+from sqlalchemy.orm import relationship, mapped_column, Mapped, Session, joinedload
 
 from .db import engine
+from .members import Member
+from .game_attendance_replies import GameAttendanceReply
 from .base import Base
 from ..settings import local_timezone
 
@@ -23,6 +25,7 @@ class LineUser(Base):
 
     # 與 Member 的關聯是在 relationships.py 做定義
     member = relationship("Member", back_populates="line_users")
+    attendance_replies = relationship("GameAttendanceReply", back_populates="line_user")
 
     def __init__(self, nickname: str, line_user_id: int):
         self.nickname = nickname
@@ -64,7 +67,7 @@ class LineUser(Base):
     @classmethod 
     def search_by_id(cls, line_user_id: str) -> 'LineUser':
         with Session(engine) as session:
-            users = session.query(LineUser).filter(
+            users = session.query(LineUser).options(joinedload(LineUser.member)).filter(
                 and_(
                     LineUser.line_user_id == line_user_id
                 )

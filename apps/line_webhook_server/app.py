@@ -42,6 +42,8 @@ import shared_module.line_notify as line_notify
 from shared_module.general_message import (
     reply_text_mapping
 )
+import shared_module.attendance_analyzer as attendance_analyzer
+import shared_module.linebot_attendance_message as linebot_attendance_message
 
 from envs import (
     channel_access_token,
@@ -93,7 +95,11 @@ def handle_event(body: str, signature: str):
 def handle_event_default(event: Event):
     if hasattr(event, 'reply_token'):
         g.reply_token = event.reply_token
+
     g.user_id = event.source.user_id
+    g.user = LineUser.search_by_id(g.user_id)
+    if not g.user and not isinstance(event, FollowEvent):
+        welcome()
 
     if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
         # 相當於@handler.add(MessageEvent, message=TextMessageContent)
@@ -117,11 +123,7 @@ def get_user_nickname(user_id: str) -> str:
     return user_info['displayName']
 
 def get_user_name(user: LineUser) -> str:
-    return get_member_name(user.member_id) if user else None
-
-def get_member_name(member_id: int) -> str:
-    member = Member.search_by_id(member_id)
-    return '' if member == None else member.name
+    return user.member.name if user.member else None
 
 def get_user_note(real_name: str, nickname: str) -> str:
     return '身分尚不明' if not real_name else '此為本名' if nickname == real_name else f'本名為{real_name}'
@@ -148,17 +150,19 @@ def add_text_message_to_reply(text):
     g.messages_to_reply.append(TextMessage(text=text))
 
 def handle_follow(event: FollowEvent):
-    user = LineUser.search_by_id(g.user_id)
-    if user:
-        nickname = get_user_nickname(event.source.user_id)
-        real_name = get_user_name(user)
-        add_text_message_to_reply(message_templates_user.welcome_back.format(name=get_user_name(user)))
-        line_notify.notify_management_message(message_templates_management.member_come_back(nickname=nickname, note=get_user_note(real_name, nickname)))
+    welcome()
+
+def welcome():
+    if g.user:
+        nickname = get_user_nickname(g.user_id)
+        real_name = get_user_name(g.user)
+        add_text_message_to_reply(message_templates_user.welcome_back.format(name=real_name))
+        line_notify.notify_management_message(message_templates_management.member_come_back.format(nickname=nickname, note=get_user_note(real_name, nickname)))
     else:
         add_text_message_to_reply(message_templates_user.welcome)
         nickname = get_user_nickname(g.user_id)
         LineUser.add(LineUser(nickname, g.user_id))
-        line_notify.notify_management_message(message_templates_management.new_user(nickname=nickname))
+        line_notify.notify_management_message(message_templates_management.new_user.format(nickname=nickname))
 
     invitation_messages = produce_invitation_messages()
     if (invitation_messages):
@@ -168,10 +172,15 @@ def handle_follow(event: FollowEvent):
         add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
 
 def handle_unfollow(event: UnfollowEvent):
-    user = LineUser.search_by_id(event.source.user_id)
-    nickname = user.nickname if user else None
-    real_name = get_user_name(user)
-    line_notify.notify_management_message(message_templates_management.user_left(nickname=nickname, note=get_user_note(real_name, nickname)))
+    for i in range(3):
+        try:
+            user = g.user
+            nickname = user.nickname if user else None
+            real_name = get_user_name(user)
+            line_notify.notify_management_message(message_templates_management.user_left.format(nickname=nickname, note=get_user_note(real_name, nickname)))
+            return
+        except Exception as e:
+            print(f"Exception when handling unfollow event: {e}\n")
 
 def handle_message(event: MessageEvent):
     message_text = event.message.text
@@ -183,9 +192,8 @@ def handle_message(event: MessageEvent):
         else:
             add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
     elif message_text == '回來':
-        user = LineUser.search_by_id(g.user_id)
-        name = get_member_name(user.member_id) if user.member_id else None
-        name = name if name else user.nickname
+        name = get_user_name(g.user)
+        name = name if name else g.user.nickname
         add_text_message_to_reply(message_templates_user.welcome_back.format(name=name))
     elif message_text == '加入':
         add_text_message_to_reply(message_templates_user.welcome)
@@ -211,8 +219,7 @@ def handle_postback(event: PostbackEvent):
         handle_postback_query_attendance_of_game(parsed_url.query)
 
 def handle_postback_reply_game_attendance(query: str):
-    user = LineUser.search_by_id(g.user_id)    
-    member_id = user.member_id
+    member_id = g.user.member_id
 
     if not member_id:
         add_text_message_to_reply(message_templates_user.not_authenticated)
@@ -239,7 +246,7 @@ def handle_postback_reply_game_attendance(query: str):
             is_different_reply = False
     
     if is_different_reply:
-        GameAttendanceReply.add(GameAttendanceReply(game_id, user.id, member_id, reply))
+        GameAttendanceReply.add(GameAttendanceReply(game_id, g.user.id, member_id, reply))
         add_text_message_to_reply(message_templates_user.game_reply.format(game_verbal_summary=game_verbal_summary, reply=reply_text_mapping[reply]))
     else:
         add_text_message_to_reply(message_templates_user.game_same_reply.format(game_verbal_summary=game_verbal_summary))
@@ -248,7 +255,15 @@ def handle_postback_reply_game_attendance(query: str):
         add_message_to_reply(produce_message_of_game_query_attendance(game))
 
 def handle_postback_query_attendance_of_game(query: str):
-    add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
+
+    query_params = parse_qs(query)
+    game_id = int(query_params.get('id', [-1])[0])
+    mapping = attendance_analyzer.get_attendance_of_game(game_id)
+    game = Game.search_by_id(game_id)
+    message = linebot_attendance_message.produce_attendance_message(game, mapping)
+    add_message_to_reply(message)
+    
+    #add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
 
     
 
