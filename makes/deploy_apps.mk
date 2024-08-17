@@ -84,3 +84,24 @@ deploy-game-broadcast-service:
 		
 	# delete temp env file
 	rm apps/${DIR_GAME_BROADCAST_SERVICE}/.env.yaml
+	
+	
+DIR_NOTIFY_CRONJOB_SERVICE = notify_cronjob_service
+NOTIFY_CRONJOB_SERVICE_NAME = notify-cronjob-service
+		
+deploy-notify-cronjob-service:
+	make build-shared-lib
+	mkdir -p apps/${DIR_NOTIFY_CRONJOB_SERVICE}/dist
+	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
+		apps/${DIR_NOTIFY_CRONJOB_SERVICE}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
+
+	# copy temp env file
+	cp envs/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml \
+		apps/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml
+
+	@echo "Building Docker image..."
+	cd apps/${DIR_NOTIFY_CRONJOB_SERVICE} && gcloud builds submit --region=${REGION} \
+		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${NOTIFY_CRONJOB_SERVICE_NAME}",_REGION="${REGION}" .
+		
+	# delete temp env file
+	rm apps/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml
