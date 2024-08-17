@@ -387,7 +387,7 @@ def _produce_bubble_of_game_query_attendance(game: Game) -> dict[str, Any]:
                 "type": "button",
                 "action": {
                   "type": "postback",
-                  "label": "這場有誰來❓",
+                  "label": "來看這場有誰來❓",
                   "data": f"query_attendance_of_game?id={game.id}",
                   "displayText": f"{game.generate_verbal_summary_for_team()}這場有誰來？"
                 },

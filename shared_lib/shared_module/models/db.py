@@ -14,7 +14,11 @@ def connect_with_connector() -> sqlalchemy.engine.base.Engine:
     connection_string = f"postgresql://{dsn_uid}:{dsn_password}@{dsn_hostname}:{dsn_port}/{dsn_database}"
 
     # 使用 create_engine 方法建立連線
-    engine = sqlalchemy.create_engine(connection_string)
+    engine = sqlalchemy.create_engine(connection_string,    
+                                      pool_size=10,
+                                      max_overflow=5,
+                                      pool_timeout=10,
+                                      pool_recycle=1800)
 
     return engine
 

@@ -24,6 +24,7 @@ steps:
         --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/management-system-docker-repo/${_SERVICE_NAME}-image:tag1 \
         --update-secrets=DSN_PASSWORD=supabase-database-password:latest \
         --region ${_REGION} \
+        --no-cpu-throttling \
         --platform managed \
         --allow-unauthenticated \
         --env-vars-file .env.yaml
