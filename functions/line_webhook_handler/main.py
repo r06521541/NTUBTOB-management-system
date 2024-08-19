@@ -1,4 +1,6 @@
-from flask import Flask, request, abort, g
+
+import functions_framework
+from flask import g
 from datetime import datetime, timedelta, timezone
 import threading
 import requests
@@ -54,43 +56,40 @@ import message_templates_user
 import message_templates_management
 
 
-app = Flask(__name__)
 
 configuration = Configuration(access_token=channel_access_token)
 handler = WebhookHandler(channel_secret)
 
 line_user_info_api = 'https://api.line.me/v2/bot/profile/'
 
-@app.route("/callback", methods=['POST'])
-def callback():
+
+
+@functions_framework.http
+def main(request):
     # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
 
     # get request body as text
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
 
     # handle webhook body
     try:
-        threading.Thread(target=handle_event, args=(body, signature)).start()
+        handle_event(body, signature)
     except InvalidSignatureError:
-        app.logger.info("Invalid signature. Please check your channel access token/channel secret.")
-        abort(400)
+        line_notify.notify_alarm_log("Invalid signature. Please check your channel access token/channel secret.")
 
     return 'OK'
 
 def handle_event(body: str, signature: str):
-    with app.app_context():
-        # 這裡是新執行緒，在這裡初始化下兩者，就能確保他們都是獨立的
-        api_client = ApiClient(configuration)
-        line_bot_api = MessagingApi(api_client)
-        
-        g.line_bot_api = line_bot_api
-        g.messages_to_reply = [] # list[Message]
-        try:
-            handler.handle(body, signature)
-        except ApiException as e:
-            app.logger.error(f"Exception: {e.status_code} - {e.message}")
+    api_client = ApiClient(configuration)
+    line_bot_api = MessagingApi(api_client)
+    
+    g.line_bot_api = line_bot_api
+    g.messages_to_reply = [] # list[Message]
+    try:
+        handler.handle(body, signature)
+    except ApiException as e:
+        line_notify.notify_alarm_log(f"Exception: {e.status_code} - {e.message}")
 
 @handler.default()
 def handle_event_default(event: Event):
@@ -275,6 +274,7 @@ def handle_postback_query_attendance_of_game(query: str):
     query_params = parse_qs(query)
     game_id = int(query_params.get('id', [-1])[0])
     game = Game.search_by_id(game_id)
+    game_verbal_summary = game.generate_verbal_summary_for_team()
 
     if game.start_datetime < datetime.now(timezone.utc):
         add_text_message_to_reply(message_templates_user.game_already_past.format(game_verbal_summary=game_verbal_summary))
