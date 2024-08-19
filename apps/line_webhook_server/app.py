@@ -222,15 +222,18 @@ def produce_invitation_messages() -> list[FlexMessage]:
 def handle_postback(event: PostbackEvent):
     parsed_url = urlparse(event.postback.data)
     path = parsed_url.path
-    if path == 'reply_game_attendance':    
+    if path == 'reply-game-attendance' or path == 'reply_game_attendance':
         handle_postback_reply_game_attendance(parsed_url.query)
 
-    if path == 'query_attendance_of_game':
+    if path == 'query-attendance-of-game' or path == 'query_attendance_of_game':
         handle_postback_query_attendance_of_game(parsed_url.query)
 
 def handle_postback_reply_game_attendance(query: str):
     member_id = g.user.member_id
 
+    if not g.user.has_replied:
+        add_text_message_to_reply(message_templates_user.has_not_replied_yet)
+        return
     if not member_id:
         add_text_message_to_reply(message_templates_user.not_authenticated)
         return
@@ -271,8 +274,16 @@ def handle_postback_reply_game_attendance(query: str):
 def handle_postback_query_attendance_of_game(query: str):    
     query_params = parse_qs(query)
     game_id = int(query_params.get('id', [-1])[0])
-    mapping = attendance_analyzer.get_attendance_of_game(game_id)
     game = Game.search_by_id(game_id)
+
+    if game.start_datetime < datetime.now(timezone.utc):
+        add_text_message_to_reply(message_templates_user.game_already_past.format(game_verbal_summary=game_verbal_summary))
+        return
+    if game.cancellation_time:
+        add_text_message_to_reply(message_templates_user.game_already_cancelled.format(game_verbal_summary=game_verbal_summary))
+        return
+    
+    mapping = attendance_analyzer.get_attendance_of_game(game_id)
     message = linebot_attendance_message.produce_attendance_message(game, mapping)
     add_message_to_reply(message)
 

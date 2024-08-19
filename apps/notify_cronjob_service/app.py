@@ -15,10 +15,7 @@ from linebot.v3.messaging import (
 
 from shared_module.games_crawler_client import CrawlerClient
 from shared_module.models.games import Game
-from shared_module.linebot_game_message import (
-    produce_invitation_messages_by_games,
-    produce_cancellation_messages_by_games,
-)
+import shared_module.linebot_game_message as linebot_game_message
 import shared_module.line_notify as line_notify
 from shared_module.settings import (
     local_timezone

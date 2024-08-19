@@ -16,7 +16,7 @@ from linebot.v3.messaging import (
 from shared_module.models.games import Game
 from shared_module.linebot_game_message import (
     produce_invitation_messages_by_games,
-    produce_cancellation_messages_by_games,
+    produce_cancellation_message_by_games,
 )
 import shared_module.line_notify as line_notify
 from shared_module.settings import (
@@ -42,7 +42,7 @@ app = Flask(__name__)
 configuration = Configuration(access_token=channel_access_token)
 
 
-@app.route("/invite", methods=['GET'])
+@app.route("/invitation-announcement/trigger", methods=['POST'])
 def invite():
     games = Game.search_for_invitation(now, ten_days_later)
     if games:
@@ -79,11 +79,11 @@ def broadcast(messages: list[Message]):
                 break
             time.sleep(5)
 
-@app.route("/announce_cancellation", methods=['GET'])
+@app.route("/cancellation-announcement/trigger", methods=['POST'])
 def announce_cancellation():
     games = Game.search_cancelled_to_announce(now, ten_days_later)
     if games:
-        messages = produce_new_cancellation_announcement_messages(games)
+        messages = [produce_cancellation_message_by_games(games)]
         try:
             broadcast(messages)
             mark_games_as_cancellation_announced(games)
@@ -100,13 +100,6 @@ def produce_new_invitation_messages(games: list[Game]) -> list[FlexMessage]:
     if games:        
         messages = [TextMessage(text=message_templates_user.invitation_intro)]
         messages.extend(produce_invitation_messages_by_games(games))
-        return messages
-    return []
-    
-def produce_new_cancellation_announcement_messages(games: list[Game]) -> list[FlexMessage]:
-    if games:        
-        messages = [TextMessage(text=message_templates_user.cancellation_intro)]
-        messages.extend(produce_cancellation_messages_by_games(games))
         return messages
     return []
 
