@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 import threading
 import requests
 from urllib.parse import urlparse, parse_qs
+import time
 
 from linebot.v3 import (
     WebhookHandler
@@ -103,7 +104,7 @@ def handle_event_default(event: Event):
 
     if isinstance(event, MessageEvent) and isinstance(event.message, TextMessageContent):
         # 相當於@handler.add(MessageEvent, message=TextMessageContent)
-        handle_message(event)
+        handle_text_message(event)
     elif isinstance(event, PostbackEvent):
         # 相當於@handler.add(PostbackEvent)
         handle_postback(event)
@@ -138,7 +139,7 @@ def reply_messages():
                 )
             )
         except ApiException as e:
-            print(f"Exception when calling MessagingApi->reply_message: {e}\n")
+            app.logger.info(f"Exception when calling MessagingApi->reply_message: {e}\n")
 
 def add_message_to_reply(message: Message):
     g.messages_to_reply.append(message)
@@ -158,18 +159,16 @@ def welcome():
         real_name = get_user_name(g.user)
         add_text_message_to_reply(message_templates_user.welcome_back.format(name=real_name))
         line_notify.notify_management_message(message_templates_management.member_come_back.format(nickname=nickname, note=get_user_note(real_name, nickname)))
+        
+        invitation_messages = produce_invitation_messages()
+        if (invitation_messages):
+            add_messages_to_reply(invitation_messages)
     else:
         add_text_message_to_reply(message_templates_user.welcome)
         nickname = get_user_nickname(g.user_id)
-        LineUser.add(LineUser(nickname, g.user_id))
+        g.user = LineUser(nickname, g.user_id)
+        LineUser.add(g.user)
         line_notify.notify_management_message(message_templates_management.new_user.format(nickname=nickname))
-
-    invitation_messages = produce_invitation_messages()
-    if (invitation_messages):
-        add_text_message_to_reply(message_templates_user.welcome_inviting_game)
-        add_messages_to_reply(invitation_messages)
-    else:
-        add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
 
 def handle_unfollow(event: UnfollowEvent):
     for i in range(3):
@@ -180,11 +179,15 @@ def handle_unfollow(event: UnfollowEvent):
             line_notify.notify_management_message(message_templates_management.user_left.format(nickname=nickname, note=get_user_note(real_name, nickname)))
             return
         except Exception as e:
-            print(f"Exception when handling unfollow event: {e}\n")
+            app.logger.info(f"Exception when handling unfollow event: {e}\n")
 
-def handle_message(event: MessageEvent):
+def handle_text_message(event: MessageEvent):
+    user = g.user
     message_text = event.message.text
-    if message_text == '邀請':
+    if not user.has_replied:
+        user.mark_as_first_replied()
+        welcome_after_first_message()
+    elif message_text == '邀請':
         invitation_messages = produce_invitation_messages()
         if (invitation_messages):
             add_text_message_to_reply(message_templates_user.welcome_inviting_game)
@@ -192,13 +195,20 @@ def handle_message(event: MessageEvent):
         else:
             add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
     elif message_text == '回來':
-        name = get_user_name(g.user)
-        name = name if name else g.user.nickname
+        name = get_user_name(user)
+        name = name if name else user.nickname
         add_text_message_to_reply(message_templates_user.welcome_back.format(name=name))
     elif message_text == '加入':
         add_text_message_to_reply(message_templates_user.welcome)
+
+def welcome_after_first_message():
+    add_text_message_to_reply(message_templates_user.welcome_after_first_message)
+    invitation_messages = produce_invitation_messages()
+    if (invitation_messages):
+        add_messages_to_reply(invitation_messages)
+        add_text_message_to_reply(message_templates_user.welcome_inviting_game)
     else:
-        add_text_message_to_reply(message_text)
+        add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
 
 def produce_invitation_messages() -> list[FlexMessage]:
     now = datetime.now(timezone.utc)
@@ -238,6 +248,8 @@ def handle_postback_reply_game_attendance(query: str):
     if game.cancellation_time:
         add_text_message_to_reply(message_templates_user.game_already_cancelled.format(game_verbal_summary=game_verbal_summary))
         return
+    
+    is_new_member = len(GameAttendanceReply.search_by_member_id(member_id)) == 0
 
     is_different_reply = True
     old_replies = GameAttendanceReply.search_single_game_reply_of_member(game_id, member_id)
@@ -251,21 +263,19 @@ def handle_postback_reply_game_attendance(query: str):
     else:
         add_text_message_to_reply(message_templates_user.game_same_reply.format(game_verbal_summary=game_verbal_summary))
 
+    if is_new_member:
+        add_text_message_to_reply(message_templates_user.first_game_reply_hint)
     if not old_replies:
         add_message_to_reply(produce_message_of_game_query_attendance(game))
 
-def handle_postback_query_attendance_of_game(query: str):
-
+def handle_postback_query_attendance_of_game(query: str):    
     query_params = parse_qs(query)
     game_id = int(query_params.get('id', [-1])[0])
     mapping = attendance_analyzer.get_attendance_of_game(game_id)
     game = Game.search_by_id(game_id)
     message = linebot_attendance_message.produce_attendance_message(game, mapping)
     add_message_to_reply(message)
-    
-    #add_text_message_to_reply(message_templates_user.feature_not_implemented_yet_massage)
 
-    
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=8080)

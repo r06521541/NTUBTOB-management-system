@@ -3,7 +3,7 @@ from typing import Optional
 
 from datetime import datetime
 
-from sqlalchemy import MetaData, Integer, String, DateTime, Table, ForeignKey, and_, insert, update
+from sqlalchemy import MetaData, Integer, String, Boolean, DateTime, Table, ForeignKey, and_, insert, update
 from sqlalchemy.orm import relationship, mapped_column, Mapped, Session, joinedload
 
 from .db import engine
@@ -22,6 +22,7 @@ class LineUser(Base):
     line_user_id: Mapped[str] = mapped_column(String)
     member_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('ntubtob.members.id'))
     submit_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    has_replied: Mapped[bool] = mapped_column(Boolean)
 
     # 與 Member 的關聯是在 relationships.py 做定義
     member = relationship("Member", back_populates="line_users")
@@ -31,6 +32,7 @@ class LineUser(Base):
         self.nickname = nickname
         self.line_user_id = line_user_id
         self.submit_time = datetime.now(local_timezone)
+        self.has_replied = False
 
     @classmethod 
     def from_dict(cls, data_dict: dict) -> 'LineUser':
@@ -79,4 +81,9 @@ class LineUser(Base):
     def update_member_id(cls, line_user_id: str, new_member_id: str):        
         with Session(engine) as session:
             session.execute(update(LineUser).where(LineUser.line_user_id == line_user_id).values(member_id=new_member_id))
+            session.commit()
+
+    def mark_as_first_replied(self):        
+        with Session(engine) as session:
+            session.execute(update(LineUser).where(LineUser.id == self.id).values(has_replied=True))
             session.commit()

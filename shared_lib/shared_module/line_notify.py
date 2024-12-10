@@ -1,3 +1,4 @@
+import threading
 import requests
 from .models.line_notify_tokens import LineNotifyToken
 
@@ -12,6 +13,9 @@ failure_message = 'LINE Notify傳送失敗 - token ID: {token_id}, 內容: {cont
 
 
 def _notify(token_id: int, message: str):
+    threading.Thread(target=_execute_notify, args=(token_id, message)).start()
+
+def _execute_notify(token_id: int, message: str):
     notify_token = LineNotifyToken.search_by_id(token_id)
 
     if not notify_token or len(notify_token) == 0:
