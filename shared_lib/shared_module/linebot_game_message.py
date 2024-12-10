@@ -30,15 +30,16 @@ from .general_message import (
 )
 
 # announce cancellation
-def produce_cancellation_messages_by_games(games: list[Game]) -> TextMessage:
+def produce_cancellation_message_by_games(games: list[Game]) -> TextMessage:
     if not games:
         return None
     sorted_games = sorted(games, key=lambda x: x.start_datetime)
     
     message_text = cancellation_announcement_opening
+    message_text += '\n'
     for game in sorted_games:
         message_text += '\n'
-        message_text += game.generate_game_summary(current_team)
+        message_text += game.generate_short_summary_for_team()
 
     return TextMessage(text=message_text)
 
@@ -260,7 +261,7 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
                     "action": {
                       "type": "postback",
                       "label": reply_text_mapping[1],
-                      "data": f"reply_game_attendance?id={game.id}&reply={1}",
+                      "data": f"reply-game-attendance?id={game.id}&reply={1}",
                       "displayText": f"{time_text} {reply_text_mapping[1]}"
                     }
                   },
@@ -270,7 +271,7 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
                     "action": {
                       "type": "postback",
                       "label": reply_text_mapping[2],
-                      "data": f"reply_game_attendance?id={game.id}&reply={2}",
+                      "data": f"reply-game-attendance?id={game.id}&reply={2}",
                       "displayText": f"{time_text} {reply_text_mapping[2]}"
                     },
                     "height": "sm",
@@ -284,7 +285,7 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
                 "action": {
                   "type": "postback",
                   "label": reply_text_mapping[5],
-                  "data": f"reply_game_attendance?id={game.id}&reply={5}",
+                  "data": f"reply-game-attendance?id={game.id}&reply={5}",
                   "displayText": f"{time_text} {reply_text_mapping[5]}"
                 },
                 "height": "sm",
@@ -308,7 +309,7 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
                     "action": {
                       "type": "postback",
                       "label": reply_text_mapping[3],
-                      "data": f"reply_game_attendance?id={game.id}&reply={3}",
+                      "data": f"reply-game-attendance?id={game.id}&reply={3}",
                       "displayText": f"{time_text} {reply_text_mapping[3]}"
                     },
                     "style": "link"
@@ -319,7 +320,7 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
                     "action": {
                       "type": "postback",
                       "label": reply_text_mapping[4],
-                      "data": f"reply_game_attendance?id={game.id}&reply={4}",
+                      "data": f"reply-game-attendance?id={game.id}&reply={4}",
                       "displayText": f"{time_text} {reply_text_mapping[4]}"
                     },
                     "style": "link"
@@ -388,7 +389,7 @@ def _produce_bubble_of_game_query_attendance(game: Game) -> dict[str, Any]:
                 "action": {
                   "type": "postback",
                   "label": "來看這場有誰來❓",
-                  "data": f"query_attendance_of_game?id={game.id}",
+                  "data": f"query-attendance-of-game?id={game.id}",
                   "displayText": f"{game.generate_verbal_summary_for_team()}這場有誰來？"
                 },
                 "height": "sm",
