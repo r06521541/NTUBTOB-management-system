@@ -14,7 +14,9 @@ deploy-notify-token-service-add:
 		--trigger-http \
 		--no-allow-unauthenticated \
 		--entry-point add \
-		--source functions/notify_token_service/
+		--source functions/notify_token_service/ \
+    	--clear-cache
+		
 
 deploy-notify-token-service-get:
 	make build-shared-lib
@@ -29,7 +31,8 @@ deploy-notify-token-service-get:
 		--trigger-http \
 		--no-allow-unauthenticated \
 		--entry-point get \
-		--source functions/notify_token_service/
+		--source functions/notify_token_service/ \
+    	--clear-cache
 
 deploy-weekly-game-notify:
 	make build-shared-lib
@@ -45,7 +48,8 @@ deploy-weekly-game-notify:
 		--trigger-http \
 		--no-allow-unauthenticated \
 		--entry-point main \
-		--source functions/weekly_game_notify/
+		--source functions/weekly_game_notify/ \
+    	--clear-cache
 		
 DIR_NAME_UPDATE_GAME_SCHEDULE = update_game_schedule
 FUNCTION_NAME_UPDATE_GAME_SCHEDULE = update-game-schedule
@@ -64,7 +68,8 @@ deploy-update-game-schedule:
 		--trigger-http \
 		--no-allow-unauthenticated \
 		--entry-point main \
-		--source functions/${DIR_NAME_UPDATE_GAME_SCHEDULE}/
+		--source functions/${DIR_NAME_UPDATE_GAME_SCHEDULE}/ \
+    	--clear-cache
 
 
 DIR_NAME_LINE_WEBHOOK_HANDLER = line_webhook_handler
@@ -84,4 +89,5 @@ deploy-line-webhook-handler:
 		--trigger-http \
 		--allow-unauthenticated \
 		--entry-point main \
-		--source functions/${DIR_NAME_LINE_WEBHOOK_HANDLER}/
+		--source functions/${DIR_NAME_LINE_WEBHOOK_HANDLER}/ \
+    	--clear-cache

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>未來賽程</title>
+        <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <meta property="og:title" content="未來賽程" />
+        <meta property="og:description" content="提供未來一個月的比賽資訊" />
+        <meta property="og:image" content="https://storage.googleapis.com/web_portal_images/logo_square.png" />
+    </head>
+    <body>
+        <div class="container">
+            <div class="row">
+                <h1 class="mb-4">未來賽程</h1>            
+                {% if this_week_games|length == 0 and this_month_games|length == 0 %}
+                    <div class="row">
+                        <p>近一個月尚未有聯盟賽呢～</p>
+                        <p>請密切注意幹部的通知，或上<a href="https://cabl.org.tw/schedule.php" target="_blank">聯盟官網</a>確認詳細資訊！</p>
+                        <p>期待下一場比賽！💪</p>
+                    </div>
+                {% else %}
+                    <div class="row">
+                        {% if this_week_games|length > 0 %}
+                            <p>本週的比賽如下：</p>
+                            {% for game in this_week_games %}
+                                <p>{{ game.generate_summary_for_team() }}</p>
+                            {% endfor %}
+                        {% else %}
+                            <p>本週沒有比賽！</p>
+                        {% endif %}
+
+                        {% if this_month_games|length > 0 %}
+                            <p>近一個月{{ '其餘' if this_week_games|length > 0 else '' }}的比賽如下：</p>
+                            {% for game in this_month_games %}
+                                <p>{{ game.generate_summary_for_team() }}</p>
+                            {% endfor %}
+                        {% endif %}
+                        
+                        {% if has_offseason %}
+                            <p>🥎︎ 黃球為季後賽</p>
+                        {% endif %}
+                        <p>一切資訊以<a href="https://cabl.org.tw/schedule.php" target="_blank">聯盟官網</a>發布為準，可前往確認詳細資訊！</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </body>
+</html>

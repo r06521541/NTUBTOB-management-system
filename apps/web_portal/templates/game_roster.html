@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>出賽名單守位</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta property="og:title" content="出賽名單守位" />
+    <meta property="og:description" content="提供安排守備位置" />
+    <meta property="og:image" content="https://storage.googleapis.com/web_portal_images/logo_square.png" />
+</head>
+<body>
+    <div class="container">
+        <h1>指派守備位置</h1>
+        <h5>{{ game.generate_summary_for_team() }}</h5>
+        <div class="mt-4" id="result">
+            教練：<br>
+            投：<br>
+            捕：<br>
+            內：<br>
+            外：<br><br>
+        </div>
+        <p>
+            還沒確定：            
+            {% for player in players_not_reply_yet %}
+                <span>{{ player }}{% if not loop.last %}、{% endif %}</span>
+            {% endfor %}
+            <br>
+        </p>
+        <form id="position-form">
+            <button type="submit" class="btn btn-primary mt-3">產生列表</button>
+            <div class="row mt-3">
+                <div class="col-md-2">
+                    <h3>教練</h3>
+                    <select class="form-select" id="coach-select">
+                        <!-- Player options will be populated here -->
+                    </select>
+                    <ul class="list-group mt-2" id="coach-list">
+                        <!-- Selected players will appear here -->
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h3>投手</h3>
+                    <select class="form-select" id="pitcher-select">
+                        <!-- Player options will be populated here -->
+                    </select>
+                    <ul class="list-group mt-2" id="pitcher-list">
+                        <!-- Selected players will appear here -->
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h3>捕手</h3>
+                    <select class="form-select" id="catcher-select">
+                        <!-- Player options will be populated here -->
+                    </select>
+                    <ul class="list-group mt-2" id="catcher-list">
+                        <!-- Selected players will appear here -->
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h3>內野手</h3>
+                    <select class="form-select" id="infield-select">
+                        <!-- Player options will be populated here -->
+                    </select>
+                    <ul class="list-group mt-2" id="infield-list">
+                        <!-- Selected players will appear here -->
+                    </ul>
+                </div>
+                <div class="col-md-2">
+                    <h3>外野手</h3>
+                    <select class="form-select" id="outfield-select">
+                        <!-- Player options will be populated here -->
+                    </select>
+                    <ul class="list-group mt-2" id="outfield-list">
+                        <!-- Selected players will appear here -->
+                    </ul>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let players = {{ players | tojson }};
+        let assignedPlayers = {
+            coach: [],
+            pitcher: [],
+            catcher: [],
+            infield: [],
+            outfield: []
+        };
+
+
+        function populateDropdowns() {
+            let availablePlayers = players.filter(p => !Object.values(assignedPlayers).flat().includes(p));
+            let dropdowns = ['coach', 'pitcher', 'catcher', 'infield', 'outfield'];
+
+            dropdowns.forEach(position => {
+                let select = document.getElementById(position + '-select');
+                select.innerHTML = '';
+
+                // Add the default option
+                let defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = '------';
+                defaultOption.disabled = true;
+                defaultOption.selected = true;
+                select.appendChild(defaultOption);
+
+                // Add available player options
+                availablePlayers.forEach(player => {
+                    let option = document.createElement('option');
+                    option.value = player;
+                    option.textContent = player;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        function addPlayer(position) {
+            let select = document.getElementById(position + '-select');
+            let player = select.value;
+            if (player) {
+                assignedPlayers[position].push(player);
+                updateLists();
+                populateDropdowns();
+            }
+        }
+
+        function removePlayer(position, player) {
+            assignedPlayers[position] = assignedPlayers[position].filter(p => p !== player);
+            updateLists();
+            populateDropdowns();
+        }
+
+        function updateLists() {
+            let positions = [ 'coach', 'pitcher', 'catcher', 'infield', 'outfield'];
+
+            positions.forEach(position => {
+                let list = document.getElementById(position + '-list');
+                list.innerHTML = '';
+                assignedPlayers[position].forEach(player => {
+                    let listItem = document.createElement('li');
+                    listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                    listItem.textContent = player;
+                    let removeBtn = document.createElement('button');
+                    removeBtn.className = 'btn btn-sm btn-danger';
+                    removeBtn.textContent = 'x';
+                    removeBtn.onclick = () => removePlayer(position, player);
+                    listItem.appendChild(removeBtn);
+                    list.appendChild(listItem);
+                });
+            });
+        }
+
+        document.getElementById('position-form').onsubmit = function(event) {
+            event.preventDefault();  // 阻止表單的預設提交動作
+            
+            // 對每個位置的玩家列表按字符串長度進行排序
+            let sortedCoaches = [...assignedPlayers.coach].sort((a, b) => a.length - b.length);
+            let sortedPitchers = [...assignedPlayers.pitcher].sort((a, b) => a.length - b.length);
+            let sortedCatchers = [...assignedPlayers.catcher].sort((a, b) => a.length - b.length);
+            let sortedInfielders = [...assignedPlayers.infield].sort((a, b) => a.length - b.length);
+            let sortedOutfielders = [...assignedPlayers.outfield].sort((a, b) => a.length - b.length);
+
+            // 構建結果字符串
+            let resultText = `教練：${sortedCoaches.join('、')}
+                投：${sortedPitchers.join('、')}
+                捕：${sortedCatchers.join('、')}
+                內：${sortedInfielders.join('、')}
+                外：${sortedOutfielders.join('、')}\n
+            `;
+
+            // 顯示結果
+            document.getElementById('result').innerText = resultText;
+        };
+
+
+        document.getElementById('coach-select').onchange = () => addPlayer('coach');
+        document.getElementById('pitcher-select').onchange = () => addPlayer('pitcher');
+        document.getElementById('catcher-select').onchange = () => addPlayer('catcher');
+        document.getElementById('infield-select').onchange = () => addPlayer('infield');
+        document.getElementById('outfield-select').onchange = () => addPlayer('outfield');
+
+        populateDropdowns();
+    </script>
+</body>
+</html>

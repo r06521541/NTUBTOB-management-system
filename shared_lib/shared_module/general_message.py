@@ -20,8 +20,8 @@ reply_text_mapping = {
 season_mapping = {1: "上半季", 2: "下半季", 3: "季後賽"}
 
 # Signs
-normal_game_sign = '\U000026BE'
-offseason_game_sign = '\U0001F94E'
+normal_game_sign = '⚾'
+offseason_game_sign = '🥎'
 
 # Texts
 

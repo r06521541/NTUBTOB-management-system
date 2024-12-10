@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>配對新的LINE帳號成員</title>
+        <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <meta property="og:title" content="配對新成員" />
+        <meta property="og:description" content="配對新的LINE帳號成員" />
+        <meta property="og:image" content="https://storage.googleapis.com/web_portal_images/logo_square.png" />
+    </head>
+    <body>
+        <div class="container">
+            <h1 class="mb-4">配對新的LINE帳號成員</h1>
+            <form method="post" action="{{ url_for('match_line_user') }}">
+                {% for line_user in line_users %}
+                    <div class="row justify-content-md-center">
+                        <div class="col-md-2">
+                            <h5>{{ line_user.nickname }}</p>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('ignore_line_user') }}">忽視他</button>
+                        </div>
+                        <div class="col-md-2">
+                            <p>或是將他綁定為</p>
+                        </div>
+                        <div class="col-md-2">
+                            <select name="member_id">
+                                {% for member in members %}
+                                    <option value="{{ member.id }}">{{ member.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary">確認</button>
+                        </div>
+                        <div class="col">
+                            <input type="hidden" name="line_user_id" value="{{ line_user.line_user_id }}">
+                        </div>
+                    </div>
+                {% endfor %}
+            </form>
+        </div>
+    </body>
+</html>

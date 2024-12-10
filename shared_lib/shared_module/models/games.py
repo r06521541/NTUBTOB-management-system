@@ -64,69 +64,56 @@ class Game(Base):
             return True
         return False
     
-    def generate_summary(self):
-        game = self
-        start_datetime = game.start_datetime.astimezone(local_timezone)
+    def get_formatted_date(self) -> str:
+        start_datetime = self.start_datetime.astimezone(local_timezone)
 
         # 獲取星期的中文表示
         chinese_weekday = weekday_mapping[start_datetime.strftime("%A")]
 
         # 格式化日期和時間
-        formatted_date = start_datetime.strftime("%-m/%-d（%a）").replace(
+        return start_datetime.strftime("%-m/%-d（%a）").replace(
             start_datetime.strftime("%a"), chinese_weekday
         )
-        formatted_start_time = start_datetime.strftime("%H%M")
-        formatted_end_time = (start_datetime + game.duration).strftime("%H%M")
 
-        # 生成格式化字串
-        summary = f"{game.year}{season_mapping[game.season]} {formatted_date} {formatted_start_time} - {formatted_end_time} {game.home_team} vs {game.away_team} @{game.location}"
-        return summary
-
-    def generate_summary_for_team(self) -> str:
-        game = self
-        if current_team != game.home_team and current_team != game.away_team:
-            return game.generate_summary()
-        start_datetime = game.start_datetime.astimezone(local_timezone)
-
-        # 獲取星期的中文表示
-        chinese_weekday = weekday_mapping[start_datetime.strftime('%A')]
-        
+    def get_formatted_start_time(self) -> str:
+        start_datetime = self.start_datetime.astimezone(local_timezone)
+        return start_datetime.strftime("%H%M")
+    
+    def get_formatted_start_time_with_colon(self) -> str:
+        start_datetime = self.start_datetime.astimezone(local_timezone)
+        return start_datetime.strftime("%H:%M")
+    
+    def get_formatted_end_time(self) -> str:
+        start_datetime = self.start_datetime.astimezone(local_timezone)
         # 格式化日期和時間
-        formatted_date = start_datetime.strftime("%-m/%-d（%a）").replace(start_datetime.strftime('%a'), chinese_weekday)
-        formatted_start_time = start_datetime.strftime("%H%M")
-        formatted_end_time = (start_datetime + timedelta(minutes=game.duration)).strftime("%H%M")
-        
-        # 判斷先後攻
-        is_home = current_team == game.home_team
-        another_team = game.away_team if is_home else game.home_team
+        return (start_datetime + timedelta(minutes=self.duration)).strftime("%H%M")
 
+    def get_is_home_team(self) -> bool:
+        return current_team == self.home_team
+
+    def get_opponent(self) -> str:
+        return self.away_team if self.get_is_home_team() else self.home_team
+    
+    def get_game_sign(self):
+        return offseason_game_sign if self.is_offseason() else normal_game_sign
+    
+    def is_offseason(self):
+        return self.season == 3
+
+    def generate_summary(self):
+        return f"{self.year}{season_mapping[self.season]} {self.get_formatted_date()} {self.get_formatted_start_time()} - {self.get_formatted_end_time()} {self.home_team} vs {self.away_team} @{self.location}"
+        
+    def generate_summary_for_team(self) -> str:
+        if current_team != self.home_team and current_team != self.away_team:
+            return self.generate_summary()
         # 生成格式化字串
-        game_sign = offseason_game_sign if game.season == 3 else normal_game_sign
-        summary = f"{game_sign} {formatted_date} {formatted_start_time} - {formatted_end_time} vs {another_team} {'先守' if is_home else '先攻'} @{game.location}"
-        return summary
+        return f"{self.get_game_sign()} {self.get_formatted_date()} {self.get_formatted_start_time()} - {self.get_formatted_end_time()} vs {self.get_opponent()} {'先守' if self.get_is_home_team() else '先攻'} @{self.location}"
     
     def generate_short_summary_for_team(self) -> str:
-        game = self
-        game_datetime = game.start_datetime.astimezone(local_timezone)    
-        # 獲取星期的中文表示
-        chinese_weekday = weekday_mapping[game_datetime.strftime('%A')]    
-        # 格式化日期和時間
-        date = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
-        begin_time = game_datetime.strftime("%H:%M")
-        location = game.location
-        opponent = game.away_team if game.home_team == current_team else game.home_team
-        return f"{date} {begin_time} vs {opponent} @{location}"
+        return f"{self.get_formatted_date()} {self.get_formatted_start_time_with_colon()} vs {self.get_opponent()} @{self.location}"
 
-    def generate_verbal_summary_for_team(self) -> str:
-        game = self
-        game_datetime = game.start_datetime.astimezone(local_timezone)    
-        # 獲取星期的中文表示
-        chinese_weekday = weekday_mapping[game_datetime.strftime('%A')]    
-        # 格式化日期和時間
-        date = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
-        opponent = game.away_team if game.home_team == current_team else game.home_team
-        
-        return f"{date}打{opponent}"
+    def generate_verbal_summary_for_team(self) -> str:        
+        return f"{self.get_formatted_date()}打{self.get_opponent()}"
     
     @classmethod
     def get_datetime(cls, datetime_str: str):               
@@ -217,9 +204,9 @@ class Game(Base):
         return Game.search_games(start_time, end_time)
 
     @classmethod 
-    def search_for_invited(cls, start_time: datetime, end_time: datetime):    
-        return Game.search_games(start_time, end_time, has_invited=True)
-
+    def search_for_invited(cls):    
+        return Game.search_games(datetime.now(timezone.utc), datetime.max, has_invited=True)
+    
     @classmethod 
     def search_cancelled_to_announce(cls, start_time: datetime, end_time: datetime):    
         return Game.search_games(start_time, end_time, has_invited=True, has_cancelled=True)
@@ -251,7 +238,7 @@ class Game(Base):
             filters.append(Game.cancellation_announcement_time == None)
 
         with Session(engine) as session:
-            games = session.query(Game).filter(and_(*filters)).all()
+            games = session.query(Game).filter(and_(*filters)).order_by(Game.start_datetime).all()
         return games
 
     @classmethod 
@@ -271,7 +258,7 @@ class Game(Base):
     def update_cancellation_announcement_time(cls, game_id: int, time: datetime):    
         Game.update_time_field(game_id, time, 'cancellation_announcement_time')
 
-    @classmethod 
+    @classmethod
     def update_time_field(cls, game_id: int, time: datetime, field_name: str):
         update_data = {field_name: time}
         
@@ -279,3 +266,30 @@ class Game(Base):
             session.execute(update(Game).where(Game.id == game_id).values(**update_data))
             session.commit()
         
+        
+    @classmethod
+    def get_games_in_this_week_and_month(cls, total_games: list['Game']) -> tuple[list['Game'], list['Game']]:
+        this_week_games = []
+        this_month_games = []
+        aware_now = datetime.now().astimezone()
+        midnight_today = datetime.combine(
+            datetime.now().date(), datetime.min.time()
+        ).replace(tzinfo=aware_now.tzinfo)
+
+        for game in total_games:
+            if (
+                game.start_datetime > midnight_today
+                and game.start_datetime - midnight_today < timedelta(days=7)
+            ):
+                this_week_games.append(game)
+            elif (
+                game.start_datetime > midnight_today
+                and game.start_datetime - midnight_today < timedelta(days=30)
+            ):
+                this_month_games.append(game)
+
+        this_week_games.sort(key=lambda x: x.start_datetime)
+        this_month_games.sort(key=lambda x: x.start_datetime)
+
+        return this_week_games, this_month_games
+

@@ -10,33 +10,24 @@ from .db import engine
 from .base import Base
 
 @dataclass
-class Member(Base):
-    __tablename__ = 'members'
+class Ballpark(Base):
+    __tablename__ = 'ballparks'
     __table_args__ = {'schema': 'ntubtob'}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String)
-
-    # 與 LineUser 的關聯是在 relationships.py 做定義
-    line_users = relationship("LineUser", back_populates="member")
-    attendance_replies = relationship("GameAttendanceReply", back_populates="member")
+    city_name: Mapped[str] = mapped_column(String)
+    city_weather_code: Mapped[str] = mapped_column(String)
+    district_name: Mapped[str] = mapped_column(String)
 
     @classmethod 
-    def search_by_id(cls, id: str) -> 'Member':
+    def search_by_name(cls, name: str) -> 'Ballpark':
         with Session(engine) as session:
-            members = session.query(Member).filter(
+            members = session.query(Ballpark).filter(
                 and_(
-                    Member.id == id
+                    Ballpark.name == name
                 )
             ).all()
 
         return members[0] if members else None
-
-    @classmethod 
-    def search_all(cls) -> list['Member']:
-        with Session(engine) as session:
-            members = session.query(Member).all()
-
-        return members
-        
 
