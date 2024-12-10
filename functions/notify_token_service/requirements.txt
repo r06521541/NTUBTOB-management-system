@@ -1,4 +1,0 @@
-requests==2.26.0
-functions-framework==3.*
-flask==3.0.0
-dist/shared_lib-0.0.1.tar.gz
