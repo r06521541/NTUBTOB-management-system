@@ -36,7 +36,7 @@ def generate_error_message() -> str:
 def generate_schedule_message_for_team(games: list[Game]) -> str:
     message = "\n一週一度的通知又來囉！\n"
 
-    this_week_games, this_month_games = get_this_week_and_month_games(games)
+    this_week_games, this_month_games = Game.get_games_in_this_week_and_month(games)
 
     if len(this_week_games) == 0 and len(this_month_games) == 0:
         return generate_no_game_message()
@@ -64,29 +64,4 @@ def generate_schedule_message_for_team(games: list[Game]) -> str:
     message = message + "\n期待你到場助陣！\U0001F4AA"
     return message
 
-
-def get_this_week_and_month_games(total_games: list[Game]) -> tuple[list[Game], list[Game]]:
-    this_week_games = []
-    this_month_games = []
-    aware_now = datetime.now().astimezone()
-    midnight_today = datetime.combine(
-        datetime.now().date(), datetime.min.time()
-    ).replace(tzinfo=aware_now.tzinfo)
-
-    for game in total_games:
-        if (
-            game.start_datetime > midnight_today
-            and game.start_datetime - midnight_today < timedelta(days=7)
-        ):
-            this_week_games.append(game)
-        elif (
-            game.start_datetime > midnight_today
-            and game.start_datetime - midnight_today < timedelta(days=30)
-        ):
-            this_month_games.append(game)
-
-    this_week_games.sort(key=lambda x: x.start_datetime)
-    this_month_games.sort(key=lambda x: x.start_datetime)
-
-    return this_week_games, this_month_games
 

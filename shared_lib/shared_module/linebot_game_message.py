@@ -22,8 +22,6 @@ from .settings import (
 from .general_message import (
     cancellation_announcement_opening,
     weekday_mapping,
-    offseason_game_sign,
-    normal_game_sign,
     reply_text_mapping,
     offseason_game_reminder,
     game_reminder

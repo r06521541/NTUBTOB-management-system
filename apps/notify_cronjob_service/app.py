@@ -46,7 +46,7 @@ app = Flask(__name__)
 configuration = Configuration(access_token=channel_access_token)
 
 
-@app.route("/run-future-game-announcement", methods=['GET'])
+@app.route("/run-future-game-announcement", methods=['POST'])
 def run_future_game_announcement():
     games_crawler_client = CrawlerClient(game_crawl_api)    
     games = games_crawler_client.get_games()
@@ -62,15 +62,26 @@ def run_future_game_announcement():
 
     return ""
 
+@app.route("/run-new-game-invitation-announcement", methods=['POST'])
+def run_new_game_invitation_announcement():
+    games_crawler_client = CrawlerClient(game_crawl_api)    
+    games = games_crawler_client.get_games()
 
-@app.route("/run-game-attendance-count", methods=['GET'])
-def run_game_attendance_count():
-    now = datetime.now(local_timezone)
-    today_begin = datetime.combine(now, time.min, tzinfo=local_timezone)
-    seven_days_later = today_begin + timedelta(days=8)
-    
     try:
-        games = Game.search_for_invited(now, seven_days_later)
+        game_list = [Game.from_dict(data) for data in games]
+        message = generate_schedule_message_for_team(game_list)
+        line_notify.notify_announcement(message)        
+        line_notify.notify_successful_log(message_templates.run_future_game_announcement_successful)
+    except Exception as e:
+        message = generate_error_message()
+        line_notify.notify_alarm_log(message_templates.run_future_game_announcement.format(result=repr(e)))
+
+    return ""
+
+@app.route("/run-game-attendance-count", methods=['POST'])
+def run_game_attendance_count():    
+    try:
+        games = Game.search_for_invited()
         for game in games:
             mapping = attendance_analyzer.get_attendance_of_game(game.id)
             message = linebot_attendance_message.produce_attendance_message_text(game, mapping)

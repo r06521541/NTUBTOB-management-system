@@ -23,6 +23,7 @@ class LineUser(Base):
     member_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey('ntubtob.members.id'))
     submit_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     has_replied: Mapped[bool] = mapped_column(Boolean)
+    ignored: Mapped[bool] = mapped_column(Boolean)
 
     # 與 Member 的關聯是在 relationships.py 做定義
     member = relationship("Member", back_populates="line_users")
@@ -33,6 +34,7 @@ class LineUser(Base):
         self.line_user_id = line_user_id
         self.submit_time = datetime.now(local_timezone)
         self.has_replied = False
+        self.ignored = False
 
     @classmethod 
     def from_dict(cls, data_dict: dict) -> 'LineUser':
@@ -76,6 +78,18 @@ class LineUser(Base):
             ).all()
 
         return users[0] if users else None
+    
+    @classmethod 
+    def search_all_unknowns(cls) -> list['LineUser']:
+        with Session(engine) as session:
+            users = session.query(LineUser).filter(
+                and_(                    
+                    LineUser.member_id == None,
+                    LineUser.ignored == False
+                )
+            ).all()
+
+        return users
 
     @classmethod 
     def update_member_id(cls, line_user_id: str, new_member_id: str):        
@@ -83,7 +97,13 @@ class LineUser(Base):
             session.execute(update(LineUser).where(LineUser.line_user_id == line_user_id).values(member_id=new_member_id))
             session.commit()
 
-    def mark_as_first_replied(self):        
+    @classmethod 
+    def update_as_ignored(cls, line_user_id: str):
+        with Session(engine) as session:
+            session.execute(update(LineUser).where(LineUser.line_user_id == line_user_id).values(ignored=True))
+            session.commit()
+
+    def mark_as_first_replied(self):
         with Session(engine) as session:
             session.execute(update(LineUser).where(LineUser.id == self.id).values(has_replied=True))
             session.commit()

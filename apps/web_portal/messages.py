@@ -1,0 +1,1 @@
+match_user_as_member = "已將新使用者 {nickname} 的隊員身分配對為{member_name}！"

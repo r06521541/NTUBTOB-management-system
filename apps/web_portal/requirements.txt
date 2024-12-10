@@ -1,0 +1,4 @@
+flask==3.0.0
+Flask-Caching==2.3.0
+line-bot-sdk==3.11.0
+dist/shared_lib-0.0.1.tar.gz

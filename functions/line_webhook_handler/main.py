@@ -47,6 +47,7 @@ from shared_module.general_message import (
 )
 import shared_module.attendance_analyzer as attendance_analyzer
 import shared_module.linebot_attendance_message as linebot_attendance_message
+import shared_module.web_cache as web_cache
 
 from envs import (
     channel_access_token,
@@ -138,7 +139,7 @@ def reply_messages():
                 )
             )
         except ApiException as e:
-            app.logger.info(f"Exception when calling MessagingApi->reply_message: {e}\n")
+            line_notify.notify_alarm_log(f"Exception when calling MessagingApi->reply_message: {e}\n")
 
 def add_message_to_reply(message: Message):
     g.messages_to_reply.append(message)
@@ -178,7 +179,7 @@ def handle_unfollow(event: UnfollowEvent):
             line_notify.notify_management_message(message_templates_management.user_left.format(nickname=nickname, note=get_user_note(real_name, nickname)))
             return
         except Exception as e:
-            app.logger.info(f"Exception when handling unfollow event: {e}\n")
+            line_notify.notify_alarm_log(f"Exception when handling unfollow event: {e}\n")
 
 def handle_text_message(event: MessageEvent):
     user = g.user
@@ -189,14 +190,13 @@ def handle_text_message(event: MessageEvent):
     elif message_text == '邀請':
         invitation_messages = produce_invitation_messages()
         if (invitation_messages):
-            add_text_message_to_reply(message_templates_user.welcome_inviting_game)
             add_messages_to_reply(invitation_messages)
-        else:
-            add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
+
     elif message_text == '回來':
         name = get_user_name(user)
         name = name if name else user.nickname
         add_text_message_to_reply(message_templates_user.welcome_back.format(name=name))
+        
     elif message_text == '加入':
         add_text_message_to_reply(message_templates_user.welcome)
 
@@ -210,9 +210,7 @@ def welcome_after_first_message():
         add_text_message_to_reply(message_templates_user.welcome_no_inviting_game)
 
 def produce_invitation_messages() -> list[FlexMessage]:
-    now = datetime.now(timezone.utc)
-    end = now + timedelta(days=10)
-    games = Game.search_for_invited(now, end)
+    games = Game.search_for_invited()
     if games:
         messages = produce_invitation_messages_by_games(games)
         return messages
@@ -259,16 +257,18 @@ def handle_postback_reply_game_attendance(query: str):
         if old_replies[-1].reply == reply:
             is_different_reply = False
     
+
     if is_different_reply:
         GameAttendanceReply.add(GameAttendanceReply(game_id, g.user.id, member_id, reply))
         add_text_message_to_reply(message_templates_user.game_reply.format(game_verbal_summary=game_verbal_summary, reply=reply_text_mapping[reply]))
+        web_cache.clear_cache_of_attendance_page()
+        if datetime.now(timezone.utc) > game.start_datetime - timedelta(0, 0, 0, 0, 0, 12):
+            line_notify.notify_management_message(message_templates_management.member_rush_reply_attendance.format(game_short_summary=game_verbal_summary, member=get_user_name(g.user), reply=reply_text_mapping[reply]))
     else:
         add_text_message_to_reply(message_templates_user.game_same_reply.format(game_verbal_summary=game_verbal_summary))
 
     if is_new_member:
         add_text_message_to_reply(message_templates_user.first_game_reply_hint)
-    if not old_replies:
-        add_message_to_reply(produce_message_of_game_query_attendance(game))
 
 def handle_postback_query_attendance_of_game(query: str):    
     query_params = parse_qs(query)

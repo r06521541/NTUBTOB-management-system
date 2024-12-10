@@ -53,8 +53,7 @@ def search_for_invitation():
 def search_invited():
     try:
         # 讀取比賽資訊，輸出
-        start_time, end_time = get_start_end_time_from_json(request)
-        games = Game.search_for_invited(start_time, end_time)
+        games = Game.search_for_invited()
         # 使用列表推導式將每個物件轉換為字典
         game_list = [game.as_dict() for game in games]
         return jsonify({'status': 'success', 'games': game_list})
