@@ -1,4 +1,5 @@
 import requests
+import logging
 from datetime import datetime, timedelta, time
 
 from shared_module.models.games import Game
@@ -15,6 +16,16 @@ from emoji_mappings import (
     number_emoji_mapping,
     clock_emoji_mapping
 )
+from envs import get_weather_api_key
+
+
+WEATHER_API_BASE_URL = "https://opendata.cwa.gov.tw/api/v1/rest/datastore"
+WEATHER_REQUEST_TIMEOUT_SECONDS = 10
+logger = logging.getLogger(__name__)
+
+
+class WeatherServiceError(RuntimeError):
+	pass
 
 
 def get_game_reminder_string(before_days: int) -> str:
@@ -29,7 +40,6 @@ def get_game_reminder_string(before_days: int) -> str:
 		return None
 
 	location = games[0].location
-	ballpark = Ballpark.search_by_name(location)
 
 	# Generate reminder
 	first_game = games[0]
@@ -44,21 +54,91 @@ def get_game_reminder_string(before_days: int) -> str:
 		+ ''.join(
 			f'{"季後賽" if game.is_offseason() else "⚾"} {game.get_formatted_start_time()} - {game.get_formatted_end_time()} vs {game.get_opponent()} {"先守（三壘側）" if game.get_is_home_team() else "先攻（一壘側）"}\n'
 			for game in games
-		)		
-		+ f'\n{get_weather_string(target_date, day_name, ballpark.city_name, ballpark.city_weather_code, ballpark.district_name)}'
+		)
 	)
 
+	try:
+		ballpark = Ballpark.search_by_name(location)
+		if not ballpark:
+			raise WeatherServiceError(
+				"Weather location configuration is unavailable"
+			)
+		weather = get_weather_string(
+			target_date,
+			day_name,
+			ballpark.city_name,
+			ballpark.city_weather_code,
+			ballpark.district_name,
+		)
+	except WeatherServiceError:
+		logger.warning(
+			"Weather data unavailable; sending game reminder without weather"
+		)
+		return reminder
+
+	reminder += f'\n{weather}'
 	return reminder
 
 
+def get_weather_data(city_weather_code: str, district_name: str) -> dict:
+	try:
+		api_key = get_weather_api_key()
+	except RuntimeError:
+		raise WeatherServiceError(
+			"Weather API configuration is unavailable"
+		) from None
+
+	api = f'{WEATHER_API_BASE_URL}/F-D0047-{city_weather_code}'
+	params = {
+		'Authorization': api_key,
+		'elementName': 'Wx,AT,T,PoP6h',
+		'LocationName': district_name,
+	}
+
+	try:
+		response = requests.get(
+			api,
+			params=params,
+			timeout=WEATHER_REQUEST_TIMEOUT_SECONDS,
+		)
+		response.raise_for_status()
+	except requests.Timeout:
+		raise WeatherServiceError("Weather API request timed out") from None
+	except requests.RequestException:
+		raise WeatherServiceError("Weather API request failed") from None
+
+	try:
+		data_json = response.json()
+	except ValueError:
+		raise WeatherServiceError("Weather API returned invalid JSON") from None
+
+	try:
+		return data_json['records']['Locations'][0]['Location'][0]
+	except (KeyError, IndexError, TypeError):
+		raise WeatherServiceError("Weather API returned an invalid response") from None
+
+
 def get_weather_string(target_date: datetime, day_name: str, city_name: str, city_weather_code: str, district_name: str) -> str:
+	try:
+		return _build_weather_string(
+			target_date,
+			day_name,
+			city_name,
+			city_weather_code,
+			district_name,
+		)
+	except WeatherServiceError:
+		raise
+	except (KeyError, IndexError, TypeError, ValueError, StopIteration):
+		raise WeatherServiceError(
+			"Weather API returned an invalid response"
+		) from None
 
-	api_key = 'CWA-D3587479-3CBA-44C5-83FC-A7E019F75363'
-	api = f'https://opendata.cwa.gov.tw/api/v1/rest/datastore/F-D0047-{city_weather_code}?Authorization={api_key}&elementName=Wx,AT,T,PoP6h&LocationName={district_name}'
+
+def _build_weather_string(target_date: datetime, day_name: str, city_name: str, city_weather_code: str, district_name: str) -> str:
+
+	data = get_weather_data(city_weather_code, district_name)
 	datetime_format = "%Y-%m-%dT%H:%M:%S%z"
-
-	data_json = requests.get(api).json()
-	data = data_json['records']['Locations'][0]['Location'][0]
 
 	target_date = datetime.combine(target_date, time.min, tzinfo=local_timezone)
 	time_points = [target_date + timedelta(hours=hour) for hour in [6, 9, 12, 15, 18]]		
