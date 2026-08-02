@@ -9,12 +9,12 @@ from shared_module.models.games import Game
 from shared_module.models.members import Member
 from shared_module.models.line_users import LineUser
 from shared_module.models.game_attendance_replies import GameAttendanceReply
-import shared_module.line_notify as line_notify
+from shared_module.notify.discord_notify import DiscordNotifyHelper
 import shared_module.attendance_analyzer as attendance_analyzer
 from shared_module.settings import (
     local_timezone
 )
-from shared_module.general_message import (
+from shared_module.message_templates.general_message import (
     reply_text_mapping
 )
 
@@ -43,6 +43,17 @@ LINE_REDIRECT_URI = 'https://web-portal-7uz453jt3a-de.a.run.app/line/callback'
 LINE_AUTH_URL = 'https://access.line.me/oauth2/v2.1/authorize'
 LINE_TOKEN_URL = 'https://api.line.me/oauth2/v2.1/token'
 LINE_USER_INFO_URL = 'https://api.line.me/v2/profile'
+
+
+
+discord_notify_helper = DiscordNotifyHelper()
+
+def notify_successful_log(message: str):
+    discord_notify_helper.notify_successful_log(message)
+def notify_alarm_log(message: str):
+    discord_notify_helper.notify_alarm_log(message)
+def notify_management_message(message: str):
+    discord_notify_helper.notify_management_message(message)
 
 @app.route('/')
 def home():
@@ -136,7 +147,6 @@ def attendance():
     if 'member' not in session:
         return redirect(url_for('query_attendance'))
     
-    #member = Member.search_by_id(146)
     member = session['member']
     now = datetime.now(local_timezone).strftime("%Y年%-m月%-d日 %H:%M:%S")
 
@@ -147,6 +157,7 @@ def attendance():
     for game in upcoming_games:
         mapping = attendance_analyzer.get_attendance_of_game(game.id)
         games_with_attendance.append({
+            'id': game.id,
             'game_summary': game.generate_short_summary_for_team(),
             'attendance_mapping': mapping,
         })
@@ -166,13 +177,14 @@ def index():
 
 @app.route('/match-member/match', methods=['POST'])
 def match_line_user():
+    print(request.form)
     line_user_id = request.form['line_user_id']
     member_id = request.form['member_id']
     if member_id:
         nickname = LineUser.search_by_id(line_user_id).nickname
         member_name = Member.search_by_id(member_id).name
         LineUser.update_member_id(line_user_id, member_id)
-        line_notify.notify_management_message(messages.match_user_as_member.format(nickname=nickname, member_name=member_name))
+        notify_management_message(messages.match_user_as_member.format(nickname=nickname, member_name=member_name))
     
     return redirect(url_for('index'))
 

@@ -10,7 +10,7 @@ from ..settings import (
     local_timezone,
     current_team
 )
-from ..general_message import (
+from ..message_templates.general_message import (
     weekday_mapping,
     offseason_game_sign,
     normal_game_sign,

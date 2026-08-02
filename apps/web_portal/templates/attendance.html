@@ -21,6 +21,7 @@
         {% for game in games_with_attendance %}
             <div class="container mb-4">
                 <h5><strong>{{ game.game_summary }}</strong></h5>
+                <p><a href="/game-roster/{{ game.id }}">試排守備位置</a></p>
                 {% for reply_type in range(1, 6) %}
                     {% if game.attendance_mapping[reply_type] %}
                         <div class="row">
