@@ -1,16 +1,17 @@
 # 專案狀態
 
-更新時間：2026-08-04T01:46:29+08:00
+更新時間：2026-08-04T02:17:58+08:00
 維護角色：Work
-證據基準：branch `fix/weather-api-secret`，HEAD `f1884bfbe903e4b24fa82ae6cf19c86167d06ee2`
+證據基準：branch `fix/weather-api-secret`，HEAD `6d2dad083b1f270b5f89b2c742338121d59b3d15`
 
 ## 1. 目前摘要
 
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
-- 第一份正式任務 `TASK-001` 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 接受結案。
-- Working tree 不是乾淨狀態：`AGENTS.md`、`docs/` 與 TASK-001 新增測試均未追蹤；尚未 stage 或 commit。
+- 第一份正式任務 `TASK-001` 已由 Codex 完成、Work 驗收為 `accepted`，由 Owner 接受，並提交於 `6d2dad0`。
+- `TASK-002` 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 接受結案及授權建立 commit。
+- TASK-002 的線上 CI 證據仍待日後 push 並建立 PR；Owner 尚未授權 push、PR 或 merge。
 
 ## 2. 已確認事實
 
@@ -64,11 +65,14 @@
 - 測試使用 stub/mock 隔離 HTTP、資料庫與 LINE，沒有外部呼叫。
 - `git diff --check`：通過。
 - 最新 P0 部署設定的靜態存在性檢查：必要 Secret 綁定、敏感欄位過濾、`.dockerignore` 與 private Cloud Run flag 均存在。
+- TASK-002 驗收：完整 unittest 17/17 通過；workflow 的 triggers、唯讀權限、runner、timeout、Python 3.10、test command、完整 action SHA 與禁用項目靜態檢查均通過。
+- Work 已由官方 action repository 的 exact commit 與 release page 確認 checkout v7.0.1 與 setup-python v7.0.0 的 SHA。
 
 限制：
 
 - 測試執行環境為 Python 3.12.13；Python launcher 的 3.10 registration 已失效，無法啟動 runtime。3.10 grammar check 通過，但尚未取得 3.10 實跑證據。
 - Black 未安裝於可用 Python runtime，尚未執行 formatter check。
+- 本機沒有 YAML parser/actionlint，TASK-002 尚未 push，因此沒有 GitHub parser 或 Python 3.10 hosted runner 的線上證據。
 - 尚未執行 Docker build、Cloud Build、image layer 掃描、Secret/IAM 查詢、Cloud Run staging 或 LINE smoke test。
 - 測試通過不代表線上整合正確。
 
@@ -76,9 +80,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-001` | `completed` | `owner` | Owner 已接受 Work 的 `accepted` 結論；成果尚未 stage 或 commit。 |
+| `TASK-002` | `completed` | `owner` | Owner 已接受結案；是否 push/建立 PR 及確認第一次線上 CI 仍待另行授權。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-001.md`
+正式任務規格：`docs/coordination/tasks/TASK-002.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
@@ -87,7 +91,7 @@
 
 | 項目 | 使用者價值 | 風險 | 影響範圍與依賴 |
 | --- | --- | --- | --- |
-| P0 部署契約回歸測試 | 防止漏綁 LINE/Weather Secret、環境檔進入 image 或 private 邊界退化 | 低；文字式設定測試可能對格式敏感 | `TASK-001` 已由 Owner 接受結案；成果尚未 commit。 |
+| P0 部署契約回歸測試 | 防止漏綁 LINE/Weather Secret、環境檔進入 image 或 private 邊界退化 | 低；文字式設定測試可能對格式敏感 | `TASK-001` 已由 Owner 接受並提交於 `6d2dad0`。 |
 | 其餘服務 Secret 傳遞盤點與分段改善 | 降低 LINE、LINE Login、session secret 進入 build/image 的風險 | 高；錯綁會中斷登入、webhook 或通知 | notify cron、web portal、line webhook deploy config；需 Owner 批准 Secret 相關工作與確認版本/IAM。 |
 | 已曝光憑證的輪替/撤銷計畫 | 避免歷史值繼續有效 | 高；輪替順序錯誤會中斷服務 | 氣象、LINE Messaging、LINE Login 等；需 Owner 明確批准與 rollback window。 |
 | web portal 管理 endpoints 授權 | 防止未授權配對/忽略 LINE user | 高；需避免鎖住合法管理者 | web portal session/auth/routes；需 Owner 定義管理者規則。 |
@@ -97,7 +101,7 @@
 
 ### P2：可維運性
 
-- 建立 Python 3.10 CI 測試矩陣；此項是後續建議，尚未經 Owner 決定立案。
+- 建立 Python 3.10 CI；`TASK-002` 已結案，等待 Owner 日後授權 push/PR 並確認第一次線上 run。
 - 建立 Cloud Scheduler、Cloud Run/Functions、service account 與 revision inventory/runbook；查詢雲端前需 Owner 批准。
 - 改用不可變 image tag/digest，改善 commit→image→revision 可追溯性。
 - 集中必要環境設定的啟動驗證與安全錯誤訊息。
@@ -118,7 +122,8 @@
 
 - 舊氣象 API key 曾出現在 Git 歷史；從 HEAD 移除不等於已在供應商端撤銷。
 - P0 的 Cloud Run Secret version 與 runtime IAM 尚未查證。
-- P0 已新增離線部署契約測試並通過 Work 驗收，但成果尚未提交，也不代表線上 Cloud Build/Run/Secret 整合已驗證。
+- P0 已新增離線部署契約測試、通過 Work 驗收並提交；仍不代表線上 Cloud Build/Run/Secret 整合已驗證。
+- TASK-002 尚未由 GitHub parser 或 Python 3.10 hosted runner 實際執行；本地靜態檢查不能取代第一次線上 run。
 - 固定 image tag `tag1` 降低部署可追溯性。
 - web portal 的 member 配對管理 routes 未見 authentication/authorization 檢查。
 - `update_game_schedule.game_crawl()` 的第二次 filter 從原始 `game_list` 開始，可能丟失 team filter。
@@ -156,7 +161,8 @@
 - 協作規則：`docs/coordination/COLLABORATION.md`
 - 唯一交接來源：`docs/coordination/HANDOFF.yaml`
 - 專案狀態：本文件
-- 第一個任務：`docs/coordination/tasks/TASK-001.md`
-- Codex report：`docs/coordination/reports/TASK-001-CODEX.md`
-- Work review：`docs/coordination/reviews/TASK-001-WORK.md`
-- Owner 已接受 TASK-001 結案；正式紀錄見 `docs/coordination/DECISIONS.md`。
+- 已完成任務：`docs/coordination/tasks/TASK-001.md`、`docs/coordination/tasks/TASK-002.md`
+- 當前任務：`TASK-002` 已結案，尚未立案下一個任務。
+- Codex report：`docs/coordination/reports/TASK-002-CODEX.md`
+- Work review：`docs/coordination/reviews/TASK-002-WORK.md`
+- Owner 已接受 TASK-001 與 TASK-002 結案；正式紀錄見 `docs/coordination/DECISIONS.md`。
