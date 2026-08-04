@@ -1,15 +1,11 @@
 import logging
 from flask import Flask, abort, jsonify
-from datetime import datetime, timedelta, time
 
 from shared_module.games_crawler_client import CrawlerClient
 from shared_module.models.games import Game
 import shared_module.message_templates.linebot_game_message as linebot_game_message
 from shared_module.notify.discord_notify import DiscordNotifyHelper
 from shared_module.announcement.linebot import LineBotAnnouncementHelper
-from shared_module.settings import (
-    local_timezone
-)
 from shared_module.message_templates.line_notify_message import (
     generate_error_message,
     generate_schedule_message_for_team,
@@ -24,10 +20,6 @@ import message_templates
 
 # 設置日誌記錄器
 logging.basicConfig(level=logging.INFO)
-
-now = datetime.now(local_timezone)
-today_begin = datetime.combine(now, time.min, tzinfo=local_timezone)
-ten_days_later = today_begin + timedelta(days=11)
 
 app = Flask(__name__)
 
