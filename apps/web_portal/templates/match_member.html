@@ -13,8 +13,8 @@
     <body>
         <div class="container">
             <h1 class="mb-4">配對新的LINE帳號成員</h1>
-            <form method="post" action="{{ url_for('match_line_user') }}">
-                {% for line_user in line_users %}
+            {% for line_user in line_users %}
+                <form method="post" action="{{ url_for('match_line_user') }}">
                     <div class="row justify-content-md-center">
                         <div class="col-md-2">
                             <h5>{{ line_user.nickname }}</p>
@@ -39,8 +39,8 @@
                             <input type="hidden" name="line_user_id" value="{{ line_user.line_user_id }}">
                         </div>
                     </div>
-                {% endfor %}
-            </form>
+                </form>
+            {% endfor %}
         </div>
     </body>
 </html>

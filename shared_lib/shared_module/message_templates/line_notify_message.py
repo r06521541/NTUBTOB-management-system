@@ -1,29 +1,20 @@
 from datetime import datetime, timedelta
 
-from .models.games import Game
-from .models.members import Member
+from ..models.games import Game
 from .general_message import (
-    cancellation_announcement_opening,
-    weekday_mapping,
-    offseason_game_sign,
-    normal_game_sign,
-    reply_text_mapping,
-    offseason_game_reminder,
-    game_reminder,
-    attendance_opening,
-    no_attendance
+    offseason_game_sign
 )
 
 
 def generate_no_game_message() -> str:
-    message = "\n一週一度的通知又來囉！不過近一個月尚未有聯盟賽呢～\n"
+    message = "一週一度的通知又來囉！不過近一個月尚未有聯盟賽呢～\n"
     message = message + "\n請密切注意幹部的通知，或上官網確認詳細資訊！\n"
     message = message + "\n期待下一場比賽！\U0001F4AA"
     return message
 
 
 def generate_error_message() -> str:
-    message = "\n一週一度的通知又來囉！\n"
+    message = "一週一度的通知又來囉！\n"
     message = (
         message + "不過可能由於聯盟官網改版，或爬蟲機器人異常，撈不到應有的比賽訊息\n"
     )
@@ -34,7 +25,7 @@ def generate_error_message() -> str:
 
 
 def generate_schedule_message_for_team(games: list[Game]) -> str:
-    message = "\n一週一度的通知又來囉！\n"
+    message = "一週一度的通知又來囉！\n"
 
     this_week_games, this_month_games = Game.get_games_in_this_week_and_month(games)
 

@@ -2,11 +2,20 @@ import functions_framework
 from datetime import datetime, timedelta, timezone
 from shared_module.models.games import Game
 from shared_module.games_crawler_client import CrawlerClient
-import shared_module.line_notify as line_notify
 import shared_module.settings as settings
+from shared_module.notify.discord_notify import DiscordNotifyHelper
 
 import envs
 
+
+discord_notify_helper = DiscordNotifyHelper()
+
+def notify_successful_log(message: str):
+    discord_notify_helper.notify_successful_log(message)
+def notify_alarm_log(message: str):
+    discord_notify_helper.notify_alarm_log(message)
+def notify_management_message(message: str):
+    discord_notify_helper.notify_management_message(message)
 
 @functions_framework.http
 def main(request):    
@@ -15,11 +24,11 @@ def main(request):
     end_time = now + timedelta(days=30)
     games_after = game_crawl(team_name, now, end_time)
     if games_after is None:
-        line_notify.notify_alarm_log("賽程更新失敗 -- 爬蟲撈不到比賽")
+        notify_alarm_log("賽程更新失敗 -- 爬蟲撈不到比賽")
         return ''
     games_before_update = Game.search_between(now, end_time)
     if games_before_update is None:
-        line_notify.notify_alarm_log("賽程更新失敗 -- 搜不到資料表中的比賽")
+        notify_alarm_log("賽程更新失敗 -- 搜不到資料表中的比賽")
         return ''    
 
     # 找到需要新增的比賽
@@ -31,16 +40,16 @@ def main(request):
     is_successful = True
     for game_to_add in games_to_add:
         Game.add_game(game_to_add)
-        line_notify.notify_successful_log(f"賽程更新 -- 已成功添加新比賽\n{game_to_add.generate_short_summary_for_team()}")
+        notify_successful_log(f"賽程更新 -- 已成功添加新比賽\n{game_to_add.generate_short_summary_for_team()}")
 
     for game_to_cancel in games_to_cancel:
         if game_to_cancel.start_datetime < now:
             continue        
         Game.update_cancellation_time(game_to_cancel.id, now)
-        line_notify.notify_successful_log(f"賽程更新 -- 已成功取消這場比賽\n{game_to_cancel.generate_short_summary_for_team()}")
+        notify_successful_log(f"賽程更新 -- 已成功取消這場比賽\n{game_to_cancel.generate_short_summary_for_team()}")
 
     if is_successful:
-        line_notify.notify_successful_log("賽程更新 -- 已成功完成此次games資料表的更新")
+        notify_successful_log("賽程更新 -- 已成功完成此次games資料表的更新")
     return ''
 
 def game_crawl(team_name: str, start_time: datetime, end_time: datetime) -> list[Game]:
@@ -53,6 +62,6 @@ def game_crawl(team_name: str, start_time: datetime, end_time: datetime) -> list
         return games
     
     except Exception as e:
-        line_notify.notify_alarm_log(repr(e))
+        notify_alarm_log(repr(e))
 
     return None

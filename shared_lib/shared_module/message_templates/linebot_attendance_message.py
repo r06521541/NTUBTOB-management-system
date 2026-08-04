@@ -2,8 +2,8 @@ from linebot.v3.messaging import (
     TextMessage
 )
 
-from .models.games import Game
-from .models.members import Member
+from ..models.games import Game
+from ..models.members import Member
 from .general_message import (
     reply_text_mapping,
     attendance_opening,
