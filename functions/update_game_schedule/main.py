@@ -6,6 +6,7 @@ import shared_module.settings as settings
 from shared_module.notify.discord_notify import DiscordNotifyHelper
 
 import envs
+from game_filter import filter_games
 
 
 discord_notify_helper = DiscordNotifyHelper()
@@ -57,9 +58,7 @@ def game_crawl(team_name: str, start_time: datetime, end_time: datetime) -> list
     games = games_crawler_client.get_games()
     game_list = [Game.from_dict(data) for data in games]
     try:
-        games = [game for game in game_list if game.home_team == team_name or game.away_team == team_name]
-        games = [game for game in game_list if game.start_datetime >= start_time and game.start_datetime <= end_time]
-        return games
+        return filter_games(game_list, team_name, start_time, end_time)
     
     except Exception as e:
         notify_alarm_log(repr(e))
