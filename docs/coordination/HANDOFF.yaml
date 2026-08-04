@@ -1,15 +1,15 @@
-active_task: TASK-002
-status: completed
+active_task: TASK-003
+status: blocked
 next_actor: owner
 
-base_commit: 6d2dad083b1f270b5f89b2c742338121d59b3d15
-head_commit: 6d2dad083b1f270b5f89b2c742338121d59b3d15
+base_commit: 8d0367ed78579124c37ebda05d655b84207c63ca
+head_commit: 4efe1c57d64ac6e22cf0ed1d9608f9384ca5e2cd
 
-updated_by: work
-updated_at: 2026-08-04T02:17:58+08:00
+updated_by: codex
+updated_at: 2026-08-04T21:55:54+08:00
 
 note: >
-  Owner 已於 2026-08-04 接受 Work 的 accepted 驗收結論並授權建立 closeout commit，
-  TASK-002 正式結案。17/17 tests、workflow 安全靜態檢查與官方 action SHA 查證均通過；
-  尚未 push 或建立 PR，因此仍無 GitHub parser 或 Python 3.10 hosted runner 證據。
-  下一步仍由 Owner 決定是否授權 push/PR，並於第一次線上 CI run 後確認結果。
+  TASK-003 實作 commit 4efe1c5 已完成並 push；game broadcast 17/17、notify cron
+  4/4 與四項 mutation checks 通過。Draft PR 因本機沒有 gh CLI，且內建瀏覽器受
+  sandbox 權限阻擋而無法建立。下一步由 Owner 使用 report 內連結建立 Draft PR，
+  再將 handoff 交回 Codex 確認 PR/CI。未部署、讀取 Secret、發送通知或 merge。

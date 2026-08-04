@@ -41,7 +41,7 @@
 | 無 dependency/cache/artifact/matrix | 通過 | workflow 未出現安裝、cache、artifact 或 matrix 設定。 |
 | 無 secrets、cloud、deploy、publish 或通知行為 | 通過 | 靜態禁用項目檢查通過，workflow 無相關設定或命令。 |
 | 既有完整測試仍通過 | 通過 | Work 使用 Python 3.12.13 獨立執行，17/17 通過。 |
-| YAML 結構驗證 | 限制下通過 | Work 逐項靜態查驗結構；本機沒有 PyYAML、PowerShell YAML parser 或 actionlint，且未 push，故尚無 GitHub parser 證據。 |
+| YAML 結構驗證 | 通過 | 本機先完成靜態查驗；後續 PR #25 已由 GitHub 接受並成功執行 workflow。 |
 | `git diff --check` | 通過 | tracked diff check 無 whitespace error；未追蹤交付檔另做 whitespace 檢查。 |
 | diff 僅限任務範圍 | 通過 | 除既存 Work 規劃文件外，只新增 workflow、Codex report 並更新 handoff。 |
 | Codex report 符合最低要求 | 通過 | 包含基準、修改、命令、測試、未測事項、假設、風險、未提交狀態及部署影響。 |
@@ -81,8 +81,8 @@ Work 已由兩個官方 action repository 的 exact commit 與 release page 交�
 
 ## 5. 回歸風險
 
-- 尚未由 GitHub Actions parser 接受 workflow，也尚未取得 hosted runner 的 Python 3.10 實跑結果；第一次 push 後才有此證據。
-- GitHub repository 或 organization policy 可能限制 action 版本或 SHA，但本地 repository 無法確認線上設定。
+- GitHub Actions parser 與 Python 3.10 hosted runner 的風險已由 PR #25 首次成功執行解除。
+- GitHub repository 或 organization policy 日後仍可能變更；目前這組 action SHA 與權限設定已在線上成功執行。
 - `main` 是任務指定的 push branch；若遠端預設或整合分支不同，push trigger 需再調整。
 - 固定 SHA 提升供應鏈可預測性，但 action 升級與安全修補需日後明確更新。
 - CI 僅涵蓋目前 17 個離線測試，不代表 Cloud Build、Cloud Run、Secret、資料庫、LINE 或外部 API 整合正確。
@@ -93,16 +93,32 @@ Work 已由兩個官方 action repository 的 exact commit 與 release page 交�
 
 ## 7. 非阻擋建議
 
-- Owner 接受並 push 後，應查看第一個 GitHub Actions run，確認 workflow parser 與 Python 3.10 hosted runner 均成功。
-- 第一次線上 run 若失敗，應以獨立補正任務處理，不應為通過 CI 而放寬權限或加入 secret。
+- PR #25 的第一次線上 run 已成功，後續 PR 應持續將此 check 視為合併前驗收證據。
+- 未來線上 run 若失敗，應以獨立補正處理，不應為通過 CI 而放寬權限或加入 secret。
 - 現階段不需要增加 matrix、cache、coverage 或 dependency install；待實際測試範圍擴大再評估。
 
 ## 8. 驗收結論
 
 `accepted`
 
-TASK-002 符合最小、唯讀且無部署副作用的 Python 3.10 CI 規格，沒有 blocking issue。建議交由 Owner 決定接受結案及是否 commit/push；push 後仍需確認第一次 GitHub Actions run。此結論不包含 production deployment、Secret 操作、正式通知或任何雲端資源變更的批准。
+TASK-002 符合最小、唯讀且無部署副作用的 Python 3.10 CI 規格，沒有 blocking issue。後續 PR #25 線上執行亦已成功。此結論不包含 production deployment、Secret 操作、正式通知或任何雲端資源變更的批准。
 
 ## 9. Owner 決策
 
 Owner 已於 2026-08-04 接受本驗收結論並授權建立 TASK-002 closeout commit。此授權不包含 push、建立 PR、觸發線上 CI、部署、Secret 操作或正式通知。
+
+## 10. 合併後線上驗證
+
+Work 於 2026-08-04 使用 GitHub CLI 獨立查驗：
+
+- PR：[#25](https://github.com/r06521541/NTUBTOB-management-system/pull/25)
+- PR 狀態：`MERGED`
+- head commit：`469e1f88e007a698e28eda2927dfc8040e3d17f3`
+- merge commit：`8d0367ed78579124c37ebda05d655b84207c63ca`
+- Actions run：`30912783037`
+- Job：`Python 3.10 unittest suite`
+- Job 結論：`SUCCESS`
+- Runner Python：`3.10.20`
+- 測試結果：`Ran 17 tests in 0.016s`、`OK`
+
+GitHub workflow parser 與 Python 3.10 hosted runner 的待驗證限制已解除。CI 仍只證明目前離線測試範圍，不代表 Cloud Build、Cloud Run、Secret、資料庫、LINE 或外部 API 線上整合正確。
