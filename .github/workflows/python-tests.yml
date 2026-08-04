@@ -33,3 +33,6 @@ jobs:
 
       - name: Run notify cronjob service tests
         run: python -m unittest discover -s apps/notify_cronjob_service/tests -v
+
+      - name: Run update game schedule tests
+        run: python -m unittest discover -s functions/update_game_schedule/tests -v

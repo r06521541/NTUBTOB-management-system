@@ -1,15 +1,15 @@
-active_task: TASK-003
-status: completed
+active_task: TASK-004
+status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 8d0367ed78579124c37ebda05d655b84207c63ca
-head_commit: cac70ed6bd76548dd761d03a1e84fbefc05f7593
+base_commit: da7256e9a9698838b80e22f80d6ff593fcc9e56f
+head_commit: 8f485bf46b13628d72cb27a62dba6779d3cc2fa7
 
 updated_by: work
-updated_at: 2026-08-04T22:13:49+08:00
+updated_at: 2026-08-04T22:35:47+08:00
 
 note: >
-  Owner 已接受 TASK-003，PR #26 已以 merge commit 9b812f5 合併；最終 Actions run
-  30917468698 使用 Python 3.10.20，game broadcast 17/17 與 notify cron 4/4 通過。
-  Owner 另批准 DEC-008 描述性 commit/PR title 規範；TASK 編號只作追溯，不得取代
-  行為描述。下一步由 Owner 決定後續任務；未部署、操作 Secret、輪替憑證或發送通知。
+  Work 已獨立查驗 TASK-004 實際 diff、commits、tests、mutation、Draft PR #28 與最新
+  Python 3.10.20 CI run 30919277284；schedule 5/5、game broadcast 17/17、notify cron
+  4/4 全數通過，結論 accepted，無 blocking issue。等待 Owner 決定是否將 PR #28
+  標記 ready 並 merge；未部署、未操作 Secret、未發送通知、未修改 production data。

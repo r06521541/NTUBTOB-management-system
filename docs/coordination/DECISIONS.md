@@ -85,3 +85,14 @@
 - TASK 編號：只放在 commit body/footer 或 PR 說明中作為追溯資訊，不得取代描述性標題。
 - 執行規則：Codex 建立 commit 前自行檢查，Work 驗收 commit/PR 時再次檢查；不合規時應在 merge 前改寫或補正。
 - 流程文件：`AGENTS.md` 與 `docs/coordination/COLLABORATION.md` 版本 1.2，第十五節。
+
+## DEC-009：批准賽程隊伍篩選修正與 PR 工作包
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：approved
+- 決策：批准 TASK-004，修正 `update_game_schedule` 在日期篩選時丟失隊伍條件的錯誤，並新增純函式測試與 Python 3.10 CI coverage。
+- 行為邊界：維持隊名完全相等、起訖時間皆包含、保留輸入順序；不新增隊名 alias 或正規化。
+- PR 工作包：批准 branch、描述性 commits、push、Draft PR、CI 查驗及同一 PR 驗收文件更新。
+- 未授權：merge、部署、Secret、正式通知、production data、不可逆操作或重大架構變更。
+- 任務文件：`docs/coordination/tasks/TASK-004.md`。
