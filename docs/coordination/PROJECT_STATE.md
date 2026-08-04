@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-04T22:07:23+08:00
+更新時間：2026-08-04T22:13:49+08:00
 維護角色：Work
-證據基準：branch `codex/task-003-notify-secret-boundary`，HEAD `2c6ceee77034a41ffe7d72b877f7c63a3dc4c724`
+證據基準：branch `codex/docs-commit-title-policy`，base `9b812f5c476d804b434e484ea7f4e8bfd299bfa4`
 
 ## 1. 目前摘要
 
@@ -13,7 +13,8 @@
 - `TASK-002` 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 接受結案。
 - PR #25 已合併；Work 已獨立確認 Python 3.10 GitHub Actions run 成功，17/17 tests 通過。
 - Owner 已批准 Draft PR 一次授權流程；未來一般任務可一次授權 branch、commit、push、Draft PR、CI 查驗及同一 PR 內的驗收證據更新，merge 仍由 Owner 最終決定。
-- TASK-003 已由 Codex 實作、Work 驗收為 `accepted`；Draft PR #26 的 Python 3.10 CI 已通過，等待最終 review-doc CI 與 Owner merge 決策。
+- TASK-003 已由 Codex 實作、Work 驗收為 `accepted`，並由 Owner 透過 PR #26 合併；merge commit 為 `9b812f5`。
+- Owner 已批准描述性 commit/PR title 規範；TASK 編號只放在 body/footer，不再作為標題主體。
 
 ## 2. 已確認事實
 
@@ -84,7 +85,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-003` | `awaiting_owner_approval` | `owner` | Work 驗收 accepted；等待 review 文件最終 CI 與 Owner merge 決策。 |
+| `TASK-003` | `completed` | `owner` | PR #26 已合併，最終 Python 3.10 CI 通過。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-003.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -167,11 +168,12 @@
 - 協作規則：`docs/coordination/COLLABORATION.md`
 - 唯一交接來源：`docs/coordination/HANDOFF.yaml`
 - 專案狀態：本文件
-- 已完成任務：`docs/coordination/tasks/TASK-001.md`、`docs/coordination/tasks/TASK-002.md`
-- 當前任務：`docs/coordination/tasks/TASK-003.md`
+- 已完成任務：`docs/coordination/tasks/TASK-001.md`、`docs/coordination/tasks/TASK-002.md`、`docs/coordination/tasks/TASK-003.md`
 - Codex report：`docs/coordination/reports/TASK-003-CODEX.md`
 - Work review：`docs/coordination/reviews/TASK-003-WORK.md`
 - Owner 已接受 TASK-001 與 TASK-002 結案；正式紀錄見 `docs/coordination/DECISIONS.md`。
 - Draft PR 一次授權流程已記錄為 `DEC-004`，並納入 `COLLABORATION.md` 版本 1.1。
 - notify cron 與 game broadcast 共用 LINE 官方帳號的產品規則已記錄為 `DEC-005`。
 - TASK-003 與 PR 工作包授權已記錄為 `DEC-006`。
+- TASK-003 接受與 merge 已記錄為 `DEC-007`。
+- 描述性 commit／PR title 規範已記錄為 `DEC-008`，並納入 `AGENTS.md` 與 `COLLABORATION.md` 版本 1.2。
