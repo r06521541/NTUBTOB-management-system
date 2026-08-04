@@ -1,15 +1,17 @@
-active_task: TASK-003
-status: completed
-next_actor: owner
+active_task: TASK-004
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 8d0367ed78579124c37ebda05d655b84207c63ca
-head_commit: cac70ed6bd76548dd761d03a1e84fbefc05f7593
+base_commit: da7256e9a9698838b80e22f80d6ff593fcc9e56f
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-04T22:13:49+08:00
+updated_at: 2026-08-04T22:21:59+08:00
 
 note: >
-  Owner 已接受 TASK-003，PR #26 已以 merge commit 9b812f5 合併；最終 Actions run
-  30917468698 使用 Python 3.10.20，game broadcast 17/17 與 notify cron 4/4 通過。
-  Owner 另批准 DEC-008 描述性 commit/PR title 規範；TASK 編號只作追溯，不得取代
-  行為描述。下一步由 Owner 決定後續任務；未部署、操作 Secret、輪替憑證或發送通知。
+  Owner 已批准 TASK-004 與 PR 工作包。Codex 應以 base commit da7256e 建立
+  codex/fix-schedule-team-filter branch，並保留目前 Work 未提交的 TASK-004 協作文件；
+  抽出無外部依賴的純篩選 helper，修正日期篩選覆蓋隊伍條件的錯誤，新增離線 tests
+  與 Python 3.10 CI coverage。Implementation
+  commit/PR title 使用 fix(schedule): preserve team filter when selecting games，TASK 編號
+  放在 body/footer。未授權 merge、部署、Secret、正式通知或不可逆資料操作。
