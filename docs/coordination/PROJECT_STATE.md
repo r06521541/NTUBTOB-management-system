@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-04T21:47:52+08:00
+更新時間：2026-08-04T22:07:23+08:00
 維護角色：Work
-證據基準：branch `fix/weather-api-secret`，HEAD `469e1f88e007a698e28eda2927dfc8040e3d17f3`
+證據基準：branch `codex/task-003-notify-secret-boundary`，HEAD `2c6ceee77034a41ffe7d72b877f7c63a3dc4c724`
 
 ## 1. 目前摘要
 
@@ -13,7 +13,7 @@
 - `TASK-002` 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 接受結案。
 - PR #25 已合併；Work 已獨立確認 Python 3.10 GitHub Actions run 成功，17/17 tests 通過。
 - Owner 已批准 Draft PR 一次授權流程；未來一般任務可一次授權 branch、commit、push、Draft PR、CI 查驗及同一 PR 內的驗收證據更新，merge 仍由 Owner 最終決定。
-- Owner 已確認 notify cron 與 game broadcast 共用 LINE 官方帳號，並批准 TASK-003 與 PR 工作包；目前等待 Codex 實作。
+- TASK-003 已由 Codex 實作、Work 驗收為 `accepted`；Draft PR #26 的 Python 3.10 CI 已通過，等待最終 review-doc CI 與 Owner merge 決策。
 
 ## 2. 已確認事實
 
@@ -70,6 +70,8 @@
 - TASK-002 驗收：完整 unittest 17/17 通過；workflow 的 triggers、唯讀權限、runner、timeout、Python 3.10、test command、完整 action SHA 與禁用項目靜態檢查均通過。
 - Work 已由官方 action repository 的 exact commit 與 release page 確認 checkout v7.0.1 與 setup-python v7.0.0 的 SHA。
 - PR #25 / Actions run `30912783037`：GitHub parser 接受 workflow，Python 3.10.20 hosted runner 執行 `Ran 17 tests` 並回報 `OK`；job conclusion 為 `SUCCESS`。
+- TASK-003 本機驗收：game broadcast 17/17、notify cron 4/4 通過；四項安全 mutation 均被 contract tests 捕捉。
+- PR #26 / Actions run `30917149772`：Python 3.10.20 執行兩個 suites，17 tests 與 4 tests 均回報 `OK`；job conclusion 為 `SUCCESS`。
 
 限制：
 
@@ -82,7 +84,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-003` | `ready_for_codex` | `codex` | 保護 notify cron LINE 憑證的 build/runtime 邊界，新增部署契約測試與 CI coverage。 |
+| `TASK-003` | `awaiting_owner_approval` | `owner` | Work 驗收 accepted；等待 review 文件最終 CI 與 Owner merge 決策。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-003.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -126,7 +128,7 @@
 - P0 的 Cloud Run Secret version 與 runtime IAM 尚未查證。
 - P0 已新增離線部署契約測試、通過 Work 驗收並提交；仍不代表線上 Cloud Build/Run/Secret 整合已驗證。
 - Python 3.10 CI 已在線上成功；其範圍仍僅涵蓋目前 17 個離線測試，不能取代 Cloud Build/Run/Secret 或外部整合驗證。
-- notify cron 部署流程目前會把完整環境檔放入 `COPY . .` 的 Docker build context，且缺少 `.dockerignore`；LINE credentials 有進入 image layer 的風險。
+- notify cron 的 repository deployment config 已在 PR #26 修正 build/runtime Secret boundary；尚未以 Docker/Cloud Build/Cloud Run 線上驗證。
 - notify cron 的本機 `.env.yaml` 未追蹤、已忽略且無 Git 歷史；其中憑證曾在本機工具輸出短暫出現，是否輪替待 Owner 決定。
 - 固定 image tag `tag1` 降低部署可追溯性。
 - web portal 的 member 配對管理 routes 未見 authentication/authorization 檢查。
@@ -166,9 +168,9 @@
 - 唯一交接來源：`docs/coordination/HANDOFF.yaml`
 - 專案狀態：本文件
 - 已完成任務：`docs/coordination/tasks/TASK-001.md`、`docs/coordination/tasks/TASK-002.md`
-- 當前任務：`TASK-002` 已結案，尚未立案下一個任務。
-- Codex report：`docs/coordination/reports/TASK-002-CODEX.md`
-- Work review：`docs/coordination/reviews/TASK-002-WORK.md`
+- 當前任務：`docs/coordination/tasks/TASK-003.md`
+- Codex report：`docs/coordination/reports/TASK-003-CODEX.md`
+- Work review：`docs/coordination/reviews/TASK-003-WORK.md`
 - Owner 已接受 TASK-001 與 TASK-002 結案；正式紀錄見 `docs/coordination/DECISIONS.md`。
 - Draft PR 一次授權流程已記錄為 `DEC-004`，並納入 `COLLABORATION.md` 版本 1.1。
 - notify cron 與 game broadcast 共用 LINE 官方帳號的產品規則已記錄為 `DEC-005`。

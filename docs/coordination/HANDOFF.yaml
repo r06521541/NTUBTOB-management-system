@@ -1,15 +1,16 @@
 active_task: TASK-003
-status: blocked
+status: awaiting_owner_approval
 next_actor: owner
 
 base_commit: 8d0367ed78579124c37ebda05d655b84207c63ca
-head_commit: 4efe1c57d64ac6e22cf0ed1d9608f9384ca5e2cd
+head_commit: 2c6ceee77034a41ffe7d72b877f7c63a3dc4c724
 
-updated_by: codex
-updated_at: 2026-08-04T21:55:54+08:00
+updated_by: work
+updated_at: 2026-08-04T22:07:23+08:00
 
 note: >
-  TASK-003 實作 commit 4efe1c5 已完成並 push；game broadcast 17/17、notify cron
-  4/4 與四項 mutation checks 通過。Draft PR 因本機沒有 gh CLI，且內建瀏覽器受
-  sandbox 權限阻擋而無法建立。下一步由 Owner 使用 report 內連結建立 Draft PR，
-  再將 handoff 交回 Codex 確認 PR/CI。未部署、讀取 Secret、發送通知或 merge。
+  Work 已建立 Draft PR #26 並完成實際 diff、commits、tests 與 CI 驗收，結論 accepted。
+  GitHub Actions run 30917149772 使用 Python 3.10.20，game broadcast 17/17 與 notify cron
+  4/4 均通過；四項 in-memory mutation checks 亦通過。原 PR blocker 已解除。
+  等待 Work review 文件 commit/push 後的最終 CI，再由 Owner 決定是否 ready/merge；
+  未部署、讀取或修改 Secret、輪替憑證、發送通知或執行不可逆資料操作。

@@ -1,6 +1,6 @@
 # TASK-003：保護 notify-cronjob-service 的 LINE 憑證傳遞
 
-狀態：`ready_for_codex`
+狀態：`awaiting_owner_approval`
 優先級：P1
 建立者：Work
 `base_commit`：`8d0367ed78579124c37ebda05d655b84207c63ca`
