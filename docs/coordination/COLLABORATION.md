@@ -2,7 +2,7 @@
 
 
 
-版本：1.0
+版本：1.1
 
 制定者：專案負責人
 
@@ -771,3 +771,93 @@ Work 與 Codex 原則上採取輪流接手，不得同時修改相同檔案。
 
 
 > 對話用來討論，repository 用來同步，Git 用來證明，HANDOFF 用來交棒，專案負責人負責最終決策。
+
+
+
+\---
+
+
+
+\## 十四、Draft PR 一次授權流程
+
+
+
+為減少 Owner 在 commit、push、建立 PR、查看 CI 與補驗收證據之間反覆交接，本專案採用以下標準流程。
+
+
+
+\### 1. PR 工作包授權
+
+
+
+Owner 可在批准任務時，一次授權該任務的「PR 工作包」。授權內容限於：
+
+
+
+\* 建立或切換該任務的 branch
+
+\* 建立任務範圍內的 commit
+
+\* push 該任務 branch
+
+\* 建立或更新 Draft PR
+
+\* 唯讀監看與查驗 CI、PR checks 及 job logs
+
+\* 依查驗結果更新 Codex report、Work review、`PROJECT_STATE.md` 與 `HANDOFF.yaml`
+
+\* 將上述驗收文件 commit 並 push 到同一個 Draft PR
+
+
+
+Owner 的授權必須記錄在任務文件或 `DECISIONS.md`。沒有明確記錄時，仍視為未授權 commit、push 或建立 PR。
+
+
+
+\### 2. 標準執行順序
+
+
+
+1\. Work 完成任務規格，Owner 同時批准任務與 PR 工作包。
+
+2\. Codex 依任務規格實作、測試、commit、push，並建立或更新 Draft PR。
+
+3\. Codex 將 report 與 handoff 更新為 `ready_for_review / work`。
+
+4\. Work 查驗實際 diff、commit、PR、CI、Python/runtime 版本與測試 log。
+
+5\. 若需修正，Work 交回 `changes_requested / codex`，Codex 在同一個 Draft PR 補正。
+
+6\. 若通過，Work 將 review 與證據更新 commit/push 到同一個 Draft PR，等待最終 CI 成功。
+
+7\. Work 更新 handoff 為 `awaiting_owner_approval / owner`，Owner 最後決定是否 merge。
+
+8\. merge 後由 Work 做唯讀確認；若沒有新事實需要補寫，不再建立純 closeout PR。
+
+
+
+\### 3. 永遠不包含於 PR 工作包的授權
+
+
+
+即使 Owner 已批准 PR 工作包，仍不得自行執行：
+
+
+
+\* merge PR 或直接寫入受保護/default branch
+
+\* production deployment、release 或 package publish
+
+\* 建立、讀取、顯示、修改、輪替或刪除 Secret
+
+\* 修改 GitHub repository/organization Actions settings、branch protection、environment 或 credentials
+
+\* 正式 LINE/Discord 通知、broadcast 或其他對真實使用者的外部副作用
+
+\* 正式資料刪除、不可逆 migration 或其他不可逆資料操作
+
+\* Owner 未批准的重大架構變更或任務範圍擴張
+
+
+
+上述操作仍須 Owner 逐項明確批准。PR 工作包授權可由 Owner 隨時撤回；發現 secret、資料安全、權限退化或重大非預期 diff 時，Work 與 Codex 必須停止並交回 Owner。

@@ -30,3 +30,6 @@ jobs:
 
       - name: Run game broadcast service tests
         run: python -m unittest discover -s apps/game_broadcast_service/tests -v
+
+      - name: Run notify cronjob service tests
+        run: python -m unittest discover -s apps/notify_cronjob_service/tests -v

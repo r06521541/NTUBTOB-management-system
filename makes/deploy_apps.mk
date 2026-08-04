@@ -47,9 +47,10 @@ deploy-notify-cronjob-service:
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		apps/${DIR_NOTIFY_CRONJOB_SERVICE}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
-	# copy temp env file
-	cp envs/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml \
-		apps/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml
+	# copy non-sensitive env settings; secrets are bound by Cloud Run
+	grep -vE '^[[:space:]]*(CHANNEL_ACCESS_TOKEN|CHANNEL_SECRET)[[:space:]]*:' \
+		envs/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml \
+		> apps/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml
 
 	@echo "Building Docker image..."
 	cd apps/${DIR_NOTIFY_CRONJOB_SERVICE} && gcloud builds submit --region=${REGION} \
