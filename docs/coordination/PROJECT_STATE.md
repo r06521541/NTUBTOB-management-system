@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-04T22:53:00+08:00
+更新時間：2026-08-04T23:02:06+08:00
 維護角色：Work
 證據基準：`main` merge commit `da7256e9a9698838b80e22f80d6ff593fcc9e56f`
 
@@ -17,7 +17,7 @@
 - Owner 已批准描述性 commit/PR title 規範；TASK 編號只放在 body/footer，不再作為標題主體。
 - TASK-004 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 透過 PR #28 合併；merge commit 為 `c70ce63`。
 - Owner 已採用任務 commit 精簡規則：原則上每個任務保留功能、Codex 完工與 Work 驗收三類 commit，純 merge closeout 併入下一個規劃 commit。
-- Owner 已批准 TASK-005、保留既有 11 天視窗並批准 PR 工作包；目前等待 Codex 實作 request-time snapshot。
+- TASK-005 已由 Codex 完成，Work 獨立驗收為 `accepted`；Draft PR #29 與最新 Python 3.10 CI 均成功，目前等待 Owner 的 ready／merge 決策。
 
 ## 2. 已確認事實
 
@@ -78,6 +78,8 @@
 - PR #26 / Actions run `30917149772`：Python 3.10.20 執行兩個 suites，17 tests 與 4 tests 均回報 `OK`；job conclusion 為 `SUCCESS`。
 - TASK-004 Work 驗收：本機 schedule 5/5、game broadcast 17/17、notify cron 4/4 通過；原錯誤型 date-only mutation 會錯誤保留非本隊賽事。
 - PR #28 / 最新 Actions run `30919277284`：Python 3.10.20 執行三個 suites，17、4、5 tests 全數通過；job conclusion 為 `SUCCESS`，權限維持 `contents: read`。
+- TASK-005 Work 驗收：本機 game broadcast 24/24、notify cron 4/4、schedule 5/5 通過；cached/import-time snapshot mutation 會與第二次跨日 request 的正確結果不同。
+- PR #29 / 最新 Actions run `30921789436`：Python 3.10.20 執行三個 suites，24、4、5 tests 全數通過；job conclusion 為 `SUCCESS`，權限維持 `contents: read`。
 
 限制：
 
@@ -90,9 +92,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-005` | `ready_for_codex` | `codex` | 讓 game broadcast 邀請與取消流程在每次 request 重新取得一致的 Asia/Taipei 時間 snapshot。 |
+| `TASK-005` | `awaiting_owner_approval` | `owner` | 讓 game broadcast 邀請與取消流程在每次 request 重新取得一致的 Asia/Taipei 時間 snapshot；Work 已驗收 accepted。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-004.md`
+正式任務規格：`docs/coordination/tasks/TASK-005.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
@@ -139,7 +141,7 @@
 - 固定 image tag `tag1` 降低部署可追溯性。
 - web portal 的 member 配對管理 routes 未見 authentication/authorization 檢查。
 - `update_game_schedule.game_crawl()` 的第二次 filter 曾從原始 `game_list` 開始而丟失 team filter；TASK-004 已修正、驗收並合併，尚未 deploy。
-- game broadcast 與 notify cron 在 module import 時計算目前時間，長壽命 instance 可能使用過期範圍。
+- game broadcast 曾在 module import 時計算目前時間；TASK-005 已修正並通過 Work 驗收，尚未 merge／deploy。Notify cron 未使用的同類 globals 亦已移除。
 - cache helper 呼叫的 `/clear-cache/attendance` route 在目前 web portal 程式中未找到。
 
 ### 推論
@@ -186,6 +188,8 @@
 - TASK-004 接受與 merge 已記錄為 `DEC-010`。
 - 任務 commit 精簡規則已記錄為 `DEC-011`，並納入 `COLLABORATION.md` 版本 1.3。
 - TASK-005 與 PR 工作包授權已記錄為 `DEC-012`；規格為 `docs/coordination/tasks/TASK-005.md`。
+- TASK-005 Codex report：`docs/coordination/reports/TASK-005-CODEX.md`。
+- TASK-005 Work review：`docs/coordination/reviews/TASK-005-WORK.md`。
 - Web Portal 產品與風險規劃：`docs/planning/WEB_PORTAL_PLAN.md`。
 - TASK-004 Codex report：`docs/coordination/reports/TASK-004-CODEX.md`。
 - TASK-004 Work review：`docs/coordination/reviews/TASK-004-WORK.md`。
