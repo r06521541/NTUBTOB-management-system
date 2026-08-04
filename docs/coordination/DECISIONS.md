@@ -96,3 +96,35 @@
 - PR 工作包：批准 branch、描述性 commits、push、Draft PR、CI 查驗及同一 PR 驗收文件更新。
 - 未授權：merge、部署、Secret、正式通知、production data、不可逆操作或重大架構變更。
 - 任務文件：`docs/coordination/tasks/TASK-004.md`。
+
+## DEC-010：接受並合併 TASK-004
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner 接受 TASK-004 的 Work 驗收結論，授權將 PR #28 標記 ready 並 merge。
+- 結果：PR #28 已以 merge commit `c70ce63d3b91fc0d224c86a1b8f3aba085f5979c` 合併。
+- Merge 標題：`fix(schedule): preserve team filter when selecting games`。
+- 驗收證據：最終 Actions run `30920092830` 成功；Python 3.10.20 下 game broadcast 17/17、notify cron 4/4、schedule filter 5/5 通過。
+- 不包含的授權：未批准部署、Secret 操作、正式 LINE／Discord 通知、production data 操作或不可逆變更。
+
+## DEC-011：精簡任務協作 commits
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：保留 Codex report、Work review、PROJECT_STATE 與 HANDOFF 等正式證據，但不再為每次狀態文字或角色交棒機械式建立 commit。
+- 原則：每個任務原則上只有功能 commit、Codex 完工 commit、Work 驗收 commit 三類；實質且可獨立理解的修改仍可合理拆分。
+- Merge 後結案：若只有 merge commit、時間與 PR 狀態等新事實，不另開純 closeout PR，併入下一個任務的規劃 commit；安全事件或重大風險不得延後。
+- 流程文件：`docs/coordination/COLLABORATION.md` 版本 1.3，第十六節。
+
+## DEC-012：批准 TASK-005 與 PR 工作包
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：批准 TASK-005，將 game broadcast 的邀請與取消時間視窗改為每次 request 取得一次 Asia/Taipei snapshot，避免長壽命 instance 沿用 module import 時間。
+- 產品規則：保留既有 `today_begin + 11 days` 查詢上限；本任務不改變邀請提前範圍。
+- PR 工作包：批准 branch、描述性 commits、push、Draft PR、CI 查驗及同一 PR 驗收文件更新。
+- 未授權：merge、部署、Secret、正式 LINE／Discord 通知、production data、不可逆操作或重大架構變更。
+- 任務文件：`docs/coordination/tasks/TASK-005.md`。

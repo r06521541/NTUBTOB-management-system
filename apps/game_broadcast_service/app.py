@@ -1,7 +1,7 @@
 import logging
 from flask import Flask, abort, jsonify
 from time import sleep
-from datetime import datetime, timedelta, time
+from datetime import datetime
 
 from linebot.v3.messaging import (
     FlexMessage,
@@ -25,13 +25,10 @@ import message_templates_notify_user
 import message_templates_user
 import message_templates_management
 import game_reminder
+from request_time import get_request_time_window
 
 # 設置日誌記錄器
 logging.basicConfig(level=logging.INFO)
-
-now = datetime.now(local_timezone)
-today_begin = datetime.combine(now, time.min, tzinfo=local_timezone)
-ten_days_later = today_begin + timedelta(days=11)
 
 app = Flask(__name__)
 
@@ -51,15 +48,16 @@ def announce(message: str):
 
 @app.route("/invitation-announcement/trigger", methods=['POST'])
 def invite():
+    request_time = get_request_time_window(local_timezone)
     is_successful = False
-    games = Game.search_for_invitation(now, ten_days_later)
+    games = Game.search_for_invitation(request_time.now, request_time.end_time)
     old_games = Game.search_for_invited()
     if games:
         messages = produce_new_invitation_messages(games)
         is_successful = False
         try:
             if line_messaging_api.broadcast(messages):
-                mark_games_as_invited(games)
+                mark_games_as_invited(games, request_time.now)
                 notify_successful_log(message_templates_management.invited.format(count=len(games)))
                 is_successful = True
         except Exception as e:
@@ -85,18 +83,21 @@ def produce_new_invitation_messages(games: list[Game]) -> list[FlexMessage]:
         return messages
     return []
 
-def mark_games_as_invited(games: list[Game]):
+def mark_games_as_invited(games: list[Game], invited_at: datetime):
     for game in games:
-        Game.update_invitation_time(game.id, now)
+        Game.update_invitation_time(game.id, invited_at)
 
 @app.route("/cancellation-announcement/trigger", methods=['POST'])
 def announce_cancellation():
-    games = Game.search_cancelled_to_announce(now, ten_days_later)
+    request_time = get_request_time_window(local_timezone)
+    games = Game.search_cancelled_to_announce(
+        request_time.now, request_time.end_time
+    )
     if games:
         messages = [produce_cancellation_message_by_games(games)]
         try:
             line_messaging_api.broadcast(messages)
-            mark_games_as_cancellation_announced(games)
+            mark_games_as_cancellation_announced(games, request_time.now)
             notify_successful_log(message_templates_management.cancellation_announced.format(count=len(games)))
         except Exception as e:
             logging.error("Error during cancellation announcement broadcast: %s", e, exc_info=True)
@@ -106,9 +107,11 @@ def announce_cancellation():
     return 'OK'
 
 
-def mark_games_as_cancellation_announced(games: list[Game]):
+def mark_games_as_cancellation_announced(
+    games: list[Game], announced_at: datetime
+):
     for game in games:
-        Game.update_cancellation_announcement_time(game.id, now)
+        Game.update_cancellation_announcement_time(game.id, announced_at)
 
 @app.route("/game-reminder/trigger", methods=['POST'])
 def announce_game_reminder():

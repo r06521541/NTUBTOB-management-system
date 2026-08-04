@@ -2,7 +2,7 @@
 
 
 
-版本：1.2
+版本：1.3
 
 制定者：專案負責人
 
@@ -980,3 +980,40 @@ chore: update files
 
 
 建立 commit 前，作者與驗收者都應確認：只看標題是否能判斷受影響元件與主要結果。若不能，必須先改寫標題。
+
+
+\---
+
+
+\## 十六、任務 Commit 精簡規則
+
+
+協作文件仍是正式證據，但不得因每次狀態更新或角色交棒而機械式建立新 commit。每個任務原則上控制為以下三類 commit：
+
+
+1\. 功能 commit：包含實際程式、設定、測試與必要 CI 變更；若存在可獨立理解、可獨立回復的多項修改，可合理拆分。
+
+2\. Codex 完工 commit：一次納入最終 Codex report、測試／CI 證據與 `ready_for_review / work` handoff。
+
+3\. Work 驗收 commit：一次納入 Work review、`PROJECT_STATE.md` 與 `awaiting_owner_approval / owner` handoff。
+
+
+執行原則：
+
+
+\* Codex 應盡量等實作與當次 CI 證據完整後，再一次提交 report 與 handoff；不得只為補時間、改狀態文字或再次表示「已交棒」建立額外 commit。
+
+\* Work 應將驗收結論、最終證據、專案狀態與 handoff 合併為一個驗收 commit。
+
+\* `changes_requested` 後的實質修正可新增 commit；純文字往返應併入下一個有意義的實作或驗收 commit。
+
+\* 不得為符合數量而把互不相關的功能硬塞進同一 commit；可理解性、可驗證性與可安全回復仍優先於 commit 數量。
+
+\* Merge commit 由 GitHub 依 Owner 授權建立，標題沿用描述性的 PR title，不計入上述三類工作 commit。
+
+\* Merge 後若只有 merge commit、時間與 PR 狀態等結案新事實，Work 做唯讀確認即可，不另開純 closeout PR。這些結案紀錄應在下一個任務的規劃 commit 中，與新 task、決策或專案狀態一起提交。
+
+\* 若 merge 後發現安全事件、錯誤合併、重要風險或會影響下一步的重大新事實，不得延後；應立即交回 Owner，必要時另立修正或 closeout 任務。
+
+
+此規則的目的，是保留可稽核的協作證據，同時避免 Git history 被無實質內容的流程 commit 淹沒。
