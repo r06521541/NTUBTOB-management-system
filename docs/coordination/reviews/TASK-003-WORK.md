@@ -100,3 +100,11 @@ Codex 的 `blocked` 並非 implementation 或 CI 問題，而是其 session 找�
 `accepted`
 
 TASK-003 已符合 repository-only Secret boundary、離線回歸測試與 Python 3.10 CI 要求，沒有 blocking issue。建議在 Work review commit 的最終 CI 通過後交由 Owner 決定是否將 PR #26 標記 ready 並 merge。此結論不批准部署、Secret 操作、憑證輪替、正式通知或不可逆資料操作。
+
+## 10. Owner 決策與合併結果
+
+- Owner 已於 2026-08-04 接受 TASK-003 驗收結論，並授權將 PR #26 標記 ready 及 merge。
+- Work review push 後的最終 Actions run `30917468698` 成功。
+- PR #26 已合併，merge commit 為 `9b812f5c476d804b434e484ea7f4e8bfd299bfa4`。
+- Merge commit title：`security(notify-cron): keep LINE credentials out of images`。
+- 沒有部署、Secret 操作、憑證輪替、正式通知或不可逆資料操作。

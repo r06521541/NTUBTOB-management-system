@@ -2,7 +2,7 @@
 
 
 
-版本：1.1
+版本：1.2
 
 制定者：專案負責人
 
@@ -861,3 +861,122 @@ Owner 的授權必須記錄在任務文件或 `DECISIONS.md`。沒有明確記�
 
 
 上述操作仍須 Owner 逐項明確批准。PR 工作包授權可由 Owner 隨時撤回；發現 secret、資料安全、權限退化或重大非預期 diff 時，Work 與 Codex 必須停止並交回 Owner。
+
+
+
+\---
+
+
+
+\## 十五、Commit 與 PR 標題規範
+
+
+
+Commit 與 PR 標題必須讓未閱讀 TASK 文件的人也能理解實際變更，不得以流程編號取代行為描述。
+
+
+
+\### 1. 標題格式
+
+
+
+優先使用：
+
+
+
+```text
+
+<type>(<scope>): <outcome>
+
+```
+
+
+
+scope 不需要時可省略為 `<type>: <outcome>`。建議使用既有 repository 語言，以簡潔英文描述可觀察的行為或結果。
+
+
+
+常用 type：
+
+
+
+\* `feat`：新增使用者功能
+
+\* `fix`：修正錯誤行為
+
+\* `security`：強化安全邊界
+
+\* `test`：新增或改善測試保護
+
+\* `ci`：修改自動化驗證
+
+\* `docs`：修改文件或正式紀錄
+
+\* `refactor`：不改行為的結構調整
+
+\* `chore`：必要但不屬於上述類型的維護工作
+
+
+
+\### 2. 標題內容要求
+
+
+
+\* 使用具體 scope，例如 `notify-cron`、`web-portal`、`coordination` 或 `ci`。
+
+\* 描述改變後的行為或成果，不只描述「做了更新」。
+
+\* 建議控制在約 72 個字元，必要時將背景、測試與 TASK 編號放入 body。
+
+\* 一個 commit 應只有一個主要目的；內容差異過大時拆分 commits。
+
+\* PR title 同樣使用描述性 outcome；merge commit subject 優先沿用描述性的 PR title。
+
+
+
+\### 3. TASK 編號使用方式
+
+
+
+TASK 編號用於追溯，不得成為標題的主要內容。應放在 commit body/footer，例如：
+
+
+
+```text
+
+Refs TASK-003
+
+```
+
+
+
+允許：
+
+
+
+```text
+
+security(notify-cron): keep LINE credentials out of images
+docs(coordination): record notify cron security review
+ci(python): run notify cron deployment contracts
+
+```
+
+
+
+不允許：
+
+
+
+```text
+
+docs: hand off TASK-003
+docs: update TASK-003
+fix: task changes
+chore: update files
+
+```
+
+
+
+建立 commit 前，作者與驗收者都應確認：只看標題是否能判斷受影響元件與主要結果。若不能，必須先改寫標題。

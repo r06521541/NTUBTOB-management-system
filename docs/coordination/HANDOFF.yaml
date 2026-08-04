@@ -1,16 +1,15 @@
 active_task: TASK-003
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 8d0367ed78579124c37ebda05d655b84207c63ca
-head_commit: 2c6ceee77034a41ffe7d72b877f7c63a3dc4c724
+head_commit: cac70ed6bd76548dd761d03a1e84fbefc05f7593
 
 updated_by: work
-updated_at: 2026-08-04T22:07:23+08:00
+updated_at: 2026-08-04T22:13:49+08:00
 
 note: >
-  Work 已建立 Draft PR #26 並完成實際 diff、commits、tests 與 CI 驗收，結論 accepted。
-  GitHub Actions run 30917149772 使用 Python 3.10.20，game broadcast 17/17 與 notify cron
-  4/4 均通過；四項 in-memory mutation checks 亦通過。原 PR blocker 已解除。
-  等待 Work review 文件 commit/push 後的最終 CI，再由 Owner 決定是否 ready/merge；
-  未部署、讀取或修改 Secret、輪替憑證、發送通知或執行不可逆資料操作。
+  Owner 已接受 TASK-003，PR #26 已以 merge commit 9b812f5 合併；最終 Actions run
+  30917468698 使用 Python 3.10.20，game broadcast 17/17 與 notify cron 4/4 通過。
+  Owner 另批准 DEC-008 描述性 commit/PR title 規範；TASK 編號只作追溯，不得取代
+  行為描述。下一步由 Owner 決定後續任務；未部署、操作 Secret、輪替憑證或發送通知。

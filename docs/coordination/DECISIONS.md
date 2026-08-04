@@ -63,3 +63,25 @@
 - 已授權：任務 branch、任務範圍內 commit、push、建立或更新 Draft PR、唯讀 CI 查驗，以及在同一 PR 更新驗收文件。
 - 未授權：merge、直接寫入 default branch、部署、Secret 讀取或修改、憑證輪替、正式通知、不可逆資料操作或重大架構變更。
 - 憑證輪替：仍為獨立待決事項，不阻擋 repository-only TASK-003。
+
+## DEC-007：接受並合併 TASK-003
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：accepted
+- 決策：Owner 接受 TASK-003 的 Work 驗收結論，授權將 PR #26 標記 ready 並 merge。
+- 結果：PR #26 已以 merge commit `9b812f5c476d804b434e484ea7f4e8bfd299bfa4` 合併。
+- Merge 標題：`security(notify-cron): keep LINE credentials out of images`。
+- 驗收證據：最終 Actions run `30917468698` 成功；Python 3.10.20 下 game broadcast 17/17、notify cron 4/4 通過。
+- 不包含的授權：未批准部署、Secret 操作、憑證輪替、正式通知或不可逆資料操作。
+
+## DEC-008：採用描述性 commit 與 PR 標題
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：accepted
+- 問題：以 `TASK-xxx`、handoff 或 update files 為標題，離開協作文件後無法理解 commit 的實際目的。
+- 決策：commit、PR 與 merge commit 標題必須描述受影響元件及主要行為／結果；優先採用 `<type>(<scope>): <outcome>`。
+- TASK 編號：只放在 commit body/footer 或 PR 說明中作為追溯資訊，不得取代描述性標題。
+- 執行規則：Codex 建立 commit 前自行檢查，Work 驗收 commit/PR 時再次檢查；不合規時應在 merge 前改寫或補正。
+- 流程文件：`AGENTS.md` 與 `docs/coordination/COLLABORATION.md` 版本 1.2，第十五節。
