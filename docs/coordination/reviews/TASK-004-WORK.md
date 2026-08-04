@@ -74,3 +74,11 @@ GitHub Actions 最終證據：run `30919277284`、job `92025325144`、head `8f48
 TASK-004 已修正日期篩選覆蓋隊伍條件的資料正確性錯誤，並具備離線回歸 tests 與 Python 3.10 hosted runner 證據。建議 Work review push 後等待最終 CI 成功，再由 Owner 決定是否將 PR #28 標記 ready 並 merge。
 
 此結論不批准部署、Secret 操作、正式 LINE／Discord 通知、production data 操作或不可逆變更。
+
+## 8. Owner 決策與合併結果
+
+- Owner 已於 2026-08-04 接受 TASK-004 驗收結論，並授權將 PR #28 標記 ready 及 merge。
+- Work review push 後的最終 Actions run `30920092830` 成功。
+- PR #28 已合併，merge commit 為 `c70ce63d3b91fc0d224c86a1b8f3aba085f5979c`。
+- Merge commit title：`fix(schedule): preserve team filter when selecting games`。
+- 沒有部署、Secret 操作、正式通知或 production data 操作。

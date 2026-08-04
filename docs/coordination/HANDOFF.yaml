@@ -1,15 +1,15 @@
-active_task: TASK-004
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-005
+status: ready_for_codex
+next_actor: codex
 
-base_commit: da7256e9a9698838b80e22f80d6ff593fcc9e56f
-head_commit: 8f485bf46b13628d72cb27a62dba6779d3cc2fa7
+base_commit: c70ce63d3b91fc0d224c86a1b8f3aba085f5979c
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-04T22:35:47+08:00
+updated_at: 2026-08-04T22:53:00+08:00
 
 note: >
-  Work 已獨立查驗 TASK-004 實際 diff、commits、tests、mutation、Draft PR #28 與最新
-  Python 3.10.20 CI run 30919277284；schedule 5/5、game broadcast 17/17、notify cron
-  4/4 全數通過，結論 accepted，無 blocking issue。等待 Owner 決定是否將 PR #28
-  標記 ready 並 merge；未部署、未操作 Secret、未發送通知、未修改 production data。
+  Owner 已批准 TASK-005、保留既有 11 天視窗，並批准 PR 工作包。Codex 可開始：
+  讓 game broadcast 的邀請與取消流程在每次 request 取得同一份 Asia/Taipei 時間
+  snapshot，並移除 notify cron 未使用的 import-time 時間 globals。不得部署、操作
+  Secret、發送正式通知或修改 production data。

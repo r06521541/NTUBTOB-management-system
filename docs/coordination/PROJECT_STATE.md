@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-04T22:35:47+08:00
+更新時間：2026-08-04T22:53:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `da7256e9a9698838b80e22f80d6ff593fcc9e56f`
 
@@ -15,7 +15,9 @@
 - Owner 已批准 Draft PR 一次授權流程；未來一般任務可一次授權 branch、commit、push、Draft PR、CI 查驗及同一 PR 內的驗收證據更新，merge 仍由 Owner 最終決定。
 - TASK-003 已由 Codex 實作、Work 驗收為 `accepted`，並由 Owner 透過 PR #26 合併；merge commit 為 `9b812f5`。
 - Owner 已批准描述性 commit/PR title 規範；TASK 編號只放在 body/footer，不再作為標題主體。
-- TASK-004 已由 Codex 完成，Work 獨立驗收為 `accepted`；Draft PR #28 與最新 Python 3.10 CI 均成功，目前等待 Owner 的 ready／merge 決策。
+- TASK-004 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 透過 PR #28 合併；merge commit 為 `c70ce63`。
+- Owner 已採用任務 commit 精簡規則：原則上每個任務保留功能、Codex 完工與 Work 驗收三類 commit，純 merge closeout 併入下一個規劃 commit。
+- Owner 已批准 TASK-005、保留既有 11 天視窗並批准 PR 工作包；目前等待 Codex 實作 request-time snapshot。
 
 ## 2. 已確認事實
 
@@ -88,7 +90,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-004` | `awaiting_owner_approval` | `owner` | 修正 schedule team filter 被日期篩選覆蓋的資料正確性錯誤；Work 已驗收 accepted，等待 merge 決策。 |
+| `TASK-005` | `ready_for_codex` | `codex` | 讓 game broadcast 邀請與取消流程在每次 request 重新取得一致的 Asia/Taipei 時間 snapshot。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-004.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -136,7 +138,7 @@
 - notify cron 的本機 `.env.yaml` 未追蹤、已忽略且無 Git 歷史；其中憑證曾在本機工具輸出短暫出現，是否輪替待 Owner 決定。
 - 固定 image tag `tag1` 降低部署可追溯性。
 - web portal 的 member 配對管理 routes 未見 authentication/authorization 檢查。
-- `update_game_schedule.game_crawl()` 的第二次 filter 曾從原始 `game_list` 開始而丟失 team filter；TASK-004 已修正並通過 Work 驗收，尚未 merge／deploy。
+- `update_game_schedule.game_crawl()` 的第二次 filter 曾從原始 `game_list` 開始而丟失 team filter；TASK-004 已修正、驗收並合併，尚未 deploy。
 - game broadcast 與 notify cron 在 module import 時計算目前時間，長壽命 instance 可能使用過期範圍。
 - cache helper 呼叫的 `/clear-cache/attendance` route 在目前 web portal 程式中未找到。
 
@@ -181,5 +183,9 @@
 - TASK-003 接受與 merge 已記錄為 `DEC-007`。
 - 描述性 commit／PR title 規範已記錄為 `DEC-008`，並納入 `AGENTS.md` 與 `COLLABORATION.md` 版本 1.2。
 - TASK-004 與 PR 工作包授權已記錄為 `DEC-009`。
+- TASK-004 接受與 merge 已記錄為 `DEC-010`。
+- 任務 commit 精簡規則已記錄為 `DEC-011`，並納入 `COLLABORATION.md` 版本 1.3。
+- TASK-005 與 PR 工作包授權已記錄為 `DEC-012`；規格為 `docs/coordination/tasks/TASK-005.md`。
+- Web Portal 產品與風險規劃：`docs/planning/WEB_PORTAL_PLAN.md`。
 - TASK-004 Codex report：`docs/coordination/reports/TASK-004-CODEX.md`。
 - TASK-004 Work review：`docs/coordination/reviews/TASK-004-WORK.md`。
