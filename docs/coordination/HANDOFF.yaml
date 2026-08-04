@@ -1,17 +1,16 @@
 active_task: TASK-004
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: da7256e9a9698838b80e22f80d6ff593fcc9e56f
-head_commit: null
+head_commit: 0b0450f678d429b907051f6bc8006f55cfad2a69
 
-updated_by: work
-updated_at: 2026-08-04T22:21:59+08:00
+updated_by: codex
+updated_at: 2026-08-04T22:30:00+08:00
 
 note: >
-  Owner 已批准 TASK-004 與 PR 工作包。Codex 應以 base commit da7256e 建立
-  codex/fix-schedule-team-filter branch，並保留目前 Work 未提交的 TASK-004 協作文件；
-  抽出無外部依賴的純篩選 helper，修正日期篩選覆蓋隊伍條件的錯誤，新增離線 tests
-  與 Python 3.10 CI coverage。Implementation
-  commit/PR title 使用 fix(schedule): preserve team filter when selecting games，TASK 編號
-  放在 body/footer。未授權 merge、部署、Secret、正式通知或不可逆資料操作。
+  Codex 已完成 TASK-004：implementation commit 11e9636 抽出純 filter helper，修正日期
+  篩選覆蓋隊伍條件，新增 5 個離線 tests，並將 suite 加入 Python 3.10 CI。Draft PR
+  #28 已建立；Actions run 30919153718 使用 Python 3.10.20，game broadcast 17/17、
+  notify cron 4/4、schedule filter 5/5 全部通過。請 Work 依 task 執行獨立 review 與
+  mutation 驗證。未部署、操作 Secret、發送通知、連線正式服務或修改 production data。

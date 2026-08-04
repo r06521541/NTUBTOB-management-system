@@ -1,14 +1,14 @@
 # TASK-004 Codex 實作報告
 
-更新時間：2026-08-04T22:27:41+08:00
+更新時間：2026-08-04T22:30:00+08:00
 
 ## 任務狀態
 
 - branch：`codex/fix-schedule-team-filter`
 - base commit：`da7256e9a9698838b80e22f80d6ff593fcc9e56f`
 - implementation commit：`11e96361db0158c47a82de1c1ebf87ca9a20bcec`
-- Draft PR：待建立
-- Python 3.10 CI：待驗證
+- Draft PR：[#28](https://github.com/r06521541/NTUBTOB-management-system/pull/28)
+- Python 3.10 CI：run `30919153718`，job `92024903638`，成功
 
 ## 實際修改
 
@@ -53,13 +53,21 @@ Ran 4 tests — OK
 - `git diff --check` 與 staged diff check：通過。
 - Black／isort：未執行；bundled Python 未安裝這兩個既有 formatter，未為此下載依賴。人工檢查新增檔案符合附近風格。
 
+GitHub Actions 使用 CPython 3.10.20 執行：
+
+- game broadcast：17/17，`OK`
+- notify cron：4/4，`OK`
+- update game schedule：5/5，`OK`
+- job conclusion：`SUCCESS`
+- GitHub token permissions：`contents: read`、`metadata: read`
+
 ## 未執行與外部影響聲明
 
 - 未呼叫 crawler、資料庫、LINE、Discord、weather 或其他外部 API。
 - 未讀取 `.env.yaml` 或任何 Secret value。
 - 未 build 或 deploy Cloud Function，未操作 GCP、GitHub settings、production data 或不可逆 migration。
 - 未修改 requirements、shared library、database model/schema 或 deployment config。
-- 本機未提供 Python 3.10 runtime；實際 Python 3.10 執行結果待 GitHub Actions 驗證。
+- 本機未提供 Python 3.10 runtime；已由 GitHub Actions 的 CPython 3.10.20 完成驗證。
 
 ## 尚存風險
 
