@@ -22,7 +22,7 @@ steps:
     - |
       gcloud run deploy ${_SERVICE_NAME} \
         --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/management-system-docker-repo/${_SERVICE_NAME}-image:tag1 \
-        --update-secrets=DSN_PASSWORD=supabase-database-password:latest \
+        --update-secrets=DSN_PASSWORD=supabase-database-password:latest,CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:1 \
         --region ${_REGION} \
         --platform managed \
         --no-allow-unauthenticated \
