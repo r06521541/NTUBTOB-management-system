@@ -128,3 +128,55 @@
 - PR 工作包：批准 branch、描述性 commits、push、Draft PR、CI 查驗及同一 PR 驗收文件更新。
 - 未授權：merge、部署、Secret、正式 LINE／Discord 通知、production data、不可逆操作或重大架構變更。
 - 任務文件：`docs/coordination/tasks/TASK-005.md`。
+
+## DEC-013：接受並合併 TASK-005
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner 接受 TASK-005 的 Work 驗收結論，授權將 PR #29 標記 ready 並 merge。
+- 結果：PR #29 已以 merge commit `086d663831cf49ddaa5f8413edd8508d1f6bf596` 合併。
+- Merge 標題：`fix(game-broadcast): compute announcement windows per request`。
+- 驗收證據：最終 Actions run `30922220358` 成功；Python 3.10.20 下 game broadcast 24/24、notify cron 4/4、schedule 5/5 通過。
+- 不包含的授權：未批准部署、Secret、正式 LINE／Discord 通知、production data 或不可逆操作。
+
+## DEC-014：採納 Production Deployment Runbook
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：接受 `docs/operations/DEPLOYMENT_RUNBOOK.md` 作為未來 production deployment 的標準流程。
+- 授權邊界：本決策只採納文件、部署前檢查、批准閘門、停止條件、驗證與 rollback 原則；不授權任何一次實際部署或雲端操作。
+- 持續限制：每次 production deployment 仍須由 Owner 針對 target、commit、影響與 rollback 另行明確批准。
+- Web Portal：在 LINE Login／session Secret 與 build context 邊界修正前維持禁止部署。
+- 未授權：gcloud mutation、Cloud Build、Cloud Run／Functions deployment、Secret／IAM／Scheduler 操作、正式通知及 production data 操作。
+
+## DEC-015：批准並完成 Game Broadcast Production Deployment
+
+- 日期：2026-08-04
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：將 commit `086d663831cf49ddaa5f8413edd8508d1f6bf596` 部署至 production `game-broadcast-service`，並在定義失敗條件下允許 traffic rollback 至 `game-broadcast-service-00029-vmc`。
+- 執行結果：Cloud Build `80b086fc-f0c1-4f6b-a4e6-3acb456a1d6b` 成功；revision `game-broadcast-service-00030-pgg` ready／healthy 並承接 100% traffic。
+- 安全結果：service 維持 private，runtime identity 與 Secret references 未退化，temporary env 已清理，未觸發 rollback。
+- 未包含／未執行：人工 endpoint invocation、Secret/IAM/Scheduler 修改、其他服務部署、正式資料操作或人工通知 smoke test。
+
+## DEC-016：批准並完成 Notify Cron Production Deployment
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：部署 commit `086d663831cf49ddaa5f8413edd8508d1f6bf596` 至 production `notify-cronjob-service`；接受 emergency rollback 至 `00009-k8z` 會短期恢復舊 credential boundary。
+- 結果：Cloud Build `20152b06-02be-44d0-b50c-b92fc95877e7` 成功；revision `00010-z2x` ready／healthy並承接 100% traffic。
+- 安全結果：service 維持 private，LINE token version 1 已作 runtime Secret reference，temporary env 已清理，未 rollback。
+- 未包含／未執行：人工 endpoint invocation、credential rotation、Secret/IAM/Scheduler 修改、其他服務、production data 或人工通知 smoke test。
+
+## DEC-017：批准並完成 Update Schedule Production Deployment
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：將 commit `086d663831cf49ddaa5f8413edd8508d1f6bf596` 部署至 production `update-game-schedule`，接受既有 Scheduler 自然觸發可能造成的 production DB writes，並在定義失敗條件下允許以 Cloud Functions v2 API 回復 source generation `1741711972938401`。
+- 結果：Cloud Build `7d26952d-f9d3-4a40-a941-26db20630636` 成功；revision `update-game-schedule-00028-bij` ACTIVE／ready。
+- 安全結果：function 與 underlying service 維持 private，runtime、entry point、runtime identity、Secret reference與 Scheduler contract未退化，未觸發 rollback。
+- 未包含／未執行：人工 function invocation、Scheduler/IAM/Secret 修改、手動 production data 修復、其他服務部署或 application log讀取。
