@@ -134,6 +134,7 @@
 | `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
+| `TASK-034` | `awaiting_owner_approval` | `owner` | Work已驗收pinned traffic promotion與rollback邊界；Draft PR #43及Python 3.10 CI均正常，等待Owner決定squash merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -214,6 +215,13 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-034 Web Portal pinned traffic promotion（2026-08-06）
+
+- Codex已把revision contract與traffic convergence拆成兩階段，通過新revision驗證後才顯式promote exact revision至100%。
+- promotion前失敗保留舊健康traffic且不做多餘rollback；promotion開始後失敗才依exact approved revision rollback。
+- Draft PR #43的Python 3.10.20 CI run `31043954172`成功；tools 41項測試通過（2項platform skip），完整workflow成功。
+- 狀態為`ready_for_review / work`；未merge、部署或執行任何production mutation。
 
 ### TASK-033 Web Portal rollout convergence polling（2026-08-06）
 
