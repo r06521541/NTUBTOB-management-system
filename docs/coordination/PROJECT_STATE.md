@@ -26,6 +26,7 @@
 - TASK-011 已完成唯讀 Gen2 rollback 準備；old source generation 與官方 v2 PATCH recovery path 已確認，未下載 source 或修改 production。
 - TASK-010 已完成：commit `086d663` 已部署至 update schedule revision `00028-bij`；build 與平台健康驗證通過，未人工 invoke且未觸發 rollback。
 - TASK-012 mobile-first Web Portal local demo MVP已完成並由Owner local視覺驗收接受：雙重development gate、session-only虛構資料、Dashboard／賽程／詳情／個人／等待核可及10項離線測試完成；未部署。
+- TASK-013 已由 Codex 完成實作並進入 Work review：兩個 private 排程 Cloud Run 服務新增無副作用 `GET /healthz`；Draft PR #30 的 Python 3.10 CI 已通過，尚未部署或呼叫 production。
 
 ## 2. 已確認事實
 

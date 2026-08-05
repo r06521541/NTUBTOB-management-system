@@ -1,14 +1,15 @@
 active_task: TASK-013
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 3389f96d6221f6ca0c566e6c74bf516012d83a83
-head_commit: null
+head_commit: a6273e8
 
-updated_by: work
-updated_at: 2026-08-05T01:25:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T09:30:00+08:00
 
 note: >
-  Owner已批准TASK-013及PR工作包。規格要求為兩個private排程Cloud Run服務建立
-  GET /healthz process-level smoke endpoint，嚴禁DB、LINE、Discord、weather或其他
-  副作用；不得部署或呼叫production。交由Codex實作、離線測試、push Draft PR及查CI。
+  Codex已依Work review補正：isolated import兩個實際service app，actual app test client連續GET
+  /healthz時所有DB、LINE、Discord、crawler與weather dependency methods均維持未呼叫，並精確
+  驗證既有business route path/method contract。Draft PR #30最新Python 3.10 run 30964697592
+  通過；未部署或呼叫production。交由Work再次查驗diff、commit與CI。
