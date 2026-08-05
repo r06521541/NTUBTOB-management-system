@@ -5,6 +5,7 @@ import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import MagicMock, patch
 
 
@@ -13,6 +14,7 @@ if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
 
 from admin_security import parse_admin_member_ids  # noqa: E402
+from line_login import create_oauth_state  # noqa: E402
 
 
 class AdminAllowlistTest(unittest.TestCase):
@@ -207,8 +209,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
         self.member_model.search_by_id.return_value = SerializableMember(7)
-        with self.client.session_transaction() as current_session:
-            current_session["oauth_state"] = "fake-state"
+        state = create_oauth_state(
+            self.app.secret_key,
+            "/attendance",
+            "fake-nonce",
+        )
         token_response = MagicMock()
         token_response.json.return_value = {"access_token": "fake-access-token"}
         profile_response = MagicMock()
@@ -220,11 +225,84 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.app_module.requests, "get", return_value=profile_response
         ):
             response = self.client.get(
-                "/line/callback?code=fake-code&state=fake-state"
+                f"/line/callback?code=fake-code&state={state}"
             )
         self.assertEqual(response.status_code, 302)
         with self.client.session_transaction() as current_session:
             self.assertEqual(current_session["member_id"], 7)
+
+    def test_callback_accepts_state_from_a_different_browser_session(self):
+        class SerializableMember(int):
+            @property
+            def id(self):
+                return int(self)
+
+        self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
+        self.member_model.search_by_id.return_value = SerializableMember(7)
+        login_client = self.app.test_client()
+        callback_client = self.app.test_client()
+
+        login_response = login_client.get("/line/login?next=/future-games")
+        state = parse_qs(urlsplit(login_response.headers["Location"]).query)["state"][
+            0
+        ]
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "fake-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "fake-authenticated-user",
+            "displayName": "Demo User",
+        }
+        with patch.object(
+            self.app_module.requests, "post", return_value=token_response
+        ), patch.object(
+            self.app_module.requests, "get", return_value=profile_response
+        ):
+            response = callback_client.get(
+                f"/line/callback?code=fake-code&state={state}"
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.headers["Location"].endswith("/future-games"))
+
+    def test_invalid_state_rejects_before_line_or_database_calls(self):
+        with patch.object(
+            self.app_module.requests, "post"
+        ) as token_request, patch.object(
+            self.app_module.requests, "get"
+        ) as profile_request:
+            response = self.client.get(
+                "/line/callback?code=fake-code&state=tampered-state"
+            )
+
+        self.assertEqual(response.status_code, 400)
+        token_request.assert_not_called()
+        profile_request.assert_not_called()
+        self.line_user_model.search_by_id.assert_not_called()
+        self.member_model.search_by_id.assert_not_called()
+
+    def test_line_http_failure_is_safe_and_does_not_query_database(self):
+        state = create_oauth_state(
+            self.app.secret_key,
+            "/attendance",
+            "fake-nonce",
+        )
+        with patch.object(
+            self.app_module.requests,
+            "post",
+            side_effect=self.app_module.requests.Timeout("fake timeout"),
+        ) as token_request, patch.object(
+            self.app_module.requests, "get"
+        ) as profile_request:
+            response = self.client.get(
+                f"/line/callback?code=fake-code&state={state}"
+            )
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(token_request.call_args.kwargs["timeout"], 10)
+        profile_request.assert_not_called()
+        self.line_user_model.search_by_id.assert_not_called()
+        self.member_model.search_by_id.assert_not_called()
 
     def test_authorized_match_preserves_update_notification_and_redirect(self):
         token = self.get_csrf_token()
