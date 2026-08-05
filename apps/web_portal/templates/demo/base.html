@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='operations.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='interactions.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='events.css') }}">
 </head>
 <body>
   <header class="site-header">
@@ -20,6 +21,7 @@
     <nav class="desktop-nav" aria-label="主要導覽">
       <a href="{{ url_for('demo_portal.dashboard') }}">首頁</a>
       <a href="{{ url_for('demo_portal.games') }}">賽程</a>
+      <a href="{{ url_for('demo_events.events_list') }}">活動</a>
       <a href="{{ url_for('demo_portal.game_day', game_id='demo-game-01') }}">比賽日</a>
       <a href="{{ url_for('demo_portal.officer') }}">幹部台</a>
       <a href="{{ url_for('demo_portal.profile') }}">我的</a>
@@ -31,7 +33,7 @@
   <nav class="bottom-nav" aria-label="手機主要導覽">
     <a href="{{ url_for('demo_portal.dashboard') }}"><span>⌂</span>首頁</a>
     <a href="{{ url_for('demo_portal.games') }}"><span>◇</span>賽程</a>
-    <a href="{{ url_for('demo_portal.game_day', game_id='demo-game-01') }}"><span>⚾</span>比賽日</a>
+    <a href="{{ url_for('demo_events.events_list') }}"><span>✦</span>活動</a>
     <a href="{{ url_for('demo_portal.profile') }}"><span>○</span>我的</a>
   </nav>
   {% endif %}

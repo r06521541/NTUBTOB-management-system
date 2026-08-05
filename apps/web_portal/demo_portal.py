@@ -167,9 +167,14 @@ def logout():
 @demo_portal.get("/dashboard")
 @demo_login_required
 def dashboard():
+    from demo_events import event_replies, event_store
+
     games = games_with_session_replies()
     unanswered_count = sum(game["status"] == "pending" for game in games)
-    return render_template("demo/dashboard.html", member=session["demo_member"], next_game=games[0], games=games[:3], unanswered_count=unanswered_count, announcements=get_demo_announcements(), tasks=dashboard_tasks(games), csrf_token=get_or_create_demo_csrf_token())
+    published_events = [event for event in event_store() if event["status"] == "published"]
+    replies = event_replies()
+    event_tasks = [event for event in published_events if not replies.get(event["id"], {}).get("event")]
+    return render_template("demo/dashboard.html", member=session["demo_member"], next_game=games[0], games=games[:3], unanswered_count=unanswered_count, announcements=get_demo_announcements(), tasks=dashboard_tasks(games), upcoming_events=published_events[:2], event_tasks=event_tasks, csrf_token=get_or_create_demo_csrf_token())
 
 
 @demo_portal.get("/games")

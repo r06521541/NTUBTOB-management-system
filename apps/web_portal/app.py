@@ -12,6 +12,7 @@ from admin_security import (
     require_valid_csrf,
 )
 from demo_portal import demo_portal, is_demo_mode_enabled
+from demo_events import demo_events
 from envs import (
     login_channel_id,
     login_channel_secret,
@@ -44,6 +45,7 @@ if DEMO_MODE_ENABLED and not secret_key:
 else:
     app.secret_key = secret_key  # 用於保持安全的session
 app.register_blueprint(demo_portal)
+app.register_blueprint(demo_events)
 
 # 設定 Cache 配置
 cache_config = {

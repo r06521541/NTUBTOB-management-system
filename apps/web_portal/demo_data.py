@@ -12,6 +12,7 @@ DEMO_MEMBER = {
     "bats_throws": "右投右打",
     "season_games": 7,
     "attendance_rate": 86,
+    "demo_role": "officer",
 }
 
 DEMO_ANNOUNCEMENTS = [
