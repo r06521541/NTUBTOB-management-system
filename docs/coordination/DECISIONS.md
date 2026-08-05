@@ -440,3 +440,12 @@
 - 決策：Owner 批准依 TASK-027 將 commit `cdb67bf007ec67d882c6e974143a4d527f1528cd` 部署至 production `web-portal`，綁定既定 runtime Secret references 與 Owner 已設定的管理者 allowlist，並執行兩個無副作用 HTTP GET 驗證。
 - 結果：Cloud Build `7f155fb7-2288-416a-83a7-d77a95eee7e9` 成功；revision `web-portal-00027-fwf` Ready 且承接 100% traffic；`GET /` 為 200、`GET /demo/` 為 404；未觸發 rollback。
 - 限制：未讀取 Secret payload 或管理者 ID 值，未測 LINE callback、production DB/admin routes，未發通知，也未修改 IAM、Scheduler、schema 或 production data。
+
+## DEC-043：建立 Web Portal 跨平台安全部署工具
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner 批准建立 TASK-028 並交棒 Codex，將 TASK-027 暴露的 Windows make/sh 缺口、build context、PowerShell substitutions、長時間輪詢與 temporary env cleanup 風險做成 fail-closed Python 3.10 deployment wrapper。
+- 授權：可修改 tools、離線 tests 與文件並建立描述性 local commit。
+- 安全邊界：不得執行 `--execute`、不得呼叫 cloud/HTTP/Secret/DB/notification、不得部署或 rollback，也不得 push、建立 PR 或 merge。

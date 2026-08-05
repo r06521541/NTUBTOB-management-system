@@ -121,6 +121,8 @@
 
 ## 4. 當前工作
 
+- `TASK-028` 已由 Owner 批准並交棒 Codex：建立 Web Portal 跨平台安全 deployment wrapper，預設 dry-run，所有 cloud、HTTP、Secret 與 rollback 行為在本輪只能 mock，不得執行 production mutation。
+
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
 | `TASK-027` | `awaiting_owner_decision` | `owner` | 等待批准Web Portal build／deploy、metadata checks、兩次safe GET與conditional rollback。 |
