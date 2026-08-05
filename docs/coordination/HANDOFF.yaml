@@ -1,15 +1,15 @@
 active_task: TASK-034
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 96ee2a0d8fefce74b35b410069f0e1bafb405eeb
-head_commit: null
+head_commit: 05ef54482e08c6f2ef1849a07d5ab14af6df456e
 
-updated_by: work
-updated_at: 2026-08-06T10:45:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T12:30:00+08:00
 
 note: >
-  TASK-033 merged as 96ee2a0. Deployment created Ready revision 00031-zvr but pinned traffic stayed
-  on 00027-fwf; the wrapper only waited and the outer process timed out before its own timeout.
-  Production remained safe and temp env was removed. Owner approved TASK-034 and its PR work package
-  to verify a new revision before explicit exact traffic promotion; no production execution allowed.
+  TASK-034 implementation is on Draft PR #43. The wrapper now validates a distinct Ready revision
+  before explicit exact traffic promotion, then separately polls traffic convergence. Pre-promotion
+  failures preserve old healthy traffic without rollback mutation; later failures use the approved
+  rollback revision. Python 3.10 CI run 31043954172 passed. No production execution occurred.
