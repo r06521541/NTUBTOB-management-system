@@ -1,15 +1,16 @@
 active_task: TASK-020
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: b053fce6b60c58b5dca597f4e4962f63d016a44a
-head_commit: null
+head_commit: a84ef6430d49aa6911bd79ed22828b0b5f14fac8
 
-updated_by: work
-updated_at: 2026-08-05T15:18:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T15:20:00+08:00
 
 note: >
-  Owner approved TASK-020 and its PR work package. Codex may create the scoped
-  branch, descriptive commits, push, Draft PR, offline tests and CI evidence.
-  Merge, deployment, production requests, notifications, production data and
-  Secret/IAM/Scheduler operations remain unauthorized.
+  Codex completed the fail-closed LINE webhook ingress boundary on Draft PR
+  #34. Local offline suites and GitHub-hosted Python 3.10 CI passed. Work must
+  inspect the actual diff, commit and test evidence. Merge, deployment,
+  production requests, notifications, production data and Secret/IAM/Scheduler
+  operations remain unauthorized.
