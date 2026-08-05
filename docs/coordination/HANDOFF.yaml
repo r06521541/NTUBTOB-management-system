@@ -2,14 +2,14 @@ active_task: TASK-023
 status: awaiting_owner_decision
 next_actor: owner
 
-base_commit: f7471da1fed20f6477a16d125a6347692e3e732d
+base_commit: 3bfc0a1
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T17:45:00+08:00
+updated_at: 2026-08-05T18:20:00+08:00
 
 note: >
-  TASK-022 was accepted and merged through PR #36 at merge commit f7471da.
-  Work proposes TASK-023: a field-minimized, read-only production Web Portal
-  readiness inventory. Awaiting Owner approval of exact GCP and Secret metadata
-  queries; deployment and all mutations remain unauthorized.
+  Owner approved and Work completed the TASK-023 field-minimized read-only
+  inventory. Cloud Run is Ready/public and callback host matches, but the two
+  required LINE Login/session Secret resources cannot be uniquely identified;
+  deployment remains blocked. Awaiting Owner decision on a Secret bootstrap task.

@@ -362,3 +362,13 @@
 - Merge標題：`security(web-portal): keep runtime secrets out of images`。
 - 最終證據：Work-head `1dd9e30e47d513afe9e41a767278385eff8eed06`的Python 3.10 run `30992839053`／job `92262772115`成功；Linux實跑Web Portal 27/27與其餘70項tests通過。
 - 安全邊界：未執行Docker／Cloud Build、Web Portal部署、Secret／IAM查詢、production request或production DB／schema操作。
+
+## DEC-035：批准Web Portal Production Readiness唯讀盤點
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved_and_completed`
+- 決策：Owner批准TASK-023第4節的production唯讀GCP與Secret metadata查詢，不包含Secret value、部署或任何mutation。
+- 結果：Cloud Run current revision、traffic、digest、public boundary、runtime identity、env key分類、Secret resource names與narrow IAM metadata已完成查驗；readiness結果記錄於`docs/operations/deployments/WEB_PORTAL_READINESS_2026-08-05.md`。
+- 阻擋：無法唯一辨識TASK-022要求的LINE Login channel secret與Flask session key Secret resources，故未產生可直接執行的deployment批准文字。
+- 安全邊界：未讀取Secret／plain env values，未呼叫production URL，未執行build、deploy、traffic或任何Cloud Run／IAM／Secret／DB修改。
