@@ -1,15 +1,15 @@
 active_task: TASK-021
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: c022d5185cf6126ffd228b0c95b815c80ee39606
-head_commit: 1f0813e00ac22464d099aa136bc3a63b6d002e19
+head_commit: 6d53b2ce4c8795d50ab5a6178b62ef937efb5af6
 
-updated_by: codex
-updated_at: 2026-08-05T16:21:26+08:00
+updated_by: work
+updated_at: 2026-08-05T16:29:00+08:00
 
 note: >
-  Codex completed the fail-closed Member ID allowlist, shared route guard,
-  session CSRF protection, offline route tests and Python 3.10 CI evidence in
-  Draft PR #35. Work must inspect the actual diff, commits and tests. Merge,
-  deployment and all production or cloud operations remain unauthorized.
+  Work accepted TASK-021 at Codex HEAD 6d53b2c. Offline web 19/19, webhook
+  10/10, game 28/28, notify 9/9, schedule 5/5, wrapper 11/11, compile and diff
+  checks passed; Python 3.10 run 30988778233 succeeded. Awaiting final Work-head
+  CI and Owner merge decision. Deployment and production remain unauthorized.
