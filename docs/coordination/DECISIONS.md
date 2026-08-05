@@ -256,3 +256,25 @@
 - 未批准：人工invoke、Secret／IAM／Scheduler修改、credential輪替、其他服務部署或人工production data操作。
 - 結果：Cloud Build `3d751cb3-6b47-4de5-9568-e25425ef63c5`成功；revision `notify-cronjob-service-00011-jpj` Ready／healthy並承接100% traffic，digest為`sha256:8f7d551c41bb6e911d1a2cbc8a22c2b0911ea98650c6e27d613b4c5e6057c596`。
 - 安全結果：service維持private，runtime identity與Secret references未退化，temporary env已清理；未人工invoke、未修改Scheduler／Secret／IAM，未觸發rollback。
+
+## DEC-025：批准Game Broadcast Startup安全修正Production Deployment
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：將exact commit `b14dcad3d1261772c8dc00898ba1caca114ce941`部署至production `game-broadcast-service`，依TASK-018與runbook執行build、deploy及唯讀control-plane驗證。
+- Scheduler：接受既有Scheduler自然呼叫新revision，並可能讀取production DB、發送既有LINE／Discord通知或寫入announcement timestamps。
+- Rollback：符合TASK-018失敗條件時，批准將100% traffic切回`game-broadcast-service-00030-pgg`。
+- 未批准：人工invoke任何health或business route、Secret／IAM／Scheduler修改、credential輪替、其他服務部署或人工production data操作。
+- 結果：Cloud Build `b4081955-261f-4e41-a160-c31376e3b1ff`成功；精確digest建立revision `game-broadcast-service-00033-mdp`，Ready／healthy並承接100% traffic。
+- 安全結果：service維持private，runtime identity、Secret references及Scheduler未退化；未人工invoke、未觸發rollback。
+- 工具鏈發現：固定`:tag1`使原deploy step未建立新revision，Work以同一build的精確digest及顯式traffic完成核准部署；後續應改用immutable image reference並建立跨平台wrapper。
+
+## DEC-026：授權後續任務自行建立Local Commits
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner持續授權Work／Codex在完成範圍內工作並通過必要驗證後，自行建立local commits，不必逐次請示。
+- Commit要求：維持描述性標題、範圍聚焦、保留使用者既有變更，並在提交前執行任務所需測試與`git diff --check`。
+- 不包含：push、建立或合併PR、production deployment、正式通知、Secret／IAM／Scheduler修改、不可逆資料操作或重大架構變更；這些仍依既有流程個別取得Owner授權。

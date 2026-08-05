@@ -1,4 +1,4 @@
-active_task: TASK-017
+active_task: TASK-018
 status: completed
 next_actor: owner
 
@@ -6,9 +6,9 @@ base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
 head_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
 
 updated_by: work
-updated_at: 2026-08-05T13:07:00+08:00
+updated_at: 2026-08-05T13:23:00+08:00
 
 note: >
-  TASK-017部署成功：Cloud Build 3d751cb3成功，revision 00011-jpj Ready/healthy並承接100% traffic；
-  private boundary、runtime identity及Secret references未退化，temporary env已清理，未觸發rollback。
-  未人工invoke或修改Secret/IAM/Scheduler；下一次自然排程的業務結果尚未觀察。
+  TASK-018部署成功：Cloud Build b4081955成功，精確digest建立revision 00033-mdp，
+  Ready/healthy並承接100% traffic；private boundary、runtime identity、Secret references及Scheduler未退化。
+  固定tag造成原deploy no-op，已記錄為後續工具鏈風險；未人工invoke或觸發rollback。
