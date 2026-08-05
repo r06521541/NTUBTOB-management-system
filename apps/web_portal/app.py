@@ -1,32 +1,44 @@
 import os
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 import requests
 import secrets
 from flask import Flask, render_template, request, redirect, session, url_for, Response, send_from_directory
 from flask_caching import Cache
 
-from shared_module.models.games import Game
-from shared_module.models.members import Member
-from shared_module.models.line_users import LineUser
-from shared_module.models.game_attendance_replies import GameAttendanceReply
-from shared_module.notify.discord_notify import DiscordNotifyHelper
-import shared_module.attendance_analyzer as attendance_analyzer
-from shared_module.settings import (
-    local_timezone
-)
-from shared_module.message_templates.general_message import (
-    reply_text_mapping
-)
-
 import messages
+from demo_portal import demo_portal, is_demo_mode_enabled
 from envs import (
     login_channel_id,
     login_channel_secret,
     secret_key
 )
 
+DEMO_MODE_ENABLED = is_demo_mode_enabled()
+
+if not DEMO_MODE_ENABLED:
+    from shared_module.models.games import Game
+    from shared_module.models.members import Member
+    from shared_module.models.line_users import LineUser
+    from shared_module.models.game_attendance_replies import GameAttendanceReply
+    from shared_module.notify.discord_notify import DiscordNotifyHelper
+    import shared_module.attendance_analyzer as attendance_analyzer
+    from shared_module.settings import local_timezone
+    from shared_module.message_templates.general_message import reply_text_mapping
+else:
+    # Keep production-only ORM and notifier imports out of the offline demo process.
+    # Existing production routes are explicitly unavailable below while demo is on.
+    Game = Member = LineUser = GameAttendanceReply = object
+    attendance_analyzer = None
+    local_timezone = timezone(timedelta(hours=8))
+    reply_text_mapping = {}
+
 app = Flask(__name__)
-app.secret_key = secret_key  # 用於保持安全的session
+if DEMO_MODE_ENABLED and not secret_key:
+    # Non-sensitive fallback is deliberately limited to the double-gated local demo.
+    app.secret_key = "development-demo-session-key-not-for-production"
+else:
+    app.secret_key = secret_key  # 用於保持安全的session
+app.register_blueprint(demo_portal)
 
 # 設定 Cache 配置
 cache_config = {
@@ -46,7 +58,27 @@ LINE_USER_INFO_URL = 'https://api.line.me/v2/profile'
 
 
 
-discord_notify_helper = DiscordNotifyHelper()
+discord_notify_helper = None if DEMO_MODE_ENABLED else DiscordNotifyHelper()
+
+
+@app.before_request
+def isolate_demo_from_production_data_routes():
+    if not DEMO_MODE_ENABLED:
+        return None
+    blocked_endpoints = {
+        "line_callback",
+        "query_attendance",
+        "attendance",
+        "index",
+        "match_line_user",
+        "ignore_line_user",
+        "future_games",
+        "game_roster",
+        "clear_attendance_cache",
+    }
+    if request.endpoint in blocked_endpoints:
+        return "Not available in offline demo mode", 404
+    return None
 
 def notify_successful_log(message: str):
     discord_notify_helper.notify_successful_log(message)

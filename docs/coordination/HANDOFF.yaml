@@ -1,14 +1,14 @@
-active_task: TASK-010
+active_task: TASK-012
 status: completed
 next_actor: owner
 
-base_commit: 086d663831cf49ddaa5f8413edd8508d1f6bf596
-head_commit: null
+base_commit: b25b3ad6ca3ba355756cc938259d11b7be163398
+head_commit: b25b3ad6ca3ba355756cc938259d11b7be163398
 
 updated_by: work
-updated_at: 2026-08-05T00:36:00+08:00
+updated_at: 2026-08-05T01:15:00+08:00
 
 note: >
-  Owner 已批准 TASK-010 exact deployment 與條件式 generation rollback。commit 086d663
-  已部署至 update-game-schedule revision 00028-bij；build 成功，function ACTIVE，private
-  IAM、Secret reference及 Scheduler contract未退化。未人工 invoke，沒有觸發 rollback。
+  Owner 已完成 local視覺驗收並接受TASK-012，授權建立描述性commit。Mobile-first
+  Web Portal demo MVP結案；未部署、push、建PR或接觸正式資料。下一項已批准工作為
+  TASK-013排程服務無副作用health checks及其PR工作包。

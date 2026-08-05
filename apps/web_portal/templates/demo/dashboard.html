@@ -1,0 +1,10 @@
+{% extends 'demo/base.html' %}{% from 'demo/_macros.html' import badge, game_card %}
+{% block title %}首頁｜NTUBTOB{% endblock %}
+{% block content %}
+<section class="hero"><div><span class="eyebrow">晚上好，{{ member.name }}</span><h1>準備好下一場了嗎？</h1><p>重要資訊都整理好了，回覆只需要幾秒鐘。</p></div><div class="hero-stat"><strong>{{ unanswered_count }}</strong><span>場待回覆</span></div></section>
+{% if unanswered_count %}<aside class="notice"><strong>你有尚未回覆的賽事</strong><span>及早回覆，讓球隊更容易安排陣容。</span></aside>{% endif %}
+<section class="section-heading"><div><span class="eyebrow">NEXT GAME</span><h2>下一場賽事</h2></div><a href="{{ url_for('demo_portal.games') }}">全部賽程</a></section>
+<article class="card featured-game"><div class="featured-date"><strong>09</strong><span>AUG</span></div><div class="featured-main"><div>{{ badge(next_game.status) }}</div><h2>NTUBTOB <span>vs</span> {{ next_game.opponent }}</h2><p>{{ next_game.date }} · {{ next_game.time }}</p><p>{{ next_game.location }} · {{ next_game.home_away }}</p></div><a class="button button-primary" href="{{ url_for('demo_portal.game_detail', game_id=next_game.id) }}">立即回覆</a></article>
+<section class="section-heading"><div><span class="eyebrow">UPCOMING</span><h2>近期賽程</h2></div></section>
+<div class="card-grid">{% for game in games[1:] %}{{ game_card(game) }}{% endfor %}</div>
+{% endblock %}

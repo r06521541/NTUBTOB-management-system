@@ -180,3 +180,12 @@
 - 結果：Cloud Build `7d26952d-f9d3-4a40-a941-26db20630636` 成功；revision `update-game-schedule-00028-bij` ACTIVE／ready。
 - 安全結果：function 與 underlying service 維持 private，runtime、entry point、runtime identity、Secret reference與 Scheduler contract未退化，未觸發 rollback。
 - 未包含／未執行：人工 function invocation、Scheduler/IAM/Secret 修改、手動 production data 修復、其他服務部署或 application log讀取。
+
+## DEC-018：接受 Web Portal Local Demo並批准下一個Health Check任務
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- TASK-012：Owner完成local視覺驗收並接受mobile-first Web Portal demo MVP，授權建立描述性commit；不授權production deployment。
+- TASK-013：批准為`game-broadcast-service`與`notify-cronjob-service`建立無副作用health checks，並批准標準PR工作包。
+- TASK-013安全邊界：不得部署、人工呼叫production service、發送通知、讀寫production data、操作Secret/IAM/Scheduler或擴張至其他服務。

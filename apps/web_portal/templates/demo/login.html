@@ -1,0 +1,17 @@
+{% extends 'demo/base.html' %}
+{% block title %}登入｜NTUBTOB{% endblock %}
+{% block content %}
+<section class="auth-wrap">
+  <div class="auth-copy"><span class="eyebrow">TEAM PORTAL · LOCAL DEMO</span><h1>一起上場，<br>從這裡開始。</h1><p>查看賽程、回覆出席，掌握球隊的每一次集合。</p></div>
+  <div class="card auth-card">
+    <h2>登入球隊入口</h2>
+    <p class="muted">本頁為離線產品原型，不會連線任何登入服務。</p>
+    <a class="button button-line" href="{{ url_for('line_login') }}">使用 LINE 登入</a>
+    <button class="button button-secondary" disabled>使用 Google 登入 · 即將推出</button>
+    <button class="button button-secondary" disabled>使用 Apple 登入 · 即將推出</button>
+    <div class="divider"><span>本機預覽</span></div>
+    <form method="post"><button class="button button-primary" type="submit">進入虛構 Demo</button></form>
+    <a class="quiet-link" href="{{ url_for('demo_portal.pending') }}">查看等待核可畫面</a>
+  </div>
+</section>
+{% endblock %}

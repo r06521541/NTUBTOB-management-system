@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-05T00:36:00+08:00
+更新時間：2026-08-05T01:01:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `086d663831cf49ddaa5f8413edd8508d1f6bf596`
 
@@ -25,6 +25,7 @@
 - TASK-009 已完成：notify cron revision `00010-z2x` ready／healthy並承接 100% traffic；LINE token 已改用 runtime Secret reference，未人工觸發通知且未 rollback。
 - TASK-011 已完成唯讀 Gen2 rollback 準備；old source generation 與官方 v2 PATCH recovery path 已確認，未下載 source 或修改 production。
 - TASK-010 已完成：commit `086d663` 已部署至 update schedule revision `00028-bij`；build 與平台健康驗證通過，未人工 invoke且未觸發 rollback。
+- TASK-012 mobile-first Web Portal local demo MVP已完成並由Owner local視覺驗收接受：雙重development gate、session-only虛構資料、Dashboard／賽程／詳情／個人／等待核可及10項離線測試完成；未部署。
 
 ## 2. 已確認事實
 
@@ -99,9 +100,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-010` | `completed` | `owner` | Revision `00028-bij` ACTIVE；Scheduler 將依原排程自然驗證業務流程。 |
+| `TASK-012` | `completed` | `owner` | Local demo MVP已通過Work與Owner驗收；未部署production。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-006.md`
+正式任務規格：`docs/coordination/tasks/TASK-012.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
