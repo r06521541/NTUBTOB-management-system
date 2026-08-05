@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-05T12:29:00+08:00
+更新時間：2026-08-05T13:20:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `974433168b86e5638adce779ed8eccced0542094`
+證據基準：`main` merge commit `b14dcad3d1261772c8dc00898ba1caca114ce941`
 
 ## 1. 目前摘要
 
@@ -30,7 +30,7 @@
 - TASK-014已依Owner精確批准執行：revision `game-broadcast-service-00031-s65`建置與部署成功，但唯一一次authenticated `GET /healthz`回傳404，已依trigger將100% traffic rollback至Ready的`00030-pgg`。Service維持private，Scheduler未變。
 - TASK-015已完成bounded diagnosis：build source與deployed image的health route正確，但精確時間窗沒有container request log，故404發生於Cloud Run frontend／container之前；尚待Owner決定是否查詢極窄Cloud Audit HttpIngress policy logs。
 - TASK-015後續Cloud Audit `HttpIngress` policy metadata精確查詢亦為0筆，沒有證據支持可記錄的policy denial；URL／frontend routing仍待另一次獨立批准驗證。
-- TASK-016已完成Codex實作及Work驗收：兩個排程服務不再於import-time查詢LINE groups，notify package亦不再於import-time執行`announce('Hi')`；Draft PR #32等待Owner決定是否ready及merge。
+- TASK-016已由Owner接受並透過PR #32合併；merge commit為`b14dcad3`。兩個排程服務不再於import-time查詢LINE groups，notify package亦不再於import-time執行`announce('Hi')`；尚未部署至production。
 
 ## 2. 已確認事實
 
@@ -109,7 +109,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-016` | `awaiting_owner_approval` | `owner` | Work驗收accepted；等待Owner決定是否將Draft PR #32標記ready並merge。 |
+| `TASK-016` | `completed` | `owner` | PR #32已合併；production deployment需另立任務並取得精確批准。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

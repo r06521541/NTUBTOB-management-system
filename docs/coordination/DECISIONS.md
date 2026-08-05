@@ -232,3 +232,15 @@
 - TASK-016：已建立最小lazy initialization與import side-effect移除規格。
 - PR工作包：Owner批准branch、描述性commits、push、Draft PR、CI查驗及同一PR內的報告／驗收文件更新；merge仍需Owner最終批准。
 - 授權邊界：不批准部署、production request、production DB、真實通知、shared_lib／schema／Secret／IAM／Scheduler／deployment config修改或其他服務擴張。
+
+## DEC-023：接受並合併排程服務Startup安全修正
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-016的Work驗收結論，授權將PR #32標記ready並merge。
+- 結果：PR #32已以merge commit `b14dcad3d1261772c8dc00898ba1caca114ce941`合併。
+- Merge標題：`fix(scheduled-services): defer startup notification side effects`。
+- 驗收證據：合併前最終Actions run `30975939328`、job `92209817045`成功；Python 3.10.20下game broadcast 27/27、notify cron 8/8、schedule 5/5通過。
+- 安全邊界：未部署、未呼叫production、未連production DB、未發送通知，亦未操作shared_lib、schema、Secret、IAM、Scheduler或deployment config。
+- 後續：若要讓production使用本修正，必須另立deployment任務，確認目標服務、commit、驗證與rollback後再取得Owner精確批准。

@@ -39,3 +39,10 @@ TASK-016 符合核准範圍與驗收條件，建議 Owner 接受並決定是否�
 ## Work 建議
 
 `accepted`。下一位角色為 Owner；若 Owner 接受，可另行明確授權將 PR #32 標記 ready 並 merge。任何 production deployment 仍需獨立批准。
+
+## Owner 決策與合併結果
+
+- Owner 已接受驗收結論，並明確授權將 PR #32 標記 ready 及 merge。
+- PR #32 已於 2026-08-05 合併；merge commit：`b14dcad3d1261772c8dc00898ba1caca114ce941`。
+- 合併前最終 Python 3.10 CI run `30975939328`、job `92209817045` 通過。
+- TASK-016 至此結案；未授權或執行 production deployment。

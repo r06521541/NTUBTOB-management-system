@@ -1,15 +1,14 @@
 active_task: TASK-016
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 974433168b86e5638adce779ed8eccced0542094
-head_commit: ab14741a31e7667fdb4b5230cb551898a31566eb
+head_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
 
 updated_by: work
-updated_at: 2026-08-05T13:10:00+08:00
+updated_at: 2026-08-05T13:20:00+08:00
 
 note: >
-  Work已查驗實際diff、commits、Draft PR #32及最終HEAD的CI；TASK-016 accepted，
-  local game broadcast 27/27、notify cron 8/8、compileall及git diff --check通過，
-  Python 3.10 run 30975715544、job 92209168322通過。詳見reviews/TASK-016-WORK.md；
-  等待Owner決定是否將PR標記ready並merge，production deployment仍需另行批准。
+  Owner已接受TASK-016並授權將PR #32標記ready及merge；PR已於2026-08-05合併，
+  merge commit為b14dcad3d1261772c8dc00898ba1caca114ce941。合併前最終CI run
+  30975939328、job 92209817045通過。TASK-016 completed；未授權或執行production deployment。
