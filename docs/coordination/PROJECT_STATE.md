@@ -112,7 +112,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-018` | `completed` | `owner` | Game broadcast `00033-mdp`已承接100% traffic；固定tag／跨平台deployment wrapper列為下一個工程健全性候選。 |
+| `TASK-019` | `awaiting_owner_decision` | `owner` | 消除scheduled services固定tag，建立預設無mutation的跨平台deployment wrapper與離線測試。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

@@ -1,14 +1,14 @@
-active_task: TASK-018
-status: completed
+active_task: TASK-019
+status: awaiting_owner_decision
 next_actor: owner
 
 base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
-head_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T13:23:00+08:00
+updated_at: 2026-08-05T13:50:00+08:00
 
 note: >
-  TASK-018部署成功：Cloud Build b4081955成功，精確digest建立revision 00033-mdp，
-  Ready/healthy並承接100% traffic；private boundary、runtime identity、Secret references及Scheduler未退化。
-  固定tag造成原deploy no-op，已記錄為後續工具鏈風險；未人工invoke或觸發rollback。
+  TASK-019已規劃immutable image與Python 3.10跨平台deployment wrapper，範圍只含兩個scheduled services；
+  預設fail closed並以離線tests驗證，不包含任何實際build/deploy/traffic或production存取。
+  等待Owner批准任務與PR工作包。
