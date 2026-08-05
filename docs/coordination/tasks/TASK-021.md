@@ -1,6 +1,6 @@
 # TASK-021：保護 Web Portal 成員配對管理端點
 
-狀態：`ready_for_codex`
+狀態：`ready_for_review`
 優先級：P1
 規劃者：Work
 執行者：Codex

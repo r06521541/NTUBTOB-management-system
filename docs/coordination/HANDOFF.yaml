@@ -1,15 +1,15 @@
 active_task: TASK-021
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: c022d5185cf6126ffd228b0c95b815c80ee39606
-head_commit: null
+head_commit: 1f0813e00ac22464d099aa136bc3a63b6d002e19
 
-updated_by: work
-updated_at: 2026-08-05T15:57:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T16:21:26+08:00
 
 note: >
-  Owner approved TASK-021 and its PR work package. Codex may create the scoped
-  branch, descriptive commits, push, Draft PR, offline tests and CI evidence.
-  Merge, deployment, production requests, notifications, production data and
-  Secret/IAM/Scheduler/schema operations remain unauthorized.
+  Codex completed the fail-closed Member ID allowlist, shared route guard,
+  session CSRF protection, offline route tests and Python 3.10 CI evidence in
+  Draft PR #35. Work must inspect the actual diff, commits and tests. Merge,
+  deployment and all production or cloud operations remain unauthorized.
