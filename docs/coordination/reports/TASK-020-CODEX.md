@@ -1,7 +1,7 @@
 # TASK-020 Codex Implementation Report
 
-日期：2026-08-05  
-狀態：`ready_for_review`  
+日期：2026-08-05
+狀態：`ready_for_review`
 PR：[Draft PR #34](https://github.com/r06521541/NTUBTOB-management-system/pull/34)
 
 ## Git 範圍

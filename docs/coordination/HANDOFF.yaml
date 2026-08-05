@@ -1,16 +1,15 @@
 active_task: TASK-020
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: b053fce6b60c58b5dca597f4e4962f63d016a44a
 head_commit: a84ef6430d49aa6911bd79ed22828b0b5f14fac8
 
-updated_by: codex
-updated_at: 2026-08-05T15:20:00+08:00
+updated_by: work
+updated_at: 2026-08-05T15:35:00+08:00
 
 note: >
-  Codex completed the fail-closed LINE webhook ingress boundary on Draft PR
-  #34. Local offline suites and GitHub-hosted Python 3.10 CI passed. Work must
-  inspect the actual diff, commit and test evidence. Merge, deployment,
-  production requests, notifications, production data and Secret/IAM/Scheduler
-  operations remain unauthorized.
+  Work accepted TASK-020 at Codex HEAD e256af2. Offline webhook 10/10, game
+  28/28, notify 9/9, schedule 5/5, wrapper 11/11, compile and diff checks passed;
+  Python 3.10 run 30984636639 succeeded. Awaiting final Work-head CI and Owner
+  merge decision. Deployment and all production operations remain unauthorized.
