@@ -511,3 +511,12 @@
 - 證據：Owner在一般瀏覽器遇到Invalid state，但無痕視窗與清除該網站cookie後均可正常登入；production已依TASK-030 rollback至`web-portal-00027-fwf`。
 - 決策：建立TASK-032，以專用版本化cookie名稱、明確production安全屬性及fail-closed重試UI處理stale/collision狀態，不建立跨瀏覽器transaction store或database schema。
 - 安全邊界：批准本機實作、測試與描述性commit；不包含push／PR／merge、production deployment、LINE／DB／HTTP呼叫、Secret／IAM／LINE Console／schema／data修改或通知。
+
+## DEC-051：部署驗證須等待Cloud Run Control-plane收斂
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 證據：TASK-032部署的`web-portal-00030-jmg`稍後顯示完整Ready／digest／runtime contract，但wrapper在HTTP前判定失敗並rollback；批准範圍內的request metadata為0筆。證據支持但不證明eventual-consistency race。
+- 決策：建立TASK-033，以bounded polling等待new revision與traffic收斂，並加入不含敏感資訊的失敗stage分類；timeout或明確drift仍rollback。
+- 安全邊界：批准本機工具／測試／文件修改與描述性commit；不包含push／PR／merge、wrapper execute、gcloud／HTTP／logs、production deployment／rollback、Secret／IAM／DB／schema／LINE或通知。

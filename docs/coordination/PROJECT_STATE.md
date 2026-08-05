@@ -133,6 +133,7 @@
 | --- | --- | --- | --- |
 | `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
+| `TASK-033` | `ready_for_codex` | `codex` | 為Web Portal rollout加入bounded convergence polling與安全失敗stage；只做離線實作。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
