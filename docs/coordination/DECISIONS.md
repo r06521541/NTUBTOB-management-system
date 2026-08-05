@@ -287,3 +287,15 @@
 - 決策：Owner批准TASK-019，由Codex實作scheduled services immutable image references與Python 3.10跨平台deployment wrapper。
 - PR工作包：允許建立／使用task branch、描述性commits、push、Draft PR、CI查驗，以及Work在同一PR更新report／review／PROJECT_STATE／HANDOFF。
 - 安全邊界：不得執行wrapper `--execute` path、Cloud Build、deployment、traffic mutation、production存取、Secret／IAM／Scheduler修改、正式通知、production data操作或merge。
+
+## DEC-028：接受並合併Immutable Deployment Wrapper
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-019的Work第三輪驗收結論，授權將PR #33標記ready並merge。
+- 結果：PR #33已以merge commit `b053fce6b60c58b5dca597f4e4962f63d016a44a`合併。
+- Merge標題：`feat(deployment): make scheduled service rollouts commit-addressable`。
+- 驗收證據：合併前最終Actions run `30983055468`、job `92231531057`成功；本機wrapper 11/11、game broadcast 28/28、notify cron 9/9、update schedule 5/5及preflight／compile／diff checks通過。
+- 安全邊界：未執行wrapper `--execute`、Cloud Build、deployment、production存取、通知、production data、Secret／IAM／Scheduler操作。
+- 後續：首次使用execute path仍須針對exact commit、target service與rollback revision另立deployment工作包並取得Owner批准。

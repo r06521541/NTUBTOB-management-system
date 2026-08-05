@@ -1,15 +1,15 @@
-active_task: TASK-019
-status: awaiting_owner_approval
+active_task: TASK-020
+status: planning
 next_actor: owner
 
-base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
-head_commit: 339d0cd1cbbfb5e76f4b42a91e3bd87d9e49aa31
+base_commit: b053fce6b60c58b5dca597f4e4962f63d016a44a
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T14:54:00+08:00
+updated_at: 2026-08-05T15:12:00+08:00
 
 note: >
-  Work third review accepted TASK-019 at Codex HEAD 339d0cd. Local wrapper 11/11,
-  game 28/28, notify 9/9, schedule 5/5, preflight/compile/diff checks and final
-  Python 3.10 run 30982344293 passed. Awaiting Owner decision on Draft PR #33;
-  merge does not authorize wrapper execute or production deployment.
+  TASK-019 was accepted and merged through PR #33 at merge commit b053fce.
+  Work proposes TASK-020 to make the public LINE webhook ingress fail closed and
+  add offline Python 3.10 security tests. Awaiting Owner approval of the task and
+  optional PR work package; no deployment or production access is authorized.
