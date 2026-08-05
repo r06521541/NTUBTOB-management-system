@@ -1,9 +1,9 @@
 # TASK-021：保護 Web Portal 成員配對管理端點
 
-狀態：`planning`
+狀態：`ready_for_codex`
 優先級：P1
 規劃者：Work
-執行者：Codex（待 Owner 批准）
+執行者：Codex
 Base commit：`c022d5185cf6126ffd228b0c95b815c80ee39606`
 
 ## 1. 任務目標
@@ -129,9 +129,9 @@ git status --short
 - 依賴：既有Flask session、`secrets`與LINE Login session；不新增第三方dependency。
 - 主要風險：allowlist值若未部署會安全地鎖住所有管理者；未來production deployment必須另行確認設定與rollback，但不屬本任務授權。
 
-## 11. PR 工作包（待 Owner 批准）
+## 11. PR 工作包（Owner 已批准）
 
-若Owner接受此任務，建議同時批准Codex：
+Owner已批准Codex：
 
 - 建立`codex/protect-web-portal-member-matching` branch。
 - 建立描述性local commits、push並建立Draft PR。

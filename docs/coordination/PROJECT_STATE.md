@@ -36,7 +36,7 @@
 - TASK-018已完成：main commit `b14dcad3`的game broadcast image以精確digest部署至revision `00033-mdp`，Ready／healthy並承接100% traffic；固定`:tag1`曾使原deploy step no-op，應另立工具鏈修正。
 - TASK-019已由Owner接受並透過PR #33合併；merge commit為`b053fce6`。兩個排程服務改用Git SHA image tag，並新增預設只做preflight、fail-closed的跨平台deployment wrapper；尚未以wrapper execute path進行production部署。
 - TASK-020已由Codex完成、Work驗收為`accepted`並由Owner透過PR #34合併；缺少／空白／無效LINE signature明確回400且不觸發外部副作用，production／local入口共用同一boundary；merge commit為`c022d518`，尚未部署Cloud Function。
-- TASK-021由Work提出規劃：以fail-closed Member ID allowlist、登入guard與session CSRF保護Web Portal成員配對管理端點，等待Owner批准。
+- TASK-021已由Owner批准並交棒Codex：以fail-closed Member ID allowlist、登入guard與session CSRF保護Web Portal成員配對管理端點；PR工作包已批准，但不包含merge或任何production操作。
 
 ## 2. 已確認事實
 
@@ -115,7 +115,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-021` | `planning` | `owner` | 保護Web Portal成員配對管理端點：登入＋Member ID allowlist authorization＋CSRF，預設拒絕。 |
+| `TASK-021` | `ready_for_codex` | `codex` | 保護Web Portal成員配對管理端點：登入＋Member ID allowlist authorization＋CSRF，預設拒絕。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-021.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

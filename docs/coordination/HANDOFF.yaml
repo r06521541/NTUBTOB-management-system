@@ -1,15 +1,15 @@
 active_task: TASK-021
-status: planning
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: c022d5185cf6126ffd228b0c95b815c80ee39606
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T15:52:00+08:00
+updated_at: 2026-08-05T15:57:00+08:00
 
 note: >
-  TASK-020 was accepted and merged through PR #34 at merge commit c022d51.
-  Work proposes TASK-021 to protect Web Portal member-matching routes with a
-  fail-closed Member ID allowlist and session CSRF. Awaiting Owner approval of
-  the task and PR work package; no code or production work is authorized yet.
+  Owner approved TASK-021 and its PR work package. Codex may create the scoped
+  branch, descriptive commits, push, Draft PR, offline tests and CI evidence.
+  Merge, deployment, production requests, notifications, production data and
+  Secret/IAM/Scheduler/schema operations remain unauthorized.

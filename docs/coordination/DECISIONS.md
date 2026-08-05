@@ -320,3 +320,13 @@
 - Merge標題：`fix(webhook): reject untrusted LINE ingress without side effects`。
 - 最終證據：Work-head `2227016148b5fdb91a56ea9af3b0d53bfc37e10c`的Python 3.10 run `30985595920`／job `92239490734`成功；Work本機重跑webhook 10/10、game 28/28、notify 9/9、schedule 5/5、wrapper 11/11及compile／diff checks通過。
 - 安全邊界：未部署Cloud Function、未呼叫production webhook、未發送通知，亦未操作production DB、Secret、IAM、Scheduler或schema。
+
+## DEC-031：批准Web Portal成員配對保護與PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准TASK-021，以既有LINE登入、`WEB_PORTAL_ADMIN_MEMBER_IDS` Member ID allowlist及session CSRF保護Web Portal成員配對管理頁與兩個資料修改端點。
+- Fail-closed規則：allowlist未設定、空白或任一格式錯誤時全部拒絕；未登入者不得讀取管理資料，非管理者回403，CSRF失敗回400且不得產生DB／Discord副作用。
+- PR工作包：允許建立`codex/protect-web-portal-member-matching` branch、描述性commits、push、Draft PR、離線測試與Python 3.10 CI查驗，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
+- 安全邊界：不批准ready／merge、Web Portal deployment、production request、正式LINE／Discord通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
