@@ -3,7 +3,17 @@
 狀態：`ready_for_review`
 執行者：Codex
 task 起始 commit：`8ee73f660aad8edf7145a8510ebd7cb923c01227`
-實作 commit：`1572d1b`
+初版實作 commit：`1572d1b`
+補正實作 commit：`637d9b9`
+
+## Work review 補正
+
+- `demo_operations.games[game_id]` 現在分別保存交通、裝備與 checklist；跨兩場測試證明狀態不互相污染。
+- 交通流程涵蓋自行前往、需要接送及可提供 1–4 席，僅接受兩個虛構集合點；各模式的欄位組合、CSRF 與畸形輸入均 fail closed。
+- 三類通知偏好可透過 POST 切換並保存於 session，未知 key／值及錯誤 CSRF 不改狀態，reset 回復預設。
+- 賽程新增 server-rendered 時間軸／月曆及 all／home／away 篩選，所有 query value 具 allowlist。
+- 出席新增僅觀賽與預計抵達時間，所有欄位保存後回填；invalid status 以有效 CSRF 測試拒絕。
+- Dashboard 的回覆、交通與裝備待辦由 session helper 導出，跨賽事頁、Game Day 與 Dashboard 的完整操作測試證明同步更新。
 
 ## 完成內容
 
@@ -21,7 +31,7 @@ task 起始 commit：`8ee73f660aad8edf7145a8510ebd7cb923c01227`
 
 ```text
 python-runtime -m unittest discover -s apps/web_portal/tests -v
-30 tests: OK，2 skipped（本機缺 make/sh，既有 deployment executable coverage）
+33 tests: OK，2 skipped（本機缺 make/sh，既有 deployment executable coverage）
 
 python-runtime -m compileall -q apps/web_portal
 passed
