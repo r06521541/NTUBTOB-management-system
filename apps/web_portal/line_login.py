@@ -1,3 +1,4 @@
+import re
 from urllib.parse import urlsplit
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -6,6 +7,9 @@ from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 OAUTH_STATE_SALT = "line-login-oauth-state-v1"
 OAUTH_STATE_MAX_AGE_SECONDS = 600
 LINE_HTTP_TIMEOUT_SECONDS = 10
+AMBIGUOUS_ESCAPE_PATTERN = re.compile(
+    r"%(?:0[0-9a-f]|1[0-9a-f]|25|2f|5c|7f)", re.I
+)
 
 
 class InvalidOAuthState(ValueError):
@@ -17,7 +21,16 @@ def safe_return_path(candidate, fallback):
     if not isinstance(candidate, str) or not candidate.startswith("/"):
         return fallback
     parsed = urlsplit(candidate)
-    if parsed.scheme or parsed.netloc or candidate.startswith("//"):
+    if (
+        parsed.scheme
+        or parsed.netloc
+        or candidate.startswith("//")
+        or "\\" in candidate
+        or any(
+            ord(character) < 32 or ord(character) == 127 for character in candidate
+        )
+        or AMBIGUOUS_ESCAPE_PATTERN.search(candidate)
+    ):
         return fallback
     return candidate
 
@@ -37,4 +50,13 @@ def load_oauth_state(secret_key, state, fallback, max_age=OAUTH_STATE_MAX_AGE_SE
         raise InvalidOAuthState("OAuth state is invalid or expired") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("nonce"), str):
         raise InvalidOAuthState("OAuth state payload is invalid")
-    return safe_return_path(payload.get("next"), fallback)
+    return safe_return_path(payload.get("next"), fallback), payload["nonce"]
+
+
+def require_string_field(payload, field, allow_empty=False):
+    if not isinstance(payload, dict):
+        raise ValueError("Invalid response payload")
+    value = payload.get(field)
+    if not isinstance(value, str) or (not allow_empty and not value.strip()):
+        raise ValueError("Invalid response payload")
+    return value

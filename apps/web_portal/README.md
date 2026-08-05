@@ -29,13 +29,19 @@ and is not part of the offline demo.
 
 ## LINE Login callback continuity
 
-LINE Login uses a short-lived, server-signed OAuth state so the callback can
-complete when LINE opens it in a different browser context from the page that
-started login. The state expires after 10 minutes and contains only a random
-nonce and a validated local return path. Invalid, expired, or modified state is
-rejected before LINE or database access. Return targets must be absolute paths
-within this Web Portal; external and scheme-relative URLs fall back to the
-attendance page.
+LINE Login uses a short-lived, server-signed OAuth state bound to a nonce in the
+browser session that started login. The state expires after 10 minutes and
+contains only that random nonce and a validated local return path. Invalid,
+expired, modified, or cross-session state is rejected before LINE or database
+access. Return targets must be unambiguous absolute paths within this Web
+Portal; external, scheme-relative, encoded-separator, backslash, and control
+character inputs fall back to the attendance page.
+
+This transaction binding prevents login CSRF/session swapping, but it also
+means a callback opened in a genuinely different browser cookie store cannot
+safely establish a session. Supporting that product flow requires an approved
+two-phase confirmation design with shared one-time transaction state, or a LINE
+browser-return configuration that preserves the original browser context.
 
 The LINE Developers callback URL remains
 `https://web-portal-7uz453jt3a-de.a.run.app/line/callback`. This repository's

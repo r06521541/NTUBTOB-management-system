@@ -1,3 +1,4 @@
+import hmac
 import os
 import secrets
 from datetime import datetime, time, timedelta, timezone
@@ -30,6 +31,7 @@ from line_login import (
     InvalidOAuthState,
     create_oauth_state,
     load_oauth_state,
+    require_string_field,
     safe_return_path,
 )
 
@@ -136,10 +138,12 @@ def line_login():
         request.args.get('next') or session.pop('next_url', None),
         url_for('attendance'),
     )
+    nonce = secrets.token_urlsafe(16)
+    session['oauth_state_nonce'] = nonce
     state = create_oauth_state(
         app.secret_key,
         return_path,
-        secrets.token_urlsafe(16),
+        nonce,
     )
     login_query = urlencode(
         {
@@ -160,12 +164,18 @@ def line_callback():
     
     # 驗證 state 是否符合
     try:
-        next_url = load_oauth_state(
+        next_url, state_nonce = load_oauth_state(
             app.secret_key,
             state,
             url_for('attendance'),
         )
     except InvalidOAuthState:
+        return 'Invalid state parameter', 400
+
+    session_nonce = session.pop('oauth_state_nonce', None)
+    if not isinstance(session_nonce, str) or not hmac.compare_digest(
+        state_nonce, session_nonce
+    ):
         return 'Invalid state parameter', 400
 
     if not code:
@@ -186,7 +196,7 @@ def line_callback():
             timeout=LINE_HTTP_TIMEOUT_SECONDS,
         )
         token_response.raise_for_status()
-        access_token = token_response.json()['access_token']
+        access_token = require_string_field(token_response.json(), 'access_token')
 
     # 使用access token獲取使用者資訊
         headers = {'Authorization': f'Bearer {access_token}'}
@@ -197,8 +207,10 @@ def line_callback():
         )
         profile_response.raise_for_status()
         user_info_res = profile_response.json()
-        user_id = user_info_res['userId']
-        display_name = user_info_res['displayName']
+        user_id = require_string_field(user_info_res, 'userId')
+        display_name = require_string_field(
+            user_info_res, 'displayName', allow_empty=True
+        )
     except (requests.RequestException, ValueError, KeyError, TypeError):
         return 'LINE Login is temporarily unavailable', 502
 

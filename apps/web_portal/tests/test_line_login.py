@@ -26,7 +26,7 @@ class OAuthStateTest(unittest.TestCase):
         state = create_oauth_state(self.secret, "/attendance?game=7", "fake-nonce")
         self.assertEqual(
             load_oauth_state(self.secret, state, "/attendance"),
-            "/attendance?game=7",
+            ("/attendance?game=7", "fake-nonce"),
         )
 
     def test_tampered_missing_and_malformed_states_fail_closed(self):
@@ -50,6 +50,12 @@ class OAuthStateTest(unittest.TestCase):
             "",
             "https://attacker.example/path",
             "//attacker.example/path",
+            "/\\attacker.example/path",
+            "/%5c%5cattacker.example/path",
+            "/%2fattacker.example/path",
+            "/%252fattacker.example/path",
+            "/path\x00suffix",
+            "/path%0asuffix",
             "relative/path",
         ):
             with self.subTest(candidate=candidate):
