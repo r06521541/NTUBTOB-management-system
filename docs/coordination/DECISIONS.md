@@ -402,3 +402,12 @@
 - 成果：Local demo支援Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布／取消、兩層出席與手機幹部入口；Work最終重跑45項tests通過，2項既有Windows platform skips。
 - 限制：尚未完成Python 3.10與browser automation視覺證據；正式RBAC、API、schema、同步／去重與通知均未實作。
 - 安全邊界：未push、建立PR、部署、操作Secret／IAM、連線production／Supabase DB、修改schema或呼叫外部服務。
+
+## DEC-039：批准Web Portal Prototype Push與PR
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_and_executed`
+- 決策：Owner在接受TASK-025後批准push與建立PR，不包含merge或deployment。
+- 結果：Branch `codex/prototype-web-portal-team-events`已push並建立ready PR #37；Python 3.10 run `31021863646`／job `92360319877`成功。
+- 安全邊界：未merge、部署、操作production／Secret／IAM／DB／schema或發送通知。

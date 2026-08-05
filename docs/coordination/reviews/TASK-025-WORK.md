@@ -91,3 +91,14 @@ passed
 - Work重跑45項Web Portal tests全部通過，2項既有Windows platform skips；compileall與`git diff --check`通過。
 
 Work結論恢復為`accepted`。Owner仍可就實際手機視覺提出非安全性調整；Python 3.10及自動化browser visual仍未驗證。
+
+## PR與Python 3.10證據
+
+- Owner後續授權push與建立PR，但未授權merge。
+- Branch：`codex/prototype-web-portal-team-events`
+- PR：#37 `feat(web-portal): prototype team operations and composite events`
+- GitHub Actions run：`31021863646`
+- Job：`92360319877`，`Python 3.10 unittest suite`成功。
+- Hosted runner完成Web Portal tests及game broadcast、notify cron、deployment wrapper、update schedule與LINE webhook回歸。
+
+因此Python 3.10限制已解除；browser automation視覺證據仍未補齊，Owner已完成至少一次mobile UAT並促成officer入口修正。

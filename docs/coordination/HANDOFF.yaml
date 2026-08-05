@@ -1,15 +1,15 @@
 active_task: TASK-025
-status: completed
+status: awaiting_owner_approval
 next_actor: owner
 
 base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
-head_commit: 6601877
+head_commit: 7a21a6f
 
 updated_by: work
-updated_at: 2026-08-06T00:20:00+08:00
+updated_at: 2026-08-06T00:40:00+08:00
 
 note: >
-  Owner accepted TASK-025 after the mobile officer navigation correction and Work
-  verification. The local Event/Activity prototype is complete; 45 tests pass with
-  2 existing Windows skips. No push, PR, deployment, production, DB, schema,
-  Secret or external operation occurred.
+  Owner accepted TASK-025 and later authorized push/PR. PR #37 is open and
+  mergeable; Python 3.10 run 31021863646/job 92360319877 passed all configured
+  suites. Awaiting Owner merge decision. No deployment, production, DB, schema,
+  Secret, notification or other external mutation is authorized.
