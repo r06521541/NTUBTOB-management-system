@@ -95,8 +95,10 @@ class FakeRunner:
         public=True,
         identity=IDENTITY,
         secret_override=None,
+        promotion_failure=False,
         rollback_failure=False,
         rollout_states=None,
+        already_promoted=False,
     ):
         self.root = root
         self.dirty = dirty
@@ -109,10 +111,12 @@ class FakeRunner:
         self.public = public
         self.identity = identity
         self.secret_override = secret_override
+        self.promotion_failure = promotion_failure
         self.rollback_failure = rollback_failure
         self.rollout_states = list(rollout_states or [])
         self.commands = []
         self.service_describes = 0
+        self.promoted = already_promoted
 
     def env_entries(self):
         entries = [
@@ -179,13 +183,18 @@ class FakeRunner:
                     "status": {
                         "latestCreatedRevisionName": revision,
                         "url": "https://fixture-web-portal.example",
-                        "traffic": (
-                            [{"revisionName": revision, "percent": 100}]
-                            if self.service_describes > 1
-                            and self.traffic
-                            and state.get("traffic", True)
-                            else []
-                        ),
+                        "traffic": [
+                            {
+                                "revisionName": (
+                                    REVISION
+                                    if self.promoted
+                                    and self.traffic
+                                    and state.get("traffic", True)
+                                    else BASELINE
+                                ),
+                                "percent": 100,
+                            }
+                        ],
                     },
                 }
             )
@@ -222,8 +231,14 @@ class FakeRunner:
                 else []
             )
             stdout = json.dumps({"bindings": bindings})
-        elif "update-traffic" in arguments and self.rollback_failure:
-            raise subprocess.CalledProcessError(1, arguments)
+        elif "update-traffic" in arguments:
+            target = arguments[arguments.index("--to-revisions") + 1]
+            if target == f"{REVISION}=100":
+                if self.promotion_failure:
+                    raise subprocess.CalledProcessError(1, arguments)
+                self.promoted = True
+            elif self.rollback_failure:
+                raise subprocess.CalledProcessError(1, arguments)
         return subprocess.CompletedProcess(arguments, 0, stdout=stdout, stderr="")
 
 
@@ -360,12 +375,13 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         self.assertFalse(self.temporary_env.exists())
         self.assertTrue((self.root / "apps" / "web_portal" / "dist" / "shared_lib-0.0.1.tar.gz").is_file())
 
-    def test_rollout_polling_waits_for_revision_ready_and_traffic(self):
+    def test_pinned_traffic_waits_for_ready_revision_then_promotes_and_converges(self):
         runner = FakeRunner(
             self.root,
             rollout_states=(
                 {"new_revision": False},
                 {"ready": False},
+                {},
                 {"traffic": False},
                 {"traffic": True},
             ),
@@ -384,18 +400,20 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         )
 
         self.assertEqual(result["revision"], REVISION)
-        self.assertEqual(len(sleeps), 4)  # one build wait, then three rollout waits
+        self.assertEqual(len(sleeps), 4)  # build, two revision waits, traffic wait
         self.assertEqual(len(http_calls), 2)
-        self.assertFalse(any("update-traffic" in command for command, _ in runner.commands))
+        promotions = [command for command, _ in runner.commands if "update-traffic" in command]
+        self.assertEqual(len(promotions), 1)
+        self.assertIn(f"{REVISION}=100", promotions[0])
 
-    def test_rollout_timeout_rolls_back_before_iam_or_http(self):
+    def test_revision_timeout_keeps_old_traffic_without_rollback_or_checks(self):
         runner = FakeRunner(
             self.root,
             rollout_states=({"new_revision": False},),
         )
         http_calls = []
         with self.assertRaisesRegex(
-            deploy.DeploymentStageError, "stage rollout_convergence; rollback succeeded"
+            deploy.DeploymentStageError, "stage revision_convergence"
         ) as raised:
             self.execute(
                 runner,
@@ -404,7 +422,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
                 poll_timeout=2,
                 poll_interval=0.1,
             )
-        self.assertEqual(raised.exception.stage, "rollout_convergence")
+        self.assertEqual(raised.exception.stage, "revision_convergence")
         self.assertEqual(http_calls, [])
         self.assertFalse(any("get-iam-policy" in command for command, _ in runner.commands))
         self.assertEqual(
@@ -415,14 +433,14 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
                     if "update-traffic" in command
                 ]
             ),
-            1,
+            0,
         )
 
     def test_ready_revision_contract_drift_fails_without_waiting_for_timeout(self):
         runner = FakeRunner(self.root, identity="different@example.com")
         sleeps = []
         with self.assertRaisesRegex(
-            deploy.DeploymentStageError, "stage rollout_convergence; rollback succeeded"
+            deploy.DeploymentStageError, "stage revision_convergence"
         ):
             self.execute(runner, sleeper=sleeps.append, clock=FakeClock(range(20)))
         self.assertEqual(sleeps, [10.0])  # build poll only; hard drift does not retry
@@ -497,18 +515,51 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             (dict(revision_digest="sha256:" + "c" * 64), "digest"),
             (dict(identity="different@example.com"), "identity"),
             (dict(secret_override={"SECRET_KEY": "wrong:1"}), "SECRET_KEY"),
-            (dict(public=False), "Public"),
-            (dict(traffic=False), "traffic"),
         )
         for options, message in scenarios:
             with self.subTest(message=message):
                 runner = FakeRunner(self.root, **options)
-                with self.assertRaisesRegex(deploy.DeploymentError, "rollback succeeded"):
+                with self.assertRaises(deploy.DeploymentStageError):
                     self.execute(runner, clock=FakeClock(range(100)), poll_timeout=3)
                 rollback = [command for command, _ in runner.commands if "update-traffic" in command]
-                self.assertEqual(len(rollback), 1)
-                self.assertIn(f"{ROLLBACK}=100", rollback[0])
+                self.assertEqual(rollback, [])
                 self.assertFalse(self.temporary_env.exists())
+
+    def test_already_promoted_revision_skips_duplicate_promotion(self):
+        runner = FakeRunner(self.root, already_promoted=True)
+        self.execute(runner)
+        self.assertFalse(any("update-traffic" in command for command, _ in runner.commands))
+
+    def test_promotion_failure_rolls_back_with_exact_revision(self):
+        runner = FakeRunner(self.root, promotion_failure=True)
+        with self.assertRaisesRegex(
+            deploy.DeploymentStageError, "stage traffic_promotion; rollback succeeded"
+        ) as raised:
+            self.execute(runner)
+        self.assertEqual(raised.exception.stage, "traffic_promotion")
+        updates = [command for command, _ in runner.commands if "update-traffic" in command]
+        self.assertEqual(len(updates), 2)
+        self.assertIn(f"{REVISION}=100", updates[0])
+        self.assertIn(f"{ROLLBACK}=100", updates[1])
+
+    def test_traffic_timeout_rolls_back_before_iam_or_http(self):
+        runner = FakeRunner(self.root, traffic=False)
+        http_calls = []
+        with self.assertRaisesRegex(
+            deploy.DeploymentStageError, "stage traffic_convergence; rollback succeeded"
+        ) as raised:
+            self.execute(
+                runner,
+                lambda url, timeout: http_calls.append(url) or 200,
+                clock=FakeClock(range(30)),
+                poll_timeout=2,
+            )
+        self.assertEqual(raised.exception.stage, "traffic_convergence")
+        self.assertEqual(http_calls, [])
+        self.assertFalse(any("get-iam-policy" in command for command, _ in runner.commands))
+        updates = [command for command, _ in runner.commands if "update-traffic" in command]
+        self.assertEqual(len(updates), 2)
+        self.assertIn(f"{ROLLBACK}=100", updates[1])
 
     def test_http_failure_rolls_back_and_never_reads_response_body(self):
         runner = FakeRunner(self.root)

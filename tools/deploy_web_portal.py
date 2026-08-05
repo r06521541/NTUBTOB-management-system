@@ -302,7 +302,7 @@ def validate_revision_contract(
             raise DeploymentError("Production demo configuration must remain absent")
 
 
-def rollout_converged(
+def revision_converged(
     root: Path,
     baseline_revision: str,
     approved_digest: str,
@@ -311,7 +311,7 @@ def rollout_converged(
     session_secret_ref: str,
     runner: Runner,
 ) -> Optional[tuple[dict, str]]:
-    """Return the converged service and revision name, or None while transient."""
+    """Return a distinct Ready revision with an approved runtime contract."""
     service = parse_json(
         command_output(
             runner,
@@ -359,17 +359,10 @@ def rollout_converged(
         line_secret_ref,
         session_secret_ref,
     )
-    traffic = service.get("status", {}).get("traffic", [])
-    if not any(
-        item.get("revisionName") == revision_name and item.get("percent") == 100
-        for item in traffic
-        if isinstance(item, dict)
-    ):
-        return None
     return service, revision_name
 
 
-def poll_rollout(
+def poll_revision(
     root: Path,
     baseline_revision: str,
     approved_digest: str,
@@ -384,7 +377,7 @@ def poll_rollout(
 ) -> tuple[dict, str]:
     deadline = clock() + timeout
     while True:
-        result = rollout_converged(
+        result = revision_converged(
             root,
             baseline_revision,
             approved_digest,
@@ -396,7 +389,45 @@ def poll_rollout(
         if result is not None:
             return result
         if clock() >= deadline:
-            raise DeploymentError("Cloud Run rollout convergence timed out")
+            raise DeploymentError("Cloud Run revision convergence timed out")
+        sleeper(interval)
+
+
+def has_exact_traffic(service: dict, revision_name: str) -> bool:
+    traffic = service.get("status", {}).get("traffic", [])
+    return any(
+        item.get("revisionName") == revision_name and item.get("percent") == 100
+        for item in traffic
+        if isinstance(item, dict)
+    )
+
+
+def poll_traffic(
+    root: Path,
+    revision_name: str,
+    runner: Runner,
+    timeout: float,
+    interval: float,
+    clock: Clock,
+    sleeper: Sleeper,
+) -> dict:
+    deadline = clock() + timeout
+    while True:
+        service = parse_json(
+            command_output(
+                runner,
+                [
+                    "gcloud", "run", "services", "describe", SERVICE,
+                    "--project", PROJECT_ID, "--region", REGION, "--format=json",
+                ],
+                root,
+            ),
+            "Cloud Run traffic",
+        )
+        if has_exact_traffic(service, revision_name):
+            return service
+        if clock() >= deadline:
+            raise DeploymentError("Cloud Run traffic convergence timed out")
         sleeper(interval)
 
 
@@ -424,6 +455,10 @@ def rollback_command(revision: str) -> list[str]:
         f"{revision}=100",
         "--quiet",
     ]
+
+
+def promotion_command(revision: str) -> list[str]:
+    return rollback_command(revision)
 
 
 def execute_deployment(
@@ -462,7 +497,7 @@ def execute_deployment(
     temporary_env = service_root / ".env.yaml"
     artifact_source = root / "shared_lib" / "dist" / "shared_lib-0.0.1.tar.gz"
     artifact_target = service_root / "dist" / artifact_source.name
-    rollout_succeeded = False
+    traffic_may_have_changed = False
     failure_stage = "build"
     try:
         baseline = parse_json(
@@ -502,14 +537,13 @@ def execute_deployment(
         if not re.fullmatch(r"[A-Za-z0-9-]+", build_id):
             raise DeploymentError("Cloud Build ID is missing or malformed")
         poll_build(root, build_id, runner, poll_timeout, poll_interval, clock, sleeper)
-        rollout_succeeded = True
-        failure_stage = "rollout_convergence"
+        failure_stage = "revision_convergence"
 
         image_reference = f"{REGION}-docker.pkg.dev/{PROJECT_ID}/management-system-docker-repo/{SERVICE}-image:{approved_commit}"
         approved_digest = normalize_digest(
             command_output(runner, ["gcloud", "artifacts", "docker", "images", "describe", image_reference, "--project", PROJECT_ID, "--format=value(image_summary.digest)"], root)
         )
-        service, revision_name = poll_rollout(
+        service, revision_name = poll_revision(
             root,
             baseline_revision,
             approved_digest,
@@ -522,6 +556,23 @@ def execute_deployment(
             clock,
             sleeper,
         )
+        if has_exact_traffic(service, revision_name):
+            # Cloud Run may have promoted automatically; later checks still need rollback safety.
+            traffic_may_have_changed = True
+        else:
+            failure_stage = "traffic_promotion"
+            traffic_may_have_changed = True
+            command_output(runner, promotion_command(revision_name), root)
+            failure_stage = "traffic_convergence"
+            service = poll_traffic(
+                root,
+                revision_name,
+                runner,
+                poll_timeout,
+                poll_interval,
+                clock,
+                sleeper,
+            )
         failure_stage = "iam"
         policy = parse_json(
             command_output(runner, ["gcloud", "run", "services", "get-iam-policy", SERVICE, "--project", PROJECT_ID, "--region", REGION, "--format=json"], root),
@@ -546,7 +597,7 @@ def execute_deployment(
             "rollback": "not_required",
         }
     except (DeploymentError, subprocess.CalledProcessError) as deployment_error:
-        if rollout_succeeded:
+        if traffic_may_have_changed:
             try:
                 command_output(runner, rollback_command(rollback_revision), root)
             except DeploymentError as rollback_error:
