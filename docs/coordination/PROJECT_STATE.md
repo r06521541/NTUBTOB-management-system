@@ -213,6 +213,12 @@
 
 ## 8. 文件狀態
 
+### TASK-031 Windows gcloud executable resolution（2026-08-06）
+
+- 兩個 deployment wrapper 已在 subprocess 邊界解析 exact executable，使 Windows `gcloud.cmd` 能在 `shell=False` 下安全啟動，並維持 POSIX 相容與 missing-tool fail-closed 行為。
+- 34 項 tools tests 與 55 項 Web Portal tests 通過；本機臨時 `.cmd` 的真實離線啟動契約通過，兩個 wrapper dry-run 均未呼叫 cloud。
+- 尚待 Work review 與 Hosted Python 3.10 CI；未部署。合併後須重新鎖定 TASK-030 exact deployment commit。
+
 ### TASK-027 production deployment closeout（2026-08-06）
 
 - Owner 已批准並完成將 merge commit `cdb67bf007ec67d882c6e974143a4d527f1528cd` 部署至 production `web-portal`。
