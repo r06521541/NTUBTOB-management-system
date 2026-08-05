@@ -1,15 +1,15 @@
-active_task: TASK-034
-status: completed
+active_task: TASK-035
+status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 96ee2a0d8fefce74b35b410069f0e1bafb405eeb
-head_commit: 06016b9e7fae27cb7f919552136b23a2be3452e2
+base_commit: 198d3f0
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T13:30:00+08:00
+updated_at: 2026-08-06T14:00:00+08:00
 
 note: >
-  Owner authorized ready, squash merge, and production deployment. PR #43 merged as bb91d9e5.
-  The wrapper deployed web-portal-00032-f7z and independently verified Ready state, matching image
-  digest, and 100% traffic; GET / returned 200 and /demo/ returned 404. Rollback was not required.
-  No Secret, IAM, DB, schema, LINE, or other-service mutation occurred.
+  Work proposes TASK-035 to require an authenticated, paired Member before Web Portal roster names
+  are queried or rendered. The task is repository-only, adds offline fail-closed tests, preserves
+  current authenticated-member content, and defers detailed member/officer/admin RBAC. Owner must
+  approve the task and PR work package before Codex starts; merge and deployment remain separate.
