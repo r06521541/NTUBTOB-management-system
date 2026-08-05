@@ -2,7 +2,7 @@
 
 驗收日期：2026-08-05
 驗收者：Work
-結論：`changes_requested`（Owner mobile UAT後）
+結論：`accepted`（mobile UAT補正後）
 
 ## 驗收範圍
 
@@ -80,3 +80,14 @@ passed
 - 重跑完整Web Portal tests、compile與diff checks；不得擴張至正式RBAC或production UI。
 
 瀏覽器自動化工具本輪仍無法連線，但Owner的實機／手機版觀察已構成直接UAT證據，不需要等待工具才能判定此缺陷。
+
+## Mobile UAT補正驗收
+
+- Fix commit：`e9a0210`
+- Report head：`e45c33d`
+- Officer session的mobile bottom navigation現在為五欄並顯示「幹部」，可依可見連結到達`/demo/officer`及Event Builder。
+- Non-officer session維持四欄，response不輸出mobile／desktop幹部入口；server-side builder guard仍回403。
+- Mobile CSS採`repeat(5,minmax(0,1fr))`、54px touch target、可縮欄位及overflow限制，沒有固定min-width。
+- Work重跑45項Web Portal tests全部通過，2項既有Windows platform skips；compileall與`git diff --check`通過。
+
+Work結論恢復為`accepted`。Owner仍可就實際手機視覺提出非安全性調整；Python 3.10及自動化browser visual仍未驗證。

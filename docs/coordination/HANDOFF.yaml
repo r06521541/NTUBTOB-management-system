@@ -1,15 +1,15 @@
 active_task: TASK-025
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
-head_commit: e9a0210
+head_commit: e45c33d
 
-updated_by: codex
-updated_at: 2026-08-05T23:45:00+08:00
+updated_by: work
+updated_at: 2026-08-06T00:05:00+08:00
 
 note: >
-  Codex fixed the Owner mobile UAT blocker in e9a0210. Officer sessions now have
-  a five-column mobile link through the officer workspace to Event Builder, while
-  member sessions retain four columns and no officer link. All 45 tests pass with
-  2 existing platform skips; Work should re-review the actual response and CSS contracts.
+  Work accepted the TASK-025 mobile correction. Officer sessions have a visible
+  five-column mobile route to the officer workspace and Event Builder; members
+  retain four columns and no officer link, with server guard unchanged. All 45
+  tests pass with 2 existing Windows skips. Awaiting Owner acceptance; no external operation.
