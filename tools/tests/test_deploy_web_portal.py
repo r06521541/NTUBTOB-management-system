@@ -24,9 +24,14 @@ SESSION_REF = "fixture-session-secret:2"
 class FakeClock:
     def __init__(self, values):
         self.values = iter(values)
+        self.last = 0
 
     def __call__(self):
-        return next(self.values)
+        try:
+            self.last = next(self.values)
+        except StopIteration:
+            self.last += 1
+        return self.last
 
 
 class CommandResolutionTests(unittest.TestCase):
@@ -91,6 +96,7 @@ class FakeRunner:
         identity=IDENTITY,
         secret_override=None,
         rollback_failure=False,
+        rollout_states=None,
     ):
         self.root = root
         self.dirty = dirty
@@ -104,6 +110,7 @@ class FakeRunner:
         self.identity = identity
         self.secret_override = secret_override
         self.rollback_failure = rollback_failure
+        self.rollout_states = list(rollout_states or [])
         self.commands = []
         self.service_describes = 0
 
@@ -155,7 +162,17 @@ class FakeRunner:
             stdout = DIGEST + "\n"
         elif arguments[:4] == ["gcloud", "run", "services", "describe"]:
             self.service_describes += 1
-            revision = BASELINE if self.service_describes == 1 else REVISION
+            state_index = self.service_describes - 2
+            state = (
+                self.rollout_states[min(state_index, len(self.rollout_states) - 1)]
+                if self.rollout_states and state_index >= 0
+                else {}
+            )
+            revision = (
+                BASELINE
+                if self.service_describes == 1 or not state.get("new_revision", True)
+                else REVISION
+            )
             stdout = json.dumps(
                 {
                     "spec": {"template": {"spec": {"serviceAccountName": IDENTITY}}},
@@ -164,13 +181,21 @@ class FakeRunner:
                         "url": "https://fixture-web-portal.example",
                         "traffic": (
                             [{"revisionName": revision, "percent": 100}]
-                            if self.service_describes > 1 and self.traffic
+                            if self.service_describes > 1
+                            and self.traffic
+                            and state.get("traffic", True)
                             else []
                         ),
                     },
                 }
             )
         elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
+            state_index = max(self.service_describes - 2, 0)
+            state = (
+                self.rollout_states[min(state_index, len(self.rollout_states) - 1)]
+                if self.rollout_states
+                else {}
+            )
             stdout = json.dumps(
                 {
                     "spec": {
@@ -182,7 +207,9 @@ class FakeRunner:
                         "conditions": [
                             {
                                 "type": "Ready",
-                                "status": "True" if self.revision_ready else "False",
+                                "status": "True"
+                                if self.revision_ready and state.get("ready", True)
+                                else "False",
                             }
                         ],
                     },
@@ -333,6 +360,73 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         self.assertFalse(self.temporary_env.exists())
         self.assertTrue((self.root / "apps" / "web_portal" / "dist" / "shared_lib-0.0.1.tar.gz").is_file())
 
+    def test_rollout_polling_waits_for_revision_ready_and_traffic(self):
+        runner = FakeRunner(
+            self.root,
+            rollout_states=(
+                {"new_revision": False},
+                {"ready": False},
+                {"traffic": False},
+                {"traffic": True},
+            ),
+        )
+        sleeps = []
+        http_calls = []
+
+        result = self.execute(
+            runner,
+            lambda url, timeout: http_calls.append(url)
+            or (404 if url.endswith("/demo/") else 200),
+            clock=FakeClock(range(20)),
+            sleeper=sleeps.append,
+            poll_timeout=10,
+            poll_interval=0.25,
+        )
+
+        self.assertEqual(result["revision"], REVISION)
+        self.assertEqual(len(sleeps), 4)  # one build wait, then three rollout waits
+        self.assertEqual(len(http_calls), 2)
+        self.assertFalse(any("update-traffic" in command for command, _ in runner.commands))
+
+    def test_rollout_timeout_rolls_back_before_iam_or_http(self):
+        runner = FakeRunner(
+            self.root,
+            rollout_states=({"new_revision": False},),
+        )
+        http_calls = []
+        with self.assertRaisesRegex(
+            deploy.DeploymentStageError, "stage rollout_convergence; rollback succeeded"
+        ) as raised:
+            self.execute(
+                runner,
+                lambda url, timeout: http_calls.append(url) or 200,
+                clock=FakeClock(range(20)),
+                poll_timeout=2,
+                poll_interval=0.1,
+            )
+        self.assertEqual(raised.exception.stage, "rollout_convergence")
+        self.assertEqual(http_calls, [])
+        self.assertFalse(any("get-iam-policy" in command for command, _ in runner.commands))
+        self.assertEqual(
+            len(
+                [
+                    command
+                    for command, _ in runner.commands
+                    if "update-traffic" in command
+                ]
+            ),
+            1,
+        )
+
+    def test_ready_revision_contract_drift_fails_without_waiting_for_timeout(self):
+        runner = FakeRunner(self.root, identity="different@example.com")
+        sleeps = []
+        with self.assertRaisesRegex(
+            deploy.DeploymentStageError, "stage rollout_convergence; rollback succeeded"
+        ):
+            self.execute(runner, sleeper=sleeps.append, clock=FakeClock(range(20)))
+        self.assertEqual(sleeps, [10.0])  # build poll only; hard drift does not retry
+
     def test_polling_handles_failure_malformed_and_timeout(self):
         with self.assertRaisesRegex(deploy.DeploymentError, "FAILURE"):
             deploy.poll_build(
@@ -352,8 +446,11 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
     def test_build_failure_cleans_temp_without_rollback(self):
         runner = FakeRunner(self.root, build_statuses=("FAILURE",))
-        with self.assertRaisesRegex(deploy.DeploymentError, "FAILURE"):
+        with self.assertRaisesRegex(
+            deploy.DeploymentStageError, "stage build"
+        ) as raised:
             self.execute(runner)
+        self.assertEqual(raised.exception.stage, "build")
         self.assertFalse(self.temporary_env.exists())
         self.assertFalse(
             any("update-traffic" in command for command, _ in runner.commands)
@@ -407,7 +504,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             with self.subTest(message=message):
                 runner = FakeRunner(self.root, **options)
                 with self.assertRaisesRegex(deploy.DeploymentError, "rollback succeeded"):
-                    self.execute(runner)
+                    self.execute(runner, clock=FakeClock(range(100)), poll_timeout=3)
                 rollback = [command for command, _ in runner.commands if "update-traffic" in command]
                 self.assertEqual(len(rollback), 1)
                 self.assertIn(f"{ROLLBACK}=100", rollback[0])
@@ -444,8 +541,18 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
     def test_rollback_failure_is_distinct_and_cleanup_still_runs(self):
         runner = FakeRunner(self.root, traffic=False, rollback_failure=True)
         with self.assertRaisesRegex(deploy.DeploymentError, "rollback failed"):
-            self.execute(runner)
+            self.execute(runner, clock=FakeClock(range(100)), poll_timeout=3)
         self.assertFalse(self.temporary_env.exists())
+
+    def test_failure_messages_expose_stage_but_not_command_output(self):
+        runner = FakeRunner(self.root, public=False)
+        with self.assertRaises(deploy.DeploymentStageError) as raised:
+            self.execute(runner)
+        self.assertEqual(raised.exception.stage, "iam")
+        message = str(raised.exception)
+        self.assertIn("stage iam", message)
+        self.assertNotIn("fixture", message)
+        self.assertNotIn("secret", message.lower())
 
 
 if __name__ == "__main__":

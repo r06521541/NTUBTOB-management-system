@@ -133,6 +133,7 @@
 | --- | --- | --- | --- |
 | `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
+| `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -213,6 +214,14 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-033 Web Portal rollout convergence polling（2026-08-06）
+
+- Codex已讓deployment wrapper在Cloud Build成功後bounded polling新revision、Ready、核准runtime contract及100% traffic，完成前不執行IAM／HTTP驗證。
+- 暫態control-plane收斂會等待；Ready revision的digest、identity、Secret/plain env或demo gate漂移會立即fail closed並rollback。
+- 失敗訊息只提供安全stage及rollback結果，不輸出gcloud stderr、env、Secret或HTTP body。
+- Tools 38項與Web Portal 58項測試通過（2項既有Windows skip）；compile、Python 3.10 grammar、dry-run與diff check通過。
+- 狀態為`ready_for_review / work`；未push、開PR、merge或部署，production仍由`web-portal-00027-fwf`承接traffic。
 
 ### TASK-032 Web Portal session cookie migration（2026-08-06）
 

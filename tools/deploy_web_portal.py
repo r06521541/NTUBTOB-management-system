@@ -49,6 +49,14 @@ class DeploymentError(RuntimeError):
     """A safely reportable deployment contract failure."""
 
 
+class DeploymentStageError(DeploymentError):
+    """A deployment failure with a safe, non-sensitive stage label."""
+
+    def __init__(self, stage: str, message: str):
+        super().__init__(message)
+        self.stage = stage
+
+
 Runner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[str]]
 Sleeper = Callable[[float], None]
 Clock = Callable[[], float]
@@ -294,6 +302,104 @@ def validate_revision_contract(
             raise DeploymentError("Production demo configuration must remain absent")
 
 
+def rollout_converged(
+    root: Path,
+    baseline_revision: str,
+    approved_digest: str,
+    expected_identity: str,
+    line_secret_ref: str,
+    session_secret_ref: str,
+    runner: Runner,
+) -> Optional[tuple[dict, str]]:
+    """Return the converged service and revision name, or None while transient."""
+    service = parse_json(
+        command_output(
+            runner,
+            [
+                "gcloud", "run", "services", "describe", SERVICE,
+                "--project", PROJECT_ID, "--region", REGION, "--format=json",
+            ],
+            root,
+        ),
+        "Cloud Run service",
+    )
+    revision_name = service.get("status", {}).get("latestCreatedRevisionName")
+    if (
+        not isinstance(revision_name, str)
+        or not revision_name
+        or revision_name == baseline_revision
+    ):
+        return None
+    revision = parse_json(
+        command_output(
+            runner,
+            [
+                "gcloud",
+                "run",
+                "revisions",
+                "describe",
+                revision_name,
+                "--project",
+                PROJECT_ID,
+                "--region",
+                REGION,
+                "--format=json",
+            ],
+            root,
+        ),
+        "Cloud Run revision",
+    )
+    if not revision_ready(revision):
+        return None
+    # Once Ready=True, contract differences are hard drift, not convergence delay.
+    validate_revision_contract(
+        revision,
+        approved_digest,
+        expected_identity,
+        line_secret_ref,
+        session_secret_ref,
+    )
+    traffic = service.get("status", {}).get("traffic", [])
+    if not any(
+        item.get("revisionName") == revision_name and item.get("percent") == 100
+        for item in traffic
+        if isinstance(item, dict)
+    ):
+        return None
+    return service, revision_name
+
+
+def poll_rollout(
+    root: Path,
+    baseline_revision: str,
+    approved_digest: str,
+    expected_identity: str,
+    line_secret_ref: str,
+    session_secret_ref: str,
+    runner: Runner,
+    timeout: float,
+    interval: float,
+    clock: Clock,
+    sleeper: Sleeper,
+) -> tuple[dict, str]:
+    deadline = clock() + timeout
+    while True:
+        result = rollout_converged(
+            root,
+            baseline_revision,
+            approved_digest,
+            expected_identity,
+            line_secret_ref,
+            session_secret_ref,
+            runner,
+        )
+        if result is not None:
+            return result
+        if clock() >= deadline:
+            raise DeploymentError("Cloud Run rollout convergence timed out")
+        sleeper(interval)
+
+
 def public_invoker_enabled(policy: dict) -> bool:
     return any(
         binding.get("role") == "roles/run.invoker"
@@ -357,6 +463,7 @@ def execute_deployment(
     artifact_source = root / "shared_lib" / "dist" / "shared_lib-0.0.1.tar.gz"
     artifact_target = service_root / "dist" / artifact_source.name
     rollout_succeeded = False
+    failure_stage = "build"
     try:
         baseline = parse_json(
             command_output(
@@ -396,32 +503,33 @@ def execute_deployment(
             raise DeploymentError("Cloud Build ID is missing or malformed")
         poll_build(root, build_id, runner, poll_timeout, poll_interval, clock, sleeper)
         rollout_succeeded = True
+        failure_stage = "rollout_convergence"
 
         image_reference = f"{REGION}-docker.pkg.dev/{PROJECT_ID}/management-system-docker-repo/{SERVICE}-image:{approved_commit}"
         approved_digest = normalize_digest(
             command_output(runner, ["gcloud", "artifacts", "docker", "images", "describe", image_reference, "--project", PROJECT_ID, "--format=value(image_summary.digest)"], root)
         )
-        service = parse_json(
-            command_output(runner, ["gcloud", "run", "services", "describe", SERVICE, "--project", PROJECT_ID, "--region", REGION, "--format=json"], root),
-            "Cloud Run service",
+        service, revision_name = poll_rollout(
+            root,
+            baseline_revision,
+            approved_digest,
+            baseline_identity,
+            line_secret_ref,
+            session_secret_ref,
+            runner,
+            poll_timeout,
+            poll_interval,
+            clock,
+            sleeper,
         )
-        revision_name = service.get("status", {}).get("latestCreatedRevisionName")
-        if not revision_name or revision_name == baseline_revision:
-            raise DeploymentError("Deployment did not create a new revision")
-        revision = parse_json(
-            command_output(runner, ["gcloud", "run", "revisions", "describe", revision_name, "--project", PROJECT_ID, "--region", REGION, "--format=json"], root),
-            "Cloud Run revision",
-        )
-        validate_revision_contract(revision, approved_digest, baseline_identity, line_secret_ref, session_secret_ref)
-        traffic = service.get("status", {}).get("traffic", [])
-        if not any(item.get("revisionName") == revision_name and item.get("percent") == 100 for item in traffic if isinstance(item, dict)):
-            raise DeploymentError("New revision does not have 100% traffic")
+        failure_stage = "iam"
         policy = parse_json(
             command_output(runner, ["gcloud", "run", "services", "get-iam-policy", SERVICE, "--project", PROJECT_ID, "--region", REGION, "--format=json"], root),
             "Cloud Run IAM policy",
         )
         if not public_invoker_enabled(policy):
             raise DeploymentError("Public invoker boundary is missing")
+        failure_stage = "http"
         service_url = service.get("status", {}).get("url")
         if not isinstance(service_url, str) or not service_url.startswith("https://"):
             raise DeploymentError("Cloud Run service URL is missing or invalid")
@@ -442,11 +550,21 @@ def execute_deployment(
             try:
                 command_output(runner, rollback_command(rollback_revision), root)
             except DeploymentError as rollback_error:
-                raise DeploymentError(
-                    f"Deployment verification failed; rollback failed: {rollback_error}"
+                raise DeploymentStageError(
+                    "rollback",
+                    f"Deployment failed at stage {failure_stage}; rollback failed",
                 ) from rollback_error
-            raise DeploymentError("Deployment verification failed; rollback succeeded") from deployment_error
-        raise
+            raise DeploymentStageError(
+                failure_stage,
+                f"Deployment failed at stage {failure_stage}; rollback succeeded",
+            ) from deployment_error
+        if isinstance(deployment_error, DeploymentError):
+            raise DeploymentStageError(
+                "build", "Deployment failed at stage build"
+            ) from deployment_error
+        raise DeploymentStageError(
+            "build", "Deployment failed at stage build"
+        ) from deployment_error
     finally:
         if temporary_env.exists():
             temporary_env.unlink()
