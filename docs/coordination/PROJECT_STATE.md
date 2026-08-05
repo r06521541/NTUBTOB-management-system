@@ -125,11 +125,13 @@
 
 ## 4. 當前工作
 
-- `TASK-029` original-browser repository-only 修正已由 Work 驗收接受；真實 Safari／Chrome／LINE in-app 行為仍需部署另案批准。
+- `TASK-029` 已由 PR #39 squash merge為 `6765448`，Python 3.10 CI成功；尚未部署或以真實瀏覽器驗證。
+- `TASK-030` 已建立production rollout與Owner手動LINE Login smoke-test工作包，等待Owner對exact commit、rollback與真實LINE API／production唯讀Member查詢做精確批准。
+- `TASK-030` 首次執行在Cloud Build前因Windows無法由Python啟動硬編碼的`gcloud`而安全停止；沒有新build／revision，traffic仍為`web-portal-00027-fwf=100%`。Owner已批准TASK-031修正wrapper executable resolution及PR工作包，TASK-030待其merge後更新exact source再續行。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-029` | `awaiting_owner_approval` | `owner` | 決定是否批准 push／PR；部署與真實裝置 smoke test 不在本次授權內。 |
+| `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -210,6 +212,12 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-031 Windows gcloud executable resolution（2026-08-06）
+
+- 兩個 deployment wrapper 已在 subprocess 邊界解析 exact executable，使 Windows `gcloud.cmd` 能在 `shell=False` 下安全啟動，並維持 POSIX 相容與 missing-tool fail-closed 行為。
+- 34 項 tools tests 與 55 項 Web Portal tests 通過；本機臨時 `.cmd` 的真實離線啟動契約通過，兩個 wrapper dry-run 均未呼叫 cloud。
+- 尚待 Work review 與 Hosted Python 3.10 CI；未部署。合併後須重新鎖定 TASK-030 exact deployment commit。
 
 ### TASK-027 production deployment closeout（2026-08-06）
 

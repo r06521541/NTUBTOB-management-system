@@ -63,8 +63,20 @@ Runner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[str]]
 def run_command(
     arguments: Sequence[str], cwd: Path
 ) -> subprocess.CompletedProcess[str]:
+    command = list(arguments)
+    if not command:
+        raise DeploymentError("Refusing to run an empty command")
+    executable = shutil.which(command[0])
+    if executable is None:
+        raise DeploymentError(f"Required tool is unavailable: {command[0]}")
+    command[0] = executable
     return subprocess.run(
-        list(arguments), cwd=cwd, check=True, capture_output=True, text=True
+        command,
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+        shell=False,
     )
 
 

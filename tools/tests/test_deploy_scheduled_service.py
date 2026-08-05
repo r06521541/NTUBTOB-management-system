@@ -1,8 +1,10 @@
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools import deploy_scheduled_service as deploy
 
@@ -16,6 +18,54 @@ FULL_REVISION_DIGEST = (
 ROLLBACK_REVISION = "game-broadcast-service-00030-pgg"
 BASELINE_REVISION = "game-broadcast-service-00031-s65"
 NEW_REVISION = "game-broadcast-service-00099-abc"
+
+
+class CommandResolutionTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows batch execution contract")
+    def test_run_command_executes_resolved_windows_batch_file_without_shell(self):
+        with tempfile.TemporaryDirectory() as directory:
+            batch_file = Path(directory) / "fixture-gcloud.cmd"
+            batch_file.write_text("@echo fixture-gcloud-ok\r\n", encoding="utf-8")
+            with patch(
+                "tools.deploy_scheduled_service.shutil.which",
+                return_value=str(batch_file),
+            ):
+                result = deploy.run_command(["gcloud"], Path(directory))
+
+        self.assertEqual(result.stdout.strip(), "fixture-gcloud-ok")
+
+    @patch("tools.deploy_scheduled_service.subprocess.run")
+    @patch("tools.deploy_scheduled_service.shutil.which")
+    def test_run_command_uses_resolved_windows_batch_file(self, which, run):
+        which.return_value = r"C:\Program Files\Google\Cloud SDK\bin\gcloud.cmd"
+        run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+        deploy.run_command(["gcloud", "version"], Path("fixture"))
+
+        run.assert_called_once_with(
+            [r"C:\Program Files\Google\Cloud SDK\bin\gcloud.cmd", "version"],
+            cwd=Path("fixture"),
+            check=True,
+            capture_output=True,
+            text=True,
+            shell=False,
+        )
+
+    @patch("tools.deploy_scheduled_service.subprocess.run")
+    @patch("tools.deploy_scheduled_service.shutil.which")
+    def test_run_command_uses_resolved_posix_executable(self, which, run):
+        which.return_value = "/usr/bin/gcloud"
+        run.return_value = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+
+        deploy.run_command(["gcloud", "version"], Path("fixture"))
+
+        self.assertEqual(run.call_args.args[0], ["/usr/bin/gcloud", "version"])
+        self.assertFalse(run.call_args.kwargs["shell"])
+
+    @patch("tools.deploy_scheduled_service.shutil.which", return_value=None)
+    def test_run_command_fails_closed_when_executable_is_missing(self, _which):
+        with self.assertRaisesRegex(deploy.DeploymentError, "unavailable: gcloud"):
+            deploy.run_command(["gcloud", "version"], Path("fixture"))
 
 
 class FakeRunner:
