@@ -1,6 +1,6 @@
 # TASK-013：排程服務無副作用 Health Checks
 
-狀態：`ready_for_codex`
+狀態：`awaiting_owner_approval`
 優先級：P1
 規劃者：Work
 執行者：Codex
@@ -91,14 +91,14 @@ GET /healthz
 
 ## 6. 驗收條件
 
-- [ ] 兩個服務都有符合固定contract的`GET /healthz`。
-- [ ] Health request可在dependency全部設為fail-on-call時離線成功。
-- [ ] POST `/healthz`為405，既有business route contract不變。
-- [ ] Response不含Secret、environment、host或dependency details。
-- [ ] 兩個Cloud Run deployment contract仍維持private。
-- [ ] README與deployment runbook清楚說明liveness限制與production授權邊界。
-- [ ] 所有既有及新增測試通過，Python 3.10 CI成功。
-- [ ] 沒有shared_lib、schema、deployment config或其他service diff。
+- [x] 兩個服務都有符合固定contract的`GET /healthz`。
+- [x] Health request可在dependency全部設為fail-on-call時離線成功。
+- [x] POST `/healthz`為405，既有business route contract不變。
+- [x] Response不含Secret、environment、host或dependency details。
+- [x] 兩個Cloud Run deployment contract仍維持private。
+- [x] README與deployment runbook清楚說明liveness限制與production授權邊界。
+- [x] 所有既有及新增測試通過，Python 3.10 CI成功。
+- [x] 沒有shared_lib、schema、deployment config或其他service diff。
 
 ## 7. 必要驗證
 
