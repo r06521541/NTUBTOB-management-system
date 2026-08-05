@@ -1,15 +1,15 @@
 active_task: TASK-016
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 974433168b86e5638adce779ed8eccced0542094
-head_commit: null
+head_commit: 049a50e0c646dee513b3c6de7138200062b43abd
 
-updated_by: work
-updated_at: 2026-08-05T12:29:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T12:35:00+08:00
 
 note: >
-  TASK-015後續精確Cloud Audit HttpIngress policy query為0筆，沒有policy denial證據；
-  URL／frontend routing仍未定案且未重送production request。Owner已批准TASK-016及PR工作包，
-  Codex可建立task branch、實作、測試、建立描述性commits、push Draft PR並查驗CI。
-  不得部署、呼叫production、連production DB、發送通知或修改task明定的受限範圍。
+  Codex已完成兩個排程服務的lazy LINE helper初始化與notify package import副作用移除；
+  local game broadcast 27/27、notify cron 8/8、compileall及git diff --check通過。
+  Draft PR #32的Python 3.10 run 30975661043、job 92209003542通過；
+  詳見reports/TASK-016-CODEX.md，交由Work驗收。
