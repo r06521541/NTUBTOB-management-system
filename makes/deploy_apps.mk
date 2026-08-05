@@ -73,8 +73,8 @@ update-shared-lib-for-deploy-web-portal:
 		apps/${DIR_WEB_PORTAL}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
 deploy-web-portal:
-	@test -n "${WEB_PORTAL_LINE_LOGIN_SECRET_REF}" || (echo "WEB_PORTAL_LINE_LOGIN_SECRET_REF is required" >&2; exit 2)
-	@test -n "${WEB_PORTAL_SESSION_SECRET_REF}" || (echo "WEB_PORTAL_SESSION_SECRET_REF is required" >&2; exit 2)
+	@printf '%s\n' "${WEB_PORTAL_LINE_LOGIN_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$$' || (echo "WEB_PORTAL_LINE_LOGIN_SECRET_REF must be a resource:version reference" >&2; exit 2)
+	@printf '%s\n' "${WEB_PORTAL_SESSION_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$$' || (echo "WEB_PORTAL_SESSION_SECRET_REF must be a resource:version reference" >&2; exit 2)
 	@printf '%s' "${IMAGE_TAG}" | grep -Eq '^[0-9a-f]{40}$$' || (echo "IMAGE_TAG must be a 40-character Git commit SHA" >&2; exit 2)
 	make build-shared-lib
 	mkdir -p apps/${DIR_WEB_PORTAL}/dist
@@ -86,6 +86,6 @@ deploy-web-portal:
 		grep -vE '^[[:space:]]*(DSN_PASSWORD|LINE_LOGIN_CHANNEL_SECRET|SECRET_KEY)[[:space:]]*:' \
 			envs/${DIR_WEB_PORTAL}/.env.yaml \
 			> apps/${DIR_WEB_PORTAL}/.env.yaml; \
-		cd apps/${DIR_WEB_PORTAL} && gcloud builds submit --region=${REGION} \
+		(cd apps/${DIR_WEB_PORTAL} && gcloud builds submit --region=${REGION} \
 			--config cloudbuild.yaml \
-			--substitutions=_SERVICE_NAME="${WEB_PORTAL_NAME}",_REGION="${REGION}",_IMAGE_TAG="${IMAGE_TAG}",_WEB_PORTAL_LINE_LOGIN_SECRET_REF="${WEB_PORTAL_LINE_LOGIN_SECRET_REF}",_WEB_PORTAL_SESSION_SECRET_REF="${WEB_PORTAL_SESSION_SECRET_REF}" .
+			--substitutions=_SERVICE_NAME="${WEB_PORTAL_NAME}",_REGION="${REGION}",_IMAGE_TAG="${IMAGE_TAG}",_WEB_PORTAL_LINE_LOGIN_SECRET_REF="${WEB_PORTAL_LINE_LOGIN_SECRET_REF}",_WEB_PORTAL_SESSION_SECRET_REF="${WEB_PORTAL_SESSION_SECRET_REF}" .)

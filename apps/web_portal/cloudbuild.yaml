@@ -7,19 +7,10 @@ steps:
     - '-ceu'
     - |
       validate_secret_ref() {
-        case "$$1" in
-          ''|'${_'*'}'|*' '*|*=*)
-            echo "invalid or missing Secret reference for $$2" >&2
-            exit 2
-            ;;
-        esac
-        case "$$1" in
-          *:*) ;;
-          *)
-            echo "invalid or missing Secret reference for $$2" >&2
-            exit 2
-            ;;
-        esac
+        if [[ ! "$$1" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$$ ]]; then
+          echo "invalid or missing Secret reference for $$2" >&2
+          exit 2
+        fi
       }
       case '${_IMAGE_TAG}' in
         [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]) ;;

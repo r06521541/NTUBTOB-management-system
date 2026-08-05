@@ -1,4 +1,8 @@
 import re
+import os
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -83,7 +87,7 @@ class DeploymentContractTests(unittest.TestCase):
             "WEB_PORTAL_SESSION_SECRET_REF",
         ):
             with self.subTest(variable=variable):
-                self.assertIn(f'test -n "${{{variable}}}"', command)
+                self.assertIn(f'"${{{variable}}}" | grep -Eq', command)
                 self.assertIn(f'_{variable}="${{{variable}}}"', command)
 
         cloudbuild = normalize_shell_command(self.cloudbuild)
@@ -96,6 +100,102 @@ class DeploymentContractTests(unittest.TestCase):
         self.assertNotRegex(
             self.cloudbuild, r"SECRET_KEY=[a-z][a-z0-9_-]*:(?:latest|\d+)"
         )
+
+    def test_invalid_secret_references_stop_before_build_or_gcloud(self):
+        make = shutil.which("make")
+        if make is None:
+            self.skipTest("make is required for executable Make preflight coverage")
+
+        invalid_references = (
+            "",
+            " ",
+            "${_PLACEHOLDER}",
+            ":latest",
+            "secret:",
+            "secret:latest:extra",
+            "secret:latest version",
+            "secret=other:latest",
+        )
+        for variable in (
+            "WEB_PORTAL_LINE_LOGIN_SECRET_REF",
+            "WEB_PORTAL_SESSION_SECRET_REF",
+        ):
+            for invalid in invalid_references:
+                values = {
+                    "WEB_PORTAL_LINE_LOGIN_SECRET_REF": "line-login-secret:1",
+                    "WEB_PORTAL_SESSION_SECRET_REF": "session-secret:1",
+                }
+                values[variable] = invalid
+                result = subprocess.run(
+                    [
+                        make,
+                        "-f",
+                        str(DEPLOY_MAKEFILE),
+                        "deploy-web-portal",
+                        f"IMAGE_TAG={'a' * 40}",
+                        *(f"{key}={value}" for key, value in values.items()),
+                    ],
+                    cwd=REPOSITORY_ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                output = result.stdout + result.stderr
+                with self.subTest(variable=variable, invalid=invalid):
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertNotIn("build-shared-lib", output)
+                    self.assertNotIn("gcloud builds submit", output)
+
+    def test_temporary_env_cleanup_is_cwd_stable_on_success_and_failure(self):
+        shell = shutil.which("sh")
+        if shell is None:
+            self.skipTest("sh is required for executable cleanup coverage")
+
+        block_match = re.search(
+            r"(?ms)^\s*@trap '(?P<body>.*?)\Z", self.target
+        )
+        self.assertIsNotNone(block_match)
+        command = "trap '" + block_match.group("body")
+        command = command.replace("${DIR_WEB_PORTAL}", "web_portal")
+        command = command.replace("${REGION}", "test-region")
+        command = command.replace("${WEB_PORTAL_NAME}", "web-portal")
+        command = command.replace("${IMAGE_TAG}", "a" * 40)
+        command = command.replace(
+            "${WEB_PORTAL_LINE_LOGIN_SECRET_REF}", "line-login-secret:1"
+        )
+        command = command.replace(
+            "${WEB_PORTAL_SESSION_SECRET_REF}", "session-secret:1"
+        )
+
+        for gcloud_exit in (0, 9):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = root / "envs" / "web_portal" / ".env.yaml"
+                target = root / "apps" / "web_portal" / ".env.yaml"
+                source.parent.mkdir(parents=True)
+                target.parent.mkdir(parents=True)
+                source.write_text("SAFE_SETTING: value\n", encoding="utf-8")
+                bin_dir = root / "bin"
+                bin_dir.mkdir()
+                fake_gcloud = bin_dir / "gcloud"
+                fake_gcloud.write_text(
+                    f"#!/bin/sh\nexit {gcloud_exit}\n", encoding="utf-8"
+                )
+                fake_gcloud.chmod(0o755)
+                environment = os.environ.copy()
+                environment["PATH"] = str(bin_dir) + os.pathsep + environment["PATH"]
+
+                result = subprocess.run(
+                    [shell, "-c", command],
+                    cwd=root,
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                with self.subTest(gcloud_exit=gcloud_exit):
+                    self.assertEqual(gcloud_exit, result.returncode)
+                    self.assertFalse(target.exists())
 
     def test_cloud_build_fails_closed_and_binds_three_runtime_secrets(self):
         command = normalize_shell_command(self.cloudbuild)
