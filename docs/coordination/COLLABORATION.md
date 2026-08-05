@@ -1017,3 +1017,26 @@ chore: update files
 
 
 此規則的目的，是保留可稽核的協作證據，同時避免 Git history 被無實質內容的流程 commit 淹沒。
+
+
+### 正式歷史與 PR branch 精簡上限
+
+為兼顧可追溯性與可讀性，協作證據應以「最終文件狀態、PR timeline 與 CI records」保存，不應把每次角色交棒都轉成獨立 Git commit。
+
+1. `main`／default branch 原則上一個 TASK 只保留一個描述性 commit；任務 PR 優先使用 **Squash merge**。
+2. PR branch 原則上維持兩個主要 commits，最多三個有意義 commits：
+   - 實作 commit：程式、測試與必要產品／操作文件。
+   - 驗收 commit：Codex report、Work review、`PROJECT_STATE.md`、`HANDOFF.yaml` 與最終驗證證據。
+   - 只有確實可獨立理解、測試與回復的修正，才增加第三個 commit。
+3. 任務規格若在前一任務結案後立即建立，應盡量與前一任務的必要結案文件合併為同一個規劃 commit；不得只為切換 TASK 編號建立 commit。
+4. 下列內容不得單獨形成 commit，應併入下一個有實質內容的實作或驗收 commit：
+   - `ready_for_codex`、`ready_for_review`、`awaiting_owner_approval` 等單純 handoff 狀態；
+   - 單純更新時間戳、角色或「已閱讀／已交棒」文字；
+   - Owner 對 push／PR 的授權紀錄；授權可先保留於對話與 PR timeline，並在下一次實質文件更新時一併寫回 repository；
+   - 只有 CI run／job ID、PR ready 狀態或 merge 時間等外部證據，且結果未改變驗收結論時。
+5. Codex 應在實作與本機驗證穩定後再提交，report 與 handoff 優先併入實作 commit；若實作 commit 已完成，才使用一次 completion commit，禁止逐次補狀態 commit。
+6. Work 應將完整驗收結論、專案狀態與 handoff 合併為單一驗收 commit；Owner 批准 push／PR 後，不再為授權本身建立額外 commit。
+7. PR CI 成功且沒有改變程式或驗收結論時，以 GitHub check／PR comment 作為證據，不必新增 Git commit。若 CI 失敗導致修正，修正與更新後證據應合併為一個具實質內容的 commit。
+8. Squash merge 不會取消稽核能力：最終 TASK、report、review、decision、PR discussion 與 GitHub Actions records 共同構成完整證據；branch 上的細碎流程 commits 不需要進入 `main`。
+
+例外情況包括安全事件、錯誤部署、資料風險、需要立即告知下一位角色的 blocking finding，或可獨立回復的緊急修正。此時可立即建立描述性 commit，不受上述數量目標限制，但必須在 commit body 說明例外原因。
