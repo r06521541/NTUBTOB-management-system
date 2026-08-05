@@ -351,3 +351,14 @@
 - Secret策略：DB password、LINE Login channel secret與Flask session key只由Cloud Run runtime Secret references注入；repository未知的正式Secret resource名稱必須以必填參數提供，不得猜測、硬編碼或讀取Secret。
 - PR工作包：允許建立`codex/harden-web-portal-build-boundary` branch、描述性commits、push、Draft PR、離線deployment contract tests與Python 3.10 CI，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
 - 安全邊界：不批准ready／merge、Docker／Cloud Build實跑、deployment、production request、正式通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
+
+## DEC-034：接受並合併Web Portal Build與Secret邊界修正
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-022第二輪Work驗收，授權將PR #36標記ready並merge。
+- 結果：PR #36已以merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`合併。
+- Merge標題：`security(web-portal): keep runtime secrets out of images`。
+- 最終證據：Work-head `1dd9e30e47d513afe9e41a767278385eff8eed06`的Python 3.10 run `30992839053`／job `92262772115`成功；Linux實跑Web Portal 27/27與其餘70項tests通過。
+- 安全邊界：未執行Docker／Cloud Build、Web Portal部署、Secret／IAM查詢、production request或production DB／schema操作。
