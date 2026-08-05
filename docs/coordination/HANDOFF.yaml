@@ -1,15 +1,14 @@
 active_task: TASK-013
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 3389f96d6221f6ca0c566e6c74bf516012d83a83
-head_commit: a6273e8
+head_commit: 9b98e6ee19e98903756c20b8941d5ccacdbc712e
 
-updated_by: codex
-updated_at: 2026-08-05T09:30:00+08:00
+updated_by: work
+updated_at: 2026-08-05T10:35:00+08:00
 
 note: >
-  Codex已依Work review補正：isolated import兩個實際service app，actual app test client連續GET
-  /healthz時所有DB、LINE、Discord、crawler與weather dependency methods均維持未呼叫，並精確
-  驗證既有business route path/method contract。Draft PR #30最新Python 3.10 run 30964697592
-  通過；未部署或呼叫production。交由Work再次查驗diff、commit與CI。
+  TASK-013實作與CI通過。Owner已批准並建立prerequisite Draft PR #31；Work查驗其僅含
+  accepted deployment closeout與TASK-012 commits，Python 3.10 CI成功。等待Owner將PR #31
+  標記ready並merge；之後Work再確認PR #30自然縮為TASK-013。未部署或呼叫production。
