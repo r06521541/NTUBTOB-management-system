@@ -32,14 +32,18 @@ and is not part of the offline demo.
 After entering the demo, the fictional team workspace includes:
 
 - dashboard staffing warnings, reply deadlines, announcements, and quick actions;
-- schedule status filters, richer attendance details, and an offline `.ics` export;
+- schedule status/venue filters, timeline/month views, richer attendance details,
+  and an offline `.ics` export;
 - a Game Day center with a proposed lineup, pre-game checklist, equipment claims,
   and carpool selection;
 - a personal season summary and an officer workspace with notification previews.
 
 Attendance notes, arrival timing, position preference, checklist progress,
 equipment claims, and carpool choices live only in the signed demo browser
-session. Use **重設 Demo 資料** on the profile page to clear them. These controls
+session. Transport supports only fictional meeting points and validates the
+self-arrival, needs-a-ride, and offers-seats flows. Notification preferences are
+also session-only toggles. Use **重設 Demo 資料** on the profile page to clear
+them. These controls
 do not write to a database or call LINE, maps, calendar, weather, or any other
 external service. The Game Day lineup, officer metrics, notifications, member
 approval, and season statistics are product prototypes rather than operational

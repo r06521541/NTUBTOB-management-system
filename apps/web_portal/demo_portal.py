@@ -16,9 +16,16 @@ from demo_data import (
 
 demo_portal = Blueprint("demo_portal", __name__, url_prefix="/demo")
 VALID_REPLIES = {"attending", "declined", "tentative"}
-VALID_ARRIVALS = {"on_time", "late", "early_leave"}
 VALID_POSITIONS = {"pitcher", "catcher", "infield", "outfield", "flexible"}
 VALID_FILTERS = {"all", "pending", "attending", "tentative", "declined"}
+VALID_VIEWS = {"timeline", "month"}
+VALID_VENUES = {"all", "home", "away"}
+VALID_ARRIVALS = {"on_time", "late", "early_leave", "spectator"}
+VALID_ETA = {"unspecified", "08:00", "08:20", "08:40", "09:00", "09:30"}
+VALID_TRANSPORT = {"self", "needs_ride", "offers_ride"}
+VALID_MEETING_POINTS = {"none", "demo_station", "demo_university"}
+VALID_SEATS = {"0", "1", "2", "3", "4"}
+VALID_NOTIFICATION_KEYS = {"game_invites", "deadline_reminders", "game_changes"}
 MAX_NOTE_LENGTH = 80
 
 
@@ -77,9 +84,42 @@ def find_game(game_id):
 def demo_state():
     state = session.get("demo_operations")
     if not isinstance(state, dict):
-        state = {"claimed_gear": [], "ride": None, "completed_checks": []}
+        state = {"games": {}}
         session["demo_operations"] = state
     return state
+
+
+def game_operations(game_id):
+    state = dict(demo_state())
+    games = dict(state.get("games", {}))
+    operations = games.get(game_id)
+    if not isinstance(operations, dict):
+        operations = {"transport": None, "claimed_gear": [], "completed_checks": []}
+        games[game_id] = operations
+        state["games"] = games
+        session["demo_operations"] = state
+    return operations
+
+
+def notification_preferences():
+    values = session.get("demo_notifications")
+    if not isinstance(values, dict):
+        values = {key: True for key in VALID_NOTIFICATION_KEYS}
+        session["demo_notifications"] = values
+    return values
+
+
+def dashboard_tasks(games):
+    tasks = []
+    next_game = games[0]
+    operations = game_operations(next_game["id"])
+    if next_game["status"] == "pending":
+        tasks.append({"kind": "reply", "label": "回覆下一場出席狀態"})
+    if not operations.get("transport"):
+        tasks.append({"kind": "transport", "label": "選擇下一場交通方式"})
+    if not operations.get("claimed_gear"):
+        tasks.append({"kind": "gear", "label": "查看尚待認領的裝備"})
+    return tasks
 
 
 def ics_escape(value):
@@ -129,18 +169,22 @@ def logout():
 def dashboard():
     games = games_with_session_replies()
     unanswered_count = sum(game["status"] == "pending" for game in games)
-    return render_template("demo/dashboard.html", member=session["demo_member"], next_game=games[0], games=games[:3], unanswered_count=unanswered_count, announcements=get_demo_announcements(), csrf_token=get_or_create_demo_csrf_token())
+    return render_template("demo/dashboard.html", member=session["demo_member"], next_game=games[0], games=games[:3], unanswered_count=unanswered_count, announcements=get_demo_announcements(), tasks=dashboard_tasks(games), csrf_token=get_or_create_demo_csrf_token())
 
 
 @demo_portal.get("/games")
 @demo_login_required
 def games():
     selected = request.args.get("status", "all")
-    if selected not in VALID_FILTERS:
+    selected_view = request.args.get("view", "timeline")
+    selected_venue = request.args.get("venue", "all")
+    if selected not in VALID_FILTERS or selected_view not in VALID_VIEWS or selected_venue not in VALID_VENUES:
         abort(400)
     all_games = games_with_session_replies()
     filtered = all_games if selected == "all" else [game for game in all_games if game["status"] == selected]
-    return render_template("demo/games.html", games=filtered, selected_filter=selected)
+    if selected_venue != "all":
+        filtered = [game for game in filtered if game["venue_type"] == selected_venue]
+    return render_template("demo/games.html", games=filtered, selected_filter=selected, selected_view=selected_view, selected_venue=selected_venue)
 
 
 @demo_portal.get("/games/<game_id>")
@@ -161,11 +205,12 @@ def reply(game_id):
     status = request.form.get("status", "")
     arrival = request.form.get("arrival", "on_time")
     position = request.form.get("position", "flexible")
+    eta = request.form.get("eta", "unspecified")
     note = request.form.get("note", "").strip()
-    if status not in VALID_REPLIES or arrival not in VALID_ARRIVALS or position not in VALID_POSITIONS or len(note) > MAX_NOTE_LENGTH:
+    if status not in VALID_REPLIES or arrival not in VALID_ARRIVALS or position not in VALID_POSITIONS or eta not in VALID_ETA or len(note) > MAX_NOTE_LENGTH:
         abort(400)
     replies = dict(session.get("demo_replies", {}))
-    replies[game_id] = {"status": status, "arrival": arrival, "position": position, "note": note}
+    replies[game_id] = {"status": status, "arrival": arrival, "position": position, "eta": eta, "note": note}
     session["demo_replies"] = replies
     return redirect(url_for("demo_portal.game_detail", game_id=game_id))
 
@@ -185,7 +230,7 @@ def game_day(game_id):
     game = find_game(game_id)
     if game is None:
         abort(404)
-    return render_template("demo/game_day.html", game=game, tasks=get_demo_tasks(), state=demo_state(), csrf_token=get_or_create_demo_csrf_token())
+    return render_template("demo/game_day.html", game=game, tasks=get_demo_tasks(), state=game_operations(game_id), csrf_token=get_or_create_demo_csrf_token())
 
 
 @demo_portal.post("/game-day/<game_id>/operations")
@@ -195,16 +240,37 @@ def update_operations(game_id):
     if find_game(game_id) is None:
         abort(400)
     action, item_id = request.form.get("action", ""), request.form.get("item_id", "")
-    tasks, state = get_demo_tasks(), dict(demo_state())
-    if action == "ride" and item_id in {item["id"] for item in tasks["rides"]}:
-        state["ride"] = None if state.get("ride") == item_id else item_id
-    elif action == "gear" and item_id in {item["id"] for item in tasks["gear"]}:
+    tasks, state = get_demo_tasks(), dict(game_operations(game_id))
+    if action == "gear" and item_id in {item["id"] for item in tasks["gear"]}:
         claimed = set(state.get("claimed_gear", [])); claimed.symmetric_difference_update({item_id}); state["claimed_gear"] = sorted(claimed)
     elif action == "check" and item_id in {str(index) for index, _ in enumerate(find_game(game_id)["checklist"])}:
-        checks = set(state.get("completed_checks", [])); key = f"{game_id}:{item_id}"; checks.symmetric_difference_update({key}); state["completed_checks"] = sorted(checks)
+        checks = set(state.get("completed_checks", [])); checks.symmetric_difference_update({item_id}); state["completed_checks"] = sorted(checks)
     else:
         abort(400)
-    session["demo_operations"] = state
+    all_state = dict(demo_state()); games_state = dict(all_state.get("games", {})); games_state[game_id] = state; all_state["games"] = games_state; session["demo_operations"] = all_state
+    return redirect(url_for("demo_portal.game_day", game_id=game_id))
+
+
+@demo_portal.post("/game-day/<game_id>/transport")
+@demo_login_required
+def update_transport(game_id):
+    require_demo_csrf()
+    if find_game(game_id) is None:
+        abort(400)
+    mode = request.form.get("mode", "")
+    meeting_point = request.form.get("meeting_point", "none")
+    seats = request.form.get("seats", "0")
+    if mode not in VALID_TRANSPORT or meeting_point not in VALID_MEETING_POINTS or seats not in VALID_SEATS:
+        abort(400)
+    if mode == "self" and (meeting_point != "none" or seats != "0"):
+        abort(400)
+    if mode == "needs_ride" and (meeting_point == "none" or seats != "0"):
+        abort(400)
+    if mode == "offers_ride" and (meeting_point == "none" or seats == "0"):
+        abort(400)
+    state = dict(game_operations(game_id))
+    state["transport"] = {"mode": mode, "meeting_point": meeting_point, "seats": int(seats)}
+    all_state = dict(demo_state()); games_state = dict(all_state.get("games", {})); games_state[game_id] = state; all_state["games"] = games_state; session["demo_operations"] = all_state
     return redirect(url_for("demo_portal.game_day", game_id=game_id))
 
 
@@ -212,7 +278,19 @@ def update_operations(game_id):
 @demo_login_required
 def profile():
     games = games_with_session_replies()
-    return render_template("demo/profile.html", member=session["demo_member"], games=games, csrf_token=get_or_create_demo_csrf_token())
+    return render_template("demo/profile.html", member=session["demo_member"], games=games, notifications=notification_preferences(), csrf_token=get_or_create_demo_csrf_token())
+
+
+@demo_portal.post("/profile/notifications")
+@demo_login_required
+def update_notifications():
+    require_demo_csrf()
+    key = request.form.get("key", "")
+    enabled = request.form.get("enabled", "")
+    if key not in VALID_NOTIFICATION_KEYS or enabled not in {"true", "false"}:
+        abort(400)
+    values = dict(notification_preferences()); values[key] = enabled == "true"; session["demo_notifications"] = values
+    return redirect(url_for("demo_portal.profile"))
 
 
 @demo_portal.get("/officer")
@@ -229,7 +307,7 @@ def reset_demo():
     member = session["demo_member"]
     session.clear()
     session.update(demo_authenticated=True, demo_member=member, demo_replies={})
-    get_or_create_demo_csrf_token(); demo_state()
+    get_or_create_demo_csrf_token(); demo_state(); notification_preferences()
     return redirect(url_for("demo_portal.dashboard"))
 
 
