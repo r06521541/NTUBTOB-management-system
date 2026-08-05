@@ -183,6 +183,19 @@ class DemoPortalTest(unittest.TestCase):
         self.assertIn("/line/login", rules)
         self.assertIn("/line/callback", rules)
 
+    def test_demo_session_cookie_remains_available_over_local_http(self):
+        response = self.client.post("/demo/login", follow_redirects=False)
+        session_cookie = next(
+            value
+            for value in response.headers.getlist("Set-Cookie")
+            if value.startswith("ntubtob_web_session_v2=")
+        )
+        self.assertNotIn("Secure", session_cookie)
+        self.assertIn("HttpOnly", session_cookie)
+        self.assertIn("SameSite=Lax", session_cookie)
+        self.assertIn("Path=/", session_cookie)
+        self.assertNotIn("Domain=", session_cookie)
+
     def test_responsive_contract_and_mobile_navigation(self):
         self.login()
         response = self.client.get("/demo/dashboard")

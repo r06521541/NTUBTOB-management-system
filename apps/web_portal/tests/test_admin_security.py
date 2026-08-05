@@ -273,7 +273,46 @@ class MemberMatchingRouteTest(unittest.TestCase):
         authorization_query = parse_qs(urlsplit(response.headers["Location"]).query)
         self.assertEqual(authorization_query["disable_auto_login"], ["true"])
 
+    def test_production_session_cookie_has_explicit_security_attributes(self):
+        response = self.client.get("/line/login")
+        cookies = response.headers.getlist("Set-Cookie")
+        session_cookie = next(
+            value
+            for value in cookies
+            if value.startswith("ntubtob_web_session_v2=")
+        )
+        self.assertIn("Secure", session_cookie)
+        self.assertIn("HttpOnly", session_cookie)
+        self.assertIn("SameSite=Lax", session_cookie)
+        self.assertIn("Path=/", session_cookie)
+        self.assertNotIn("Domain=", session_cookie)
+
+    def test_legacy_session_cookie_is_expired_without_reading_its_value(self):
+        self.client.set_cookie("session", "opaque-legacy-value")
+
+        response = self.client.get("/line/login")
+
+        cookies = response.headers.getlist("Set-Cookie")
+        legacy_cookie = next(
+            value for value in cookies if value.startswith("session=;")
+        )
+        self.assertIn("Expires=", legacy_cookie)
+        self.assertIn("Max-Age=0", legacy_cookie)
+        self.assertIn("Secure", legacy_cookie)
+        self.assertIn("HttpOnly", legacy_cookie)
+        self.assertIn("SameSite=Lax", legacy_cookie)
+        self.assertIn("Path=/", legacy_cookie)
+        self.assertNotIn("Domain=", legacy_cookie)
+        self.assertTrue(
+            any(
+                value.startswith("ntubtob_web_session_v2=") for value in cookies
+            )
+        )
+
     def test_invalid_state_rejects_before_line_or_database_calls(self):
+        with self.client.session_transaction() as current_session:
+            current_session["user_id"] = "stale-user"
+            current_session["oauth_state_nonce"] = "stale-nonce"
         with patch.object(
             self.app_module.requests, "post"
         ) as token_request, patch.object(
@@ -288,6 +327,23 @@ class MemberMatchingRouteTest(unittest.TestCase):
         profile_request.assert_not_called()
         self.line_user_model.search_by_id.assert_not_called()
         self.member_model.search_by_id.assert_not_called()
+        self.assertIn("清除登入狀態並重新登入".encode(), response.data)
+        self.assertNotIn(b"fake-code", response.data)
+        self.assertNotIn(b"tampered-state", response.data)
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(dict(current_session), {})
+
+        retry = self.client.get("/line/login")
+        retry_state = parse_qs(urlsplit(retry.headers["Location"]).query)["state"][0]
+        with self.client.session_transaction() as current_session:
+            retry_nonce = current_session["oauth_state_nonce"]
+        _, state_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key,
+            retry_state,
+            "/attendance",
+        )
+        self.assertEqual(state_nonce, retry_nonce)
+        self.assertNotEqual(retry_nonce, "stale-nonce")
 
     def test_line_http_failure_is_safe_and_does_not_query_database(self):
         state = create_oauth_state(

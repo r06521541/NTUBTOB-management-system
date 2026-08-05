@@ -55,6 +55,14 @@ else:
     reply_text_mapping = {}
 
 app = Flask(__name__)
+app.config.update(
+    SESSION_COOKIE_NAME="ntubtob_web_session_v2",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_PATH="/",
+    SESSION_COOKIE_SECURE=not DEMO_MODE_ENABLED,
+    SESSION_COOKIE_DOMAIN=None,
+)
 if DEMO_MODE_ENABLED and not secret_key:
     # Non-sensitive fallback is deliberately limited to the double-gated local demo.
     app.secret_key = "development-demo-session-key-not-for-production"
@@ -62,6 +70,8 @@ else:
     app.secret_key = secret_key  # 用於保持安全的session
 app.register_blueprint(demo_portal)
 app.register_blueprint(demo_events)
+
+LEGACY_SESSION_COOKIE_NAME = "session"
 
 # 設定 Cache 配置
 cache_config = {
@@ -102,6 +112,20 @@ def isolate_demo_from_production_data_routes():
     if request.endpoint in blocked_endpoints:
         return "Not available in offline demo mode", 404
     return None
+
+
+@app.after_request
+def expire_legacy_session_cookie(response):
+    """Remove only the host-scoped legacy Flask session cookie."""
+    if LEGACY_SESSION_COOKIE_NAME in request.cookies:
+        response.delete_cookie(
+            LEGACY_SESSION_COOKIE_NAME,
+            path="/",
+            secure=app.config["SESSION_COOKIE_SECURE"],
+            httponly=True,
+            samesite="Lax",
+        )
+    return response
 
 def notify_successful_log(message: str):
     discord_notify_helper.notify_successful_log(message)
@@ -171,13 +195,13 @@ def line_callback():
             url_for('attendance'),
         )
     except InvalidOAuthState:
-        return 'Invalid state parameter', 400
+        return invalid_oauth_state_response()
 
     session_nonce = session.pop('oauth_state_nonce', None)
     if not isinstance(session_nonce, str) or not hmac.compare_digest(
         state_nonce, session_nonce
     ):
-        return 'Invalid state parameter', 400
+        return invalid_oauth_state_response()
 
     if not code:
         return 'Invalid authorization response', 400
@@ -235,6 +259,12 @@ def line_callback():
     else:
         # 直接切換至未獲授權頁面
         return render_template('not_authenticated.html')
+
+
+def invalid_oauth_state_response():
+    """Discard stale browser state and offer a completely fresh login."""
+    session.clear()
+    return render_template("line_login_error.html"), 400
 
 
 @app.route('/query-attendance')
