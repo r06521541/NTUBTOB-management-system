@@ -1,15 +1,15 @@
 active_task: TASK-025
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
-base_commit: 9f44165
-head_commit: null
+base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
+head_commit: 22ebe92
 
-updated_by: work
-updated_at: 2026-08-05T21:30:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T22:35:00+08:00
 
 note: >
-  Owner accepted TASK-024 and approved TASK-025 for Codex. TASK-025 builds a
-  session-only multi-event and composite itinerary demo with officer creation,
-  league/manual game sources, draft/publish flow and two-level attendance.
-  Push, PR, deployment, production, Secret, DB, schema and external calls are unauthorized.
+  Codex completed the session-only Event and Activity demo in 22ebe92. The
+  officer builder, templates, CRUD/sorting, source boundaries, publication states,
+  member views and two-level attendance are covered by 44 passing tests with 2
+  existing platform skips. Work must inspect the actual diff; no external operation occurred.
