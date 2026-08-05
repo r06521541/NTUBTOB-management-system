@@ -214,6 +214,14 @@
 
 ## 8. 文件狀態
 
+### TASK-032 Web Portal session cookie migration（2026-08-06）
+
+- Codex 已將 Web Portal session cookie 版本化為 `ntubtob_web_session_v2`，production 明確使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/。
+- 雙重 gate 的 local demo 保留 HTTP session；其他未明確設定環境 fail closed 為 Secure。
+- 舊 Flask `session` cookie 會被精確淘汰；無效 LINE state 仍在外部／DB 前回覆 400、清除 session，並只提供全新登入交易。
+- 58 項 Web Portal tests 通過、2 項既有 Windows skip；compile、Python 3.10 grammar、deployment dry-run 與 diff check 通過。
+- 狀態為 `ready_for_review / work`；尚未 push、開 PR、merge 或部署。
+
 ### TASK-031 Windows gcloud executable resolution（2026-08-06）
 
 - 兩個 deployment wrapper 已在 subprocess 邊界解析 exact executable，使 Windows `gcloud.cmd` 能在 `shell=False` 下安全啟動，並維持 POSIX 相容與 missing-tool fail-closed 行為。

@@ -1,15 +1,15 @@
 active_task: TASK-032
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 15881c5b886fc87e92cf0e6aeb5b4dca9d1df9c4
-head_commit: null
+head_commit: 08ccd88d5aa2caa325d65c14be3bea7903224b84
 
-updated_by: work
-updated_at: 2026-08-06T08:40:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T03:08:52+08:00
 
 note: >
-  PR #40 merged as 15881c5. TASK-030 deployed revision 00029-dsc successfully, but Owner's existing
-  browser cookie produced Invalid state and triggered approved rollback to Ready revision 00027-fwf.
-  Incognito and cleared-cookie login both succeeded. Owner approved TASK-032; Codex should implement
-  versioned cookie migration and safe retry offline. Push/PR is not yet authorized.
+  TASK-032 implementation is ready for Work review. Versioned host-only cookie security, exact legacy
+  cookie expiry, fail-closed invalid-state recovery, fresh-login retry, cross-client rejection, and
+  local demo compatibility are covered by offline tests. No external service, database, schema,
+  deployment, push, or PR was used; Owner has not approved the PR work package.
