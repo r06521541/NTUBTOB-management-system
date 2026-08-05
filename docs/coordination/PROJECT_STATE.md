@@ -112,7 +112,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-019` | `changes_requested` | `codex` | Work發現stale revision誤判、digest未關聯、縮排secret過濾及clean-clone dist gate問題；交回PR #33補正。 |
+| `TASK-019` | `changes_requested` | `codex` | 第一輪問題已修；第二輪要求支援pinned-traffic revision自身Ready判定與full image@sha256 digest格式。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

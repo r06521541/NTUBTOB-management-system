@@ -56,3 +56,21 @@ Wrapper沒有在Cloud Build前記錄`latestCreatedRevisionName`。Build後只檢
 ## 下一步
 
 交回Codex在同一Draft PR #33補正。完成後更新Codex report、最終CI證據與HANDOFF為`ready_for_review / work`，再由Work重新驗收。
+
+## 第二輪驗收（HEAD `75eaf9a`）
+
+第一輪四項finding均已補正，Work重跑wrapper 11/11、game 28/28、notify 9/9、compile與diff check皆通過；final Python 3.10 CI run `30981527045`亦成功。但以TASK-018實際Cloud Run metadata形狀比對後，仍有兩項blocking production-shape落差：
+
+### 5. Pinned-traffic new revision會被錯誤判定not ready
+
+Wrapper在切traffic前要求service `latestReadyRevisionName == latestCreatedRevisionName`。TASK-018實際證據顯示：新`00033-mdp`在0% traffic時，revision自身`Ready=True`／Retired，但service `latestReadyRevisionName`仍是舊`00031-s65`；只有切traffic後latest ready才更新。現有wrapper會在這個預期的pinned-traffic情境先rollback，無法完成其核心目標。
+
+應改為在切traffic前查驗new revision本身的Ready condition與digest；切traffic後再驗證service latest ready／traffic。Fake runner必須模擬pre-traffic service latest ready仍為baseline、revision Ready=True，並證明流程能安全完成。
+
+### 6. 真實Cloud Run imageDigest格式不相容
+
+Wrapper要求revision `status.imageDigest`以`sha256:`開頭；TASK-017／018實際metadata為完整`registry/path/image@sha256:...`。現有wrapper會對健康revision回報缺少digest。
+
+應安全normalize bare digest與full image reference的digest suffix，再與Artifact Registry approved tag digest精確比較；測試至少涵蓋真實full-reference格式及mismatch。
+
+補正仍限offline fake runner與CI，禁止execute、gcloud、production或merge。完成後再交回Work第三輪驗收。

@@ -1,15 +1,14 @@
 active_task: TASK-019
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
-head_commit: 294970f
+head_commit: 75eaf9a778fe7e92f1cb8c801cddf7efa543602c
 
-updated_by: codex
+updated_by: work
 updated_at: 2026-08-05T14:38:00+08:00
 
 note: >
-  TASK-019 Work findings are addressed in commit 294970f. Revision baseline,
-  approved-tag digest correlation, indented secret filtering, clean-clone builds,
-  and exact rollback failure paths now have offline regression tests. Python 3.10
-  CI run 30981449322 passed. Ready for Work re-review; no production action occurred.
+  Second Work review found two production-shape blockers: pinned-traffic revisions must be
+  validated by their own Ready condition before traffic, and Cloud Run full image@sha256
+  references must normalize to the approved digest. Offline-only correction; no gcloud/production/merge.
