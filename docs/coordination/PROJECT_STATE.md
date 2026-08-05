@@ -112,7 +112,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-019` | `awaiting_owner_decision` | `owner` | 消除scheduled services固定tag，建立預設無mutation的跨平台deployment wrapper與離線測試。 |
+| `TASK-019` | `ready_for_codex` | `codex` | Owner已批准repository-only實作與PR工作包；禁止wrapper execute path及任何production操作。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

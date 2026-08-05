@@ -1,6 +1,6 @@
 # TASK-019：建立Immutable Image與跨平台Deployment Wrapper
 
-狀態：`awaiting_owner_decision`
+狀態：`ready_for_codex`
 優先級：P1
 規劃者：Work
 執行者：Codex
@@ -104,3 +104,5 @@ git diff --check
 ## 9. PR工作包建議
 
 若Owner批准TASK-019與PR工作包，允許Codex建立／使用task branch、建立描述性commits、push、開Draft PR、查驗CI，以及由Work在同一PR更新report／review／PROJECT_STATE／HANDOFF。不得merge或執行wrapper的`--execute` path，除非Owner另行批准。
+
+Owner已於2026-08-05批准TASK-019與上述PR工作包。

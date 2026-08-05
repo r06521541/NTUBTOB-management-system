@@ -278,3 +278,12 @@
 - 決策：Owner持續授權Work／Codex在完成範圍內工作並通過必要驗證後，自行建立local commits，不必逐次請示。
 - Commit要求：維持描述性標題、範圍聚焦、保留使用者既有變更，並在提交前執行任務所需測試與`git diff --check`。
 - 不包含：push、建立或合併PR、production deployment、正式通知、Secret／IAM／Scheduler修改、不可逆資料操作或重大架構變更；這些仍依既有流程個別取得Owner授權。
+
+## DEC-027：批准Immutable Deployment Wrapper與PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准TASK-019，由Codex實作scheduled services immutable image references與Python 3.10跨平台deployment wrapper。
+- PR工作包：允許建立／使用task branch、描述性commits、push、Draft PR、CI查驗，以及Work在同一PR更新report／review／PROJECT_STATE／HANDOFF。
+- 安全邊界：不得執行wrapper `--execute` path、Cloud Build、deployment、traffic mutation、production存取、Secret／IAM／Scheduler修改、正式通知、production data操作或merge。

@@ -1,14 +1,14 @@
 active_task: TASK-019
-status: awaiting_owner_decision
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T13:50:00+08:00
+updated_at: 2026-08-05T13:52:00+08:00
 
 note: >
-  TASK-019已規劃immutable image與Python 3.10跨平台deployment wrapper，範圍只含兩個scheduled services；
-  預設fail closed並以離線tests驗證，不包含任何實際build/deploy/traffic或production存取。
-  等待Owner批准任務與PR工作包。
+  Owner已批准TASK-019與PR工作包；交由Codex實作immutable image與Python 3.10跨平台wrapper，
+  建立描述性commits、push、Draft PR並查驗CI。禁止執行wrapper execute path、deployment、
+  production存取、Secret/IAM/Scheduler修改、正式通知、production data操作或merge。
