@@ -392,3 +392,13 @@
 - 產品方向：幹部prototype可建立聚餐、旅遊／移地活動、友誼賽／OB賽；Event可包含多個Activities與三場以上比賽，並區分聯盟匯入／手動比賽及Event／Activity兩層出席。
 - 實作授權：可修改Web Portal demo程式、templates、static、tests、README與必要協作文件，並建立描述性local commits。
 - 安全邊界：不批准push／PR、部署、Secret／IAM、production／Supabase DB、schema／migration、shared_lib、crawler／LINE／外部API或正式通知。
+
+## DEC-038：接受多元活動與複合行程Demo
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-025及其mobile officer navigation補正。
+- 成果：Local demo支援Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布／取消、兩層出席與手機幹部入口；Work最終重跑45項tests通過，2項既有Windows platform skips。
+- 限制：尚未完成Python 3.10與browser automation視覺證據；正式RBAC、API、schema、同步／去重與通知均未實作。
+- 安全邊界：未push、建立PR、部署、操作Secret／IAM、連線production／Supabase DB、修改schema或呼叫外部服務。

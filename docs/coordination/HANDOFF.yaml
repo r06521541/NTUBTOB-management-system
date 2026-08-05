@@ -1,15 +1,15 @@
 active_task: TASK-025
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
-head_commit: e45c33d
+head_commit: 6601877
 
 updated_by: work
-updated_at: 2026-08-06T00:05:00+08:00
+updated_at: 2026-08-06T00:20:00+08:00
 
 note: >
-  Work accepted the TASK-025 mobile correction. Officer sessions have a visible
-  five-column mobile route to the officer workspace and Event Builder; members
-  retain four columns and no officer link, with server guard unchanged. All 45
-  tests pass with 2 existing Windows skips. Awaiting Owner acceptance; no external operation.
+  Owner accepted TASK-025 after the mobile officer navigation correction and Work
+  verification. The local Event/Activity prototype is complete; 45 tests pass with
+  2 existing Windows skips. No push, PR, deployment, production, DB, schema,
+  Secret or external operation occurred.

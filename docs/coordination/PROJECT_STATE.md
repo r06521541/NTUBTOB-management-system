@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T00:05:00+08:00
+更新時間：2026-08-06T00:20:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -42,7 +42,7 @@
 - TASK-024第二輪Work驗收為`accepted`並由Owner接受：跨賽事state隔離、交通、通知偏好、月曆／主客場filter、僅觀賽／ETA與Dashboard待辦均已補正；33項tests通過、2項Windows platform skips，尚未做browser visual與Python 3.10實跑。
 - Owner提出多元活動方向：幹部可建立聚餐、旅遊、友誼賽／OB賽，且一次Event可包含多場比賽與其他行程；初步方向記錄於`docs/planning/EVENT_MANAGEMENT_PLAN.md`，尚未決定schema或migration。
 - TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
-- TASK-025 mobile UAT blocker已補正並由Work驗收為`accepted`：officer手機版具五欄「幹部」入口且可達Event Builder，member維持四欄並隱藏入口，server guard不變；45項tests通過、2項Windows skips，等待Owner接受。
+- TASK-025已由Owner正式接受：多元Event／Activity demo、幹部builder、兩層出席與手機officer入口完成；45項tests通過、2項Windows skips。成果仍僅為local session prototype，未push、PR或部署。
 
 ## 2. 已確認事實
 
@@ -121,7 +121,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-025` | `awaiting_owner_approval` | `owner` | Mobile UAT補正後Work驗收accepted；等待Owner接受。未push、PR或部署。 |
+| `TASK-025` | `completed` | `owner` | Owner已接受local prototype；未push、PR或部署。下一項正式任務尚待選定。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-025.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
