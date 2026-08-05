@@ -100,14 +100,14 @@ def validate_rollback_revision(service: ServiceConfig, revision: str) -> str:
 
 
 def parse_env_key(line: str) -> Optional[str]:
+    stripped = line.lstrip()
     if (
-        not line
-        or line[0].isspace()
-        or line.lstrip().startswith("#")
-        or ":" not in line
+        not stripped
+        or stripped.startswith("#")
+        or ":" not in stripped
     ):
         return None
-    key = line.split(":", 1)[0].strip()
+    key = stripped.split(":", 1)[0].strip()
     return key if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) else None
 
 
@@ -147,15 +147,12 @@ def preflight(
     service_root = root / "apps" / service.directory
     env_source = root / "envs" / service.directory / ".env.yaml"
     temporary_env = service_root / ".env.yaml"
-    artifact = root / "shared_lib" / "dist" / "shared_lib-0.0.1.tar.gz"
     if temporary_env.exists():
         raise DeploymentError("Refusing to overwrite an existing service .env.yaml")
     if not env_source.is_file():
         raise DeploymentError("Service environment source is unavailable")
     if not (service_root / "cloudbuild.yaml").is_file():
         raise DeploymentError("Service Cloud Build configuration is unavailable")
-    if approved_commit is not None and not artifact.parent.is_dir():
-        raise DeploymentError("Shared library dist directory is unavailable")
     return service
 
 
@@ -201,6 +198,24 @@ def execute_deployment(
     traffic_may_have_changed = False
 
     try:
+        baseline = parse_json_output(
+            command_output(
+                runner,
+                [
+                    "gcloud", "run", "services", "describe",
+                    service.cloud_run_name, "--project", PROJECT_ID,
+                    "--region", REGION, "--format=json",
+                ],
+                root,
+            ),
+            "Cloud Run baseline",
+        )
+        baseline_revision = baseline.get("status", {}).get(
+            "latestCreatedRevisionName"
+        )
+        if not baseline_revision:
+            raise DeploymentError("Cloud Run baseline has no latest revision")
+
         command_output(
             runner,
             [sys.executable, "setup.py", "sdist", "--dist-dir", "dist"],
@@ -234,6 +249,23 @@ def execute_deployment(
             raise DeploymentError("Cloud Build did not report SUCCESS with a build ID")
         traffic_may_have_changed = True
 
+        image_reference = (
+            f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
+            "management-system-docker-repo/"
+            f"{service.cloud_run_name}-image:{approved_commit}"
+        )
+        approved_digest = command_output(
+            runner,
+            [
+                "gcloud", "artifacts", "docker", "images", "describe",
+                image_reference, "--project", PROJECT_ID, "--format",
+                "value(image_summary.digest)",
+            ],
+            root,
+        )
+        if not approved_digest.startswith("sha256:"):
+            raise DeploymentError("Approved image tag did not expose an image digest")
+
         deployed = parse_json_output(
             command_output(
                 runner,
@@ -247,8 +279,8 @@ def execute_deployment(
         )
         status = deployed.get("status", {})
         revision = status.get("latestCreatedRevisionName")
-        if not revision or revision == rollback_revision:
-            raise DeploymentError("Deployment did not create a distinct revision")
+        if not revision or revision == baseline_revision:
+            raise DeploymentError("Deployment did not create a new revision")
         if status.get("latestReadyRevisionName") != revision:
             raise DeploymentError("New revision is not ready")
 
@@ -266,6 +298,10 @@ def execute_deployment(
         image_digest = revision_state.get("status", {}).get("imageDigest")
         if not isinstance(image_digest, str) or not image_digest.startswith("sha256:"):
             raise DeploymentError("New revision did not expose an image digest")
+        if image_digest != approved_digest:
+            raise DeploymentError(
+                "New revision digest does not match the approved image tag"
+            )
 
         command_output(
             runner,
