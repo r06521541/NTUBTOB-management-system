@@ -1,15 +1,16 @@
 active_task: TASK-029
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 196c2087a1bfdf816f16aafc267c7008aa376f41
-head_commit: 6966f6ac3b92be61334a1fc5b4adda36bb7ef7b6
+head_commit: 0a96355af0df073b77ad5d1432a392fd3833dc96
 
-updated_by: work
-updated_at: 2026-08-06T04:50:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T05:20:00+08:00
 
 note: >
-  Owner selected the lowest-impact path: diagnose how LINE Login can return callback to the
-  initiating external browser while preserving session-bound state. Codex may inspect repository,
-  offline tests, and official public LINE documentation, and implement only a proven repository-only
-  fix. No production logs/login/API, LINE Console changes, Secret, DB, deploy, push, PR, or merge.
+  Codex verified from official LINE documentation that external-browser auto-login uses Universal
+  Links/App Links and that disable_auto_login=true is the supported browser-login fallback. The
+  authorization URL now disables auto-login while retaining signed, session-bound state. A flow
+  matrix and cookie/callback scope audit are in the report. Work should review code, docs, and tests;
+  no production login/log/API, Console change, Secret, DB, deploy, push, PR, or merge occurred.

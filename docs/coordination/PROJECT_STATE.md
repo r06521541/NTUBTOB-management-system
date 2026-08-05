@@ -47,7 +47,7 @@
 - TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
 - TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
 - TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
-- TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇先診斷 callback 回到原 external browser 的最小影響方案，保留 session nonce 綁定，不得部署。
+- TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇 original-browser 路線。Codex 依 LINE 官方建議加入 `disable_auto_login=true`，避免 mobile external browser auto-login app handoff，同時保留 session nonce binding，等待 Work 驗收。
 
 ## 2. 已確認事實
 
@@ -124,18 +124,18 @@
 
 ## 4. 當前工作
 
-- `TASK-029` 安全補正已完成，Owner 選擇先診斷 callback 回到原 external browser；Codex 僅可查 repository、離線測試與 LINE 官方公開文件。
+- `TASK-029` original-browser repository-only 修正與 flow matrix 已完成，現在交棒 Work 驗收；真實 Safari／Chrome／LINE in-app 行為仍需部署另案批准。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-029` | `ready_for_codex` | `codex` | 診斷 external browser／LINE App callback context 與 cookie continuity，僅實作可證明安全的 repository-only 修正。 |
+| `TASK-029` | `ready_for_review` | `work` | 驗收 `disable_auto_login=true`、session binding、官方 flow matrix 與離線 regression tests。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
 
-- 進行中 `TASK-029`：Owner 選擇先診斷 callback 回到原 external browser 的方案；不包含 production logs、LINE Console、真實登入或部署授權。
+- 進行中 `TASK-029`：已完成 Owner 選定的 original-browser 路線，保留 session binding並停用 LINE auto-login；等待 Work 驗收，不包含部署或真實登入。
 
 ### P1：安全、資料正確性與 P0 回歸
 
