@@ -100,9 +100,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-012` | `completed` | `owner` | Local demo MVP已通過Work與Owner驗收；未部署production。 |
+| `TASK-013` | `ready_for_codex` | `codex` | 為兩個private排程服務建立無副作用`GET /healthz`及離線contract tests。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-012.md`
+正式任務規格：`docs/coordination/tasks/TASK-013.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列

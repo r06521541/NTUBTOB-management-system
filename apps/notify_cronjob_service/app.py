@@ -17,11 +17,13 @@ from envs import (
     game_crawl_api
 )
 import message_templates
+from health import create_health_blueprint
 
 # 設置日誌記錄器
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
+app.register_blueprint(create_health_blueprint())
 
 discord_notify_helper = DiscordNotifyHelper()
 

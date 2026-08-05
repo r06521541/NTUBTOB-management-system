@@ -177,7 +177,7 @@ make deploy-game-broadcast-service
 - Temporary env file 會排除 LINE access token 與 channel secret。
 - `.dockerignore` 排除 `.env.yaml` 與 tests。
 
-額外閘門：部署成功後不可直接呼叫 invitation、cancellation 或 reminder endpoints 作 smoke test，因為它們可能發送真實 LINE／Discord 訊息或寫入資料庫。除非 Owner 另行批准，驗證限於 revision health、startup logs、IAM、traffic 與無錯誤狀態。
+額外閘門：部署成功後不可直接呼叫 invitation、cancellation 或 reminder endpoints 作 smoke test，因為它們可能發送真實 LINE／Discord 訊息或寫入資料庫。取得該次 production deployment 的明確授權後，可使用具 Cloud Run Invoker 權限的身分，以 identity token 呼叫 private `GET /healthz`；此路徑不讀取資料庫，也不呼叫 LINE、Discord 或 weather。它只能證明 container 中的 Flask process 與 route 正常，不能證明外部依賴健康。若部署授權未涵蓋 production endpoint invocation，仍只做 revision、startup logs、IAM 與 traffic 的唯讀 control-plane 驗證。
 
 ### 7.2 Notify cronjob service
 
@@ -194,7 +194,7 @@ make deploy-notify-cronjob-service
 - Temporary env file會排除 LINE access token 與 channel secret。
 - `.dockerignore` 排除 `.env.yaml` 與 local artifacts。
 
-額外閘門：兩個 POST endpoints 會公告賽程或發送出席統計，未經獨立通知批准不得用正式 endpoint 做 smoke test。
+額外閘門：兩個 POST endpoints 會公告賽程或發送出席統計，未經獨立通知批准不得用正式 endpoint 做 smoke test。取得該次 production deployment 的明確授權後，可使用具 Cloud Run Invoker 權限的身分，以 identity token 呼叫 private `GET /healthz`；此路徑不讀取資料庫，也不呼叫 LINE、Discord、crawler 或 weather，且只能證明 Flask process 與 route 正常。若部署授權未涵蓋 production endpoint invocation，不得因 health route 無副作用而自行呼叫。
 
 ### 7.3 Web Portal
 
