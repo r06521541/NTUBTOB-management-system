@@ -411,3 +411,49 @@
 - 決策：Owner在接受TASK-025後批准push與建立PR，不包含merge或deployment。
 - 結果：Branch `codex/prototype-web-portal-team-events`已push並建立ready PR #37；Python 3.10 run `31021863646`／job `92360319877`成功。
 - 安全邊界：未merge、部署、操作production／Secret／IAM／DB／schema或發送通知。
+
+## DEC-040：合併Web Portal Team Operations與Composite Events Prototype
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner授權merge PR #37。
+- 結果：PR #37以merge commit `cdb67bf007ec67d882c6e974143a4d527f1528cd`合併，標題為`feat(web-portal): prototype team operations and composite events`。
+- 最終CI：Python 3.10 run `31022009347`／job `92360824095`成功。
+- 安全邊界：merge不代表Web Portal deployment、Secret／IAM、production DB／request或通知授權。
+
+## DEC-041：批准並完成Web Portal Runtime Secrets Bootstrap
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_and_completed`
+- 決策：Owner批准TASK-026依文件第5節建立兩個exact Secret resources及各一個version；LINE Login Channel Secret由Owner透過hidden terminal prompt輸入，session key由secure RNG產生。
+- 結果：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均為enabled；runtime service account既有`roles/secretmanager.secretAccessor`已確認。
+- 安全證據：未執行Secret payload access／readback，值未寫入command argument、檔案、Git或對話；一次性腳本已移除。
+- 安全邊界：未修改IAM／Cloud Run、未部署、未呼叫production、未連DB、未發通知，也未delete／disable／destroy任何Secret。
+
+## DEC-042：部署 Web Portal runtime Secret rollout
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_and_completed`
+- 決策：Owner 批准依 TASK-027 將 commit `cdb67bf007ec67d882c6e974143a4d527f1528cd` 部署至 production `web-portal`，綁定既定 runtime Secret references 與 Owner 已設定的管理者 allowlist，並執行兩個無副作用 HTTP GET 驗證。
+- 結果：Cloud Build `7f155fb7-2288-416a-83a7-d77a95eee7e9` 成功；revision `web-portal-00027-fwf` Ready 且承接 100% traffic；`GET /` 為 200、`GET /demo/` 為 404；未觸發 rollback。
+- 限制：未讀取 Secret payload 或管理者 ID 值，未測 LINE callback、production DB/admin routes，未發通知，也未修改 IAM、Scheduler、schema 或 production data。
+
+## DEC-043：建立 Web Portal 跨平台安全部署工具
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner 批准建立 TASK-028 並交棒 Codex，將 TASK-027 暴露的 Windows make/sh 缺口、build context、PowerShell substitutions、長時間輪詢與 temporary env cleanup 風險做成 fail-closed Python 3.10 deployment wrapper。
+- 授權：可修改 tools、離線 tests 與文件並建立描述性 local commit。
+- 安全邊界：不得執行 `--execute`、不得呼叫 cloud/HTTP/Secret/DB/notification、不得部署或 rollback，也不得 push、建立 PR 或 merge。
+
+## DEC-044：批准 TASK-028 Push 與 PR 工作包
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner 接受 Work 驗收建議，批准將 `codex/web-portal-safe-deployment-wrapper` push 至 `origin` 並建立描述性 Draft PR，允許唯讀查驗 GitHub Python 3.10 CI 與依結果更新同一 PR 的驗收文件。
+- 安全邊界：不包含 merge、production deployment、wrapper `--execute`、Secret/IAM/Scheduler/DB/schema/data 修改、production HTTP 或 LINE/Discord 通知。

@@ -71,6 +71,15 @@ Project內Secret resource名稱的唯讀候選盤點未找到可唯一辨識為L
 - `web-portal-line-login-channel-secret`
 - `web-portal-session-secret-key`
 
+## 2026-08-06更新
+
+TASK-026已解除兩個runtime Secret resource blocker：
+
+- `web-portal-line-login-channel-secret:1`：enabled
+- `web-portal-session-secret-key:1`：enabled
+
+Payload未被讀回或記錄，runtime accessor亦已確認。Web Portal仍未部署；下一步需另立exact deployment工作包，確認`WEB_PORTAL_ADMIN_MEMBER_IDS`並接受新Session Secret會使既有登入session失效。
+
 ## 本次未執行
 
 - Secret payload access或plain env value讀取
@@ -78,4 +87,3 @@ Project內Secret resource名稱的唯讀候選盤點未找到可唯一辨識為L
 - Docker、Cloud Build或deployment
 - Production HTTP、LINE Login或DB測試
 - LINE／Discord通知
-

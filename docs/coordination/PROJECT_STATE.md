@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-06T00:40:00+08:00
+更新時間：2026-08-06T03:10:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
+證據基準：TASK-028 completion commit `e8dc0b48f7a04ac960927347fac43792ef8c5881`
 
 ## 1. 目前摘要
 
@@ -42,7 +42,11 @@
 - TASK-024第二輪Work驗收為`accepted`並由Owner接受：跨賽事state隔離、交通、通知偏好、月曆／主客場filter、僅觀賽／ETA與Dashboard待辦均已補正；33項tests通過、2項Windows platform skips，尚未做browser visual與Python 3.10實跑。
 - Owner提出多元活動方向：幹部可建立聚餐、旅遊、友誼賽／OB賽，且一次Event可包含多場比賽與其他行程；初步方向記錄於`docs/planning/EVENT_MANAGEMENT_PLAN.md`，尚未決定schema或migration。
 - TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
-- TASK-025已由Owner正式接受：多元Event／Activity demo、幹部builder、兩層出席與手機officer入口完成；PR #37已建立，Python 3.10 run `31021863646`成功。尚未merge或部署。
+- TASK-025已由Owner正式接受並透過PR #37合併；merge commit為`cdb67bf`，最新Python 3.10 run `31022009347`成功。Demo仍預設關閉，尚未部署Web Portal。
+- TASK-026已完成：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均enabled，runtime accessor已確認；未讀回payload、未修改IAM或部署。Web Portal仍需另案部署，且首次使用新Session Secret會使既有登入session失效。
+- TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
+- TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
+- TASK-028 已由 Work 驗收接受：新增預設 dry-run、fail-closed 的 Web Portal 跨平台 deployment wrapper 與 15 項離線測試；等待 Owner 決定，未執行 execute、cloud、HTTP、push 或 PR。
 
 ## 2. 已確認事實
 
@@ -119,11 +123,13 @@
 
 ## 4. 當前工作
 
+- `TASK-028` 已完成 Work 獨立驗收且無 blocking findings，等待 Owner 決定。
+
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-025` | `awaiting_owner_approval` | `owner` | Owner已接受功能；PR #37與Python 3.10 CI成功，等待merge決策。未部署。 |
+| `TASK-028` | `awaiting_owner_approval` | `owner` | 決定是否接受跨平台 Web Portal deployment wrapper，並另行決定是否批准 push／PR 工作包。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-025.md`
+正式任務規格：`docs/coordination/tasks/TASK-028.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
@@ -200,6 +206,15 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-027 production deployment closeout（2026-08-06）
+
+- Owner 已批准並完成將 merge commit `cdb67bf007ec67d882c6e974143a4d527f1528cd` 部署至 production `web-portal`。
+- Cloud Build `7f155fb7-2288-416a-83a7-d77a95eee7e9` 成功；新 revision `web-portal-00027-fwf` Ready 並承接 100% traffic。
+- Production 首頁單次無認證 GET 回應 200；`/demo/` 單次無認證 GET 回應 404，確認 demo mode fail closed。
+- DB password、LINE Login channel secret 與 Flask session key 均為 runtime Secret references；Owner 設定的管理者 Member ID allowlist 存在，但 Work 未讀取其值。
+- 未測 LINE Login callback、需資料庫的頁面、管理員操作或通知；未修改 IAM、Scheduler、schema 或 production data。
+- 完整證據見 `docs/operations/deployments/WEB_PORTAL_CDB67BF.md`。
 
 - 協作規則：`docs/coordination/COLLABORATION.md`
 - 唯一交接來源：`docs/coordination/HANDOFF.yaml`

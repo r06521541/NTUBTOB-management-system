@@ -220,7 +220,47 @@ make deploy-notify-cronjob-service
 
 ### 7.3 Web Portal
 
-入口會在缺少必要 repository 參數時 fail closed，目前仍須 deployment work package 才可執行：
+標準跨平台入口為：
+
+```text
+python tools/deploy_web_portal.py
+```
+
+未帶 `--execute` 時只檢查 clean working tree、Git HEAD、固定的
+`apps/web_portal` deployment source 與 temporary env collision；不執行
+`gcloud`、HTTP 或其他網路操作。Windows 可使用：
+
+```text
+py -3.10 tools/deploy_web_portal.py
+```
+
+Owner 核准一次性的 exact deployment work package 後，才可使用：
+
+```text
+python tools/deploy_web_portal.py --execute \
+  --approved-commit <FULL_40_CHARACTER_SHA> \
+  --rollback-revision <EXACT_WEB_PORTAL_REVISION> \
+  --line-login-secret-ref <RESOURCE:VERSION> \
+  --session-secret-ref <RESOURCE:VERSION>
+```
+
+Wrapper 固定 project `ntubtob-schedule-405614`、region `asia-east1`、service
+`web-portal` 與 build context `apps/web_portal`。Cloud Build 以 asynchronous
+submission 取得 build ID，再做有 timeout 的 bounded polling；substitutions
+以單一 subprocess argument 傳遞，不依賴 PowerShell 或 shell 的逗號解析。
+
+Build `SUCCESS` 後仍須驗證 immutable digest、new revision Ready、100% traffic、
+public invoker、沿用的 runtime identity、三個 runtime Secret references、plain
+runtime key classifications 與 production demo gate 缺席。最後只做一次不跟隨
+redirect、也不讀 response body 的 `GET /`（200）與 `GET /demo/`（404）。部署後
+驗證失敗時，只能把 traffic 切回 CLI 已核准且通過 prefix 驗證的 exact revision；
+rollback 成功與失敗必須分開回報。Temporary `.env.yaml` 在所有成功與失敗路徑
+都由 `finally` 清除。
+
+Wrapper 的存在與 dry-run 成功不代表 deployment、HTTP、Secret metadata query 或
+rollback 已獲批准。TASK-028 只建立 repository 工具，未執行 `--execute`。
+
+Legacy Make 入口仍存在，但不提供上述跨平台 async polling 與完整驗證契約：
 
 ```text
 make deploy-web-portal

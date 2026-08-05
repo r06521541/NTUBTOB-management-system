@@ -37,6 +37,28 @@ Before you start developing locally, make sure to complete the following steps:
   make format
   ```
 
+## Web Portal deployment preflight
+
+The cross-platform Web Portal wrapper defaults to repository-local preflight.
+It does not call `gcloud`, make an HTTP request, or deploy anything:
+
+```sh
+python tools/deploy_web_portal.py
+```
+
+On Windows, when `python` is not an alias for Python 3.10, use:
+
+```powershell
+py -3.10 tools/deploy_web_portal.py
+```
+
+The production execution path is fail closed and requires all of the following:
+an exact approved 40-character commit, an exact `web-portal-*` rollback
+revision, and the two approved Secret `resource:version` references. Its
+existence does not authorize a deployment. Do not use `--execute` without the
+Owner's exact deployment work package and the checks in
+`docs/operations/DEPLOYMENT_RUNBOOK.md`.
+
 ## Scheduled service deployment preflight
 
 The two private scheduled services use Git commit SHAs as immutable image tags.

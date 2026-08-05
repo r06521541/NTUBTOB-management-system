@@ -1,15 +1,14 @@
-active_task: TASK-025
+active_task: TASK-028
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
-head_commit: 7a21a6f
+base_commit: d48a5ba
+head_commit: e8dc0b48f7a04ac960927347fac43792ef8c5881
 
 updated_by: work
-updated_at: 2026-08-06T00:40:00+08:00
+updated_at: 2026-08-06T03:20:00+08:00
 
 note: >
-  Owner accepted TASK-025 and later authorized push/PR. PR #37 is open and
-  mergeable; Python 3.10 run 31021863646/job 92360319877 passed all configured
-  suites. Awaiting Owner merge decision. No deployment, production, DB, schema,
-  Secret, notification or other external mutation is authorized.
+  Work accepted TASK-028. Owner approved push and a Draft PR work package, including
+  read-only Python 3.10 CI verification and evidence updates in the same PR. Merge and all
+  production execution remain unapproved. Work is preparing the PR and will report CI evidence.
