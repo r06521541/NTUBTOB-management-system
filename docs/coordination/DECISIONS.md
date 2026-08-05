@@ -372,3 +372,13 @@
 - 結果：Cloud Run current revision、traffic、digest、public boundary、runtime identity、env key分類、Secret resource names與narrow IAM metadata已完成查驗；readiness結果記錄於`docs/operations/deployments/WEB_PORTAL_READINESS_2026-08-05.md`。
 - 阻擋：無法唯一辨識TASK-022要求的LINE Login channel secret與Flask session key Secret resources，故未產生可直接執行的deployment批准文字。
 - 安全邊界：未讀取Secret／plain env values，未呼叫production URL，未執行build、deploy、traffic或任何Cloud Run／IAM／Secret／DB修改。
+
+## DEC-036：批准離線Web Portal Team Operations Demo
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准建立TASK-024並交由Codex長時間離線實作，將既有demo深化為球隊賽事作戰中心。
+- 產品範圍：Dashboard營運摘要、賽程月曆／篩選／ICS、出席細節、Game Day、交通與裝備分工、個人設定及幹部工作台prototype。
+- 實作授權：可修改`apps/web_portal` demo程式／templates／static／tests與必要文件，並依既有授權建立描述性local commits。
+- 安全邊界：不批准push／PR、部署、Secret／IAM、production request／DB、LINE／Discord或其他外部呼叫、schema／shared_lib修改或正式通知。

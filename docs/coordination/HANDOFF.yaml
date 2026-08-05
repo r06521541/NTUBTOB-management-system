@@ -1,15 +1,15 @@
-active_task: TASK-023
-status: awaiting_owner_decision
-next_actor: owner
+active_task: TASK-024
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 3bfc0a1
+base_commit: 919cb5c
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T18:20:00+08:00
+updated_at: 2026-08-05T18:45:00+08:00
 
 note: >
-  Owner approved and Work completed the TASK-023 field-minimized read-only
-  inventory. Cloud Run is Ready/public and callback host matches, but the two
-  required LINE Login/session Secret resources cannot be uniquely identified;
-  deployment remains blocked. Awaiting Owner decision on a Secret bootstrap task.
+  Owner approved TASK-024, an offline Web Portal Team Operations Demo expansion.
+  Codex may implement and create descriptive local commits, but may not push,
+  open a PR, deploy, access production/Secrets/DB, call external services, modify
+  schema/shared_lib, or send notifications.
