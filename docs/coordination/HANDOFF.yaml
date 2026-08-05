@@ -1,15 +1,15 @@
 active_task: TASK-024
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 8ee73f660aad8edf7145a8510ebd7cb923c01227
-head_commit: 637d9b9
+head_commit: 109ebf6
 
-updated_by: codex
-updated_at: 2026-08-05T20:45:00+08:00
+updated_by: work
+updated_at: 2026-08-05T21:05:00+08:00
 
 note: >
-  Codex addressed all six Work review blockers in 637d9b9: per-game operations,
-  validated transport and notification preferences, calendar/venue filters,
-  spectator/ETA details, and session-derived dashboard tasks. All 33 tests pass
-  with 2 existing platform skips; Work should re-review the actual diff.
+  Work accepted TASK-024 after second review. All six requested corrections are
+  implemented and 33 Web Portal tests pass with 2 existing Windows platform skips.
+  Browser visual and Python 3.10 execution remain unverified. Awaiting Owner acceptance;
+  push, PR, deployment, production, Secret, DB, schema and external calls remain unauthorized.

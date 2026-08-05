@@ -2,7 +2,7 @@
 
 驗收日期：2026-08-05
 驗收者：Work
-結論：`changes_requested`
+結論：`accepted`（第二輪）
 
 ## 驗收範圍
 
@@ -82,5 +82,19 @@ Work嘗試啟動development demo進行瀏覽器視覺驗收，但in-app browser 
 
 ## 下一步
 
-交回Codex在同一TASK-024補正上述六項。補正後需更新report、重跑完整Web Portal tests／compile／diff checks，並將HANDOFF交回`ready_for_review / work`。
+第一輪已交回Codex補正；第二輪結果如下。
 
+## 第二輪驗收
+
+- 補正implementation：`637d9b9`
+- Report head：`109ebf6`
+- Game Day state已改為依`game_id`隔離，測試證明兩場賽事互不污染。
+- 交通流程已涵蓋自行前往、需要接送、提供1–4席、虛構集合點及欄位組合validation。
+- 三類通知偏好已具session-only POST、CSRF、allowlist與reset。
+- 賽程已具timeline／month view與home／away filters，query values均allowlist。
+- 出席已具僅觀賽、ETA、表單回填，invalid status在有效CSRF下仍拒絕。
+- Dashboard待辦由session-derived helper產生，回覆、交通及裝備跨頁操作後會同步更新。
+
+Work重跑Web Portal 33項tests全部通過，2項既有Windows `make`／`sh`相依測試skip；compileall與`git diff --check`通過，working tree於驗收開始時clean。
+
+驗收結論為`accepted`。尚未完成瀏覽器實際視覺驗收與Python 3.10本機／CI實跑；這兩項列為Owner接受前的已知限制，不阻擋離線prototype程式驗收。

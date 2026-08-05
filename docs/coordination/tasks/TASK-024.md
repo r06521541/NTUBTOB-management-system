@@ -1,6 +1,6 @@
 # TASK-024：Web Portal Team Operations Demo
 
-狀態：`ready_for_codex`
+狀態：`awaiting_owner_approval`
 優先級：P2 product prototype
 規劃者：Work
 執行者：Codex
@@ -156,4 +156,3 @@ git status --short
 - 使用描述性local commits，TASK編號放body/footer。
 - 完成報告須列出使用者可見行為、設計取捨、實際tests、未驗證項目、prototype限制及所有變更檔案。
 - 完成後更新`HANDOFF.yaml`為`ready_for_review / work`；不得push、建立PR或部署。
-
