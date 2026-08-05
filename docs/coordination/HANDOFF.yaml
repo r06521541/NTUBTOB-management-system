@@ -1,15 +1,14 @@
-active_task: TASK-029
+active_task: TASK-030
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 196c2087a1bfdf816f16aafc267c7008aa376f41
-head_commit: 77efd5950f8a35f771fc80f242042c936bd4f05d
+base_commit: 6765448ac64950cfe35008e637bc2c529954e106
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T06:10:00+08:00
+updated_at: 2026-08-06T06:35:00+08:00
 
 note: >
-  Work accepted TASK-029 after independently verifying 55 Web Portal tests, compile, Python 3.10
-  grammar, diff cleanliness, and the official LINE disable_auto_login contract. Owner may decide
-  whether to authorize push and PR. Deployment and real-device login verification remain separate;
-  no production login/log/API, Console change, Secret, DB, deploy, push, PR, or merge occurred.
+  PR #39 was squash merged as 6765448 after Python 3.10 CI success. Owner selected the controlled
+  production smoke-test path. TASK-030 defines exact deployment, preflight, Owner-operated LINE
+  login, stop conditions and rollback; production execution still requires the exact approval text.

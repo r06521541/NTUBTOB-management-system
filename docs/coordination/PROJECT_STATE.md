@@ -125,11 +125,12 @@
 
 ## 4. 當前工作
 
-- `TASK-029` original-browser repository-only 修正已由 Work 驗收接受；真實 Safari／Chrome／LINE in-app 行為仍需部署另案批准。
+- `TASK-029` 已由 PR #39 squash merge為 `6765448`，Python 3.10 CI成功；尚未部署或以真實瀏覽器驗證。
+- `TASK-030` 已建立production rollout與Owner手動LINE Login smoke-test工作包，等待Owner對exact commit、rollback與真實LINE API／production唯讀Member查詢做精確批准。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-029` | `awaiting_owner_approval` | `owner` | 決定是否批准 push／PR；部署與真實裝置 smoke test 不在本次授權內。 |
+| `TASK-030` | `awaiting_owner_approval` | `owner` | 審閱並決定是否批准精確production部署、rollback與本人受控真實LINE Login smoke test。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
