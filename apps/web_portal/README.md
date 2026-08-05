@@ -27,6 +27,28 @@ and administrator approval are visual prototypes only. Existing LINE routes
 remain present, but selecting LINE requires the real application configuration
 and is not part of the offline demo.
 
+## LINE Login callback continuity
+
+LINE Login uses a short-lived, server-signed OAuth state bound to a nonce in the
+browser session that started login. The state expires after 10 minutes and
+contains only that random nonce and a validated local return path. Invalid,
+expired, modified, or cross-session state is rejected before LINE or database
+access. Return targets must be unambiguous absolute paths within this Web
+Portal; external, scheme-relative, encoded-separator, backslash, and control
+character inputs fall back to the attendance page.
+
+This transaction binding prevents login CSRF/session swapping, but it also
+means a callback opened in a genuinely different browser cookie store cannot
+safely establish a session. The authorization request therefore disables LINE
+auto-login so mobile Safari/Chrome stays on the browser-based LINE Login flow
+instead of launching LINE through Universal Links/App Links. This trades some
+login convenience for preserving the initiating browser's session-bound state.
+
+The LINE Developers callback URL remains
+`https://web-portal-7uz453jt3a-de.a.run.app/line/callback`. This repository's
+offline tests mock all LINE HTTP calls; they do not prove the callback URL or
+credentials configured in LINE Developers and production are correct.
+
 ### Team Operations prototype
 
 After entering the demo, the fictional team workspace includes:

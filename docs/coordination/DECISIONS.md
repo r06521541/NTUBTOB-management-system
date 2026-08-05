@@ -457,3 +457,32 @@
 - 狀態：`approved`
 - 決策：Owner 接受 Work 驗收建議，批准將 `codex/web-portal-safe-deployment-wrapper` push 至 `origin` 並建立描述性 Draft PR，允許唯讀查驗 GitHub Python 3.10 CI 與依結果更新同一 PR 的驗收文件。
 - 安全邊界：不包含 merge、production deployment、wrapper `--execute`、Secret/IAM/Scheduler/DB/schema/data 修改、production HTTP 或 LINE/Discord 通知。
+
+## DEC-045：批准跨瀏覽器 LINE Login State 修正
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 現象：Owner 在一般網頁瀏覽器進行 LINE Login 時看到 `Invalid state parameter`，LINE 內建瀏覽器則可使用受保護頁面。
+- 決策：建立 TASK-029，使用具期限與簽章的 self-contained OAuth state，讓 callback 不依賴起始瀏覽器 session cookie，同時保持 fail-closed state validation 與站內 return-path 限制。
+- 授權：TASK-028／PR #38 已完成 squash merge；Owner 批准 TASK-029 本機實作、離線測試與描述性 commit並正式交棒 Codex。
+- 安全邊界：本決策不批准 production 登入、logs、真實 LINE API、Secret／LINE Console 修改、部署、DB/schema/data 操作、push、PR 或 merge。
+
+## DEC-046：Squash merge Web Portal 安全部署工具
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner 批准將 PR #38 標記 ready 並以 Squash merge 合併，維持 default branch 每個 TASK 一個描述性 commit的精簡規則。
+- 結果：PR #38 已合併為 `196c2087a1bfdf816f16aafc267c7008aa376f41`，標題為 `feat(web-portal): add cross-platform safe deployment wrapper`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功。
+- 安全邊界：merge 未執行 wrapper `--execute`、production deployment／HTTP、Secret／IAM／Scheduler／DB／schema／data 操作或通知。
+
+## DEC-047：優先診斷 LINE callback 回到原瀏覽器
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 背景：TASK-029 證明 transferable signed state 會降低 login-CSRF／transaction-binding 邊界；安全補正後，不同 cookie store callback 會 fail closed。
+- 決策：Owner 選擇先診斷並優先讓 LINE callback 回到登入發起的 external browser，不先建 two-phase shared transaction，也不接受 signed bearer login。
+- 授權：Codex 可查 repository、離線測試與 LINE 官方公開文件；只有能證明維持 session binding 的 repository-only 修正才可實作並建立本機 commit。
+- 安全邊界：不批准 production logs/login/API、LINE Developers Console 修改、Secret、DB/schema/data、部署、push、PR 或 merge。

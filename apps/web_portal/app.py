@@ -1,8 +1,20 @@
+import hmac
 import os
-from datetime import datetime, timedelta, time, timezone
-import requests
 import secrets
-from flask import Flask, render_template, request, redirect, session, url_for, Response, send_from_directory
+from datetime import datetime, time, timedelta, timezone
+from urllib.parse import urlencode
+
+import requests
+from flask import (
+    Flask,
+    Response,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
 from flask_caching import Cache
 
 import messages
@@ -11,12 +23,16 @@ from admin_security import (
     get_or_create_csrf_token,
     require_valid_csrf,
 )
-from demo_portal import demo_portal, is_demo_mode_enabled
 from demo_events import demo_events
-from envs import (
-    login_channel_id,
-    login_channel_secret,
-    secret_key
+from demo_portal import demo_portal, is_demo_mode_enabled
+from envs import login_channel_id, login_channel_secret, secret_key
+from line_login import (
+    LINE_HTTP_TIMEOUT_SECONDS,
+    InvalidOAuthState,
+    create_oauth_state,
+    load_oauth_state,
+    require_string_field,
+    safe_return_path,
 )
 
 DEMO_MODE_ENABLED = is_demo_mode_enabled()
@@ -111,20 +127,35 @@ def add_line_friend():
 def redirect_to_login():
     # 將原始目標URL存儲在session中
     next_url = request.args.get('next')
-    if next_url:
-        session['next_url'] = next_url
-    else:
-        session['next_url'] = url_for('home')
+    session['next_url'] = safe_return_path(next_url, url_for('home'))
 
     return render_template('redirect_page.html')
     
 @app.route('/line/login')
 def line_login():
     # 生成隨機的 state
-    state = secrets.token_urlsafe(16)
-    session['oauth_state'] = state
-
-    login_url = f"{LINE_AUTH_URL}?response_type=code&client_id={login_channel_id}&redirect_uri={LINE_REDIRECT_URI}&state={state}&scope=profile%20openid"
+    return_path = safe_return_path(
+        request.args.get('next') or session.pop('next_url', None),
+        url_for('attendance'),
+    )
+    nonce = secrets.token_urlsafe(16)
+    session['oauth_state_nonce'] = nonce
+    state = create_oauth_state(
+        app.secret_key,
+        return_path,
+        nonce,
+    )
+    login_query = urlencode(
+        {
+            'response_type': 'code',
+            'client_id': login_channel_id,
+            'redirect_uri': LINE_REDIRECT_URI,
+            'state': state,
+            'scope': 'profile openid',
+            'disable_auto_login': 'true',
+        }
+    )
+    login_url = f"{LINE_AUTH_URL}?{login_query}"
     return redirect(login_url)
 
 @app.route('/line/callback')
@@ -133,8 +164,23 @@ def line_callback():
     state = request.args.get('state')
     
     # 驗證 state 是否符合
-    if state != session.pop('oauth_state', None):
+    try:
+        next_url, state_nonce = load_oauth_state(
+            app.secret_key,
+            state,
+            url_for('attendance'),
+        )
+    except InvalidOAuthState:
         return 'Invalid state parameter', 400
+
+    session_nonce = session.pop('oauth_state_nonce', None)
+    if not isinstance(session_nonce, str) or not hmac.compare_digest(
+        state_nonce, session_nonce
+    ):
+        return 'Invalid state parameter', 400
+
+    if not code:
+        return 'Invalid authorization response', 400
 
     # 使用授權碼獲取access token
     data = {
@@ -144,16 +190,33 @@ def line_callback():
         'client_id': login_channel_id,
         'client_secret': login_channel_secret,
     }
-    token_res = requests.post(LINE_TOKEN_URL, data=data).json()
-    access_token = token_res['access_token']
+    try:
+        token_response = requests.post(
+            LINE_TOKEN_URL,
+            data=data,
+            timeout=LINE_HTTP_TIMEOUT_SECONDS,
+        )
+        token_response.raise_for_status()
+        access_token = require_string_field(token_response.json(), 'access_token')
 
     # 使用access token獲取使用者資訊
-    headers = {'Authorization': f'Bearer {access_token}'}
-    user_info_res = requests.get(LINE_USER_INFO_URL, headers=headers).json()
+        headers = {'Authorization': f'Bearer {access_token}'}
+        profile_response = requests.get(
+            LINE_USER_INFO_URL,
+            headers=headers,
+            timeout=LINE_HTTP_TIMEOUT_SECONDS,
+        )
+        profile_response.raise_for_status()
+        user_info_res = profile_response.json()
+        user_id = require_string_field(user_info_res, 'userId')
+        display_name = require_string_field(
+            user_info_res, 'displayName', allow_empty=True
+        )
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        return 'LINE Login is temporarily unavailable', 502
 
     # 以會籍的存在與否來授權
     is_authenticated = False
-    user_id = user_info_res['userId']
     user = LineUser.search_by_id(user_id)
     if user:
         member = Member.search_by_id(user.member_id)
@@ -164,11 +227,10 @@ def line_callback():
             session['user_id'] = user_id
             session['member_id'] = member.id
             session['member'] = member
-            session['display_name'] = user_info_res['displayName']
+            session['display_name'] = display_name
 
     if is_authenticated:
         # 從session中取出next_url並重定向
-        next_url = session.get('next_url', url_for('attendance'))
         return redirect(next_url)
     else:
         # 直接切換至未獲授權頁面
