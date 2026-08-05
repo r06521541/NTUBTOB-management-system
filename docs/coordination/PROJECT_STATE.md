@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-05T12:29:00+08:00
+更新時間：2026-08-05T13:23:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `974433168b86e5638adce779ed8eccced0542094`
+證據基準：`main` merge commit `b14dcad3d1261772c8dc00898ba1caca114ce941`
 
 ## 1. 目前摘要
 
@@ -15,6 +15,7 @@
 - Owner 已批准 Draft PR 一次授權流程；未來一般任務可一次授權 branch、commit、push、Draft PR、CI 查驗及同一 PR 內的驗收證據更新，merge 仍由 Owner 最終決定。
 - TASK-003 已由 Codex 實作、Work 驗收為 `accepted`，並由 Owner 透過 PR #26 合併；merge commit 為 `9b812f5`。
 - Owner 已批准描述性 commit/PR title 規範；TASK 編號只放在 body/footer，不再作為標題主體。
+- Owner已持續授權Work／Codex在完成範圍內工作並通過驗證後自行建立local commits；push、PR、部署及其他外部／高風險操作仍須依既有閘門另行授權。
 - TASK-004 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 透過 PR #28 合併；merge commit 為 `c70ce63`。
 - Owner 已採用任務 commit 精簡規則：原則上每個任務保留功能、Codex 完工與 Work 驗收三類 commit，純 merge closeout 併入下一個規劃 commit。
 - TASK-005 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 透過 PR #29 合併；merge commit 為 `086d663`。
@@ -30,7 +31,9 @@
 - TASK-014已依Owner精確批准執行：revision `game-broadcast-service-00031-s65`建置與部署成功，但唯一一次authenticated `GET /healthz`回傳404，已依trigger將100% traffic rollback至Ready的`00030-pgg`。Service維持private，Scheduler未變。
 - TASK-015已完成bounded diagnosis：build source與deployed image的health route正確，但精確時間窗沒有container request log，故404發生於Cloud Run frontend／container之前；尚待Owner決定是否查詢極窄Cloud Audit HttpIngress policy logs。
 - TASK-015後續Cloud Audit `HttpIngress` policy metadata精確查詢亦為0筆，沒有證據支持可記錄的policy denial；URL／frontend routing仍待另一次獨立批准驗證。
-- TASK-016已完成Codex實作及Work驗收：兩個排程服務不再於import-time查詢LINE groups，notify package亦不再於import-time執行`announce('Hi')`；Draft PR #32等待Owner決定是否ready及merge。
+- TASK-016已由Owner接受並透過PR #32合併；merge commit為`b14dcad3`。兩個排程服務不再於import-time查詢LINE groups，notify package亦不再於import-time執行`announce('Hi')`；尚未部署至production。
+- TASK-017已完成：main commit `b14dcad3`部署至production notify cron revision `00011-jpj`，Ready／healthy並承接100% traffic；未人工invoke或觸發rollback。
+- TASK-018已完成：main commit `b14dcad3`的game broadcast image以精確digest部署至revision `00033-mdp`，Ready／healthy並承接100% traffic；固定`:tag1`曾使原deploy step no-op，應另立工具鏈修正。
 
 ## 2. 已確認事實
 
@@ -109,7 +112,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-016` | `awaiting_owner_approval` | `owner` | Work驗收accepted；等待Owner決定是否將Draft PR #32標記ready並merge。 |
+| `TASK-019` | `awaiting_owner_approval` | `owner` | Work第三輪驗收accepted；等待Owner決定是否將Draft PR #33標記ready並merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

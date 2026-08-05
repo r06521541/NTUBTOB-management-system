@@ -1,6 +1,6 @@
 # Production Deployment Runbook
 
-更新時間：2026-08-04
+更新時間：2026-08-05
 狀態：`accepted`
 適用環境：Google Cloud production
 預設 project／region：`ntubtob-schedule-405614`／`asia-east1`
@@ -35,7 +35,7 @@ Owner 於 2026-08-04 接受本文件作為標準流程。此接受僅採納文�
 
 - Apps 透過 Cloud Build 建置 Docker image，再部署 Cloud Run。
 - Apps 與 functions 都會先重建 `shared_lib-0.0.1.tar.gz`，並複製至 deployment source 的 `dist/`。
-- 三個 Cloud Run app 目前共用固定 image tag `tag1`，追溯性不足；部署前必須額外記錄 Git SHA、build ID、image digest 與 revision。
+- 兩個 private scheduled services 已使用完整 Git SHA 作 immutable image tag；仍必須記錄 Git SHA、build ID、image digest 與 revision。Web Portal 尚未納入此流程且維持禁止部署。
 - Repository 沒有 migration framework；任何 schema 變更均不得附帶於一般部署。
 - Repository 沒有 Cloud Scheduler job 定義；實際 jobs、OIDC service account 與 target URLs 尚待受控唯讀 inventory。
 
@@ -162,9 +162,35 @@ gcloud config get-value run/region
 
 ## 7. 各服務執行入口與閘門
 
+### 7.0 Scheduled services 的標準 wrapper
+
+`game-broadcast-service` 與 `notify-cronjob-service` 的標準入口為：
+
+```text
+python tools/deploy_scheduled_service.py <SERVICE>
+```
+
+未帶 `--execute` 時只做 repository preflight，不執行 `gcloud` 或任何雲端查詢／變更。Windows 若沒有 `python` alias，使用：
+
+```text
+py -3.10 tools/deploy_scheduled_service.py <SERVICE>
+```
+
+Owner 完成單次 deployment work package 批准後，執行者才可使用：
+
+```text
+python tools/deploy_scheduled_service.py <SERVICE> --execute \
+  --approved-commit <FULL_40_CHARACTER_SHA> \
+  --rollback-revision <EXACT_PREVIOUS_HEALTHY_REVISION>
+```
+
+Wrapper 會 fail closed 檢查 clean source、HEAD、服務與 rollback revision，重建 shared sdist、過濾暫存 env、用批准 SHA 建置 image，確認新 revision ready，並明確將 100% traffic 指向新 revision。Cloud Build 成功不等於 rollout 成功；new revision／traffic 驗證失敗時會嘗試切回批准的 exact rollback revision。暫存 `.env.yaml` 會在成功或失敗時清理。
+
+命令輸出只能記錄 build ID、revision、SHA tag 等非敏感識別資料。不得把 env value、Secret value、token 或完整 runtime configuration 寫入證據。舊 Make targets 保留相容性，但 production 優先使用 wrapper。
+
 ### 7.1 Game broadcast service
 
-入口：
+Legacy 入口：
 
 ```text
 make deploy-game-broadcast-service
@@ -181,7 +207,7 @@ make deploy-game-broadcast-service
 
 ### 7.2 Notify cronjob service
 
-入口：
+Legacy 入口：
 
 ```text
 make deploy-notify-cronjob-service
@@ -238,7 +264,7 @@ make deploy-line-webhook-handler
 
 ## 8. Temporary file 與失敗清理
 
-三個 app Make targets 都在 Cloud Build 成功後才刪除 service directory 的 `.env.yaml`。若 build/deploy 中途失敗，清理步驟可能不會執行。
+三個 app Make targets 都在 Cloud Build 成功後才刪除 service directory 的 `.env.yaml`。若 legacy build/deploy 中途失敗，清理步驟可能不會執行。Scheduled services wrapper 則以 `finally` 保證暫存 env 清理。
 
 無論成功或失敗都必須：
 
@@ -303,7 +329,7 @@ gcloud run services update-traffic <SERVICE> \
   --to-revisions <PREVIOUS_HEALTHY_REVISION>=100
 ```
 
-固定 `tag1` 可能已指向新 image，但既有 revision 應以 image digest 固定；仍必須在部署前驗證 previous revision 可用。若無 previous healthy revision，不得開始部署。
+Scheduled services 的 image tag 必須等於批准的完整 Git SHA；既有 revision 仍以 image digest 固定。部署前必須驗證 previous revision 可用；若無 previous healthy revision，不得開始部署。
 
 ### 11.2 Cloud Functions Gen2
 
@@ -358,7 +384,7 @@ Remaining risks:
 
 ### P2
 
-- 以 Git SHA／digest 取代固定 `tag1`，建立 commit→build→image→revision 追溯。
+- 將 scheduled services wrapper 納入未來的 protected deployment environment；目前仍為 Owner 單次批准後的人工執行。
 - 建立 staging 與 fake notification adapter。
 - 將 production deployment 放入 GitHub protected environment，由 Owner 保留最終批准。
 - 增加自動捕捉 previous healthy revision 與 rollback command 的工具。
@@ -373,7 +399,7 @@ Remaining risks:
 ### 已確認
 
 - Repository 的 deploy targets、project、region、runtime、公開／私有 flags 與上述 Secret binding 名稱。
-- Apps 固定使用 `tag1`。
+- Web Portal 仍固定使用 `tag1`；兩個 scheduled services 已改用完整 Git SHA tag。
 - Web Portal build context blocker。
 - Repository 尚無 migration framework、Scheduler definitions 與無副作用 health endpoints。
 

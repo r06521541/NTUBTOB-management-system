@@ -81,13 +81,23 @@ class DeploymentContractTests(unittest.TestCase):
         )
 
         excluded_pattern = grep_command.group("pattern")
-        for variable in ("CHANNEL_ACCESS_TOKEN", "CHANNEL_SECRET"):
+        for variable in ("DSN_PASSWORD", "CHANNEL_ACCESS_TOKEN", "CHANNEL_SECRET"):
             with self.subTest(variable=variable):
                 self.assertIn(
                     variable,
                     excluded_pattern,
                     f"deploy target must exclude {variable}",
                 )
+
+    def test_cloud_build_uses_commit_specific_image_tag(self):
+        self.assertIn("${_IMAGE_TAG}", self.cloudbuild)
+        self.assertNotIn(":tag1", self.cloudbuild)
+
+        target = extract_make_target(
+            self.deploy_makefile, "deploy-notify-cronjob-service"
+        )
+        command = normalize_shell_command(target)
+        self.assertIn('_IMAGE_TAG="${IMAGE_TAG}"', command)
 
     def test_docker_build_context_excludes_environment_file(self):
         ignored_paths = {

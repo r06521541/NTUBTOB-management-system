@@ -122,7 +122,7 @@
 
 - 日期：2026-08-04
 - 決策者：Owner
-- 狀態：`approved`
+- 狀態：`completed`
 - 決策：批准 TASK-005，將 game broadcast 的邀請與取消時間視窗改為每次 request 取得一次 Asia/Taipei snapshot，避免長壽命 instance 沿用 module import 時間。
 - 產品規則：保留既有 `today_begin + 11 days` 查詢上限；本任務不改變邀請提前範圍。
 - PR 工作包：批准 branch、描述性 commits、push、Draft PR、CI 查驗及同一 PR 驗收文件更新。
@@ -232,3 +232,58 @@
 - TASK-016：已建立最小lazy initialization與import side-effect移除規格。
 - PR工作包：Owner批准branch、描述性commits、push、Draft PR、CI查驗及同一PR內的報告／驗收文件更新；merge仍需Owner最終批准。
 - 授權邊界：不批准部署、production request、production DB、真實通知、shared_lib／schema／Secret／IAM／Scheduler／deployment config修改或其他服務擴張。
+
+## DEC-023：接受並合併排程服務Startup安全修正
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-016的Work驗收結論，授權將PR #32標記ready並merge。
+- 結果：PR #32已以merge commit `b14dcad3d1261772c8dc00898ba1caca114ce941`合併。
+- Merge標題：`fix(scheduled-services): defer startup notification side effects`。
+- 驗收證據：合併前最終Actions run `30975939328`、job `92209817045`成功；Python 3.10.20下game broadcast 27/27、notify cron 8/8、schedule 5/5通過。
+- 安全邊界：未部署、未呼叫production、未連production DB、未發送通知，亦未操作shared_lib、schema、Secret、IAM、Scheduler或deployment config。
+- 後續：若要讓production使用本修正，必須另立deployment任務，確認目標服務、commit、驗證與rollback後再取得Owner精確批准。
+
+## DEC-024：批准Notify Cron Startup安全修正Production Deployment
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：將exact commit `b14dcad3d1261772c8dc00898ba1caca114ce941`部署至production `notify-cronjob-service`，依runbook執行build、deploy及唯讀control-plane驗證。
+- Scheduler：批准部署後既有Scheduler依原排程自然呼叫新revision，接受其可能讀取production DB並發送既有正式LINE通知。
+- Rollback：符合TASK-017失敗條件時，批准將100% traffic切回`notify-cronjob-service-00010-z2x`。
+- 未批准：人工invoke、Secret／IAM／Scheduler修改、credential輪替、其他服務部署或人工production data操作。
+- 結果：Cloud Build `3d751cb3-6b47-4de5-9568-e25425ef63c5`成功；revision `notify-cronjob-service-00011-jpj` Ready／healthy並承接100% traffic，digest為`sha256:8f7d551c41bb6e911d1a2cbc8a22c2b0911ea98650c6e27d613b4c5e6057c596`。
+- 安全結果：service維持private，runtime identity與Secret references未退化，temporary env已清理；未人工invoke、未修改Scheduler／Secret／IAM，未觸發rollback。
+
+## DEC-025：批准Game Broadcast Startup安全修正Production Deployment
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：將exact commit `b14dcad3d1261772c8dc00898ba1caca114ce941`部署至production `game-broadcast-service`，依TASK-018與runbook執行build、deploy及唯讀control-plane驗證。
+- Scheduler：接受既有Scheduler自然呼叫新revision，並可能讀取production DB、發送既有LINE／Discord通知或寫入announcement timestamps。
+- Rollback：符合TASK-018失敗條件時，批准將100% traffic切回`game-broadcast-service-00030-pgg`。
+- 未批准：人工invoke任何health或business route、Secret／IAM／Scheduler修改、credential輪替、其他服務部署或人工production data操作。
+- 結果：Cloud Build `b4081955-261f-4e41-a160-c31376e3b1ff`成功；精確digest建立revision `game-broadcast-service-00033-mdp`，Ready／healthy並承接100% traffic。
+- 安全結果：service維持private，runtime identity、Secret references及Scheduler未退化；未人工invoke、未觸發rollback。
+- 工具鏈發現：固定`:tag1`使原deploy step未建立新revision，Work以同一build的精確digest及顯式traffic完成核准部署；後續應改用immutable image reference並建立跨平台wrapper。
+
+## DEC-026：授權後續任務自行建立Local Commits
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner持續授權Work／Codex在完成範圍內工作並通過必要驗證後，自行建立local commits，不必逐次請示。
+- Commit要求：維持描述性標題、範圍聚焦、保留使用者既有變更，並在提交前執行任務所需測試與`git diff --check`。
+- 不包含：push、建立或合併PR、production deployment、正式通知、Secret／IAM／Scheduler修改、不可逆資料操作或重大架構變更；這些仍依既有流程個別取得Owner授權。
+
+## DEC-027：批准Immutable Deployment Wrapper與PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准TASK-019，由Codex實作scheduled services immutable image references與Python 3.10跨平台deployment wrapper。
+- PR工作包：允許建立／使用task branch、描述性commits、push、Draft PR、CI查驗，以及Work在同一PR更新report／review／PROJECT_STATE／HANDOFF。
+- 安全邊界：不得執行wrapper `--execute` path、Cloud Build、deployment、traffic mutation、production存取、Secret／IAM／Scheduler修改、正式通知、production data操作或merge。
