@@ -1,14 +1,14 @@
 active_task: TASK-031
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: c3611e5fecddf8856f8e58835bb3065f61c704b6
-head_commit: f21d54faf2a637252021d6ee17a98f389f71fa0f
+head_commit: 844e8dcef57c3ee3daaa46003245194ba5f5653b
 
-updated_by: codex
-updated_at: 2026-08-06T07:40:00+08:00
+updated_by: work
+updated_at: 2026-08-06T07:55:00+08:00
 
 note: >
-  Both deployment wrappers now resolve exact executable paths at their subprocess boundary.
-  Offline Windows .cmd, POSIX, missing-tool, wrapper, Web Portal, compile and dry-run checks pass.
-  No cloud command or deployment ran. Work should review commit f21d54f and PR CI evidence.
+  Work accepted TASK-031 after independently running 34 tools tests, 55 Web Portal tests, Windows
+  .cmd execution, compile, Python 3.10 grammar, both dry-runs and PR #40 hosted CI. Owner may decide
+  whether to mark PR #40 ready and squash merge. No cloud command or deployment ran.

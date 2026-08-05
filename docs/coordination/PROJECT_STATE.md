@@ -131,7 +131,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-031` | `ready_for_codex` | `codex` | 修正Windows `gcloud.cmd` executable resolution並以離線測試保護，不執行production。 |
+| `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

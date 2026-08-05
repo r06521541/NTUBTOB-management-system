@@ -1,9 +1,9 @@
 # TASK-031：Resolve gcloud Executable Safely on Windows
 
-狀態：`ready_for_codex`  
-優先級：P1 deployment blocker  
-規劃者：Work  
-執行者：Codex  
+狀態：`ready_for_codex`
+優先級：P1 deployment blocker
+規劃者：Work
+執行者：Codex
 Base commit：`c3611e5fecddf8856f8e58835bb3065f61c704b6`
 
 ## 1. 任務目標
