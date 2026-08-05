@@ -112,7 +112,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-019` | `changes_requested` | `codex` | 第一輪問題已修；第二輪要求支援pinned-traffic revision自身Ready判定與full image@sha256 digest格式。 |
+| `TASK-019` | `awaiting_owner_approval` | `owner` | Work第三輪驗收accepted；等待Owner決定是否將Draft PR #33標記ready並merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

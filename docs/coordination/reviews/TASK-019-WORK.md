@@ -1,7 +1,7 @@
 # TASK-019 Work Review
 
 日期：2026-08-05
-結論：`changes_requested`
+結論：`accepted`
 Branch：`codex/immutable-scheduled-service-deployments`
 驗收HEAD：`f10e7b8602e7ebf388faf6e38ceeaea21de6acb0`
 Draft PR：[#33](https://github.com/r06521541/NTUBTOB-management-system/pull/33)
@@ -74,3 +74,19 @@ Wrapper要求revision `status.imageDigest`以`sha256:`開頭；TASK-017／018實
 應安全normalize bare digest與full image reference的digest suffix，再與Artifact Registry approved tag digest精確比較；測試至少涵蓋真實full-reference格式及mismatch。
 
 補正仍限offline fake runner與CI，禁止execute、gcloud、production或merge。完成後再交回Work第三輪驗收。
+
+## 第三輪驗收（HEAD `339d0cd`）
+
+第二輪兩項production-shape問題已補正：
+
+- 切traffic前以new revision自身的`Ready=True` condition驗證0% pinned revision；切traffic後才要求service latest ready及100% traffic指向new revision。
+- Bare `sha256:...`及完整`registry/image@sha256:...`皆嚴格normalize為64位hex digest，再與approved SHA tag digest精確比較。
+- Fake runner已模擬pre-traffic latest ready仍為baseline、new revision Ready／Retired的TASK-018實際形狀，並涵蓋full-reference success與digest mismatch。
+
+Work實際重跑：wrapper 11/11、game broadcast 28/28、notify cron 9/9、update schedule 5/5、兩個預設preflight、compile及`git diff --check`全數通過。Draft PR #33 final Codex HEAD `339d0cd1cbbfb5e76f4b42a91e3bd87d9e49aa31`的Python 3.10.20 run `30982344293`／job `92229277794`成功；PR open／draft／mergeable，working tree乾淨。
+
+## 最終結論
+
+`accepted`。TASK-019符合repository-only範圍與fail-closed驗收條件；沒有執行wrapper `--execute`、gcloud、deployment、production存取、通知或merge。Execute path仍僅有offline fake-runner證據，首次真實使用必須另立精確deployment工作包並由Owner批准。
+
+下一位角色為Owner；若接受，可另行授權將PR #33標記ready並merge。Merge不等於任何production deployment授權。
