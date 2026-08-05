@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-05T15:52:00+08:00
+更新時間：2026-08-05T16:58:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `c022d5185cf6126ffd228b0c95b815c80ee39606`
+證據基準：`main` merge commit `a7f801b44e07d1d8518b9f8675e99b4743a98e00`
 
 ## 1. 目前摘要
 
@@ -36,7 +36,8 @@
 - TASK-018已完成：main commit `b14dcad3`的game broadcast image以精確digest部署至revision `00033-mdp`，Ready／healthy並承接100% traffic；固定`:tag1`曾使原deploy step no-op，應另立工具鏈修正。
 - TASK-019已由Owner接受並透過PR #33合併；merge commit為`b053fce6`。兩個排程服務改用Git SHA image tag，並新增預設只做preflight、fail-closed的跨平台deployment wrapper；尚未以wrapper execute path進行production部署。
 - TASK-020已由Codex完成、Work驗收為`accepted`並由Owner透過PR #34合併；缺少／空白／無效LINE signature明確回400且不觸發外部副作用，production／local入口共用同一boundary；merge commit為`c022d518`，尚未部署Cloud Function。
-- TASK-021已由Codex完成並經Work驗收為`accepted`：Web Portal成員配對管理端點已有fail-closed Member ID allowlist、LINE session guard與CSRF；Draft PR #35等待Owner決定merge，尚未部署或設定production allowlist。
+- TASK-021已由Codex完成、Work驗收為`accepted`並由Owner透過PR #35合併；Web Portal成員配對管理端點已有fail-closed Member ID allowlist、LINE session guard與CSRF；merge commit為`a7f801b4`，尚未部署或設定production allowlist。
+- TASK-022已由Owner批准並交棒Codex：修正Web Portal env／Docker build context、runtime Secret binding與immutable image tag；只限repository與Draft PR，不得build或deploy。
 
 ## 2. 已確認事實
 
@@ -115,9 +116,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-021` | `awaiting_owner_approval` | `owner` | Work驗收accepted；等待Draft PR #35最終Work-head CI與Owner merge決策。Merge不代表Web Portal部署或allowlist設定授權。 |
+| `TASK-022` | `ready_for_codex` | `codex` | 強化Web Portal Secret／build context與immutable image契約，為後續production readiness建立安全前提。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-021.md`
+正式任務規格：`docs/coordination/tasks/TASK-022.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列

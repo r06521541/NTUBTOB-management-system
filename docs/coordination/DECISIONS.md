@@ -330,3 +330,24 @@
 - Fail-closed規則：allowlist未設定、空白或任一格式錯誤時全部拒絕；未登入者不得讀取管理資料，非管理者回403，CSRF失敗回400且不得產生DB／Discord副作用。
 - PR工作包：允許建立`codex/protect-web-portal-member-matching` branch、描述性commits、push、Draft PR、離線測試與Python 3.10 CI查驗，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
 - 安全邊界：不批准ready／merge、Web Portal deployment、production request、正式LINE／Discord通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
+
+## DEC-032：接受並合併Web Portal成員配對保護
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-021的Work驗收，授權將PR #35標記ready並merge。
+- 結果：PR #35已以merge commit `a7f801b44e07d1d8518b9f8675e99b4743a98e00`合併。
+- Merge標題：`fix(web-portal): protect member matching administration`。
+- 最終證據：Work-head `e51d2c07a9ffeedaaf0dfaf6c980b7519521ce28`的Python 3.10 run `30989020840`／job `92250460562`成功；Work本機重跑82項tests及compile／diff checks通過。
+- 安全邊界：未部署Web Portal、未設定production allowlist、未呼叫production或操作Secret／IAM／Scheduler／schema。
+
+## DEC-033：批准Web Portal Build與Secret邊界修正及PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准建立TASK-022後直接交棒Codex，修正Web Portal完整env進入build／image、runtime Secret binding不足與固定`:tag1`問題。
+- Secret策略：DB password、LINE Login channel secret與Flask session key只由Cloud Run runtime Secret references注入；repository未知的正式Secret resource名稱必須以必填參數提供，不得猜測、硬編碼或讀取Secret。
+- PR工作包：允許建立`codex/harden-web-portal-build-boundary` branch、描述性commits、push、Draft PR、離線deployment contract tests與Python 3.10 CI，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
+- 安全邊界：不批准ready／merge、Docker／Cloud Build實跑、deployment、production request、正式通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
