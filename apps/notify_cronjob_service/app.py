@@ -34,10 +34,18 @@ def notify_alarm_log(message: str):
 def notify_management_message(message: str):
     discord_notify_helper.notify_management_message(message)
 
-linebot_announcement_helper = LineBotAnnouncementHelper()
+linebot_announcement_helper = None
+
+
+def get_linebot_announcement_helper():
+    global linebot_announcement_helper
+    if linebot_announcement_helper is None:
+        linebot_announcement_helper = LineBotAnnouncementHelper()
+    return linebot_announcement_helper
+
 
 def announce(message: str):
-    linebot_announcement_helper.announce(message)
+    get_linebot_announcement_helper().announce(message)
 
 @app.route("/run-future-game-announcement", methods=['POST'])
 def run_future_game_announcement():
