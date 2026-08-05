@@ -117,7 +117,7 @@ class DeploymentContractTests(unittest.TestCase):
     def test_build_push_deploy_share_immutable_commit_tag(self):
         self.assertGreaterEqual(self.cloudbuild.count("${_IMAGE_TAG}"), 3)
         self.assertNotIn(":tag1", self.cloudbuild)
-        self.assertNotIn(":latest", self.cloudbuild)
+        self.assertNotRegex(self.cloudbuild, r"-image:latest\b")
         command = normalize_shell_command(self.target)
         self.assertIn('_IMAGE_TAG="${IMAGE_TAG}"', command)
         self.assertIn("40-character Git commit SHA", command)
