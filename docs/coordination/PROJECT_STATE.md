@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-05T18:45:00+08:00
+更新時間：2026-08-05T20:05:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -39,7 +39,7 @@
 - TASK-021已由Codex完成、Work驗收為`accepted`並由Owner透過PR #35合併；Web Portal成員配對管理端點已有fail-closed Member ID allowlist、LINE session guard與CSRF；merge commit為`a7f801b4`，尚未部署或設定production allowlist。
 - TASK-022第二輪Work驗收為`accepted`並由Owner透過PR #36合併：Web Portal temporary env cleanup已具cwd穩定性，畸形Secret references在Cloud Build前fail closed，runtime Secret binding、Docker排除與immutable tag contracts通過；merge commit為`f7471da1`，尚未build、deploy或查驗production Secret／IAM。
 - TASK-023 production唯讀盤點完成：`web-portal-00026-rtc` Ready並承接100% traffic、service public、callback host一致且runtime identity具Secret accessor；但LINE Login channel secret與Flask session key仍是plain env，project內沒有可安全唯一辨識的兩個Secret resources，因此Web Portal deployment仍blocked。
-- TASK-024已由Owner批准並交棒Codex：離線深化Web Portal Team Operations Demo，涵蓋出席細節、Game Day、交通、裝備、行事曆、個人設定與幹部工作台prototype；不改schema、不碰production或外部服務。
+- TASK-024第一輪Codex實作已由Work驗收為`changes_requested`：核心Game Day／ICS／進階回覆與幹部頁已完成，但跨賽事operations state會互相污染，且完整交通模式、session通知偏好、月曆／主客場filter、僅觀賽／抵達時間與session-derived Dashboard待辦尚待補正。
 
 ## 2. 已確認事實
 
@@ -118,7 +118,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-024` | `ready_for_codex` | `codex` | 離線實作Web Portal Team Operations Demo；只使用虛構資料與session，完成後交Work驗收。 |
+| `TASK-024` | `changes_requested` | `codex` | 依Work review補齊六項產品與狀態隔離缺口，再交回Work驗收。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-024.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
