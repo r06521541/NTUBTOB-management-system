@@ -1,15 +1,15 @@
-active_task: TASK-019
+active_task: TASK-020
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
-head_commit: 339d0cd1cbbfb5e76f4b42a91e3bd87d9e49aa31
+base_commit: b053fce6b60c58b5dca597f4e4962f63d016a44a
+head_commit: a84ef6430d49aa6911bd79ed22828b0b5f14fac8
 
 updated_by: work
-updated_at: 2026-08-05T14:54:00+08:00
+updated_at: 2026-08-05T15:35:00+08:00
 
 note: >
-  Work third review accepted TASK-019 at Codex HEAD 339d0cd. Local wrapper 11/11,
-  game 28/28, notify 9/9, schedule 5/5, preflight/compile/diff checks and final
-  Python 3.10 run 30982344293 passed. Awaiting Owner decision on Draft PR #33;
-  merge does not authorize wrapper execute or production deployment.
+  Work accepted TASK-020 at Codex HEAD e256af2. Offline webhook 10/10, game
+  28/28, notify 9/9, schedule 5/5, wrapper 11/11, compile and diff checks passed;
+  Python 3.10 run 30984636639 succeeded. Awaiting final Work-head CI and Owner
+  merge decision. Deployment and all production operations remain unauthorized.
