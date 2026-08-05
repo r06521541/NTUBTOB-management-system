@@ -1,15 +1,15 @@
 active_task: TASK-029
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 196c2087a1bfdf816f16aafc267c7008aa376f41
-head_commit: null
+head_commit: c771961d2f777f9153a41ecef131d3623024c5cf
 
-updated_by: work
-updated_at: 2026-08-06T03:45:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T03:55:00+08:00
 
 note: >
-  Owner approved TASK-029 local implementation and descriptive commits. Codex should fix
-  cross-browser LINE Login Invalid state parameter with short-lived signed state, safe internal
-  return targets, mocked HTTP failures, and offline tests. No production login/logs, real LINE API,
-  Secret, DB, deployment, push, PR, or merge is authorized.
+  Codex implemented short-lived signed OAuth state, safe internal return targets, cross-client
+  callback coverage, and bounded safe LINE HTTP handling in c771961. Offline Web Portal tests pass
+  52/52 with 2 existing Windows make/sh skips. Work should inspect the actual diff, commit, and
+  tests. No production login/logs, real LINE API, Secret, DB, deployment, push, PR, or merge occurred.

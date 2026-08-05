@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T03:35:00+08:00
+更新時間：2026-08-06T03:55:00+08:00
 維護角色：Work
 證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`
 
@@ -47,6 +47,7 @@
 - TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
 - TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
 - TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
+- TASK-029 已由 Codex 完成本機實作：LINE Login 改用 10 分鐘短效 signed state，不再依賴起始瀏覽器 session cookie；跨 test-client callback、fail-closed state、站內 return path 與 LINE HTTP failure 測試均通過，等待 Work 驗收。
 
 ## 2. 已確認事實
 
@@ -123,18 +124,18 @@
 
 ## 4. 當前工作
 
-- `TASK-029` 已由 Owner 批准本機實作與 commit，現在交棒 Codex；不包含 production 診斷、外部 LINE 呼叫、push、PR 或部署。
+- `TASK-029` 已由 Codex 完成本機實作與離線驗證，現在交棒 Work；不包含 production 診斷、外部 LINE 呼叫、push、PR 或部署。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-029` | `ready_for_codex` | `codex` | 實作短期 signed OAuth state，以修正跨瀏覽器 `Invalid state parameter`，並完成離線安全測試。 |
+| `TASK-029` | `ready_for_review` | `work` | 驗收短期 signed OAuth state、跨瀏覽器 callback continuity 與 fail-closed 安全測試。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
 
-- 進行中 `TASK-029`：Owner 已重現一般瀏覽器 LINE Login callback 的 `Invalid state parameter`，並批准本機實作；不包含 production 診斷或部署授權。
+- 進行中 `TASK-029`：Codex 已完成 signed OAuth state 與離線測試，等待 Work 查驗實際 diff、commit 與測試；不包含 production 診斷或部署授權。
 
 ### P1：安全、資料正確性與 P0 回歸
 
