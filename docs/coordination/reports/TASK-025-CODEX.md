@@ -5,6 +5,14 @@
 規格 base：`9f44165`
 實際開始 HEAD：`86ce3688cbce230c5d04a4f35458dd5f4895ad1d`（包含TASK-025規劃commit）
 實作 commit：`22ebe92`
+Owner mobile UAT補正：`e9a0210`
+
+## Owner mobile UAT補正
+
+- Demo officer session的mobile bottom navigation新增清楚「幹部」入口，可由`/demo/officer`進入`/demo/officer/events` Event Builder。
+- 一般member session不輸出mobile或desktop幹部入口；既有server-side officer guard維持不變，直接請求builder仍403。
+- Officer為5欄、member為4欄；5欄使用`minmax(0,1fr)`、54px touch target與11px標籤，在約375px不建立固定最小欄寬，並限制navigation橫向overflow。
+- 新增實際officer／member response HTML、完整可達路徑、403 guard及mobile CSS contract測試。
 
 ## 完成內容
 
@@ -25,7 +33,7 @@
 
 ```text
 python-runtime -m unittest discover -s apps/web_portal/tests -v
-44 tests: OK，2 skipped
+45 tests: OK，2 skipped
 
 python-runtime -m compileall -q apps/web_portal
 passed
@@ -34,7 +42,7 @@ git diff --check
 passed
 ```
 
-兩項skip為Windows環境缺`make`／`sh`的既有deployment executable coverage。新增11項Event測試涵蓋gate／匿名、officer guard、四種建立方式、Event／Activity validation、CRUD排序、跨Event guard、數量上限、唯讀league fixture、狀態轉換、CSRF、HTML escaping、兩層出席／隔離、完整建立發布回覆流程，以及model／HTTP不可呼叫。
+兩項skip為Windows環境缺`make`／`sh`的既有deployment executable coverage。新增12項Event測試涵蓋gate／匿名、officer guard、mobile role-aware navigation、四種建立方式、Event／Activity validation、CRUD排序、跨Event guard、數量上限、唯讀league fixture、狀態轉換、CSRF、HTML escaping、兩層出席／隔離、完整建立發布回覆流程，以及model／HTTP不可呼叫。
 
 ## Prototype、限制與風險
 
@@ -54,6 +62,7 @@ passed
 - `apps/web_portal/demo_event_data.py`
 - `apps/web_portal/demo_events.py`
 - `apps/web_portal/static/events.css`
+- `apps/web_portal/static/officer_nav.css`
 - `apps/web_portal/templates/demo/base.html`
 - `apps/web_portal/templates/demo/dashboard.html`
 - `apps/web_portal/templates/demo/officer.html`
