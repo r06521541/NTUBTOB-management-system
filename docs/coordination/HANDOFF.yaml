@@ -1,15 +1,15 @@
 active_task: TASK-026
-status: awaiting_owner_decision
+status: completed
 next_actor: owner
 
 base_commit: cdb67bf007ec67d882c6e974143a4d527f1528cd
-head_commit: null
+head_commit: 252c5aa
 
 updated_by: work
-updated_at: 2026-08-06T01:00:00+08:00
+updated_at: 2026-08-06T01:20:00+08:00
 
 note: >
-  Owner merged PR #37 at cdb67bf. Work proposes TASK-026 to create two exact
-  Web Portal runtime Secret resources and one version each through hidden input
-  and secure RNG. Awaiting Owner approval of the precise Secret mutation scope;
-  deployment, Cloud Run/IAM changes and Secret payload access remain unauthorized.
+  Owner approved and completed the TASK-026 hidden input. Both exact Web Portal
+  Secret resources have enabled version 1 and the existing runtime accessor was
+  confirmed without payload access. TASK-026 is complete; no Cloud Run/IAM change,
+  deployment, production request, DB operation or notification occurred.

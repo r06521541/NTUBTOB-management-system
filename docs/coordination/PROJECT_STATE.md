@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T01:00:00+08:00
+更新時間：2026-08-06T01:20:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -43,7 +43,7 @@
 - Owner提出多元活動方向：幹部可建立聚餐、旅遊、友誼賽／OB賽，且一次Event可包含多場比賽與其他行程；初步方向記錄於`docs/planning/EVENT_MANAGEMENT_PLAN.md`，尚未決定schema或migration。
 - TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
 - TASK-025已由Owner正式接受並透過PR #37合併；merge commit為`cdb67bf`，最新Python 3.10 run `31022009347`成功。Demo仍預設關閉，尚未部署Web Portal。
-- TASK-026由Work提出：以hidden terminal input與secure RNG建立兩個Web Portal專用runtime Secrets並做metadata-only驗證，等待Owner精確批准Secret mutation。
+- TASK-026已完成：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均enabled，runtime accessor已確認；未讀回payload、未修改IAM或部署。Web Portal仍需另案部署，且首次使用新Session Secret會使既有登入session失效。
 
 ## 2. 已確認事實
 
@@ -122,7 +122,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-026` | `awaiting_owner_decision` | `owner` | 等待批准建立兩個exact Web Portal Secret resources／versions；不含部署、IAM修改或payload讀回。 |
+| `TASK-026` | `completed` | `owner` | 兩個runtime Secrets與metadata驗證完成；尚未綁定或部署。下一步為Web Portal exact deployment工作包。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-026.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

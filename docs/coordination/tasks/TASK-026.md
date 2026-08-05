@@ -1,6 +1,6 @@
 # TASK-026：Web Portal Runtime Secrets Bootstrap
 
-狀態：`awaiting_owner_decision`
+狀態：`completed`
 優先級：P1 security／deployment readiness
 規劃者／執行者：Work（需Owner在終端機提供LINE Login Channel Secret）
 Base commit：`cdb67bf007ec67d882c6e974143a4d527f1528cd`
@@ -99,4 +99,3 @@ Base commit：`cdb67bf007ec67d882c6e974143a4d527f1528cd`
 若Owner同意執行，請批准：
 
 > 批准TASK-026依文件第5節在project `ntubtob-schedule-405614`建立兩個exact Secret resources及各一個version；LINE Login Channel Secret由我在hidden terminal prompt親自輸入，session key由本機secure RNG產生。批准metadata-only驗證與local文件commit；不批准Secret讀回、IAM／Cloud Run修改、部署、production request／DB、通知、delete／disable／destroy、push或PR。
-

@@ -421,3 +421,13 @@
 - 結果：PR #37以merge commit `cdb67bf007ec67d882c6e974143a4d527f1528cd`合併，標題為`feat(web-portal): prototype team operations and composite events`。
 - 最終CI：Python 3.10 run `31022009347`／job `92360824095`成功。
 - 安全邊界：merge不代表Web Portal deployment、Secret／IAM、production DB／request或通知授權。
+
+## DEC-041：批准並完成Web Portal Runtime Secrets Bootstrap
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_and_completed`
+- 決策：Owner批准TASK-026依文件第5節建立兩個exact Secret resources及各一個version；LINE Login Channel Secret由Owner透過hidden terminal prompt輸入，session key由secure RNG產生。
+- 結果：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均為enabled；runtime service account既有`roles/secretmanager.secretAccessor`已確認。
+- 安全證據：未執行Secret payload access／readback，值未寫入command argument、檔案、Git或對話；一次性腳本已移除。
+- 安全邊界：未修改IAM／Cloud Run、未部署、未呼叫production、未連DB、未發通知，也未delete／disable／destroy任何Secret。
