@@ -1,15 +1,14 @@
 active_task: TASK-032
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 15881c5b886fc87e92cf0e6aeb5b4dca9d1df9c4
-head_commit: e2b769ade12c439acf1648671fe92ec11fc306a6
+head_commit: 9a7b4c8
 
-updated_by: codex
-updated_at: 2026-08-06T03:25:00+08:00
+updated_by: work
+updated_at: 2026-08-06T08:55:00+08:00
 
 note: >
-  TASK-032 security correction is ready for Work review. Invalid and cross-client callbacks now clear
-  only temporary OAuth keys while preserving authenticated identity, preventing logout-CSRF; fresh
-  retry and fail-closed behavior remain covered by offline tests. No external service, database,
-  schema, deployment, push, or PR was used; Owner has not approved the PR work package.
+  Work accepted TASK-032 after independently verifying the cookie migration, logout-CSRF correction,
+  58 Web Portal tests, compile, Python 3.10 grammar and diff cleanliness. Owner may decide whether to
+  approve the PR work package. No external service, DB, schema, deployment, push or PR was used.
