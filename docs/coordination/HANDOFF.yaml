@@ -1,14 +1,15 @@
-active_task: TASK-033
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-034
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 53fbd0617aca241107c64cd72907f6da905fdd73
-head_commit: 1ec6dcb
+base_commit: 96ee2a0d8fefce74b35b410069f0e1bafb405eeb
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T10:10:00+08:00
+updated_at: 2026-08-06T10:45:00+08:00
 
 note: >
-  Work accepted TASK-033 after independently verifying bounded convergence, hard drift behavior,
-  safe stages, 38 tools tests, 58 Web Portal tests, compile, Python 3.10 grammar and dry-run. Owner
-  may decide whether to approve the PR work package. No cloud, HTTP or production mutation occurred.
+  TASK-033 merged as 96ee2a0. Deployment created Ready revision 00031-zvr but pinned traffic stayed
+  on 00027-fwf; the wrapper only waited and the outer process timed out before its own timeout.
+  Production remained safe and temp env was removed. Owner approved TASK-034 and its PR work package
+  to verify a new revision before explicit exact traffic promotion; no production execution allowed.
