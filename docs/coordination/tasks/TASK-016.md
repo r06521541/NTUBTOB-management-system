@@ -1,6 +1,6 @@
 # TASK-016：移除排程服務 Import-time DB與通知副作用
 
-狀態：`ready_for_codex`
+狀態：`awaiting_owner_approval`
 優先級：P1
 規劃者：Work
 執行者：Codex
