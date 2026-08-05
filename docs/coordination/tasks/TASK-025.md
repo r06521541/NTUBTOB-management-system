@@ -1,6 +1,6 @@
 # TASK-025：多元活動與複合行程 Demo
 
-狀態：`ready_for_codex`
+狀態：`awaiting_owner_approval`
 優先級：P2 product prototype
 規劃者：Work
 執行者：Codex
@@ -164,4 +164,3 @@ git status --short
 - 使用描述性local commits，TASK編號放body/footer。
 - 更新`HANDOFF.yaml`為`ready_for_review / work`。
 - 不push、不建立PR、不部署。
-
