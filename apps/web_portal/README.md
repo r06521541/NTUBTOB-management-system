@@ -81,6 +81,21 @@ session. Publishing never sends LINE or another notification. Formal roles,
 second-person approval, league synchronization, deduplication, and database
 persistence remain undecided production work.
 
+### Web Portal session cookie migration
+
+The Web Portal uses the dedicated `ntubtob_web_session_v2` host-only cookie
+with `HttpOnly`, `SameSite=Lax`, and `Path=/`. Production and every mode other
+than the explicitly double-gated offline demo also require `Secure`. The local
+demo is the only mode that permits the cookie over HTTP.
+
+When a browser still sends Flask's legacy `session` cookie, the Web Portal
+expires that exact host-scoped, root-path cookie without inspecting or logging
+its value. An invalid or stale LINE callback remains rejected before LINE or
+database access. Its error page clears only temporary OAuth transaction state,
+preserves an existing authenticated member session, and lets the user start a
+completely new login transaction. It never retries the old authorization code
+or OAuth state.
+
 ## Member matching administration
 
 The production member matching routes require both an authenticated LINE Login
