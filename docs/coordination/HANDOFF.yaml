@@ -1,15 +1,15 @@
-active_task: TASK-026
-status: completed
+active_task: TASK-027
+status: awaiting_owner_decision
 next_actor: owner
 
-base_commit: cdb67bf007ec67d882c6e974143a4d527f1528cd
-head_commit: 252c5aa
+base_commit: 31a13e1
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T01:20:00+08:00
+updated_at: 2026-08-06T01:45:00+08:00
 
 note: >
-  Owner approved and completed the TASK-026 hidden input. Both exact Web Portal
-  Secret resources have enabled version 1 and the existing runtime accessor was
-  confirmed without payload access. TASK-026 is complete; no Cloud Run/IAM change,
-  deployment, production request, DB operation or notification occurred.
+  TASK-026 is complete. Work proposes TASK-027 to deploy merged commit cdb67bf
+  to production web-portal with exact Secret references, Owner-confirmed admin env,
+  two no-side-effect GET checks and conditional rollback to web-portal-00026-rtc.
+  Awaiting precise Owner deployment approval; no deployment has started.

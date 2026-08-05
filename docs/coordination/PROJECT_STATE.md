@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T01:20:00+08:00
+更新時間：2026-08-06T01:45:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -44,6 +44,7 @@
 - TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
 - TASK-025已由Owner正式接受並透過PR #37合併；merge commit為`cdb67bf`，最新Python 3.10 run `31022009347`成功。Demo仍預設關閉，尚未部署Web Portal。
 - TASK-026已完成：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均enabled，runtime accessor已確認；未讀回payload、未修改IAM或部署。Web Portal仍需另案部署，且首次使用新Session Secret會使既有登入session失效。
+- TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
 
 ## 2. 已確認事實
 
@@ -122,9 +123,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-026` | `completed` | `owner` | 兩個runtime Secrets與metadata驗證完成；尚未綁定或部署。下一步為Web Portal exact deployment工作包。 |
+| `TASK-027` | `awaiting_owner_decision` | `owner` | 等待批准Web Portal build／deploy、metadata checks、兩次safe GET與conditional rollback。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-026.md`
+正式任務規格：`docs/coordination/tasks/TASK-027.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
