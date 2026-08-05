@@ -1,46 +1,136 @@
+import importlib.util
 import sys
+import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
-
-from flask import Flask
+from unittest.mock import Mock, patch
 
 
 SERVICE_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SERVICE_DIR))
 
-from health import create_health_blueprint
+
+def module(name, **attributes):
+    result = types.ModuleType(name)
+    for attribute, value in attributes.items():
+        setattr(result, attribute, value)
+    return result
+
+
+def load_module(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    loaded = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(loaded)
+    return loaded
+
+
+def load_isolated_service_app():
+    fail_calls = []
+
+    def fail(name):
+        mock = Mock(side_effect=AssertionError(f"{name} must not be called"))
+        fail_calls.append(mock)
+        return mock
+
+    discord_helper = types.SimpleNamespace(
+        notify_successful_log=fail("discord success notification"),
+        notify_alarm_log=fail("discord alarm notification"),
+        notify_management_message=fail("discord management notification"),
+    )
+    line_helper = types.SimpleNamespace(announce=fail("LINE announcement"))
+    crawler = type(
+        "CrawlerClient",
+        (),
+        {"__init__": lambda self, url: None, "get_games": fail("crawler")},
+    )
+    game = type("Game", (), {"search_for_invited": fail("database query")})
+
+    health = load_module("notify_cron_health", SERVICE_DIR / "health.py")
+    stubs = {
+        "health": health,
+        "shared_module": module("shared_module"),
+        "shared_module.games_crawler_client": module(
+            "shared_module.games_crawler_client", CrawlerClient=crawler
+        ),
+        "shared_module.models": module("shared_module.models"),
+        "shared_module.models.games": module(
+            "shared_module.models.games", Game=game
+        ),
+        "shared_module.message_templates": module(
+            "shared_module.message_templates"
+        ),
+        "shared_module.message_templates.linebot_game_message": module(
+            "shared_module.message_templates.linebot_game_message"
+        ),
+        "shared_module.notify": module("shared_module.notify"),
+        "shared_module.notify.discord_notify": module(
+            "shared_module.notify.discord_notify",
+            DiscordNotifyHelper=Mock(return_value=discord_helper),
+        ),
+        "shared_module.announcement": module("shared_module.announcement"),
+        "shared_module.announcement.linebot": module(
+            "shared_module.announcement.linebot",
+            LineBotAnnouncementHelper=Mock(return_value=line_helper),
+        ),
+        "shared_module.message_templates.line_notify_message": module(
+            "shared_module.message_templates.line_notify_message",
+            generate_error_message=fail("error template"),
+            generate_schedule_message_for_team=fail("schedule template"),
+        ),
+        "shared_module.attendance_analyzer": module(
+            "shared_module.attendance_analyzer",
+            get_attendance_of_game=fail("attendance database query"),
+        ),
+        "shared_module.message_templates.linebot_attendance_message": module(
+            "shared_module.message_templates.linebot_attendance_message",
+            produce_attendance_message_text=fail("attendance template"),
+        ),
+        "envs": module("envs", game_crawl_api="unused"),
+        "message_templates": module(
+            "message_templates",
+            run_future_game_announcement_successful="unused",
+            run_future_game_announcement="unused {result}",
+            run_game_attendance_count_successful="unused",
+            run_game_attendance_count="unused {result}",
+        ),
+    }
+
+    with patch.dict(sys.modules, stubs):
+        loaded = load_module("notify_cron_app_under_test", SERVICE_DIR / "app.py")
+    return loaded.app, fail_calls
 
 
 class HealthRouteTests(unittest.TestCase):
-    def setUp(self):
-        app = Flask(__name__)
-        app.register_blueprint(create_health_blueprint())
-        self.client = app.test_client()
-        self.dependencies = {
-            name: Mock(side_effect=AssertionError(f"{name} must not be called"))
-            for name in ("database", "line", "discord", "crawler", "weather")
-        }
+    @classmethod
+    def setUpClass(cls):
+        cls.app, cls.fail_calls = load_isolated_service_app()
 
-    def test_get_healthz_is_a_side_effect_free_process_check(self):
-        response = self.client.get("/healthz")
+    def test_get_healthz_on_actual_app_is_side_effect_free(self):
+        client = self.app.test_client()
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.get_json(),
-            {"service": "notify-cronjob-service", "status": "ok"},
-        )
-        self.assertEqual(response.content_type, "application/json")
-        self.assertEqual(response.headers["Cache-Control"], "no-store")
-        for dependency in self.dependencies.values():
+        for _ in range(2):
+            response = client.get("/healthz")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                response.get_json(),
+                {"service": "notify-cronjob-service", "status": "ok"},
+            )
+            self.assertEqual(response.content_type, "application/json")
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+
+        for dependency in self.fail_calls:
             dependency.assert_not_called()
 
-    def test_post_healthz_is_not_allowed(self):
-        self.assertEqual(self.client.post("/healthz").status_code, 405)
-
-    def test_service_app_registers_health_blueprint(self):
-        app_source = (SERVICE_DIR / "app.py").read_text(encoding="utf-8")
-        self.assertIn("app.register_blueprint(create_health_blueprint())", app_source)
+    def test_route_methods_preserve_business_contract(self):
+        methods_by_path = {
+            rule.rule: rule.methods for rule in self.app.url_map.iter_rules()
+        }
+        self.assertEqual(methods_by_path["/healthz"], {"GET", "HEAD", "OPTIONS"})
+        for path in (
+            "/run-future-game-announcement",
+            "/run-game-attendance-count",
+        ):
+            self.assertEqual(methods_by_path[path], {"POST", "OPTIONS"})
+        self.assertEqual(self.app.test_client().post("/healthz").status_code, 405)
 
 
 if __name__ == "__main__":
