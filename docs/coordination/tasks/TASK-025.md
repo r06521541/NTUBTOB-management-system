@@ -1,6 +1,6 @@
 # TASK-025：多元活動與複合行程 Demo
 
-狀態：`awaiting_owner_approval`
+狀態：`changes_requested`
 優先級：P2 product prototype
 規劃者：Work
 執行者：Codex

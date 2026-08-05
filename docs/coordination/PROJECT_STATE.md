@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-05T23:00:00+08:00
+更新時間：2026-08-05T23:20:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -42,7 +42,7 @@
 - TASK-024第二輪Work驗收為`accepted`並由Owner接受：跨賽事state隔離、交通、通知偏好、月曆／主客場filter、僅觀賽／ETA與Dashboard待辦均已補正；33項tests通過、2項Windows platform skips，尚未做browser visual與Python 3.10實跑。
 - Owner提出多元活動方向：幹部可建立聚餐、旅遊、友誼賽／OB賽，且一次Event可包含多場比賽與其他行程；初步方向記錄於`docs/planning/EVENT_MANAGEMENT_PLAN.md`，尚未決定schema或migration。
 - TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
-- TASK-025 Work驗收為`accepted`：Event／Activity builder、officer guard、模板與CRUD排序、聯盟／手動來源、草稿／發布／取消及兩層出席完成；44項tests通過、2項Windows platform skips，等待Owner接受與主觀瀏覽。
+- TASK-025初驗程式與44項tests通過，但Owner mobile UAT發現officer session在手機navigation沒有幹部入口；Work撤回accepted並改為`changes_requested`，等待補上officer-only mobile可達性與tests。
 
 ## 2. 已確認事實
 
@@ -121,7 +121,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-025` | `awaiting_owner_approval` | `owner` | Work驗收accepted；等待Owner接受local prototype。未push、PR或部署。 |
+| `TASK-025` | `changes_requested` | `codex` | 補正手機版officer管理入口、非officer隱藏與375px navigation contracts，再交Work驗收。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-025.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

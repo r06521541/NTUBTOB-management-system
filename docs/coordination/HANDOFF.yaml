@@ -1,15 +1,15 @@
 active_task: TASK-025
-status: awaiting_owner_approval
-next_actor: owner
+status: changes_requested
+next_actor: codex
 
 base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
-head_commit: b9f9633
+head_commit: cd99fa7
 
 updated_by: work
-updated_at: 2026-08-05T23:00:00+08:00
+updated_at: 2026-08-05T23:20:00+08:00
 
 note: >
-  Work accepted TASK-025. The session-only Event/Activity builder, officer guard,
-  source boundary, lifecycle and two-level attendance satisfy the approved scope;
-  44 tests pass with 2 existing Windows platform skips. Awaiting Owner acceptance.
-  Push, PR, deployment, production, DB, schema and external calls remain unauthorized.
+  Owner mobile UAT found that the officer workspace is unreachable from visible
+  mobile navigation: desktop nav is hidden and bottom nav has no officer entry.
+  TASK-025 is returned to Codex for an officer-only mobile link, responsive layout
+  and regression tests. All external operations remain unauthorized.

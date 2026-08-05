@@ -2,7 +2,7 @@
 
 驗收日期：2026-08-05
 驗收者：Work
-結論：`accepted`
+結論：`changes_requested`（Owner mobile UAT後）
 
 ## 驗收範圍
 
@@ -61,5 +61,22 @@ passed
 
 ## 結論
 
-TASK-025在批准的local prototype範圍內完成，沒有blocking問題。建議Owner先接受並實際瀏覽操作；後續產品調整繼續留在demo，正式schema另立discovery／migration任務。
+程式與離線測試初驗曾判定TASK-025在批准的local prototype範圍內完成；Owner後續實際以手機版瀏覽，發現幹部管理介面沒有可見入口，因此撤回accepted並改為`changes_requested`。
 
+## Owner Mobile UAT Blocking（2026-08-05）
+
+### 已確認原因
+
+- `demo/base.html`的desktop navigation含「幹部台」，但mobile breakpoint會隱藏整個desktop nav。
+- Mobile bottom navigation只有首頁、賽程、活動與我的，沒有幹部台或活動管理入口。
+- 因此officer demo session在手機上無法從可見UI到達`/demo/officer`及Event Builder；直接輸入URL不算可接受導覽。
+
+### 必要補正
+
+- 當`demo_member.demo_role == 'officer'`時，在mobile navigation提供清楚的「幹部」入口，至少可到達幹部工作台，再進入活動管理。
+- 非officer demo member不得顯示幹部入口；Event Builder既有server-side officer guard仍須保留。
+- 4／5欄mobile navigation需在約375px保持可讀、touch target合理且不造成橫向捲動。
+- 新增response HTML與CSS contract tests，分別驗證officer可見、member不可見及mobile欄數／可達路徑。
+- 重跑完整Web Portal tests、compile與diff checks；不得擴張至正式RBAC或production UI。
+
+瀏覽器自動化工具本輪仍無法連線，但Owner的實機／手機版觀察已構成直接UAT證據，不需要等待工具才能判定此缺陷。
