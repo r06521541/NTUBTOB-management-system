@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-06T01:45:00+08:00
-維護角色：Work
-證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
+更新時間：2026-08-06T02:55:00+08:00
+維護角色：Codex
+證據基準：TASK-028 implementation commit `9d889826c5453dd7456e2b727928830bda819019`
 
 ## 1. 目前摘要
 
@@ -45,6 +45,8 @@
 - TASK-025已由Owner正式接受並透過PR #37合併；merge commit為`cdb67bf`，最新Python 3.10 run `31022009347`成功。Demo仍預設關閉，尚未部署Web Portal。
 - TASK-026已完成：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均enabled，runtime accessor已確認；未讀回payload、未修改IAM或部署。Web Portal仍需另案部署，且首次使用新Session Secret會使既有登入session失效。
 - TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
+- TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
+- TASK-028 已由 Codex 完成 repository-only 實作：新增預設 dry-run、fail-closed 的 Web Portal 跨平台 deployment wrapper與15項離線測試；未執行 execute、cloud、HTTP、push或PR，等待Work驗收。
 
 ## 2. 已確認事實
 
@@ -121,13 +123,13 @@
 
 ## 4. 當前工作
 
-- `TASK-028` 已由 Owner 批准並交棒 Codex：建立 Web Portal 跨平台安全 deployment wrapper，預設 dry-run，所有 cloud、HTTP、Secret 與 rollback 行為在本輪只能 mock，不得執行 production mutation。
+- `TASK-028` 已完成 Codex 實作與本機驗證，等待 Work 獨立驗收。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-027` | `awaiting_owner_decision` | `owner` | 等待批准Web Portal build／deploy、metadata checks、兩次safe GET與conditional rollback。 |
+| `TASK-028` | `ready_for_review` | `work` | 驗收 Web Portal 跨平台 fail-closed deployment wrapper、離線 tests 與文件。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-027.md`
+正式任務規格：`docs/coordination/tasks/TASK-028.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列

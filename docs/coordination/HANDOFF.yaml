@@ -1,14 +1,17 @@
 active_task: TASK-028
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: d48a5ba
-head_commit: null
+head_commit: 9d889826c5453dd7456e2b727928830bda819019
 
-updated_by: work
-updated_at: 2026-08-06T02:45:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T02:55:00+08:00
 
 note: >
-  TASK-027 is closed in d48a5ba. Owner approved TASK-028 and handed it to Codex
-  to implement a cross-platform, fail-closed Web Portal deployment wrapper with
-  offline tests. No execute path, cloud call, HTTP request, push, PR, or merge is authorized.
+  Codex completed TASK-028 in implementation commit 9d88982. The Web Portal wrapper
+  defaults to repository-only preflight, requires four exact execution gates, uses async
+  bounded Cloud Build polling, verifies rollout contracts, and cleans temporary env on all
+  tested paths. Local tools tests 26/26 and Web Portal tests 45/45 passed with two existing
+  Windows make/sh skips; dry-run passed without cloud or HTTP. Work should review next.
+  No execute, cloud, production HTTP, Secret read, push, PR, merge, deploy, or rollback occurred.
