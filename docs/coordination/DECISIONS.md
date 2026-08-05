@@ -449,3 +449,11 @@
 - 決策：Owner 批准建立 TASK-028 並交棒 Codex，將 TASK-027 暴露的 Windows make/sh 缺口、build context、PowerShell substitutions、長時間輪詢與 temporary env cleanup 風險做成 fail-closed Python 3.10 deployment wrapper。
 - 授權：可修改 tools、離線 tests 與文件並建立描述性 local commit。
 - 安全邊界：不得執行 `--execute`、不得呼叫 cloud/HTTP/Secret/DB/notification、不得部署或 rollback，也不得 push、建立 PR 或 merge。
+
+## DEC-044：批准 TASK-028 Push 與 PR 工作包
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner 接受 Work 驗收建議，批准將 `codex/web-portal-safe-deployment-wrapper` push 至 `origin` 並建立描述性 Draft PR，允許唯讀查驗 GitHub Python 3.10 CI 與依結果更新同一 PR 的驗收文件。
+- 安全邊界：不包含 merge、production deployment、wrapper `--execute`、Secret/IAM/Scheduler/DB/schema/data 修改、production HTTP 或 LINE/Discord 通知。

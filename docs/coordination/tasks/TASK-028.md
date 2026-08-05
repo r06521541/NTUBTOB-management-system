@@ -136,3 +136,5 @@ git status --short
 ## 10. 交棒
 
 Owner 已批准建立 TASK-028 並交棒給 Codex。本輪允許依上述範圍修改程式、測試與文件，並依既有授權建立描述性 local commit；不包含 push、PR、merge 或任何 production execution。
+
+Owner 後續已批准 push 與 PR 工作包：允許 push task branch、建立 Draft PR、唯讀查驗 CI，並在同一 PR 更新驗收證據；仍不包含 merge 或任何 production execution。
