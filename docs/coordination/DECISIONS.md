@@ -457,3 +457,13 @@
 - 狀態：`approved`
 - 決策：Owner 接受 Work 驗收建議，批准將 `codex/web-portal-safe-deployment-wrapper` push 至 `origin` 並建立描述性 Draft PR，允許唯讀查驗 GitHub Python 3.10 CI 與依結果更新同一 PR 的驗收文件。
 - 安全邊界：不包含 merge、production deployment、wrapper `--execute`、Secret/IAM/Scheduler/DB/schema/data 修改、production HTTP 或 LINE/Discord 通知。
+
+## DEC-045：規劃跨瀏覽器 LINE Login State 修正
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_for_planning`
+- 現象：Owner 在一般網頁瀏覽器進行 LINE Login 時看到 `Invalid state parameter`，LINE 內建瀏覽器則可使用受保護頁面。
+- 決策：建立 TASK-029，使用具期限與簽章的 self-contained OAuth state，讓 callback 不依賴起始瀏覽器 session cookie，同時保持 fail-closed state validation 與站內 return-path 限制。
+- 排程：先等待 TASK-028／PR #38 完成 merge 決策，再填入 base commit 並正式交棒 Codex。
+- 安全邊界：本決策不批准 production 登入、logs、LINE API、Secret／LINE Console 修改、部署、DB/schema/data 操作、push、PR 或 merge。

@@ -134,6 +134,8 @@
 
 ## 5. 優先工作佇列
 
+- 下一順位 `TASK-029`：Owner 已重現一般瀏覽器 LINE Login callback 的 `Invalid state parameter`；規劃以短期 signed state 移除對起始 browser session cookie 的依賴。待 TASK-028／PR #38 merge 決策後填入 base commit並交棒，不包含 production 診斷或部署授權。
+
 ### P1：安全、資料正確性與 P0 回歸
 
 | 項目 | 使用者價值 | 風險 | 影響範圍與依賴 |
