@@ -268,6 +268,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(next_url, "/attendance")
         self.assertEqual(state_nonce, nonce)
 
+    def test_line_login_keeps_authorization_in_initiating_browser(self):
+        response = self.client.get("/line/login")
+        authorization_query = parse_qs(urlsplit(response.headers["Location"]).query)
+        self.assertEqual(authorization_query["disable_auto_login"], ["true"])
+
     def test_invalid_state_rejects_before_line_or_database_calls(self):
         with patch.object(
             self.app_module.requests, "post"

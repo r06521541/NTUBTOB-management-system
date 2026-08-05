@@ -39,9 +39,10 @@ character inputs fall back to the attendance page.
 
 This transaction binding prevents login CSRF/session swapping, but it also
 means a callback opened in a genuinely different browser cookie store cannot
-safely establish a session. Supporting that product flow requires an approved
-two-phase confirmation design with shared one-time transaction state, or a LINE
-browser-return configuration that preserves the original browser context.
+safely establish a session. The authorization request therefore disables LINE
+auto-login so mobile Safari/Chrome stays on the browser-based LINE Login flow
+instead of launching LINE through Universal Links/App Links. This trades some
+login convenience for preserving the initiating browser's session-bound state.
 
 The LINE Developers callback URL remains
 `https://web-portal-7uz453jt3a-de.a.run.app/line/callback`. This repository's

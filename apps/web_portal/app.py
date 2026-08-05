@@ -152,6 +152,7 @@ def line_login():
             'redirect_uri': LINE_REDIRECT_URI,
             'state': state,
             'scope': 'profile openid',
+            'disable_auto_login': 'true',
         }
     )
     login_url = f"{LINE_AUTH_URL}?{login_query}"
