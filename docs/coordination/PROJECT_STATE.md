@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-05T15:12:00+08:00
+更新時間：2026-08-05T15:52:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `b053fce6b60c58b5dca597f4e4962f63d016a44a`
+證據基準：`main` merge commit `c022d5185cf6126ffd228b0c95b815c80ee39606`
 
 ## 1. 目前摘要
 
@@ -35,7 +35,8 @@
 - TASK-017已完成：main commit `b14dcad3`部署至production notify cron revision `00011-jpj`，Ready／healthy並承接100% traffic；未人工invoke或觸發rollback。
 - TASK-018已完成：main commit `b14dcad3`的game broadcast image以精確digest部署至revision `00033-mdp`，Ready／healthy並承接100% traffic；固定`:tag1`曾使原deploy step no-op，應另立工具鏈修正。
 - TASK-019已由Owner接受並透過PR #33合併；merge commit為`b053fce6`。兩個排程服務改用Git SHA image tag，並新增預設只做preflight、fail-closed的跨平台deployment wrapper；尚未以wrapper execute path進行production部署。
-- TASK-020已由Codex完成並經Work驗收為`accepted`：缺少／空白／無效LINE signature明確回400且不觸發外部副作用，production／local入口共用同一boundary；Draft PR #34等待Owner決定merge，尚未部署。
+- TASK-020已由Codex完成、Work驗收為`accepted`並由Owner透過PR #34合併；缺少／空白／無效LINE signature明確回400且不觸發外部副作用，production／local入口共用同一boundary；merge commit為`c022d518`，尚未部署Cloud Function。
+- TASK-021由Work提出規劃：以fail-closed Member ID allowlist、登入guard與session CSRF保護Web Portal成員配對管理端點，等待Owner批准。
 
 ## 2. 已確認事實
 
@@ -114,9 +115,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-020` | `awaiting_owner_approval` | `owner` | Work驗收accepted；等待Draft PR #34最終Work-head CI與Owner merge決策。Merge不代表Cloud Functions deployment授權。 |
+| `TASK-021` | `planning` | `owner` | 保護Web Portal成員配對管理端點：登入＋Member ID allowlist authorization＋CSRF，預設拒絕。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-020.md`
+正式任務規格：`docs/coordination/tasks/TASK-021.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列

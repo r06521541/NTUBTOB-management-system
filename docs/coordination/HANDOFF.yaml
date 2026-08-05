@@ -1,15 +1,15 @@
-active_task: TASK-020
-status: awaiting_owner_approval
+active_task: TASK-021
+status: planning
 next_actor: owner
 
-base_commit: b053fce6b60c58b5dca597f4e4962f63d016a44a
-head_commit: a84ef6430d49aa6911bd79ed22828b0b5f14fac8
+base_commit: c022d5185cf6126ffd228b0c95b815c80ee39606
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T15:35:00+08:00
+updated_at: 2026-08-05T15:52:00+08:00
 
 note: >
-  Work accepted TASK-020 at Codex HEAD e256af2. Offline webhook 10/10, game
-  28/28, notify 9/9, schedule 5/5, wrapper 11/11, compile and diff checks passed;
-  Python 3.10 run 30984636639 succeeded. Awaiting final Work-head CI and Owner
-  merge decision. Deployment and all production operations remain unauthorized.
+  TASK-020 was accepted and merged through PR #34 at merge commit c022d51.
+  Work proposes TASK-021 to protect Web Portal member-matching routes with a
+  fail-closed Member ID allowlist and session CSRF. Awaiting Owner approval of
+  the task and PR work package; no code or production work is authorized yet.
