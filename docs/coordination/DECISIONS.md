@@ -382,3 +382,13 @@
 - 產品範圍：Dashboard營運摘要、賽程月曆／篩選／ICS、出席細節、Game Day、交通與裝備分工、個人設定及幹部工作台prototype。
 - 實作授權：可修改`apps/web_portal` demo程式／templates／static／tests與必要文件，並依既有授權建立描述性local commits。
 - 安全邊界：不批准push／PR、部署、Secret／IAM、production request／DB、LINE／Discord或其他外部呼叫、schema／shared_lib修改或正式通知。
+
+## DEC-037：接受Team Operations Demo並批准多元活動Demo
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted_and_approved`
+- 決策：Owner接受TASK-024本機成果，不要求push；並批准Codex依Work整理的願景實作TASK-025多元活動與複合行程Demo，細節先採安全合理假設、後續再調整。
+- 產品方向：幹部prototype可建立聚餐、旅遊／移地活動、友誼賽／OB賽；Event可包含多個Activities與三場以上比賽，並區分聯盟匯入／手動比賽及Event／Activity兩層出席。
+- 實作授權：可修改Web Portal demo程式、templates、static、tests、README與必要協作文件，並建立描述性local commits。
+- 安全邊界：不批准push／PR、部署、Secret／IAM、production／Supabase DB、schema／migration、shared_lib、crawler／LINE／外部API或正式通知。

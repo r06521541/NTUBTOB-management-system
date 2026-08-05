@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-05T21:05:00+08:00
+更新時間：2026-08-05T21:30:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -39,8 +39,9 @@
 - TASK-021已由Codex完成、Work驗收為`accepted`並由Owner透過PR #35合併；Web Portal成員配對管理端點已有fail-closed Member ID allowlist、LINE session guard與CSRF；merge commit為`a7f801b4`，尚未部署或設定production allowlist。
 - TASK-022第二輪Work驗收為`accepted`並由Owner透過PR #36合併：Web Portal temporary env cleanup已具cwd穩定性，畸形Secret references在Cloud Build前fail closed，runtime Secret binding、Docker排除與immutable tag contracts通過；merge commit為`f7471da1`，尚未build、deploy或查驗production Secret／IAM。
 - TASK-023 production唯讀盤點完成：`web-portal-00026-rtc` Ready並承接100% traffic、service public、callback host一致且runtime identity具Secret accessor；但LINE Login channel secret與Flask session key仍是plain env，project內沒有可安全唯一辨識的兩個Secret resources，因此Web Portal deployment仍blocked。
-- TASK-024第二輪Work驗收為`accepted`：跨賽事state隔離、交通、通知偏好、月曆／主客場filter、僅觀賽／ETA與Dashboard待辦均已補正；33項tests通過、2項Windows platform skips，尚未做browser visual與Python 3.10實跑。
+- TASK-024第二輪Work驗收為`accepted`並由Owner接受：跨賽事state隔離、交通、通知偏好、月曆／主客場filter、僅觀賽／ETA與Dashboard待辦均已補正；33項tests通過、2項Windows platform skips，尚未做browser visual與Python 3.10實跑。
 - Owner提出多元活動方向：幹部可建立聚餐、旅遊、友誼賽／OB賽，且一次Event可包含多場比賽與其他行程；初步方向記錄於`docs/planning/EVENT_MANAGEMENT_PLAN.md`，尚未決定schema或migration。
+- TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
 
 ## 2. 已確認事實
 
@@ -119,9 +120,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-024` | `awaiting_owner_approval` | `owner` | 第二輪Work驗收accepted；等待Owner接受本機prototype成果。尚未push、PR或部署。 |
+| `TASK-025` | `ready_for_codex` | `codex` | 實作多元活動與複合行程local demo；完成後交Work驗收。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-024.md`
+正式任務規格：`docs/coordination/tasks/TASK-025.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
