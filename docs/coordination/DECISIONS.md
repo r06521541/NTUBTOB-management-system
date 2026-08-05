@@ -502,3 +502,12 @@
 - 狀態：`approved`
 - 決策：Owner批准TASK-031與完整PR工作包，修正deployment wrapper在Windows找到`gcloud.cmd`卻硬編碼執行`gcloud`的缺口，並要求離線regression tests與Python 3.10 CI。
 - 安全邊界：不批准wrapper `--execute`、production deployment／rollback、真實gcloud／HTTP／LINE／DB呼叫、Secret／IAM／LINE Console／schema／data修改或通知；merge仍由Owner另行決定。
+
+## DEC-050：以 Cookie Versioning處理既有Session遷移
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 證據：Owner在一般瀏覽器遇到Invalid state，但無痕視窗與清除該網站cookie後均可正常登入；production已依TASK-030 rollback至`web-portal-00027-fwf`。
+- 決策：建立TASK-032，以專用版本化cookie名稱、明確production安全屬性及fail-closed重試UI處理stale/collision狀態，不建立跨瀏覽器transaction store或database schema。
+- 安全邊界：批准本機實作、測試與描述性commit；不包含push／PR／merge、production deployment、LINE／DB／HTTP呼叫、Secret／IAM／LINE Console／schema／data修改或通知。

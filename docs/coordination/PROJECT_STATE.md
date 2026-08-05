@@ -132,6 +132,7 @@
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
 | `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
+| `TASK-032` | `ready_for_codex` | `codex` | 版本化Web Portal session cookie並提供stale OAuth state安全恢復；不碰schema或production。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

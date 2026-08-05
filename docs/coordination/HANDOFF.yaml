@@ -1,14 +1,15 @@
-active_task: TASK-031
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-032
+status: ready_for_codex
+next_actor: codex
 
-base_commit: c3611e5fecddf8856f8e58835bb3065f61c704b6
-head_commit: 844e8dcef57c3ee3daaa46003245194ba5f5653b
+base_commit: 15881c5b886fc87e92cf0e6aeb5b4dca9d1df9c4
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T07:55:00+08:00
+updated_at: 2026-08-06T08:40:00+08:00
 
 note: >
-  Work accepted TASK-031 after independently running 34 tools tests, 55 Web Portal tests, Windows
-  .cmd execution, compile, Python 3.10 grammar, both dry-runs and PR #40 hosted CI. Owner may decide
-  whether to mark PR #40 ready and squash merge. No cloud command or deployment ran.
+  PR #40 merged as 15881c5. TASK-030 deployed revision 00029-dsc successfully, but Owner's existing
+  browser cookie produced Invalid state and triggered approved rollback to Ready revision 00027-fwf.
+  Incognito and cleared-cookie login both succeeded. Owner approved TASK-032; Codex should implement
+  versioned cookie migration and safe retry offline. Push/PR is not yet authorized.
