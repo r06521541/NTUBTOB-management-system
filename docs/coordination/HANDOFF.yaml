@@ -1,15 +1,15 @@
 active_task: TASK-034
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 96ee2a0d8fefce74b35b410069f0e1bafb405eeb
-head_commit: 05ef54482e08c6f2ef1849a07d5ab14af6df456e
+head_commit: 06016b9e7fae27cb7f919552136b23a2be3452e2
 
-updated_by: codex
-updated_at: 2026-08-06T12:30:00+08:00
+updated_by: work
+updated_at: 2026-08-06T13:05:00+08:00
 
 note: >
-  TASK-034 implementation is on Draft PR #43. The wrapper now validates a distinct Ready revision
-  before explicit exact traffic promotion, then separately polls traffic convergence. Pre-promotion
-  failures preserve old healthy traffic without rollback mutation; later failures use the approved
-  rollback revision. Python 3.10 CI run 31043954172 passed. No production execution occurred.
+  Work accepted TASK-034 on Draft PR #43 after independent review: tools 41 passed, Web Portal 58
+  passed with two existing Windows make/sh skips, compile and dry-run passed, and Python 3.10 CI run
+  31044107364 succeeded. Owner may decide whether to ready and squash merge. Merge does not authorize
+  production deployment; no cloud, traffic, Secret, IAM, DB, schema, or LINE mutation occurred.

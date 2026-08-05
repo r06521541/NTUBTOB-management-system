@@ -134,7 +134,7 @@
 | `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
-| `TASK-034` | `ready_for_review` | `work` | Codex已修正pinned traffic promotion並建立Draft PR #43；Python 3.10 CI成功，等待Work驗收。 |
+| `TASK-034` | `awaiting_owner_approval` | `owner` | Work已驗收pinned traffic promotion與rollback邊界；Draft PR #43及Python 3.10 CI均正常，等待Owner決定squash merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
