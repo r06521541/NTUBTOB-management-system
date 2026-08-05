@@ -611,10 +611,10 @@ def execute_deployment(
             ) from deployment_error
         if isinstance(deployment_error, DeploymentError):
             raise DeploymentStageError(
-                "build", "Deployment failed at stage build"
+                failure_stage, f"Deployment failed at stage {failure_stage}"
             ) from deployment_error
         raise DeploymentStageError(
-            "build", "Deployment failed at stage build"
+            failure_stage, f"Deployment failed at stage {failure_stage}"
         ) from deployment_error
     finally:
         if temporary_env.exists():

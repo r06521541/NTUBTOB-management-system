@@ -584,9 +584,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
         with self.assertRaisesRegex(deploy.DeploymentError, "rollback succeeded"):
             self.execute(runner, unavailable_http)
-        rollback = [command for command, _ in runner.commands if "update-traffic" in command]
-        self.assertEqual(len(rollback), 1)
-        self.assertIn(f"{ROLLBACK}=100", rollback[0])
+        updates = [command for command, _ in runner.commands if "update-traffic" in command]
+        self.assertEqual(len(updates), 2)
+        self.assertIn(f"{ROLLBACK}=100", updates[1])
         self.assertFalse(self.temporary_env.exists())
 
     def test_rollback_failure_is_distinct_and_cleanup_still_runs(self):
