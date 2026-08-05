@@ -1,15 +1,16 @@
 active_task: TASK-022
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: a7f801b44e07d1d8518b9f8675e99b4743a98e00
-head_commit: null
+head_commit: ea61d20921db51941b9c6331d16d43168c9caca3
 
-updated_by: work
-updated_at: 2026-08-05T16:58:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T17:05:00+08:00
 
 note: >
-  Owner approved TASK-022 and direct handoff with a bounded PR work package.
-  Codex must harden the Web Portal build and runtime Secret boundaries using
-  repository-only tests. Build, deployment, Secret/IAM access and all production
-  operations remain unauthorized.
+  Codex completed the repository-only Web Portal build and runtime Secret
+  boundary hardening. Draft PR #36 is open and final Python 3.10 CI run
+  30991502368 passed. Work must inspect the actual diff and evidence; merge,
+  build, deployment, Secret/IAM access and all production operations remain
+  unauthorized.
