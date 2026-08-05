@@ -4,10 +4,12 @@
 
 ## 任務狀態
 
-- 狀態：`ready_for_review`
+- 狀態：`blocked`（已完成安全補正，跨瀏覽器 continuity 需 Owner 產品／架構決策）
 - branch：`codex/fix-line-login-state-continuity`
 - base commit：`196c2087a1bfdf816f16aafc267c7008aa376f41`
 - implementation commit：`c771961d2f777f9153a41ecef131d3623024c5cf`
+- Work review commit：`4511383d1b0e8639b5c3db04c786cfec0a747dd9`
+- security correction commit：`6966f6ac3b92be61334a1fc5b4adda36bb7ef7b6`
 - push／PR／CI：未授權，未執行
 
 ## 實際修改
@@ -53,5 +55,24 @@ git diff --check
 - 未呼叫真實 LINE endpoints、production DB、Secret Manager 或 production logs；所有 HTTP 與 models 均為 mock。
 - 未讀取 `envs/**/.env.yaml`、Secret payload 或真實管理者 ID。
 - 未部署、push、建立 PR、merge，未修改 schema、IAM、Secret、Scheduler 或 production data。
-- 簽章 state 在 10 分鐘內可重送，但 LINE authorization code 為 callback 的交換憑據；本任務未加入跨 instance server-side nonce store，符合 TASK-029 不使用 process-local state store 的限制。
 - 離線測試不能證明 LINE Developers callback 設定、production Secret、跨 App/browser 真實切換或 Supabase lookup 正確；需合併與部署另案批准後人工驗證。
+
+## Work review 後安全補正
+
+- Work 正確指出原 self-contained signed state 是可轉交 bearer：簽章只能防竄改，不能證明 callback 屬於發起登入的 browser transaction。
+- callback 現在同時要求 signed state nonce 與發起瀏覽器 session nonce 以 constant-time comparison 相符；跨 session callback 在 LINE／DB 前回 400，不會建立登入 session。
+- return path 額外拒絕反斜線、ASCII control characters，以及 encoded slash、backslash、control、percent 等模糊 separator。
+- `access_token`、`userId` 必須為非空字串，`displayName` 必須為字串；無效 shape 回 502，且不執行後續 HTTP／DB。
+- 補正後 54 項 Web Portal tests 通過，2 項既有 Windows make/sh tests 跳過；compile 與 diff check 通過。
+
+## Blocking 與 Owner 可選方案
+
+在 callback browser 不持有原 session cookie，且不新增共享一次性狀態或使用者確認步驟時，伺服器無法同時證明原始 browser transaction 並直接在另一瀏覽器建立登入 session。因此 TASK-029 的跨瀏覽器目標無法在目前範圍安全完成。
+
+Owner 可另案選擇：
+
+1. 優先盤點／調整 LINE Login 的 browser return 行為，使 callback 回到原本 external browser；維持現有 session-bound OAuth state，不新增儲存層。
+2. 設計 two-phase login：callback 只把結果寫入 shared one-time transaction store，原始瀏覽器憑 session-bound secret claim 後才建立 session。需要選定具 TTL／atomic consume 的共享儲存、確認 UI、部署與 rollback 設計，但不一定需要修改正式 member schema。
+3. 維持目前安全 fail-closed 行為，接受需要在 LINE 內建瀏覽器登入；不接受以 transferable signed bearer state 直接建立 session。
+
+不建議接受 login-CSRF/session swapping 風險，也不建議把 PKCE verifier 放進可轉交 state；兩者都不能解決原始 browser transaction binding。

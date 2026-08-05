@@ -1,6 +1,6 @@
 # TASK-029：修正跨瀏覽器 LINE Login OAuth State Continuity
 
-狀態：`changes_requested`
+狀態：`blocked`
 優先級：P1 authentication reliability
 規劃者：Work
 預定執行者：Codex
