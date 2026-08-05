@@ -1,15 +1,14 @@
 active_task: TASK-019
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
-head_commit: 0c9cc77
+head_commit: f10e7b8602e7ebf388faf6e38ceeaea21de6acb0
 
-updated_by: codex
-updated_at: 2026-08-05T14:12:00+08:00
+updated_by: work
+updated_at: 2026-08-05T14:21:00+08:00
 
 note: >
-  TASK-019 implementation is ready for Work review in Draft PR #33. Immutable
-  SHA image references, the fail-closed cross-platform wrapper, offline tests,
-  CI and runbook updates are complete. Python 3.10 CI run 30980267182 passed.
-  No execute path, deployment, production access, notification or merge occurred.
+  Work review requests changes in Draft PR #33: capture pre-build latest revision to reject deploy no-op,
+  correlate approved image tag digest with revision digest, filter indented secret keys, remove the clean-clone
+  dist-directory blocker, and add failure-path tests. Offline-only; no execute/gcloud/production/merge.

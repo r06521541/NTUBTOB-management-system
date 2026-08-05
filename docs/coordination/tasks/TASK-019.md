@@ -1,6 +1,6 @@
 # TASK-019：建立Immutable Image與跨平台Deployment Wrapper
 
-狀態：`ready_for_codex`
+狀態：`changes_requested`
 優先級：P1
 規劃者：Work
 執行者：Codex

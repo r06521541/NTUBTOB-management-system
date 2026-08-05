@@ -112,7 +112,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-019` | `ready_for_codex` | `codex` | Owner已批准repository-only實作與PR工作包；禁止wrapper execute path及任何production操作。 |
+| `TASK-019` | `changes_requested` | `codex` | Work發現stale revision誤判、digest未關聯、縮排secret過濾及clean-clone dist gate問題；交回PR #33補正。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
