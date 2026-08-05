@@ -189,3 +189,46 @@
 - TASK-012：Owner完成local視覺驗收並接受mobile-first Web Portal demo MVP，授權建立描述性commit；不授權production deployment。
 - TASK-013：批准為`game-broadcast-service`與`notify-cronjob-service`建立無副作用health checks，並批准標準PR工作包。
 - TASK-013安全邊界：不得部署、人工呼叫production service、發送通知、讀寫production data、操作Secret/IAM/Scheduler或擴張至其他服務。
+
+## DEC-019：接受並合併Health Checks，批准建立Game Broadcast部署工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- TASK-013：Owner授權將PR #30標記ready並merge；merge commit為`974433168b86e5638adce779ed8eccced0542094`。
+- TASK-014：Owner同意先建立`game-broadcast-service` health check production deployment工作包及唯讀preflight。
+- 授權邊界：尚未批准實際build、deploy、production endpoint invocation、rollback、其他服務、通知、production data、Secret/IAM/Scheduler操作；執行需另行exact deployment批准。
+
+## DEC-020：批准Game Broadcast Health部署並依條件Rollback
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed_with_rollback`
+- 核准：將commit `974433168b86e5638adce779ed8eccced0542094`部署至production `game-broadcast-service`，執行control-plane驗證及唯一一次authenticated `GET /healthz`；符合trigger時允許100% traffic切回`game-broadcast-service-00030-pgg`。
+- 結果：Cloud Build `fe74ab5d-7fa8-4ff1-8220-fa914b569f63`成功，revision `game-broadcast-service-00031-s65` Ready；但唯一一次health request回傳HTTP 404，因此依批准條件rollback。
+- Rollback後狀態：`game-broadcast-service-00030-pgg` Ready並承接100% traffic；service維持private，Scheduler未變。
+- 未執行：business routes人工invoke、application log讀取、其他服務部署、Secret／IAM／Scheduler修改或production data操作。
+- 後續：404根因尚未確認；任何新production request、traffic mutation或deploy仍需Owner另行批准。
+
+## DEC-021：建立Game Broadcast Health 404診斷工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner要求建立TASK-015，以唯讀優先方式診斷TASK-014的production health 404。
+- 規劃原則：先核對build／image provenance與Cloud Run metadata，再以production digest image做本機斷網驗證；必要時只讀取該次404的極窄request log metadata。
+- 執行授權：Owner批准TASK-015第10節，包括GCP metadata／provenance、以digest唯讀下載image、本機`network none`驗證及極窄Cloud Run request log metadata查詢。
+- 授權邊界：不批准production request、application stdout/stderr或payload讀取、部署、traffic／revision／IAM／Secret／Scheduler／network修改、production data或通知操作。
+- 執行結果：TASK-015確認build source與deployed image均含正確health route；精確時間窗沒有對應Cloud Run request log，404已定位在frontend／container之前。現有授權不足以再區分URL入口與VPC Service Controls，已停止並交回Owner。
+- 後續授權與結果：Owner批准唯讀子任務查詢同一精確時間窗及服務的Cloud Audit `HttpIngress` policy metadata；結果為0筆，未發現可記錄的policy denial證據，未擴大logs或重送production request。
+
+## DEC-022：批准排程服務Startup安全修正與PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner同意由唯讀子任務查audit log，主線同時繼續盤點其他安全修正。
+- 盤點結果：兩個scheduled services在app import時建立`LineBotAnnouncementHelper`並查DB；notify package的`__init__.py`另有import-time `announce('Hi')`真實通知風險。
+- TASK-016：已建立最小lazy initialization與import side-effect移除規格。
+- PR工作包：Owner批准branch、描述性commits、push、Draft PR、CI查驗及同一PR內的報告／驗收文件更新；merge仍需Owner最終批准。
+- 授權邊界：不批准部署、production request、production DB、真實通知、shared_lib／schema／Secret／IAM／Scheduler／deployment config修改或其他服務擴張。

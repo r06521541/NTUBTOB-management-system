@@ -1,14 +1,15 @@
-active_task: TASK-013
+active_task: TASK-016
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 3389f96d6221f6ca0c566e6c74bf516012d83a83
-head_commit: ab5769dc556fdd3ee1e787de3186825dc845ede3
+base_commit: 974433168b86e5638adce779ed8eccced0542094
+head_commit: ab14741a31e7667fdb4b5230cb551898a31566eb
 
 updated_by: work
-updated_at: 2026-08-05T10:45:00+08:00
+updated_at: 2026-08-05T13:10:00+08:00
 
 note: >
-  PR #31已merge；TASK-013 branch正常merge最新main後，Work確認PR #30只剩15個
-  TASK-013相關檔案、狀態MERGEABLE，Python 3.10 run 30970101898成功。Review結論
-  accepted，等待Owner將PR #30標記ready並merge。未部署或呼叫production。
+  Work已查驗實際diff、commits、Draft PR #32及最終HEAD的CI；TASK-016 accepted，
+  local game broadcast 27/27、notify cron 8/8、compileall及git diff --check通過，
+  Python 3.10 run 30975715544、job 92209168322通過。詳見reviews/TASK-016-WORK.md；
+  等待Owner決定是否將PR標記ready並merge，production deployment仍需另行批准。

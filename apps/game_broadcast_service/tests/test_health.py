@@ -4,7 +4,7 @@ import types
 import unittest
 from datetime import timezone
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 
 SERVICE_DIR = Path(__file__).resolve().parents[1]
@@ -37,7 +37,12 @@ def load_isolated_service_app():
         notify_alarm_log=fail("discord alarm notification"),
         notify_management_message=fail("discord management notification"),
     )
-    line_helper = types.SimpleNamespace(announce=fail("LINE announcement"))
+    line_helper = types.SimpleNamespace(announce=Mock())
+    line_helper_constructor = Mock(
+        side_effect=AssertionError(
+            "LineBotAnnouncementHelper must not be constructed during import"
+        )
+    )
     game = type("Game", (), {})
     for method_name in (
         "search_for_invitation",
@@ -77,7 +82,7 @@ def load_isolated_service_app():
         "shared_module.announcement": module("shared_module.announcement"),
         "shared_module.announcement.linebot": module(
             "shared_module.announcement.linebot",
-            LineBotAnnouncementHelper=Mock(return_value=line_helper),
+            LineBotAnnouncementHelper=line_helper_constructor,
         ),
         "shared_module.linebot_config": module("shared_module.linebot_config"),
         "shared_module.settings": module(
@@ -114,13 +119,18 @@ def load_isolated_service_app():
 
     with patch.dict(sys.modules, stubs):
         loaded = load_module("game_broadcast_app_under_test", SERVICE_DIR / "app.py")
-    return loaded.app, fail_calls
+    return loaded, line_helper_constructor, line_helper, fail_calls
 
 
 class HealthRouteTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.app, cls.fail_calls = load_isolated_service_app()
+    def setUp(self):
+        (
+            self.app_module,
+            self.line_helper_constructor,
+            self.line_helper,
+            self.fail_calls,
+        ) = load_isolated_service_app()
+        self.app = self.app_module.app
 
     def test_get_healthz_on_actual_app_is_side_effect_free(self):
         client = self.app.test_client()
@@ -137,6 +147,20 @@ class HealthRouteTests(unittest.TestCase):
 
         for dependency in self.fail_calls:
             dependency.assert_not_called()
+        self.line_helper_constructor.assert_not_called()
+
+    def test_announce_lazily_constructs_and_reuses_line_helper(self):
+        self.line_helper_constructor.side_effect = None
+        self.line_helper_constructor.return_value = self.line_helper
+
+        self.app_module.announce("first message")
+        self.app_module.announce("second message")
+
+        self.line_helper_constructor.assert_called_once_with()
+        self.assertEqual(
+            self.line_helper.announce.call_args_list,
+            [call("first message"), call("second message")],
+        )
 
     def test_route_methods_preserve_business_contract(self):
         methods_by_path = {
