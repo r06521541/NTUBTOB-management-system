@@ -37,7 +37,7 @@
 - TASK-019已由Owner接受並透過PR #33合併；merge commit為`b053fce6`。兩個排程服務改用Git SHA image tag，並新增預設只做preflight、fail-closed的跨平台deployment wrapper；尚未以wrapper execute path進行production部署。
 - TASK-020已由Codex完成、Work驗收為`accepted`並由Owner透過PR #34合併；缺少／空白／無效LINE signature明確回400且不觸發外部副作用，production／local入口共用同一boundary；merge commit為`c022d518`，尚未部署Cloud Function。
 - TASK-021已由Codex完成、Work驗收為`accepted`並由Owner透過PR #35合併；Web Portal成員配對管理端點已有fail-closed Member ID allowlist、LINE session guard與CSRF；merge commit為`a7f801b4`，尚未部署或設定production allowlist。
-- TASK-022第一輪Work驗收為`changes_requested`：主要build／Secret／immutable tag方向正確，但temporary env cleanup在`cd`後刪錯相對路徑，且畸形Secret reference可在完整validation前啟動Cloud Build；已交回Codex補正。
+- TASK-022第二輪Work驗收為`accepted`：Web Portal temporary env cleanup已具cwd穩定性，畸形Secret references在Cloud Build前fail closed，runtime Secret binding、Docker排除與immutable tag contracts通過；Draft PR #36等待Owner merge決策，尚未build或deploy。
 
 ## 2. 已確認事實
 
@@ -116,7 +116,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-022` | `changes_requested` | `codex` | 修正temporary env cleanup cwd問題與Secret reference Cloud Build前fail-closed validation，補回歸測試後再交Work。 |
+| `TASK-022` | `awaiting_owner_approval` | `owner` | Work第二輪驗收accepted；等待Draft PR #36最終Work-head CI與Owner merge決策。Merge不代表Web Portal部署或Secret操作授權。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-022.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

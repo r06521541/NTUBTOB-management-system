@@ -1,16 +1,15 @@
 active_task: TASK-022
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: a7f801b44e07d1d8518b9f8675e99b4743a98e00
-head_commit: c47ebd3831df480f8d0106134fda724d096f7f4a
+head_commit: a180530057abf1bef3b4b71889f5d9c818f875b5
 
-updated_by: codex
-updated_at: 2026-08-05T17:26:00+08:00
+updated_by: work
+updated_at: 2026-08-05T17:33:00+08:00
 
 note: >
-  Codex corrected both Work blocking findings in commit c47ebd3. Cleanup is
-  cwd-stable and executable success/failure regressions pass; malformed Secret
-  references are rejected by Make before build/gcloud and by Cloud Build as a
-  second boundary. Python 3.10 run 30992418305 passed. Work must re-review the
-  actual diff; merge and all production operations remain unauthorized.
+  Work accepted TASK-022 after second review at HEAD a180530. Windows offline
+  suites passed with two make/sh fixtures skipped; Linux Python 3.10 run
+  30992571090 executed all Web Portal 27/27 plus regressions successfully.
+  Awaiting final Work-head CI and Owner merge decision; deployment is unauthorized.

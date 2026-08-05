@@ -57,3 +57,22 @@ Cloud Build內validation雖拒絕部分值，但它只要求「包含冒號」�
 ## 下一步
 
 交回Codex補正同一PR #36。完成後更新Codex report與HANDOFF為`ready_for_review / work`，再由Work重新驗收。
+
+## 第二輪驗收（HEAD `a180530`）
+
+結論：`accepted`
+
+兩項blocking均已補正：
+
+- `gcloud builds submit`改在subshell內切換目錄，EXIT trap維持repository-root cwd並清除真正的`apps/web_portal/.env.yaml`。
+- Make local preflight與Cloud Build defense-in-depth均使用保守`resource:version` grammar，要求resource／version非空、exactly one colon，並拒絕placeholder、空白、`=`及額外colon。
+- 新增executable Make fixtures，證明兩個Secret references的invalid examples均在`build-shared-lib`與`gcloud`前停止。
+- 新增fake `gcloud`成功／失敗fixtures，實際切換cwd後都確認temporary env被刪除。
+
+Work使用workspace bundled CPython 3.12.13重跑：Web Portal 27項中25項通過、2項因Windows缺少`make`／`sh`而按設計skip；webhook 10/10、game 28/28、notify 9/9、schedule 5/5、wrapper 11/11均通過，完整`git diff --check`通過。Linux GitHub-hosted Python 3.10 final Codex-head run `30992571090`／job `92261893941`成功並實際執行Web Portal 27/27，包含兩項本機skip的executable regressions。
+
+PR #36為open／draft／mergeable，remote head與本機`a180530057abf1bef3b4b71889f5d9c818f875b5`一致；working tree乾淨。沒有執行Docker／Cloud Build、gcloud、deployment、Secret／IAM或production操作。
+
+## 最終結論
+
+`accepted`。等待Work驗收commit的Python 3.10 CI成功後，交由Owner決定是否將PR #36標記ready並merge。Merge不代表Web Portal deployment、Secret reference設定或Secret IAM授權。
