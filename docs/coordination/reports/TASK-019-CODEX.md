@@ -8,7 +8,8 @@ PR：[Draft PR #33](https://github.com/r06521541/NTUBTOB-management-system/pull/
 
 - Task base（HANDOFF）：`b14dcad3d1261772c8dc00898ba1caca114ce941`
 - Codex 開始實作時 HEAD：`d8ca20f`（包含 Owner 已批准的 TASK-016～019 coordination／deployment 紀錄）
-- 實作 commit：`0c9cc77 feat(deployment): make scheduled service rollouts commit-addressable`
+- 初始實作 commit：`0c9cc77 feat(deployment): make scheduled service rollouts commit-addressable`
+- Work 安全補正 commit：`294970f fix(deployment): verify new revisions before shifting traffic`
 - Branch：`codex/immutable-scheduled-service-deployments`
 - PR base／head：`main`／上述 branch
 
@@ -58,6 +59,25 @@ GitHub Actions run `30980267182`／job `92222996040`：
 - 本機 Python 3.10 安裝已失效且沒有 `python` alias；Python 3.10 證據來自 GitHub hosted runner。
 - PR 包含自 `b14dcad` 後已由 Owner 接受但尚未 push 的 coordination／deployment closeout commits；Work 應查驗 PR 全部 commit 範圍。
 
+## Work review 補正
+
+Work 於 commit `7126ee4` 提出 `changes_requested` 後，已完成：
+
+- Cloud Build 前先捕捉 `latestCreatedRevisionName` baseline；build 後 revision 必須不同，避免 stale latest revision 被誤認為本次部署。
+- 以批准 SHA tag 查詢 Artifact Registry digest，並要求與 revision `status.imageDigest` 精確一致後才允許顯式導流。
+- 敏感 env key 即使帶有前置空白或 tab 仍會被排除；fixture values 不出現在 temporary env、命令或錯誤文字。
+- 移除 clean checkout 必須預先存在 ignored `shared_lib/dist` 的錯誤前置條件；fake build 會建立 dist 與 artifact。
+- 新增 deploy no-op、digest mismatch、traffic command failure、traffic verification failure測試；失敗時只使用 exact approved rollback revision，且一律清理 temporary env。
+
+補正後本機 wrapper tests：11/11 通過；deployment contracts：10/10 通過；compile 與 `git diff --check` 通過。
+
+補正後 GitHub Actions：
+
+- Run：`30981449322`
+- Job：`92226558256`
+- CPython 3.10 suite：`SUCCESS`
+- 未執行 wrapper `--execute`、gcloud 或任何 production 操作。
+
 ## 變更檔案
 
 - `.github/workflows/python-tests.yml`
@@ -70,4 +90,3 @@ GitHub Actions run `30980267182`／job `92222996040`：
 - `makes/deploy_apps.mk`
 - `tools/deploy_scheduled_service.py`
 - `tools/tests/test_deploy_scheduled_service.py`
-
