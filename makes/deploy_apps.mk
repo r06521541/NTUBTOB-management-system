@@ -1,6 +1,7 @@
 SHARED_LIB_VERSION = 0.0.1
 PROJECT_ID = ntubtob-schedule-405614
 REGION = asia-east1
+IMAGE_TAG ?= $(shell git rev-parse HEAD)
 
 	
 DIR_GAME_BROADCAST_SERVICE = game_broadcast_service
@@ -19,13 +20,13 @@ deploy-game-broadcast-service:
 		apps/${DIR_GAME_BROADCAST_SERVICE}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
 	# copy non-sensitive env settings; secrets are bound by Cloud Run
-	grep -vE '^[[:space:]]*(CHANNEL_ACCESS_TOKEN|CHANNEL_SECRET)[[:space:]]*:' \
+	grep -vE '^[[:space:]]*(DSN_PASSWORD|CHANNEL_ACCESS_TOKEN|CHANNEL_SECRET|WEATHER_API_KEY)[[:space:]]*:' \
 		envs/${DIR_GAME_BROADCAST_SERVICE}/.env.yaml \
 		> apps/${DIR_GAME_BROADCAST_SERVICE}/.env.yaml
 
 	@echo "Building Docker image..."
 	cd apps/${DIR_GAME_BROADCAST_SERVICE} && gcloud builds submit --region=${REGION} \
-		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${GAME_BROADCAST_SERVICE_NAME}",_REGION="${REGION}" .
+		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${GAME_BROADCAST_SERVICE_NAME}",_REGION="${REGION}",_IMAGE_TAG="${IMAGE_TAG}" .
 		
 	# delete temp env file
 	rm apps/${DIR_GAME_BROADCAST_SERVICE}/.env.yaml
@@ -48,13 +49,13 @@ deploy-notify-cronjob-service:
 		apps/${DIR_NOTIFY_CRONJOB_SERVICE}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
 	# copy non-sensitive env settings; secrets are bound by Cloud Run
-	grep -vE '^[[:space:]]*(CHANNEL_ACCESS_TOKEN|CHANNEL_SECRET)[[:space:]]*:' \
+	grep -vE '^[[:space:]]*(DSN_PASSWORD|CHANNEL_ACCESS_TOKEN|CHANNEL_SECRET)[[:space:]]*:' \
 		envs/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml \
 		> apps/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml
 
 	@echo "Building Docker image..."
 	cd apps/${DIR_NOTIFY_CRONJOB_SERVICE} && gcloud builds submit --region=${REGION} \
-		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${NOTIFY_CRONJOB_SERVICE_NAME}",_REGION="${REGION}" .
+		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${NOTIFY_CRONJOB_SERVICE_NAME}",_REGION="${REGION}",_IMAGE_TAG="${IMAGE_TAG}" .
 		
 	# delete temp env file
 	rm apps/${DIR_NOTIFY_CRONJOB_SERVICE}/.env.yaml

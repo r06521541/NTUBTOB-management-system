@@ -36,3 +36,28 @@ Before you start developing locally, make sure to complete the following steps:
   ```sh
   make format
   ```
+
+## Scheduled service deployment preflight
+
+The two private scheduled services use Git commit SHAs as immutable image tags.
+The cross-platform deployment helper is safe by default: without `--execute` it
+only checks the local repository and does not invoke `gcloud`.
+
+Windows (Python Launcher):
+
+```powershell
+py -3.10 tools/deploy_scheduled_service.py game-broadcast-service
+py -3.10 tools/deploy_scheduled_service.py notify-cronjob-service
+```
+
+Unix-like systems:
+
+```sh
+python3 tools/deploy_scheduled_service.py game-broadcast-service
+python3 tools/deploy_scheduled_service.py notify-cronjob-service
+```
+
+Production execution is intentionally not a general developer command. It must
+follow `docs/operations/DEPLOYMENT_RUNBOOK.md` and requires Owner approval of an
+exact 40-character commit, target service, and rollback revision. Do not add
+`--execute` merely to make preflight pass.
