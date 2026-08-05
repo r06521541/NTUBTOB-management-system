@@ -1,14 +1,15 @@
-active_task: TASK-013
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-016
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 3389f96d6221f6ca0c566e6c74bf516012d83a83
-head_commit: ab5769dc556fdd3ee1e787de3186825dc845ede3
+base_commit: 974433168b86e5638adce779ed8eccced0542094
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T10:45:00+08:00
+updated_at: 2026-08-05T12:29:00+08:00
 
 note: >
-  PR #31已merge；TASK-013 branch正常merge最新main後，Work確認PR #30只剩15個
-  TASK-013相關檔案、狀態MERGEABLE，Python 3.10 run 30970101898成功。Review結論
-  accepted，等待Owner將PR #30標記ready並merge。未部署或呼叫production。
+  TASK-015後續精確Cloud Audit HttpIngress policy query為0筆，沒有policy denial證據；
+  URL／frontend routing仍未定案且未重送production request。Owner已批准TASK-016及PR工作包，
+  Codex可建立task branch、實作、測試、建立描述性commits、push Draft PR並查驗CI。
+  不得部署、呼叫production、連production DB、發送通知或修改task明定的受限範圍。

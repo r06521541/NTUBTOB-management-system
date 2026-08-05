@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-05T01:01:00+08:00
+更新時間：2026-08-05T12:29:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `086d663831cf49ddaa5f8413edd8508d1f6bf596`
+證據基準：`main` merge commit `974433168b86e5638adce779ed8eccced0542094`
 
 ## 1. 目前摘要
 
@@ -26,7 +26,11 @@
 - TASK-011 已完成唯讀 Gen2 rollback 準備；old source generation 與官方 v2 PATCH recovery path 已確認，未下載 source 或修改 production。
 - TASK-010 已完成：commit `086d663` 已部署至 update schedule revision `00028-bij`；build 與平台健康驗證通過，未人工 invoke且未觸發 rollback。
 - TASK-012 mobile-first Web Portal local demo MVP已完成並由Owner local視覺驗收接受：雙重development gate、session-only虛構資料、Dashboard／賽程／詳情／個人／等待核可及10項離線測試完成；未部署。
-- TASK-013實作與Python 3.10 CI已通過；PR #31已merge，Work確認PR #30縮為單一TASK-013 scope並驗收accepted。尚未部署或呼叫production。
+- TASK-013已由Owner接受並透過PR #30合併；merge commit為`9744331`。
+- TASK-014已依Owner精確批准執行：revision `game-broadcast-service-00031-s65`建置與部署成功，但唯一一次authenticated `GET /healthz`回傳404，已依trigger將100% traffic rollback至Ready的`00030-pgg`。Service維持private，Scheduler未變。
+- TASK-015已完成bounded diagnosis：build source與deployed image的health route正確，但精確時間窗沒有container request log，故404發生於Cloud Run frontend／container之前；尚待Owner決定是否查詢極窄Cloud Audit HttpIngress policy logs。
+- TASK-015後續Cloud Audit `HttpIngress` policy metadata精確查詢亦為0筆，沒有證據支持可記錄的policy denial；URL／frontend routing仍待另一次獨立批准驗證。
+- TASK-016已獲Owner批准及PR工作包授權：移除兩個排程服務的import-time LINE group DB query及notify package import-time `announce('Hi')`風險；等待Codex實作。
 
 ## 2. 已確認事實
 
@@ -89,21 +93,25 @@
 - PR #28 / 最新 Actions run `30919277284`：Python 3.10.20 執行三個 suites，17、4、5 tests 全數通過；job conclusion 為 `SUCCESS`，權限維持 `contents: read`。
 - TASK-005 Work 驗收：本機 game broadcast 24/24、notify cron 4/4、schedule 5/5 通過；cached/import-time snapshot mutation 會與第二次跨日 request 的正確結果不同。
 - PR #29 / 最新 Actions run `30921789436`：Python 3.10.20 執行三個 suites，24、4、5 tests 全數通過；job conclusion 為 `SUCCESS`，權限維持 `contents: read`。
+- TASK-014隔離驗證：game broadcast 26/26通過，compile check及shared library build通過。
+- TASK-014 Cloud Build `fe74ab5d-7fa8-4ff1-8220-fa914b569f63`成功；revision `00031-s65` Ready且deployment contract未漂移，但唯一一次authenticated health smoke回傳404。
+- TASK-014 rollback驗證：`00030-pgg` Ready並承接100% traffic；private IAM及三個Scheduler jobs未漂移。
 
 限制：
 
 - 本機測試環境仍為 Python 3.12.13；Python 3.10.20 已由 GitHub-hosted runner 實跑成功。
 - Black 未安裝於可用 Python runtime，尚未執行 formatter check。
-- 尚未執行 Docker build、Cloud Build、image layer 掃描、Secret/IAM 查詢、Cloud Run staging 或 LINE smoke test。
+- Game broadcast已執行production Docker／Cloud Build、Cloud Run control-plane與Secret reference／IAM查詢；未執行image layer掃描、Cloud Run staging或LINE smoke test。
+- `GET /healthz` production smoke回傳404；未讀application logs，根因尚未確認。
 - 測試通過不代表線上整合正確。
 
-## 4. 進行中工作
+## 4. 當前工作
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-013` | `awaiting_owner_approval` | `owner` | PR #30 scope與CI已通過Work驗收；等待Owner ready／merge。 |
+| `TASK-016` | `ready_for_codex` | `codex` | 讓health/startup不查DB，並移除notify package import-time真實通知風險。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-013.md`
+正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
