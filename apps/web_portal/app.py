@@ -72,6 +72,7 @@ app.register_blueprint(demo_portal)
 app.register_blueprint(demo_events)
 
 LEGACY_SESSION_COOKIE_NAME = "session"
+OAUTH_SESSION_KEYS = ("oauth_state_nonce", "next_url")
 
 # 設定 Cache 配置
 cache_config = {
@@ -262,8 +263,9 @@ def line_callback():
 
 
 def invalid_oauth_state_response():
-    """Discard stale browser state and offer a completely fresh login."""
-    session.clear()
+    """Discard only stale OAuth state while preserving authenticated identity."""
+    for key in OAUTH_SESSION_KEYS:
+        session.pop(key, None)
     return render_template("line_login_error.html"), 400
 
 

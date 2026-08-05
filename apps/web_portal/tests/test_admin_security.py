@@ -241,6 +241,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         state = parse_qs(urlsplit(login_response.headers["Location"]).query)["state"][
             0
         ]
+        with callback_client.session_transaction() as callback_session:
+            callback_session["user_id"] = "existing-user"
+            callback_session["member_id"] = 7
+            callback_session["display_name"] = "Existing User"
+            callback_session["oauth_state_nonce"] = "other-transaction"
+            callback_session["next_url"] = "/future-games"
         with patch.object(
             self.app_module.requests, "post"
         ) as token_request, patch.object(
@@ -254,6 +260,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         token_request.assert_not_called()
         profile_request.assert_not_called()
         self.line_user_model.search_by_id.assert_not_called()
+        with callback_client.session_transaction() as callback_session:
+            self.assertEqual(callback_session["user_id"], "existing-user")
+            self.assertEqual(callback_session["member_id"], 7)
+            self.assertEqual(callback_session["display_name"], "Existing User")
+            self.assertNotIn("oauth_state_nonce", callback_session)
+            self.assertNotIn("next_url", callback_session)
 
     def test_line_login_replaces_ambiguous_return_path(self):
         response = self.client.get("/line/login?next=/%255cattacker.example")
@@ -312,7 +324,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_invalid_state_rejects_before_line_or_database_calls(self):
         with self.client.session_transaction() as current_session:
             current_session["user_id"] = "stale-user"
+            current_session["member_id"] = 7
+            current_session["display_name"] = "Existing User"
             current_session["oauth_state_nonce"] = "stale-nonce"
+            current_session["next_url"] = "/future-games"
         with patch.object(
             self.app_module.requests, "post"
         ) as token_request, patch.object(
@@ -327,11 +342,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
         profile_request.assert_not_called()
         self.line_user_model.search_by_id.assert_not_called()
         self.member_model.search_by_id.assert_not_called()
-        self.assertIn("清除登入狀態並重新登入".encode(), response.data)
+        self.assertIn("重新開始 LINE 登入".encode(), response.data)
         self.assertNotIn(b"fake-code", response.data)
         self.assertNotIn(b"tampered-state", response.data)
         with self.client.session_transaction() as current_session:
-            self.assertEqual(dict(current_session), {})
+            self.assertEqual(current_session["user_id"], "stale-user")
+            self.assertEqual(current_session["member_id"], 7)
+            self.assertEqual(current_session["display_name"], "Existing User")
+            self.assertNotIn("oauth_state_nonce", current_session)
+            self.assertNotIn("next_url", current_session)
 
         retry = self.client.get("/line/login")
         retry_state = parse_qs(urlsplit(retry.headers["Location"]).query)["state"][0]
