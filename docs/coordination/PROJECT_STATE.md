@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-06T03:10:00+08:00
+更新時間：2026-08-06T03:35:00+08:00
 維護角色：Work
-證據基準：TASK-028 completion commit `e8dc0b48f7a04ac960927347fac43792ef8c5881`
+證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`
 
 ## 1. 目前摘要
 
@@ -46,7 +46,7 @@
 - TASK-026已完成：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均enabled，runtime accessor已確認；未讀回payload、未修改IAM或部署。Web Portal仍需另案部署，且首次使用新Session Secret會使既有登入session失效。
 - TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
 - TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
-- TASK-028 已由 Work 驗收接受：新增預設 dry-run、fail-closed 的 Web Portal 跨平台 deployment wrapper 與 15 項離線測試；等待 Owner 決定，未執行 execute、cloud、HTTP、push 或 PR。
+- TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
 
 ## 2. 已確認事實
 
@@ -123,18 +123,18 @@
 
 ## 4. 當前工作
 
-- `TASK-028` 已完成 Work 獨立驗收且無 blocking findings，等待 Owner 決定。
+- `TASK-029` 已由 Owner 批准本機實作與 commit，現在交棒 Codex；不包含 production 診斷、外部 LINE 呼叫、push、PR 或部署。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-028` | `awaiting_owner_approval` | `owner` | 決定是否接受跨平台 Web Portal deployment wrapper，並另行決定是否批准 push／PR 工作包。 |
+| `TASK-029` | `ready_for_codex` | `codex` | 實作短期 signed OAuth state，以修正跨瀏覽器 `Invalid state parameter`，並完成離線安全測試。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-028.md`
+正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
 
-- 下一順位 `TASK-029`：Owner 已重現一般瀏覽器 LINE Login callback 的 `Invalid state parameter`；規劃以短期 signed state 移除對起始 browser session cookie 的依賴。待 TASK-028／PR #38 merge 決策後填入 base commit並交棒，不包含 production 診斷或部署授權。
+- 進行中 `TASK-029`：Owner 已重現一般瀏覽器 LINE Login callback 的 `Invalid state parameter`，並批准本機實作；不包含 production 診斷或部署授權。
 
 ### P1：安全、資料正確性與 P0 回歸
 

@@ -1,10 +1,10 @@
 # TASK-029：修正跨瀏覽器 LINE Login OAuth State Continuity
 
-狀態：`planned_after_TASK-028`
+狀態：`ready_for_codex`
 優先級：P1 authentication reliability
 規劃者：Work
 預定執行者：Codex
-Base commit：待 PR #38 squash merge 後填入
+Base commit：`196c2087a1bfdf816f16aafc267c7008aa376f41`
 
 ## 1. 問題與使用者影響
 
@@ -108,3 +108,5 @@ git status --short
 - PR #38／TASK-028 應先完成 Owner merge 決策，Work 再以 merge 後 `main` commit 填入本任務 base commit 並更新 `HANDOFF.yaml` 為 `ready_for_codex / codex`。
 - 實作驗收與 CI 通過不代表 production 已修正。
 - 後續若要部署與由 Owner 在一般瀏覽器重試 LINE Login，必須另立 exact production deployment／smoke-test 工作包；失敗時只讀診斷，不自行修改 LINE Console、Secret、IAM 或資料。
+
+Owner 已批准 TASK-029 的本機實作與描述性 commit。未批准 push、PR、merge、production logs、LINE API、Secret／LINE Console 修改、部署或 production data 操作。
