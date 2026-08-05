@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T00:40:00+08:00
+更新時間：2026-08-06T01:00:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`
 
@@ -42,7 +42,8 @@
 - TASK-024第二輪Work驗收為`accepted`並由Owner接受：跨賽事state隔離、交通、通知偏好、月曆／主客場filter、僅觀賽／ETA與Dashboard待辦均已補正；33項tests通過、2項Windows platform skips，尚未做browser visual與Python 3.10實跑。
 - Owner提出多元活動方向：幹部可建立聚餐、旅遊、友誼賽／OB賽，且一次Event可包含多場比賽與其他行程；初步方向記錄於`docs/planning/EVENT_MANAGEMENT_PLAN.md`，尚未決定schema或migration。
 - TASK-025已由Owner批准並交棒Codex：以session-only demo驗證Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布與兩層出席，不碰正式schema或production。
-- TASK-025已由Owner正式接受：多元Event／Activity demo、幹部builder、兩層出席與手機officer入口完成；PR #37已建立，Python 3.10 run `31021863646`成功。尚未merge或部署。
+- TASK-025已由Owner正式接受並透過PR #37合併；merge commit為`cdb67bf`，最新Python 3.10 run `31022009347`成功。Demo仍預設關閉，尚未部署Web Portal。
+- TASK-026由Work提出：以hidden terminal input與secure RNG建立兩個Web Portal專用runtime Secrets並做metadata-only驗證，等待Owner精確批准Secret mutation。
 
 ## 2. 已確認事實
 
@@ -121,9 +122,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-025` | `awaiting_owner_approval` | `owner` | Owner已接受功能；PR #37與Python 3.10 CI成功，等待merge決策。未部署。 |
+| `TASK-026` | `awaiting_owner_decision` | `owner` | 等待批准建立兩個exact Web Portal Secret resources／versions；不含部署、IAM修改或payload讀回。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-025.md`
+正式任務規格：`docs/coordination/tasks/TASK-026.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列

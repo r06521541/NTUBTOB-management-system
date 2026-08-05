@@ -411,3 +411,13 @@
 - 決策：Owner在接受TASK-025後批准push與建立PR，不包含merge或deployment。
 - 結果：Branch `codex/prototype-web-portal-team-events`已push並建立ready PR #37；Python 3.10 run `31021863646`／job `92360319877`成功。
 - 安全邊界：未merge、部署、操作production／Secret／IAM／DB／schema或發送通知。
+
+## DEC-040：合併Web Portal Team Operations與Composite Events Prototype
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner授權merge PR #37。
+- 結果：PR #37以merge commit `cdb67bf007ec67d882c6e974143a4d527f1528cd`合併，標題為`feat(web-portal): prototype team operations and composite events`。
+- 最終CI：Python 3.10 run `31022009347`／job `92360824095`成功。
+- 安全邊界：merge不代表Web Portal deployment、Secret／IAM、production DB／request或通知授權。

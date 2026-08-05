@@ -1,15 +1,15 @@
-active_task: TASK-025
-status: awaiting_owner_approval
+active_task: TASK-026
+status: awaiting_owner_decision
 next_actor: owner
 
-base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
-head_commit: 7a21a6f
+base_commit: cdb67bf007ec67d882c6e974143a4d527f1528cd
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T00:40:00+08:00
+updated_at: 2026-08-06T01:00:00+08:00
 
 note: >
-  Owner accepted TASK-025 and later authorized push/PR. PR #37 is open and
-  mergeable; Python 3.10 run 31021863646/job 92360319877 passed all configured
-  suites. Awaiting Owner merge decision. No deployment, production, DB, schema,
-  Secret, notification or other external mutation is authorized.
+  Owner merged PR #37 at cdb67bf. Work proposes TASK-026 to create two exact
+  Web Portal runtime Secret resources and one version each through hidden input
+  and secure RNG. Awaiting Owner approval of the precise Secret mutation scope;
+  deployment, Cloud Run/IAM changes and Secret payload access remain unauthorized.
