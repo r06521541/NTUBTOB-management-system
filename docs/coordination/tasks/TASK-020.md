@@ -1,9 +1,9 @@
 # TASK-020：強化 LINE Webhook 公開入口並建立離線安全測試
 
-狀態：`planning`
+狀態：`ready_for_codex`
 優先級：P1
 規劃者：Work
-執行者：Codex（待 Owner 批准）
+執行者：Codex
 Base commit：`b053fce6b60c58b5dca597f4e4962f63d016a44a`
 
 ## 1. 任務目標
@@ -107,9 +107,9 @@ git status --short
 - 依賴：既有 `line-bot-sdk==3.11.0`、Functions Framework與Flask；不新增套件。
 - 風險：LINE對非2xx可能重送事件；這是拒絕無效簽章的預期行為，合法事件仍維持200。測試不得使用真實簽章或token。
 
-## 10. PR 工作包（待 Owner 批准）
+## 10. PR 工作包（Owner 已批准）
 
-若 Owner 接受此任務，建議同時批准 Codex：
+Owner 已批准 Codex：
 
 - 建立 `codex/harden-line-webhook-ingress` branch。
 - 建立描述性 local commits、push並建立 Draft PR。

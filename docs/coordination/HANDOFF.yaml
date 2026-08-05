@@ -1,15 +1,15 @@
 active_task: TASK-020
-status: planning
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: b053fce6b60c58b5dca597f4e4962f63d016a44a
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-05T15:12:00+08:00
+updated_at: 2026-08-05T15:18:00+08:00
 
 note: >
-  TASK-019 was accepted and merged through PR #33 at merge commit b053fce.
-  Work proposes TASK-020 to make the public LINE webhook ingress fail closed and
-  add offline Python 3.10 security tests. Awaiting Owner approval of the task and
-  optional PR work package; no deployment or production access is authorized.
+  Owner approved TASK-020 and its PR work package. Codex may create the scoped
+  branch, descriptive commits, push, Draft PR, offline tests and CI evidence.
+  Merge, deployment, production requests, notifications, production data and
+  Secret/IAM/Scheduler operations remain unauthorized.

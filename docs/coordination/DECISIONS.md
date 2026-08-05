@@ -299,3 +299,13 @@
 - 驗收證據：合併前最終Actions run `30983055468`、job `92231531057`成功；本機wrapper 11/11、game broadcast 28/28、notify cron 9/9、update schedule 5/5及preflight／compile／diff checks通過。
 - 安全邊界：未執行wrapper `--execute`、Cloud Build、deployment、production存取、通知、production data、Secret／IAM／Scheduler操作。
 - 後續：首次使用execute path仍須針對exact commit、target service與rollback revision另立deployment工作包並取得Owner批准。
+
+## DEC-029：批准LINE Webhook Ingress安全修正與PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准TASK-020，以共用、可測試的ingress boundary讓缺少／空白／無效LINE signature明確回HTTP 400，且不得由未受信任請求觸發Discord、LINE、DB、cache或其他外部副作用。
+- 相容性：合法LINE webhook仍維持HTTP 200／`OK`與既有event handlers；unexpected application failure不得偽裝為成功。
+- PR工作包：允許建立`codex/harden-line-webhook-ingress` branch、描述性commits、push、Draft PR、離線測試與Python 3.10 CI查驗，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
+- 安全邊界：不批准ready／merge、Cloud Functions deployment、production webhook request、正式LINE／Discord通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
