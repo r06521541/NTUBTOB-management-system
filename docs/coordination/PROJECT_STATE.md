@@ -132,7 +132,7 @@
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
 | `TASK-031` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否將PR #40標記ready並squash merge。 |
-| `TASK-032` | `ready_for_codex` | `codex` | 版本化Web Portal session cookie並提供stale OAuth state安全恢復；不碰schema或production。 |
+| `TASK-032` | `ready_for_review` | `work` | 版本化Web Portal session cookie並提供stale OAuth state安全恢復；安全補正後保留authenticated identity，不碰schema或production。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -218,7 +218,7 @@
 
 - Codex 已將 Web Portal session cookie 版本化為 `ntubtob_web_session_v2`，production 明確使用 host-only、Secure、HttpOnly、SameSite=Lax、Path=/。
 - 雙重 gate 的 local demo 保留 HTTP session；其他未明確設定環境 fail closed 為 Secure。
-- 舊 Flask `session` cookie 會被精確淘汰；無效 LINE state 仍在外部／DB 前回覆 400、清除 session，並只提供全新登入交易。
+- 舊 Flask `session` cookie 會被精確淘汰；無效 LINE state 仍在外部／DB 前回覆 400，只清除 OAuth 暫存並保留既有認證身分，再提供全新登入交易。
 - 58 項 Web Portal tests 通過、2 項既有 Windows skip；compile、Python 3.10 grammar、deployment dry-run 與 diff check 通過。
 - 狀態為 `ready_for_review / work`；尚未 push、開 PR、merge 或部署。
 

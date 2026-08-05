@@ -3,13 +3,13 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 15881c5b886fc87e92cf0e6aeb5b4dca9d1df9c4
-head_commit: 08ccd88d5aa2caa325d65c14be3bea7903224b84
+head_commit: e2b769ade12c439acf1648671fe92ec11fc306a6
 
 updated_by: codex
-updated_at: 2026-08-06T03:08:52+08:00
+updated_at: 2026-08-06T03:25:00+08:00
 
 note: >
-  TASK-032 implementation is ready for Work review. Versioned host-only cookie security, exact legacy
-  cookie expiry, fail-closed invalid-state recovery, fresh-login retry, cross-client rejection, and
-  local demo compatibility are covered by offline tests. No external service, database, schema,
-  deployment, push, or PR was used; Owner has not approved the PR work package.
+  TASK-032 security correction is ready for Work review. Invalid and cross-client callbacks now clear
+  only temporary OAuth keys while preserving authenticated identity, preventing logout-CSRF; fresh
+  retry and fail-closed behavior remain covered by offline tests. No external service, database,
+  schema, deployment, push, or PR was used; Owner has not approved the PR work package.
