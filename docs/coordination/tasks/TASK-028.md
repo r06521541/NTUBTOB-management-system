@@ -1,6 +1,6 @@
 # TASK-028：Web Portal Cross-platform Safe Deployment Wrapper
 
-狀態：`ready_for_codex`
+狀態：`awaiting_owner_approval`
 優先級：P2 operational safety / developer experience
 規劃者：Work
 執行者：Codex

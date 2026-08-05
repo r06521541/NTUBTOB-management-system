@@ -1,17 +1,15 @@
 active_task: TASK-028
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: d48a5ba
-head_commit: 9d889826c5453dd7456e2b727928830bda819019
+head_commit: e8dc0b48f7a04ac960927347fac43792ef8c5881
 
-updated_by: codex
-updated_at: 2026-08-06T02:55:00+08:00
+updated_by: work
+updated_at: 2026-08-06T03:10:00+08:00
 
 note: >
-  Codex completed TASK-028 in implementation commit 9d88982. The Web Portal wrapper
-  defaults to repository-only preflight, requires four exact execution gates, uses async
-  bounded Cloud Build polling, verifies rollout contracts, and cleans temporary env on all
-  tested paths. Local tools tests 26/26 and Web Portal tests 45/45 passed with two existing
-  Windows make/sh skips; dry-run passed without cloud or HTTP. Work should review next.
-  No execute, cloud, production HTTP, Secret read, push, PR, merge, deploy, or rollback occurred.
+  Work accepted TASK-028 after reviewing commits and rerunning 26 tools tests, 45 Web Portal
+  tests, compile, Python 3.10 grammar, dry-run, and diff checks. No blocking findings.
+  Hosted Python 3.10 and real gcloud schemas remain unverified. Awaiting Owner decision;
+  no execute, cloud, production HTTP, Secret read, push, PR, merge, deploy, or rollback occurred.
