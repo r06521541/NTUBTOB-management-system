@@ -68,6 +68,34 @@ class DemoEventsTest(unittest.TestCase):
         with self.client.session_transaction() as values:
             self.assertEqual(values["demo_events"], before)
 
+    def test_mobile_officer_navigation_is_role_aware_and_reaches_builder(self):
+        officer_page = self.client.get("/demo/dashboard")
+        self.assertIn(b'data-role="officer"', officer_page.data)
+        self.assertIn(b'class="officer-nav-link"', officer_page.data)
+        self.assertIn(b'href="/demo/officer"', officer_page.data)
+        officer_workspace = self.client.get("/demo/officer")
+        self.assertIn(b'href="/demo/officer/events"', officer_workspace.data)
+        self.assertEqual(self.client.get("/demo/officer/events").status_code, 200)
+
+        with self.client.session_transaction() as values:
+            member = dict(values["demo_member"])
+            member["demo_role"] = "member"
+            values["demo_member"] = member
+        member_page = self.client.get("/demo/dashboard")
+        self.assertNotIn(b'data-role="officer"', member_page.data)
+        self.assertNotIn(b'class="officer-nav-link"', member_page.data)
+        self.assertNotIn("幹部台".encode(), member_page.data)
+        self.assertEqual(self.client.get("/demo/officer/events").status_code, 403)
+
+        css = (WEB_PORTAL_DIR / "static" / "officer_nav.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn('@media(max-width:700px)', css)
+        self.assertIn('repeat(5,minmax(0,1fr))', css)
+        self.assertIn('min-height:54px', css)
+        self.assertIn('overflow-x:hidden', css)
+        self.assertNotIn('min-width:75px', css)
+
     def test_templates_and_blank_create_server_ids(self):
         for template in ("friendly", "meal", "weekend", "blank"):
             with self.subTest(template=template):

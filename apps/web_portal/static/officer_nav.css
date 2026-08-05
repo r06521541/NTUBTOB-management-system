@@ -1,0 +1,1 @@
+@media(max-width:700px){.bottom-nav[data-role="officer"]{grid-template-columns:repeat(5,minmax(0,1fr));overflow-x:hidden}.bottom-nav[data-role="officer"] a{min-width:0;min-height:54px;padding:2px;font-size:11px}.officer-nav-link{color:var(--green-2)}}
