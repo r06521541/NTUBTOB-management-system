@@ -1,14 +1,14 @@
-active_task: TASK-016
+active_task: TASK-017
 status: completed
 next_actor: owner
 
-base_commit: 974433168b86e5638adce779ed8eccced0542094
+base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
 head_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
 
 updated_by: work
-updated_at: 2026-08-05T13:20:00+08:00
+updated_at: 2026-08-05T13:07:00+08:00
 
 note: >
-  Owner已接受TASK-016並授權將PR #32標記ready及merge；PR已於2026-08-05合併，
-  merge commit為b14dcad3d1261772c8dc00898ba1caca114ce941。合併前最終CI run
-  30975939328、job 92209817045通過。TASK-016 completed；未授權或執行production deployment。
+  TASK-017部署成功：Cloud Build 3d751cb3成功，revision 00011-jpj Ready/healthy並承接100% traffic；
+  private boundary、runtime identity及Secret references未退化，temporary env已清理，未觸發rollback。
+  未人工invoke或修改Secret/IAM/Scheduler；下一次自然排程的業務結果尚未觀察。

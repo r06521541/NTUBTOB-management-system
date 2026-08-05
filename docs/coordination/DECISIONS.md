@@ -122,7 +122,7 @@
 
 - 日期：2026-08-04
 - 決策者：Owner
-- 狀態：`approved`
+- 狀態：`completed`
 - 決策：批准 TASK-005，將 game broadcast 的邀請與取消時間視窗改為每次 request 取得一次 Asia/Taipei snapshot，避免長壽命 instance 沿用 module import 時間。
 - 產品規則：保留既有 `today_begin + 11 days` 查詢上限；本任務不改變邀請提前範圍。
 - PR 工作包：批准 branch、描述性 commits、push、Draft PR、CI 查驗及同一 PR 驗收文件更新。
@@ -244,3 +244,15 @@
 - 驗收證據：合併前最終Actions run `30975939328`、job `92209817045`成功；Python 3.10.20下game broadcast 27/27、notify cron 8/8、schedule 5/5通過。
 - 安全邊界：未部署、未呼叫production、未連production DB、未發送通知，亦未操作shared_lib、schema、Secret、IAM、Scheduler或deployment config。
 - 後續：若要讓production使用本修正，必須另立deployment任務，確認目標服務、commit、驗證與rollback後再取得Owner精確批准。
+
+## DEC-024：批准Notify Cron Startup安全修正Production Deployment
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`completed`
+- 核准：將exact commit `b14dcad3d1261772c8dc00898ba1caca114ce941`部署至production `notify-cronjob-service`，依runbook執行build、deploy及唯讀control-plane驗證。
+- Scheduler：批准部署後既有Scheduler依原排程自然呼叫新revision，接受其可能讀取production DB並發送既有正式LINE通知。
+- Rollback：符合TASK-017失敗條件時，批准將100% traffic切回`notify-cronjob-service-00010-z2x`。
+- 未批准：人工invoke、Secret／IAM／Scheduler修改、credential輪替、其他服務部署或人工production data操作。
+- 結果：Cloud Build `3d751cb3-6b47-4de5-9568-e25425ef63c5`成功；revision `notify-cronjob-service-00011-jpj` Ready／healthy並承接100% traffic，digest為`sha256:8f7d551c41bb6e911d1a2cbc8a22c2b0911ea98650c6e27d613b4c5e6057c596`。
+- 安全結果：service維持private，runtime identity與Secret references未退化，temporary env已清理；未人工invoke、未修改Scheduler／Secret／IAM，未觸發rollback。

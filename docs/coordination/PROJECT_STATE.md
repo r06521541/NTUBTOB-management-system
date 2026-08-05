@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-05T13:20:00+08:00
+更新時間：2026-08-05T13:07:00+08:00
 維護角色：Work
 證據基準：`main` merge commit `b14dcad3d1261772c8dc00898ba1caca114ce941`
 
@@ -31,6 +31,7 @@
 - TASK-015已完成bounded diagnosis：build source與deployed image的health route正確，但精確時間窗沒有container request log，故404發生於Cloud Run frontend／container之前；尚待Owner決定是否查詢極窄Cloud Audit HttpIngress policy logs。
 - TASK-015後續Cloud Audit `HttpIngress` policy metadata精確查詢亦為0筆，沒有證據支持可記錄的policy denial；URL／frontend routing仍待另一次獨立批准驗證。
 - TASK-016已由Owner接受並透過PR #32合併；merge commit為`b14dcad3`。兩個排程服務不再於import-time查詢LINE groups，notify package亦不再於import-time執行`announce('Hi')`；尚未部署至production。
+- TASK-017已完成：main commit `b14dcad3`部署至production notify cron revision `00011-jpj`，Ready／healthy並承接100% traffic；未人工invoke或觸發rollback。
 
 ## 2. 已確認事實
 
@@ -109,7 +110,7 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-016` | `completed` | `owner` | PR #32已合併；production deployment需另立任務並取得精確批准。 |
+| `TASK-017` | `completed` | `owner` | Notify cron `00011-jpj`已承接100% traffic；等待既有Scheduler自然執行提供業務整合證據。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-016.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
