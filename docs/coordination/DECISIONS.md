@@ -351,3 +351,63 @@
 - Secret策略：DB password、LINE Login channel secret與Flask session key只由Cloud Run runtime Secret references注入；repository未知的正式Secret resource名稱必須以必填參數提供，不得猜測、硬編碼或讀取Secret。
 - PR工作包：允許建立`codex/harden-web-portal-build-boundary` branch、描述性commits、push、Draft PR、離線deployment contract tests與Python 3.10 CI，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
 - 安全邊界：不批准ready／merge、Docker／Cloud Build實跑、deployment、production request、正式通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
+
+## DEC-034：接受並合併Web Portal Build與Secret邊界修正
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-022第二輪Work驗收，授權將PR #36標記ready並merge。
+- 結果：PR #36已以merge commit `f7471da1fed20f6477a16d125a6347692e3e732d`合併。
+- Merge標題：`security(web-portal): keep runtime secrets out of images`。
+- 最終證據：Work-head `1dd9e30e47d513afe9e41a767278385eff8eed06`的Python 3.10 run `30992839053`／job `92262772115`成功；Linux實跑Web Portal 27/27與其餘70項tests通過。
+- 安全邊界：未執行Docker／Cloud Build、Web Portal部署、Secret／IAM查詢、production request或production DB／schema操作。
+
+## DEC-035：批准Web Portal Production Readiness唯讀盤點
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved_and_completed`
+- 決策：Owner批准TASK-023第4節的production唯讀GCP與Secret metadata查詢，不包含Secret value、部署或任何mutation。
+- 結果：Cloud Run current revision、traffic、digest、public boundary、runtime identity、env key分類、Secret resource names與narrow IAM metadata已完成查驗；readiness結果記錄於`docs/operations/deployments/WEB_PORTAL_READINESS_2026-08-05.md`。
+- 阻擋：無法唯一辨識TASK-022要求的LINE Login channel secret與Flask session key Secret resources，故未產生可直接執行的deployment批准文字。
+- 安全邊界：未讀取Secret／plain env values，未呼叫production URL，未執行build、deploy、traffic或任何Cloud Run／IAM／Secret／DB修改。
+
+## DEC-036：批准離線Web Portal Team Operations Demo
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准建立TASK-024並交由Codex長時間離線實作，將既有demo深化為球隊賽事作戰中心。
+- 產品範圍：Dashboard營運摘要、賽程月曆／篩選／ICS、出席細節、Game Day、交通與裝備分工、個人設定及幹部工作台prototype。
+- 實作授權：可修改`apps/web_portal` demo程式／templates／static／tests與必要文件，並依既有授權建立描述性local commits。
+- 安全邊界：不批准push／PR、部署、Secret／IAM、production request／DB、LINE／Discord或其他外部呼叫、schema／shared_lib修改或正式通知。
+
+## DEC-037：接受Team Operations Demo並批准多元活動Demo
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted_and_approved`
+- 決策：Owner接受TASK-024本機成果，不要求push；並批准Codex依Work整理的願景實作TASK-025多元活動與複合行程Demo，細節先採安全合理假設、後續再調整。
+- 產品方向：幹部prototype可建立聚餐、旅遊／移地活動、友誼賽／OB賽；Event可包含多個Activities與三場以上比賽，並區分聯盟匯入／手動比賽及Event／Activity兩層出席。
+- 實作授權：可修改Web Portal demo程式、templates、static、tests、README與必要協作文件，並建立描述性local commits。
+- 安全邊界：不批准push／PR、部署、Secret／IAM、production／Supabase DB、schema／migration、shared_lib、crawler／LINE／外部API或正式通知。
+
+## DEC-038：接受多元活動與複合行程Demo
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-025及其mobile officer navigation補正。
+- 成果：Local demo支援Event／Activity、幹部builder、聯盟／手動比賽來源、草稿／發布／取消、兩層出席與手機幹部入口；Work最終重跑45項tests通過，2項既有Windows platform skips。
+- 限制：尚未完成Python 3.10與browser automation視覺證據；正式RBAC、API、schema、同步／去重與通知均未實作。
+- 安全邊界：未push、建立PR、部署、操作Secret／IAM、連線production／Supabase DB、修改schema或呼叫外部服務。
+
+## DEC-039：批准Web Portal Prototype Push與PR
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_and_executed`
+- 決策：Owner在接受TASK-025後批准push與建立PR，不包含merge或deployment。
+- 結果：Branch `codex/prototype-web-portal-team-events`已push並建立ready PR #37；Python 3.10 run `31021863646`／job `92360319877`成功。
+- 安全邊界：未merge、部署、操作production／Secret／IAM／DB／schema或發送通知。

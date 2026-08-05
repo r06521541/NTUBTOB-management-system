@@ -1,15 +1,15 @@
-active_task: TASK-022
+active_task: TASK-025
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: a7f801b44e07d1d8518b9f8675e99b4743a98e00
-head_commit: a180530057abf1bef3b4b71889f5d9c818f875b5
+base_commit: 86ce3688cbce230c5d04a4f35458dd5f4895ad1d
+head_commit: 7a21a6f
 
 updated_by: work
-updated_at: 2026-08-05T17:33:00+08:00
+updated_at: 2026-08-06T00:40:00+08:00
 
 note: >
-  Work accepted TASK-022 after second review at HEAD a180530. Windows offline
-  suites passed with two make/sh fixtures skipped; Linux Python 3.10 run
-  30992571090 executed all Web Portal 27/27 plus regressions successfully.
-  Awaiting final Work-head CI and Owner merge decision; deployment is unauthorized.
+  Owner accepted TASK-025 and later authorized push/PR. PR #37 is open and
+  mergeable; Python 3.10 run 31021863646/job 92360319877 passed all configured
+  suites. Awaiting Owner merge decision. No deployment, production, DB, schema,
+  Secret, notification or other external mutation is authorized.

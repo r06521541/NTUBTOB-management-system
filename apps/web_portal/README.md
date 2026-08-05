@@ -27,6 +27,38 @@ and administrator approval are visual prototypes only. Existing LINE routes
 remain present, but selecting LINE requires the real application configuration
 and is not part of the offline demo.
 
+### Team Operations prototype
+
+After entering the demo, the fictional team workspace includes:
+
+- dashboard staffing warnings, reply deadlines, announcements, and quick actions;
+- schedule status/venue filters, timeline/month views, richer attendance details,
+  and an offline `.ics` export;
+- a Game Day center with a proposed lineup, pre-game checklist, equipment claims,
+  and carpool selection;
+- a personal season summary and an officer workspace with notification previews;
+- a multi-event prototype for trips, meals, practices, meetings and composite
+  itineraries, with an officer-only builder and two-level attendance replies.
+
+Attendance notes, arrival timing, position preference, checklist progress,
+equipment claims, and carpool choices live only in the signed demo browser
+session. Transport supports only fictional meeting points and validates the
+self-arrival, needs-a-ride, and offers-seats flows. Notification preferences are
+also session-only toggles. Use **重設 Demo 資料** on the profile page to clear
+them. These controls do not write to a database or call LINE, maps, calendar,
+weather, or any other
+external service. The Game Day lineup, officer metrics, notifications, member
+approval, and season statistics are product prototypes rather than operational
+features.
+
+The Event Builder supports three templates plus a blank Event, up to five Events
+and twelve Activities per Event. It distinguishes a repository-local, read-only
+league fixture from manually entered games. Drafts are officer-only; publishing,
+cancelling, sorting, attendance replies and all builder edits remain in the demo
+session. Publishing never sends LINE or another notification. Formal roles,
+second-person approval, league synchronization, deduplication, and database
+persistence remain undecided production work.
+
 ## Member matching administration
 
 The production member matching routes require both an authenticated LINE Login
