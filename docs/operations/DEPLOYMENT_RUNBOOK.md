@@ -25,7 +25,7 @@ Owner 於 2026-08-04 接受本文件作為標準流程。此接受僅採納文�
 
 | 元件 | 平台 | Repository 入口 | 對外邊界 | 目前狀態 |
 | --- | --- | --- | --- | --- |
-| `web-portal` | Cloud Run | `make deploy-web-portal` | Public | **Blocked**：Secret/build context 尚未安全化。 |
+| `web-portal` | Cloud Run | `make deploy-web-portal` | Public | Repository 邊界已由 TASK-022 強化；仍等待 production inventory、exact Secret references、IAM 驗證與 rollback 工作包。 |
 | `game-broadcast-service` | Cloud Run | `make deploy-game-broadcast-service` | Private | Repository contract tests 已存在；尚未做線上整合驗證。 |
 | `notify-cronjob-service` | Cloud Run | `make deploy-notify-cronjob-service` | Private | Repository contract tests 已存在；尚未做線上整合驗證。 |
 | `update-game-schedule` | Cloud Functions Gen2 | `make deploy-update-game-schedule` | Private | Python 3.10；尚無完整 deployment contract／線上驗證。 |
@@ -35,7 +35,7 @@ Owner 於 2026-08-04 接受本文件作為標準流程。此接受僅採納文�
 
 - Apps 透過 Cloud Build 建置 Docker image，再部署 Cloud Run。
 - Apps 與 functions 都會先重建 `shared_lib-0.0.1.tar.gz`，並複製至 deployment source 的 `dist/`。
-- 兩個 private scheduled services 已使用完整 Git SHA 作 immutable image tag；仍必須記錄 Git SHA、build ID、image digest 與 revision。Web Portal 尚未納入此流程且維持禁止部署。
+- 兩個 private scheduled services 與 Web Portal repository config 已使用完整 Git SHA 作 immutable image tag；仍必須記錄 Git SHA、build ID、image digest 與 revision。Web Portal 尚未完成 production readiness，維持禁止部署。
 - Repository 沒有 migration framework；任何 schema 變更均不得附帶於一般部署。
 - Repository 沒有 Cloud Scheduler job 定義；實際 jobs、OIDC service account 與 target URLs 尚待受控唯讀 inventory。
 
@@ -53,15 +53,11 @@ Owner 於 2026-08-04 接受本文件作為標準流程。此接受僅採納文�
 - Build context 可能包含 `.env.yaml`、credential 或其他 Secret。
 - 部署會改變 public/private boundary、IAM、Scheduler、Secret 或流量策略，但本次授權未包含該項目。
 
-### Web Portal 特別 blocker
+### Web Portal deployment blockers
 
-在完成獨立安全任務前，不得部署 `web-portal`：
+TASK-022 已建立 repository-only 防護：temporary runtime env 會過濾三項 Secret、Docker 排除該檔案、Cloud Run 設定三項 runtime Secret bindings，且 image tag 使用 exact Git commit。這些檢查不代表已批准或驗證 production deployment。
 
-- `deploy-web-portal` 會把完整 `envs/web_portal/.env.yaml` 複製進 app build context。
-- 該環境檔包含 LINE Login channel secret 與 Flask `SECRET_KEY`。
-- `apps/web_portal/` 目前沒有 `.dockerignore`／`.gcloudignore`。
-- Dockerfile 使用 `COPY . .`。
-- Cloud Build 目前只把 `DSN_PASSWORD` 綁定 Secret Manager，LINE Login secret 與 session key 尚未建立安全 runtime binding。
+部署 `web-portal` 前仍必須提供 LINE Login 與 session Secret 的 exact resource references、在不讀取 Secret value 下確認 resource 與 runtime IAM、盤點目前 production revision 與 public boundary，並由 Owner 批准 exact rollback revision。此服務因產品需求維持 public。
 
 ## 4. 部署請求摘要
 
@@ -224,19 +220,13 @@ make deploy-notify-cronjob-service
 
 ### 7.3 Web Portal
 
-入口存在但目前禁止執行：
+入口會在缺少必要 repository 參數時 fail closed，目前仍須 deployment work package 才可執行：
 
 ```text
 make deploy-web-portal
 ```
 
-解除 blocker 前需另立安全任務，至少處理：
-
-- LINE Login secret 與 Flask session key 的 runtime Secret binding。
-- Deployment env filter。
-- `.dockerignore`／必要時 `.gcloudignore`。
-- Contract tests。
-- Callback URL 與 public boundary 的部署前確認。
+必要參數為 40 字元 `IMAGE_TAG`、`WEB_PORTAL_LINE_LOGIN_SECRET_REF` 與 `WEB_PORTAL_SESSION_SECRET_REF`。後兩者只能是 Secret resource/version references，不得是 Secret values。正式工作包還必須確認 callback URL、public boundary、Secret IAM、目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、Cloud Build、Secret lookup 或 Cloud Run deployment。
 
 ### 7.4 Update game schedule function
 
@@ -302,7 +292,7 @@ make deploy-line-webhook-handler
 
 ### 無副作用 smoke checks
 
-- Web Portal 未解除 blocker前不部署。
+- Web Portal 完成 production inventory、Secret/IAM 驗證與 exact rollback 工作包前不部署。
 - Private notification services 預設只驗證 revision ready、IAM 與 startup logs，不呼叫會發訊息的 POST routes。
 - Update schedule 預設不 invoke，以免 crawler／DB 寫入。
 - LINE webhook 預設不送真實 event；若未建立安全的 signed synthetic test，僅驗證部署狀態與 signature validation code未退化。
@@ -377,7 +367,7 @@ Remaining risks:
 
 ### P1
 
-- 修正 Web Portal Secret/build boundary，解除部署 blocker。
+- 完成 Web Portal production inventory、Secret/IAM 與 rollback readiness。
 - 建立各 function deployment contract tests。
 - 建立不會發通知／寫資料的 health check 或 safe smoke strategy。
 - 取得 Cloud Run、Functions、Scheduler、service account、IAM、Secret version 的受控唯讀 inventory。
@@ -399,8 +389,8 @@ Remaining risks:
 ### 已確認
 
 - Repository 的 deploy targets、project、region、runtime、公開／私有 flags 與上述 Secret binding 名稱。
-- Web Portal 仍固定使用 `tag1`；兩個 scheduled services 已改用完整 Git SHA tag。
-- Web Portal build context blocker。
+- Web Portal 與兩個 scheduled services 的 repository config 均使用完整 Git SHA tag；尚未驗證 Web Portal production rollout。
+- Web Portal build context 已有靜態 contract；Cloud Build 與 image 尚未實跑驗證。
 - Repository 尚無 migration framework、Scheduler definitions 與無副作用 health endpoints。
 
 ### 推論

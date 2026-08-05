@@ -42,3 +42,28 @@ queried or changed. Run the offline route and demo tests from the repository roo
 ```sh
 python -m unittest discover -s apps/web_portal/tests -v
 ```
+
+## Deployment preflight
+
+The repository deployment target filters `DSN_PASSWORD`,
+`LINE_LOGIN_CHANNEL_SECRET`, and `SECRET_KEY` out of the temporary non-secret
+environment file. `.dockerignore` prevents that temporary file from entering the
+container image. `WEB_PORTAL_ADMIN_MEMBER_IDS` remains a non-secret runtime
+setting; never commit real production values.
+
+Deployment requires two explicit Secret Manager references and an exact
+40-character Git commit SHA. The references identify Secret Manager resources
+and versions; they are not Secret values:
+
+```sh
+make deploy-web-portal \
+  IMAGE_TAG=<FULL_40_CHARACTER_GIT_SHA> \
+  WEB_PORTAL_LINE_LOGIN_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  WEB_PORTAL_SESSION_SECRET_REF=<SECRET_RESOURCE:VERSION>
+```
+
+Missing references, placeholders, or a non-commit image tag fail before build or
+deployment. Do not run this command without an Owner-approved production work
+package. Repository tests only verify the static deployment contract; they do
+not prove that Secret resources exist, that runtime IAM can access them, or that
+the image builds and runs in Cloud Run.

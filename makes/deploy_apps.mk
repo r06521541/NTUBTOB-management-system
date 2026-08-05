@@ -63,6 +63,8 @@ deploy-notify-cronjob-service:
 	
 DIR_WEB_PORTAL = web_portal
 WEB_PORTAL_NAME = web-portal
+WEB_PORTAL_LINE_LOGIN_SECRET_REF ?=
+WEB_PORTAL_SESSION_SECRET_REF ?=
 		
 update-shared-lib-for-deploy-web-portal:
 	make build-and-install-shared-lib
@@ -71,18 +73,19 @@ update-shared-lib-for-deploy-web-portal:
 		apps/${DIR_WEB_PORTAL}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
 deploy-web-portal:
+	@test -n "${WEB_PORTAL_LINE_LOGIN_SECRET_REF}" || (echo "WEB_PORTAL_LINE_LOGIN_SECRET_REF is required" >&2; exit 2)
+	@test -n "${WEB_PORTAL_SESSION_SECRET_REF}" || (echo "WEB_PORTAL_SESSION_SECRET_REF is required" >&2; exit 2)
+	@printf '%s' "${IMAGE_TAG}" | grep -Eq '^[0-9a-f]{40}$$' || (echo "IMAGE_TAG must be a 40-character Git commit SHA" >&2; exit 2)
 	make build-shared-lib
 	mkdir -p apps/${DIR_WEB_PORTAL}/dist
 	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
 		apps/${DIR_WEB_PORTAL}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
-	# copy temp env file
-	cp envs/${DIR_WEB_PORTAL}/.env.yaml \
-		apps/${DIR_WEB_PORTAL}/.env.yaml
-
 	@echo "Building Docker image..."
-	cd apps/${DIR_WEB_PORTAL} && gcloud builds submit --region=${REGION} \
-		--config cloudbuild.yaml --substitutions=_SERVICE_NAME="${WEB_PORTAL_NAME}",_REGION="${REGION}" .
-		
-	# delete temp env file
-	rm apps/${DIR_WEB_PORTAL}/.env.yaml
+	@trap 'rm -f apps/${DIR_WEB_PORTAL}/.env.yaml' EXIT; \
+		grep -vE '^[[:space:]]*(DSN_PASSWORD|LINE_LOGIN_CHANNEL_SECRET|SECRET_KEY)[[:space:]]*:' \
+			envs/${DIR_WEB_PORTAL}/.env.yaml \
+			> apps/${DIR_WEB_PORTAL}/.env.yaml; \
+		cd apps/${DIR_WEB_PORTAL} && gcloud builds submit --region=${REGION} \
+			--config cloudbuild.yaml \
+			--substitutions=_SERVICE_NAME="${WEB_PORTAL_NAME}",_REGION="${REGION}",_IMAGE_TAG="${IMAGE_TAG}",_WEB_PORTAL_LINE_LOGIN_SECRET_REF="${WEB_PORTAL_LINE_LOGIN_SECRET_REF}",_WEB_PORTAL_SESSION_SECRET_REF="${WEB_PORTAL_SESSION_SECRET_REF}" .
