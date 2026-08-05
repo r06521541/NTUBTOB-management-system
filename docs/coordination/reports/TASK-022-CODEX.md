@@ -6,7 +6,7 @@
 
 - Branch：`codex/harden-web-portal-build-boundary`
 - Base commit：`a7f801b44e07d1d8518b9f8675e99b4743a98e00`
-- Head commit：`ea61d20921db51941b9c6331d16d43168c9caca3`
+- Head commit：`c47ebd3831df480f8d0106134fda724d096f7f4a`（第二輪安全補正實作 commit）
 - Draft PR：[#36](https://github.com/r06521541/NTUBTOB-management-system/pull/36)
 - PR 狀態：open、draft、mergeable
 
@@ -44,6 +44,17 @@ Python 3.10 GitHub Actions run `30991502368`、job `92258478858` 成功：
 - `git diff --check`：通過。
 
 首次 CI run `30991398178` 因測試把允許的 DB Secret version `:latest` 誤判為 image `:latest` 而失敗；commit `ea61d20` 將 assertion 收窄至 image reference 後，最終完整 CI 通過。這不是部署設定失敗。
+
+## Work 第一輪驗收補正
+
+Work 在 commit `fc8ffe2` 要求修正兩項 blocking；commit `c47ebd3` 已完成：
+
+- `cd apps/web_portal` 與 `gcloud` 改在 subshell 執行，因此 EXIT trap 保持 repository-root cwd，成功或失敗都會清除真正的 `apps/web_portal/.env.yaml`。
+- Make local preflight 與 Cloud Build defense-in-depth 使用相同的保守 `resource:version` grammar：resource/version 均非空、exactly one colon、不得有 placeholder、空白、`=`或額外 colon。
+- 新增 executable Make preflight fixtures，對兩個 reference 分別驗證 missing／blank／placeholder／leading colon／trailing colon／multiple colons／space／equals 均在 `build-shared-lib` 與 `gcloud` 前停止。
+- 新增 fake `gcloud` success/failure fixtures，實際切換 cwd 後均確認 temporary env 已刪除。
+
+補正後 Python 3.10 run `30992418305`、job `92261406914` 成功：Web Portal 27/27（兩項新增 executable regressions）、game broadcast 28/28、notify cronjob 9/9、deployment wrapper 11/11、update schedule 5/5、LINE webhook 10/10。`git diff --check`通過。未執行任何真實 build／gcloud／deployment。
 
 ## 未執行與限制
 

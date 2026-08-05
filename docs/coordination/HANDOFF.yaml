@@ -1,15 +1,16 @@
 active_task: TASK-022
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: a7f801b44e07d1d8518b9f8675e99b4743a98e00
-head_commit: ad074c657fe0f187355bb968a623129f213663d7
+head_commit: c47ebd3831df480f8d0106134fda724d096f7f4a
 
-updated_by: work
-updated_at: 2026-08-05T17:18:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T17:26:00+08:00
 
 note: >
-  Work found two blocking deployment-safety issues at HEAD ad074c6: the cleanup
-  trap resolves its relative path after cd and leaves the temporary env behind,
-  while malformed Secret references can reach Cloud Build before validation.
-  Codex must correct both and add offline regressions in the same Draft PR.
+  Codex corrected both Work blocking findings in commit c47ebd3. Cleanup is
+  cwd-stable and executable success/failure regressions pass; malformed Secret
+  references are rejected by Make before build/gcloud and by Cloud Build as a
+  second boundary. Python 3.10 run 30992418305 passed. Work must re-review the
+  actual diff; merge and all production operations remain unauthorized.
