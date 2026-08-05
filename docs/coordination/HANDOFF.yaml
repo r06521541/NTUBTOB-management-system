@@ -1,14 +1,14 @@
-active_task: TASK-012
-status: completed
+active_task: TASK-013
+status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: b25b3ad6ca3ba355756cc938259d11b7be163398
-head_commit: b25b3ad6ca3ba355756cc938259d11b7be163398
+base_commit: 3389f96d6221f6ca0c566e6c74bf516012d83a83
+head_commit: ab5769dc556fdd3ee1e787de3186825dc845ede3
 
 updated_by: work
-updated_at: 2026-08-05T01:15:00+08:00
+updated_at: 2026-08-05T10:45:00+08:00
 
 note: >
-  Owner 已完成 local視覺驗收並接受TASK-012，授權建立描述性commit。Mobile-first
-  Web Portal demo MVP結案；未部署、push、建PR或接觸正式資料。下一項已批准工作為
-  TASK-013排程服務無副作用health checks及其PR工作包。
+  PR #31已merge；TASK-013 branch正常merge最新main後，Work確認PR #30只剩15個
+  TASK-013相關檔案、狀態MERGEABLE，Python 3.10 run 30970101898成功。Review結論
+  accepted，等待Owner將PR #30標記ready並merge。未部署或呼叫production。

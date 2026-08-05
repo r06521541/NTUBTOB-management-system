@@ -26,6 +26,7 @@
 - TASK-011 已完成唯讀 Gen2 rollback 準備；old source generation 與官方 v2 PATCH recovery path 已確認，未下載 source 或修改 production。
 - TASK-010 已完成：commit `086d663` 已部署至 update schedule revision `00028-bij`；build 與平台健康驗證通過，未人工 invoke且未觸發 rollback。
 - TASK-012 mobile-first Web Portal local demo MVP已完成並由Owner local視覺驗收接受：雙重development gate、session-only虛構資料、Dashboard／賽程／詳情／個人／等待核可及10項離線測試完成；未部署。
+- TASK-013實作與Python 3.10 CI已通過；PR #31已merge，Work確認PR #30縮為單一TASK-013 scope並驗收accepted。尚未部署或呼叫production。
 
 ## 2. 已確認事實
 
@@ -100,9 +101,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-012` | `completed` | `owner` | Local demo MVP已通過Work與Owner驗收；未部署production。 |
+| `TASK-013` | `awaiting_owner_approval` | `owner` | PR #30 scope與CI已通過Work驗收；等待Owner ready／merge。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-012.md`
+正式任務規格：`docs/coordination/tasks/TASK-013.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列

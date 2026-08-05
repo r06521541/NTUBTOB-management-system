@@ -26,11 +26,13 @@ import message_templates_user
 import message_templates_management
 import game_reminder
 from request_time import get_request_time_window
+from health import create_health_blueprint
 
 # 設置日誌記錄器
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
+app.register_blueprint(create_health_blueprint())
 
 discord_notify_helper = DiscordNotifyHelper()
 
