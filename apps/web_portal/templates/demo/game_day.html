@@ -1,0 +1,16 @@
+{% extends 'demo/base.html' %}{% from 'demo/_macros.html' import badge %}
+{% block title %}比賽日中心｜NTUBTOB{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('demo_portal.game_detail', game_id=game.id) }}">← 返回賽事詳情</a>
+<section class="game-day-hero"><div><span class="eyebrow">GAME DAY</span><h1>今天，上場打球。</h1><p>{{ game.date }} {{ game.time }} · {{ game.location }}</p></div><div>{{ badge(game.status) }}<p>08:20 集合</p></div></section>
+<aside class="notice game-alert"><strong>人力提醒：目前缺少捕手</strong><span>這是依虛構名單產生的原型提示。</span></aside>
+<div class="operations-grid">
+  <section class="card operations-main"><div class="section-heading compact"><div><span class="eyebrow">LINEUP</span><h2>建議打序與守位</h2></div><span class="prototype-label">PROTOTYPE</span></div>{% if game.lineup %}<div class="lineup-list">{% for order, name, position in game.lineup %}<div><strong>{{ order }}</strong><span>{{ name }}</span><small>{{ position }}</small></div>{% endfor %}</div>{% else %}<div class="empty-state"><strong>打序尚未安排</strong><p>幹部可在未來正式版本建立建議名單。</p></div>{% endif %}</section>
+  <aside class="card quick-facts"><h2>當日資訊</h2><dl><div><dt>集合</dt><dd>08:20</dd></div><div><dt>球衣</dt><dd>深色款</dd></div><div><dt>休息區</dt><dd>一壘側</dd></div><div><dt>雨備</dt><dd>07:00 公告</dd></div></dl><a class="button button-secondary disabled-link" aria-disabled="true">示範導航（不連線）</a></aside>
+</div>
+<div class="operations-grid equal">
+  <section class="card task-card"><h2>賽前檢查</h2>{% for item in game.checklist %}<form method="post" action="{{ url_for('demo_portal.update_operations', game_id=game.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="check"><input type="hidden" name="item_id" value="{{ loop.index0 }}"><button class="task-toggle {{ 'done' if game.id ~ ':' ~ loop.index0 in state.completed_checks }}" type="submit"><span>✓</span>{{ item }}</button></form>{% endfor %}</section>
+  <section class="card task-card"><h2>裝備認領</h2>{% for item in tasks.gear %}<form method="post" action="{{ url_for('demo_portal.update_operations', game_id=game.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="gear"><input type="hidden" name="item_id" value="{{ item.id }}"><button class="task-toggle {{ 'done' if item.id in state.claimed_gear }}" type="submit"><span>＋</span><div>{{ item.title }}<small>{{ '由我認領' if item.id in state.claimed_gear else item.owner }}</small></div></button></form>{% endfor %}</section>
+</div>
+<section class="card ride-card"><div><span class="eyebrow">CARPOOL</span><h2>共乘集合</h2><p>僅為 session 原型，不保存位置或個資。</p></div><div class="ride-options">{% for ride in tasks.rides %}<form method="post" action="{{ url_for('demo_portal.update_operations', game_id=game.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="action" value="ride"><input type="hidden" name="item_id" value="{{ ride.id }}"><button class="ride-option {{ 'selected' if state.ride == ride.id }}" type="submit"><strong>{{ ride.title }}</strong><span>{{ ride.owner }} · {{ ride.detail }}</span></button></form>{% endfor %}</div></section>
+{% endblock %}

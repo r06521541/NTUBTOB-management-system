@@ -61,6 +61,10 @@ class DemoPortalTest(unittest.TestCase):
     def login(self):
         return self.client.post("/demo/login", follow_redirects=False)
 
+    def csrf_token(self):
+        with self.client.session_transaction() as demo_session:
+            return demo_session["demo_csrf_token"]
+
     def test_demo_entry_and_protected_redirect(self):
         response = self.client.get("/demo/dashboard")
         self.assertEqual(response.status_code, 302)
@@ -80,6 +84,8 @@ class DemoPortalTest(unittest.TestCase):
             "/demo/games": "近期賽事與你的出席狀態",
             "/demo/games/demo-game-01": "已回覆隊員",
             "/demo/games/demo-game-02": "海風原型隊",
+            "/demo/game-day/demo-game-01": "建議打序與守位",
+            "/demo/officer": "隊務一眼掌握",
             "/demo/profile": "通知設定",
             "/demo/pending": "等待管理員確認",
         }
@@ -93,7 +99,13 @@ class DemoPortalTest(unittest.TestCase):
         self.login()
         response = self.client.post(
             "/demo/games/demo-game-01/reply",
-            data={"status": "attending"},
+            data={
+                "csrf_token": self.csrf_token(),
+                "status": "attending",
+                "arrival": "late",
+                "position": "infield",
+                "note": "會晚到 15 分鐘",
+            },
             follow_redirects=False,
         )
         self.assertEqual(response.status_code, 302)
@@ -103,7 +115,11 @@ class DemoPortalTest(unittest.TestCase):
         self.assertIn("0".encode(), dashboard.data)
         with self.client.session_transaction() as demo_session:
             self.assertEqual(
-                demo_session["demo_replies"]["demo-game-01"], "attending"
+                demo_session["demo_replies"]["demo-game-01"]["status"],
+                "attending",
+            )
+            self.assertEqual(
+                demo_session["demo_replies"]["demo-game-01"]["arrival"], "late"
             )
 
     def test_invalid_game_and_reply_fail_safely(self):
@@ -124,7 +140,11 @@ class DemoPortalTest(unittest.TestCase):
 
     def test_logout_clears_demo_session(self):
         self.login()
-        response = self.client.post("/demo/logout", follow_redirects=False)
+        response = self.client.post(
+            "/demo/logout",
+            data={"csrf_token": self.csrf_token()},
+            follow_redirects=False,
+        )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/demo/login"))
         self.assertEqual(self.client.get("/demo/dashboard").status_code, 302)
@@ -145,6 +165,8 @@ class DemoPortalTest(unittest.TestCase):
                 "/demo/games",
                 "/demo/games/demo-game-01",
                 "/demo/profile",
+                "/demo/game-day/demo-game-01",
+                "/demo/officer",
                 "/demo/pending",
             ):
                 self.assertEqual(self.client.get(path).status_code, 200)
@@ -164,6 +186,62 @@ class DemoPortalTest(unittest.TestCase):
         self.assertIn("@media(max-width:700px)", css)
         self.assertIn("box-sizing:border-box", css)
         self.assertNotIn("min-width:375px", css)
+        operations_css = (WEB_PORTAL_DIR / "static" / "operations.css").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("grid-template-columns:repeat(4,1fr)", operations_css)
+
+    def test_reply_validation_and_csrf_fail_closed(self):
+        self.login()
+        endpoint = "/demo/games/demo-game-01/reply"
+        valid = {
+            "csrf_token": self.csrf_token(),
+            "status": "attending",
+            "arrival": "on_time",
+            "position": "flexible",
+            "note": "",
+        }
+        for changes in (
+            {"csrf_token": "wrong"},
+            {"arrival": "tomorrow"},
+            {"position": "manager"},
+            {"note": "x" * 81},
+        ):
+            with self.subTest(changes=changes):
+                data = dict(valid)
+                data.update(changes)
+                self.assertEqual(self.client.post(endpoint, data=data).status_code, 400)
+
+    def test_filters_calendar_and_unknown_game(self):
+        self.login()
+        self.assertIn("晨光示範隊".encode(), self.client.get("/demo/games?status=pending").data)
+        self.assertNotIn("海風原型隊".encode(), self.client.get("/demo/games?status=pending").data)
+        self.assertEqual(self.client.get("/demo/games?status=invalid").status_code, 400)
+        calendar = self.client.get("/demo/games/demo-game-01/calendar.ics")
+        self.assertEqual(calendar.status_code, 200)
+        self.assertTrue(calendar.content_type.startswith("text/calendar"))
+        self.assertIn("attachment; filename=\"demo-game-01.ics\"", calendar.headers["Content-Disposition"])
+        self.assertIn(b"DTSTART;TZID=Asia/Taipei:20260809T090000", calendar.data)
+        self.assertIn(b"\r\nEND:VCALENDAR\r\n", calendar.data)
+        self.assertEqual(self.client.get("/demo/games/unknown/calendar.ics").status_code, 404)
+
+    def test_game_day_operations_are_session_only_and_resettable(self):
+        self.login()
+        endpoint = "/demo/game-day/demo-game-01/operations"
+        token = self.csrf_token()
+        for action, item_id in (("gear", "gear-catcher"), ("ride", "ride-01"), ("check", "0")):
+            response = self.client.post(endpoint, data={"csrf_token": token, "action": action, "item_id": item_id})
+            self.assertEqual(response.status_code, 302)
+        page = self.client.get("/demo/game-day/demo-game-01")
+        self.assertIn("由我認領".encode(), page.data)
+        with self.client.session_transaction() as demo_session:
+            state = demo_session["demo_operations"]
+            self.assertEqual(state["ride"], "ride-01")
+            self.assertIn("gear-catcher", state["claimed_gear"])
+        self.assertEqual(self.client.post(endpoint, data={"csrf_token": token, "action": "gear", "item_id": "unknown"}).status_code, 400)
+        self.client.post("/demo/reset", data={"csrf_token": token})
+        with self.client.session_transaction() as demo_session:
+            self.assertEqual(demo_session["demo_operations"]["claimed_gear"], [])
 
     def test_demo_routes_fail_closed_when_gate_is_disabled(self):
         with patch.dict(os.environ, {"WEB_PORTAL_DEMO_MODE": "false"}, clear=False):
