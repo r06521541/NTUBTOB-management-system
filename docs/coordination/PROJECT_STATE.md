@@ -127,10 +127,11 @@
 
 - `TASK-029` 已由 PR #39 squash merge為 `6765448`，Python 3.10 CI成功；尚未部署或以真實瀏覽器驗證。
 - `TASK-030` 已建立production rollout與Owner手動LINE Login smoke-test工作包，等待Owner對exact commit、rollback與真實LINE API／production唯讀Member查詢做精確批准。
+- `TASK-030` 首次執行在Cloud Build前因Windows無法由Python啟動硬編碼的`gcloud`而安全停止；沒有新build／revision，traffic仍為`web-portal-00027-fwf=100%`。Owner已批准TASK-031修正wrapper executable resolution及PR工作包，TASK-030待其merge後更新exact source再續行。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-030` | `awaiting_owner_approval` | `owner` | 審閱並決定是否批准精確production部署、rollback與本人受控真實LINE Login smoke test。 |
+| `TASK-031` | `ready_for_codex` | `codex` | 修正Windows `gcloud.cmd` executable resolution並以離線測試保護，不執行production。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

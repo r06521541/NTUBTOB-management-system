@@ -494,3 +494,11 @@
 - 狀態：`approved_for_planning`
 - 決策：TASK-029 經 PR #39 squash merge後，Owner選擇部署至既有Web Portal hostname，再由本人從原external browser進行一次真實LINE Login，以驗證 `disable_auto_login=true` 是否保持browser session continuity。
 - 執行邊界：本決策批准建立TASK-030工作包，不等於production deployment授權。真正執行仍須批准exact commit、target、rollback、真實LINE API與production唯讀Member查詢；不包含Secret／IAM／LINE Console／schema／data修改或通知。
+
+## DEC-049：修正 Windows gcloud Executable Resolution
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准TASK-031與完整PR工作包，修正deployment wrapper在Windows找到`gcloud.cmd`卻硬編碼執行`gcloud`的缺口，並要求離線regression tests與Python 3.10 CI。
+- 安全邊界：不批准wrapper `--execute`、production deployment／rollback、真實gcloud／HTTP／LINE／DB呼叫、Secret／IAM／LINE Console／schema／data修改或通知；merge仍由Owner另行決定。
