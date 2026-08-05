@@ -1,15 +1,14 @@
-active_task: TASK-005
-status: awaiting_owner_approval
+active_task: TASK-012
+status: completed
 next_actor: owner
 
-base_commit: c70ce63d3b91fc0d224c86a1b8f3aba085f5979c
-head_commit: 3969833d24b739bdd819baf11dcdeec7e9f8954a
+base_commit: b25b3ad6ca3ba355756cc938259d11b7be163398
+head_commit: b25b3ad6ca3ba355756cc938259d11b7be163398
 
 updated_by: work
-updated_at: 2026-08-04T23:02:06+08:00
+updated_at: 2026-08-05T01:15:00+08:00
 
 note: >
-  Work 已獨立查驗 TASK-005 實際 diff、commits、tests、mutation、Draft PR #29 與最新
-  Python 3.10.20 CI run 30921789436；game broadcast 24/24、notify cron 4/4、schedule
-  5/5 全數通過，結論 accepted，無 blocking issue。等待 Owner 決定是否將 PR #29
-  標記 ready 並 merge；未部署、未操作 Secret、未發送通知、未修改 production data。
+  Owner 已完成 local視覺驗收並接受TASK-012，授權建立描述性commit。Mobile-first
+  Web Portal demo MVP結案；未部署、push、建PR或接觸正式資料。下一項已批准工作為
+  TASK-013排程服務無副作用health checks及其PR工作包。

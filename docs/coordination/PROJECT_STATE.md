@@ -1,8 +1,8 @@
 # 專案狀態
 
-更新時間：2026-08-04T23:02:06+08:00
+更新時間：2026-08-05T01:01:00+08:00
 維護角色：Work
-證據基準：`main` merge commit `da7256e9a9698838b80e22f80d6ff593fcc9e56f`
+證據基準：`main` merge commit `086d663831cf49ddaa5f8413edd8508d1f6bf596`
 
 ## 1. 目前摘要
 
@@ -17,7 +17,15 @@
 - Owner 已批准描述性 commit/PR title 規範；TASK 編號只放在 body/footer，不再作為標題主體。
 - TASK-004 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 透過 PR #28 合併；merge commit 為 `c70ce63`。
 - Owner 已採用任務 commit 精簡規則：原則上每個任務保留功能、Codex 完工與 Work 驗收三類 commit，純 merge closeout 併入下一個規劃 commit。
-- TASK-005 已由 Codex 完成，Work 獨立驗收為 `accepted`；Draft PR #29 與最新 Python 3.10 CI 均成功，目前等待 Owner 的 ready／merge 決策。
+- TASK-005 已由 Codex 完成、Work 驗收為 `accepted`，並由 Owner 透過 PR #29 合併；merge commit 為 `086d663`。
+- TASK-006 production deployment runbook 已由 Owner 接受為標準流程；採納不等於任何實際部署授權。
+- Web Portal 因完整 `.env.yaml` 進入 build context且缺少 `.dockerignore`，在 Secret/build boundary 修正前列為禁止部署。
+- Production 唯讀 inventory 曾確認三個服務各缺一批已合併修正；Owner 後續逐項批准，現已全部完成部署。
+- TASK-008 已完成：game broadcast revision `00030-pgg` ready／healthy 並承接 100% traffic；TASK-005 已部署，未人工觸發通知且未 rollback。
+- TASK-009 已完成：notify cron revision `00010-z2x` ready／healthy並承接 100% traffic；LINE token 已改用 runtime Secret reference，未人工觸發通知且未 rollback。
+- TASK-011 已完成唯讀 Gen2 rollback 準備；old source generation 與官方 v2 PATCH recovery path 已確認，未下載 source 或修改 production。
+- TASK-010 已完成：commit `086d663` 已部署至 update schedule revision `00028-bij`；build 與平台健康驗證通過，未人工 invoke且未觸發 rollback。
+- TASK-012 mobile-first Web Portal local demo MVP已完成並由Owner local視覺驗收接受：雙重development gate、session-only虛構資料、Dashboard／賽程／詳情／個人／等待核可及10項離線測試完成；未部署。
 
 ## 2. 已確認事實
 
@@ -92,9 +100,9 @@
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-005` | `awaiting_owner_approval` | `owner` | 讓 game broadcast 邀請與取消流程在每次 request 重新取得一致的 Asia/Taipei 時間 snapshot；Work 已驗收 accepted。 |
+| `TASK-012` | `completed` | `owner` | Local demo MVP已通過Work與Owner驗收；未部署production。 |
 
-正式任務規格：`docs/coordination/tasks/TASK-005.md`
+正式任務規格：`docs/coordination/tasks/TASK-012.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
@@ -141,7 +149,7 @@
 - 固定 image tag `tag1` 降低部署可追溯性。
 - web portal 的 member 配對管理 routes 未見 authentication/authorization 檢查。
 - `update_game_schedule.game_crawl()` 的第二次 filter 曾從原始 `game_list` 開始而丟失 team filter；TASK-004 已修正、驗收並合併，尚未 deploy。
-- game broadcast 曾在 module import 時計算目前時間；TASK-005 已修正並通過 Work 驗收，尚未 merge／deploy。Notify cron 未使用的同類 globals 亦已移除。
+- game broadcast 曾在 module import時計算目前時間；TASK-005 已修正、驗收、合併並部署。Notify cron 未使用的同類 globals 亦已移除並部署。
 - cache helper 呼叫的 `/clear-cache/attendance` route 在目前 web portal 程式中未找到。
 
 ### 推論
@@ -190,6 +198,8 @@
 - TASK-005 與 PR 工作包授權已記錄為 `DEC-012`；規格為 `docs/coordination/tasks/TASK-005.md`。
 - TASK-005 Codex report：`docs/coordination/reports/TASK-005-CODEX.md`。
 - TASK-005 Work review：`docs/coordination/reviews/TASK-005-WORK.md`。
+- TASK-005 接受與 merge 已記錄為 `DEC-013`。
+- TASK-006 deployment runbook：`docs/operations/DEPLOYMENT_RUNBOOK.md`。
 - Web Portal 產品與風險規劃：`docs/planning/WEB_PORTAL_PLAN.md`。
 - TASK-004 Codex report：`docs/coordination/reports/TASK-004-CODEX.md`。
 - TASK-004 Work review：`docs/coordination/reviews/TASK-004-WORK.md`。

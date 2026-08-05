@@ -1,0 +1,3 @@
+{% extends 'demo/base.html' %}{% from 'demo/_macros.html' import game_card %}
+{% block title %}賽程｜NTUBTOB{% endblock %}
+{% block content %}<section class="page-title"><span class="eyebrow">SCHEDULE</span><h1>賽程</h1><p>近期賽事與你的出席狀態。</p></section><div class="card-grid">{% for game in games %}{{ game_card(game) }}{% endfor %}</div>{% endblock %}
