@@ -29,7 +29,10 @@ jobs:
         run: python --version
 
       - name: Install route test dependencies
-        run: python -m pip install flask==3.0.0 functions-framework==3.* line-bot-sdk==3.11.0
+        run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0
+
+      - name: Run Web Portal tests
+        run: python -m unittest discover -s apps/web_portal/tests -v
 
       - name: Run game broadcast service tests
         run: python -m unittest discover -s apps/game_broadcast_service/tests -v

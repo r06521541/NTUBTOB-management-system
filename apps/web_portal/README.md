@@ -26,3 +26,19 @@ Google and Apple sign-in, notification preferences, attendance persistence,
 and administrator approval are visual prototypes only. Existing LINE routes
 remain present, but selecting LINE requires the real application configuration
 and is not part of the offline demo.
+
+## Member matching administration
+
+The production member matching routes require both an authenticated LINE Login
+session and a Member ID listed in `WEB_PORTAL_ADMIN_MEMBER_IDS`. The setting is
+a comma-separated list of positive integer Member IDs, for example `7,12`.
+Missing, empty, malformed, or duplicate values deny access to everyone; do not
+place names, LINE user IDs, or credentials in this setting.
+
+The member matching page creates a session CSRF token, and both matching actions
+require that token. Unauthorized requests are rejected before management data is
+queried or changed. Run the offline route and demo tests from the repository root:
+
+```sh
+python -m unittest discover -s apps/web_portal/tests -v
+```
