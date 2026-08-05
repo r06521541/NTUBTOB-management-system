@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T03:55:00+08:00
+更新時間：2026-08-06T06:10:00+08:00
 維護角色：Work
 證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`
 
@@ -47,7 +47,8 @@
 - TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
 - TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
 - TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
-- TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇 original-browser 路線。Codex 依 LINE 官方建議加入 `disable_auto_login=true`，避免 mobile external browser auto-login app handoff，同時保留 session nonce binding，等待 Work 驗收。
+- TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇 original-browser 路線。Codex 依 LINE 官方建議加入 `disable_auto_login=true`，避免 mobile external browser auto-login app handoff，同時保留 session nonce binding；Work 已驗收為 `accepted`，等待 Owner 決定 push／PR。
+- 普通隊員、幹部與系統管理者的初步權限矩陣已記錄於 `docs/planning/ROLE_ACCESS_PROPOSAL.md`，目前僅為未核准提案，不代表 schema 或 migration 決策。
 
 ## 2. 已確認事實
 
@@ -124,11 +125,11 @@
 
 ## 4. 當前工作
 
-- `TASK-029` original-browser repository-only 修正與 flow matrix 已完成，現在交棒 Work 驗收；真實 Safari／Chrome／LINE in-app 行為仍需部署另案批准。
+- `TASK-029` original-browser repository-only 修正已由 Work 驗收接受；真實 Safari／Chrome／LINE in-app 行為仍需部署另案批准。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-029` | `ready_for_review` | `work` | 驗收 `disable_auto_login=true`、session binding、官方 flow matrix 與離線 regression tests。 |
+| `TASK-029` | `awaiting_owner_approval` | `owner` | 決定是否批准 push／PR；部署與真實裝置 smoke test 不在本次授權內。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

@@ -1,16 +1,15 @@
 active_task: TASK-029
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 196c2087a1bfdf816f16aafc267c7008aa376f41
-head_commit: 0a96355af0df073b77ad5d1432a392fd3833dc96
+head_commit: 77efd5950f8a35f771fc80f242042c936bd4f05d
 
-updated_by: codex
-updated_at: 2026-08-06T05:20:00+08:00
+updated_by: work
+updated_at: 2026-08-06T06:10:00+08:00
 
 note: >
-  Codex verified from official LINE documentation that external-browser auto-login uses Universal
-  Links/App Links and that disable_auto_login=true is the supported browser-login fallback. The
-  authorization URL now disables auto-login while retaining signed, session-bound state. A flow
-  matrix and cookie/callback scope audit are in the report. Work should review code, docs, and tests;
+  Work accepted TASK-029 after independently verifying 55 Web Portal tests, compile, Python 3.10
+  grammar, diff cleanliness, and the official LINE disable_auto_login contract. Owner may decide
+  whether to authorize push and PR. Deployment and real-device login verification remain separate;
   no production login/log/API, Console change, Secret, DB, deploy, push, PR, or merge occurred.
