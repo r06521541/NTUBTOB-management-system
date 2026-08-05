@@ -203,6 +203,15 @@
 
 ## 8. 文件狀態
 
+### TASK-027 production deployment closeout（2026-08-06）
+
+- Owner 已批准並完成將 merge commit `cdb67bf007ec67d882c6e974143a4d527f1528cd` 部署至 production `web-portal`。
+- Cloud Build `7f155fb7-2288-416a-83a7-d77a95eee7e9` 成功；新 revision `web-portal-00027-fwf` Ready 並承接 100% traffic。
+- Production 首頁單次無認證 GET 回應 200；`/demo/` 單次無認證 GET 回應 404，確認 demo mode fail closed。
+- DB password、LINE Login channel secret 與 Flask session key 均為 runtime Secret references；Owner 設定的管理者 Member ID allowlist 存在，但 Work 未讀取其值。
+- 未測 LINE Login callback、需資料庫的頁面、管理員操作或通知；未修改 IAM、Scheduler、schema 或 production data。
+- 完整證據見 `docs/operations/deployments/WEB_PORTAL_CDB67BF.md`。
+
 - 協作規則：`docs/coordination/COLLABORATION.md`
 - 唯一交接來源：`docs/coordination/HANDOFF.yaml`
 - 專案狀態：本文件

@@ -1,15 +1,14 @@
 active_task: TASK-027
-status: awaiting_owner_decision
+status: completed
 next_actor: owner
 
 base_commit: 31a13e1
-head_commit: null
+head_commit: cdb67bf007ec67d882c6e974143a4d527f1528cd
 
 updated_by: work
-updated_at: 2026-08-06T01:45:00+08:00
+updated_at: 2026-08-06T02:30:00+08:00
 
 note: >
-  TASK-026 is complete. Work proposes TASK-027 to deploy merged commit cdb67bf
-  to production web-portal with exact Secret references, Owner-confirmed admin env,
-  two no-side-effect GET checks and conditional rollback to web-portal-00026-rtc.
-  Awaiting precise Owner deployment approval; no deployment has started.
+  Owner approved TASK-027. Commit cdb67bf was deployed successfully to production
+  web-portal revision web-portal-00027-fwf with 100% traffic. GET / returned 200
+  and GET /demo/ returned 404. Rollback was not required. Awaiting Owner's next task.

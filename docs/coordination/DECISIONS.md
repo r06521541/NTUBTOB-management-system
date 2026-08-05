@@ -431,3 +431,12 @@
 - 結果：`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`均為enabled；runtime service account既有`roles/secretmanager.secretAccessor`已確認。
 - 安全證據：未執行Secret payload access／readback，值未寫入command argument、檔案、Git或對話；一次性腳本已移除。
 - 安全邊界：未修改IAM／Cloud Run、未部署、未呼叫production、未連DB、未發通知，也未delete／disable／destroy任何Secret。
+
+## DEC-042：部署 Web Portal runtime Secret rollout
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved_and_completed`
+- 決策：Owner 批准依 TASK-027 將 commit `cdb67bf007ec67d882c6e974143a4d527f1528cd` 部署至 production `web-portal`，綁定既定 runtime Secret references 與 Owner 已設定的管理者 allowlist，並執行兩個無副作用 HTTP GET 驗證。
+- 結果：Cloud Build `7f155fb7-2288-416a-83a7-d77a95eee7e9` 成功；revision `web-portal-00027-fwf` Ready 且承接 100% traffic；`GET /` 為 200、`GET /demo/` 為 404；未觸發 rollback。
+- 限制：未讀取 Secret payload 或管理者 ID 值，未測 LINE callback、production DB/admin routes，未發通知，也未修改 IAM、Scheduler、schema 或 production data。

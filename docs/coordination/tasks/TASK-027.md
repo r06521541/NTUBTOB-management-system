@@ -1,6 +1,6 @@
 # TASK-027：Web Portal Production Deployment
 
-狀態：`awaiting_owner_decision`
+狀態：`completed`
 優先級：P1 security rollout
 規劃者／執行者：Work
 Base commit：`31a13e1`
@@ -160,4 +160,3 @@ Rollback會恢復舊revision與舊runtime設定；在新revision期間產生的�
 若Owner同意部署，請批准：
 
 > 批准將commit `cdb67bf007ec67d882c6e974143a4d527f1528cd`依TASK-027部署至production `web-portal`，使用`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`，並帶入我已在local正式env設定的`WEB_PORTAL_ADMIN_MEMBER_IDS`。我接受既有登入session失效。批准build、deploy、control-plane／metadata驗證、各一次無副作用`GET /`與`GET /demo/`，以及在TASK-027失敗條件下將100% traffic rollback至`web-portal-00026-rtc`。不批准Secret讀回／修改、IAM修改、LINE Login／DB／管理功能測試、通知、其他服務部署、schema／data操作、push、PR或merge。
-
