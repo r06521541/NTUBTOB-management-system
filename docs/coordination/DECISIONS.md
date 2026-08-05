@@ -476,3 +476,13 @@
 - 決策：Owner 批准將 PR #38 標記 ready 並以 Squash merge 合併，維持 default branch 每個 TASK 一個描述性 commit的精簡規則。
 - 結果：PR #38 已合併為 `196c2087a1bfdf816f16aafc267c7008aa376f41`，標題為 `feat(web-portal): add cross-platform safe deployment wrapper`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功。
 - 安全邊界：merge 未執行 wrapper `--execute`、production deployment／HTTP、Secret／IAM／Scheduler／DB／schema／data 操作或通知。
+
+## DEC-047：優先診斷 LINE callback 回到原瀏覽器
+
+- 日期：2026-08-06
+- 決策者：Owner
+- 狀態：`approved`
+- 背景：TASK-029 證明 transferable signed state 會降低 login-CSRF／transaction-binding 邊界；安全補正後，不同 cookie store callback 會 fail closed。
+- 決策：Owner 選擇先診斷並優先讓 LINE callback 回到登入發起的 external browser，不先建 two-phase shared transaction，也不接受 signed bearer login。
+- 授權：Codex 可查 repository、離線測試與 LINE 官方公開文件；只有能證明維持 session binding 的 repository-only 修正才可實作並建立本機 commit。
+- 安全邊界：不批准 production logs/login/API、LINE Developers Console 修改、Secret、DB/schema/data、部署、push、PR 或 merge。

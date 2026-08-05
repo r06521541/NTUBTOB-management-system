@@ -47,7 +47,7 @@
 - TASK-027由Work提出：部署merged／CI-passed `cdb67bf`至production Web Portal，使用兩個exact Secret refs與Owner已設定的admin env，含無副作用首頁／demo fail-closed GET及rollback至`web-portal-00026-rtc`；等待Owner精確批准。
 - TASK-027 已依 Owner 核准完成：revision `web-portal-00027-fwf` Ready 且承接 100% traffic；首頁 200、production demo 404，未觸發 rollback。
 - TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
-- TASK-029 初版 transferable signed state 已由 Work 退回；Codex 已恢復 session nonce 綁定並補強 return path／LINE payload validation。跨瀏覽器直接登入在無共享一次性交易或確認流程下無法安全完成，等待 Owner 決策，不得部署。
+- TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇先診斷 callback 回到原 external browser 的最小影響方案，保留 session nonce 綁定，不得部署。
 
 ## 2. 已確認事實
 
@@ -124,18 +124,18 @@
 
 ## 4. 當前工作
 
-- `TASK-029` 已完成安全補正，但跨瀏覽器 continuity 與 transaction binding 無法在既定範圍同時成立，現在交棒 Owner 決定產品／架構方案。
+- `TASK-029` 安全補正已完成，Owner 選擇先診斷 callback 回到原 external browser；Codex 僅可查 repository、離線測試與 LINE 官方公開文件。
 
 | 任務 | 狀態 | 下一位角色 | 目標 |
 | --- | --- | --- | --- |
-| `TASK-029` | `blocked` | `owner` | 選擇原瀏覽器 return、two-phase shared transaction，或維持 LINE 內建瀏覽器的安全 fail-closed 行為。 |
+| `TASK-029` | `ready_for_codex` | `codex` | 診斷 external browser／LINE App callback context 與 cookie continuity，僅實作可證明安全的 repository-only 修正。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
 
 ## 5. 優先工作佇列
 
-- 阻塞中 `TASK-029`：transferable state 不可安全建立登入 session；已完成 session-bound state、return path 與 payload shape hardening，等待 Owner 選擇 continuity 方案。
+- 進行中 `TASK-029`：Owner 選擇先診斷 callback 回到原 external browser 的方案；不包含 production logs、LINE Console、真實登入或部署授權。
 
 ### P1：安全、資料正確性與 P0 回歸
 

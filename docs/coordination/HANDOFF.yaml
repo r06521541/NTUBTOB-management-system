@@ -1,16 +1,15 @@
 active_task: TASK-029
-status: blocked
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: 196c2087a1bfdf816f16aafc267c7008aa376f41
 head_commit: 6966f6ac3b92be61334a1fc5b4adda36bb7ef7b6
 
-updated_by: codex
-updated_at: 2026-08-06T04:35:00+08:00
+updated_by: work
+updated_at: 2026-08-06T04:50:00+08:00
 
 note: >
-  Codex restored browser transaction binding by comparing the signed nonce with the initiating
-  session nonce, and hardened ambiguous return paths plus LINE payload shapes. A callback in a
-  genuinely different cookie store now safely fails before LINE/DB. Cross-browser continuity cannot
-  safely create a session without an Owner-approved browser-return change or two-phase shared
-  one-time transaction flow. Owner decision is required; no production action occurred.
+  Owner selected the lowest-impact path: diagnose how LINE Login can return callback to the
+  initiating external browser while preserving session-bound state. Codex may inspect repository,
+  offline tests, and official public LINE documentation, and implement only a proven repository-only
+  fix. No production logs/login/API, LINE Console changes, Secret, DB, deploy, push, PR, or merge.

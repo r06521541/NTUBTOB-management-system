@@ -1,6 +1,6 @@
 # TASK-029：修正跨瀏覽器 LINE Login OAuth State Continuity
 
-狀態：`blocked`
+狀態：`ready_for_codex`
 優先級：P1 authentication reliability
 規劃者：Work
 預定執行者：Codex
@@ -110,3 +110,19 @@ git status --short
 - 後續若要部署與由 Owner 在一般瀏覽器重試 LINE Login，必須另立 exact production deployment／smoke-test 工作包；失敗時只讀診斷，不自行修改 LINE Console、Secret、IAM 或資料。
 
 Owner 已批准 TASK-029 的本機實作與描述性 commit。未批准 push、PR、merge、production logs、LINE API、Secret／LINE Console 修改、部署或 production data 操作。
+
+## 11. Owner 選定的安全續行方案
+
+Owner 已選擇先採「讓 callback 回到原本 external browser」的最小影響路線，不接受 transferable signed bearer state，也暫不建立 two-phase shared transaction store。
+
+Codex 下一輪應：
+
+- 只使用 repository、現有測試與 LINE 官方公開文件查明 external browser、LINE App、LINE in-app browser、auto-login 與 callback redirect 的支援行為。
+- 建立明確流程矩陣：desktop browser、mobile Safari／Chrome、LINE in-app browser，各自的登入起點、authorization context、callback context與 cookie continuity。
+- 查驗目前固定 callback URL、登入起始 URL、redirect URI encoding、session cookie host/path/SameSite/Secure 設定是否可能造成 callback 回到不同 cookie scope。
+- 明確區分 repository 可修問題、需要 Owner 在 LINE Developers Console 查驗的設定，以及 LINE 平台本身的限制。
+- 若官方文件與程式碼能證明一個不降低 transaction binding 的 repository-only 修正，可先以 failing offline test重現再做最小修正。
+- 若需要 LINE Console、custom domain、production logs、真實登入或瀏覽器操作才能判定，停止於診斷報告與 Owner 操作清單，不自行執行。
+- 保留目前 session-bound nonce 安全補正；不得重新允許不同 cookie store直接建立登入 session。
+
+本續行決策不授權 production logs、真實 LINE Login/API、LINE Developers Console 修改、Secret、DB、部署、push、PR 或 merge。
