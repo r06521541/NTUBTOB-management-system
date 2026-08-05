@@ -6,6 +6,11 @@ from flask import Flask, render_template, request, redirect, session, url_for, R
 from flask_caching import Cache
 
 import messages
+from admin_security import (
+    admin_required,
+    get_or_create_csrf_token,
+    require_valid_csrf,
+)
 from demo_portal import demo_portal, is_demo_mode_enabled
 from envs import (
     login_channel_id,
@@ -155,6 +160,7 @@ def line_callback():
 
             # 儲存使用者資訊於session中
             session['user_id'] = user_id
+            session['member_id'] = member.id
             session['member'] = member
             session['display_name'] = user_info_res['displayName']
 
@@ -201,15 +207,22 @@ def attendance():
                            reply_text_mapping=reply_text_mapping)
 
 @app.route('/match-member')
+@admin_required
 def index():
     line_users = LineUser.search_all_unknowns()
     members = Member.search_all()
     members.insert(0, None)
-    return render_template('match_member.html', line_users=line_users, members=members)
+    return render_template(
+        'match_member.html',
+        line_users=line_users,
+        members=members,
+        csrf_token=get_or_create_csrf_token(),
+    )
 
 @app.route('/match-member/match', methods=['POST'])
+@admin_required
 def match_line_user():
-    print(request.form)
+    require_valid_csrf()
     line_user_id = request.form['line_user_id']
     member_id = request.form['member_id']
     if member_id:
@@ -221,7 +234,9 @@ def match_line_user():
     return redirect(url_for('index'))
 
 @app.route('/match-member/ignore', methods=['POST'])
+@admin_required
 def ignore_line_user():
+    require_valid_csrf()
     line_user_id = request.form['line_user_id']
     
     LineUser.update_as_ignored(line_user_id)

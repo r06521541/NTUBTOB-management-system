@@ -15,6 +15,7 @@
             <h1 class="mb-4">配對新的LINE帳號成員</h1>
             {% for line_user in line_users %}
                 <form method="post" action="{{ url_for('match_line_user') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <div class="row justify-content-md-center">
                         <div class="col-md-2">
                             <h5>{{ line_user.nickname }}</p>

@@ -309,3 +309,24 @@
 - 相容性：合法LINE webhook仍維持HTTP 200／`OK`與既有event handlers；unexpected application failure不得偽裝為成功。
 - PR工作包：允許建立`codex/harden-line-webhook-ingress` branch、描述性commits、push、Draft PR、離線測試與Python 3.10 CI查驗，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
 - 安全邊界：不批准ready／merge、Cloud Functions deployment、production webhook request、正式LINE／Discord通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
+
+## DEC-030：接受並合併LINE Webhook Ingress安全修正
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`accepted`
+- 決策：Owner接受TASK-020的Work驗收，授權將PR #34標記ready並merge。
+- 結果：PR #34已以merge commit `c022d5185cf6126ffd228b0c95b815c80ee39606`合併。
+- Merge標題：`fix(webhook): reject untrusted LINE ingress without side effects`。
+- 最終證據：Work-head `2227016148b5fdb91a56ea9af3b0d53bfc37e10c`的Python 3.10 run `30985595920`／job `92239490734`成功；Work本機重跑webhook 10/10、game 28/28、notify 9/9、schedule 5/5、wrapper 11/11及compile／diff checks通過。
+- 安全邊界：未部署Cloud Function、未呼叫production webhook、未發送通知，亦未操作production DB、Secret、IAM、Scheduler或schema。
+
+## DEC-031：批准Web Portal成員配對保護與PR工作包
+
+- 日期：2026-08-05
+- 決策者：Owner
+- 狀態：`approved`
+- 決策：Owner批准TASK-021，以既有LINE登入、`WEB_PORTAL_ADMIN_MEMBER_IDS` Member ID allowlist及session CSRF保護Web Portal成員配對管理頁與兩個資料修改端點。
+- Fail-closed規則：allowlist未設定、空白或任一格式錯誤時全部拒絕；未登入者不得讀取管理資料，非管理者回403，CSRF失敗回400且不得產生DB／Discord副作用。
+- PR工作包：允許建立`codex/protect-web-portal-member-matching` branch、描述性commits、push、Draft PR、離線測試與Python 3.10 CI查驗，以及同一PR內的report／review／PROJECT_STATE／HANDOFF更新。
+- 安全邊界：不批准ready／merge、Web Portal deployment、production request、正式LINE／Discord通知、production DB、Secret／IAM／Scheduler、schema或其他雲端操作。
