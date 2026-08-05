@@ -166,6 +166,24 @@ def parse_json_output(output: str, context: str) -> dict:
     return value
 
 
+def normalize_image_digest(value: object) -> str:
+    if not isinstance(value, str):
+        raise DeploymentError("Image digest is missing or invalid")
+    candidate = value.rsplit("@", 1)[-1].lower()
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", candidate):
+        raise DeploymentError("Image digest is missing or invalid")
+    return candidate
+
+
+def revision_is_ready(revision: dict) -> bool:
+    conditions = revision.get("status", {}).get("conditions", [])
+    return any(
+        condition.get("type") == "Ready" and condition.get("status") == "True"
+        for condition in conditions
+        if isinstance(condition, dict)
+    )
+
+
 def rollback_command(service: ServiceConfig, revision: str) -> List[str]:
     return [
         "gcloud", "run", "services", "update-traffic", service.cloud_run_name,
@@ -263,8 +281,7 @@ def execute_deployment(
             ],
             root,
         )
-        if not approved_digest.startswith("sha256:"):
-            raise DeploymentError("Approved image tag did not expose an image digest")
+        approved_digest = normalize_image_digest(approved_digest)
 
         deployed = parse_json_output(
             command_output(
@@ -281,9 +298,6 @@ def execute_deployment(
         revision = status.get("latestCreatedRevisionName")
         if not revision or revision == baseline_revision:
             raise DeploymentError("Deployment did not create a new revision")
-        if status.get("latestReadyRevisionName") != revision:
-            raise DeploymentError("New revision is not ready")
-
         revision_state = parse_json_output(
             command_output(
                 runner,
@@ -295,9 +309,11 @@ def execute_deployment(
             ),
             "Cloud Run revision",
         )
-        image_digest = revision_state.get("status", {}).get("imageDigest")
-        if not isinstance(image_digest, str) or not image_digest.startswith("sha256:"):
-            raise DeploymentError("New revision did not expose an image digest")
+        if not revision_is_ready(revision_state):
+            raise DeploymentError("New revision is not ready")
+        image_digest = normalize_image_digest(
+            revision_state.get("status", {}).get("imageDigest")
+        )
         if image_digest != approved_digest:
             raise DeploymentError(
                 "New revision digest does not match the approved image tag"
@@ -324,6 +340,8 @@ def execute_deployment(
             "Cloud Run verification",
         )
         traffic = verified.get("status", {}).get("traffic", [])
+        if verified.get("status", {}).get("latestReadyRevisionName") != revision:
+            raise DeploymentError("New revision is not the latest ready revision")
         if not any(
             item.get("revisionName") == revision and item.get("percent") == 100
             for item in traffic

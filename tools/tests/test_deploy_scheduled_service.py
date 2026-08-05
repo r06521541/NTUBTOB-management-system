@@ -9,6 +9,10 @@ from tools import deploy_scheduled_service as deploy
 
 SHA = "a" * 40
 APPROVED_DIGEST = "sha256:" + "b" * 64
+FULL_REVISION_DIGEST = (
+    "asia-east1-docker.pkg.dev/fake-project/fake-repo/fake-image@"
+    + APPROVED_DIGEST
+)
 ROLLBACK_REVISION = "game-broadcast-service-00030-pgg"
 BASELINE_REVISION = "game-broadcast-service-00031-s65"
 NEW_REVISION = "game-broadcast-service-00099-abc"
@@ -21,16 +25,16 @@ class FakeRunner:
         *,
         dirty=False,
         build_status="SUCCESS",
-        ready=True,
+        revision_ready=True,
         no_op=False,
-        revision_digest=APPROVED_DIGEST,
+        revision_digest=FULL_REVISION_DIGEST,
         traffic=True,
         traffic_command_failure=False,
     ):
         self.root = root
         self.dirty = dirty
         self.build_status = build_status
-        self.ready = ready
+        self.revision_ready = revision_ready
         self.no_op = no_op
         self.revision_digest = revision_digest
         self.traffic = traffic
@@ -62,11 +66,14 @@ class FakeRunner:
                 revision = BASELINE_REVISION
             else:
                 revision = NEW_REVISION
+            latest_ready = (
+                NEW_REVISION
+                if self.describe_calls >= 3 and self.traffic
+                else BASELINE_REVISION
+            )
             status = {
                 "latestCreatedRevisionName": revision,
-                "latestReadyRevisionName": (
-                    revision if self.ready else BASELINE_REVISION
-                ),
+                "latestReadyRevisionName": latest_ready,
                 "traffic": (
                     [{"revisionName": revision, "percent": 100}]
                     if self.describe_calls >= 3 and self.traffic
@@ -75,7 +82,19 @@ class FakeRunner:
             }
             stdout = json.dumps({"status": status})
         elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
-            stdout = json.dumps({"status": {"imageDigest": self.revision_digest}})
+            stdout = json.dumps(
+                {
+                    "status": {
+                        "imageDigest": self.revision_digest,
+                        "conditions": [
+                            {
+                                "type": "Ready",
+                                "status": "True" if self.revision_ready else "False",
+                            }
+                        ],
+                    }
+                }
+            )
         elif "update-traffic" in arguments:
             destination = arguments[arguments.index("--to-revisions") + 1]
             if self.traffic_command_failure and destination.startswith(NEW_REVISION):
@@ -239,7 +258,10 @@ class DeploymentWrapperTests(unittest.TestCase):
         self.assertFalse(self.temporary_env().exists())
 
     def test_digest_mismatch_stops_before_new_revision_traffic(self):
-        runner = FakeRunner(self.root, revision_digest="sha256:" + "c" * 64)
+        runner = FakeRunner(
+            self.root,
+            revision_digest="registry.example/fake-image@sha256:" + "c" * 64,
+        )
         with self.assertRaisesRegex(deploy.DeploymentError, "approved image tag"):
             self.execute(runner)
         self.assert_only_exact_rollback(runner)
@@ -247,7 +269,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         self.assertFalse(self.temporary_env().exists())
 
     def test_not_ready_revision_rolls_back_and_cleans_environment(self):
-        runner = FakeRunner(self.root, ready=False)
+        runner = FakeRunner(self.root, revision_ready=False)
         with self.assertRaisesRegex(deploy.DeploymentError, "not ready"):
             self.execute(runner)
         self.assert_only_exact_rollback(runner)
@@ -276,7 +298,9 @@ class DeploymentWrapperTests(unittest.TestCase):
 
     def test_traffic_verification_failure_rolls_back_exact_revision_and_cleans(self):
         runner = FakeRunner(self.root, traffic=False)
-        with self.assertRaisesRegex(deploy.DeploymentError, "100% traffic"):
+        with self.assertRaisesRegex(
+            deploy.DeploymentError, "latest ready revision|100% traffic"
+        ):
             self.execute(runner)
         traffic = self.traffic_commands(runner)
         self.assertEqual(len(traffic), 2)
