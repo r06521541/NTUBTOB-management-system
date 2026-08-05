@@ -1,14 +1,15 @@
 active_task: TASK-019
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: b14dcad3d1261772c8dc00898ba1caca114ce941
-head_commit: 75eaf9a778fe7e92f1cb8c801cddf7efa543602c
+head_commit: 468801b
 
-updated_by: work
-updated_at: 2026-08-05T14:38:00+08:00
+updated_by: codex
+updated_at: 2026-08-05T14:55:00+08:00
 
 note: >
-  Second Work review found two production-shape blockers: pinned-traffic revisions must be
-  validated by their own Ready condition before traffic, and Cloud Run full image@sha256
-  references must normalize to the approved digest. Offline-only correction; no gcloud/production/merge.
+  Second Work findings are addressed in commit 468801b. Pinned revisions are
+  validated by their own Ready condition before traffic; service latest-ready
+  is checked after traffic. Bare and full-reference digests normalize and match
+  exactly. Python 3.10 CI run 30982277507 passed; ready for Work re-review.

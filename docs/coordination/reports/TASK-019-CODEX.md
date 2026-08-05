@@ -10,6 +10,7 @@ PR：[Draft PR #33](https://github.com/r06521541/NTUBTOB-management-system/pull/
 - Codex 開始實作時 HEAD：`d8ca20f`（包含 Owner 已批准的 TASK-016～019 coordination／deployment 紀錄）
 - 初始實作 commit：`0c9cc77 feat(deployment): make scheduled service rollouts commit-addressable`
 - Work 安全補正 commit：`294970f fix(deployment): verify new revisions before shifting traffic`
+- Production-shape 補正 commit：`468801b fix(deployment): validate pinned revisions by readiness conditions`
 - Branch：`codex/immutable-scheduled-service-deployments`
 - PR base／head：`main`／上述 branch
 
@@ -77,6 +78,17 @@ Work 於 commit `7126ee4` 提出 `changes_requested` 後，已完成：
 - Job：`92226558256`
 - CPython 3.10 suite：`SUCCESS`
 - 未執行 wrapper `--execute`、gcloud 或任何 production 操作。
+
+### 第二輪 production-shape 補正
+
+Work 以 TASK-017／018 的實際 Cloud Run metadata 指出兩項差異後，已完成：
+
+- Pinned traffic 情境下，切流量前不再要求 service `latestReadyRevisionName` 已指向新 revision；改查新 revision 自身的 `Ready=True` condition。
+- 完成 traffic assignment 後，才同時驗證 service `latestReadyRevisionName` 與 100% traffic 指向新 revision。
+- Artifact Registry 回傳的 bare `sha256:...` 與 Cloud Run 回傳的完整 `registry/image@sha256:...` 均正規化為嚴格 64 位十六進位 digest，再做精確比較。
+- Fake runner 模擬 pre-traffic latest ready 仍是 baseline、revision 自身 Ready，以及完整 image reference digest；full-reference match 成功、mismatch 停止並 rollback。
+
+第二輪補正後 GitHub Actions run `30982277507`／job `92229079528` 使用 Python 3.10 並成功通過。全程未執行 wrapper execute path 或任何雲端操作。
 
 ## 變更檔案
 
