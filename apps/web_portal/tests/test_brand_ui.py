@@ -60,6 +60,17 @@ class BrandUiContractTest(unittest.TestCase):
         member_css = (STATIC_DIR / "member_portal.css").read_text(encoding="utf-8")
         self.assertIn("overflow-x: auto", member_css)
 
+    def test_theme_color_and_notice_semantics_follow_brand_roles(self):
+        demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
+        brand_css = (STATIC_DIR / "brand.css").read_text(encoding="utf-8")
+        event_detail = (TEMPLATES_DIR / "demo" / "events" / "detail.html").read_text(encoding="utf-8")
+
+        self.assertIn('name="theme-color" content="#29415d"', demo_base)
+        self.assertNotIn('name="theme-color" content="#173f35"', demo_base)
+        self.assertIn(".metric.warning { background: var(--color-warning-soft)", brand_css)
+        self.assertIn(".notice.notice-danger", brand_css)
+        self.assertIn('class="notice notice-danger"', event_detail)
+
 
 if __name__ == "__main__":
     unittest.main()

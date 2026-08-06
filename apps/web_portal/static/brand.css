@@ -81,8 +81,11 @@
 .badge-pending,
 .preference-button { background: #eef1f4; color: var(--color-muted); }
 .notice,
-.metric.warning { background: var(--color-danger-soft); color: var(--color-danger); border-color: #e5b8b8; }
-.notice span { color: var(--color-danger); }
+.metric.warning { background: var(--color-warning-soft); color: var(--color-warning); border-color: #e5d2a7; }
+.notice span { color: var(--color-warning); }
+.notice.notice-danger,
+.metric.warning.metric-danger { background: var(--color-danger-soft); color: var(--color-danger); border-color: #e5b8b8; }
+.notice.notice-danger span { color: var(--color-danger); }
 .button-line { background: var(--color-line); }
 
 button:focus-visible,

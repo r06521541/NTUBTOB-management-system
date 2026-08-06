@@ -24,7 +24,7 @@
 ```text
 Python 3.9 local runtime (repository code separately checked with Python 3.10 AST grammar)
 python -m unittest discover -s apps/web_portal/tests -v
-Ran 93 tests - OK (skipped=2)
+Ran 94 tests - OK (skipped=2)
 
 python -m compileall -q apps/web_portal
 OK
@@ -50,3 +50,10 @@ OK
 - 未修改 route、auth/session、role policy、資料、schema、shared library 或其他服務。
 - 未驗證真實手機 Safari／Android 的字型與 browser chrome 差異；375px DOM 尺寸與 overflow 契約已驗證。
 - Bootstrap CDN 為既有正式 attendance／roster 依賴，本任務未新增、移除或改寫。
+
+## Work review 修正
+
+- Demo browser `theme-color` 已由舊綠色改為品牌深藍。
+- 一般 notice／warning metric 使用暖金 warning tokens；只有明確的
+  `notice-danger`／`metric-danger` modifier 使用紅色 danger tokens。
+- 已在取消活動提示套用 danger modifier，並新增契約測試防止上述語意回歸。
