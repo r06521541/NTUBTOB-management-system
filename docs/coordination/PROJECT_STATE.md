@@ -138,7 +138,7 @@
 | `TASK-035` | `completed` | `owner` | PR #44已squash merge為`5952e0b`；member-only roster guard已在main，尚未部署production。 |
 | `TASK-036` | `completed` | `owner` | `5952e0b`已部署為`web-portal-00033-kzq`並承接100% traffic；匿名roster安全回同站登入302，無需rollback。 |
 | `TASK-037` | `completed` | `owner` | PR #45的hosted Python 3.10 CI成功並squash merge為`4b9ddd4`；minimal identity session已在main，尚未部署。 |
-| `TASK-038` | `ready_for_codex` | `codex` | Owner已批准repository-only實作：normal LINE Login恢復auto-login eligibility，state continuity失敗後才以fresh transaction啟用browser fallback。 |
+| `TASK-038` | `ready_for_review` | `work` | Normal LINE Login已恢復auto-login eligibility；state continuity失敗後以fresh browser-bound transaction安全fallback，71項測試通過。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -219,6 +219,14 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-038 safe LINE auto-login fallback（2026-08-06）
+
+- 一般LINE authorization request不再停用auto-login；只有明確`mode=browser`的fallback附加`disable_auto_login=true`。
+- State continuity失敗仍在LINE／DB前回400；signed-valid mismatch可保留已驗證站內return path，其他無效state使用固定安全預設。
+- Fallback每次建立fresh nonce／signed state，不重用失敗code、state或nonce；未知／ambiguous mode與return input fail closed。
+- 71項Web Portal測試通過（2項既有Windows make/sh skip）；compile、Python 3.10 grammar、clean-worktree deployment dry-run與diff check通過。
+- 狀態為`ready_for_review / work`；未push、開PR、merge、部署或存取production。
 
 ### TASK-037 Web Portal minimal authenticated session（2026-08-06）
 
