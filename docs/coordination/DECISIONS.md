@@ -645,3 +645,13 @@
 - 架構原則：不建立替代cache invalidation endpoint或跨服務呼叫；Web Portal attendance維持request-time查詢。
 - 授權：Owner要求建立並交棒；批准repository-only實作、shared library rebuild、離線測試與描述性本機commit。
 - 安全邊界：不包含push／PR／merge／deployment、production DB／logs、LINE／Discord通知、schema、Secret／IAM／Scheduler、LINE Console或其他服務重構。
+
+## DEC-064：先量測attendance延遲再選cache或cold-start策略
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- 背景：Owner回想cache原始動機為首次取得資料約10秒；現行repository顯示Web Portal attendance request直接查DB而不呼叫Cloud Function，但尚無分段延遲證據。
+- 決策：TASK-046只加入無個資、固定欄位、best-effort的attendance stage timings，區分Member／首次DB連線、games query、attendance analysis、render與total。
+- 決策順序：先量測；cold start才評估minimum instances／startup CPU，DB connection才調pooling，query慢才看plan/index，只有優化後讀取壓力仍高才評估共享Redis短TTL。
+- 授權：Owner同意依建議執行；批准repository-only實作、離線測試與描述性本機commit並交棒Codex。
+- 安全邊界：不包含cloud config、pooling/query/schema、Redis/cache、production log/DB、load test、push／PR／merge／deployment或通知。
