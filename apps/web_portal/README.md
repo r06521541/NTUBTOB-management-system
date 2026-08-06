@@ -39,14 +39,14 @@ character inputs fall back to the attendance page.
 
 This transaction binding prevents login CSRF/session swapping, but it also
 means a callback opened in a genuinely different browser cookie store cannot
-safely establish a session. A normal authorization request now remains eligible
-for LINE auto-login, including the smoother LINE in-app-browser experience. If
-the callback cannot prove continuity with the initiating browser session, the
-error page offers an explicit browser-login fallback. That fallback starts a
-new nonce and signed state and adds `disable_auto_login=true`; it never reuses
-the failed authorization code, state, or nonce. Unknown login modes, ambiguous
-return targets, and external return URLs fail closed. No User-Agent detection
-or transferable cross-browser state is used.
+safely establish a session. A normal authorization request remains eligible for
+LINE auto-login, including the smoother LINE in-app-browser experience. If the
+callback cannot prove continuity with the initiating browser session, the error
+page returns to the same-site login guidance page while preserving only the
+validated local return path. It never reuses the failed authorization code,
+state, or nonce. Unknown login modes, ambiguous return targets, and external
+return URLs fail closed. No User-Agent detection or transferable cross-browser
+state is used.
 
 The LINE Developers callback URL remains
 `https://web-portal-7uz453jt3a-de.a.run.app/line/callback`. This repository's
@@ -54,13 +54,19 @@ offline tests mock all LINE HTTP calls; they do not prove the callback URL or
 credentials configured in LINE Developers and production are correct.
 
 The login entry page deliberately waits for a user action instead of
-automatically redirecting. **使用 LINE 登入** starts the normal transaction and
-allows LINE to choose its supported auto-login behavior. **改用瀏覽器登入**
-starts a separate fresh transaction with auto-login disabled. This second
-choice is intended for mobile browsers that cannot hand off reliably to the
-LINE app. No User-Agent detection, custom scheme, or external script is used;
-iOS Safari, Android browsers, LINE in-app, and desktop QR behavior still need
-separate real-device verification after an approved deployment.
+automatically redirecting. On mobile, the supported path is to open the Portal
+inside LINE and choose **在 LINE 中登入**. An external mobile browser may hand
+off to the LINE app and return in a different cookie context, so that path is
+best-effort rather than guaranteed. A QR code is not a workable fallback on the
+same phone.
+
+On desktop, **使用電腦瀏覽器登入** starts a separate fresh transaction with
+auto-login disabled, allowing LINE to present its supported account or QR-code
+flow. The underlying `mode=browser` route remains available, but the UI does not
+present it as a reliable mobile recovery path. No User-Agent detection, custom
+scheme, or external script is used. Android external-browser behavior remains
+unverified; stable support for mobile browsers outside LINE would require a
+separately designed authentication provider such as Google or Apple.
 
 ### Team Operations prototype
 
