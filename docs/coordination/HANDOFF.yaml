@@ -1,15 +1,15 @@
 active_task: TASK-038
-status: awaiting_owner_approval
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: 4b9ddd483a197d00a41403858efd36ff964e6e10
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T19:00:00+08:00
+updated_at: 2026-08-06T19:15:00+08:00
 
 note: >
-  TASK-037 passed hosted Python 3.10 CI and PR #45 merged as 4b9ddd4; it is not deployed. Work proposes
-  TASK-038 to restore normal LINE auto-login eligibility while retaining an explicit, fresh browser-login
-  fallback with disable_auto_login=true after state continuity failures. Owner approval is required before
-  implementation; PR, push, merge, deployment, production, and real LINE verification are unapproved.
+  Owner approved TASK-038 for repository-only implementation, offline tests, and local commits. Codex
+  must restore normal auto-login eligibility while preserving signed state/session nonce binding and add
+  only an explicit fresh browser fallback with disable_auto_login=true. Push, PR, merge, deployment,
+  production access, real LINE verification, Secret, IAM, DB, schema, data, and notifications are unapproved.

@@ -1,9 +1,9 @@
 # TASK-038：恢復 LINE Auto-login 並保留安全 Browser Fallback
 
-狀態：`awaiting_owner_approval`
+狀態：`ready_for_codex`
 優先級：P1 authentication UX／security
 規劃角色：Work
-執行角色：Codex（Owner核准後）
+執行角色：Codex
 Base commit：`4b9ddd483a197d00a41403858efd36ff964e6e10`
 
 ## 1. 目標
@@ -96,4 +96,4 @@ Hosted Python 3.10 CI與真實LINE in-app／Safari／Chrome矩陣屬後續PR與�
 
 ## 8. 授權邊界
 
-本文件目前只供Owner確認。Owner若批准TASK-038，可授權repository-only實作、離線測試與描述性本機commit；PR工作包、push、merge、deployment及真實LINE人工驗證仍須另行明確批准。
+Owner已批准TASK-038的repository-only實作、離線測試與描述性本機commit。PR工作包、push、merge、deployment及真實LINE人工驗證仍須另行明確批准。
