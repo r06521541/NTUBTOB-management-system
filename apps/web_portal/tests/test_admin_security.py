@@ -1,5 +1,6 @@
 import importlib
 import html
+import logging
 import os
 import sys
 import types
@@ -237,6 +238,172 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertEqual(current_session["member_id"], 7)
             self.assertNotIn("member", current_session)
             self.assertNotIn("display_name", current_session)
+
+    def test_protected_attendance_round_trip_preserves_destination(self):
+        class SerializableMember(int):
+            @property
+            def id(self):
+                return int(self)
+
+        protected = self.client.get("/attendance")
+        self.assertEqual(protected.status_code, 302)
+        choice_url = protected.headers["Location"]
+        self.assertEqual(
+            parse_qs(urlsplit(choice_url).query), {"next": ["/attendance"]}
+        )
+
+        choice = self.client.get(choice_url)
+        choice_page = html.unescape(choice.data.decode())
+        normal_href = choice_page.split(
+            'data-login-mode="normal" href="', 1
+        )[1].split('"', 1)[0]
+        self.assertEqual(normal_href, "/line/login?next=/attendance")
+
+        authorization = self.client.get(normal_href)
+        state = parse_qs(urlsplit(authorization.headers["Location"]).query)[
+            "state"
+        ][0]
+        self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
+        self.member_model.search_by_id.return_value = SerializableMember(7)
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "fake-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "fake-authenticated-user",
+            "displayName": "Demo User",
+        }
+        with patch.object(
+            self.app_module.requests, "post", return_value=token_response
+        ), patch.object(
+            self.app_module.requests, "get", return_value=profile_response
+        ):
+            callback = self.client.get(
+                f"/line/callback?code=fake-code&state={state}"
+            )
+
+        self.assertEqual(callback.status_code, 302)
+        self.assertEqual(callback.headers["Location"], "/attendance")
+
+        self.game_model.search_for_invited.return_value = []
+        with patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            attendance = self.client.get(callback.headers["Location"])
+        self.assertEqual(attendance.status_code, 200)
+        self.assertNotEqual(attendance.request.path, "/")
+
+    def test_protected_member_destinations_survive_signed_state_round_trip(self):
+        for path in ("/account", "/game-roster/23"):
+            with self.subTest(path=path):
+                client = self.app.test_client()
+                protected = client.get(path)
+                choice = client.get(protected.headers["Location"])
+                page = html.unescape(choice.data.decode())
+                normal_href = page.split(
+                    'data-login-mode="normal" href="', 1
+                )[1].split('"', 1)[0]
+                authorization = client.get(normal_href)
+                state = parse_qs(
+                    urlsplit(authorization.headers["Location"]).query
+                )["state"][0]
+                with client.session_transaction() as current_session:
+                    nonce = current_session["oauth_state_nonce"]
+                return_path, state_nonce = self.app_module.load_oauth_state(
+                    self.app.secret_key, state, "/attendance"
+                )
+                self.assertEqual(return_path, path)
+                self.assertEqual(state_nonce, nonce)
+
+    def test_successful_callback_logs_only_allowlisted_destination_category(self):
+        class SerializableMember(int):
+            @property
+            def id(self):
+                return int(self)
+
+        sentinels = (
+            "sentinel-code",
+            "sentinel-state",
+            "sentinel-nonce",
+            "sentinel-access-token",
+            "sentinel-line-user",
+            "sentinel-display-name",
+            "sentinel-cookie",
+            "member_id=7",
+            "/attendance?private=sentinel-query",
+        )
+        login = self.client.get(
+            "/line/login?next=/attendance%3Fprivate%3Dsentinel-query"
+        )
+        state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
+        self.assertNotEqual(state, "sentinel-state")
+        self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
+        self.member_model.search_by_id.return_value = SerializableMember(7)
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "sentinel-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "sentinel-line-user",
+            "displayName": "sentinel-display-name",
+        }
+        with patch.object(
+            self.app_module.requests, "post", return_value=token_response
+        ), patch.object(
+            self.app_module.requests, "get", return_value=profile_response
+        ), self.assertLogs(self.app.logger.name, level="INFO") as captured:
+            response = self.client.get(
+                f"/line/callback?code=sentinel-code&state={state}",
+                headers={"Cookie": "sentinel-cookie"},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            captured.output,
+            ["INFO:app:line_login_callback destination=attendance"],
+        )
+        diagnostic = "\n".join(captured.output)
+        for sentinel in sentinels:
+            with self.subTest(sentinel=sentinel):
+                self.assertNotIn(sentinel, diagnostic)
+
+    def test_logging_failure_does_not_block_successful_callback(self):
+        class SerializableMember(int):
+            @property
+            def id(self):
+                return int(self)
+
+        class FailingHandler(logging.Handler):
+            def emit(self, record):
+                raise RuntimeError("sentinel logging failure")
+
+        login = self.client.get("/line/login?next=/attendance")
+        state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
+        self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
+        self.member_model.search_by_id.return_value = SerializableMember(7)
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "fake-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "fake-authenticated-user",
+            "displayName": "Demo User",
+        }
+        failing_handler = FailingHandler()
+        self.app.logger.addHandler(failing_handler)
+        try:
+            with patch.object(
+                self.app_module.requests, "post", return_value=token_response
+            ), patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ):
+                response = self.client.get(
+                    f"/line/callback?code=fake-code&state={state}"
+                )
+        finally:
+            self.app.logger.removeHandler(failing_handler)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/attendance")
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["user_id"], "fake-authenticated-user")
+            self.assertEqual(current_session["member_id"], 7)
 
     def test_legacy_identity_payload_is_minimized_without_losing_other_state(self):
         legacy_member = {"id": 7, "name": "Legacy Member"}

@@ -225,6 +225,21 @@
 
 ## 8. 文件狀態
 
+### TASK-044 LINE登入目的地安全診斷（2026-08-06）
+
+- 完整離線登入鏈證實現有程式會從`/attendance`成功登入後返回`/attendance`；production落到`/`的現象尚未在repository重現，因此未加入猜測性redirect修正。
+- 已新增固定allowlisted目的地分類診斷，不記錄URL/query、OAuth、cookie、LINE／Member或Secret資料；診斷故障亦不影響成功登入。
+- Work獨立驗證99項Web Portal測試通過（2項既有Windows make/sh skip）、compile與diff check通過；結論為`accepted`。
+- 尚待Owner批准PR與部署後重做LINE App流程，再依安全category定位production差異。
+
+### TASK-041～043 Web Portal production rollout（2026-08-06）
+
+- PR #49經Python 3.10 CI成功後squash merge為`9deb7e11311d5ccdb4131cb3b13a318a6bceca60`。
+- Production部署成功：Cloud Build `a1902e48-ed13-480d-9097-e1b180fbc4c5`，新revision `web-portal-00037-lhx` Ready並承接100% traffic。
+- 首頁唯讀HTTP check為200，`/demo/`為404；未需要rollback。
+- 未操作Secret／IAM／Scheduler／schema／data／LINE或其他服務；真實瀏覽器的帳號、導覽與視覺體驗仍由Owner人工確認。
+- 完整證據見`docs/operations/deployments/WEB_PORTAL_9DEB7E1.md`。
+
 ### TASK-043 Web Portal深藍／灰品牌介面（2026-08-06）
 
 - 已建立共用品牌與語意色tokens，套用公開首頁、auth/recovery、正式會員頁與Demo；正式會員導覽新增回首頁入口。

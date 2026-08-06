@@ -38,6 +38,7 @@ from line_login import (
     create_oauth_state,
     load_oauth_state,
     require_string_field,
+    return_path_category,
     safe_return_path,
 )
 
@@ -152,6 +153,19 @@ def notify_alarm_log(message: str):
     discord_notify_helper.notify_alarm_log(message)
 def notify_management_message(message: str):
     discord_notify_helper.notify_management_message(message)
+
+
+def log_login_callback_destination(return_path):
+    """Emit a bounded diagnostic without risking the successful login flow."""
+    try:
+        app.logger.info(
+            "line_login_callback destination=%s",
+            return_path_category(return_path),
+        )
+    except Exception:
+        # Logging is operationally useful but must never block authentication.
+        # Do not log this exception through the same potentially failing logger.
+        pass
 
 @app.route('/')
 def home():
@@ -291,7 +305,7 @@ def line_callback():
             session['member_id'] = member.id
 
     if is_authenticated:
-        # 從session中取出next_url並重定向
+        log_login_callback_destination(next_url)
         return redirect(next_url)
     else:
         # 直接切換至未獲授權頁面

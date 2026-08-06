@@ -35,6 +35,18 @@ def safe_return_path(candidate, fallback):
     return candidate
 
 
+def return_path_category(return_path):
+    """Map a trusted return path to a fixed, non-sensitive log category."""
+    parsed_path = urlsplit(return_path).path if isinstance(return_path, str) else ""
+    if parsed_path == "/attendance":
+        return "attendance"
+    if parsed_path == "/account":
+        return "account"
+    if re.fullmatch(r"/game-roster/[1-9][0-9]*", parsed_path):
+        return "roster"
+    return "default"
+
+
 def create_oauth_state(secret_key, return_path, nonce):
     serializer = URLSafeTimedSerializer(secret_key, salt=OAUTH_STATE_SALT)
     return serializer.dumps({"next": return_path, "nonce": nonce})

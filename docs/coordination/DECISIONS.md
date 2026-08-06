@@ -617,3 +617,21 @@
 - 實作原則：建立共用design tokens並漸進套用正式Portal、登入／恢復頁及Demo；不改route、資料、auth或產品規則，不引入大型前端framework。
 - 驗收：需涵蓋約375px手機與桌面視覺、無橫向捲動、focus與文字對比、既有功能與離線測試。
 - 安全邊界：repository-only；不包含push／PR／merge／deployment、production／DB、schema、Secret／IAM、LINE Console或通知。
+
+## DEC-061：合併並部署角色帳號與品牌介面批次
+
+- 狀態：`approved_and_executed`
+- 日期：2026-08-06
+- 授權：Owner一次批准TASK-041至TASK-043的PR、merge與production Web Portal deployment。
+- 結果：PR #49的Python 3.10 CI成功，squash merge commit為`9deb7e11311d5ccdb4131cb3b13a318a6bceca60`；部署建立`web-portal-00037-lhx`並承接100% traffic，首頁200、Demo 404，未觸發rollback。
+- 邊界：未修改Secret／IAM／Scheduler／schema／data、未人工觸發LINE或部署其他服務。
+
+## DEC-062：優先診斷LINE登入後目的地遺失
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- Production觀察：Owner在LINE App內從`/attendance`開始normal LINE登入，成功後落到`/`；匿名redirect與登入選擇頁仍可確認保留`next=/attendance`。
+- 決策：TASK-044先建立protected-route至callback的完整離線契約、集中安全目的地規則，能重現則修根因；無法重現則只加入固定分類且不含OAuth／個資的安全診斷，不做猜測性redirect hack。
+- 優先順序：原過時webhook cache invalidation任務順延為TASK-045。
+- 授權：Owner要求執行；批准repository-only實作、離線測試與描述性本機commit並交棒Codex。
+- 安全邊界：不包含production logs/request URL讀取、push／PR／merge／deployment、production DB、LINE Console／Secret、schema、IAM、通知或其他服務。

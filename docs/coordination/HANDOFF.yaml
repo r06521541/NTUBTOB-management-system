@@ -1,16 +1,18 @@
-active_task: TASK-043
+active_task: TASK-044
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 6e6c8cf5ecf06245c510e7767c1e49be564728e8
-head_commit: 0238288f81c1b2e1b443d869a9784c4a17df8607
+base_commit: 3da0bb0d895e59cc06c7c62f7b195d2de328434f
+head_commit: c91d01752569480abea4edbb1609bd76847390d2
 
 updated_by: work
-updated_at: 2026-08-06T16:25:00+08:00
+updated_at: 2026-08-06T18:15:00+08:00
 
 note: >
-  Work accepted TASK-043 after requesting and verifying theme-color and warning/danger semantic fixes.
-  Independent verification passed 94 Web Portal tests with 2 existing Windows make/sh skips, compile,
-  and diff checks. TASK-041 through TASK-043 are ready for one Web Portal PR work package if Owner
-  approves push and PR creation. No push, PR, merge, deployment, production, DB, LINE, schema, Secret,
-  IAM, or notification action occurred.
+  Work accepted TASK-044 after independently verifying 99 Web Portal tests, compile, diff checks, the
+  complete protected-route LINE login chain, bounded diagnostic output, and logging-failure resilience.
+  Repository behavior returns /attendance correctly, so no speculative redirect change was made and the
+  production symptom is not yet resolved. Owner approval is required for push, PR, merge, and deployment;
+  after deployment Owner must reproduce once in the LINE App so the fixed destination category can guide
+  the next diagnosis. No production log access, DB, Secret, IAM, LINE Console, schema, notification, or
+  other-service action occurred.

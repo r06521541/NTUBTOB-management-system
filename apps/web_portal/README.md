@@ -144,6 +144,14 @@ attendance page loads the current Member by `member_id` for each request. If
 that Member no longer exists, the Web Portal removes the authenticated identity
 and stops before game or attendance queries.
 
+A successful LINE callback emits one bounded operational diagnostic:
+`line_login_callback destination=<category>`. The category is one of
+`attendance`, `account`, `roster`, or `default`; it is derived from an
+allowlist and never contains the return URL or query string. Do not expand this
+log to include authorization codes, OAuth state or nonce values, cookies, LINE
+profile data, Member identifiers, display names, or credentials. The signed
+OAuth state remains the authority for the actual redirect destination.
+
 ## Role and capability policy
 
 Role-to-capability mapping is centralized in `role_policy.py`. Production can
