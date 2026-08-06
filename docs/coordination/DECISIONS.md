@@ -574,3 +574,4 @@
 - 授權：Owner批准TASK-038 repository-only實作、離線測試與本機commit，並交棒Codex。
 - 後續授權：Owner在Codex完成後授權Work驗收及後續完整鏈；驗收與hosted CI通過可直接push、建立PR、squash merge並部署exact merge commit至production Web Portal，含既有wrapper checks與條件式rollback。
 - 安全邊界：真實LINE登入仍由Owner後續人工驗證；不允許LINE Console、Secret、IAM、DB、schema、data、其他服務或通知操作。
+- 結果：PR #46 hosted Python 3.10 CI成功並merge為`d1ebefa`；production `web-portal-00034-7lm` Ready且承接100% traffic，normal login contract確認不含`disable_auto_login`，未觸發rollback。

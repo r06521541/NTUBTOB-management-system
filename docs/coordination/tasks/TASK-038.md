@@ -1,6 +1,6 @@
 # TASK-038：恢復 LINE Auto-login 並保留安全 Browser Fallback
 
-狀態：`ready_for_codex`
+狀態：`completed`
 優先級：P1 authentication UX／security
 規劃角色：Work
 執行角色：Codex
@@ -97,3 +97,17 @@ Hosted Python 3.10 CI與真實LINE in-app／Safari／Chrome矩陣屬後續PR與�
 ## 8. 授權邊界
 
 Owner已批准TASK-038的repository-only實作、離線測試與描述性本機commit。PR工作包、push、merge、deployment及真實LINE人工驗證仍須另行明確批准。
+
+## 9. PR、merge與production結果
+
+- Owner後續授權Work完成驗收、PR、CI、merge與受控deployment完整鏈。
+- PR #46 hosted Python 3.10 CI run `31065590942`成功。
+- PR #46 squash merge commit：`d1ebefa1f86a8331e1fe70081fdaecf87f3f3ad7`。
+- 執行前rollback target：`web-portal-00033-kzq`，Ready且承接100% traffic。
+- Cloud Build ID：`feae5fd2-9f95-4798-9cb6-9f7f5c0b3e62`。
+- 新revision：`web-portal-00034-7lm`，Ready且承接100% traffic。
+- Image digest：`sha256:79434e51232488d967e3c3524c0fb09b81d84e8859495b0e53771b87d5346e58`。
+- `GET /`為200；`GET /demo/`為404。
+- Normal `GET /line/login`為302至`access.line.me`，含fresh state與`response_type=code`，不含`disable_auto_login`；未跟隨redirect或執行真實登入。
+- Temporary env已清理；未觸發rollback。
+- 未修改Secret、IAM、DB、schema、data、LINE Console、通知或其他服務。
