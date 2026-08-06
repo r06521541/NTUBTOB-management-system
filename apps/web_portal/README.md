@@ -96,6 +96,15 @@ preserves an existing authenticated member session, and lets the user start a
 completely new login transaction. It never retries the old authorization code
 or OAuth state.
 
+Authenticated production sessions store only the opaque LINE `user_id` and
+the linked numeric `member_id`. They do not store a serialized Member record or
+LINE display name. Existing signed sessions are minimized on their next request
+without a global logout; only those two legacy fields are removed, while OAuth
+transaction, CSRF, return-path, and offline-demo state remain intact. The
+attendance page loads the current Member by `member_id` for each request. If
+that Member no longer exists, the Web Portal removes the authenticated identity
+and stops before game or attendance queries.
+
 ## Member matching administration
 
 The production member matching routes require both an authenticated LINE Login

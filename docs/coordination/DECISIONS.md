@@ -540,3 +540,25 @@
 - 延後決策：普通隊員能否看未回覆者姓名、幹部／管理者更細權限，以及正式 RBAC schema 均另案決定。
 - 授權：Owner 批准 TASK-035 與 PR 工作包；可實作、測試、commit、push、建立 Draft PR 與查看 CI。
 - 安全邊界：repository-only；不包含 deployment、production／DB 存取、schema／migration、Secret／IAM、LINE／Discord 通知或其他服務修改。
+
+## DEC-054：TASK-035合併並完成Roster Privacy Rollout
+
+- 狀態：`approved_and_executed`
+- 日期：2026-08-06
+- 已完成：Owner批准PR #44 ready與squash merge；main commit為`5952e0b6d075ee2ba05c3b50057cc8108fc8e8cf`。
+- 提案：建立TASK-036，以現有fail-closed wrapper部署exact merge commit，並新增一次不跟隨redirect的匿名roster 302 smoke check。
+- Rollback原則：執行前重新唯讀確認當下Ready且承接100% traffic的exact revision；不得直接沿用歷史revision假設。
+- 核准：Owner批准TASK-036文件內的exact commit deployment、限定唯讀／HTTP驗證與條件式rollback範圍。
+- 結果：`5952e0b`部署為`web-portal-00033-kzq`，Ready且承接100% traffic；首頁200、demo 404、匿名roster同站登入302；未觸發rollback。
+- 安全邊界：未修改Secret／IAM／DB／schema／data／LINE，未部署其他服務，未跟隨LINE Login redirect。
+
+## DEC-055：最小化Web Portal Signed Cookie Session
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- 背景：LINE callback將完整Member dataclass與未使用的LINE display name放入Flask signed-but-not-encrypted cookie session；attendance直接依賴該Member snapshot。
+- 決策：建立TASK-037，只保存`user_id`與`member_id`，平順清除既有legacy fields，並在attendance request-time取得fresh Member。
+- 相容性：不得全域清空session；須保留合法identity、OAuth transaction、CSRF、return path及demo資料，Member不存在時fail closed且不loop。
+- 授權：Owner要求直接交棒Codex；批准repository-only實作、測試、文件與本機commit。
+- 後續授權：Work驗收通過後，Owner批准TASK-037 PR工作包，可push、建立Draft PR並查驗hosted Python 3.10 CI。
+- 安全邊界：仍未批准merge、deployment、production／DB存取、schema／migration、Secret／IAM或通知。

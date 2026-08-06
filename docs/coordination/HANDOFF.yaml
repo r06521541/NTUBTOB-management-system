@@ -1,15 +1,14 @@
-active_task: TASK-035
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-037
+status: in_progress
+next_actor: work
 
-base_commit: d5c4a2f48499c4d1646fe9e56b0d27dfe58c82de
-head_commit: 45079c0c658e8c9490fa0c56d6a7c4daba3a91cc
+base_commit: fee79c9
+head_commit: 0d9e367
 
 updated_by: work
-updated_at: 2026-08-06T15:30:00+08:00
+updated_at: 2026-08-06T18:30:00+08:00
 
 note: >
-  Work accepted TASK-035 after independent review: 61 Web Portal tests passed with two existing
-  Windows make/sh skips, compile and deployment dry-run passed, and Python 3.10 CI run 31060680146
-  succeeded. PR #44 is Draft and mergeable. Owner may decide ready and squash merge; production
-  deployment, Secret, IAM, DB, schema, data, and notification operations remain unauthorized.
+  Owner approved the TASK-037 PR work package. Work may push the existing branch, create a Draft PR,
+  and inspect hosted Python 3.10 CI to complete verification. Local behavior review already passed.
+  Merge, deployment, production access, Secret, IAM, DB, schema, data, and notifications remain unapproved.

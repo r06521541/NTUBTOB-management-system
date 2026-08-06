@@ -135,7 +135,9 @@
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-034` | `completed` | `owner` | PR #43已squash merge為`bb91d9e5`；production `web-portal-00032-f7z` Ready並承接100% traffic，無需rollback。 |
-| `TASK-035` | `awaiting_owner_approval` | `owner` | Work已驗收會員session guard與roster fail-closed邊界；Draft PR #44、61項Web Portal tests及Python 3.10 CI成功，等待Owner決定squash merge。 |
+| `TASK-035` | `completed` | `owner` | PR #44已squash merge為`5952e0b`；member-only roster guard已在main，尚未部署production。 |
+| `TASK-036` | `completed` | `owner` | `5952e0b`已部署為`web-portal-00033-kzq`並承接100% traffic；匿名roster安全回同站登入302，無需rollback。 |
+| `TASK-037` | `in_progress` | `work` | Owner已批准PR工作包；本機驗收通過，正建立Draft PR並補hosted Python 3.10 CI證據。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -216,6 +218,14 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-037 Web Portal minimal authenticated session（2026-08-06）
+
+- 新LINE callback session只保存opaque `user_id`與`member_id`，不再保存完整Member或LINE display name。
+- 舊session在下一次request精確移除兩個legacy欄位，不清除OAuth、CSRF、return path、demo或既有identity。
+- Attendance以`member_id`載入fresh Member；Member不存在時清除identity並在Game／attendance／HTTP前fail closed。
+- 65項Web Portal測試通過（2項既有Windows make/sh skip）；compile、Python 3.10 grammar、clean-worktree deployment dry-run與diff check通過。
+- 狀態為`ready_for_review / work`；未push、開PR、merge、部署或存取production。
 
 ### TASK-035 Web Portal member-only roster access（2026-08-06）
 

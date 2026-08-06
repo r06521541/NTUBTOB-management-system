@@ -75,6 +75,8 @@ app.register_blueprint(demo_events)
 
 LEGACY_SESSION_COOKIE_NAME = "session"
 OAUTH_SESSION_KEYS = ("oauth_state_nonce", "next_url")
+LEGACY_IDENTITY_SESSION_KEYS = ("member", "display_name")
+AUTHENTICATED_IDENTITY_SESSION_KEYS = ("user_id", "member_id")
 
 # 設定 Cache 配置
 cache_config = {
@@ -95,6 +97,14 @@ LINE_USER_INFO_URL = 'https://api.line.me/v2/profile'
 
 
 discord_notify_helper = None if DEMO_MODE_ENABLED else DiscordNotifyHelper()
+
+
+@app.before_request
+def minimize_legacy_identity_session():
+    """Re-sign existing sessions without legacy personal-data snapshots."""
+    for key in LEGACY_IDENTITY_SESSION_KEYS:
+        if key in session:
+            session.pop(key)
 
 
 @app.before_request
@@ -236,9 +246,7 @@ def line_callback():
         profile_response.raise_for_status()
         user_info_res = profile_response.json()
         user_id = require_string_field(user_info_res, 'userId')
-        display_name = require_string_field(
-            user_info_res, 'displayName', allow_empty=True
-        )
+        require_string_field(user_info_res, 'displayName', allow_empty=True)
     except (requests.RequestException, ValueError, KeyError, TypeError):
         return 'LINE Login is temporarily unavailable', 502
 
@@ -253,8 +261,6 @@ def line_callback():
             # 儲存使用者資訊於session中
             session['user_id'] = user_id
             session['member_id'] = member.id
-            session['member'] = member
-            session['display_name'] = display_name
 
     if is_authenticated:
         # 從session中取出next_url並重定向
@@ -279,11 +285,14 @@ def query_attendance():
 
 
 @app.route('/attendance')
+@member_required
 def attendance():
-    if 'member' not in session:
-        return redirect(url_for('query_attendance'))
-    
-    member = session['member']
+    member = Member.search_by_id(session["member_id"])
+    if member is None:
+        for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
+            session.pop(key, None)
+        return render_template("not_authenticated.html"), 403
+
     now = datetime.now(local_timezone).strftime("%Y年%-m月%-d日 %H:%M:%S")
 
     # 查詢未來的比賽
