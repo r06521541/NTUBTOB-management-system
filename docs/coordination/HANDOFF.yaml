@@ -1,15 +1,15 @@
 active_task: TASK-040
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
-head_commit: null
+head_commit: a369123
 
-updated_by: work
-updated_at: 2026-08-06T23:30:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T23:45:00+08:00
 
 note: >
-  Owner confirmed the mobile login product strategy after iOS Safari testing: mobile LINE users should
-  open the Portal inside LINE, while desktop browser and QR login remain supported. TASK-040 is authorized
-  for repository-only implementation and local verification. Do not weaken OAuth state/nonce validation,
-  use UA sniffing, deploy, access production, modify LINE Console/Secret/IAM/schema, or send notifications.
+  TASK-040 implementation is ready for Work review. Mobile guidance now directs users back to LINE,
+  desktop browser and QR login remain available, and invalid OAuth state returns to a same-site login
+  options page with the validated local return path. Web Portal tests passed 75 tests with 2 existing
+  Windows make/sh skips. No push, PR, merge, deployment, production access, or security-boundary change.
