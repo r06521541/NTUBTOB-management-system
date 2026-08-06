@@ -1,17 +1,17 @@
-active_task: TASK-046
+active_task: TASK-048
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 0009b497125eacba66e586e85494f307c198a6db
-head_commit: 42ea8dd138d456a03e35ba1b802f0f05675625fd
+base_commit: 64f2dca
+head_commit: 31844cdaecfd526f36ab4546a732c61021298f95
 
 updated_by: work
-updated_at: 2026-08-06T21:05:00+08:00
+updated_at: 2026-08-06T22:42:00+08:00
 
 note: >
-  Work accepted TASK-046 after independently verifying 109 Web Portal tests, compile, diff checks, actual
-  timing insertion, fixed-field privacy, unchanged model/analyzer calls, clock/logger fault tolerance, and
-  the 0..300000ms diagnostic clamp. Application timings do not include pre-handler container startup and
-  must later be compared with Cloud Run request latency. Owner approval is required for push, PR, merge,
-  deployment, and any bounded production log query. No production DB, cloud config, cache, notification,
-  pooling, query/schema, or Redis action occurred.
+  Work accepted TASK-048 after independent Docker PostgreSQL, Alembic downgrade/upgrade, idempotent seed,
+  32 persistence tests, 169 directly affected service tests, metadata drift and diff checks. The opt-in
+  foundation is not connected to production behavior. Hosted Python 3.10 remains the PR-stage evidence;
+  qualification audit service, activity reply domain, production audit privileges and Supabase inventory
+  are explicit future boundaries. Owner approval is required for push/PR; merge does not authorize schema
+  migration, Supabase access, deployment or enabling the new path.

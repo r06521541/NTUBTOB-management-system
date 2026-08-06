@@ -1,0 +1,509 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Identity,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+SCHEMA = "ntubtob"
+
+
+class PortalDataBase(DeclarativeBase):
+    pass
+
+
+class PersonRecord(PortalDataBase):
+    __tablename__ = "people"
+    __table_args__ = (
+        CheckConstraint(
+            "portal_access_level IN ('basic', 'officer', 'admin')",
+            name="ck_people_access_level",
+        ),
+        CheckConstraint(
+            "portal_status IN ('pending', 'active', 'disabled', 'inactive', 'blocked')",
+            name="ck_people_status",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    portal_access_level: Mapped[str] = mapped_column(String(20), nullable=False)
+    portal_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class LegacyMemberRecord(PortalDataBase):
+    __tablename__ = "members"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=True,
+        unique=True,
+    )
+
+
+class LegacyGameRecord(PortalDataBase):
+    __tablename__ = "games"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, nullable=False)
+    season: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    duration: Mapped[int] = mapped_column(Integer, nullable=False)
+    location: Mapped[str] = mapped_column(String, nullable=False)
+    home_team: Mapped[str] = mapped_column(String, nullable=False)
+    away_team: Mapped[str] = mapped_column(String, nullable=False)
+    invitation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+
+class AuthIdentityRecord(PortalDataBase):
+    __tablename__ = "auth_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "provider_subject", name="uq_auth_provider_subject"
+        ),
+        CheckConstraint(
+            "provider IN ('line', 'google', 'apple')", name="ck_auth_provider"
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'linked', 'disabled', 'blocked')",
+            name="ck_auth_status",
+        ),
+        CheckConstraint(
+            "(status = 'pending' AND person_id IS NULL) OR "
+            "(status = 'linked' AND person_id IS NOT NULL) OR "
+            "status IN ('disabled', 'blocked')",
+            name="ck_auth_link_state",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider_subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index("ix_auth_identities_person", AuthIdentityRecord.person_id)
+
+
+class PersonQualificationRecord(PortalDataBase):
+    __tablename__ = "person_qualifications"
+    __table_args__ = (
+        UniqueConstraint("person_id", "qualification", name="uq_person_qualification"),
+        CheckConstraint(
+            "qualification IN ('team_player', 'guest_player', 'affiliate', 'staff')",
+            name="ck_qualification_value",
+        ),
+        CheckConstraint(
+            "status IN ('active', 'revoked')", name="ck_qualification_status"
+        ),
+        CheckConstraint(
+            "valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from",
+            name="ck_qualification_dates",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    qualification: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    valid_from: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    valid_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    granted_by_person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[Optional[str]] = mapped_column(String(300))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_person_qualifications_active",
+    PersonQualificationRecord.qualification,
+    PersonQualificationRecord.person_id,
+    postgresql_where=text("status = 'active'"),
+)
+
+
+class AccessAuditRecord(PortalDataBase):
+    __tablename__ = "access_audit"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_access_audit_request"),
+        CheckConstraint(
+            "action IN ('identity_linked', 'identity_blocked', 'access_changed', "
+            "'status_changed', 'qualification_granted', 'qualification_revoked', "
+            "'member_backfilled')",
+            name="ck_access_audit_action",
+        ),
+        CheckConstraint(
+            "length(reason) BETWEEN 3 AND 300", name="ck_access_audit_reason"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    action: Mapped[str] = mapped_column(String(40), nullable=False)
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    target_person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    auth_identity_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT")
+    )
+    before_state: Mapped[Optional[dict]] = mapped_column(JSON)
+    after_state: Mapped[Optional[dict]] = mapped_column(JSON)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class EventRecord(PortalDataBase):
+    __tablename__ = "events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_type IN ('game', 'meal', 'trip', 'practice', 'social', 'other')",
+            name="ck_event_type",
+        ),
+        CheckConstraint(
+            "status IN ('draft', 'published', 'cancelled')", name="ck_event_status"
+        ),
+        CheckConstraint("end_at IS NULL OR end_at > start_at", name="ck_event_dates"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_by_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class ActivityRecord(PortalDataBase):
+    __tablename__ = "activities"
+    __table_args__ = (
+        UniqueConstraint("event_id", "position", name="uq_activity_position"),
+        CheckConstraint(
+            "activity_type IN ('game', 'meal', 'transport', 'lodging', 'gathering', 'other')",
+            name="ck_activity_type",
+        ),
+        CheckConstraint(
+            "end_at IS NULL OR end_at > start_at", name="ck_activity_dates"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    activity_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    game_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
+    )
+
+
+class EventEligibilityRuleRecord(PortalDataBase):
+    __tablename__ = "event_eligibility_rules"
+    __table_args__ = (
+        UniqueConstraint("event_id", "qualification", name="uq_event_eligibility"),
+        CheckConstraint(
+            "qualification IN ('team_player', 'guest_player', 'affiliate', 'staff')",
+            name="ck_event_eligibility_value",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    qualification: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class EventInviteeOverrideRecord(PortalDataBase):
+    __tablename__ = "event_invitee_overrides"
+    __table_args__ = (
+        UniqueConstraint("event_id", "person_id", name="uq_event_invitee_override"),
+        CheckConstraint(
+            "action IN ('include', 'exclude')", name="ck_invitee_override_action"
+        ),
+        CheckConstraint(
+            "participation_category IN ('team_player', 'guest_player', 'affiliate', 'staff', 'other')",
+            name="ck_invitee_override_category",
+        ),
+        CheckConstraint(
+            "length(reason) BETWEEN 3 AND 300", name="ck_invitee_override_reason"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    participation_category: Mapped[str] = mapped_column(String(30), nullable=False)
+    actor_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class EventInviteeRecord(PortalDataBase):
+    __tablename__ = "event_invitees"
+    __table_args__ = (
+        UniqueConstraint("event_id", "person_id", name="uq_event_invitee"),
+        CheckConstraint(
+            "source IN ('qualification', 'manual_include', 'manual_exclude')",
+            name="ck_event_invitee_source",
+        ),
+        CheckConstraint(
+            "participation_category IN ('team_player', 'guest_player', 'affiliate', 'staff', 'other')",
+            name="ck_event_participation_category",
+        ),
+        CheckConstraint(
+            "(source = 'qualification' AND source_qualification IS NOT NULL "
+            "AND actor_person_id IS NULL) OR "
+            "(source IN ('manual_include', 'manual_exclude') AND actor_person_id IS NOT NULL "
+            "AND length(reason) BETWEEN 3 AND 300)",
+            name="ck_event_invitee_source_fields",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    included: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_qualification: Mapped[Optional[str]] = mapped_column(String(30))
+    participation_category: Mapped[str] = mapped_column(String(30), nullable=False)
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    reason: Mapped[Optional[str]] = mapped_column(String(300))
+    snapshotted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_event_invitees_event_included",
+    EventInviteeRecord.event_id,
+    EventInviteeRecord.included,
+    EventInviteeRecord.participation_category,
+)
+
+
+class EventAttendanceReplyRecord(PortalDataBase):
+    __tablename__ = "event_attendance_replies"
+    __table_args__ = (
+        UniqueConstraint("event_id", "person_id", name="uq_event_attendance_reply"),
+        CheckConstraint(
+            "reply IN ('attending', 'not_attending', 'maybe')",
+            name="ck_event_attendance_reply",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    reply: Mapped[str] = mapped_column(String(20), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class ActivityAttendanceReplyRecord(PortalDataBase):
+    __tablename__ = "activity_attendance_replies"
+    __table_args__ = (
+        UniqueConstraint(
+            "activity_id", "person_id", name="uq_activity_attendance_reply"
+        ),
+        CheckConstraint(
+            "reply IN ('attending', 'not_attending', 'maybe')",
+            name="ck_activity_attendance_reply",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    activity_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.activities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    reply: Mapped[str] = mapped_column(String(20), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class EventManagerRecord(PortalDataBase):
+    __tablename__ = "event_managers"
+    __table_args__ = (
+        UniqueConstraint("event_id", "person_id", name="uq_event_manager"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    assigned_by_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class EventAuditRecord(PortalDataBase):
+    __tablename__ = "event_audit"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_event_audit_request"),
+        CheckConstraint(
+            "action IN ('published', 'invitee_included', 'invitee_excluded')",
+            name="ck_event_audit_action",
+        ),
+        CheckConstraint(
+            "length(reason) BETWEEN 3 AND 300", name="ck_event_audit_reason"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    actor_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    details: Mapped[Optional[dict]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
