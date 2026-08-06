@@ -1,6 +1,6 @@
 # TASK-036：部署 Web Portal 比賽名單會員隱私邊界
 
-狀態：`awaiting_owner_approval`
+狀態：`completed`
 優先級：P1 security rollout
 規劃／執行角色：Work
 Source commit：`5952e0b6d075ee2ba05c3b50057cc8108fc8e8cf`
@@ -86,4 +86,15 @@ Rollback後只做唯讀確認舊revision Ready並承接100% traffic；不刪除�
 
 ## 8. Owner 決策
 
-Owner 若批准，須明確授權將 source commit `5952e0b6d075ee2ba05c3b50057cc8108fc8e8cf` 部署至 production `web-portal`，允許上述 build、deploy、唯讀驗證、三個限定 HTTP checks，以及在失敗條件下 rollback 至執行前重新確認的 exact 100% traffic revision。未核准前本文件不構成任何 production 權限。
+Owner 已批准將 source commit `5952e0b6d075ee2ba05c3b50057cc8108fc8e8cf` 部署至 production `web-portal`，允許上述 build、deploy、唯讀驗證、三個限定 HTTP checks，以及在失敗條件下 rollback 至執行前重新確認的 exact 100% traffic revision。
+
+## 9. 執行結果
+
+- 執行前 rollback target：`web-portal-00032-f7z`，Ready且承接100% traffic。
+- Cloud Build ID：`d2e37557-2d53-418a-b1be-bd0e8458cf88`。
+- 新 revision：`web-portal-00033-kzq`，Ready且承接100% traffic。
+- Image digest：`sha256:31da45d6be0e9db367ea7c5353837b03c81f672c997aef66c9ef8a438a07197e`。
+- `GET /`：200；`GET /demo/`：404。
+- 匿名 `GET /game-roster/1`：302，Location為同站`/redirect-to-login?next=/game-roster/1`；未跟隨redirect。
+- Temporary env已清理；未觸發rollback。
+- 未修改Secret、IAM、DB、schema、data、LINE或其他服務。
