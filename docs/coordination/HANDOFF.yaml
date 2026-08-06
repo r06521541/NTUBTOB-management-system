@@ -1,15 +1,15 @@
 active_task: TASK-035
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
-base_commit: 198d3f0
-head_commit: null
+base_commit: d5c4a2f48499c4d1646fe9e56b0d27dfe58c82de
+head_commit: 3038e3b
 
-updated_by: work
-updated_at: 2026-08-06T14:15:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T15:10:00+08:00
 
 note: >
-  Owner approved TASK-035 and its PR work package. Codex may implement the repository-only member
-  guard and roster privacy tests, commit, push, open a Draft PR, and inspect Python 3.10 CI. Detailed
-  member/officer/admin RBAC remains deferred. Merge, deployment, production access, Secret, IAM,
-  DB, schema, data, and notification operations are not authorized.
+  Codex implemented a fail-closed member session guard for game rosters and opened Draft PR #44.
+  Python 3.10 GitHub Actions run 31060596934 passed. Work must inspect the actual diff, tests, commit,
+  and CI evidence. Merge, deployment, production access, Secret, IAM, DB, schema, data, and
+  notification operations remain unauthorized.

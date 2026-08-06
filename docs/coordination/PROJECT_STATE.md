@@ -135,7 +135,7 @@
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-034` | `completed` | `owner` | PR #43已squash merge為`bb91d9e5`；production `web-portal-00032-f7z` Ready並承接100% traffic，無需rollback。 |
-| `TASK-035` | `ready_for_codex` | `codex` | Owner已批准先關閉公開比賽名單的姓名暴露及PR工作包；登入且已配對Member後才可查詢roster，不改schema或完整RBAC。 |
+| `TASK-035` | `ready_for_review` | `work` | Codex已在Draft PR #44加入member-only roster guard；Python 3.10 CI通過，等待Work查驗實際diff與測試。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -216,6 +216,13 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-035 Web Portal member-only roster access（2026-08-06）
+
+- `/game-roster/<game_id>` 已在資料查詢前要求有效 `user_id` 與正整數 `member_id` session，匿名及畸形 session fail closed。
+- 合法會員維持既有名單；不存在 game 回覆404且不查attendance。
+- Draft PR #44的Python 3.10 CI run `31060596934`成功；未merge、部署或存取production。
+- 狀態為`ready_for_review / work`；角色分級RBAC仍維持後續產品決策。
 
 ### TASK-034 Web Portal pinned traffic promotion（2026-08-06）
 
