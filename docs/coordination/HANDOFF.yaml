@@ -1,16 +1,17 @@
 active_task: TASK-048
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 64f2dca
-head_commit: null
+head_commit: 31844cdaecfd526f36ab4546a732c61021298f95
 
-updated_by: work
-updated_at: 2026-08-06T17:36:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T22:20:41+08:00
 
 note: >
-  Owner accepted TASK-047's revised Person/Member/access/identity/qualification/Event model and authorized
-  TASK-048 local implementation. Codex may add Alembic, local-only Docker PostgreSQL, expand migrations,
-  SQLAlchemy models, repository/domain boundaries, fake fixtures, backfill rehearsal, and offline/integration
-  tests. It must not connect or mutate Supabase production, change current production request behavior, read
-  secrets, send notifications, modify cloud resources, push, PR, merge, or deploy.
+  Codex completed the opt-in local Person/access/identity/qualification/Event persistence foundation.
+  Alembic baseline/expand rehearsal, loopback-only Docker PostgreSQL, fake seed, in-memory/PostgreSQL
+  contract tests, constraints, last-admin concurrency, audit atomicity, stable invitee snapshots and
+  idempotent backfill passed. The task-owned container/network were removed; its named volume remains for
+  Work verification. No production path, Supabase, secret, notification, cloud, push, PR, merge or deploy
+  operation occurred. See docs/coordination/reports/TASK-048-CODEX.md.
