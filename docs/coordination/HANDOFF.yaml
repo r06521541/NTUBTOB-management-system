@@ -1,16 +1,16 @@
 active_task: TASK-050
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: b5689ec
 head_commit: 1a17cb04a0e1700ebedf0c674b72416090354743
 
-updated_by: codex
-updated_at: 2026-08-07T01:05:00+08:00
+updated_by: work
+updated_at: 2026-08-07T01:15:00+08:00
 
 note: >
-  TASK-050 correction is ready for Work review at 1a17cb04a0e1700ebedf0c674b72416090354743. Legacy Member/Game
-  metadata now matches the catalog, eight unmanaged legacy tables are excluded from portal-data autogenerate
-  ownership, and regression executes Alembic check. On a rebuilt local Docker database, Alembic check reported
-  no new upgrade operations and all 35 portal-data tests passed. No production access, schema action, secret
-  inspection, deployment, push, or notification occurred.
+  Owner accepted TASK-050 after Work independently verified correction commit 1a17cb04a0e1700ebedf0c674b72416090354743.
+  Python 3.10 ran 35 passing tests, the full local migration rehearsal passed, and alembic check reported no new
+  upgrade operations. The local container was stopped after review. No production access, schema action, secret
+  inspection, deployment, or notification occurred. Owner authorized push and PR creation; production migration
+  planning or execution remains outside this authorization.

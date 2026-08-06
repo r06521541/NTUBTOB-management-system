@@ -47,3 +47,30 @@
 ## 交棒
 
 請 Codex 依上述必要修正補正同一任務，再交回 Work 驗收。
+
+## 補正後複驗（2026-08-07）
+
+### 查驗基準
+
+- Correction commit：`1a17cb04a0e1700ebedf0c674b72416090354743`
+- Completion commit：`9d4b9b4`
+- Repository：驗收開始及完成時均乾淨。
+
+### 結果
+
+- `LegacyMemberRecord`／`LegacyGameRecord` 已對齊已保存 catalog 的 identity、額外 Member 欄位、SmallInteger、nullable 與 timezone-aware metadata。
+- 八張非 portal-data migration 所有的 legacy tables 已由明確的 `include_object` boundary 排除，未降低 runtime authentication、authorization 或 RLS。
+- regression 在完整 downgrade／fixture rebuild／upgrade 後直接執行 Alembic metadata check。
+- Work 以 local-only PostgreSQL 與 Python 3.10.7 獨立執行 `py -3.10 -m alembic check`，結果為 `No new upgrade operations detected.`。
+- Work 以 Python 3.10.7 重跑 35 項 portal-data tests，全數通過；`compileall` 與 `git diff --check` 通過。
+- local container 驗收後已停止；named volume 保留。未連 Supabase、未執行 production DDL／stamp／backfill、未讀 Secret、未部署或通知。
+
+### 回歸風險與非阻擋事項
+
+- 本輪只證明已知 catalog 與 local fixture 無 Alembic drift；尚未證明 production lock time、RLS policies、database role、PITR／backup 或 rollout compatibility。
+- `include_object` boundary 依已知 legacy table 名稱運作；未來新增 legacy table 時，必須同步決定 migration ownership。
+- `ignored` identity 的 `blocked`／`disabled` mapping 仍待後續任務決策。
+
+### 最終結論
+
+`accepted`。首輪 blocker 已解除；TASK-050 已達成離線 migration rehearsal 目標。下一位角色為 Owner，決定是否接受結案及是否授權後續 PR／production migration planning。此結論本身不授權任何 production schema 操作。

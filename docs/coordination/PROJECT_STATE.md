@@ -127,11 +127,11 @@
 
 ## 4. 當前工作
 
-- `TASK-050` 首輪實作已完成 local exact-schema fixture、bigint migration 與 deterministic
-  attendance projection；Python 3.10／3.12 共 35 項測試與 migration chain 均通過。Work 驗收
-  發現 `alembic check` 仍會建議刪除 8 張 legacy tables、部分 Member 欄位並改回錯誤的 Game
-  metadata，屬 migration safety blocker；已退回 Codex 補齊 model 或明確的 Alembic ownership
-  boundary 與 regression test。未連 production、未做 DDL／stamp／backfill。
+- `TASK-050` 補正後已通過 Work 離線驗收：local exact-schema fixture、bigint migration、
+  deterministic attendance projection 與 Alembic ownership boundary 均已建立。Python 3.10 的
+  35 項測試、完整 downgrade／fixture rebuild／upgrade chain、compile 與 `alembic check` 通過，
+  且沒有新 upgrade operations。未連 production、未做 DDL／stamp／backfill；production RLS、
+  backup／PITR、lock time 與 rollout compatibility 仍留待後續規劃與 Owner 明確授權。
 - `TASK-049` 已完成 Supabase production schema 與 aggregate data-quality 唯讀盤點：
   兩次 transaction 都為 read-only，未讀 application row values。確認 production 有
   10 張 legacy tables、197 Members、65 LINE users、128 Games 與 1,648 attendance rows；
