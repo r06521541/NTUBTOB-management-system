@@ -50,6 +50,26 @@ def admin_required(view):
     return protected_view
 
 
+def member_required(view):
+    """Require a session created for a matched LINE user and Member."""
+
+    @wraps(view)
+    def protected_view(*args, **kwargs):
+        user_id = session.get("user_id")
+        member_id = session.get("member_id")
+        has_valid_user = isinstance(user_id, str) and bool(user_id.strip())
+        has_valid_member = (
+            isinstance(member_id, int)
+            and not isinstance(member_id, bool)
+            and member_id > 0
+        )
+        if not has_valid_user or not has_valid_member:
+            return redirect(url_for("redirect_to_login", next=request.path))
+        return view(*args, **kwargs)
+
+    return protected_view
+
+
 def get_or_create_csrf_token():
     token = session.get(CSRF_SESSION_KEY)
     if not isinstance(token, str) or not token:

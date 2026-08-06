@@ -108,6 +108,12 @@ The member matching page creates a session CSRF token, and both matching actions
 require that token. Unauthorized requests are rejected before management data is
 queried or changed. Run the offline route and demo tests from the repository root:
 
+The production game roster is team-private. `/game-roster/<game_id>` requires a
+valid LINE Login session linked to a positive integer Member ID; anonymous or
+malformed sessions are redirected to login before roster data is queried. This
+is a membership boundary only. Visibility differences between members, officers,
+and administrators remain deferred to the proposed RBAC work.
+
 ```sh
 python -m unittest discover -s apps/web_portal/tests -v
 ```

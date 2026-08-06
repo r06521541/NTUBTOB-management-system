@@ -1,15 +1,15 @@
-active_task: TASK-034
+active_task: TASK-035
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 96ee2a0d8fefce74b35b410069f0e1bafb405eeb
-head_commit: 06016b9e7fae27cb7f919552136b23a2be3452e2
+base_commit: d5c4a2f48499c4d1646fe9e56b0d27dfe58c82de
+head_commit: 45079c0c658e8c9490fa0c56d6a7c4daba3a91cc
 
 updated_by: work
-updated_at: 2026-08-06T13:05:00+08:00
+updated_at: 2026-08-06T15:30:00+08:00
 
 note: >
-  Work accepted TASK-034 on Draft PR #43 after independent review: tools 41 passed, Web Portal 58
-  passed with two existing Windows make/sh skips, compile and dry-run passed, and Python 3.10 CI run
-  31044107364 succeeded. Owner may decide whether to ready and squash merge. Merge does not authorize
-  production deployment; no cloud, traffic, Secret, IAM, DB, schema, or LINE mutation occurred.
+  Work accepted TASK-035 after independent review: 61 Web Portal tests passed with two existing
+  Windows make/sh skips, compile and deployment dry-run passed, and Python 3.10 CI run 31060680146
+  succeeded. PR #44 is Draft and mergeable. Owner may decide ready and squash merge; production
+  deployment, Secret, IAM, DB, schema, data, and notification operations remain unauthorized.

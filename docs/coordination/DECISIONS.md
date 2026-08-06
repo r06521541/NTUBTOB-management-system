@@ -530,3 +530,13 @@
 - 決策：建立TASK-034，將流程拆為new revision contract convergence、exact traffic promotion、traffic convergence、IAM／HTTP；任一步失敗仍回復exact rollback revision。
 - 授權：Owner批准TASK-034與PR工作包。
 - 安全邊界：不包含merge、production deployment／traffic mutation、wrapper execute、gcloud／HTTP／logs、Secret／IAM／DB／schema／LINE或通知；production須merge後另以exact commit批准。
+
+## DEC-053：下一優先任務為Web Portal名單隱私邊界
+
+- 狀態：`approved`
+- 日期：2026-08-06
+- 背景：production `/game-roster/<game_id>` 可在未登入時查詢並顯示已回覆與未回覆成員姓名；完整角色與 capability 規則仍未核准。
+- 提案：TASK-035 先建立最小會員 authentication boundary，匿名 request 在任何 roster／attendance 查詢前 fail closed；已登入且已配對 Member 暫時維持既有隊內內容。
+- 延後決策：普通隊員能否看未回覆者姓名、幹部／管理者更細權限，以及正式 RBAC schema 均另案決定。
+- 授權：Owner 批准 TASK-035 與 PR 工作包；可實作、測試、commit、push、建立 Draft PR 與查看 CI。
+- 安全邊界：repository-only；不包含 deployment、production／DB 存取、schema／migration、Secret／IAM、LINE／Discord 通知或其他服務修改。

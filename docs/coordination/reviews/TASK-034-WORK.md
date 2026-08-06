@@ -46,3 +46,14 @@ PR #43: open, Draft, mergeable
 ## 建議
 
 接受 TASK-034，可將 PR #43 標記 ready 並以 squash merge 合併。合併不代表部署授權；若要再次 rollout，應以 merge 後的 exact main commit 建立新的 production deployment 工作包，執行前重查目前 100% traffic revision 作為 rollback target，且外層執行 timeout 必須長於 wrapper 的 bounded timeout。
+
+## Owner 核准與 production 結果
+
+- Owner 後續明確授權 ready、squash merge 與 deployment。
+- PR #43 squash merge commit：`bb91d9e5d695de2a4601bfa4c98e0de3f25f0e94`。
+- Cloud Build ID：`3dd2589d-1efc-44f7-9b83-c387a4aaa389`。
+- 新 revision：`web-portal-00032-f7z`，Ready，100% traffic。
+- Image digest：`sha256:d86c38178d35da30c36d3ce007d95f254a51d413a7d46a7d68e6b5c698662aeb`。
+- 無副作用驗證：`GET /` 200、`GET /demo/` 404。
+- Rollback target 經部署前確認為 `web-portal-00027-fwf`；本次未觸發 rollback。
+- 部署後獨立 control-plane 查核與 temporary env cleanup 均通過。

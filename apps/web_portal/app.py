@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 
 import requests
 from flask import (
+    abort,
     Flask,
     Response,
     redirect,
@@ -21,6 +22,7 @@ import messages
 from admin_security import (
     admin_required,
     get_or_create_csrf_token,
+    member_required,
     require_valid_csrf,
 )
 from demo_events import demo_events
@@ -366,8 +368,11 @@ def future_games():
                            has_offseason=has_offseason)
 
 @app.route('/game-roster/<int:game_id>')
+@member_required
 def game_roster(game_id: int):
     game = Game.search_by_id(game_id)
+    if game is None:
+        abort(404)
     attendance_mapping = attendance_analyzer.get_attendance_of_game(game.id)
     return render_template('game_roster.html', 
                            game=game,
