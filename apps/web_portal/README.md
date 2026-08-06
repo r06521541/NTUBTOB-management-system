@@ -53,6 +53,15 @@ The LINE Developers callback URL remains
 offline tests mock all LINE HTTP calls; they do not prove the callback URL or
 credentials configured in LINE Developers and production are correct.
 
+The login entry page deliberately waits for a user action instead of
+automatically redirecting. **使用 LINE 登入** starts the normal transaction and
+allows LINE to choose its supported auto-login behavior. **改用瀏覽器登入**
+starts a separate fresh transaction with auto-login disabled. This second
+choice is intended for mobile browsers that cannot hand off reliably to the
+LINE app. No User-Agent detection, custom scheme, or external script is used;
+iOS Safari, Android browsers, LINE in-app, and desktop QR behavior still need
+separate real-device verification after an approved deployment.
+
 ### Team Operations prototype
 
 After entering the demo, the fictional team workspace includes:

@@ -162,11 +162,21 @@ def add_line_friend():
 
 @app.route('/redirect-to-login')
 def redirect_to_login():
-    # 將原始目標URL存儲在session中
-    next_url = request.args.get('next')
-    session['next_url'] = safe_return_path(next_url, url_for('home'))
+    next_values = request.args.getlist("next")
+    if len(next_values) > 1:
+        return "Invalid return path", 400
 
-    return render_template('redirect_page.html')
+    return_path = safe_return_path(
+        next_values[0] if next_values else None,
+        url_for("home"),
+    )
+    return render_template(
+        "redirect_page.html",
+        normal_login_url=url_for("line_login", next=return_path),
+        browser_login_url=url_for(
+            "line_login", mode="browser", next=return_path
+        ),
+    )
     
 @app.route('/line/login')
 def line_login():
