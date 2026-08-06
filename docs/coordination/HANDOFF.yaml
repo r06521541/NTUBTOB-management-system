@@ -1,17 +1,17 @@
 active_task: TASK-048
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 64f2dca
 head_commit: 31844cdaecfd526f36ab4546a732c61021298f95
 
-updated_by: codex
-updated_at: 2026-08-06T22:20:41+08:00
+updated_by: work
+updated_at: 2026-08-06T22:42:00+08:00
 
 note: >
-  Codex completed the opt-in local Person/access/identity/qualification/Event persistence foundation.
-  Alembic baseline/expand rehearsal, loopback-only Docker PostgreSQL, fake seed, in-memory/PostgreSQL
-  contract tests, constraints, last-admin concurrency, audit atomicity, stable invitee snapshots and
-  idempotent backfill passed. The task-owned container/network were removed; its named volume remains for
-  Work verification. No production path, Supabase, secret, notification, cloud, push, PR, merge or deploy
-  operation occurred. See docs/coordination/reports/TASK-048-CODEX.md.
+  Work accepted TASK-048 after independent Docker PostgreSQL, Alembic downgrade/upgrade, idempotent seed,
+  32 persistence tests, 169 directly affected service tests, metadata drift and diff checks. The opt-in
+  foundation is not connected to production behavior. Hosted Python 3.10 remains the PR-stage evidence;
+  qualification audit service, activity reply domain, production audit privileges and Supabase inventory
+  are explicit future boundaries. Owner approval is required for push/PR; merge does not authorize schema
+  migration, Supabase access, deployment or enabling the new path.
