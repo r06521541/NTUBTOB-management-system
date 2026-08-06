@@ -1,9 +1,9 @@
 # TASK-035：保護 Web Portal 比賽名單的會員隱私邊界
 
-狀態：`awaiting_owner_approval`  
+狀態：`ready_for_codex`  
 優先級：P1 security／privacy  
 規劃角色：Work  
-執行角色：Codex（Owner 核准後）  
+執行角色：Codex  
 Base commit：`198d3f0`
 
 ## 1. 目標
@@ -82,4 +82,4 @@ git status --short
 
 ## 7. PR 工作包建議
 
-Owner 若批准 TASK-035 與 PR 工作包，可允許 Codex 在 task branch 實作、建立描述性 commit、push、建立 Draft PR、查看 Python 3.10 CI，並由 Work 在同一 PR 驗收。仍不包含 merge、production deployment、Secret／IAM／DB／schema／data 操作或正式通知。
+Owner 已批准 TASK-035 與 PR 工作包：Codex 可在 task branch 實作、建立描述性 commit、push、建立 Draft PR、查看 Python 3.10 CI，並由 Work 在同一 PR 驗收。仍不包含 merge、production deployment、Secret／IAM／DB／schema／data 操作或正式通知。

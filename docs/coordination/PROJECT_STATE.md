@@ -135,7 +135,7 @@
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-034` | `completed` | `owner` | PR #43已squash merge為`bb91d9e5`；production `web-portal-00032-f7z` Ready並承接100% traffic，無需rollback。 |
-| `TASK-035` | `awaiting_owner_approval` | `owner` | 建議先關閉公開比賽名單的姓名暴露：登入且已配對Member後才可查詢roster；不改schema或完整RBAC。 |
+| `TASK-035` | `ready_for_codex` | `codex` | Owner已批准先關閉公開比賽名單的姓名暴露及PR工作包；登入且已配對Member後才可查詢roster，不改schema或完整RBAC。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

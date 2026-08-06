@@ -1,15 +1,15 @@
 active_task: TASK-035
-status: awaiting_owner_approval
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: 198d3f0
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T14:00:00+08:00
+updated_at: 2026-08-06T14:15:00+08:00
 
 note: >
-  Work proposes TASK-035 to require an authenticated, paired Member before Web Portal roster names
-  are queried or rendered. The task is repository-only, adds offline fail-closed tests, preserves
-  current authenticated-member content, and defers detailed member/officer/admin RBAC. Owner must
-  approve the task and PR work package before Codex starts; merge and deployment remain separate.
+  Owner approved TASK-035 and its PR work package. Codex may implement the repository-only member
+  guard and roster privacy tests, commit, push, open a Draft PR, and inspect Python 3.10 CI. Detailed
+  member/officer/admin RBAC remains deferred. Merge, deployment, production access, Secret, IAM,
+  DB, schema, data, and notification operations are not authorized.
