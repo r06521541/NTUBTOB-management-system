@@ -178,6 +178,20 @@ temporary OAuth, administrative CSRF, and demo keys. Invalid or missing CSRF
 does not alter the session, and GET cannot trigger logout. This action signs
 out only this Portal session; it does not revoke or sign out the LINE account.
 
+## Attendance performance diagnostic
+
+A successful production `/attendance` response emits at most one bounded timing
+event with integer millisecond values for `member_lookup`, `games_query`,
+`attendance_analysis`, `render`, and `total`. The event contains no request path,
+query, cookie, OAuth value, identity, game or member data, database setting,
+credential, or exception text. Clock and logging failures are best-effort and do
+not change the response. Offline demo routes do not emit this diagnostic.
+
+These application-stage timings do not include time spent before the Flask
+handler starts, so they cannot prove or exclude a Cloud Run cold start by
+themselves. Owner approval is required before reading production logs or changing
+minimum instances, startup CPU, database pooling, queries, indexes, or caching.
+
 ## Member matching administration
 
 The production member matching routes require both an authenticated LINE Login
