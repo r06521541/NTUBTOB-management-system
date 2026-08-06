@@ -14,6 +14,7 @@ from line_login import (  # noqa: E402
     InvalidOAuthState,
     create_oauth_state,
     load_oauth_state,
+    return_path_category,
     safe_return_path,
 )
 
@@ -62,6 +63,20 @@ class OAuthStateTest(unittest.TestCase):
                 self.assertEqual(safe_return_path(candidate, fallback), fallback)
 
         self.assertEqual(safe_return_path("/future-games?q=1", fallback), "/future-games?q=1")
+
+    def test_return_path_category_uses_only_fixed_allowlisted_labels(self):
+        cases = {
+            "/attendance?sentinel-query=secret": "attendance",
+            "/account": "account",
+            "/game-roster/23?sentinel-query=secret": "roster",
+            "/game-roster/0": "default",
+            "/future-games": "default",
+            "https://sentinel.example/private": "default",
+            None: "default",
+        }
+        for return_path, expected in cases.items():
+            with self.subTest(return_path=return_path):
+                self.assertEqual(return_path_category(return_path), expected)
 
 
 if __name__ == "__main__":

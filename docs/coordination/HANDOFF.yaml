@@ -1,17 +1,18 @@
 active_task: TASK-044
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 3da0bb0d895e59cc06c7c62f7b195d2de328434f
-head_commit: null
+head_commit: this_commit
 
-updated_by: work
-updated_at: 2026-08-06T16:50:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T17:30:00+08:00
 
 note: >
-  Owner observed that normal LINE login started from /attendance inside the LINE App lands on /.
-  Production read-only checks confirm the protected-route redirect and login-choice links still carry
-  next=/attendance, so TASK-044 must add a full offline round-trip contract and fix only a reproduced
-  cause. If it cannot reproduce, add only allowlisted destination-category diagnostics with no URL,
-  query, OAuth, identity, or cookie data. No production log access, push, PR, merge, deployment, DB,
-  Secret, LINE Console, schema, IAM, notification, or other-service action is authorized.
+  Codex added the complete protected-route LINE login round-trip contract. Existing code preserves
+  /attendance, /account, and roster destinations offline, so no speculative redirect change was made.
+  Successful callbacks now log only an allowlisted destination category, with sentinel tests proving
+  OAuth, cookie, URL/query, LINE, Member, and Secret data are absent. 98 tests pass with two existing
+  Windows make/sh skips; compile, Python 3.10 grammar, and diff checks pass. Work must inspect the actual
+  diff and evidence. No push, PR, merge, deployment, production log access, DB, Secret, IAM, LINE Console,
+  schema, notification, or other-service action was performed.

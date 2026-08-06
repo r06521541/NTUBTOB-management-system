@@ -38,6 +38,7 @@ from line_login import (
     create_oauth_state,
     load_oauth_state,
     require_string_field,
+    return_path_category,
     safe_return_path,
 )
 
@@ -291,7 +292,12 @@ def line_callback():
             session['member_id'] = member.id
 
     if is_authenticated:
-        # 從session中取出next_url並重定向
+        # Only a fixed allowlisted category is logged. OAuth and identity data
+        # must never be included in this diagnostic.
+        app.logger.info(
+            "line_login_callback destination=%s",
+            return_path_category(next_url),
+        )
         return redirect(next_url)
     else:
         # 直接切換至未獲授權頁面
