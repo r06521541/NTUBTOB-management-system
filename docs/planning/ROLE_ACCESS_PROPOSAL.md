@@ -54,3 +54,7 @@ Web Portal 對使用者呈現三種容易理解的角色：普通隊員、幹部
 ## 實作前置條件
 
 在進入正式實作前，需先確認現有 Member model、登入 session 與管理 allowlist 的相容演進方案，再提出 migration、回填、舊版相容與 rollback。本文不授權修改 schema。
+
+TASK-047 的 repository 盤點與角色＋多類型 Event 一體化持久化藍圖另見
+[`ROLE_PERSISTENCE_PLAN.md`](ROLE_PERSISTENCE_PLAN.md)。其中的單一階層 role、分離帳號
+status、request-time DB 解析與 admin allowlist 過渡仍待 Owner 決策，不代表 migration 已獲批准。

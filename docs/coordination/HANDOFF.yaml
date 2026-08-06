@@ -1,16 +1,16 @@
 active_task: TASK-047
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 602a8394c3dd47716da2d8b225743466516a304b
-head_commit: null
+head_commit: pending_local_commit
 
-updated_by: work
-updated_at: 2026-08-06T16:42:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T17:10:00+08:00
 
 note: >
-  Owner paused further attendance latency work and requested the role/permission track. TASK-047 is a
-  documentation and repository-analysis work package for a persistent production role model, migration,
-  compatible rollout, rollback, role assignment safety, and follow-up implementation slices. It must not
-  modify schema/models/code, connect production DB, read secrets, send notifications, push, PR, merge, or
-  deploy. TASK-046's accepted but unpushed logging follow-up remains isolated on its prior local branch.
+  Codex completed a repository-backed role plus multi-type Event persistence blueprint. It separates
+  hierarchical role from account status, defines request-time DB resolution with an admin allowlist
+  transition, and covers Event/Activity compatibility, migration, local integration, audit, rollout, and
+  rollback safeguards. No code, schema, production DB, secret, notification, cloud, push, PR, merge, or
+  deployment operation was performed.

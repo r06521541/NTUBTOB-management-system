@@ -45,3 +45,7 @@
 
 在Owner確認上述設計前，不修改Supabase schema、不執行DDL，也不把多元活動硬塞進既有`games`欄位。
 
+TASK-047 已將角色權限、Event／Activity、既有 Game 相容、兩層出席、migration、
+rollback 與 local integration strategy 整理成同一次 schema 演進藍圖，見
+[`ROLE_PERSISTENCE_PLAN.md`](ROLE_PERSISTENCE_PLAN.md)。該藍圖仍待 Owner 決策，
+不授權 schema 或 production 變更。

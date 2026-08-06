@@ -10,6 +10,12 @@ Member ID in the complete and valid `WEB_PORTAL_ADMIN_MEMBER_IDS` allowlist
 resolves to `admin`. Production has no source for `officer`, so nobody can
 receive that role until a separately approved persistence design exists.
 
+The proposed persistent design keeps account status separate from role.
+Pending/unmatched, disabled, left, unknown, and malformed identities receive no
+member capability. During a compatible rollout only, a NULL persisted role or
+status may fall back to member/active; unknown non-NULL values fail closed. See
+`ROLE_PERSISTENCE_PLAN.md`; it is not yet implemented.
+
 | Route group | Anonymous | Member | Officer | Admin | Enforced capability |
 | --- | --- | --- | --- | --- | --- |
 | `/account` | Login redirect | Allow | Future role | Allow + management entry | `view_member_portal`; entry uses `manage_members` |
@@ -22,6 +28,10 @@ receive that role until a separately approved persistence design exists.
 
 Public home, login and published schedule routes retain their existing access.
 This task does not broaden or redesign them.
+
+Future production officer Event routes are not present today. When implemented,
+their UI and every read/mutation route must independently require the matching
+capability; an officer navigation link is never an authorization boundary.
 
 The account page reloads the Member by session `member_id` for each request and
 shows only the confirmed Member name, LINE login method, and policy-derived
