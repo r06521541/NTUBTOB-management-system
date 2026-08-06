@@ -20,6 +20,10 @@ from shared_lib.shared_module.portal_data.repository import (
     PostgresTeamPortalRepository,
 )
 
+DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
+    "PORTAL_DATA_DATABASE_URL"
+)
+
 
 class RepositoryContractMixin:
     repository = None
@@ -309,14 +313,11 @@ class InMemoryRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
         self.repository = InMemoryTeamPortalRepository()
 
 
-@unittest.skipUnless(
-    os.environ.get("PORTAL_DATA_TEST_DATABASE_URL"),
-    "isolated local PostgreSQL URL not configured",
-)
+@unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        url = require_local_database_url(os.environ["PORTAL_DATA_TEST_DATABASE_URL"])
+        url = require_local_database_url(DATABASE_URL)
         cls.engine = create_engine(url, pool_pre_ping=True)
 
     @classmethod
@@ -340,7 +341,8 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
                       ntubtob.events,
                       ntubtob.access_audit,
                       ntubtob.person_qualifications,
-                      ntubtob.auth_identities,
+                      ntubtob.auth_identities, ntubtob.game_attendance_replies,
+                      ntubtob.line_users, ntubtob.cancellations, ntubtob.games,
                       ntubtob.members,
                       ntubtob.people
                     RESTART IDENTITY;

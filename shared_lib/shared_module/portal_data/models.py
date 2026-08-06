@@ -58,7 +58,7 @@ class LegacyMemberRecord(PortalDataBase):
     __tablename__ = "members"
     __table_args__ = {"schema": SCHEMA}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
@@ -72,7 +72,7 @@ class LegacyGameRecord(PortalDataBase):
     __tablename__ = "games"
     __table_args__ = {"schema": SCHEMA}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     year: Mapped[int] = mapped_column(Integer, nullable=False)
     season: Mapped[int] = mapped_column(Integer, nullable=False)
     start_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -270,7 +270,7 @@ class ActivityRecord(PortalDataBase):
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     game_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
+        BigInteger, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
     )
 
 

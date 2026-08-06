@@ -13,15 +13,16 @@ from shared_lib.shared_module.portal_data.local_database import (
 from shared_lib.shared_module.portal_data.models import PortalDataBase
 from tools.seed_portal_data_fake import seed_fake_data
 
-
-@unittest.skipUnless(
-    os.environ.get("PORTAL_DATA_TEST_DATABASE_URL"),
-    "isolated local PostgreSQL URL not configured",
+DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
+    "PORTAL_DATA_DATABASE_URL"
 )
+
+
+@unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class PostgresConstraintTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        url = require_local_database_url(os.environ["PORTAL_DATA_TEST_DATABASE_URL"])
+        url = require_local_database_url(DATABASE_URL)
         cls.engine = create_engine(url)
 
     @classmethod
@@ -39,7 +40,9 @@ class PostgresConstraintTests(unittest.TestCase):
                       ntubtob.event_invitees, ntubtob.event_invitee_overrides,
                       ntubtob.event_eligibility_rules, ntubtob.activities, ntubtob.events,
                       ntubtob.access_audit, ntubtob.person_qualifications,
-                      ntubtob.auth_identities, ntubtob.members, ntubtob.people
+                      ntubtob.auth_identities, ntubtob.game_attendance_replies,
+                      ntubtob.line_users, ntubtob.cancellations, ntubtob.games,
+                      ntubtob.members, ntubtob.people
                     RESTART IDENTITY;
                     INSERT INTO ntubtob.members (id, name) VALUES (7001, '虛構校友甲');
                     """
@@ -50,7 +53,15 @@ class PostgresConstraintTests(unittest.TestCase):
         inspector = inspect(self.engine)
         for table in PortalDataBase.metadata.tables.values():
             if table.name == "members":
-                expected = {"id", "name", "person_id"}
+                expected = {
+                    "id",
+                    "name",
+                    "enroll_year",
+                    "major",
+                    "number",
+                    "positions",
+                    "person_id",
+                }
             else:
                 expected = set(table.columns.keys())
             actual = {
