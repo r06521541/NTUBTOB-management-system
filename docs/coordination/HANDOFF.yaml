@@ -1,16 +1,16 @@
-active_task: TASK-047
-status: ready_for_review
-next_actor: work
+active_task: TASK-048
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 602a8394c3dd47716da2d8b225743466516a304b
-head_commit: pending_local_commit
+base_commit: 64f2dca
+head_commit: null
 
-updated_by: codex
-updated_at: 2026-08-06T17:10:00+08:00
+updated_by: work
+updated_at: 2026-08-06T17:36:00+08:00
 
 note: >
-  Codex completed a repository-backed role plus multi-type Event persistence blueprint. It separates
-  hierarchical role from account status, defines request-time DB resolution with an admin allowlist
-  transition, and covers Event/Activity compatibility, migration, local integration, audit, rollout, and
-  rollback safeguards. No code, schema, production DB, secret, notification, cloud, push, PR, merge, or
-  deployment operation was performed.
+  Owner accepted TASK-047's revised Person/Member/access/identity/qualification/Event model and authorized
+  TASK-048 local implementation. Codex may add Alembic, local-only Docker PostgreSQL, expand migrations,
+  SQLAlchemy models, repository/domain boundaries, fake fixtures, backfill rehearsal, and offline/integration
+  tests. It must not connect or mutate Supabase production, change current production request behavior, read
+  secrets, send notifications, modify cloud resources, push, PR, merge, or deploy.
