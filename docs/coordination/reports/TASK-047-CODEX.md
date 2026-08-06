@@ -14,8 +14,11 @@
 
 ## 設計成果
 
-- 建議 Member 單一階層 `portal_role`，另設 `portal_status`；Event/Activity、source ownership、兩層 attendance 與 audit 納入同一 schema 演進藍圖。
-- 提供 expand、dual-read、backfill、受控寫入、contract 與 rollback 階段；明確指出寫入 disabled/left 後不可回滾至不理解 status 的 revision。
+- Owner 後續核准 Person 為自然人與授權主體；Member 是 0..1 關聯的永久正式校友名冊。先前將 role/status 直接放 Member 的方案已被取代。
+- Access level 改稱 `basic`／`officer`／`admin`；status 是 pending/active/disabled/inactive/blocked；team_player/guest_player/affiliate/staff 是獨立多值 qualifications。
+- Auth identities 多對一 Person，同 provider 可綁多帳號；pending identity 由 admin 匹配、建立 non-member Person 或 blocked。
+- Event publish 依 qualification 規則產生 invitee snapshot，支援 audited individual override；attendance/roster/statistics 區分 team 與 guest players。
+- 提供 expand、dual-read、backfill、受控寫入、contract 與 rollback 階段；明確指出使用限制狀態後不可回滾至不理解 Person status 的 revision。
 - Local prototype 建議使用單一 in-memory repository + fixtures，不逐表 mock；正式 persistence 以 ephemeral PostgreSQL/Supabase local integration 驗證 migration、constraints、transaction 與 concurrency。
 - 規劃 allowlist bootstrap/break-glass、last-admin 防護、audit 原子性及後續可獨立驗收 slices。
 
@@ -36,6 +39,9 @@
 
 ## 尚待 Owner 決策
 
-- 單一階層 role、disabled/left lifecycle、至少兩位 DB admins、自我降權限制。
-- 未回覆姓名、正式通知/發布核可與敏感 Member 欄位可見性。
+- 未回覆姓名、正式通知/發布核可、敏感 Person 欄位可見性、inactive/blocked 復原流程與 team_player 回填權威來源。
 - Migration 工具、ephemeral integration runtime 與任何正式 rollout 均需另案批准。
+
+## Owner 決策修訂
+
+本 report 後續以同一 TASK-047 文件修訂 commit 記錄 Owner 核准模型；此次修訂未修改 `HANDOFF.yaml`，避免與 Work 的交棒／驗收狀態衝突。

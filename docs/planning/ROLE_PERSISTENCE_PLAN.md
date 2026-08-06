@@ -1,154 +1,178 @@
-# Web Portal 角色、權限與多類型 Event 持久化藍圖
+# Web Portal 人員、權限、資格與多類型 Event 持久化藍圖
 
-狀態：`proposed_for_owner_decision`
+狀態：`owner_approved_design_direction`
 
-本文依 TASK-047 對目前 repository 的程式、models 與測試作設計整理；不代表已批准 schema、migration、角色指派介面或 production 操作。角色權限與多類型 Event 是同一次 schema 演進藍圖，不以互不相容的逐表改造方式落地。
+本文記錄 Owner 於 TASK-047 核准的正式概念模型。它取代先前將 role/status 直接放在 `members`、並把 affiliate 當單一角色的提案。本文仍不授權 schema、migration、production data 或 deployment 操作。
 
-## 1. 已確認現況
+## 1. 三個必須分離的資料軸
 
-- Production session 只保存 LINE `user_id` 與已配對的正整數 `member_id`；每次受保護請求由 `admin_security.get_current_principal()` 重新解析 principal。
-- `WEB_PORTAL_ADMIN_MEMBER_IDS` 是目前唯一 production 高權限來源。有效 allowlist 命中者是 `admin`，其餘有效會員是 `member`；production 無 `officer` 來源。
-- `role_policy.py` 集中定義 `member`、`officer`、`admin` 與 capability 繼承。未知 role／capability fail closed。
-- Demo 可在雙重 development gate 下模擬三種角色、Event/Activity 與幹部 Event Builder；其資料只在 session，不能作為正式資料來源。
-- `ntubtob.members` 目前可確認只有 `id`、`name`；`ntubtob.line_users.member_id` 負責 LINE 身分與 Member 配對，並有 `ignored`，但沒有正式角色、帳號狀態或角色稽核欄位。
-- 現有 `games`、`game_attendance_replies` 是比賽與比賽出席模型；正式 Event/Activity 尚不存在。聯盟匯入與幹部手動活動必須能區分，crawler 不得覆蓋手動資料。
-- Repository 沒有 migration framework；model 方法目前自行開啟 SQLAlchemy session，角色解析也尚未查 Member role。
-
-## 2. 主體、角色與帳號狀態
-
-角色回答「可做什麼」，狀態回答「帳號能否進入」。LINE profile、暱稱或 display name 都不能決定兩者。
-
-| 狀態／主體 | 判定來源 | Portal 行為 |
+| 資料軸 | 回答的問題 | 正式主體 |
 | --- | --- | --- |
-| Anonymous | session 無有效 LINE identity | 只能存取公開頁；受保護頁導向登入 |
-| Pending／unmatched | LINE user 存在但沒有有效 `member_id` | 顯示等待配對；不得取得 member capability |
-| Active member | Member 狀態 active、role 是 member | 隊員 capability |
-| Active officer | Member 狀態 active、role 是 officer | 隊員能力加活動／球隊作業能力 |
-| Active admin | Member 狀態 active、role 是 admin，或過渡 allowlist 命中 | officer 能力加成員、角色與稽核管理 |
-| Disabled | Member 狀態 disabled | 所有受保護 route fail closed；保留資料供日後恢復與稽核 |
-| Left | Member 狀態 left | 所有受保護 route fail closed；歷史出席／活動關聯不得刪除 |
-| 未知／畸形值 | DB 或 session 不符合契約 | 一律拒絕並記安全事件 |
+| Person | 這個自然人是誰、能否進 Portal、具何種管理權限？ | `people` |
+| Member | 是否列入球隊永久正式校友名冊？ | `members`，0..1 對應 Person |
+| Qualification | 目前以什麼資格參與球隊或活動？ | `person_qualifications`，一人多值 |
 
-`ignored` 是「不處理尚未配對的 LINE user」，不是 Member 停權或離隊狀態，不應重用。
+Member、access level、qualification 不互相推導：
 
-## 3. 建議整體資料模型
+- Member 可以 inactive，但永久保留於正式校友名冊；每屆新增，不因離隊或不活躍而刪除。
+- 非 Member 的 affiliate、guest player 或 staff 仍可成為 officer/admin。
+- officer/admin 不自動取得 `team_player`，也不因此自動列入球員名單或統計。
+- `affiliate` 是 qualification，不是 access level。
 
-### 3.1 Member 單一階層角色
+## 2. 核准概念模型
 
-建議在 `ntubtob.members` 新增 nullable `portal_role`（member/officer/admin）與 `portal_status`（active/disabled/left）。第一版採單一 role，而不是 member-role assignment table：現有產品是三層階層，admin 已繼承 officer，同時具有多個角色不增加能力；request-time 只讀一列也較容易 fail closed。未來「活動 A 負責人」應是 Event 層 assignment，不是全站 role。
+### 2.1 `people`
 
-欄位建議用 text 加 CHECK constraint，而非 PostgreSQL enum；role → capability 仍只由 `role_policy.py` 定義。相容期 NULL role/status 分別降級 member/active，未知非 NULL 值不得降級。
+自然人基本單位，建議欄位：
 
-### 3.2 Event／Activity 與既有 Game
+- `id`
+- 最小顯示名稱
+- `portal_access_level`：`basic`、`officer`、`admin`
+- `portal_status`：`pending`、`active`、`disabled`、`inactive`、`blocked`
+- 建立／更新時間與 optimistic version
 
-建議同一演進藍圖新增下列概念；實際名稱與 DDL 在 migration 任務定稿：
+狀態語意：
 
-- `events`：活動容器，含類型、標題、起訖時間、狀態（draft/published/cancelled）、建立者與版本時間。
-- `activities`：屬於 Event 的有序行程，含類型（game/meal/transport/lodging/gathering/other）、時間、地點與可選描述。
-- Game activity 以 nullable FK 連到既有 `games.id`；單場既有 Game 可由相容 backfill 取得一個 Event/Activity wrapper，不複製比賽事實。
-- 手動比賽仍使用 Game domain，但要有明確 source（league/manual）及 stable external key；crawler 只能更新 league-owned 欄位，不得覆蓋 manual game。
-- `event_attendance_replies` 保存整體 Event 回覆；Activity override 另表保存，只寫與整體值不同的例外。既有 game replies 在相容期繼續作為 game attendance 真實來源，直到另案雙讀完成。
-- `event_manager_assignments` 可表達某 Event 的負責幹部，但建立/發布 route 仍先要求全站 `manage_events`；assignment 只限該活動作業範圍，不提升全站角色。
+| 狀態 | 語意 | Portal access |
+| --- | --- | --- |
+| pending | 尚待管理員核可／匹配 | 僅等待核可流程 |
+| active | 可依 access level 與 qualifications 使用 | 允許 |
+| disabled | 暫停使用，可由授權管理員恢復 | 拒絕受保護內容 |
+| inactive | 不活躍但保留歷史與資格資料 | 預設拒絕；恢復需明確 mutation |
+| blocked | 明確封鎖，不可由一般配對流程恢復 | 拒絕；需較高風險復原流程 |
 
-角色欄位、Event schema、source ownership、兩層出席與 audit 必須在一份 migration 序列與相容矩陣中驗證，避免角色已可建立活動但正式資料模型尚未安全可寫。
+未知、NULL 或畸形 access/status 一律 fail closed。`admin` 暫定繼承 `officer` capabilities；access level 不寫入 client session，每次 request 從 Person 最小 access projection 解析。
 
-### 3.3 存取變更稽核
+### 2.2 `members`
 
-角色／狀態 mutation 上線前新增 append-only `member_access_audit`，至少含 target member、actor member、change type、old/new value、受限長度 reason、unique request ID 與 DB 產生的 timestamptz。更新與 audit 必須同 transaction。不得記 LINE user ID、session、token、cookie、完整 request body 或敏感個資。
+永久正式校友名冊：
 
-Event 的建立、發布、取消與 source ownership 變更也需 audit，但應採 Event domain audit，而不是塞進 member access audit。
+- 保留現有 Member identity 與歷史關聯。
+- 新增 nullable unique `person_id` FK → `people.id`，形成 Member → Person 0..1；過渡期允許尚未匹配的舊 Member。
+- 每屆正式隊員新增 Member record；inactive 不刪除 Member。
+- Member 不保存 Portal access level/status，也不作登入主體。
 
-## 4. Principal 與 route 安全邊界
+### 2.3 `auth_identities`
 
-建議 request-time 流程：
+登入身分多對一 Person：
 
-1. 驗證 session 有非空 `user_id` 與正整數 `member_id`。
-2. 依 `member_id` 讀 Member 最小 access projection，不信任 cookie 內 role/status。
-3. Member 不存在、status disabled/left/未知：清除 authenticated identity 並拒絕。
-4. 相容期 NULL status/role 視為 active/member；有效 DB role 交給集中 policy。
-5. 過渡 allowlist 命中可提升 admin，但不得使 disabled/left 復權。
-6. UI 可依 capability 隱藏入口；每個 read/mutation route 必須在讀管理資料或產生副作用前重新授權。
+- `person_id` nullable FK；pending identity 尚未配對時可為 NULL。
+- `provider`、`provider_subject`，unique `(provider, provider_subject)`。
+- 同一 Person 可綁同 provider 的多個帳號，也可跨 LINE／未來 Google／Apple。
+- 保存 provider 所需最小 metadata 與 identity status，不保存 access level。
 
-角色不寫入 session，讓撤銷 request-time 生效。Anonymous/pending/disabled/left 不得讀隊內資料；member 只管理自己；officer 管理 Event 與球隊作業；admin 繼承 officer 並管理 Member/role/audit。Secret、deployment、IAM、DDL 與不可逆 production data 操作永遠不因 Portal admin 自動獲得授權。
+管理員處理 pending identity 時只能選擇：匹配既有 Person/Member、建立 non-member Person，或 blocked。不得由 LINE 暱稱/display name 自動推測 Member、資格或 access。
 
-## 5. 一次到位的 migration 與相容 rollout
+### 2.4 `person_qualifications`
 
-### Phase 0：migration 與 local integration 基礎
+持久多值資格池，第一版固定值：
 
-- 選定可版本化、可重跑、可在 CI/ephemeral PostgreSQL 驗證的 migration 工具；不可把 Supabase SQL Editor 當唯一歷史。
-- 用 local ephemeral PostgreSQL（或 Supabase local）由空 schema 跑 forward migration、seed、constraint、transaction、rollback rehearsal；不得連 production。
-- 產品原型繼續透過單一 in-memory repository 介面與集中 fixtures 提供 role/Event/attendance 資料，不逐表 mock ORM。這使 routes 測產品規則，正式 repository integration 則由 ephemeral DB suite 負責。
+- `team_player`：正式球隊球員資格
+- `guest_player`：客座／友誼賽球員
+- `affiliate`：關係人／校友／支援者但非正式球員
+- `staff`：球隊工作人員
 
-### Phase 1：expand schema，不改正式行為
+建議 unique `(person_id, qualification)`，並保存 granted/revoked metadata 或有效期間。取消資格不可刪除歷史 audit。Qualification 不授予 officer/admin；access level 也不授予 qualification。
 
-- 一個 migration series 同時加入 nullable member access 欄位、access audit、Event/Activity/source/attendance 結構；先不回填、不開寫入。
-- 新 FK/index/constraint 採低鎖定策略，CHECK 可先 NOT VALID 再獨立 validate；需在 production-sized 測試資料估算 lock/time。
-- 舊 application revision 必須仍可讀寫既有 Member、Game 與 attendance 欄位。
+### 2.5 Event、邀請與出席
 
-### Phase 2：部署 dual-read application
+- `events`：活動容器，含類型、標題、起訖、draft/published/cancelled、建立者與版本。
+- `activities`：有序子行程，類型含 game/meal/transport/lodging/gathering/other。
+- Game activity 可連既有 `games.id`；league/manual source ownership 必須明確，crawler 不得覆蓋 manual game。
+- Event draft 保存 eligibility rules，例如邀請 `team_player`、`guest_player`、`staff` 的聯集／限制。
+- **publish transaction 依當下 qualifications 自動產生 `event_invitees` 快照**；發布後資格變化不暗中改寫既有邀請。
+- `event_invitees` 保存 person、來源規則/qualification、included/excluded 與 snapshot time；另允許 individual/manual include/exclude override，且必須 audit actor/reason。
+- 整體 Event 回覆與 Activity override 分層保存；Activity override 只記與整體不同的例外。
+- Attendance、roster、statistics 必須分別標示 `team_player` 與 `guest_player`；guest 不得計入正式隊員統計，除非報表明確選擇 guest 維度。
 
-- Member NULL role/status 相容；未知值 fail closed。Admin allowlist 暫時保留。
-- Event read 可在 feature flag 下將既有 games 投影為單場 Event；既有 `/attendance` 與通知仍讀原 game reply，不立即切換真實來源。
-- 所有 active revisions 都理解 portal_status 後，才可開啟 status mutation。
+發布後新增邀請人不應自動發通知；重新計算 invitees 必須是明確、可預覽、有差異清單與 audit 的操作。
 
-### Phase 3：受控 backfill
+## 3. 現況與相容邊界
 
-- 分批、可重跑地回填 member/active；allowlist admin 逐筆核對。不得由姓名或 LINE 暱稱推測 officer。
-- 為既有 games 建 Event/Activity wrapper，使用 unique game reference 確保重跑不重複；league/manual source 無證據時不可猜測，列入例外報告。
-- 比對筆數、orphan、時間範圍與 attendance 關聯；失敗停止，不刪 production 資料。
+- 現在 production session 是 LINE `user_id` + `member_id`；未來應逐步改為 server-side identity → Person，不能一次破壞既有登入。
+- `WEB_PORTAL_ADMIN_MEMBER_IDS` 目前是唯一 production admin source。過渡期可由 Member → Person mapping 對應 break-glass admin，但不可繞過 Person disabled/inactive/blocked。
+- 現有 code 的 `member` role 是 access policy 名稱；migration 後應改稱 `basic`，避免與永久名冊 Member 衝突。相容 adapter 可暫時把 `basic` 映射至舊 policy `member`，直到 callers 全部更新。
+- 現有 `line_users.ignored` 不是 Person status；舊配對資料需可重跑地搬到 auth identity，不可直接把 ignored 猜成 blocked。
+- 現有 Game/game attendance 在相容期保持真實來源；Event projection 與新 attendance 切換須另有契約。
 
-### Phase 4：開啟受控寫入
+## 4. Principal 與 route 安全流程
 
-- 先啟用角色 mutation domain/API（CSRF、transaction、last-admin、reason、audit、idempotency），再上 UI。
-- Event 依 draft → publish 開放；只有 `manage_events` 可建立/修改，發布與通知分離。既有 crawler 只負責 league source。
-- Event attendance 新寫入是否同步 legacy game reply，必須由獨立 compatibility contract 決定；切換前不可讓兩邊各自成為真實來源。
+1. 從 server session 取得有效 auth identity reference，不信任 client 提供 Person/access/qualification。
+2. request-time 讀 identity + Person 最小 projection。
+3. identity 未配對或 Person pending：只進等待核可；disabled/inactive/blocked/未知：拒絕。
+4. active Person 的 `portal_access_level` 交由集中 capability policy；未知 level 拒絕。
+5. Event eligibility/roster 另查 qualifications 或 invitee snapshot，不能從 access level 推導。
+6. UI 隱藏只是 UX；每個 read/mutation route 在資料讀取或副作用前重新驗 capability、status 與 event scope。
+
+## 5. Migration 與 rollout
+
+### Phase 0：工具與 local contract
+
+- 採版本化 migration 工具；Supabase SQL Editor 不作唯一歷史。
+- Local prototype 透過單一 `TeamPortalRepository` 與集中虛構 fixtures 提供 Person/Member/identity/qualification/Event/invitee/reply，不逐表 mock。
+- 正式 persistence 用 ephemeral PostgreSQL 或 Supabase local 從空 schema 跑 migration，驗證 FK/unique/check/index、transaction、concurrency、backfill idempotency 與 rollback rehearsal。
+- 同一組 repository contract tests 跑 in-memory 與 PostgreSQL implementations。
+
+### Phase 1：expand schema
+
+- 同一 migration series 新增 people、Member person FK、auth identities、qualifications、access audit、Event/Activity/eligibility/invitees/attendance structures。
+- 欄位先 nullable、寫入關閉；constraints 可先 NOT VALID 後 validate，先在近似 production volume 評估 lock/time。
+- 舊 revisions 必須仍可使用既有 Member、LineUser、Game 與 attendance。
+
+### Phase 2：identity/person dual-read
+
+- 依既有 LineUser/Member 建可重跑 Person 與 auth identity mapping；歧義資料列入報告，不自動合併自然人。
+- 既有 Member 對應 Person 預設 active/basic；admin allowlist 對應 Person 經核對後設 admin。
+- 舊 session 可經 server-side adapter 找 Person；新 session 不保存 access/qualification。
+- 所有 active revisions 理解 Person status 後，才可啟用 status mutation。
+
+### Phase 3：qualification 與 Event backfill
+
+- `team_player` 名單必須由 Owner 核准規則/資料來源回填，不能以 Member、active、出席紀錄或 access level自行推測。
+- 既有 Game 建 idempotent Event/Activity wrapper；source 不明者列例外，不猜 league/manual。
+- Invitee snapshot 只對新 publish 啟用；歷史賽事不事後虛構邀請快照。
+
+### Phase 4：受控 mutation
+
+- 先上 identity matching、Person access/status、qualification mutation domain + audit，再上 admin UI。
+- Event draft → preview eligibility → publish transaction → invitee snapshot；individual overrides 顯示差異與 reason。
+- 發布與通知是兩個操作；新 attendance 是否同步 legacy game reply，需獨立 compatibility contract。
 
 ### Phase 5：contract
 
-- DB 至少兩位已驗證 active admin、break-glass 演練成功後，allowlist 才能降為緊急用途。
-- Event/attendance 新讀寫與排程、LINE webhook、通知服務全部相容驗證後，才另案停止 legacy projection；drop column/table 永遠是後續獨立 migration。
+- 至少兩位已驗證 active admins、break-glass 演練成功後，admin allowlist 才降為緊急用途。
+- 所有登入/provider、Event、attendance、roster、statistics、crawler、webhook、排程與通知 callers 均完成相容驗證後，才停止 legacy paths；drop 永遠另案。
 
 ## 6. Rollback
 
-- Expand schema 保留，application 可回到相容 revision；不以 drop table/column 作緊急 rollback。
-- DB officer/admin 若被舊版視為 member，是降權；allowlist 暫留以維持管理入口。
-- **一旦開始寫 disabled/left，禁止回滾到不理解 portal_status 的舊 revision**，否則停權者可能恢復存取。
-- Event 新寫入啟用後，rollback revision 必須理解新 Event/source ownership；否則只可切換成 read-only/停止 mutation，不能讓舊 crawler 覆蓋 manual data。
-- 錯誤 role/status/Event 狀態以新的反向 mutation 修正並 append audit，不覆寫稽核歷史。
+- Expand schema 保留；不以 drop table/column 緊急 rollback。
+- 一旦使用 disabled/inactive/blocked，禁止回到不理解 Person status 的 revision，否則被限制者可能恢復存取。
+- 一旦 Event 新寫入或 manual source 啟用，rollback revision 必須理解 source ownership；否則停止 mutation並維持 read-only。
+- Invitee snapshot 不因 rollback 或 qualification 改變而重算；錯誤邀請以 audited override 修正。
+- 錯誤 access/status/qualification 以反向 mutation修正並 append audit，不刪歷史。
 
-## 7. 角色指派安全
+## 7. 管理操作與稽核
 
-- 只有 active admin 且具 `assign_roles` 可修改；officer 不可核可、配對或指派角色。
-- Mutation 必須 POST、session-bound CSRF、固定值、reason、unique request ID、actor/target request-time reload、同 transaction update + audit。
-- Transaction 中重新確認 actor，並鎖定 actor/target。不可自行移除 admin；第一版由另一位 admin 操作。
-- 不可移除最後一位 DB active admin。這是跨列規則，需 transaction-level singleton/advisory lock 後計數，不可只靠 CHECK。
-- Bootstrap 由已核准 allowlist admin 透過一次性可稽核流程建立。Break-glass allowlist 由 Owner 控制，使用時寫不含完整名單的安全 log。
-- Mutation 不自動發 LINE/Discord；未來通知另立具 preview、核可與 idempotency 的任務。
+- 只有 active admin 且具相應 capability 可匹配 identity、建立 non-member Person、blocked identity、變更 access/status/qualification。
+- POST + session-bound CSRF + 固定值 + reason + unique request ID；actor/target request-time reload，更新與 append-only audit 同 transaction。
+- 不得自行移除 admin；不可移除最後一位 active admin。跨列規則以 transaction-level singleton/advisory lock 後計數。
+- blocked 的復原權限應高於一般 pending matching，且要求二次確認與 reason。
+- Portal admin 不自動獲得 Secret、deployment、IAM、DDL 或不可逆 production data 權限。
+- Mutation 不自動發 LINE/Discord；通知另立具 preview、核可與 idempotency 的任務。
 
-## 8. Local 與離線驗證策略
+## 8. 後續可獨立驗收工作
 
-- **產品原型**：以一個 repository protocol（例如 TeamPortalRepository）包住 role、Event、Activity、reply 操作；測試注入單一 in-memory implementation 與一組明顯虛構 fixtures。不要讓每個 route 分別 mock Member/Game/Activity table。
-- **純 domain tests**：capability、狀態機、source ownership、Event/Activity 時間約束、整體回覆與 override 合併、last-admin 規則。
-- **Flask route tests**：只驗 request/response、CSRF、authorization 與 repository 呼叫邊界；禁止外部 HTTP/DB/通知。
-- **正式 persistence integration**：ephemeral PostgreSQL/Supabase local 從 migration 建庫，測 FK/unique/check/index、transaction rollback、concurrent last-admin mutation、audit 原子性、backfill idempotency 與 repository contract。
-- 同一組 repository contract tests 同時跑 in-memory 與 PostgreSQL implementation，避免 Demo 與正式行為漂移；但敏感/production資料永不作 fixture。
+1. Migration/repository foundation：工具、完整 expand migration、in-memory fixtures、ephemeral PostgreSQL contract harness。
+2. Person/identity dual-read：舊 LINE/Member adapter、status guard、basic access rename、allowlist transition。
+3. Qualification repository：安全 mutation、audit及 team/guest roster/statistics contract。
+4. Event read model：正式 Event/Activity repository與既有 Game projection，不開 publish。
+5. Event eligibility + publish snapshot：規則 preview、transaction、manual override、audit。
+6. Admin identity/access/qualification UI，之後再接 attendance、crawler ownership與通知。
 
-## 9. 建議後續可獨立驗收任務
+## 9. 仍待產品細節
 
-1. Migration + repository foundation：選工具、建立完整 expand migration、repository protocol/in-memory fixtures、ephemeral PostgreSQL contract harness；仍不改 production behavior。
-2. Persistent role dual-read：Member access projection、status guard、DB role + allowlist 與測試；不提供 mutation UI。
-3. Event read model：正式 repository 讀取 Event/Activity，並安全投影既有 games；不開 mutation/通知。
-4. Controlled backfill rehearsal：在 local ephemeral DB 驗證 member/game wrappers 的可重跑 backfill與 rollback。
-5. Role mutation domain/API + audit，之後才接 admin UI。
-6. Production Event draft CRUD，再分開做 publish、attendance、crawler ownership、通知整合。
-
-## 10. 待 Owner 決策
-
-1. 是否接受每位 Member 單一階層 role、admin 繼承 officer？（建議接受）
-2. Disabled 與 left 是否都禁止登入；left 是否可恢復？（建議都禁止，disabled可恢復，left恢復需二次確認）
-3. 是否至少兩位 DB active admins 後才把 allowlist 降為 break-glass？（建議是）
-4. 管理員是否一律不得自行降權？（建議是）
-5. 普通隊員可看未回覆者姓名或只看人數？
-6. 幹部能否直接發正式通知，或需另一人核可？
-7. 電話、醫療資訊、私人備註各允許哪些角色查看？
-8. Event 發布是否需要第二位幹部核可？發布與發送通知建議保持兩個操作。
+- 普通使用者可看未回覆者姓名或只看人數。
+- 幹部能否直接發布 Event、發送正式通知，或需第二人核可。
+- 電話、醫療資訊、私人備註的欄位級可見性。
+- inactive 恢復、blocked 解封的精確核可層級與保存期限。
+- team_player 資格回填的權威來源與跨屆規則。
