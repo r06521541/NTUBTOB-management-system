@@ -54,6 +54,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         cls.reply_model = MagicMock()
         cls.notifier = MagicMock()
 
+        cls.attendance_analyzer = MagicMock()
         fake_modules = {
             "shared_module": types.ModuleType("shared_module"),
             "shared_module.models": types.ModuleType("shared_module.models"),
@@ -67,9 +68,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "shared_module.notify.discord_notify": cls._module(
                 DiscordNotifyHelper=lambda: cls.notifier
             ),
-            "shared_module.attendance_analyzer": types.ModuleType(
-                "shared_module.attendance_analyzer"
-            ),
+            "shared_module.attendance_analyzer": cls.attendance_analyzer,
             "shared_module.settings": cls._module(local_timezone=None),
             "shared_module.message_templates": types.ModuleType(
                 "shared_module.message_templates"
@@ -102,6 +101,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.client = self.app.test_client()
         self.line_user_model.reset_mock()
         self.member_model.reset_mock()
+        self.game_model.reset_mock()
+        self.attendance_analyzer.reset_mock()
         self.notifier.reset_mock()
         self.line_user_model.search_all_unknowns.return_value = [
             SimpleNamespace(line_user_id="fake-line-user", nickname="Demo User")
@@ -469,6 +470,78 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "fake-line-user"
         )
         self.notifier.notify_management_message.assert_not_called()
+
+    def test_roster_rejects_missing_or_invalid_member_session_before_queries(self):
+        invalid_sessions = (
+            {},
+            {"user_id": "fake-user"},
+            {"member_id": 7},
+            {"user_id": "", "member_id": 7},
+            {"user_id": "   ", "member_id": 7},
+            {"user_id": 7, "member_id": 7},
+            {"user_id": "fake-user", "member_id": True},
+            {"user_id": "fake-user", "member_id": 0},
+            {"user_id": "fake-user", "member_id": -1},
+            {"user_id": "fake-user", "member_id": "7"},
+        )
+        for session_values in invalid_sessions:
+            with self.subTest(session_values=session_values):
+                with self.client.session_transaction() as current_session:
+                    current_session.clear()
+                    current_session.update(session_values)
+                with patch.object(
+                    self.app_module.requests, "get"
+                ) as http_get, patch.object(
+                    self.app_module.requests, "post"
+                ) as http_post:
+                    response = self.client.get("/game-roster/23")
+
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(
+                    urlsplit(response.headers["Location"]).path,
+                    "/redirect-to-login",
+                )
+                self.assertEqual(
+                    parse_qs(urlsplit(response.headers["Location"]).query)["next"],
+                    ["/game-roster/23"],
+                )
+                self.game_model.search_by_id.assert_not_called()
+                self.attendance_analyzer.get_attendance_of_game.assert_not_called()
+                self.member_model.search_by_id.assert_not_called()
+                http_get.assert_not_called()
+                http_post.assert_not_called()
+
+    def test_valid_member_session_preserves_roster_response(self):
+        game = SimpleNamespace(
+            id=23,
+            generate_summary_for_team=lambda: "Fictional game summary",
+        )
+        attending = SimpleNamespace(name="Demo Player")
+        waiting = SimpleNamespace(name="Waiting Player")
+        self.game_model.search_by_id.return_value = game
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [attending],
+            5: [waiting],
+        }
+        self.login()
+
+        response = self.client.get("/game-roster/23")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Demo Player".encode(), response.data)
+        self.assertIn("Waiting Player".encode(), response.data)
+        self.game_model.search_by_id.assert_called_once_with(23)
+        self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_missing_game_returns_404_without_attendance_query(self):
+        self.game_model.search_by_id.return_value = None
+        self.login()
+
+        response = self.client.get("/game-roster/404")
+
+        self.assertEqual(response.status_code, 404)
+        self.game_model.search_by_id.assert_called_once_with(404)
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
 
 
 if __name__ == "__main__":
