@@ -1,16 +1,16 @@
 active_task: TASK-050
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: b5689ec
 head_commit: d2b7b848289d702b4c166f61a576ccb516c79555
 
-updated_by: codex
-updated_at: 2026-08-07T00:20:00+08:00
+updated_by: work
+updated_at: 2026-08-07T00:16:34+08:00
 
 note: >
-  TASK-050 implementation is ready for Work review at d2b7b848289d702b4c166f61a576ccb516c79555. It adds a
-  local-only exact legacy fixture, bigint fidelity migration/model updates, and deterministic read-only legacy
-  attendance projection. Full local PostgreSQL rehearsal and 35 portal-data tests passed. Codex did not connect
-  to Supabase, inspect secrets, run production DDL/DML, stamp/backfill production, deploy, push, or query
-  application row values. Work should review the implementation commit and TASK-050-CODEX report.
+  Work review found a migration-safety blocker: although Python 3.10/3.12 tests and the local migration chain
+  pass, alembic check proposes dropping eight legacy tables and Member columns, changing Game metadata, and
+  removing identity metadata. Codex must complete the exact legacy metadata or add a tested Alembic ownership
+  boundary, then add a regression requiring no new upgrade operations. No production access or schema action is
+  authorized.

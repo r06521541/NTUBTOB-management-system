@@ -127,10 +127,11 @@
 
 ## 4. 當前工作
 
-- `TASK-050` 已規劃為離線 exact-schema migration rehearsal：以 TASK-049 已確認的 Supabase
-  metadata 重建 local fake legacy fixture，校正 bigint／RLS／attendance history projection，
-  不連 production、不做 DDL／stamp／backfill。`ignored` LINE identity 的未來 status 映射與
-  production RLS policy 保留後續 Owner 決策。
+- `TASK-050` 首輪實作已完成 local exact-schema fixture、bigint migration 與 deterministic
+  attendance projection；Python 3.10／3.12 共 35 項測試與 migration chain 均通過。Work 驗收
+  發現 `alembic check` 仍會建議刪除 8 張 legacy tables、部分 Member 欄位並改回錯誤的 Game
+  metadata，屬 migration safety blocker；已退回 Codex 補齊 model 或明確的 Alembic ownership
+  boundary 與 regression test。未連 production、未做 DDL／stamp／backfill。
 - `TASK-049` 已完成 Supabase production schema 與 aggregate data-quality 唯讀盤點：
   兩次 transaction 都為 read-only，未讀 application row values。確認 production 有
   10 張 legacy tables、197 Members、65 LINE users、128 Games 與 1,648 attendance rows；
