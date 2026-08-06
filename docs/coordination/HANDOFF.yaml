@@ -1,16 +1,16 @@
 active_task: TASK-050
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: b5689ec
-head_commit: d2b7b848289d702b4c166f61a576ccb516c79555
+head_commit: 1a17cb04a0e1700ebedf0c674b72416090354743
 
-updated_by: work
-updated_at: 2026-08-07T00:16:34+08:00
+updated_by: codex
+updated_at: 2026-08-07T01:05:00+08:00
 
 note: >
-  Work review found a migration-safety blocker: although Python 3.10/3.12 tests and the local migration chain
-  pass, alembic check proposes dropping eight legacy tables and Member columns, changing Game metadata, and
-  removing identity metadata. Codex must complete the exact legacy metadata or add a tested Alembic ownership
-  boundary, then add a regression requiring no new upgrade operations. No production access or schema action is
-  authorized.
+  TASK-050 correction is ready for Work review at 1a17cb04a0e1700ebedf0c674b72416090354743. Legacy Member/Game
+  metadata now matches the catalog, eight unmanaged legacy tables are excluded from portal-data autogenerate
+  ownership, and regression executes Alembic check. On a rebuilt local Docker database, Alembic check reported
+  no new upgrade operations and all 35 portal-data tests passed. No production access, schema action, secret
+  inspection, deployment, push, or notification occurred.

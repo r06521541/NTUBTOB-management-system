@@ -55,3 +55,20 @@ repository 既有 requirements 以執行本機驗證。完整 root requirements 
   baseline stamp、lock time、PITR/backup 與 production deployment compatibility 仍未驗證。
 - ignored legacy LINE user 對新 identity 的 `blocked`／`disabled` 映射仍保留給 Owner 核准的
   後續 backfill task。
+
+## Work 補正（2026-08-07）
+
+Work 發現 `alembic check` 會把未建模的 legacy tables 視為可刪除物件，並偵測
+`members`／`games` metadata drift。已在 commit
+`1a17cb04a0e1700ebedf0c674b72416090354743` 補正：
+
+- `LegacyMemberRecord` 與 `LegacyGameRecord` 對齊 catalog 的 identity、`smallint`、nullable
+  與 timezone-aware metadata。
+- `migrations.env` 明確將八張未由 portal-data migration 管理的 legacy tables 排除在
+  autogenerate ownership 外；它們不會再被建議 drop。
+- local rehearsal regression 現會執行 `command.check(config)`。
+
+在全新 local Docker database 重新驗證：`py -3.10 -m alembic check` 與測試內的
+`command.check(config)` 均回報 `No new upgrade operations detected`；35 項 portal-data tests、
+`compileall` 與 `git diff --check` 通過。未連線 production、未讀取 Secret、未執行任何
+production schema action。
