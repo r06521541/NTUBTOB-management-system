@@ -1,15 +1,15 @@
-active_task: TASK-041
-status: completed
-next_actor: owner
+active_task: TASK-042
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 62d2de4
-head_commit: 880f063
+base_commit: ad17ac7908ed833fba1827364fb87e72e1ed4b06
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T12:40:00+08:00
+updated_at: 2026-08-06T13:00:00+08:00
 
 note: >
-  Work accepted TASK-041 after independently rerunning 81 Web Portal tests, compileall, Python 3.10 grammar,
-  full-range diff check, and clean-worktree verification. Production resolves only member or allowlisted
-  admin and has no officer source. Owner authorized push for later combination with another substantive
-  task; no PR, merge, deployment, schema, production, Secret/IAM, LINE, DB, or notification action occurred.
+  Owner approved TASK-042 and direct handoff to Codex. Add a production member account page, policy-backed
+  role label/admin entry, POST-only CSRF-protected full session logout, and minimal mobile navigation for
+  account/attendance/roster. No schema, officer source, env, OAuth/provider change, production/DB, push/PR,
+  merge/deployment, Secret/IAM/LINE Console, notification, or cross-service change is authorized.

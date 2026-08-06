@@ -597,3 +597,13 @@
 - 產品方向：普通隊員管理自己的出席；幹部以上未來可管理活動；只有系統管理者可做Member配對與角色指派。其餘資料可見性與通知核准規則仍待Owner逐項決定。
 - 授權：Owner批准建立TASK-041、整理文件資產並交棒Codex；可做repository-only實作、離線測試、必要文件與描述性本機commit。
 - 安全邊界：不包含schema／migration、production DB、角色管理UI、真正活動CRUD、Secret／IAM／LINE Console、通知、push／PR／merge或deployment。
+
+## DEC-059：以正式帳號頁與安全登出落地角色政策
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- 背景：TASK-041已建立並通過集中role/capability policy，但production尚無使用者可見的帳號頁、角色標示或全域登出；管理員配對入口仍需知道固定URL。
+- 決策：建立TASK-042，新增member-only帳號頁、一般隊員／系統管理者角色標示、capability-aware管理入口，以及POST-only且CSRF保護的完整session登出；並為既有attendance／roster加入最小一致的mobile navigation。
+- 相容性：Member資料須依session中的`member_id` request-time查詢，不放入cookie；production仍不得產生officer或提供角色指派。公開首頁／賽程與LINE Login流程保持不變。
+- 授權：Owner批准建立TASK-042並直接交棒Codex；可做repository-only實作、離線測試、文件與描述性本機commit。
+- 安全邊界：不包含schema／migration、新env、Google／Apple OAuth、production／DB操作、Secret／IAM／LINE Console、通知、push／PR／merge或deployment。TASK-041與TASK-042預計待驗收後合併為同一PR與Web Portal部署批次，仍須Owner另行批准。
