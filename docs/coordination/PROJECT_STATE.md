@@ -225,6 +225,13 @@
 
 ## 8. 文件狀態
 
+### TASK-046 Attendance延遲分段量測（2026-08-06）
+
+- 已為成功`/attendance`response建立固定、無個資的Member lookup、games query、attendance analysis、render與total milliseconds診斷。
+- clock／logger故障不影響頁面；所有值clamp至`0..300000ms`，不改request timeout，亦不增加model/analyzer呼叫。
+- Work獨立驗證109項Web Portal測試通過（2項既有Windows skip）、compile與diff check通過；結論為`accepted`。
+- 尚待Owner批准PR／部署後取得production timing；application stages仍須搭配Cloud Run request latency判讀cold start。
+
 ### TASK-045 移除過時attendance cache request（2026-08-06）
 
 - LINE webhook出席回覆已不再同步呼叫不存在且無timeout的Web Portal cache endpoint；無caller的`shared_module.web_cache`已移除。
