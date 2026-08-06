@@ -1,16 +1,16 @@
 active_task: TASK-050
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: b5689ec
-head_commit: null
+head_commit: d2b7b848289d702b4c166f61a576ccb516c79555
 
-updated_by: work
-updated_at: 2026-08-06T23:51:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T00:20:00+08:00
 
 note: >
-  TASK-050 base_commit is consistently b5689ec. The de-identified per-column production catalog evidence is
-  stored at docs/operations/data/TASK-049-SUPABASE-CATALOG-SANITIZED.md. Implement only the local exact-schema
-  fixture, migration/model fidelity and deterministic legacy attendance projection in TASK-050. Codex must
-  not connect to Supabase, execute SQL there, inspect secrets,
-  run production DDL/DML, stamp Alembic, backfill, deploy, or query application row values.
+  TASK-050 implementation is ready for Work review at d2b7b848289d702b4c166f61a576ccb516c79555. It adds a
+  local-only exact legacy fixture, bigint fidelity migration/model updates, and deterministic read-only legacy
+  attendance projection. Full local PostgreSQL rehearsal and 35 portal-data tests passed. Codex did not connect
+  to Supabase, inspect secrets, run production DDL/DML, stamp/backfill production, deploy, push, or query
+  application row values. Work should review the implementation commit and TASK-050-CODEX report.
