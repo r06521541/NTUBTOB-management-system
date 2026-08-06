@@ -587,3 +587,13 @@
 - 後續授權：Codex完成後，Owner授權Work驗收並執行至deployment；hosted CI與PR通過可直接squash merge並部署exact merge commit，含既有wrapper checks、登入選擇頁無副作用HTTP contract與條件式rollback。
 - 安全邊界：不點擊或跟隨LINE登入連結，不執行真實LINE／DB驗證，不修改Secret／IAM／schema／data／LINE Console或通知。
 - 結果：PR #47 hosted Python 3.10 CI成功並merge為`7082afd`；production `web-portal-00035-mcl` Ready且承接100% traffic，登入選擇頁契約通過，未觸發rollback。
+
+## DEC-058：先建立無Schema的角色權限基礎
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- 背景：Web Portal 已具備登入會員與runtime管理員allowlist，但普通隊員、幹部、系統管理者的能力仍分散在decorator、route與Demo判斷；未來活動管理需要可測試且fail-closed的權限邊界。
+- 決策：建立TASK-041，集中角色與capability判斷並盤點既有routes。Production第一階段只把有效登入會員辨識為普通隊員，把既有`WEB_PORTAL_ADMIN_MEMBER_IDS`辨識為系統管理者；幹部capability先定義與測試，但在沒有正式角色來源前不得於production自動授予任何人。
+- 產品方向：普通隊員管理自己的出席；幹部以上未來可管理活動；只有系統管理者可做Member配對與角色指派。其餘資料可見性與通知核准規則仍待Owner逐項決定。
+- 授權：Owner批准建立TASK-041、整理文件資產並交棒Codex；可做repository-only實作、離線測試、必要文件與描述性本機commit。
+- 安全邊界：不包含schema／migration、production DB、角色管理UI、真正活動CRUD、Secret／IAM／LINE Console、通知、push／PR／merge或deployment。

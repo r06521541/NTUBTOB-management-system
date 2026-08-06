@@ -1,15 +1,15 @@
-active_task: TASK-040
-status: completed
-next_actor: owner
+active_task: TASK-041
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
-head_commit: 5e85ea98634921d2d6ba4aa42c0f063ad5ba53ed
+base_commit: 62d2de4
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T11:50:00+08:00
+updated_at: 2026-08-06T12:15:00+08:00
 
 note: >
-  TASK-040 completed. PR #48 passed hosted Python 3.10 CI and squash merged as 5e85ea9. Production
-  web-portal revision web-portal-00036-2p2 is Ready with 100% traffic; root returned 200, demo returned
-  404, and the public login guidance page contained the approved mobile/desktop wording without automatic
-  redirect. No login, LINE API, DB, notification, Secret/IAM/schema/data change or rollback occurred.
+  Owner approved TASK-041 and direct handoff to Codex. Build a repository-only centralized role/capability
+  policy using existing member identity and admin allowlist. Production must not infer or grant officer
+  status without a future approved source. No schema/migration, production/DB, push/PR/merge/deployment,
+  Secret/IAM/LINE Console, notification, or cross-service changes are authorized.

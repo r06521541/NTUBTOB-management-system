@@ -2,6 +2,10 @@
 
 NTUBTOB management system
 
+專案現況、協作文件、產品規劃與部署紀錄的入口見
+[`docs/README.md`](docs/README.md)。目前任務與下一位角色以
+[`docs/coordination/HANDOFF.yaml`](docs/coordination/HANDOFF.yaml) 為唯一真實來源。
+
 ## Setup Instructions
 
 Before you start developing locally, make sure to complete the following steps:
