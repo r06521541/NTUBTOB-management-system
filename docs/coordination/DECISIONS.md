@@ -607,3 +607,13 @@
 - 相容性：Member資料須依session中的`member_id` request-time查詢，不放入cookie；production仍不得產生officer或提供角色指派。公開首頁／賽程與LINE Login流程保持不變。
 - 授權：Owner批准建立TASK-042並直接交棒Codex；可做repository-only實作、離線測試、文件與描述性本機commit。
 - 安全邊界：不包含schema／migration、新env、Google／Apple OAuth、production／DB操作、Secret／IAM／LINE Console、通知、push／PR／merge或deployment。TASK-041與TASK-042預計待驗收後合併為同一PR與Web Portal部署批次，仍須Owner另行批准。
+
+## DEC-060：Web Portal採隊徽深藍與中性灰品牌系統
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- 背景：現有正式Portal、登入頁與Demo大量使用綠色作為品牌主色，與隊徽的深藍識別不一致；各CSS也各自定義相近色彩。
+- 決策：TASK-043以隊徽深藍為主色、中性灰為介面基底，使用少量暖金／沙色作非語意強調；綠色只保留LINE官方按鈕與成功狀態，紅色只保留警示、取消、拒絕及破壞性操作。
+- 實作原則：建立共用design tokens並漸進套用正式Portal、登入／恢復頁及Demo；不改route、資料、auth或產品規則，不引入大型前端framework。
+- 驗收：需涵蓋約375px手機與桌面視覺、無橫向捲動、focus與文字對比、既有功能與離線測試。
+- 安全邊界：repository-only；不包含push／PR／merge／deployment、production／DB、schema、Secret／IAM、LINE Console或通知。
