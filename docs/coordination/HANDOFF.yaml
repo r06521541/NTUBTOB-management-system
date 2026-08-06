@@ -1,15 +1,15 @@
 active_task: TASK-041
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 62d2de4
-head_commit: null
+head_commit: 5f9211f
 
-updated_by: work
-updated_at: 2026-08-06T12:15:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T12:16:00+08:00
 
 note: >
-  Owner approved TASK-041 and direct handoff to Codex. Build a repository-only centralized role/capability
-  policy using existing member identity and admin allowlist. Production must not infer or grant officer
-  status without a future approved source. No schema/migration, production/DB, push/PR/merge/deployment,
-  Secret/IAM/LINE Console, notification, or cross-service changes are authorized.
+  Codex implemented centralized fail-closed role/capability checks and routed existing production guards
+  plus the three-role offline Demo through that policy. Production still resolves only linked member or
+  allowlisted admin; no officer source, schema, model, environment, or deployment change was introduced.
+  Work should inspect commit 5f9211f and independently rerun the Web Portal verification suite.
