@@ -49,6 +49,7 @@
 - TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
 - TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇 original-browser 路線。Codex 依 LINE 官方建議加入 `disable_auto_login=true`，避免 mobile external browser auto-login app handoff，同時保留 session nonce binding；Work 已驗收為 `accepted`，等待 Owner 決定 push／PR。
 - 普通隊員、幹部與系統管理者的初步權限矩陣已記錄於 `docs/planning/ROLE_ACCESS_PROPOSAL.md`，目前僅為未核准提案，不代表 schema 或 migration 決策。
+- TASK-039已由Codex完成repository-only實作：登入入口移除自動跳轉，改為一般LINE登入與明確browser fallback；兩者保留validated return path並各自建立fresh OAuth transaction。75項Web Portal測試通過（2項既有Windows skip），等待Work驗收；未push、PR、merge或部署。
 
 ## 2. 已確認事實
 
@@ -138,7 +139,8 @@
 | `TASK-035` | `completed` | `owner` | PR #44已squash merge為`5952e0b`；member-only roster guard已在main，尚未部署production。 |
 | `TASK-036` | `completed` | `owner` | `5952e0b`已部署為`web-portal-00033-kzq`並承接100% traffic；匿名roster安全回同站登入302，無需rollback。 |
 | `TASK-037` | `completed` | `owner` | PR #45的hosted Python 3.10 CI成功並squash merge為`4b9ddd4`；minimal identity session已在main，尚未部署。 |
-| `TASK-038` | `in_progress` | `work` | Work本機驗收通過；Owner已授權PR、hosted CI、通過後squash merge及受控Web Portal deployment，正在執行。 |
+| `TASK-038` | `completed` | `owner` | PR #46 merge為`d1ebefa`並部署`web-portal-00034-7lm`承接100% traffic；normal login不含`disable_auto_login`，真實UX待Owner驗證。 |
+| `TASK-039` | `in_progress` | `work` | Work本機驗收通過；Owner已授權PR、hosted CI、通過後squash merge及受控Web Portal deployment，正在執行。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

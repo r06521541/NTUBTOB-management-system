@@ -318,6 +318,68 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(next_url, "/attendance")
         self.assertEqual(state_nonce, nonce)
 
+    def test_login_choice_page_has_explicit_normal_and_browser_actions(self):
+        response = self.client.get("/redirect-to-login?next=/future-games")
+
+        self.assertEqual(response.status_code, 200)
+        page = response.data.decode()
+        self.assertNotIn("http-equiv=\"refresh\"", page)
+        self.assertNotIn("window.location", page)
+        self.assertIn('href="/line/login?next=/future-games"', page)
+        self.assertIn(
+            'href="/line/login?mode=browser&amp;next=/future-games"', page
+        )
+        self.assertIn("使用 LINE 登入", page)
+        self.assertIn("改用瀏覽器登入", page)
+        self.assertIn('/static/images/logo_square.png', page)
+        self.assertNotIn("https://storage.googleapis.com", page)
+
+    def test_login_choice_page_fails_closed_for_ambiguous_next(self):
+        response = self.client.get(
+            "/redirect-to-login?next=/attendance&next=/future-games"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn(b"/line/login", response.data)
+
+    def test_login_choices_preserve_safe_return_path_in_fresh_transactions(self):
+        choice_page = self.client.get("/redirect-to-login?next=/future-games")
+        page = html.unescape(choice_page.data.decode())
+        normal_href = page.split('data-login-mode="normal" href="', 1)[1].split(
+            '"', 1
+        )[0]
+        browser_href = page.split('data-login-mode="browser" href="', 1)[1].split(
+            '"', 1
+        )[0]
+
+        normal = self.client.get(normal_href)
+        normal_query = parse_qs(urlsplit(normal.headers["Location"]).query)
+        normal_return, normal_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key, normal_query["state"][0], "/attendance"
+        )
+
+        browser = self.client.get(browser_href)
+        browser_query = parse_qs(urlsplit(browser.headers["Location"]).query)
+        browser_return, browser_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key, browser_query["state"][0], "/attendance"
+        )
+
+        self.assertEqual(normal_return, "/future-games")
+        self.assertEqual(browser_return, "/future-games")
+        self.assertNotEqual(normal_nonce, browser_nonce)
+        self.assertNotEqual(normal_query["state"], browser_query["state"])
+        self.assertNotIn("disable_auto_login", normal_query)
+        self.assertEqual(browser_query["disable_auto_login"], ["true"])
+
+    def test_login_choice_page_uses_safe_default_for_external_next(self):
+        response = self.client.get(
+            "/redirect-to-login?next=https://attacker.example/path"
+        )
+        page = html.unescape(response.data.decode())
+
+        self.assertIn('href="/line/login?next=/"', page)
+        self.assertIn('href="/line/login?mode=browser&next=/"', page)
+
     def test_normal_line_login_allows_auto_login(self):
         response = self.client.get("/line/login")
         authorization_query = parse_qs(urlsplit(response.headers["Location"]).query)
@@ -467,10 +529,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         token_request.assert_not_called()
+        page = html.unescape(response.data.decode())
         fallback_href = urlsplit(
-            html.unescape(
-                response.data.decode().split('href="', 1)[1].split('"', 1)[0]
-            )
+            page.split('data-login-mode="browser" href="', 1)[1].split('"', 1)[0]
         )
         self.assertEqual(fallback_href.path, "/line/login")
         self.assertEqual(
@@ -495,10 +556,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
         response = self.client.get(
             "/line/callback?code=old-code&state=tampered-state"
         )
+        page = html.unescape(response.data.decode())
         fallback_href = urlsplit(
-            html.unescape(
-                response.data.decode().split('href="', 1)[1].split('"', 1)[0]
-            )
+            page.split('data-login-mode="browser" href="', 1)[1].split('"', 1)[0]
         )
         self.assertEqual(
             parse_qs(fallback_href.query),

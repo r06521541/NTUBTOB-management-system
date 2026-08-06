@@ -43,3 +43,11 @@ local runtime: bundled Python 3.12.13
 ## Owner完整工作包
 
 Owner已授權Work完成驗收後的一連串PR、CI、merge與deployment。若hosted CI及PR狀態通過，可直接squash merge；merge後以exact main commit部署production `web-portal`，執行前重新唯讀鎖定當下100% traffic revision為rollback target。只允許wrapper既有`GET /`、`GET /demo/`及額外不跟隨redirect的`GET /line/login` contract check；不跟隨LINE URL、不做真實登入、不連production DB。任一build、revision、runtime contract、traffic、IAM或HTTP契約失敗時依wrapper規則rollback。
+
+## 最終結果
+
+- Hosted Python 3.10 CI run `31065590942`／job `92502515055`成功。
+- PR #46已squash merge為`d1ebefa1f86a8331e1fe70081fdaecf87f3f3ad7`。
+- Production部署為`web-portal-00034-7lm`，Ready且承接100% traffic；rollback未觸發。
+- Wrapper驗證首頁200、demo 404；額外normal login契約驗證302至LINE、state存在、`disable_auto_login`不存在。
+- 真實LINE auto-login UX仍待Owner以LINE in-app／external browser人工操作確認。

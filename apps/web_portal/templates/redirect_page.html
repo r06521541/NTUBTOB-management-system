@@ -1,17 +1,31 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自動登入中...</title>
+    <title>登入球隊 Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
     <meta property="og:title" content="臺大校友看板" />
     <meta property="og:description" content="進來確認校友隊各類資訊！" />
-    <meta property="og:image" content="https://storage.googleapis.com/web_portal_images/logo_square.png" />
-    
-    <meta http-equiv="refresh" content="0.5;url=/line/login" />
+    <meta property="og:image" content="{{ url_for('static', filename='images/logo_square.png', _external=True) }}" />
 </head>
-<body>
-    <h1>正在登入中，等一下喔...</h1>
-    <p>如果還沒有自動登入，就按一下<a href="/line/login">這裡</a>連過去吧！</p>
+<body class="auth-page">
+    <main class="auth-shell">
+        <section class="auth-panel" aria-labelledby="login-title">
+            <img class="auth-logo" src="{{ url_for('static', filename='images/logo_square.png') }}" alt="NTUBTOB 球隊隊徽">
+            <p class="auth-eyebrow">NTUBTOB TEAM PORTAL</p>
+            <h1 id="login-title">登入球隊 Portal</h1>
+            <p class="auth-lead">查看賽程、回覆出席，掌握球隊的最新安排。</p>
+            <div class="auth-actions">
+                <a class="auth-button auth-button-line" data-login-mode="normal" href="{{ normal_login_url }}">使用 LINE 登入</a>
+                <a class="auth-button auth-button-secondary" data-login-mode="browser" href="{{ browser_login_url }}">改用瀏覽器登入</a>
+            </div>
+            <div class="auth-help">
+                <h2>哪一種適合我？</h2>
+                <p>先選擇 LINE 登入。若 iPhone Safari 或 Android 瀏覽器無法開啟 LINE App，再改用瀏覽器登入。</p>
+                <p>電腦上可依 LINE 畫面使用 QR Code 或帳號登入。</p>
+            </div>
+        </section>
+    </main>
 </body>
 </html>

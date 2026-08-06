@@ -1,0 +1,100 @@
+:root {
+  --auth-ink: #17231f;
+  --auth-muted: #66736e;
+  --auth-green: #173f35;
+  --auth-green-hover: #255e4e;
+  --auth-cream: #f5f3ed;
+  --auth-line: #e5e7e2;
+  --auth-white: #fff;
+  --line-green: #06c755;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--auth-cream); }
+
+body.auth-page {
+  margin: 0;
+  min-width: 0;
+  color: var(--auth-ink);
+  background: var(--auth-cream);
+  font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+  line-height: 1.6;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+
+.auth-panel {
+  width: min(100%, 520px);
+  padding: 40px;
+  overflow-wrap: anywhere;
+  background: var(--auth-white);
+  border: 1px solid var(--auth-line);
+  border-radius: 22px;
+  box-shadow: 0 16px 46px rgba(24, 48, 40, .1);
+}
+
+.auth-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.auth-eyebrow {
+  margin: 20px 0 4px;
+  color: var(--auth-green-hover);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.auth-panel h1 {
+  margin: 6px 0 12px;
+  font-size: clamp(30px, 8vw, 42px);
+  line-height: 1.2;
+  letter-spacing: -.03em;
+}
+
+.auth-panel h2 { margin: 0 0 6px; font-size: 16px; }
+.auth-panel p { color: var(--auth-muted); }
+.auth-lead { margin: 0; font-size: 17px; }
+.auth-note { margin-bottom: 0; }
+.auth-actions { display: grid; gap: 10px; margin: 28px 0; }
+
+.auth-button {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 18px;
+  color: var(--auth-white);
+  border-radius: 12px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+}
+
+.auth-button-line { background: var(--line-green); }
+.auth-button-line:hover { background: #05b94f; }
+.auth-button-secondary { background: var(--auth-green); }
+.auth-button-secondary:hover { background: var(--auth-green-hover); }
+.auth-button:focus-visible { outline: 3px solid #e8a86d; outline-offset: 3px; }
+
+.auth-help {
+  padding-top: 20px;
+  border-top: 1px solid var(--auth-line);
+}
+
+.auth-help p { margin: 5px 0; font-size: 14px; }
+
+@media (max-width: 420px) {
+  .auth-shell { padding: 16px 14px; }
+  .auth-panel { padding: 28px 20px; border-radius: 18px; }
+  .auth-logo { width: 56px; height: 56px; }
+}

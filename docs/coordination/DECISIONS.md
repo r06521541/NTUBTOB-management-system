@@ -574,3 +574,15 @@
 - 授權：Owner批准TASK-038 repository-only實作、離線測試與本機commit，並交棒Codex。
 - 後續授權：Owner在Codex完成後授權Work驗收及後續完整鏈；驗收與hosted CI通過可直接push、建立PR、squash merge並部署exact merge commit至production Web Portal，含既有wrapper checks與條件式rollback。
 - 安全邊界：真實LINE登入仍由Owner後續人工驗證；不允許LINE Console、Secret、IAM、DB、schema、data、其他服務或通知操作。
+- 結果：PR #46 hosted Python 3.10 CI成功並merge為`d1ebefa`；production `web-portal-00034-7lm` Ready且承接100% traffic，normal login contract確認不含`disable_auto_login`，未觸發rollback。
+
+## DEC-057：以明確登入選擇取代跨平台自動跳轉假設
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- Production觀察：LINE in-app auto-login與desktop QR登入成功；Owner的iOS Safari難以喚起LINE App，Android browser尚未驗證。
+- 決策：建立TASK-039，移除`redirect_page.html`的meta auto-redirect，提供normal LINE登入與`mode=browser`fallback兩個明確、mobile-first入口。
+- 安全原則：保留signed state、fresh nonce、safe return path與TASK-038 fallback；不使用UA sniffing、`line://`或自動OS判斷。
+- 授權：Owner批准repository-only實作、測試、文件與本機commit，並直接交棒Codex。
+- 後續授權：Codex完成後，Owner授權Work驗收並執行至deployment；hosted CI與PR通過可直接squash merge並部署exact merge commit，含既有wrapper checks、登入選擇頁無副作用HTTP contract與條件式rollback。
+- 安全邊界：不點擊或跟隨LINE登入連結，不執行真實LINE／DB驗證，不修改Secret／IAM／schema／data／LINE Console或通知。
