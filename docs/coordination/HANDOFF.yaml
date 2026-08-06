@@ -1,15 +1,15 @@
-active_task: TASK-035
+active_task: TASK-036
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: d5c4a2f48499c4d1646fe9e56b0d27dfe58c82de
-head_commit: 45079c0c658e8c9490fa0c56d6a7c4daba3a91cc
+base_commit: 5952e0b6d075ee2ba05c3b50057cc8108fc8e8cf
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T15:30:00+08:00
+updated_at: 2026-08-06T16:00:00+08:00
 
 note: >
-  Work accepted TASK-035 after independent review: 61 Web Portal tests passed with two existing
-  Windows make/sh skips, compile and deployment dry-run passed, and Python 3.10 CI run 31060680146
-  succeeded. PR #44 is Draft and mergeable. Owner may decide ready and squash merge; production
-  deployment, Secret, IAM, DB, schema, data, and notification operations remain unauthorized.
+  PR #44 merged as 5952e0b. Work proposes TASK-036 to deploy that exact Web Portal roster privacy
+  commit using the existing fail-closed wrapper. Execution must first re-confirm the current exact
+  100% traffic revision as rollback target. Owner approval is required before any cloud, HTTP, build,
+  deploy, traffic, or production operation; Secret, IAM, DB, schema, data, and LINE changes are excluded.

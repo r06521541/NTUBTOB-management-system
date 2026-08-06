@@ -135,7 +135,8 @@
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-034` | `completed` | `owner` | PR #43已squash merge為`bb91d9e5`；production `web-portal-00032-f7z` Ready並承接100% traffic，無需rollback。 |
-| `TASK-035` | `awaiting_owner_approval` | `owner` | Work已驗收會員session guard與roster fail-closed邊界；Draft PR #44、61項Web Portal tests及Python 3.10 CI成功，等待Owner決定squash merge。 |
+| `TASK-035` | `completed` | `owner` | PR #44已squash merge為`5952e0b`；member-only roster guard已在main，尚未部署production。 |
+| `TASK-036` | `awaiting_owner_approval` | `owner` | 建議將`5952e0b`部署至production Web Portal；執行前須重新鎖定當下100% traffic revision，並以匿名roster 302做無副作用隱私驗證。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

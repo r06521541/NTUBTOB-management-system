@@ -540,3 +540,12 @@
 - 延後決策：普通隊員能否看未回覆者姓名、幹部／管理者更細權限，以及正式 RBAC schema 均另案決定。
 - 授權：Owner 批准 TASK-035 與 PR 工作包；可實作、測試、commit、push、建立 Draft PR 與查看 CI。
 - 安全邊界：repository-only；不包含 deployment、production／DB 存取、schema／migration、Secret／IAM、LINE／Discord 通知或其他服務修改。
+
+## DEC-054：TASK-035合併並提出Roster Privacy Rollout
+
+- 狀態：`proposed`
+- 日期：2026-08-06
+- 已完成：Owner批准PR #44 ready與squash merge；main commit為`5952e0b6d075ee2ba05c3b50057cc8108fc8e8cf`。
+- 提案：建立TASK-036，以現有fail-closed wrapper部署exact merge commit，並新增一次不跟隨redirect的匿名roster 302 smoke check。
+- Rollback原則：執行前重新唯讀確認當下Ready且承接100% traffic的exact revision；不得直接沿用歷史revision假設。
+- 安全邊界：本提案尚未授權Cloud Build、deploy、traffic、production HTTP或metadata query；不包含Secret／IAM／DB／schema／data／LINE修改或其他服務部署。
