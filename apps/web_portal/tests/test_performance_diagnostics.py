@@ -9,7 +9,10 @@ if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
 
 
-from performance_diagnostics import AttendanceTiming  # noqa: E402
+from performance_diagnostics import (  # noqa: E402
+    MAX_ATTENDANCE_TIMING_MS,
+    AttendanceTiming,
+)
 
 
 class AttendanceTimingTest(unittest.TestCase):
@@ -42,6 +45,33 @@ class AttendanceTimingTest(unittest.TestCase):
         timing.finish("member_lookup")
         with self.assertRaises(ValueError):
             timing.finish("member_lookup")
+
+    def test_backward_and_extreme_clock_jumps_are_bounded(self):
+        logger = MagicMock()
+        timing = AttendanceTiming(
+            clock=MagicMock(
+                side_effect=(100, 99, 1_000_000, 2_000_000, 3_000_000, 4_000_000)
+            )
+        )
+        for stage in (
+            "member_lookup",
+            "games_query",
+            "attendance_analysis",
+            "render",
+        ):
+            timing.finish(stage)
+
+        timing.emit(logger)
+
+        logger.info.assert_called_once_with(
+            "attendance_timing member_lookup_ms=%d games_query_ms=%d "
+            "attendance_analysis_ms=%d render_ms=%d total_ms=%d",
+            0,
+            MAX_ATTENDANCE_TIMING_MS,
+            MAX_ATTENDANCE_TIMING_MS,
+            MAX_ATTENDANCE_TIMING_MS,
+            MAX_ATTENDANCE_TIMING_MS,
+        )
 
     def test_clock_failure_disables_diagnostic_without_logging(self):
         logger = MagicMock()

@@ -185,7 +185,10 @@ event with integer millisecond values for `member_lookup`, `games_query`,
 `attendance_analysis`, `render`, and `total`. The event contains no request path,
 query, cookie, OAuth value, identity, game or member data, database setting,
 credential, or exception text. Clock and logging failures are best-effort and do
-not change the response. Offline demo routes do not emit this diagnostic.
+not change the response. Every value is clamped to `0..300000` milliseconds to
+bound malformed clock jumps; this diagnostic clamp is not a request timeout and
+does not change runtime cancellation behavior. Offline demo routes do not emit
+this diagnostic.
 
 These application-stage timings do not include time spent before the Flask
 handler starts, so they cannot prove or exclude a Cloud Run cold start by

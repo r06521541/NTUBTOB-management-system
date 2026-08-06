@@ -8,6 +8,16 @@ ATTENDANCE_TIMING_STAGES = (
     "attendance_analysis",
     "render",
 )
+# Keep malformed clock jumps from creating unbounded log values. This is a
+# diagnostic clamp only; it does not impose or change a request timeout.
+MAX_ATTENDANCE_TIMING_MS = 300_000
+
+
+def _bounded_milliseconds(started_at, finished_at):
+    return min(
+        MAX_ATTENDANCE_TIMING_MS,
+        max(0, round((finished_at - started_at) * 1000)),
+    )
 
 
 class AttendanceTiming:
@@ -40,8 +50,8 @@ class AttendanceTiming:
             self._enabled = False
             self._durations.clear()
             return
-        self._durations[stage] = max(
-            0, round((finished_at - self._last_at) * 1000)
+        self._durations[stage] = _bounded_milliseconds(
+            self._last_at, finished_at
         )
         self._last_at = finished_at
 
@@ -51,7 +61,7 @@ class AttendanceTiming:
         finished_at = self._read_clock()
         if finished_at is None:
             return
-        total_ms = max(0, round((finished_at - self._started_at) * 1000))
+        total_ms = _bounded_milliseconds(self._started_at, finished_at)
         try:
             logger.info(
                 "attendance_timing member_lookup_ms=%d games_query_ms=%d "
