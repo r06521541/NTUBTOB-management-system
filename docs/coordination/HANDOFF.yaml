@@ -1,16 +1,16 @@
 active_task: TASK-043
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 6e6c8cf5ecf06245c510e7767c1e49be564728e8
-head_commit: 0238288f81c1b2e1b443d869a9784c4a17df8607
+head_commit: 9deb7e11311d5ccdb4131cb3b13a318a6bceca60
 
 updated_by: work
-updated_at: 2026-08-06T16:25:00+08:00
+updated_at: 2026-08-06T16:30:00+08:00
 
 note: >
-  Work accepted TASK-043 after requesting and verifying theme-color and warning/danger semantic fixes.
-  Independent verification passed 94 Web Portal tests with 2 existing Windows make/sh skips, compile,
-  and diff checks. TASK-041 through TASK-043 are ready for one Web Portal PR work package if Owner
-  approves push and PR creation. No push, PR, merge, deployment, production, DB, LINE, schema, Secret,
-  IAM, or notification action occurred.
+  Owner approved the complete PR, merge, and Web Portal deployment chain. PR #49 passed hosted Python
+  3.10 CI and squash merged as 9deb7e11311d5ccdb4131cb3b13a318a6bceca60. Production revision
+  web-portal-00037-lhx is Ready and serves 100% traffic; root returned 200 and demo remained fail-closed
+  at 404. Rollback was not required. No Secret, IAM, Scheduler, schema, data, LINE, or other-service
+  mutation occurred. Owner should perform the remaining real-browser product check.
