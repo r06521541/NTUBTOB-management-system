@@ -586,3 +586,4 @@
 - 授權：Owner批准repository-only實作、測試、文件與本機commit，並直接交棒Codex。
 - 後續授權：Codex完成後，Owner授權Work驗收並執行至deployment；hosted CI與PR通過可直接squash merge並部署exact merge commit，含既有wrapper checks、登入選擇頁無副作用HTTP contract與條件式rollback。
 - 安全邊界：不點擊或跟隨LINE登入連結，不執行真實LINE／DB驗證，不修改Secret／IAM／schema／data／LINE Console或通知。
+- 結果：PR #47 hosted Python 3.10 CI成功並merge為`7082afd`；production `web-portal-00035-mcl` Ready且承接100% traffic，登入選擇頁契約通過，未觸發rollback。

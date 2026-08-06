@@ -329,8 +329,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn(
             'href="/line/login?mode=browser&amp;next=/future-games"', page
         )
-        self.assertIn("使用 LINE 登入", page)
-        self.assertIn("改用瀏覽器登入", page)
+        self.assertIn("在 LINE 中登入", page)
+        self.assertIn("使用電腦瀏覽器登入", page)
+        self.assertIn("請回到 LINE", page)
+        self.assertIn("同一支手機也不適合使用 QR Code 登入", page)
         self.assertIn('/static/images/logo_square.png', page)
         self.assertNotIn("https://storage.googleapis.com", page)
 
@@ -490,7 +492,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         profile_request.assert_not_called()
         self.line_user_model.search_by_id.assert_not_called()
         self.member_model.search_by_id.assert_not_called()
-        self.assertIn("改用瀏覽器登入".encode(), response.data)
+        self.assertIn("返回登入說明".encode(), response.data)
         self.assertNotIn(b"fake-code", response.data)
         self.assertNotIn(b"tampered-state", response.data)
         with self.client.session_transaction() as current_session:
@@ -513,7 +515,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(state_nonce, retry_nonce)
         self.assertNotEqual(retry_nonce, "stale-nonce")
 
-    def test_nonce_mismatch_offers_fresh_browser_fallback_for_safe_return_path(self):
+    def test_nonce_mismatch_returns_to_login_options_with_safe_return_path(self):
         state = create_oauth_state(
             self.app.secret_key,
             "/future-games",
@@ -530,39 +532,37 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         token_request.assert_not_called()
         page = html.unescape(response.data.decode())
-        fallback_href = urlsplit(
-            page.split('data-login-mode="browser" href="', 1)[1].split('"', 1)[0]
+        options_href = urlsplit(
+            page.split('data-login-action="options" href="', 1)[1].split('"', 1)[0]
         )
-        self.assertEqual(fallback_href.path, "/line/login")
+        self.assertEqual(options_href.path, "/redirect-to-login")
         self.assertEqual(
-            parse_qs(fallback_href.query),
-            {"mode": ["browser"], "next": ["/future-games"]},
+            parse_qs(options_href.query), {"next": ["/future-games"]}
         )
 
-        fallback = self.client.get(fallback_href.geturl())
-        fallback_query = parse_qs(urlsplit(fallback.headers["Location"]).query)
-        self.assertEqual(fallback_query["disable_auto_login"], ["true"])
-        self.assertNotIn("old-code", fallback.headers["Location"])
-        self.assertNotEqual(fallback_query["state"], [state])
-        with self.client.session_transaction() as current_session:
-            fallback_nonce = current_session["oauth_state_nonce"]
-        _, state_nonce = self.app_module.load_oauth_state(
-            self.app.secret_key, fallback_query["state"][0], "/attendance"
+        options = self.client.get(options_href.geturl())
+        self.assertEqual(options.status_code, 200)
+        options_page = html.unescape(options.data.decode())
+        self.assertIn('href="/line/login?next=/future-games"', options_page)
+        self.assertIn(
+            'href="/line/login?mode=browser&next=/future-games"', options_page
         )
-        self.assertEqual(state_nonce, fallback_nonce)
-        self.assertNotEqual(fallback_nonce, "original-nonce")
+        self.assertNotIn("old-code", options_page)
+        self.assertNotIn(state, options_page)
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("oauth_state_nonce", current_session)
 
     def test_tampered_state_fallback_uses_fixed_safe_default(self):
         response = self.client.get(
             "/line/callback?code=old-code&state=tampered-state"
         )
         page = html.unescape(response.data.decode())
-        fallback_href = urlsplit(
-            page.split('data-login-mode="browser" href="', 1)[1].split('"', 1)[0]
+        options_href = urlsplit(
+            page.split('data-login-action="options" href="', 1)[1].split('"', 1)[0]
         )
+        self.assertEqual(options_href.path, "/redirect-to-login")
         self.assertEqual(
-            parse_qs(fallback_href.query),
-            {"mode": ["browser"], "next": ["/attendance"]},
+            parse_qs(options_href.query), {"next": ["/attendance"]}
         )
 
     def test_line_http_failure_is_safe_and_does_not_query_database(self):

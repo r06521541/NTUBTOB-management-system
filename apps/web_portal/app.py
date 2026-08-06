@@ -296,12 +296,16 @@ def invalid_oauth_state_response(return_path):
     """Discard only stale OAuth state while preserving authenticated identity."""
     for key in OAUTH_SESSION_KEYS:
         session.pop(key, None)
-    fallback_url = url_for(
-        "line_login",
-        mode="browser",
+    login_options_url = url_for(
+        "redirect_to_login",
         next=safe_return_path(return_path, url_for("attendance")),
     )
-    return render_template("line_login_error.html", fallback_url=fallback_url), 400
+    return (
+        render_template(
+            "line_login_error.html", login_options_url=login_options_url
+        ),
+        400,
+    )
 
 
 @app.route('/query-attendance')
