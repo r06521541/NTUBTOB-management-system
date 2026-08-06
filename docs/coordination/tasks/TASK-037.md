@@ -1,6 +1,6 @@
 # TASK-037：最小化 Web Portal 登入 Session
 
-狀態：`ready_for_codex`
+狀態：`ready_for_review`
 優先級：P1 security／privacy
 規劃角色：Work
 執行角色：Codex

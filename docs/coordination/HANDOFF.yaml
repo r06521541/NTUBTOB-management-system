@@ -1,15 +1,15 @@
 active_task: TASK-037
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: fee79c9
-head_commit: null
+head_commit: bfa5494
 
-updated_by: work
-updated_at: 2026-08-06T17:00:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T17:45:00+08:00
 
 note: >
-  Owner requested TASK-036 closeout push, creation of TASK-037, and direct Codex handoff. TASK-037
-  removes full Member/display_name from signed cookie sessions, migrates existing sessions without
-  global logout, and rehydrates Member for attendance at request time. Repository-only implementation,
-  tests, and local commits are approved; no PR package, push, merge, deployment, or production access.
+  Codex minimized authenticated cookie sessions to user_id/member_id, removed legacy Member/display_name
+  snapshots without clearing unrelated session state, and changed attendance to request-time Member lookup.
+  Web Portal tests, compile, Python 3.10 grammar, deployment dry-run, and diff check pass. Work must inspect
+  actual diff and tests; push, PR, merge, deployment, and production access remain unapproved.
