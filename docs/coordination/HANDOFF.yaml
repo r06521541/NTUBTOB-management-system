@@ -3,16 +3,19 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 3da0bb0d895e59cc06c7c62f7b195d2de328434f
-head_commit: this_commit
+head_commit: c91d01752569480abea4edbb1609bd76847390d2
 
 updated_by: codex
-updated_at: 2026-08-06T17:30:00+08:00
+updated_at: 2026-08-06T18:00:00+08:00
 
 note: >
   Codex added the complete protected-route LINE login round-trip contract. Existing code preserves
   /attendance, /account, and roster destinations offline, so no speculative redirect change was made.
   Successful callbacks now log only an allowlisted destination category, with sentinel tests proving
-  OAuth, cookie, URL/query, LINE, Member, and Secret data are absent. 98 tests pass with two existing
-  Windows make/sh skips; compile, Python 3.10 grammar, and diff checks pass. Work must inspect the actual
+  OAuth, cookie, URL/query, LINE, Member, and Secret data are absent. Work review additionally identified
+  that a failing logging handler could block the redirect; commit c91d017 wraps diagnostics in a
+  best-effort boundary, and a fault-injection test proves the successful 302 and authenticated session
+  survive. 99 tests pass with two existing Windows make/sh skips; compile, Python 3.10 grammar, and diff
+  checks pass. Work must inspect the actual
   diff and evidence. No push, PR, merge, deployment, production log access, DB, Secret, IAM, LINE Console,
   schema, notification, or other-service action was performed.
