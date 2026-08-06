@@ -3,16 +3,17 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 0009b497125eacba66e586e85494f307c198a6db
-head_commit: a88a2989b0dd80c220ec3aa1ba32098ab003a72d
+head_commit: 42ea8dd138d456a03e35ba1b802f0f05675625fd
 
 updated_by: codex
-updated_at: 2026-08-06T20:35:00+08:00
+updated_at: 2026-08-06T20:50:00+08:00
 
 note: >
   Codex added a bounded, best-effort timing event for successful production attendance responses with
-  fixed integer fields for member lookup, games query, attendance analysis, render, and total. Clock and
+  fixed integer fields for member lookup, games query, attendance analysis, render, and total. Every value
+  is clamped to 0..300000ms as a diagnostic bound, not a request timeout. Clock and
   logging failures preserve request behavior; tests assert no request, identity, game, DB, Secret, or
-  exception data enters the log and no model/analyzer calls are added. 108 Web Portal tests pass with two
+  exception data enters the log and no model/analyzer calls are added. 109 Web Portal tests pass with two
   existing Windows skips; compile, Python 3.10 grammar, and diff check pass. No production, DB, cloud,
   notification, push, PR, merge, or deployment action occurred. Ready for Work to inspect the actual diff,
   commit, and tests.
