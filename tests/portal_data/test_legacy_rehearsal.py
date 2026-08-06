@@ -37,6 +37,7 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.upgrade(config, "head")
+        command.check(config)
 
         with self.engine.connect() as connection:
             names = connection.scalars(
