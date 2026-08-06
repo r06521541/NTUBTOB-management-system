@@ -584,4 +584,5 @@
 - 決策：建立TASK-039，移除`redirect_page.html`的meta auto-redirect，提供normal LINE登入與`mode=browser`fallback兩個明確、mobile-first入口。
 - 安全原則：保留signed state、fresh nonce、safe return path與TASK-038 fallback；不使用UA sniffing、`line://`或自動OS判斷。
 - 授權：Owner批准repository-only實作、測試、文件與本機commit，並直接交棒Codex。
-- 安全邊界：未批准push、PR、merge、deployment、真實LINE／production驗證、Secret／IAM／DB／schema或通知。
+- 後續授權：Codex完成後，Owner授權Work驗收並執行至deployment；hosted CI與PR通過可直接squash merge並部署exact merge commit，含既有wrapper checks、登入選擇頁無副作用HTTP contract與條件式rollback。
+- 安全邊界：不點擊或跟隨LINE登入連結，不執行真實LINE／DB驗證，不修改Secret／IAM／schema／data／LINE Console或通知。

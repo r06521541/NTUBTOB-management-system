@@ -140,7 +140,7 @@
 | `TASK-036` | `completed` | `owner` | `5952e0b`已部署為`web-portal-00033-kzq`並承接100% traffic；匿名roster安全回同站登入302，無需rollback。 |
 | `TASK-037` | `completed` | `owner` | PR #45的hosted Python 3.10 CI成功並squash merge為`4b9ddd4`；minimal identity session已在main，尚未部署。 |
 | `TASK-038` | `completed` | `owner` | PR #46 merge為`d1ebefa`並部署`web-portal-00034-7lm`承接100% traffic；normal login不含`disable_auto_login`，真實UX待Owner驗證。 |
-| `TASK-039` | `ready_for_codex` | `codex` | Owner已交棒跨平台登入入口UX：取消meta auto-redirect，明確提供normal LINE與browser fallback，不改OAuth安全邊界。 |
+| `TASK-039` | `in_progress` | `work` | Work本機驗收通過；Owner已授權PR、hosted CI、通過後squash merge及受控Web Portal deployment，正在執行。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

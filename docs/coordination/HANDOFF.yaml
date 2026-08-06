@@ -1,16 +1,15 @@
 active_task: TASK-039
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: bd0ddd6
-head_commit: dbdd287
+head_commit: 0025f7f
 
-updated_by: codex
-updated_at: 2026-08-06T21:45:00+08:00
+updated_by: work
+updated_at: 2026-08-06T22:00:00+08:00
 
 note: >
-  Codex replaced automatic login redirection with explicit normal and browser-fallback actions, preserved
-  validated return paths and fresh session-bound OAuth transactions, and aligned error and pending pages
-  with local mobile-first assets. Web Portal tests, compile, Python 3.10 grammar, dry-run, and diff checks
-  passed. Work must review actual diff and evidence; push, PR, merge, deployment, and real LINE verification
-  remain unauthorized.
+  Work accepted TASK-039 locally: 75 Web Portal tests passed with two existing Windows skips, compile,
+  deployment dry-run, and diff checks passed. Owner authorized the complete PR-to-deployment chain.
+  Work will push, require hosted Python 3.10 CI, squash merge if clean, then deploy the exact merge commit
+  with preflight rollback discovery. Real LINE login and DB access remain excluded.
