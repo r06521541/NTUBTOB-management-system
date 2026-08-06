@@ -139,6 +139,22 @@ authorization foundation, not role persistence: no schema, model, migration,
 or production role assignment is included. See
 `docs/planning/WEB_PORTAL_ACCESS_MATRIX.md` for the current route matrix.
 
+## Production member account and logout
+
+Authenticated linked members can open `/account` to see the current Member
+name, LINE as the authentication method, and the Portal authorization label.
+The Member record is loaded by `member_id` on every account request and is
+never copied into the signed cookie. An allowlisted administrator sees the
+system-administrator label and a policy-backed link to Member matching; regular
+members do not see that link and remain denied by the server-side guard.
+
+Account, attendance, and roster pages share a small local mobile navigation.
+`POST /logout` requires its own session-bound CSRF token, separate from Member
+matching. A valid logout clears the entire Web Portal session, including
+temporary OAuth, administrative CSRF, and demo keys. Invalid or missing CSRF
+does not alter the session, and GET cannot trigger logout. This action signs
+out only this Portal session; it does not revoke or sign out the LINE account.
+
 ## Member matching administration
 
 The production member matching routes require both an authenticated LINE Login

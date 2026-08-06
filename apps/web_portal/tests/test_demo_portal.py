@@ -183,6 +183,20 @@ class DemoPortalTest(unittest.TestCase):
         self.assertIn("/line/login", rules)
         self.assertIn("/line/callback", rules)
 
+    def test_production_account_and_logout_are_unavailable_in_demo_mode(self):
+        with self.client.session_transaction() as current_session:
+            current_session["user_id"] = "fictional-production-user"
+            current_session["member_id"] = 7
+            current_session["logout_csrf_token"] = "fictional-token"
+
+        self.assertEqual(self.client.get("/account").status_code, 404)
+        self.assertEqual(
+            self.client.post(
+                "/logout", data={"csrf_token": "fictional-token"}
+            ).status_code,
+            404,
+        )
+
     def test_demo_session_cookie_remains_available_over_local_http(self):
         response = self.client.post("/demo/login", follow_redirects=False)
         session_cookie = next(

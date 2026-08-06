@@ -730,6 +730,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Demo Player".encode(), response.data)
         self.assertIn("Waiting Player".encode(), response.data)
+        self.assertIn('href="/attendance"'.encode(), response.data)
+        self.assertIn('href="/account"'.encode(), response.data)
         self.game_model.search_by_id.assert_called_once_with(23)
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
 
@@ -776,6 +778,132 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             self.assertNotIn("user_id", current_session)
             self.assertNotIn("member_id", current_session)
+
+    def test_account_loads_fresh_member_and_shows_member_role(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            id=7, name="Fresh Member"
+        )
+        self.login()
+
+        response = self.client.get("/account")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Fresh Member".encode(), response.data)
+        self.assertIn('href="/account"'.encode(), response.data)
+        self.assertIn("一般隊員".encode(), response.data)
+        self.assertIn("LINE".encode(), response.data)
+        self.assertNotIn("前往 Member 配對".encode(), response.data)
+        self.member_model.search_by_id.assert_called_once_with(7)
+
+    def test_admin_account_uses_policy_for_role_and_management_entry(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            id=7, name="Admin Member"
+        )
+        self.login()
+
+        with patch.dict(os.environ, {"WEB_PORTAL_ADMIN_MEMBER_IDS": "7"}):
+            response = self.client.get("/account")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("系統管理者".encode(), response.data)
+        self.assertIn("前往 Member 配對".encode(), response.data)
+        self.assertIn('href="/match-member"'.encode(), response.data)
+
+    def test_account_missing_member_clears_identity_without_other_queries(self):
+        self.member_model.search_by_id.return_value = None
+        self.login()
+
+        with patch.object(self.app_module.requests, "get") as http_get, patch.object(
+            self.app_module.requests, "post"
+        ) as http_post:
+            response = self.client.get("/account")
+
+        self.assertEqual(response.status_code, 403)
+        self.member_model.search_by_id.assert_called_once_with(7)
+        self.game_model.search_for_invited.assert_not_called()
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
+        http_get.assert_not_called()
+        http_post.assert_not_called()
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("user_id", current_session)
+            self.assertNotIn("member_id", current_session)
+
+    def test_account_malformed_identity_fails_before_member_lookup(self):
+        with self.client.session_transaction() as current_session:
+            current_session["user_id"] = "fake-user"
+            current_session["member_id"] = "7"
+
+        response = self.client.get("/account")
+
+        self.assertEqual(response.status_code, 302)
+        self.member_model.search_by_id.assert_not_called()
+
+    def test_logout_is_post_only_and_bad_csrf_preserves_complete_session(self):
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session["logout_csrf_token"] = "correct-logout-token"
+            current_session["oauth_state_nonce"] = "active-oauth"
+            current_session["member_matching_csrf_token"] = "admin-token"
+
+        self.assertEqual(self.client.get("/logout").status_code, 405)
+        for csrf_value in (None, "", "wrong-token"):
+            data = {} if csrf_value is None else {"csrf_token": csrf_value}
+            response = self.client.post("/logout", data=data)
+            self.assertEqual(response.status_code, 400)
+            with self.client.session_transaction() as current_session:
+                self.assertEqual(current_session["member_id"], 7)
+                self.assertEqual(current_session["oauth_state_nonce"], "active-oauth")
+                self.assertEqual(
+                    current_session["member_matching_csrf_token"], "admin-token"
+                )
+
+    def test_valid_logout_clears_entire_session_and_protected_routes_relogin(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            id=7, name="Fresh Member"
+        )
+        self.login()
+        account = self.client.get("/account")
+        self.assertEqual(account.status_code, 200)
+        with self.client.session_transaction() as current_session:
+            token = current_session["logout_csrf_token"]
+            current_session["oauth_state_nonce"] = "active-oauth"
+            current_session["member_matching_csrf_token"] = "admin-token"
+            current_session["demo_member"] = {"id": "fictional"}
+
+        response = self.client.post("/logout", data={"csrf_token": token})
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response.headers["Location"],
+            "/redirect-to-login?next=/account",
+        )
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(dict(current_session), {})
+        for path in ("/account", "/attendance", "/game-roster/23"):
+            with self.subTest(path=path):
+                protected = self.client.get(path)
+                self.assertEqual(protected.status_code, 302)
+                self.assertEqual(
+                    urlsplit(protected.headers["Location"]).path,
+                    "/redirect-to-login",
+                )
+
+    def test_logout_csrf_is_separate_from_member_matching_csrf(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            id=7, name="Fresh Member"
+        )
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "admin-token"
+
+        response = self.client.get("/account")
+
+        self.assertEqual(response.status_code, 200)
+        with self.client.session_transaction() as current_session:
+            self.assertNotEqual(
+                current_session["logout_csrf_token"],
+                current_session["member_matching_csrf_token"],
+            )
 
     def test_attendance_malformed_identity_fails_before_member_lookup(self):
         for session_values in (

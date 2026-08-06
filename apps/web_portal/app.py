@@ -22,9 +22,13 @@ import messages
 from admin_security import (
     admin_required,
     get_or_create_csrf_token,
+    get_or_create_logout_csrf_token,
+    get_current_principal,
     member_required,
     require_valid_csrf,
+    require_valid_logout_csrf,
 )
+from role_policy import MANAGE_MEMBERS, ROLE_ADMIN, has_capability
 from demo_events import demo_events
 from demo_portal import demo_portal, is_demo_mode_enabled
 from envs import login_channel_id, login_channel_secret, secret_key
@@ -121,6 +125,8 @@ def isolate_demo_from_production_data_routes():
         "future_games",
         "game_roster",
         "clear_attendance_cache",
+        "account",
+        "logout",
     }
     if request.endpoint in blocked_endpoints:
         return "Not available in offline demo mode", 404
@@ -342,7 +348,40 @@ def attendance():
                            update_time=now,
                            my_membership=member,
                            games_with_attendance=games_with_attendance,
-                           reply_text_mapping=reply_text_mapping)
+                           reply_text_mapping=reply_text_mapping,
+                           can_manage_members=has_capability(
+                               get_current_principal(), MANAGE_MEMBERS
+                           ))
+
+
+@app.route('/account')
+@member_required
+def account():
+    member = Member.search_by_id(session["member_id"])
+    if member is None:
+        for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
+            session.pop(key, None)
+        return render_template("not_authenticated.html"), 403
+
+    principal = get_current_principal()
+    can_manage_members = has_capability(principal, MANAGE_MEMBERS)
+    return render_template(
+        "account.html",
+        member=member,
+        role_label=(
+            "系統管理者" if principal.role == ROLE_ADMIN else "一般隊員"
+        ),
+        can_manage_members=can_manage_members,
+        logout_csrf_token=get_or_create_logout_csrf_token(),
+    )
+
+
+@app.route('/logout', methods=['POST'])
+@member_required
+def logout():
+    require_valid_logout_csrf()
+    session.clear()
+    return redirect(url_for("redirect_to_login", next=url_for("account")))
 
 @app.route('/match-member')
 @admin_required
@@ -417,7 +456,10 @@ def game_roster(game_id: int):
     return render_template('game_roster.html', 
                            game=game,
                            players=process_replies(attendance_mapping),
-                           players_not_reply_yet=process_replies_who_has_not_reply_yet(attendance_mapping))
+                           players_not_reply_yet=process_replies_who_has_not_reply_yet(attendance_mapping),
+                           can_manage_members=has_capability(
+                               get_current_principal(), MANAGE_MEMBERS
+                           ))
 
 def process_replies(attendance_mapping: dict[int, list[Member]]) -> list[str]:
     names = []

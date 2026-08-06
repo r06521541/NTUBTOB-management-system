@@ -14,6 +14,7 @@ from role_policy import (
 
 ADMIN_MEMBER_IDS_ENV = "WEB_PORTAL_ADMIN_MEMBER_IDS"
 CSRF_SESSION_KEY = "member_matching_csrf_token"
+LOGOUT_CSRF_SESSION_KEY = "logout_csrf_token"
 
 
 def parse_admin_member_ids(value):
@@ -44,10 +45,7 @@ def capability_required(capability):
     def decorator(view):
         @wraps(view)
         def protected_view(*args, **kwargs):
-            allowlist = parse_admin_member_ids(
-                os.environ.get(ADMIN_MEMBER_IDS_ENV)
-            )
-            principal = resolve_production_principal(session, allowlist)
+            principal = get_current_principal()
             if principal is None:
                 return redirect(url_for("redirect_to_login", next=request.path))
             if not has_capability(principal, capability):
@@ -57,6 +55,12 @@ def capability_required(capability):
         return protected_view
 
     return decorator
+
+
+def get_current_principal():
+    """Resolve the current production principal without persisting its role."""
+    allowlist = parse_admin_member_ids(os.environ.get(ADMIN_MEMBER_IDS_ENV))
+    return resolve_production_principal(session, allowlist)
 
 
 def admin_required(view):
@@ -79,6 +83,25 @@ def get_or_create_csrf_token():
 
 def require_valid_csrf():
     expected = session.get(CSRF_SESSION_KEY)
+    received = request.form.get("csrf_token")
+    if not isinstance(expected, str) or not expected:
+        abort(400)
+    if not isinstance(received, str) or not received:
+        abort(400)
+    if not secrets.compare_digest(expected, received):
+        abort(400)
+
+
+def get_or_create_logout_csrf_token():
+    token = session.get(LOGOUT_CSRF_SESSION_KEY)
+    if not isinstance(token, str) or not token:
+        token = secrets.token_urlsafe(32)
+        session[LOGOUT_CSRF_SESSION_KEY] = token
+    return token
+
+
+def require_valid_logout_csrf():
+    expected = session.get(LOGOUT_CSRF_SESSION_KEY)
     received = request.form.get("csrf_token")
     if not isinstance(expected, str) or not expected:
         abort(400)

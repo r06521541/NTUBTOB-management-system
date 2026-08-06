@@ -12,6 +12,8 @@ receive that role until a separately approved persistence design exists.
 
 | Route group | Anonymous | Member | Officer | Admin | Enforced capability |
 | --- | --- | --- | --- | --- | --- |
+| `/account` | Login redirect | Allow | Future role | Allow + management entry | `view_member_portal`; entry uses `manage_members` |
+| `POST /logout` | Login redirect | Allow with logout CSRF | Future role | Allow with logout CSRF | `view_member_portal` + dedicated CSRF |
 | `/attendance` | Login redirect | Allow | Future role | Allow | `view_member_portal` |
 | `/game-roster/<id>` | Login redirect | Allow | Future role | Allow | `view_member_portal` |
 | `/match-member` | Login redirect | 403 | Future role | Allow | `manage_members` |
@@ -20,6 +22,12 @@ receive that role until a separately approved persistence design exists.
 
 Public home, login and published schedule routes retain their existing access.
 This task does not broaden or redesign them.
+
+The account page reloads the Member by session `member_id` for each request and
+shows only the confirmed Member name, LINE login method, and policy-derived
+Portal role. Logout is POST-only and clears the full Portal session only after
+constant-time validation of a dedicated token that is not shared with Member
+matching. It does not call LINE or another external service.
 
 ## Capability inheritance
 
