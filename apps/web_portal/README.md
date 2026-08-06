@@ -27,6 +27,11 @@ and administrator approval are visual prototypes only. Existing LINE routes
 remain present, but selecting LINE requires the real application configuration
 and is not part of the offline demo.
 
+The local login offers member, officer, and administrator previews. Their
+navigation and protected demo routes use the same capability policy described
+in `docs/planning/WEB_PORTAL_ACCESS_MATRIX.md`; all demo identities and changes
+remain fictional and session-only.
+
 ## LINE Login callback continuity
 
 LINE Login uses a short-lived, server-signed OAuth state bound to a nonce in the
@@ -123,6 +128,16 @@ transaction, CSRF, return-path, and offline-demo state remain intact. The
 attendance page loads the current Member by `member_id` for each request. If
 that Member no longer exists, the Web Portal removes the authenticated identity
 and stops before game or attendance queries.
+
+## Role and capability policy
+
+Role-to-capability mapping is centralized in `role_policy.py`. Production can
+currently resolve only a linked `member` or an allowlisted `admin`; it cannot
+produce an `officer`. Unknown roles, malformed identities, unknown
+capabilities, and an invalid admin allowlist fail closed. This is an
+authorization foundation, not role persistence: no schema, model, migration,
+or production role assignment is included. See
+`docs/planning/WEB_PORTAL_ACCESS_MATRIX.md` for the current route matrix.
 
 ## Member matching administration
 

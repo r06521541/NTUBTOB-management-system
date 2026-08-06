@@ -4,6 +4,13 @@ from functools import wraps
 
 from flask import abort, redirect, request, session, url_for
 
+from role_policy import (
+    MANAGE_MEMBERS,
+    VIEW_MEMBER_PORTAL,
+    has_capability,
+    resolve_production_principal,
+)
+
 
 ADMIN_MEMBER_IDS_ENV = "WEB_PORTAL_ADMIN_MEMBER_IDS"
 CSRF_SESSION_KEY = "member_matching_csrf_token"
@@ -33,41 +40,33 @@ def parse_admin_member_ids(value):
     return frozenset(member_ids)
 
 
+def capability_required(capability):
+    def decorator(view):
+        @wraps(view)
+        def protected_view(*args, **kwargs):
+            allowlist = parse_admin_member_ids(
+                os.environ.get(ADMIN_MEMBER_IDS_ENV)
+            )
+            principal = resolve_production_principal(session, allowlist)
+            if principal is None:
+                return redirect(url_for("redirect_to_login", next=request.path))
+            if not has_capability(principal, capability):
+                abort(403)
+            return view(*args, **kwargs)
+
+        return protected_view
+
+    return decorator
+
+
 def admin_required(view):
-    @wraps(view)
-    def protected_view(*args, **kwargs):
-        if "user_id" not in session or "member_id" not in session:
-            return redirect(url_for("redirect_to_login", next=request.path))
-
-        allowlist = parse_admin_member_ids(os.environ.get(ADMIN_MEMBER_IDS_ENV))
-        member_id = session.get("member_id")
-        if not isinstance(member_id, int) or isinstance(member_id, bool):
-            abort(403)
-        if member_id not in allowlist:
-            abort(403)
-        return view(*args, **kwargs)
-
-    return protected_view
+    return capability_required(MANAGE_MEMBERS)(view)
 
 
 def member_required(view):
     """Require a session created for a matched LINE user and Member."""
 
-    @wraps(view)
-    def protected_view(*args, **kwargs):
-        user_id = session.get("user_id")
-        member_id = session.get("member_id")
-        has_valid_user = isinstance(user_id, str) and bool(user_id.strip())
-        has_valid_member = (
-            isinstance(member_id, int)
-            and not isinstance(member_id, bool)
-            and member_id > 0
-        )
-        if not has_valid_user or not has_valid_member:
-            return redirect(url_for("redirect_to_login", next=request.path))
-        return view(*args, **kwargs)
-
-    return protected_view
+    return capability_required(VIEW_MEMBER_PORTAL)(view)
 
 
 def get_or_create_csrf_token():

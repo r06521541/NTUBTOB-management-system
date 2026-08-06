@@ -6,7 +6,8 @@ from datetime import date, time
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
 
 from demo_event_data import get_league_game, get_seed_events
-from demo_portal import demo_login_required, get_or_create_demo_csrf_token, is_demo_mode_enabled, require_demo_csrf
+from demo_portal import demo_capability_required, demo_login_required, get_or_create_demo_csrf_token, is_demo_mode_enabled, require_demo_csrf
+from role_policy import MANAGE_EVENTS
 
 
 demo_events = Blueprint("demo_events", __name__, url_prefix="/demo")
@@ -28,14 +29,7 @@ def require_demo_mode():
 
 
 def officer_required(view):
-    @demo_login_required
-    def wrapped(*args, **kwargs):
-        if session.get("demo_member", {}).get("demo_role") != "officer":
-            abort(403)
-        return view(*args, **kwargs)
-
-    wrapped.__name__ = view.__name__
-    return wrapped
+    return demo_capability_required(MANAGE_EVENTS)(view)
 
 
 def event_store():
