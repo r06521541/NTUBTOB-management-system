@@ -953,6 +953,75 @@ class MemberMatchingRouteTest(unittest.TestCase):
             [call(23), call(23)],
         )
 
+    def test_successful_attendance_logs_one_bounded_timing_event(self):
+        fresh_member = SimpleNamespace(id=7, name="member-name-sentinel")
+        self.member_model.search_by_id.return_value = fresh_member
+        game = SimpleNamespace(
+            id=23,
+            generate_short_summary_for_team=lambda: "game-summary-sentinel",
+        )
+        self.game_model.search_for_invited.return_value = [game]
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [fresh_member]
+        }
+        self.login()
+        clock_values = iter((10.000, 10.003, 10.008, 10.021, 10.023, 10.030))
+        timing_type = self.app_module.AttendanceTiming
+
+        with patch.object(
+            self.app_module,
+            "AttendanceTiming",
+            side_effect=lambda: timing_type(clock=lambda: next(clock_values)),
+        ), patch.object(self.app.logger, "info") as log_info, patch.object(
+            self.app_module, "datetime"
+        ) as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            response = self.client.get("/attendance?query=query-sentinel")
+
+        self.assertEqual(response.status_code, 200)
+        log_info.assert_called_once_with(
+            "attendance_timing member_lookup_ms=%d games_query_ms=%d "
+            "attendance_analysis_ms=%d render_ms=%d total_ms=%d",
+            3,
+            5,
+            13,
+            2,
+            30,
+        )
+        log_text = " ".join(str(value) for value in log_info.call_args.args)
+        for sentinel in (
+            "member-name-sentinel",
+            "game-summary-sentinel",
+            "query-sentinel",
+            "cookie",
+            "oauth",
+            "secret",
+            "dsn",
+        ):
+            self.assertNotIn(sentinel, log_text.lower())
+        self.member_model.search_by_id.assert_called_once_with(7)
+        self.game_model.search_for_invited.assert_called_once_with()
+        self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_attendance_logging_failure_preserves_success_response(self):
+        fresh_member = SimpleNamespace(id=7, name="Fresh Member")
+        self.member_model.search_by_id.return_value = fresh_member
+        self.game_model.search_for_invited.return_value = []
+        self.login()
+
+        with patch.object(
+            self.app.logger,
+            "info",
+            side_effect=RuntimeError("logging unavailable"),
+        ), patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            response = self.client.get("/attendance")
+
+        self.assertEqual(response.status_code, 200)
+        self.member_model.search_by_id.assert_called_once_with(7)
+        self.game_model.search_for_invited.assert_called_once_with()
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
+
     def test_attendance_has_no_cache_invalidation_route(self):
         rules = {rule.rule for rule in self.app.url_map.iter_rules()}
 

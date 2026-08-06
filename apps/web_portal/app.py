@@ -41,6 +41,7 @@ from line_login import (
     return_path_category,
     safe_return_path,
 )
+from performance_diagnostics import AttendanceTiming
 
 DEMO_MODE_ENABLED = is_demo_mode_enabled()
 
@@ -338,16 +339,17 @@ def query_attendance():
 @app.route('/attendance')
 @member_required
 def attendance():
+    timing = AttendanceTiming()
     member = Member.search_by_id(session["member_id"])
     if member is None:
         for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
             session.pop(key, None)
         return render_template("not_authenticated.html"), 403
-
-    now = datetime.now(local_timezone).strftime("%Y年%-m月%-d日 %H:%M:%S")
+    timing.finish("member_lookup")
 
     # 查詢未來的比賽
     upcoming_games = Game.search_for_invited()
+    timing.finish("games_query")
     
     games_with_attendance = []
     for game in upcoming_games:
@@ -357,15 +359,22 @@ def attendance():
             'game_summary': game.generate_short_summary_for_team(),
             'attendance_mapping': mapping,
         })
-    
-    return render_template('attendance.html', 
-                           update_time=now,
-                           my_membership=member,
-                           games_with_attendance=games_with_attendance,
-                           reply_text_mapping=reply_text_mapping,
-                           can_manage_members=has_capability(
-                               get_current_principal(), MANAGE_MEMBERS
-                           ))
+    timing.finish("attendance_analysis")
+
+    now = datetime.now(local_timezone).strftime("%Y年%-m月%-d日 %H:%M:%S")
+    response = render_template(
+        'attendance.html',
+        update_time=now,
+        my_membership=member,
+        games_with_attendance=games_with_attendance,
+        reply_text_mapping=reply_text_mapping,
+        can_manage_members=has_capability(
+            get_current_principal(), MANAGE_MEMBERS
+        ),
+    )
+    timing.finish("render")
+    timing.emit(app.logger)
+    return response
 
 
 @app.route('/account')
