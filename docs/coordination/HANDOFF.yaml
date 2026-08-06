@@ -1,14 +1,15 @@
-active_task: TASK-037
-status: in_progress
-next_actor: work
+active_task: TASK-038
+status: awaiting_owner_approval
+next_actor: owner
 
-base_commit: fee79c9
-head_commit: 0d9e367
+base_commit: 4b9ddd483a197d00a41403858efd36ff964e6e10
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T18:30:00+08:00
+updated_at: 2026-08-06T19:00:00+08:00
 
 note: >
-  Owner approved the TASK-037 PR work package. Work may push the existing branch, create a Draft PR,
-  and inspect hosted Python 3.10 CI to complete verification. Local behavior review already passed.
-  Merge, deployment, production access, Secret, IAM, DB, schema, data, and notifications remain unapproved.
+  TASK-037 passed hosted Python 3.10 CI and PR #45 merged as 4b9ddd4; it is not deployed. Work proposes
+  TASK-038 to restore normal LINE auto-login eligibility while retaining an explicit, fresh browser-login
+  fallback with disable_auto_login=true after state continuity failures. Owner approval is required before
+  implementation; PR, push, merge, deployment, production, and real LINE verification are unapproved.

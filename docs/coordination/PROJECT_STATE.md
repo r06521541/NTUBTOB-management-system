@@ -137,7 +137,8 @@
 | `TASK-034` | `completed` | `owner` | PR #43已squash merge為`bb91d9e5`；production `web-portal-00032-f7z` Ready並承接100% traffic，無需rollback。 |
 | `TASK-035` | `completed` | `owner` | PR #44已squash merge為`5952e0b`；member-only roster guard已在main，尚未部署production。 |
 | `TASK-036` | `completed` | `owner` | `5952e0b`已部署為`web-portal-00033-kzq`並承接100% traffic；匿名roster安全回同站登入302，無需rollback。 |
-| `TASK-037` | `in_progress` | `work` | Owner已批准PR工作包；本機驗收通過，正建立Draft PR並補hosted Python 3.10 CI證據。 |
+| `TASK-037` | `completed` | `owner` | PR #45的hosted Python 3.10 CI成功並squash merge為`4b9ddd4`；minimal identity session已在main，尚未部署。 |
+| `TASK-038` | `awaiting_owner_approval` | `owner` | 建議normal LINE Login恢復auto-login eligibility；state continuity失敗後才以fresh transaction啟用`disable_auto_login=true` browser fallback。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
