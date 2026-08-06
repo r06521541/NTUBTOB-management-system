@@ -1,9 +1,9 @@
 # TASK-035：保護 Web Portal 比賽名單的會員隱私邊界
 
-狀態：`ready_for_codex`  
+狀態：`ready_for_codex`
 優先級：P1 security／privacy  
 規劃角色：Work  
-執行角色：Codex  
+執行角色：Codex
 Base commit：`198d3f0`
 
 ## 1. 目標
