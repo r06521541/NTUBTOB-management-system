@@ -730,6 +730,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Demo Player".encode(), response.data)
         self.assertIn("Waiting Player".encode(), response.data)
+        self.assertIn('href="/"'.encode(), response.data)
         self.assertIn('href="/attendance"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
         self.game_model.search_by_id.assert_called_once_with(23)
@@ -789,6 +790,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Fresh Member".encode(), response.data)
+        self.assertIn('href="/"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
         self.assertIn("一般隊員".encode(), response.data)
         self.assertIn("LINE".encode(), response.data)

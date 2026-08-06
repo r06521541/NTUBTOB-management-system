@@ -1,5 +1,20 @@
 # Web Portal local demo
 
+## Brand UI and local visual review
+
+The Portal uses `static/brand.css` as the shared source for its visual tokens.
+Deep navy is the primary brand color, cool gray is the page and border system,
+and muted warm gold is reserved for small highlights and focus states. Red is
+reserved for danger, cancellation, decline, and error states. Green is reserved
+for the official LINE action and explicit success or attendance states.
+
+For a local visual review, start the offline demo with the command below and
+check the dashboard, schedule, game detail, profile, pending, officer, and event
+builder pages at about 375px and at desktop width. Also review `/`,
+`/redirect-to-login`, and the recovery page through their existing offline route
+tests. The shared Member navigation keeps Home, attendance, and account actions
+available on narrow screens without changing any route or authorization rule.
+
 The demo is an offline Flask/Jinja product prototype. It uses fictional data in
 the browser session and does not require LINE credentials, a database, or an
 external API. Both environment gates are required; the demo is off by default.

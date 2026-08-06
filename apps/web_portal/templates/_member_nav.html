@@ -1,4 +1,5 @@
 <nav class="member-nav" aria-label="會員功能導覽">
+    <a href="{{ url_for('home') }}">首頁</a>
     <a href="{{ url_for('attendance') }}">出席</a>
     <a href="{{ url_for('account') }}">我的帳號</a>
     {% if can_manage_members %}

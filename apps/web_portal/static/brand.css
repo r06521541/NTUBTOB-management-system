@@ -1,0 +1,101 @@
+:root {
+  --brand-primary: #29415d;
+  --brand-primary-hover: #20344a;
+  --brand-primary-soft: #e7edf3;
+  --brand-accent: #c39a55;
+  --brand-accent-soft: #f3e9d7;
+  --color-canvas: #f5f6f8;
+  --color-surface: #ffffff;
+  --color-text: #18212b;
+  --color-muted: #66717e;
+  --color-border: #d9dee5;
+  --color-focus: #c39a55;
+  --color-success: #26734d;
+  --color-success-soft: #e4f2ea;
+  --color-warning: #8a641f;
+  --color-warning-soft: #f8efd9;
+  --color-danger: #a63d3d;
+  --color-danger-soft: #f8e7e7;
+  --color-line: #06c755;
+  --color-line-hover: #05b94f;
+  --shadow-card: 0 12px 34px rgb(32 52 74 / 10%);
+  --shadow-card-raised: 0 16px 42px rgb(32 52 74 / 16%);
+  --radius-card: 20px;
+  --radius-control: 12px;
+
+  /* Compatibility aliases for the existing demo component styles. */
+  --ink: var(--color-text);
+  --muted: var(--color-muted);
+  --green: var(--brand-primary);
+  --green-2: var(--brand-primary-hover);
+  --cream: var(--color-canvas);
+  --line: var(--color-border);
+  --white: var(--color-surface);
+  --orange: var(--color-danger);
+  --shadow: var(--shadow-card);
+}
+
+/* Shared component refinements loaded after the legacy demo foundation. */
+.button-primary,
+.featured-date,
+.hero-stat,
+.avatar,
+.filter-tabs a.active,
+.view-switch a.active,
+.timeline-marker span,
+.order-number,
+.game-day-hero {
+  background: var(--brand-primary);
+}
+
+.button-primary:hover { background: var(--brand-primary-hover); }
+
+.section-heading > a,
+.text-link,
+.back-link,
+.quiet-link,
+.desktop-nav a:hover,
+.officer-nav-link {
+  color: var(--brand-primary-hover);
+}
+
+.eyebrow { color: var(--brand-accent); }
+
+.reply-button:hover,
+.name-list span,
+.ride-option.selected {
+  border-color: var(--brand-primary);
+  background: var(--brand-primary-soft);
+}
+
+.switch:checked { background: var(--brand-primary); }
+.state-icon { color: var(--color-success); background: var(--color-success-soft); }
+.timeline .done strong,
+.timeline .active strong { border-color: var(--brand-primary); color: var(--brand-primary); }
+.badge-attending,
+.task-toggle.done > span,
+.preference-button.enabled { background: var(--color-success-soft); color: var(--color-success); }
+.badge-declined { background: var(--color-danger-soft); color: var(--color-danger); }
+.badge-tentative,
+.todo-icon { background: var(--color-warning-soft); color: var(--color-warning); }
+.badge-pending,
+.preference-button { background: #eef1f4; color: var(--color-muted); }
+.notice,
+.metric.warning { background: var(--color-danger-soft); color: var(--color-danger); border-color: #e5b8b8; }
+.notice span { color: var(--color-danger); }
+.button-line { background: var(--color-line); }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.site-header { background: rgb(245 246 248 / 94%); }
+.game-card:hover { box-shadow: var(--shadow-card-raised); }
+.game-day-hero p { color: #e7edf3; }
+.lineup-list > div,
+.message-preview { background: #f1f3f6; }
