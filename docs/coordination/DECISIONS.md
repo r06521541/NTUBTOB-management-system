@@ -635,3 +635,13 @@
 - 優先順序：原過時webhook cache invalidation任務順延為TASK-045。
 - 授權：Owner要求執行；批准repository-only實作、離線測試與描述性本機commit並交棒Codex。
 - 安全邊界：不包含production logs/request URL讀取、push／PR／merge／deployment、production DB、LINE Console／Secret、schema、IAM、通知或其他服務。
+
+## DEC-063：暫停登入目的地調查並移除過時cache呼叫
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- TASK-044狀態：安全診斷已部署，Owner重現仍落到首頁；Owner決定暫停此題，後續再查，不宣稱已修復。
+- 決策：建立TASK-045，移除LINE webhook在attendance reply後對不存在Web Portal cache endpoint的同步、無timeout HTTP呼叫；先以離線測試證明reply行為與attendance fresh-read契約。
+- 架構原則：不建立替代cache invalidation endpoint或跨服務呼叫；Web Portal attendance維持request-time查詢。
+- 授權：Owner要求建立並交棒；批准repository-only實作、shared library rebuild、離線測試與描述性本機commit。
+- 安全邊界：不包含push／PR／merge／deployment、production DB／logs、LINE／Discord通知、schema、Secret／IAM／Scheduler、LINE Console或其他服務重構。

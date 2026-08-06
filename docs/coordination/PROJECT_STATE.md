@@ -225,6 +225,13 @@
 
 ## 8. 文件狀態
 
+### TASK-045 移除過時attendance cache request（2026-08-06）
+
+- LINE webhook出席回覆已不再同步呼叫不存在且無timeout的Web Portal cache endpoint；無caller的`shared_module.web_cache`已移除。
+- DB add、回覆訊息、相同回覆、過期／取消、首次提示與12小時內管理通知行為均由fail-on-network離線測試保護。
+- Work獨立驗證18項webhook與101項Web Portal測試通過（2項既有Windows skip）、compile、shared sdist build與diff check通過；結論為`accepted`。
+- 尚待Owner批准PR工作包；後續若部署，只涉及LINE webhook Gen2 function與重建shared artifact，不需Web Portal部署。
+
 ### TASK-044 LINE登入目的地安全診斷（2026-08-06）
 
 - 完整離線登入鏈證實現有程式會從`/attendance`成功登入後返回`/attendance`；production落到`/`的現象尚未在repository重現，因此未加入猜測性redirect修正。
