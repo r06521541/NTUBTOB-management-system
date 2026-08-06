@@ -1,5 +1,6 @@
 import importlib
 import html
+import logging
 import os
 import sys
 import types
@@ -362,6 +363,47 @@ class MemberMatchingRouteTest(unittest.TestCase):
         for sentinel in sentinels:
             with self.subTest(sentinel=sentinel):
                 self.assertNotIn(sentinel, diagnostic)
+
+    def test_logging_failure_does_not_block_successful_callback(self):
+        class SerializableMember(int):
+            @property
+            def id(self):
+                return int(self)
+
+        class FailingHandler(logging.Handler):
+            def emit(self, record):
+                raise RuntimeError("sentinel logging failure")
+
+        login = self.client.get("/line/login?next=/attendance")
+        state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
+        self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
+        self.member_model.search_by_id.return_value = SerializableMember(7)
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "fake-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "fake-authenticated-user",
+            "displayName": "Demo User",
+        }
+        failing_handler = FailingHandler()
+        self.app.logger.addHandler(failing_handler)
+        try:
+            with patch.object(
+                self.app_module.requests, "post", return_value=token_response
+            ), patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ):
+                response = self.client.get(
+                    f"/line/callback?code=fake-code&state={state}"
+                )
+        finally:
+            self.app.logger.removeHandler(failing_handler)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/attendance")
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["user_id"], "fake-authenticated-user")
+            self.assertEqual(current_session["member_id"], 7)
 
     def test_legacy_identity_payload_is_minimized_without_losing_other_state(self):
         legacy_member = {"id": 7, "name": "Legacy Member"}

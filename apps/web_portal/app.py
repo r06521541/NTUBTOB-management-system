@@ -154,6 +154,19 @@ def notify_alarm_log(message: str):
 def notify_management_message(message: str):
     discord_notify_helper.notify_management_message(message)
 
+
+def log_login_callback_destination(return_path):
+    """Emit a bounded diagnostic without risking the successful login flow."""
+    try:
+        app.logger.info(
+            "line_login_callback destination=%s",
+            return_path_category(return_path),
+        )
+    except Exception:
+        # Logging is operationally useful but must never block authentication.
+        # Do not log this exception through the same potentially failing logger.
+        pass
+
 @app.route('/')
 def home():
     return render_template('home.html')
@@ -292,12 +305,7 @@ def line_callback():
             session['member_id'] = member.id
 
     if is_authenticated:
-        # Only a fixed allowlisted category is logged. OAuth and identity data
-        # must never be included in this diagnostic.
-        app.logger.info(
-            "line_login_callback destination=%s",
-            return_path_category(next_url),
-        )
+        log_login_callback_destination(next_url)
         return redirect(next_url)
     else:
         # 直接切換至未獲授權頁面
