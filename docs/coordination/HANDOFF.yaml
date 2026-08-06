@@ -1,14 +1,15 @@
-active_task: TASK-037
+active_task: TASK-038
 status: in_progress
 next_actor: work
 
-base_commit: fee79c9
-head_commit: 0d9e367
+base_commit: 4b9ddd483a197d00a41403858efd36ff964e6e10
+head_commit: a5aa20497cce9fe4304aa9d754e1a4ea0204e75b
 
 updated_by: work
-updated_at: 2026-08-06T18:30:00+08:00
+updated_at: 2026-08-06T19:45:00+08:00
 
 note: >
-  Owner approved the TASK-037 PR work package. Work may push the existing branch, create a Draft PR,
-  and inspect hosted Python 3.10 CI to complete verification. Local behavior review already passed.
-  Merge, deployment, production access, Secret, IAM, DB, schema, data, and notifications remain unapproved.
+  Work accepted TASK-038 locally: 71 Web Portal tests passed with two existing Windows skips, compile,
+  deployment dry-run, and diff checks passed. Owner authorized the complete PR-to-deployment chain.
+  Work will push, create a Draft PR, require hosted Python 3.10 CI, squash merge if clean, then deploy
+  the exact merge commit with preflight rollback discovery. Real LINE login and DB access remain excluded.

@@ -39,10 +39,14 @@ character inputs fall back to the attendance page.
 
 This transaction binding prevents login CSRF/session swapping, but it also
 means a callback opened in a genuinely different browser cookie store cannot
-safely establish a session. The authorization request therefore disables LINE
-auto-login so mobile Safari/Chrome stays on the browser-based LINE Login flow
-instead of launching LINE through Universal Links/App Links. This trades some
-login convenience for preserving the initiating browser's session-bound state.
+safely establish a session. A normal authorization request now remains eligible
+for LINE auto-login, including the smoother LINE in-app-browser experience. If
+the callback cannot prove continuity with the initiating browser session, the
+error page offers an explicit browser-login fallback. That fallback starts a
+new nonce and signed state and adds `disable_auto_login=true`; it never reuses
+the failed authorization code, state, or nonce. Unknown login modes, ambiguous
+return targets, and external return URLs fail closed. No User-Agent detection
+or transferable cross-browser state is used.
 
 The LINE Developers callback URL remains
 `https://web-portal-7uz453jt3a-de.a.run.app/line/callback`. This repository's

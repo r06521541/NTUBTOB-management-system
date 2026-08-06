@@ -1,4 +1,5 @@
 import importlib
+import html
 import os
 import sys
 import types
@@ -317,10 +318,57 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(next_url, "/attendance")
         self.assertEqual(state_nonce, nonce)
 
-    def test_line_login_keeps_authorization_in_initiating_browser(self):
+    def test_normal_line_login_allows_auto_login(self):
         response = self.client.get("/line/login")
         authorization_query = parse_qs(urlsplit(response.headers["Location"]).query)
+        self.assertNotIn("disable_auto_login", authorization_query)
+
+    def test_explicit_browser_fallback_disables_auto_login(self):
+        response = self.client.get("/line/login?mode=browser&next=/future-games")
+        authorization_query = parse_qs(urlsplit(response.headers["Location"]).query)
         self.assertEqual(authorization_query["disable_auto_login"], ["true"])
+
+    def test_browser_fallback_starts_a_fresh_bound_transaction(self):
+        normal = self.client.get("/line/login?next=/future-games")
+        normal_state = parse_qs(urlsplit(normal.headers["Location"]).query)["state"][0]
+        with self.client.session_transaction() as current_session:
+            normal_nonce = current_session["oauth_state_nonce"]
+
+        fallback = self.client.get("/line/login?mode=browser&next=/future-games")
+        fallback_state = parse_qs(urlsplit(fallback.headers["Location"]).query)[
+            "state"
+        ][0]
+        with self.client.session_transaction() as current_session:
+            fallback_nonce = current_session["oauth_state_nonce"]
+
+        self.assertNotEqual(normal_nonce, fallback_nonce)
+        self.assertNotEqual(normal_state, fallback_state)
+        next_url, state_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key, fallback_state, "/attendance"
+        )
+        self.assertEqual(next_url, "/future-games")
+        self.assertEqual(state_nonce, fallback_nonce)
+
+    def test_unknown_or_ambiguous_login_mode_fails_closed(self):
+        for query in (
+            "mode=automatic",
+            "mode=browser&mode=automatic",
+            "next=/attendance&next=/future-games",
+        ):
+            with self.subTest(query=query):
+                response = self.client.get(f"/line/login?{query}")
+                self.assertEqual(response.status_code, 400)
+                self.assertNotIn("Location", response.headers)
+
+    def test_browser_fallback_replaces_external_return_path(self):
+        response = self.client.get(
+            "/line/login?mode=browser&next=https://attacker.example/path"
+        )
+        state = parse_qs(urlsplit(response.headers["Location"]).query)["state"][0]
+        next_url, _ = self.app_module.load_oauth_state(
+            self.app.secret_key, state, "/attendance"
+        )
+        self.assertEqual(next_url, "/attendance")
 
     def test_production_session_cookie_has_explicit_security_attributes(self):
         response = self.client.get("/line/login")
@@ -380,7 +428,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         profile_request.assert_not_called()
         self.line_user_model.search_by_id.assert_not_called()
         self.member_model.search_by_id.assert_not_called()
-        self.assertIn("重新開始 LINE 登入".encode(), response.data)
+        self.assertIn("改用瀏覽器登入".encode(), response.data)
         self.assertNotIn(b"fake-code", response.data)
         self.assertNotIn(b"tampered-state", response.data)
         with self.client.session_transaction() as current_session:
@@ -402,6 +450,60 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         self.assertEqual(state_nonce, retry_nonce)
         self.assertNotEqual(retry_nonce, "stale-nonce")
+
+    def test_nonce_mismatch_offers_fresh_browser_fallback_for_safe_return_path(self):
+        state = create_oauth_state(
+            self.app.secret_key,
+            "/future-games",
+            "original-nonce",
+        )
+        with self.client.session_transaction() as current_session:
+            current_session["oauth_state_nonce"] = "different-nonce"
+
+        with patch.object(self.app_module.requests, "post") as token_request:
+            response = self.client.get(
+                f"/line/callback?code=old-code&state={state}"
+            )
+
+        self.assertEqual(response.status_code, 400)
+        token_request.assert_not_called()
+        fallback_href = urlsplit(
+            html.unescape(
+                response.data.decode().split('href="', 1)[1].split('"', 1)[0]
+            )
+        )
+        self.assertEqual(fallback_href.path, "/line/login")
+        self.assertEqual(
+            parse_qs(fallback_href.query),
+            {"mode": ["browser"], "next": ["/future-games"]},
+        )
+
+        fallback = self.client.get(fallback_href.geturl())
+        fallback_query = parse_qs(urlsplit(fallback.headers["Location"]).query)
+        self.assertEqual(fallback_query["disable_auto_login"], ["true"])
+        self.assertNotIn("old-code", fallback.headers["Location"])
+        self.assertNotEqual(fallback_query["state"], [state])
+        with self.client.session_transaction() as current_session:
+            fallback_nonce = current_session["oauth_state_nonce"]
+        _, state_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key, fallback_query["state"][0], "/attendance"
+        )
+        self.assertEqual(state_nonce, fallback_nonce)
+        self.assertNotEqual(fallback_nonce, "original-nonce")
+
+    def test_tampered_state_fallback_uses_fixed_safe_default(self):
+        response = self.client.get(
+            "/line/callback?code=old-code&state=tampered-state"
+        )
+        fallback_href = urlsplit(
+            html.unescape(
+                response.data.decode().split('href="', 1)[1].split('"', 1)[0]
+            )
+        )
+        self.assertEqual(
+            parse_qs(fallback_href.query),
+            {"mode": ["browser"], "next": ["/attendance"]},
+        )
 
     def test_line_http_failure_is_safe_and_does_not_query_database(self):
         state = create_oauth_state(

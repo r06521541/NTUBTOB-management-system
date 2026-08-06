@@ -8,8 +8,8 @@
 <body>
     <main>
         <h1>登入狀態已過期</h1>
-        <p>為了保護你的帳號，這次登入無法繼續。請重新開始一個新的 LINE 登入流程。</p>
-        <p><a href="{{ url_for('line_login') }}">重新開始 LINE 登入</a></p>
+        <p>為了保護你的帳號，這次登入無法繼續。你可以改用目前的瀏覽器重新登入。</p>
+        <p><a href="{{ fallback_url }}">改用瀏覽器登入</a></p>
     </main>
 </body>
 </html>

@@ -562,3 +562,15 @@
 - 授權：Owner要求直接交棒Codex；批准repository-only實作、測試、文件與本機commit。
 - 後續授權：Work驗收通過後，Owner批准TASK-037 PR工作包，可push、建立Draft PR並查驗hosted Python 3.10 CI。
 - 安全邊界：仍未批准merge、deployment、production／DB存取、schema／migration、Secret／IAM或通知。
+
+## DEC-056：TASK-037合併並批准LINE Auto-login安全Fallback
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-06
+- 已完成：TASK-037經hosted Python 3.10 CI驗證，PR #45 squash merge為`4b9ddd483a197d00a41403858efd36ff964e6e10`；尚未部署。
+- 問題：TASK-029對所有authorization request固定加入`disable_auto_login=true`，因此LINE in-app browser原可用的auto-login也被停用。
+- 提案：TASK-038讓normal login不帶該參數；只有state continuity失敗頁的明確browser fallback以全新nonce/state加入`disable_auto_login=true`。
+- 安全原則：保留signed state、session nonce compare與safe return path；不做User-Agent sniffing、不重用失敗code/state、不建立跨browser bearer state。
+- 授權：Owner批准TASK-038 repository-only實作、離線測試與本機commit，並交棒Codex。
+- 後續授權：Owner在Codex完成後授權Work驗收及後續完整鏈；驗收與hosted CI通過可直接push、建立PR、squash merge並部署exact merge commit至production Web Portal，含既有wrapper checks與條件式rollback。
+- 安全邊界：真實LINE登入仍由Owner後續人工驗證；不允許LINE Console、Secret、IAM、DB、schema、data、其他服務或通知操作。
