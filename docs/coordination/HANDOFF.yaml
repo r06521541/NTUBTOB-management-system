@@ -1,15 +1,16 @@
 active_task: TASK-039
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: bd0ddd6
-head_commit: null
+head_commit: dbdd287
 
-updated_by: work
-updated_at: 2026-08-06T21:00:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T21:45:00+08:00
 
 note: >
-  Owner observed production success in LINE in-app and desktop QR login but difficulty handing iOS Safari
-  to the LINE app; Android remains unknown. Owner approved TASK-039 and direct Codex handoff to replace the
-  auto-redirect page with explicit normal and browser-fallback choices while preserving TASK-038 security.
-  Repository-only work is approved; push, PR, merge, deployment, and real LINE verification are not.
+  Codex replaced automatic login redirection with explicit normal and browser-fallback actions, preserved
+  validated return paths and fresh session-bound OAuth transactions, and aligned error and pending pages
+  with local mobile-first assets. Web Portal tests, compile, Python 3.10 grammar, dry-run, and diff checks
+  passed. Work must review actual diff and evidence; push, PR, merge, deployment, and real LINE verification
+  remain unauthorized.
