@@ -52,4 +52,3 @@ OK
 - 尚未部署，因此新文案與 375px 實機畫面仍待 Work／Owner 驗收。
 - Android 外部瀏覽器行為仍未知；本任務只將其標示為非保證路徑。
 - 未讀取 Secret 或 `.env.yaml`，未存取 production、LINE Console、DB、Cloud Run、IAM、schema 或通知。
-
