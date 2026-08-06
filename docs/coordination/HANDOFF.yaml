@@ -1,15 +1,15 @@
 active_task: TASK-037
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: fee79c9
-head_commit: bfa5494
+head_commit: 0d9e367
 
-updated_by: codex
-updated_at: 2026-08-06T17:45:00+08:00
+updated_by: work
+updated_at: 2026-08-06T18:15:00+08:00
 
 note: >
-  Codex minimized authenticated cookie sessions to user_id/member_id, removed legacy Member/display_name
-  snapshots without clearing unrelated session state, and changed attendance to request-time Member lookup.
-  Web Portal tests, compile, Python 3.10 grammar, deployment dry-run, and diff check pass. Work must inspect
-  actual diff and tests; push, PR, merge, deployment, and production access remain unapproved.
+  Work accepted TASK-037 after independent review: 65 Web Portal tests passed with two existing
+  Windows make/sh skips, compile and deployment dry-run passed, and diff check is clean. Full hosted
+  Python 3.10 runtime evidence is still required because local suites used Python 3.9/3.12 plus a
+  3.10 grammar check. Owner may approve a PR work package; push, PR, merge, and deployment are unapproved.
