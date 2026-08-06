@@ -225,6 +225,14 @@
 
 ## 8. 文件狀態
 
+### TASK-043 Web Portal深藍／灰品牌介面（2026-08-06）
+
+- 已建立共用品牌與語意色tokens，套用公開首頁、auth/recovery、正式會員頁與Demo；正式會員導覽新增回首頁入口。
+- Work要求並確認修正兩項語意問題：瀏覽器theme-color不再使用舊綠；一般warning為暖金，只有明確danger使用紅色。
+- Work獨立驗證94項Web Portal測試通過（2項既有Windows make/sh skip）、compile與diff check通過；驗收結論為`accepted`。
+- Codex完成375px與desktop本機視覺檢查；Work瀏覽器控制因本機工具路徑問題未能重做截圖驗收。
+- 尚未push、建立PR、merge、部署或存取production；TASK-041至TASK-043可合併為單一PR工作包。
+
 ### TASK-042 正式帳號頁與安全登出（2026-08-06）
 
 - 已新增 request-time Member 帳號頁、集中 policy 角色標示、capability-aware 管理入口與 POST-only CSRF 登出。
