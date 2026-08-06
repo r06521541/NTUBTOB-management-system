@@ -170,9 +170,21 @@ def redirect_to_login():
     
 @app.route('/line/login')
 def line_login():
+    modes = request.args.getlist("mode")
+    if not modes:
+        browser_fallback = False
+    elif modes == ["browser"]:
+        browser_fallback = True
+    else:
+        return "Invalid login mode", 400
+
+    next_values = request.args.getlist("next")
+    if len(next_values) > 1:
+        return "Invalid return path", 400
+
     # 生成隨機的 state
     return_path = safe_return_path(
-        request.args.get('next') or session.pop('next_url', None),
+        (next_values[0] if next_values else None) or session.pop('next_url', None),
         url_for('attendance'),
     )
     nonce = secrets.token_urlsafe(16)
@@ -182,16 +194,16 @@ def line_login():
         return_path,
         nonce,
     )
-    login_query = urlencode(
-        {
-            'response_type': 'code',
-            'client_id': login_channel_id,
-            'redirect_uri': LINE_REDIRECT_URI,
-            'state': state,
-            'scope': 'profile openid',
-            'disable_auto_login': 'true',
-        }
-    )
+    authorization_parameters = {
+        'response_type': 'code',
+        'client_id': login_channel_id,
+        'redirect_uri': LINE_REDIRECT_URI,
+        'state': state,
+        'scope': 'profile openid',
+    }
+    if browser_fallback:
+        authorization_parameters['disable_auto_login'] = 'true'
+    login_query = urlencode(authorization_parameters)
     login_url = f"{LINE_AUTH_URL}?{login_query}"
     return redirect(login_url)
 
@@ -208,13 +220,13 @@ def line_callback():
             url_for('attendance'),
         )
     except InvalidOAuthState:
-        return invalid_oauth_state_response()
+        return invalid_oauth_state_response(url_for('attendance'))
 
     session_nonce = session.pop('oauth_state_nonce', None)
     if not isinstance(session_nonce, str) or not hmac.compare_digest(
         state_nonce, session_nonce
     ):
-        return invalid_oauth_state_response()
+        return invalid_oauth_state_response(next_url)
 
     if not code:
         return 'Invalid authorization response', 400
@@ -270,11 +282,16 @@ def line_callback():
         return render_template('not_authenticated.html')
 
 
-def invalid_oauth_state_response():
+def invalid_oauth_state_response(return_path):
     """Discard only stale OAuth state while preserving authenticated identity."""
     for key in OAUTH_SESSION_KEYS:
         session.pop(key, None)
-    return render_template("line_login_error.html"), 400
+    fallback_url = url_for(
+        "line_login",
+        mode="browser",
+        next=safe_return_path(return_path, url_for("attendance")),
+    )
+    return render_template("line_login_error.html", fallback_url=fallback_url), 400
 
 
 @app.route('/query-attendance')
