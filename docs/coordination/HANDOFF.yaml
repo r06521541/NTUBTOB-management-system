@@ -1,17 +1,17 @@
 active_task: TASK-045
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: bc6f08f1257fdc84aac26f683ee6a79999f71b4d
 head_commit: 6000e2ee791b808a2cb1a27cd2b97ac9f7fa9137
 
-updated_by: codex
-updated_at: 2026-08-06T19:40:00+08:00
+updated_by: work
+updated_at: 2026-08-06T19:55:00+08:00
 
 note: >
-  Codex removed the obsolete synchronous Web Portal cache request and deleted shared_module.web_cache after
-  confirming no remaining callers. Offline fail-on-network tests preserve DB add, acknowledgement, same reply,
-  unpaired/first-message, past/cancelled, late-notification, first-reply hint, and Web Portal fresh-read behavior.
-  Shared sdist build/install, 18 webhook tests, 101 Web Portal tests, compile, Python 3.10 grammar, and diff check
-  passed. Work must independently inspect commit 6000e2e and validation evidence. No push, PR, merge, deployment,
-  production DB/log access, notification, schema, Secret, IAM, Scheduler, or LINE Console change is authorized.
+  Work accepted TASK-045 after independently verifying the actual diff, 18 webhook tests, 101 Web Portal
+  tests, compile, shared sdist contents, no remaining callers, and diff checks. The obsolete synchronous
+  Web Portal request and unused shared_module.web_cache are removed while DB, reply, late-notification,
+  and fresh-read contracts remain covered by fail-on-network tests. Owner approval is required for push
+  and PR; hosted Python 3.10 CI must install actual requirements before merge. No merge, deployment,
+  production DB/log access, notification, schema, Secret, IAM, Scheduler, or LINE Console action occurred.
