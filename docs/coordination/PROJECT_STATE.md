@@ -143,6 +143,7 @@
 | `TASK-038` | `completed` | `owner` | PR #46 merge為`d1ebefa`並部署`web-portal-00034-7lm`承接100% traffic；normal login不含`disable_auto_login`，真實UX待Owner驗證。 |
 | `TASK-039` | `completed` | `owner` | PR #47 merge為`7082afd`並部署`web-portal-00035-mcl`承接100% traffic；登入選擇頁無自動跳轉且兩個入口存在，真實UX待Owner驗證。 |
 | `TASK-040` | `completed` | `owner` | PR #48 merge為`5e85ea9`並部署`web-portal-00036-2p2`承接100% traffic；手機改引導回LINE內開啟，電腦瀏覽器／QR Code登入保留。 |
+| `TASK-041` | `completed` | `owner` | 集中role/capability policy已通過Work驗收；production只解析member或allowlist admin且無officer來源，等待與下一項實質成果合併PR。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`

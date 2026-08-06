@@ -1,15 +1,15 @@
 active_task: TASK-041
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: 62d2de4
 head_commit: 880f063
 
-updated_by: codex
-updated_at: 2026-08-06T12:30:00+08:00
+updated_by: work
+updated_at: 2026-08-06T12:40:00+08:00
 
 note: >
-  Codex addressed Work's fail-closed review: the role mapping is read-only, malformed or unhashable policy
-  inputs deny without exceptions, and Demo principals require a non-empty string identity. Production still
-  resolves only linked member or allowlisted admin; no officer source or external change was introduced.
-  Work should inspect follow-up commit 880f063 and independently rerun the Web Portal verification suite.
+  Work accepted TASK-041 after independently rerunning 81 Web Portal tests, compileall, Python 3.10 grammar,
+  full-range diff check, and clean-worktree verification. Production resolves only member or allowlisted
+  admin and has no officer source. Owner authorized push for later combination with another substantive
+  task; no PR, merge, deployment, schema, production, Secret/IAM, LINE, DB, or notification action occurred.
