@@ -9,6 +9,7 @@
 - Task base commit：`62d2de4`
 - Implementation base commit：`9085a4e`
 - Implementation commit：`5f9211f`
+- Fail-closed follow-up commit：`880f063`
 - 未 push、未建立 PR、未 merge、未部署
 
 ## 實作結果
@@ -19,6 +20,7 @@
 - Demo 可在登入頁明確選擇三種角色；member 看不到也無法進入幹部功能，officer 與 admin 依 `manage_events` capability 存取相同的 session-only 原型。
 - Demo 導覽與 server-side route guard 共用 capability 判斷，不以隱藏 UI 代替授權。
 - 新增 production／Demo route access matrix，並同步 Web Portal README。
+- Work 初驗後補強 policy 契約：role mapping 改為唯讀，非字串／不可雜湊輸入明確拒絕，Demo identity 必須包含非空字串 ID。
 
 ## 修改檔案
 
@@ -39,16 +41,19 @@
 
 ```text
 python -m unittest discover -s apps/web_portal/tests -v
-Ran 79 tests — OK (skipped=2)
+Ran 81 tests — OK (skipped=2)
 
 python -m compileall -q apps/web_portal
 OK
+
+Python 3.10 AST grammar check
+18 Python files — OK
 
 git diff --check
 OK
 ```
 
-兩項 skip 是既有 Windows 環境缺少 Unix `make`／`sh` 的 deployment contract coverage。第一輪測試有一項既有 Demo 文案斷言失敗；保留原「進入虛構 Demo」提示後完整重跑通過。
+兩項 skip 是既有 Windows 環境缺少 Unix `make`／`sh` 的 deployment contract coverage。第一輪測試有一項既有 Demo 文案斷言失敗；保留原「進入虛構 Demo」提示後完整重跑通過。Work 提出的三項 fail-closed 邊界均有新增回歸測試並完整重跑。
 
 ## 未驗證與限制
 

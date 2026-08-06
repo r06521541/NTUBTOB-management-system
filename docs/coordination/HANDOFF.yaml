@@ -3,13 +3,13 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 62d2de4
-head_commit: 5f9211f
+head_commit: 880f063
 
 updated_by: codex
-updated_at: 2026-08-06T12:16:00+08:00
+updated_at: 2026-08-06T12:30:00+08:00
 
 note: >
-  Codex implemented centralized fail-closed role/capability checks and routed existing production guards
-  plus the three-role offline Demo through that policy. Production still resolves only linked member or
-  allowlisted admin; no officer source, schema, model, environment, or deployment change was introduced.
-  Work should inspect commit 5f9211f and independently rerun the Web Portal verification suite.
+  Codex addressed Work's fail-closed review: the role mapping is read-only, malformed or unhashable policy
+  inputs deny without exceptions, and Demo principals require a non-empty string identity. Production still
+  resolves only linked member or allowlisted admin; no officer source or external change was introduced.
+  Work should inspect follow-up commit 880f063 and independently rerun the Web Portal verification suite.
