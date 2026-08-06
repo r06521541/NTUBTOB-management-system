@@ -1,16 +1,17 @@
-active_task: TASK-043
-status: completed
-next_actor: owner
+active_task: TASK-044
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 6e6c8cf5ecf06245c510e7767c1e49be564728e8
-head_commit: 9deb7e11311d5ccdb4131cb3b13a318a6bceca60
+base_commit: 3da0bb0d895e59cc06c7c62f7b195d2de328434f
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T16:30:00+08:00
+updated_at: 2026-08-06T16:50:00+08:00
 
 note: >
-  Owner approved the complete PR, merge, and Web Portal deployment chain. PR #49 passed hosted Python
-  3.10 CI and squash merged as 9deb7e11311d5ccdb4131cb3b13a318a6bceca60. Production revision
-  web-portal-00037-lhx is Ready and serves 100% traffic; root returned 200 and demo remained fail-closed
-  at 404. Rollback was not required. No Secret, IAM, Scheduler, schema, data, LINE, or other-service
-  mutation occurred. Owner should perform the remaining real-browser product check.
+  Owner observed that normal LINE login started from /attendance inside the LINE App lands on /.
+  Production read-only checks confirm the protected-route redirect and login-choice links still carry
+  next=/attendance, so TASK-044 must add a full offline round-trip contract and fix only a reproduced
+  cause. If it cannot reproduce, add only allowlisted destination-category diagnostics with no URL,
+  query, OAuth, identity, or cookie data. No production log access, push, PR, merge, deployment, DB,
+  Secret, LINE Console, schema, IAM, notification, or other-service action is authorized.
