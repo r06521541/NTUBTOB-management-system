@@ -232,7 +232,43 @@ class MemberMatchingRouteTest(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 302)
         with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["user_id"], "fake-authenticated-user")
             self.assertEqual(current_session["member_id"], 7)
+            self.assertNotIn("member", current_session)
+            self.assertNotIn("display_name", current_session)
+
+    def test_legacy_identity_payload_is_minimized_without_losing_other_state(self):
+        legacy_member = {"id": 7, "name": "Legacy Member"}
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                {
+                    "user_id": "existing-user",
+                    "member_id": 7,
+                    "member": legacy_member,
+                    "display_name": "Legacy Display Name",
+                    "oauth_state_nonce": "active-nonce",
+                    "next_url": "/future-games",
+                    "member_matching_csrf_token": "csrf-token",
+                    "demo_member": {"id": "demo-member-01"},
+                }
+            )
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["user_id"], "existing-user")
+            self.assertEqual(current_session["member_id"], 7)
+            self.assertNotIn("member", current_session)
+            self.assertNotIn("display_name", current_session)
+            self.assertEqual(current_session["oauth_state_nonce"], "active-nonce")
+            self.assertEqual(current_session["next_url"], "/future-games")
+            self.assertEqual(
+                current_session["member_matching_csrf_token"], "csrf-token"
+            )
+            self.assertEqual(
+                current_session["demo_member"], {"id": "demo-member-01"}
+            )
 
     def test_callback_rejects_state_from_a_different_browser_session(self):
         login_client = self.app.test_client()
@@ -264,7 +300,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with callback_client.session_transaction() as callback_session:
             self.assertEqual(callback_session["user_id"], "existing-user")
             self.assertEqual(callback_session["member_id"], 7)
-            self.assertEqual(callback_session["display_name"], "Existing User")
+            self.assertNotIn("display_name", callback_session)
             self.assertNotIn("oauth_state_nonce", callback_session)
             self.assertNotIn("next_url", callback_session)
 
@@ -326,6 +362,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             current_session["user_id"] = "stale-user"
             current_session["member_id"] = 7
+            current_session["member"] = {"id": 7, "name": "Stale Member"}
             current_session["display_name"] = "Existing User"
             current_session["oauth_state_nonce"] = "stale-nonce"
             current_session["next_url"] = "/future-games"
@@ -349,7 +386,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             self.assertEqual(current_session["user_id"], "stale-user")
             self.assertEqual(current_session["member_id"], 7)
-            self.assertEqual(current_session["display_name"], "Existing User")
+            self.assertNotIn("member", current_session)
+            self.assertNotIn("display_name", current_session)
             self.assertNotIn("oauth_state_nonce", current_session)
             self.assertNotIn("next_url", current_session)
 
@@ -532,6 +570,76 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("Waiting Player".encode(), response.data)
         self.game_model.search_by_id.assert_called_once_with(23)
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_attendance_loads_fresh_member_from_member_id(self):
+        fresh_member = SimpleNamespace(id=7, name="Fresh Member")
+        self.member_model.search_by_id.return_value = fresh_member
+        game = SimpleNamespace(
+            id=23,
+            generate_short_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_for_invited.return_value = [game]
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [fresh_member]
+        }
+        self.login()
+
+        with patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            response = self.client.get("/attendance")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Fresh Member".encode(), response.data)
+        self.member_model.search_by_id.assert_called_once_with(7)
+        self.game_model.search_for_invited.assert_called_once_with()
+        self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_attendance_missing_member_clears_identity_before_other_queries(self):
+        self.member_model.search_by_id.return_value = None
+        self.login()
+
+        with patch.object(
+            self.app_module.requests, "get"
+        ) as http_get, patch.object(
+            self.app_module.requests, "post"
+        ) as http_post:
+            response = self.client.get("/attendance")
+
+        self.assertEqual(response.status_code, 403)
+        self.member_model.search_by_id.assert_called_once_with(7)
+        self.game_model.search_for_invited.assert_not_called()
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
+        http_get.assert_not_called()
+        http_post.assert_not_called()
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("user_id", current_session)
+            self.assertNotIn("member_id", current_session)
+
+    def test_attendance_malformed_identity_fails_before_member_lookup(self):
+        for session_values in (
+            {},
+            {"user_id": "fake-user", "member_id": "7"},
+            {"user_id": "", "member_id": 7},
+            {"user_id": "fake-user", "member_id": True},
+        ):
+            with self.subTest(session_values=session_values):
+                self.member_model.reset_mock()
+                self.game_model.reset_mock()
+                self.attendance_analyzer.reset_mock()
+                with self.client.session_transaction() as current_session:
+                    current_session.clear()
+                    current_session.update(session_values)
+
+                response = self.client.get("/attendance")
+
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(
+                    urlsplit(response.headers["Location"]).path,
+                    "/redirect-to-login",
+                )
+                self.member_model.search_by_id.assert_not_called()
+                self.game_model.search_for_invited.assert_not_called()
+                self.attendance_analyzer.get_attendance_of_game.assert_not_called()
 
     def test_missing_game_returns_404_without_attendance_query(self):
         self.game_model.search_by_id.return_value = None
