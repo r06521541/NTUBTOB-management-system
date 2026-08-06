@@ -225,6 +225,13 @@
 
 ## 8. 文件狀態
 
+### TASK-042 正式帳號頁與安全登出（2026-08-06）
+
+- 已新增 request-time Member 帳號頁、集中 policy 角色標示、capability-aware 管理入口與 POST-only CSRF 登出。
+- Work 獨立驗證 89 項 Web Portal 測試通過（2 項既有 Windows make/sh skip）；compile、Python 3.10 grammar 與 diff check 通過。
+- 驗收結論為 `accepted`；375px 與桌面視覺驗收併入 TASK-043 品牌介面調整。
+- 尚未 push、建立 PR、merge、部署或存取 production。
+
 ### TASK-038 safe LINE auto-login fallback（2026-08-06）
 
 - 一般LINE authorization request不再停用auto-login；只有明確`mode=browser`的fallback附加`disable_auto_login=true`。
