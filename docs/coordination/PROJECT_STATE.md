@@ -127,6 +127,10 @@
 
 ## 4. 當前工作
 
+- `TASK-050` 已規劃為離線 exact-schema migration rehearsal：以 TASK-049 已確認的 Supabase
+  metadata 重建 local fake legacy fixture，校正 bigint／RLS／attendance history projection，
+  不連 production、不做 DDL／stamp／backfill。`ignored` LINE identity 的未來 status 映射與
+  production RLS policy 保留後續 Owner 決策。
 - `TASK-049` 已完成 Supabase production schema 與 aggregate data-quality 唯讀盤點：
   兩次 transaction 都為 read-only，未讀 application row values。確認 production 有
   10 張 legacy tables、197 Members、65 LINE users、128 Games 與 1,648 attendance rows；

@@ -28,6 +28,8 @@
 - `operations/GEN2_FUNCTION_ROLLBACK.md`：Cloud Functions Gen2 recovery 流程。
 - `operations/PRODUCTION_INVENTORY_2026-08-04.md`：特定日期的 production inventory 快照，不代表目前即時狀態。
 - `operations/deployments/`：歷次部署證據與 rollback 基準。
+- `operations/data/TASK-049-SUPABASE-CATALOG-SANITIZED.md`：TASK-049 去識別化的
+  production schema catalog，供本機 migration fixture 與 review 使用；不含資料列或憑證。
 
 部署文件記錄歷史證據；真正部署前仍須重新查證 exact commit、revision、traffic、identity 與 Secret reference metadata，並取得當次 Owner 授權。
 

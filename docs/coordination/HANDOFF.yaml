@@ -1,19 +1,16 @@
-active_task: TASK-049
-status: completed
-next_actor: owner
+active_task: TASK-050
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 316332df39591f47f542bb5e69be9caeb7dbd925
+base_commit: b5689ec
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T23:38:00+08:00
+updated_at: 2026-08-06T23:51:00+08:00
 
 note: >
-  TASK-049 is complete after three exact read-only inventories. Of 153 attendance history transitions,
-  144 changed reply state and 9 repeated the same reply; there are no exact duplicates, timestamp ties,
-  identity changes or Member/LINE disagreement. Legacy history must remain intact; a future current-state
-  backfill should deterministically select updated_at DESC, id DESC. Next recommended work is an offline
-  exact-schema migration rehearsal. head_commit is null because this same unpushed closeout commit contains
-  HANDOFF; use the branch HEAD rather than embedding a stale self-reference.
-  This handoff does not authorize Work or Codex to connect to Supabase, execute SQL, inspect secrets,
-  run DDL/DML, stamp Alembic, migrate, backfill, deploy, or query application row values.
+  TASK-050 base_commit is consistently b5689ec. The de-identified per-column production catalog evidence is
+  stored at docs/operations/data/TASK-049-SUPABASE-CATALOG-SANITIZED.md. Implement only the local exact-schema
+  fixture, migration/model fidelity and deterministic legacy attendance projection in TASK-050. Codex must
+  not connect to Supabase, execute SQL there, inspect secrets,
+  run production DDL/DML, stamp Alembic, backfill, deploy, or query application row values.
