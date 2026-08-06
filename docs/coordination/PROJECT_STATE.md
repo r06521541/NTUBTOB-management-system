@@ -135,7 +135,7 @@
 | `TASK-032` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-033` | `awaiting_owner_approval` | `owner` | Work已驗收接受；決定是否批准push、Draft PR與Python 3.10 CI查驗。 |
 | `TASK-034` | `completed` | `owner` | PR #43已squash merge為`bb91d9e5`；production `web-portal-00032-f7z` Ready並承接100% traffic，無需rollback。 |
-| `TASK-035` | `ready_for_review` | `work` | Codex已在Draft PR #44加入member-only roster guard；Python 3.10 CI通過，等待Work查驗實際diff與測試。 |
+| `TASK-035` | `awaiting_owner_approval` | `owner` | Work已驗收會員session guard與roster fail-closed邊界；Draft PR #44、61項Web Portal tests及Python 3.10 CI成功，等待Owner決定squash merge。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
