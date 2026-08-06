@@ -96,6 +96,32 @@ class DemoEventsTest(unittest.TestCase):
         self.assertIn('overflow-x:hidden', css)
         self.assertNotIn('min-width:75px', css)
 
+    def test_demo_login_can_preview_all_roles_with_capability_guards(self):
+        for role, can_manage in (
+            ("member", False),
+            ("officer", True),
+            ("admin", True),
+        ):
+            with self.subTest(role=role):
+                client = self.app.test_client()
+                response = client.post("/demo/login", data={"role": role})
+                self.assertEqual(response.status_code, 302)
+                dashboard = client.get("/demo/dashboard")
+                self.assertEqual(dashboard.status_code, 200)
+                self.assertEqual(
+                    client.get("/demo/officer/events").status_code,
+                    200 if can_manage else 403,
+                )
+                self.assertEqual(
+                    b'class="officer-nav-link"' in dashboard.data,
+                    can_manage,
+                )
+        client = self.app.test_client()
+        self.assertEqual(
+            client.post("/demo/login", data={"role": "owner"}).status_code,
+            400,
+        )
+
     def test_templates_and_blank_create_server_ids(self):
         for template in ("friendly", "meal", "weekend", "blank"):
             with self.subTest(template=template):

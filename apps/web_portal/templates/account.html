@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的帳號</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='member_portal.css') }}">
+</head>
+<body>
+    <main class="member-shell">
+        {% include '_member_nav.html' %}
+        <section class="account-card">
+            <p class="eyebrow">MY ACCOUNT</p>
+            <h1>我的帳號</h1>
+            <dl>
+                <div><dt>Member</dt><dd>{{ member.name }}</dd></div>
+                <div><dt>登入方式</dt><dd>LINE</dd></div>
+                <div><dt>Portal 角色</dt><dd><span class="role-badge">{{ role_label }}</span></dd></div>
+            </dl>
+            {% if can_manage_members %}
+                <a class="management-link" href="{{ url_for('index') }}">前往 Member 配對</a>
+            {% endif %}
+            <form method="post" action="{{ url_for('logout') }}">
+                <input type="hidden" name="csrf_token" value="{{ logout_csrf_token }}">
+                <button class="logout-button" type="submit">登出 Portal</button>
+            </form>
+            <p class="logout-note">這只會登出本 Portal，不會登出 LINE App。</p>
+        </section>
+    </main>
+</body>
+</html>

@@ -22,7 +22,7 @@
 
 1. 本文件與目標子目錄中的說明文件。
 2. `README.md`、相關 service/function 的 `README.md`。
-3. `docs/STATUS.md`、`docs/ROADMAP.md`，以及 `docs/tasks/` 中對應的任務文件（若存在）。
+3. `docs/README.md`、`docs/coordination/PROJECT_STATE.md`，以及 `docs/coordination/tasks/` 中對應的任務文件（若存在）。
 4. 目標程式碼、相鄰模組、既有測試及部署設定。
 
 文件可能落後於程式碼；有衝突時，以可執行程式碼、測試與目前使用者指示為準，並在必要時同步文件。不要因 roadmap 提到某項工作，就擴張當前任務範圍。

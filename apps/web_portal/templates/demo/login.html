@@ -10,7 +10,12 @@
     <button class="button button-secondary" disabled>使用 Google 登入 · 即將推出</button>
     <button class="button button-secondary" disabled>使用 Apple 登入 · 即將推出</button>
     <div class="divider"><span>本機預覽</span></div>
-    <form method="post"><button class="button button-primary" type="submit">進入虛構 Demo</button></form>
+    <p class="muted">進入虛構 Demo，選擇要預覽的角色：</p>
+    <form method="post">
+      <button class="button button-primary" name="role" value="member" type="submit">以一般隊員進入</button>
+      <button class="button button-secondary" name="role" value="officer" type="submit">以幹部進入</button>
+      <button class="button button-secondary" name="role" value="admin" type="submit">以系統管理者進入</button>
+    </form>
     <a class="quiet-link" href="{{ url_for('demo_portal.pending') }}">查看等待核可畫面</a>
   </div>
 </section>

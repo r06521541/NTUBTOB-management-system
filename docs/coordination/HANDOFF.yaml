@@ -1,15 +1,16 @@
-active_task: TASK-040
+active_task: TASK-043
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
-head_commit: a369123
+base_commit: 6e6c8cf5ecf06245c510e7767c1e49be564728e8
+head_commit: 0238288f81c1b2e1b443d869a9784c4a17df8607
 
 updated_by: work
-updated_at: 2026-08-06T23:58:00+08:00
+updated_at: 2026-08-06T16:25:00+08:00
 
 note: >
-  Work accepted TASK-040 after inspecting the actual diff and independently rerunning 75 Web Portal tests,
-  compileall, full-range diff check, and clean-worktree verification. Two existing Windows make/sh tests
-  remain skipped. OAuth state/nonce security was not weakened. Owner may approve the PR work package;
-  no push, PR, merge, deployment, production access, or environment change has occurred.
+  Work accepted TASK-043 after requesting and verifying theme-color and warning/danger semantic fixes.
+  Independent verification passed 94 Web Portal tests with 2 existing Windows make/sh skips, compile,
+  and diff checks. TASK-041 through TASK-043 are ready for one Web Portal PR work package if Owner
+  approves push and PR creation. No push, PR, merge, deployment, production, DB, LINE, schema, Secret,
+  IAM, or notification action occurred.

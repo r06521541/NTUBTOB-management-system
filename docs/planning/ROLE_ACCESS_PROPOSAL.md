@@ -1,7 +1,7 @@
 # Web Portal 角色與權限提案
 
-狀態：`proposal`（尚未經 Owner 核准）  
-範圍：產品規則與未來 RBAC 邊界；不代表已批准 schema、migration 或正式環境變更。
+狀態：`approved_direction`（TASK-041 第一階段方向已核准）
+範圍：產品規則與未來 RBAC 邊界；Owner 已核准先建立不需 schema 的集中式權限基礎，但本文仍不代表已批准 schema、migration、角色指派 UI 或正式環境變更。
 
 ## 目標
 

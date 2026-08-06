@@ -77,3 +77,16 @@ Windows 若沒有全域 `python`，使用 repository 工作環境提供的 Pytho
 ## Base commit
 
 `7082afd4a1d9fe579f02956c77ecbc85b58fd7b7`
+
+## PR、merge 與 production 結果
+
+- PR #48 hosted Python 3.10 CI run `31069150451`（job `92513245008`）通過。
+- PR #48 squash merge commit：`5e85ea98634921d2d6ba4aa42c0f063ad5ba53ed`。
+- 執行前 rollback target：`web-portal-00035-mcl`，Ready 且承接 100% traffic。
+- Cloud Build：`76dfce0c-d853-474e-a9ec-8a910a0b4637`。
+- 新 revision：`web-portal-00036-2p2`，Ready 且承接 100% traffic。
+- Image digest：`sha256:755e964c913e05f369271a1cbd666b91c64b267bcd3c5b44158ac81396eca9fc`。
+- `GET /` 為 200；`GET /demo/` 為 404。
+- 登入說明頁為 200，已出現手機 LINE 引導、電腦瀏覽器登入與同機 QR Code 警告，且沒有舊 fallback 文案、自動 refresh 或 script redirect。
+- 未點擊登入、未呼叫 LINE API、未讀寫 production DB、未修改 Secret／IAM／LINE Console／schema／data，也未發送通知。
+- Temporary deployment env 已由 wrapper 清理；未觸發 rollback。

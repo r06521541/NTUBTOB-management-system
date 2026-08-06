@@ -1,5 +1,20 @@
 # Web Portal local demo
 
+## Brand UI and local visual review
+
+The Portal uses `static/brand.css` as the shared source for its visual tokens.
+Deep navy is the primary brand color, cool gray is the page and border system,
+and muted warm gold is reserved for small highlights and focus states. Red is
+reserved for danger, cancellation, decline, and error states. Green is reserved
+for the official LINE action and explicit success or attendance states.
+
+For a local visual review, start the offline demo with the command below and
+check the dashboard, schedule, game detail, profile, pending, officer, and event
+builder pages at about 375px and at desktop width. Also review `/`,
+`/redirect-to-login`, and the recovery page through their existing offline route
+tests. The shared Member navigation keeps Home, attendance, and account actions
+available on narrow screens without changing any route or authorization rule.
+
 The demo is an offline Flask/Jinja product prototype. It uses fictional data in
 the browser session and does not require LINE credentials, a database, or an
 external API. Both environment gates are required; the demo is off by default.
@@ -26,6 +41,11 @@ Google and Apple sign-in, notification preferences, attendance persistence,
 and administrator approval are visual prototypes only. Existing LINE routes
 remain present, but selecting LINE requires the real application configuration
 and is not part of the offline demo.
+
+The local login offers member, officer, and administrator previews. Their
+navigation and protected demo routes use the same capability policy described
+in `docs/planning/WEB_PORTAL_ACCESS_MATRIX.md`; all demo identities and changes
+remain fictional and session-only.
 
 ## LINE Login callback continuity
 
@@ -123,6 +143,32 @@ transaction, CSRF, return-path, and offline-demo state remain intact. The
 attendance page loads the current Member by `member_id` for each request. If
 that Member no longer exists, the Web Portal removes the authenticated identity
 and stops before game or attendance queries.
+
+## Role and capability policy
+
+Role-to-capability mapping is centralized in `role_policy.py`. Production can
+currently resolve only a linked `member` or an allowlisted `admin`; it cannot
+produce an `officer`. Unknown roles, malformed identities, unknown
+capabilities, and an invalid admin allowlist fail closed. This is an
+authorization foundation, not role persistence: no schema, model, migration,
+or production role assignment is included. See
+`docs/planning/WEB_PORTAL_ACCESS_MATRIX.md` for the current route matrix.
+
+## Production member account and logout
+
+Authenticated linked members can open `/account` to see the current Member
+name, LINE as the authentication method, and the Portal authorization label.
+The Member record is loaded by `member_id` on every account request and is
+never copied into the signed cookie. An allowlisted administrator sees the
+system-administrator label and a policy-backed link to Member matching; regular
+members do not see that link and remain denied by the server-side guard.
+
+Account, attendance, and roster pages share a small local mobile navigation.
+`POST /logout` requires its own session-bound CSRF token, separate from Member
+matching. A valid logout clears the entire Web Portal session, including
+temporary OAuth, administrative CSRF, and demo keys. Invalid or missing CSRF
+does not alter the session, and GET cannot trigger logout. This action signs
+out only this Portal session; it does not revoke or sign out the LINE account.
 
 ## Member matching administration
 

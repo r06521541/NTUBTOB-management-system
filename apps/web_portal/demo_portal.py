@@ -12,6 +12,13 @@ from demo_data import (
     get_demo_member,
     get_demo_tasks,
 )
+from role_policy import (
+    MANAGE_EVENTS,
+    ROLES,
+    VIEW_MEMBER_PORTAL,
+    has_capability,
+    resolve_demo_principal,
+)
 
 
 demo_portal = Blueprint("demo_portal", __name__, url_prefix="/demo")
@@ -43,11 +50,38 @@ def require_demo_mode():
 def demo_login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not session.get("demo_authenticated"):
+        principal = resolve_demo_principal(session)
+        if not has_capability(principal, VIEW_MEMBER_PORTAL):
             return redirect(url_for("demo_portal.login"))
         return view(*args, **kwargs)
 
     return wrapped
+
+
+def demo_capability_required(capability):
+    def decorator(view):
+        @demo_login_required
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            if not has_capability(resolve_demo_principal(session), capability):
+                abort(403)
+            return view(*args, **kwargs)
+
+        return wrapped
+
+    return decorator
+
+
+def demo_has_capability(capability):
+    return has_capability(resolve_demo_principal(session), capability)
+
+
+@demo_portal.app_context_processor
+def expose_demo_role_policy():
+    return {
+        "demo_has_capability": demo_has_capability,
+        "manage_events_capability": MANAGE_EVENTS,
+    }
 
 
 def get_or_create_demo_csrf_token():
@@ -149,8 +183,13 @@ def login():
 
 @demo_portal.post("/login")
 def start_demo():
+    role = request.form.get("role", "officer")
+    if role not in ROLES:
+        abort(400)
+    member = get_demo_member()
+    member["demo_role"] = role
     session.clear()
-    session.update(demo_authenticated=True, demo_member=get_demo_member(), demo_replies={})
+    session.update(demo_authenticated=True, demo_member=member, demo_replies={})
     get_or_create_demo_csrf_token()
     demo_state()
     return redirect(url_for("demo_portal.dashboard"))
@@ -299,7 +338,7 @@ def update_notifications():
 
 
 @demo_portal.get("/officer")
-@demo_login_required
+@demo_capability_required(MANAGE_EVENTS)
 def officer():
     games = games_with_session_replies()
     return render_template("demo/officer.html", games=games, announcements=get_demo_announcements())

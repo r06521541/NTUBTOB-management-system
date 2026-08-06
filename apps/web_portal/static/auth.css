@@ -1,23 +1,23 @@
 :root {
-  --auth-ink: #17231f;
-  --auth-muted: #66736e;
-  --auth-green: #173f35;
-  --auth-green-hover: #255e4e;
-  --auth-cream: #f5f3ed;
-  --auth-line: #e5e7e2;
-  --auth-white: #fff;
-  --line-green: #06c755;
+  --auth-ink: var(--color-text);
+  --auth-muted: var(--color-muted);
+  --auth-primary: var(--brand-primary);
+  --auth-primary-hover: var(--brand-primary-hover);
+  --auth-canvas: var(--color-canvas);
+  --auth-line: var(--color-border);
+  --auth-white: var(--color-surface);
+  --line-green: var(--color-line);
 }
 
 * { box-sizing: border-box; }
 
-html { background: var(--auth-cream); }
+html { background: var(--auth-canvas); }
 
 body.auth-page {
   margin: 0;
   min-width: 0;
   color: var(--auth-ink);
-  background: var(--auth-cream);
+  background: var(--auth-canvas);
   font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
   line-height: 1.6;
 }
@@ -36,7 +36,7 @@ body.auth-page {
   background: var(--auth-white);
   border: 1px solid var(--auth-line);
   border-radius: 22px;
-  box-shadow: 0 16px 46px rgba(24, 48, 40, .1);
+  box-shadow: var(--shadow-card-raised);
 }
 
 .auth-logo {
@@ -48,7 +48,7 @@ body.auth-page {
 
 .auth-eyebrow {
   margin: 20px 0 4px;
-  color: var(--auth-green-hover);
+  color: var(--brand-accent);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: .12em;
@@ -81,10 +81,10 @@ body.auth-page {
 }
 
 .auth-button-line { background: var(--line-green); }
-.auth-button-line:hover { background: #05b94f; }
-.auth-button-secondary { background: var(--auth-green); }
-.auth-button-secondary:hover { background: var(--auth-green-hover); }
-.auth-button:focus-visible { outline: 3px solid #e8a86d; outline-offset: 3px; }
+.auth-button-line:hover { background: var(--color-line-hover); }
+.auth-button-secondary { background: var(--auth-primary); }
+.auth-button-secondary:hover { background: var(--auth-primary-hover); }
+.auth-button:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
 
 .auth-help {
   padding-top: 20px;

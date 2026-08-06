@@ -49,7 +49,8 @@
 - TASK-028 已由 Owner 接受並以 PR #38 squash merge：`main` 僅新增描述性 commit `196c208`；最終 Python 3.10.20 CI run `31028391679`／job `92382569298` 成功，未執行 production wrapper。
 - TASK-029 初版 transferable signed state 已退回並完成安全補正；Owner 選擇 original-browser 路線。Codex 依 LINE 官方建議加入 `disable_auto_login=true`，避免 mobile external browser auto-login app handoff，同時保留 session nonce binding；Work 已驗收為 `accepted`，等待 Owner 決定 push／PR。
 - 普通隊員、幹部與系統管理者的初步權限矩陣已記錄於 `docs/planning/ROLE_ACCESS_PROPOSAL.md`，目前僅為未核准提案，不代表 schema 或 migration 決策。
-- TASK-039已由Codex完成repository-only實作：登入入口移除自動跳轉，改為一般LINE登入與明確browser fallback；兩者保留validated return path並各自建立fresh OAuth transaction。75項Web Portal測試通過（2項既有Windows skip），等待Work驗收；未push、PR、merge或部署。
+- TASK-039已完成：PR #47 merge為`7082afd`並部署`web-portal-00035-mcl`；登入入口移除自動跳轉，改為一般LINE登入與明確browser fallback，後續實機限制由TASK-040收斂。
+- TASK-040已完成：PR #48 merge為`5e85ea9`，手機登入引導改為回到LINE內開啟，電腦保留瀏覽器／QR Code登入；production `web-portal-00036-2p2` Ready並承接100% traffic，公開頁面驗證通過且未觸發rollback。
 
 ## 2. 已確認事實
 
@@ -141,6 +142,8 @@
 | `TASK-037` | `completed` | `owner` | PR #45的hosted Python 3.10 CI成功並squash merge為`4b9ddd4`；minimal identity session已在main，尚未部署。 |
 | `TASK-038` | `completed` | `owner` | PR #46 merge為`d1ebefa`並部署`web-portal-00034-7lm`承接100% traffic；normal login不含`disable_auto_login`，真實UX待Owner驗證。 |
 | `TASK-039` | `completed` | `owner` | PR #47 merge為`7082afd`並部署`web-portal-00035-mcl`承接100% traffic；登入選擇頁無自動跳轉且兩個入口存在，真實UX待Owner驗證。 |
+| `TASK-040` | `completed` | `owner` | PR #48 merge為`5e85ea9`並部署`web-portal-00036-2p2`承接100% traffic；手機改引導回LINE內開啟，電腦瀏覽器／QR Code登入保留。 |
+| `TASK-041` | `completed` | `owner` | 集中role/capability policy已通過Work驗收；production只解析member或allowlist admin且無officer來源，等待與下一項實質成果合併PR。 |
 
 正式任務規格：`docs/coordination/tasks/TASK-029.md`
 交接狀態：`docs/coordination/HANDOFF.yaml`
@@ -221,6 +224,21 @@
 - 執行不可逆資料操作、重大架構變更、commit、push、PR 或 merge。
 
 ## 8. 文件狀態
+
+### TASK-043 Web Portal深藍／灰品牌介面（2026-08-06）
+
+- 已建立共用品牌與語意色tokens，套用公開首頁、auth/recovery、正式會員頁與Demo；正式會員導覽新增回首頁入口。
+- Work要求並確認修正兩項語意問題：瀏覽器theme-color不再使用舊綠；一般warning為暖金，只有明確danger使用紅色。
+- Work獨立驗證94項Web Portal測試通過（2項既有Windows make/sh skip）、compile與diff check通過；驗收結論為`accepted`。
+- Codex完成375px與desktop本機視覺檢查；Work瀏覽器控制因本機工具路徑問題未能重做截圖驗收。
+- 尚未push、建立PR、merge、部署或存取production；TASK-041至TASK-043可合併為單一PR工作包。
+
+### TASK-042 正式帳號頁與安全登出（2026-08-06）
+
+- 已新增 request-time Member 帳號頁、集中 policy 角色標示、capability-aware 管理入口與 POST-only CSRF 登出。
+- Work 獨立驗證 89 項 Web Portal 測試通過（2 項既有 Windows make/sh skip）；compile、Python 3.10 grammar 與 diff check 通過。
+- 驗收結論為 `accepted`；375px 與桌面視覺驗收併入 TASK-043 品牌介面調整。
+- 尚未 push、建立 PR、merge、部署或存取 production。
 
 ### TASK-038 safe LINE auto-login fallback（2026-08-06）
 
