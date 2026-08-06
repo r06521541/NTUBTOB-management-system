@@ -1,16 +1,15 @@
 active_task: TASK-038
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 4b9ddd483a197d00a41403858efd36ff964e6e10
-head_commit: 0e7be345a67075e771678921edc3b85eabfc2598
+head_commit: a5aa20497cce9fe4304aa9d754e1a4ea0204e75b
 
-updated_by: codex
-updated_at: 2026-08-06T19:25:00+08:00
+updated_by: work
+updated_at: 2026-08-06T19:45:00+08:00
 
 note: >
-  Codex restored normal LINE auto-login eligibility and added only an explicit fresh browser-bound
-  fallback with disable_auto_login=true. All 71 Web Portal tests passed with two existing Windows skips;
-  compile, Python 3.10 grammar, dry-run, and diff checks passed. Work must verify the actual diff and
-  tests. Push, PR, merge, deployment, production access, real LINE verification, Secret, IAM, DB,
-  schema, data, and notifications remain unapproved.
+  Work accepted TASK-038 locally: 71 Web Portal tests passed with two existing Windows skips, compile,
+  deployment dry-run, and diff checks passed. Owner authorized the complete PR-to-deployment chain.
+  Work will push, create a Draft PR, require hosted Python 3.10 CI, squash merge if clean, then deploy
+  the exact merge commit with preflight rollback discovery. Real LINE login and DB access remain excluded.

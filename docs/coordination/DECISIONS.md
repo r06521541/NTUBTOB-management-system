@@ -572,4 +572,5 @@
 - 提案：TASK-038讓normal login不帶該參數；只有state continuity失敗頁的明確browser fallback以全新nonce/state加入`disable_auto_login=true`。
 - 安全原則：保留signed state、session nonce compare與safe return path；不做User-Agent sniffing、不重用失敗code/state、不建立跨browser bearer state。
 - 授權：Owner批准TASK-038 repository-only實作、離線測試與本機commit，並交棒Codex。
-- 安全邊界：未授權push、PR、merge、deployment、真實LINE／production驗證、Secret／IAM／DB／schema或通知。
+- 後續授權：Owner在Codex完成後授權Work驗收及後續完整鏈；驗收與hosted CI通過可直接push、建立PR、squash merge並部署exact merge commit至production Web Portal，含既有wrapper checks與條件式rollback。
+- 安全邊界：真實LINE登入仍由Owner後續人工驗證；不允許LINE Console、Secret、IAM、DB、schema、data、其他服務或通知操作。
