@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
@@ -925,6 +925,38 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.assert_called_once_with(7)
         self.game_model.search_for_invited.assert_called_once_with()
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_attendance_reloads_games_and_replies_on_every_request(self):
+        fresh_member = SimpleNamespace(id=7, name="Fresh Member")
+        self.member_model.search_by_id.return_value = fresh_member
+        game = SimpleNamespace(
+            id=23,
+            generate_short_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_for_invited.return_value = [game]
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [fresh_member]
+        }
+        self.login()
+
+        with patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            first = self.client.get("/attendance")
+            second = self.client.get("/attendance")
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(self.member_model.search_by_id.call_count, 2)
+        self.assertEqual(self.game_model.search_for_invited.call_count, 2)
+        self.assertEqual(
+            self.attendance_analyzer.get_attendance_of_game.call_args_list,
+            [call(23), call(23)],
+        )
+
+    def test_attendance_has_no_cache_invalidation_route(self):
+        rules = {rule.rule for rule in self.app.url_map.iter_rules()}
+
+        self.assertNotIn("/clear-cache/attendance", rules)
 
     def test_attendance_missing_member_clears_identity_before_other_queries(self):
         self.member_model.search_by_id.return_value = None

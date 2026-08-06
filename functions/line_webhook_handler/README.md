@@ -21,3 +21,8 @@ python -m unittest discover -s functions/line_webhook_handler/tests -v
 
 The tests use fake requests and dispatchers. They do not require `.env.yaml`,
 credentials, a database, or network access.
+
+Attendance postbacks persist the reply and build the LINE acknowledgement in
+the same request. They do not call the Web Portal or any cache invalidation
+endpoint. The Web Portal attendance page reads current database state on each
+page request instead.

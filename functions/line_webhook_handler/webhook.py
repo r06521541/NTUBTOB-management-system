@@ -37,7 +37,6 @@ from shared_module.message_templates.general_message import (
 )
 import shared_module.attendance_analyzer as attendance_analyzer
 import shared_module.message_templates.linebot_attendance_message as linebot_attendance_message
-import shared_module.web_cache as web_cache
 import shared_module.line_messaging_api as line_messaging_api
 
 from envs import (
@@ -253,7 +252,6 @@ def handle_postback_reply_game_attendance(query: str):
     if is_different_reply:
         GameAttendanceReply.add(GameAttendanceReply(game_id, g.user.id, member_id, reply))
         add_text_message_to_reply(message_templates_user.game_reply.format(game_verbal_summary=game_verbal_summary, reply=reply_text_mapping[reply]))
-        web_cache.clear_cache_of_attendance_page()
         if datetime.now(timezone.utc) > game.start_datetime - timedelta(0, 0, 0, 0, 0, 12):
             notify_management_message(message_templates_management.member_rush_reply_attendance.format(game_short_summary=game_verbal_summary, member=get_user_name(g.user), reply=reply_text_mapping[reply]))
     else:
