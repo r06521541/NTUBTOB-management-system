@@ -1,17 +1,17 @@
 active_task: TASK-045
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: bc6f08f1257fdc84aac26f683ee6a79999f71b4d
-head_commit: null
+head_commit: 6000e2ee791b808a2cb1a27cd2b97ac9f7fa9137
 
-updated_by: work
-updated_at: 2026-08-06T19:25:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T19:40:00+08:00
 
 note: >
-  Owner reproduced TASK-044 after deployment and still landed on the home page, then chose to pause that
-  diagnosis for later without declaring it fixed. TASK-045 removes the LINE webhook attendance reply's
-  obsolete synchronous no-timeout request to the nonexistent Web Portal cache endpoint, while preserving
-  DB, reply-message, late-notification, and fresh-read behavior with offline fail-on-network tests. No push,
-  PR, merge, deployment, production DB/log access, LINE/Discord notification, schema, Secret, IAM,
-  Scheduler, LINE Console, or unrelated-service change is authorized.
+  Codex removed the obsolete synchronous Web Portal cache request and deleted shared_module.web_cache after
+  confirming no remaining callers. Offline fail-on-network tests preserve DB add, acknowledgement, same reply,
+  unpaired/first-message, past/cancelled, late-notification, first-reply hint, and Web Portal fresh-read behavior.
+  Shared sdist build/install, 18 webhook tests, 101 Web Portal tests, compile, Python 3.10 grammar, and diff check
+  passed. Work must independently inspect commit 6000e2e and validation evidence. No push, PR, merge, deployment,
+  production DB/log access, notification, schema, Secret, IAM, Scheduler, or LINE Console change is authorized.
