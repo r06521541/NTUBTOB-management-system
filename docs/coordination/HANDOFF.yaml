@@ -1,15 +1,15 @@
 active_task: TASK-040
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
 head_commit: a369123
 
-updated_by: codex
-updated_at: 2026-08-06T23:45:00+08:00
+updated_by: work
+updated_at: 2026-08-06T23:58:00+08:00
 
 note: >
-  TASK-040 implementation is ready for Work review. Mobile guidance now directs users back to LINE,
-  desktop browser and QR login remain available, and invalid OAuth state returns to a same-site login
-  options page with the validated local return path. Web Portal tests passed 75 tests with 2 existing
-  Windows make/sh skips. No push, PR, merge, deployment, production access, or security-boundary change.
+  Work accepted TASK-040 after inspecting the actual diff and independently rerunning 75 Web Portal tests,
+  compileall, full-range diff check, and clean-worktree verification. Two existing Windows make/sh tests
+  remain skipped. OAuth state/nonce security was not weakened. Owner may approve the PR work package;
+  no push, PR, merge, deployment, production access, or environment change has occurred.
