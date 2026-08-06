@@ -1,15 +1,15 @@
 active_task: TASK-039
-status: in_progress
-next_actor: work
+status: completed
+next_actor: owner
 
-base_commit: bd0ddd6
-head_commit: 0025f7f
+base_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
+head_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
 
 updated_by: work
-updated_at: 2026-08-06T22:00:00+08:00
+updated_at: 2026-08-06T22:45:00+08:00
 
 note: >
-  Work accepted TASK-039 locally: 75 Web Portal tests passed with two existing Windows skips, compile,
-  deployment dry-run, and diff checks passed. Owner authorized the complete PR-to-deployment chain.
-  Work will push, require hosted Python 3.10 CI, squash merge if clean, then deploy the exact merge commit
-  with preflight rollback discovery. Real LINE login and DB access remain excluded.
+  TASK-039 passed hosted Python 3.10 CI, PR #47 merged as 7082afd, and production deployment completed
+  as web-portal-00035-mcl with Ready state and 100% traffic. Root returned 200, demo returned 404, and
+  the explicit login-choice page returned 200 with no auto redirect and both same-site actions present.
+  No action was clicked, no real login/DB occurred, and rollback was not required. Owner should verify UX.

@@ -1,6 +1,6 @@
 # TASK-039：建立跨平台 LINE 登入入口與復原 UX
 
-狀態：`ready_for_codex`
+狀態：`completed`
 優先級：P1 authentication UX
 規劃角色：Work
 執行角色：Codex
@@ -86,3 +86,17 @@ git status --short
 ## 7. 授權邊界
 
 Owner已同意建立TASK-039並直接交棒Codex。Codex可做repository-only實作、離線測試、文件與描述性本機commit，完成後交回Work。尚未批准push、PR、merge、deployment、真實LINE測試、production／DB存取、Secret／IAM／schema／data或通知。
+
+## 8. PR、merge與production結果
+
+- Owner後續授權Work完成驗收、PR、CI、merge與受控deployment完整鏈。
+- PR #47 hosted Python 3.10 CI run `31066974072`成功。
+- PR #47 squash merge commit：`7082afd4a1d9fe579f02956c77ecbc85b58fd7b7`。
+- 執行前rollback target：`web-portal-00034-7lm`，Ready且承接100% traffic。
+- Cloud Build ID：`19abfd4c-09bc-4122-aa5a-b877c33427b5`。
+- 新revision：`web-portal-00035-mcl`，Ready且承接100% traffic。
+- Image digest：`sha256:b63df5755c2991d46e4998ca7c3084b605d23a4a933e38db69d7d2af7da81649`。
+- `GET /`為200；`GET /demo/`為404。
+- `GET /redirect-to-login?next=/future-games`為200，無meta refresh／script redirect，normal與browser fallback兩個same-site入口及文案均存在；未點擊連結。
+- Temporary env已清理；未觸發rollback。
+- 未修改Secret、IAM、DB、schema、data、LINE Console、通知或其他服務。

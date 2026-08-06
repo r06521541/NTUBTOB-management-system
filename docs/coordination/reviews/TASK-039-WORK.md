@@ -43,3 +43,11 @@ local runtime: bundled Python 3.12.13
 ## Owner完整工作包
 
 Owner授權Work從驗收到deployment完整執行。若hosted CI與PR狀態通過，可直接squash merge；merge後以exact main commit部署production `web-portal`，執行前重新唯讀鎖定當下100% traffic revision。Wrapper既有`GET /`、`GET /demo/`通過後，額外只做一次不點擊、不跟隨redirect的`GET /redirect-to-login?next=/future-games`，確認200、無meta／script auto redirect，normal與browser兩個same-site links存在。任一契約失敗時依批准條件rollback。
+
+## 最終結果
+
+- Hosted Python 3.10 CI run `31066974072`／job `92506608296`成功。
+- PR #47已squash merge為`7082afd4a1d9fe579f02956c77ecbc85b58fd7b7`。
+- Production部署為`web-portal-00035-mcl`，Ready且承接100% traffic；rollback未觸發。
+- Wrapper驗證首頁200、demo 404；登入選擇頁驗證200、無自動redirect、兩個same-site actions存在。
+- 實體iOS／Android／LINE in-app／desktop UX仍待Owner人工操作確認。
