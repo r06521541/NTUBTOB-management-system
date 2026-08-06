@@ -1,15 +1,14 @@
 active_task: TASK-037
-status: awaiting_owner_approval
-next_actor: owner
+status: in_progress
+next_actor: work
 
 base_commit: fee79c9
 head_commit: 0d9e367
 
 updated_by: work
-updated_at: 2026-08-06T18:15:00+08:00
+updated_at: 2026-08-06T18:30:00+08:00
 
 note: >
-  Work accepted TASK-037 after independent review: 65 Web Portal tests passed with two existing
-  Windows make/sh skips, compile and deployment dry-run passed, and diff check is clean. Full hosted
-  Python 3.10 runtime evidence is still required because local suites used Python 3.9/3.12 plus a
-  3.10 grammar check. Owner may approve a PR work package; push, PR, merge, and deployment are unapproved.
+  Owner approved the TASK-037 PR work package. Work may push the existing branch, create a Draft PR,
+  and inspect hosted Python 3.10 CI to complete verification. Local behavior review already passed.
+  Merge, deployment, production access, Secret, IAM, DB, schema, data, and notifications remain unapproved.

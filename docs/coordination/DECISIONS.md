@@ -560,4 +560,5 @@
 - 決策：建立TASK-037，只保存`user_id`與`member_id`，平順清除既有legacy fields，並在attendance request-time取得fresh Member。
 - 相容性：不得全域清空session；須保留合法identity、OAuth transaction、CSRF、return path及demo資料，Member不存在時fail closed且不loop。
 - 授權：Owner要求直接交棒Codex；批准repository-only實作、測試、文件與本機commit。
-- 安全邊界：尚未批准新的PR工作包、push、merge、deployment、production／DB存取、schema／migration、Secret／IAM或通知。
+- 後續授權：Work驗收通過後，Owner批准TASK-037 PR工作包，可push、建立Draft PR並查驗hosted Python 3.10 CI。
+- 安全邊界：仍未批准merge、deployment、production／DB存取、schema／migration、Secret／IAM或通知。
