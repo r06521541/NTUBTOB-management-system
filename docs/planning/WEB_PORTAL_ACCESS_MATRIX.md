@@ -14,8 +14,12 @@ The approved persistence direction introduces Person as the authorization
 principal, with `basic`, `officer`, and `admin` access levels and independent
 pending/active/disabled/inactive/blocked status. Member is a permanent alumni
 roster record; team/guest/affiliate/staff are independent, multi-value
-qualifications. It is not yet implemented. Unknown identities, access levels,
-statuses, and qualifications fail closed.
+qualifications. It is not activated in production. Unknown identities, access
+levels, statuses, and qualifications fail closed.
+
+TASK-048 now provides the matching opt-in local schema and repository contract,
+but no production route resolves a principal from it yet. The current
+allowlist-based production behavior in this matrix therefore remains unchanged.
 
 | Route group | Anonymous | Basic | Officer | Admin | Enforced capability |
 | --- | --- | --- | --- | --- | --- |

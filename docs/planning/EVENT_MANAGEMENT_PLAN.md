@@ -49,3 +49,7 @@
 
 TASK-047 已核准 Person access、qualification、Event／Activity、invitee snapshot、既有 Game 相容、兩層出席、migration、rollback 與 local integration 的概念模型，見
 [`ROLE_PERSISTENCE_PLAN.md`](ROLE_PERSISTENCE_PLAN.md)。仍不授權 schema 或 production 變更。
+
+TASK-048 已將上述模型實作為 opt-in local schema 與 repository contract，包含資格池發布快照、
+個別 include/exclude、team/guest roster 分流與兩層 attendance tables。現有 Web Portal、Game、
+crawler 與通知流程仍未切換；Supabase production inventory、migration 與 rollout 必須另案批准。

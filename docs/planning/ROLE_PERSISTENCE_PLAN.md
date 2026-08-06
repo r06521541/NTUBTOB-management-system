@@ -108,6 +108,12 @@ Member、access level、qualification 不互相推導：
 
 ### Phase 0：工具與 local contract
 
+TASK-048 已在 repository 建立此階段的 opt-in local foundation：Alembic
+baseline/expand revisions、隔離 Docker PostgreSQL、獨立 SQLAlchemy models、
+in-memory/PostgreSQL repository contract 與虛構 fixture。它尚未接入 production
+request path，也不代表 Supabase migration 已獲准。正式 rollout 仍需先完成本節所述
+production inventory 與另案批准。
+
 - 採版本化 migration 工具；Supabase SQL Editor 不作唯一歷史。
 - Local prototype 透過單一 `TeamPortalRepository` 與集中虛構 fixtures 提供 Person/Member/identity/qualification/Event/invitee/reply，不逐表 mock。
 - 正式 persistence 用 ephemeral PostgreSQL 或 Supabase local 從空 schema 跑 migration，驗證 FK/unique/check/index、transaction、concurrency、backfill idempotency 與 rollback rehearsal。

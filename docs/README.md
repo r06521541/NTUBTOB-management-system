@@ -31,6 +31,10 @@
 
 部署文件記錄歷史證據；真正部署前仍須重新查證 exact commit、revision、traffic、identity 與 Secret reference metadata，並取得當次 Owner 授權。
 
+## 本機開發
+
+- `development/LOCAL_PORTAL_DATA.md`：TASK-048 專用的隔離 PostgreSQL、Alembic migration rehearsal、contract tests 與 named-volume 清理方式；不授權或連接 production。
+
 ## 維護規則
 
 - 現況改變：更新 `PROJECT_STATE.md`。

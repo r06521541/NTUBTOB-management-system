@@ -41,6 +41,14 @@ Before you start developing locally, make sure to complete the following steps:
   make format
   ```
 
+## Local Person and Event persistence
+
+The opt-in Person/access/qualification/Event data foundation runs against an
+isolated Docker PostgreSQL database. It is not connected to the Web Portal
+request path and rejects non-local database URLs. Setup, migration rehearsal,
+tests, and cleanup are documented in
+[`docs/development/LOCAL_PORTAL_DATA.md`](docs/development/LOCAL_PORTAL_DATA.md).
+
 ## Web Portal deployment preflight
 
 The cross-platform Web Portal wrapper defaults to repository-local preflight.
