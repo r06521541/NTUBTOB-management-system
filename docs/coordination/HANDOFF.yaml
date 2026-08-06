@@ -1,15 +1,15 @@
 active_task: TASK-040
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 7082afd4a1d9fe579f02956c77ecbc85b58fd7b7
-head_commit: a369123
+head_commit: 5e85ea98634921d2d6ba4aa42c0f063ad5ba53ed
 
 updated_by: work
-updated_at: 2026-08-06T23:58:00+08:00
+updated_at: 2026-08-06T11:50:00+08:00
 
 note: >
-  Work accepted TASK-040 after inspecting the actual diff and independently rerunning 75 Web Portal tests,
-  compileall, full-range diff check, and clean-worktree verification. Two existing Windows make/sh tests
-  remain skipped. OAuth state/nonce security was not weakened. Owner may approve the PR work package;
-  no push, PR, merge, deployment, production access, or environment change has occurred.
+  TASK-040 completed. PR #48 passed hosted Python 3.10 CI and squash merged as 5e85ea9. Production
+  web-portal revision web-portal-00036-2p2 is Ready with 100% traffic; root returned 200, demo returned
+  404, and the public login guidance page contained the approved mobile/desktop wording without automatic
+  redirect. No login, LINE API, DB, notification, Secret/IAM/schema/data change or rollback occurred.
