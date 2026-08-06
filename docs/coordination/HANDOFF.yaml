@@ -1,17 +1,19 @@
-active_task: TASK-048
-status: awaiting_owner_approval
+active_task: TASK-049
+status: completed
 next_actor: owner
 
-base_commit: 64f2dca
-head_commit: 31844cdaecfd526f36ab4546a732c61021298f95
+base_commit: 316332df39591f47f542bb5e69be9caeb7dbd925
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T22:42:00+08:00
+updated_at: 2026-08-06T23:38:00+08:00
 
 note: >
-  Work accepted TASK-048 after independent Docker PostgreSQL, Alembic downgrade/upgrade, idempotent seed,
-  32 persistence tests, 169 directly affected service tests, metadata drift and diff checks. The opt-in
-  foundation is not connected to production behavior. Hosted Python 3.10 remains the PR-stage evidence;
-  qualification audit service, activity reply domain, production audit privileges and Supabase inventory
-  are explicit future boundaries. Owner approval is required for push/PR; merge does not authorize schema
-  migration, Supabase access, deployment or enabling the new path.
+  TASK-049 is complete after three exact read-only inventories. Of 153 attendance history transitions,
+  144 changed reply state and 9 repeated the same reply; there are no exact duplicates, timestamp ties,
+  identity changes or Member/LINE disagreement. Legacy history must remain intact; a future current-state
+  backfill should deterministically select updated_at DESC, id DESC. Next recommended work is an offline
+  exact-schema migration rehearsal. head_commit is null because this same unpushed closeout commit contains
+  HANDOFF; use the branch HEAD rather than embedding a stale self-reference.
+  This handoff does not authorize Work or Codex to connect to Supabase, execute SQL, inspect secrets,
+  run DDL/DML, stamp Alembic, migrate, backfill, deploy, or query application row values.
