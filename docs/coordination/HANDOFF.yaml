@@ -1,17 +1,17 @@
-active_task: TASK-044
-status: in_progress
-next_actor: owner
+active_task: TASK-045
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 3da0bb0d895e59cc06c7c62f7b195d2de328434f
-head_commit: a54c91aa9eb788a47bd9448445abdd1f88658174
+base_commit: bc6f08f1257fdc84aac26f683ee6a79999f71b4d
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-06T19:05:00+08:00
+updated_at: 2026-08-06T19:25:00+08:00
 
 note: >
-  PR #50 passed hosted Python 3.10 CI, squash merged as a54c91aa9eb788a47bd9448445abdd1f88658174,
-  and deployed successfully as production revision web-portal-00038-cv8 with 100% traffic; root returned
-  200 and demo remained fail-closed at 404. Rollback was not required. Owner must now reproduce once from
-  /attendance inside the LINE App and report approximate time and final page; Work may then query only the
-  fixed destination category, never callback URL/query/OAuth/identity data. No DB, Secret, IAM, LINE
-  Console, schema, notification, or other-service mutation occurred.
+  Owner reproduced TASK-044 after deployment and still landed on the home page, then chose to pause that
+  diagnosis for later without declaring it fixed. TASK-045 removes the LINE webhook attendance reply's
+  obsolete synchronous no-timeout request to the nonexistent Web Portal cache endpoint, while preserving
+  DB, reply-message, late-notification, and fresh-read behavior with offline fail-on-network tests. No push,
+  PR, merge, deployment, production DB/log access, LINE/Discord notification, schema, Secret, IAM,
+  Scheduler, LINE Console, or unrelated-service change is authorized.
