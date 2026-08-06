@@ -15,6 +15,7 @@ from role_policy import (  # noqa: E402
     ROLE_ADMIN,
     ROLE_MEMBER,
     ROLE_OFFICER,
+    ROLE_CAPABILITIES,
     Principal,
     has_capability,
     resolve_demo_principal,
@@ -36,6 +37,24 @@ class RolePolicyTest(unittest.TestCase):
         self.assertFalse(has_capability(Principal("unknown", 4), MANAGE_EVENTS))
         self.assertFalse(has_capability(admin, "unknown_capability"))
         self.assertFalse(has_capability(None, REPLY_OWN_ATTENDANCE))
+
+    def test_policy_mapping_and_capability_sets_are_read_only(self):
+        with self.assertRaises(TypeError):
+            ROLE_CAPABILITIES[ROLE_MEMBER] = frozenset()
+        with self.assertRaises(AttributeError):
+            ROLE_CAPABILITIES[ROLE_MEMBER].add(MANAGE_EVENTS)
+
+    def test_unhashable_or_non_string_policy_inputs_deny_without_error(self):
+        for principal, capability in (
+            (Principal([], 1), MANAGE_EVENTS),
+            (Principal({}, 1), MANAGE_EVENTS),
+            (Principal(ROLE_ADMIN, 1), []),
+            (Principal(ROLE_ADMIN, 1), {}),
+            (Principal(7, 1), MANAGE_EVENTS),
+            (Principal(ROLE_ADMIN, 1), 7),
+        ):
+            with self.subTest(principal=principal, capability=capability):
+                self.assertFalse(has_capability(principal, capability))
 
     def test_production_resolves_only_member_or_allowlisted_admin(self):
         values = {"user_id": "line-user", "member_id": 7}
@@ -78,6 +97,23 @@ class RolePolicyTest(unittest.TestCase):
                 }
             )
         )
+        for invalid_member in (
+            {"demo_role": ROLE_MEMBER},
+            {"id": "", "demo_role": ROLE_MEMBER},
+            {"id": "   ", "demo_role": ROLE_MEMBER},
+            {"id": 7, "demo_role": ROLE_MEMBER},
+            {"id": [], "demo_role": ROLE_MEMBER},
+            {"id": "demo", "demo_role": []},
+        ):
+            with self.subTest(invalid_member=invalid_member):
+                self.assertIsNone(
+                    resolve_demo_principal(
+                        {
+                            "demo_authenticated": True,
+                            "demo_member": invalid_member,
+                        }
+                    )
+                )
 
 
 if __name__ == "__main__":
