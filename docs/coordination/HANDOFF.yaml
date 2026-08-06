@@ -1,15 +1,16 @@
 active_task: TASK-042
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: ad17ac7908ed833fba1827364fb87e72e1ed4b06
-head_commit: null
+head_commit: 769f846
 
-updated_by: work
-updated_at: 2026-08-06T13:00:00+08:00
+updated_by: codex
+updated_at: 2026-08-06T13:39:00+08:00
 
 note: >
-  Owner approved TASK-042 and direct handoff to Codex. Add a production member account page, policy-backed
-  role label/admin entry, POST-only CSRF-protected full session logout, and minimal mobile navigation for
-  account/attendance/roster. No schema, officer source, env, OAuth/provider change, production/DB, push/PR,
-  merge/deployment, Secret/IAM/LINE Console, notification, or cross-service change is authorized.
+  Codex completed the request-time member account page, policy-backed role/admin entry, dedicated
+  CSRF-protected POST logout, and shared member navigation in implementation commit 769f846. All 89 Web
+  Portal tests pass with two existing Windows make/sh skips; compile, Python 3.10 grammar, and diff checks
+  pass. No push, PR, merge, deployment, production, DB, LINE, schema, env, Secret, IAM, or notification
+  action occurred. Work must review the actual diff and commit.
