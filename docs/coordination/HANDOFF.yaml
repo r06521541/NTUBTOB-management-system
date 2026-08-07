@@ -1,16 +1,17 @@
 active_task: TASK-057
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: e2b75a8
-head_commit: null
+head_commit: df03a462c9daf54e3ba398748f0bf669b146abbd
 
-updated_by: work
-updated_at: 2026-08-07T15:20:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T15:51:59+08:00
 
 note: >
-  TASK-057 specifies a fail-closed isolated restore rehearsal wrapper using a fixed Docker image, network-none,
-  no published ports or persistent volumes, bounded tmpfs, fixed restore/catalog commands and mandatory cleanup.
-  Codex may implement and test only with conspicuously fake local data. Production archive/sidecars, credential files,
-  Supabase, remote databases, production schema/data, migrations, notifications, push/PR/merge and deployment remain
-  out of scope. A real production-archive rehearsal requires a later separately approved gate after review and merge.
+  Codex implemented the fail-closed fixed-image Docker restore wrapper, 10 offline tests, sanitized TASK-049 catalog
+  checks and runbook updates. A real local fake custom archive passed preflight, restore, all 13 catalog categories,
+  post-restore artifact verification and mandatory cleanup; 29 combined restore/backup tests passed. Work must review
+  commit df03a462c9daf54e3ba398748f0bf669b146abbd and obtain Python 3.10/formatter CI evidence. Production archive or
+  sidecar access, credentials, Supabase, remote databases, SQL/migration, push/PR/merge and deployment remain out of
+  scope until their separate gates.
