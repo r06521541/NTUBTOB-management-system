@@ -58,6 +58,31 @@
                     <button name="action" value="{{ 'unblock_linked' if item.identity_status == 'blocked' else 'enable_identity' if item.identity_status == 'disabled' else 'disable_identity' }}" {% if not identity_maintenance_enabled %}disabled{% endif %}>{{ '解除封鎖' if item.identity_status == 'blocked' else '啟用身分' if item.identity_status == 'disabled' else '停用身分' }}</button>
                 {% endif %}
             </form>
+            {% if item.person_id and item.identity_id != current_identity_id %}
+            <form method="post" action="{{ url_for('identity_admin_action') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="identity_id" value="{{ item.identity_id }}">
+                <input type="hidden" name="request_id" value="identity-remap-{{ item.identity_id }}-{{ request_nonce }}">
+                <label>重新配對至 Member
+                    <select name="member_id" required>
+                        <option value="" selected disabled>請選擇目標 Member</option>
+                        {% for person in dashboard.people if person.member_id and person.person_id != item.person_id %}
+                            <option value="{{ person.member_id }}">
+                                {{ person.formal_name or person.display_name }} · {{ person.status }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
+                <label>
+                    <input type="checkbox" name="confirm_remap" value="yes" required>
+                    我確認此操作會同步變更 LINE identity 與 legacy Member 連結；inactive 目標會轉為 active，既有撤銷資格與登入安全狀態不會恢復。
+                </label>
+                <button name="action" value="remap" {% if not identity_maintenance_enabled %}disabled{% endif %}>確認重新配對</button>
+            </form>
+            {% elif item.identity_id == current_identity_id %}
+                <p>目前登入使用的 LINE 身分不可重新配對。</p>
+            {% endif %}
             {% if item.review_status == 'open' %}
             <form method="post" action="{{ url_for('identity_admin_action') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

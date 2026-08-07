@@ -11,9 +11,13 @@ class AttendancePerson:
     qualification: str
 
 
-def get_attendance_of_game(game_id: int) -> dict[int, list[object]]:
+def get_attendance_of_game(
+    game_id: int, use_display_name: bool = False
+) -> dict[int, list[object]]:
     if is_phase_c_enabled():
-        summary = get_identity_lifecycle_repository().attendance_summary(game_id)
+        summary = get_identity_lifecycle_repository().attendance_summary(
+            game_id, use_display_name=use_display_name
+        )
         attendance = {}
         for participant in summary.participants:
             attendance.setdefault(participant["reply"], []).append(

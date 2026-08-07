@@ -90,6 +90,24 @@ OAUTH_SESSION_KEYS = ("oauth_state_nonce", "next_url")
 LEGACY_IDENTITY_SESSION_KEYS = ("member", "display_name")
 AUTHENTICATED_IDENTITY_SESSION_KEYS = ("user_id", "member_id")
 PHASE_C_SESSION_KEYS = ("person_id", "auth_identity_id", "member_id", "user_id")
+ATTENDANCE_NAME_STYLES = frozenset({"formal", "display"})
+
+
+def requested_attendance_name_style():
+    values = request.args.getlist("name_style")
+    if not values:
+        return "formal"
+    if len(values) != 1 or values[0] not in ATTENDANCE_NAME_STYLES:
+        abort(400)
+    return values[0]
+
+
+def attendance_for_game(game_id, name_style):
+    if name_style == "display":
+        return attendance_analyzer.get_attendance_of_game(
+            game_id, use_display_name=True
+        )
+    return attendance_analyzer.get_attendance_of_game(game_id)
 
 
 def phase_c_repository():
@@ -474,6 +492,7 @@ def query_attendance():
 @member_required
 def attendance():
     timing = AttendanceTiming()
+    name_style = requested_attendance_name_style()
     repository = phase_c_repository()
     lifecycle_principal = (
         repository.resolve_line_principal(session.get("user_id", ""))
@@ -497,7 +516,7 @@ def attendance():
 
     games_with_attendance = []
     for game in upcoming_games:
-        mapping = attendance_analyzer.get_attendance_of_game(game.id)
+        mapping = attendance_for_game(game.id, name_style)
         games_with_attendance.append(
             {
                 "id": game.id,
@@ -514,6 +533,7 @@ def attendance():
         my_membership=member,
         games_with_attendance=games_with_attendance,
         reply_text_mapping=reply_text_mapping,
+        name_style=name_style,
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
     )
     timing.finish("render")
@@ -596,6 +616,7 @@ def index():
             csrf_token=get_or_create_csrf_token(),
             request_nonce=secrets.token_urlsafe(16),
             identity_maintenance_enabled=is_identity_maintenance_enabled(),
+            current_identity_id=session.get("auth_identity_id"),
         )
     line_users = LineUser.search_all_unknowns()
     members = Member.search_all()
@@ -669,6 +690,15 @@ def identity_admin_action():
     request_id = request.form.get("request_id", "")
     identity_id = request.form.get("identity_id", type=int)
     person_id = request.form.get("person_id", type=int)
+    remap_member_id = None
+    if action == "remap":
+        remap_member_id = request.form.get("member_id", type=int)
+        if (
+            identity_id is None
+            or remap_member_id is None
+            or request.form.getlist("confirm_remap") != ["yes"]
+        ):
+            abort(400)
     try:
         if action == "approve_non_member" and identity_id is not None:
             qualifications = request.form.getlist("qualification")
@@ -737,7 +767,7 @@ def identity_admin_action():
             repository.remap_member_identity(
                 actor_person_id,
                 identity_id,
-                request.form.get("member_id", type=int),
+                remap_member_id,
                 reason,
                 request_id,
                 current_identity_id=session.get("auth_identity_id"),
@@ -860,15 +890,17 @@ def future_games():
 @app.route("/game-roster/<int:game_id>")
 @member_required
 def game_roster(game_id: int):
+    name_style = requested_attendance_name_style()
     game = Game.search_by_id(game_id)
     if game is None:
         abort(404)
-    attendance_mapping = attendance_analyzer.get_attendance_of_game(game.id)
+    attendance_mapping = attendance_for_game(game.id, name_style)
     return render_template(
         "game_roster.html",
         game=game,
         players=process_replies(attendance_mapping),
-        players_not_reply_yet=process_replies_who_has_not_reply_yet(attendance_mapping),
+        unanswered_count=len(attendance_mapping.get(5, ())),
+        name_style=name_style,
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
     )
 
@@ -887,18 +919,6 @@ def process_replies(attendance_mapping: dict[int, list[Member]]) -> list[str]:
             elif reply == 4:
                 names.append(f"{name}（早走）")
 
-    return names
-
-
-def process_replies_who_has_not_reply_yet(
-    attendance_mapping: dict[int, list[Member]]
-) -> list[str]:
-    names = []
-
-    for reply, members in attendance_mapping.items():
-        for member in members:
-            if reply == 5:
-                names.append(member.name)
     return names
 
 

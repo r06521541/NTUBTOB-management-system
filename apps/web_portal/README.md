@@ -211,9 +211,11 @@ Legacy Member matching and ignore writes are additionally frozen unless
 `WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED` is exactly `true`. Missing, empty,
 case-variant, or unknown values fail closed. The default is `false`; while
 disabled, administrators can inspect pending rows but the page displays a
-maintenance notice and disables its controls. This temporary guard does not
-implement Person/identity dual-write and must not be enabled in production
-without a separately approved rollout.
+maintenance notice and disables its controls. The guard alone does not enable
+Person/identity synchronization. When the separate Phase C flag is also enabled,
+approved lifecycle mutations intentionally update the legacy projection and
+Phase C identity records in one transaction. Neither production flag may be
+enabled without a separately approved rollout.
 
 The Phase C Person/identity read and attendance bridge has a separate exact
 opt-in, `PORTAL_DATA_PHASE_C_ENABLED=true`. It defaults off. When enabled, LINE

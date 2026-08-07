@@ -289,6 +289,21 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         summary = self.repository.attendance_summary(game_id)
         self.assertEqual(summary.team_player_total, 0)
         self.assertEqual(summary.participants[0]["name"], "Guest Formal")
+        self.assertEqual(
+            self.repository.attendance_summary(
+                game_id, use_display_name=True
+            ).participants[0]["name"],
+            "Guest Display",
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("UPDATE ntubtob.people SET formal_name=NULL WHERE id=:person_id"),
+                {"person_id": principal.person.id},
+            )
+        self.assertEqual(
+            self.repository.attendance_summary(game_id).participants[0]["name"],
+            "Guest Display",
+        )
         self.assertTrue(self.repository.reply_to_game(principal.person.id, game_id, 5))
         self.assertEqual(self.repository.attendance_summary(game_id).participants, ())
 
@@ -318,6 +333,104 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                         "finish": datetime(2029, 3, 1, tzinfo=timezone.utc),
                     },
                 )
+
+    def test_remap_audits_inactive_activation_without_restoring_qualification(self):
+        with self.engine.begin() as connection:
+            source_person_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.people
+                      (display_name, portal_access_level, portal_status,
+                       version, created_at, updated_at)
+                    VALUES ('Source Person', 'basic', 'active', 1, now(), now())
+                    RETURNING id
+                    """
+                )
+            )
+            target_person_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.people
+                      (display_name, portal_access_level, portal_status,
+                       version, created_at, updated_at)
+                    VALUES ('Inactive Target', 'basic', 'inactive', 1, now(), now())
+                    RETURNING id
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.members (id, name, person_id)
+                    VALUES
+                      (7002, 'Source Member', :source_person_id),
+                      (7003, 'Target Member', :target_person_id);
+                    INSERT INTO ntubtob.person_qualifications
+                      (person_id, qualification, status, reason, created_at, updated_at)
+                    VALUES
+                      (:target_person_id, 'team_player', 'revoked',
+                       'Previously revoked qualification', now(), now());
+                    """
+                ),
+                {
+                    "source_person_id": source_person_id,
+                    "target_person_id": target_person_id,
+                },
+            )
+        pending = self._pending("remap")
+        self.repository.approve_member(
+            self.admin_person_id,
+            pending.identity.id,
+            7002,
+            "Approve source Member",
+            "approve-remap-source",
+        )
+
+        with self.assertRaises(ConflictError):
+            self.repository.remap_member_identity(
+                self.admin_person_id,
+                pending.identity.id,
+                7003,
+                "Current login identity must not move",
+                "remap-current-login",
+                current_identity_id=pending.identity.id,
+            )
+
+        principal = self.repository.remap_member_identity(
+            self.admin_person_id,
+            pending.identity.id,
+            7003,
+            "Correct verified Member mapping",
+            "remap-inactive-target",
+        )
+
+        self.assertEqual(principal.person.id, target_person_id)
+        self.assertEqual(principal.identity.status, "linked")
+        with self.engine.connect() as connection:
+            state = connection.execute(
+                text(
+                    """
+                    SELECT p.portal_status, q.status, i.status, l.member_id,
+                           a.before_state ->> 'target_person_status',
+                           a.after_state ->> 'target_person_status'
+                    FROM ntubtob.people p
+                    JOIN ntubtob.person_qualifications q ON q.person_id = p.id
+                    JOIN ntubtob.auth_identities i ON i.person_id = p.id
+                    JOIN ntubtob.line_users l
+                      ON l.line_user_id = i.provider_subject
+                    JOIN ntubtob.access_audit a
+                      ON a.auth_identity_id = i.id
+                     AND a.request_id = 'remap-inactive-target'
+                    WHERE p.id = :person_id
+                      AND q.qualification = 'team_player'
+                    """
+                ),
+                {"person_id": target_person_id},
+            ).one()
+        self.assertEqual(
+            state,
+            ("active", "revoked", "linked", 7003, "inactive", "active"),
+        )
 
     def test_reject_unblock_and_audit_append_only(self):
         pending = self._pending("reject")

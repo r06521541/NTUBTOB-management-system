@@ -751,6 +751,7 @@ class IdentityLifecycleRepository:
                 )
                 if legacy is None:
                     raise ConflictError("legacy LINE identity required")
+                target_status_before = target.portal_status
                 target.portal_status = "active"
                 target.version += 1
                 target.updated_at = now
@@ -764,10 +765,14 @@ class IdentityLifecycleRepository:
                         actor_person_id=actor_person_id,
                         target_person_id=target.id,
                         auth_identity_id=identity.id,
-                        before_state={"person_id": old_person_id},
+                        before_state={
+                            "person_id": old_person_id,
+                            "target_person_status": target_status_before,
+                        },
                         after_state={
                             "person_id": target.id,
                             "member_id": target_member.id,
+                            "target_person_status": target.portal_status,
                         },
                         reason=reason,
                         request_id=request_id,

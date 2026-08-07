@@ -105,7 +105,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.line_user_model.reset_mock()
         self.member_model.reset_mock()
         self.game_model.reset_mock()
-        self.attendance_analyzer.reset_mock()
+        self.attendance_analyzer.reset_mock(return_value=True, side_effect=True)
         self.notifier.reset_mock()
         self.line_user_model.search_all_unknowns.return_value = [
             SimpleNamespace(line_user_id="fake-line-user", nickname="Demo User")
@@ -993,6 +993,150 @@ class MemberMatchingRouteTest(unittest.TestCase):
             valid_until=None,
         )
 
+    def test_phase_c_admin_ui_and_route_require_confirmed_identity_remap(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "identities": (
+                {
+                    "identity_id": 72,
+                    "nickname": "Linked Applicant",
+                    "identity_status": "linked",
+                    "ignored": False,
+                    "stale": False,
+                    "person_id": 70,
+                    "person_name": "Source Member",
+                    "person_status": "active",
+                    "member_id": 7,
+                    "review_status": "closed",
+                },
+            ),
+            "people": (
+                {
+                    "person_id": 70,
+                    "member_id": 7,
+                    "display_name": "Source Display",
+                    "formal_name": "Source Member",
+                    "status": "active",
+                    "qualifications": (),
+                    "admin_note": None,
+                },
+                {
+                    "person_id": 80,
+                    "member_id": 8,
+                    "display_name": "Target Display",
+                    "formal_name": "Target Member",
+                    "status": "inactive",
+                    "qualifications": (),
+                    "admin_note": None,
+                },
+            ),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-admin-user",
+                member_id=7,
+                person_id=70,
+                auth_identity_id=71,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            page = self.client.get("/match-member")
+            missing_confirmation = self.client.post(
+                "/identity-admin/action",
+                data={
+                    "csrf_token": token,
+                    "action": "remap",
+                    "identity_id": "72",
+                    "member_id": "8",
+                    "reason": "Correct the verified Member mapping",
+                    "request_id": "identity-remap-fake-request",
+                },
+            )
+            remapped = self.client.post(
+                "/identity-admin/action",
+                data={
+                    "csrf_token": token,
+                    "action": "remap",
+                    "identity_id": "72",
+                    "member_id": "8",
+                    "reason": "Correct the verified Member mapping",
+                    "request_id": "identity-remap-fake-request",
+                    "confirm_remap": "yes",
+                },
+            )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'name="confirm_remap"', page.data)
+        self.assertIn(b'value="8"', page.data)
+        self.assertIn("inactive 目標會轉為 active".encode(), page.data)
+        self.assertEqual(missing_confirmation.status_code, 400)
+        self.assertEqual(remapped.status_code, 302)
+        repository.remap_member_identity.assert_called_once_with(
+            70,
+            72,
+            8,
+            "Correct the verified Member mapping",
+            "identity-remap-fake-request",
+            current_identity_id=71,
+        )
+
+    def test_phase_c_admin_ui_omits_remap_for_current_login_identity(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "identities": (
+                {
+                    "identity_id": 71,
+                    "nickname": "Current Login",
+                    "identity_status": "linked",
+                    "ignored": False,
+                    "stale": False,
+                    "person_id": 70,
+                    "person_name": "Admin Member",
+                    "person_status": "active",
+                    "member_id": 7,
+                    "review_status": "closed",
+                },
+            ),
+            "people": (),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-admin-user",
+                member_id=7,
+                person_id=70,
+                auth_identity_id=71,
+            )
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/match-member")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("目前登入使用的 LINE 身分不可重新配對".encode(), response.data)
+        self.assertNotIn(b'value="remap"', response.data)
+
     def test_roster_rejects_missing_or_invalid_member_session_before_queries(self):
         invalid_sessions = (
             {},
@@ -1033,7 +1177,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 http_get.assert_not_called()
                 http_post.assert_not_called()
 
-    def test_valid_member_session_preserves_roster_response(self):
+    def test_valid_member_session_hides_unanswered_names_on_roster(self):
         game = SimpleNamespace(
             id=23,
             generate_summary_for_team=lambda: "Fictional game summary",
@@ -1051,12 +1195,117 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Demo Player".encode(), response.data)
-        self.assertIn("Waiting Player".encode(), response.data)
+        self.assertNotIn("Waiting Player".encode(), response.data)
+        self.assertIn("1 人".encode(), response.data)
         self.assertIn('href="/"'.encode(), response.data)
         self.assertIn('href="/attendance"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
         self.game_model.search_by_id.assert_called_once_with(23)
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_phase_c_roster_hides_unanswered_names_for_all_active_people(self):
+        game = SimpleNamespace(
+            id=23,
+            generate_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_by_id.return_value = game
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [SimpleNamespace(name="Confirmed Player")],
+            5: [
+                SimpleNamespace(name="Unanswered Team Player"),
+                SimpleNamespace(name="Unanswered Guest Player"),
+                SimpleNamespace(name="Unanswered Viewer"),
+            ],
+        }
+
+        for qualification, member_id in (
+            ("team_player", 7),
+            ("guest_player", None),
+            (None, None),
+        ):
+            with self.subTest(qualification=qualification):
+                repository = MagicMock()
+                repository.resolve_line_principal.return_value = SimpleNamespace(
+                    person=SimpleNamespace(
+                        id=70,
+                        member_id=member_id,
+                        qualifications=(qualification,) if qualification else (),
+                    ),
+                    identity=SimpleNamespace(id=71),
+                )
+                with self.client.session_transaction() as current_session:
+                    current_session.clear()
+                    current_session.update(
+                        user_id="fake-phase-c-user",
+                        person_id=70,
+                        auth_identity_id=71,
+                    )
+                    if member_id is not None:
+                        current_session["member_id"] = member_id
+                with patch.dict(
+                    os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get("/game-roster/23")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("Confirmed Player".encode(), response.data)
+                self.assertIn("3 人".encode(), response.data)
+                self.assertNotIn("Unanswered Team Player".encode(), response.data)
+                self.assertNotIn("Unanswered Guest Player".encode(), response.data)
+                self.assertNotIn("Unanswered Viewer".encode(), response.data)
+
+    def test_roster_name_style_is_allowlisted_and_not_stored_in_session(self):
+        game = SimpleNamespace(
+            id=23,
+            generate_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_by_id.return_value = game
+
+        def attendance_for_name_style(game_id, use_display_name=False):
+            self.assertEqual(game_id, 23)
+            name = "Display Player" if use_display_name else "Formal Player"
+            return {1: [SimpleNamespace(name=name)]}
+
+        self.attendance_analyzer.get_attendance_of_game.side_effect = (
+            attendance_for_name_style
+        )
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=None),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-active-person",
+                person_id=70,
+                auth_identity_id=71,
+            )
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            formal = self.client.get("/game-roster/23")
+            display = self.client.get("/game-roster/23?name_style=display")
+            invalid = self.client.get("/game-roster/23?name_style=nickname")
+            duplicate = self.client.get(
+                "/game-roster/23?name_style=formal&name_style=display"
+            )
+
+        self.assertEqual(formal.status_code, 200)
+        self.assertIn("Formal Player".encode(), formal.data)
+        self.assertNotIn("Display Player".encode(), formal.data)
+        self.assertEqual(display.status_code, 200)
+        self.assertIn("Display Player".encode(), display.data)
+        self.assertNotIn("Formal Player".encode(), display.data)
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertEqual(
+            self.attendance_analyzer.get_attendance_of_game.call_args_list,
+            [call(23), call(23, use_display_name=True)],
+        )
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("name_style", current_session)
 
     def test_attendance_loads_fresh_member_from_member_id(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")
@@ -1080,6 +1329,33 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.assert_called_once_with(7)
         self.game_model.search_for_invited.assert_called_once_with()
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_attendance_hides_unanswered_names_and_uses_display_name_style(self):
+        fresh_member = SimpleNamespace(id=7, name="Fresh Member")
+        self.member_model.search_by_id.return_value = fresh_member
+        game = SimpleNamespace(
+            id=23,
+            generate_short_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_for_invited.return_value = [game]
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [SimpleNamespace(name="Display Attendee")],
+            5: [SimpleNamespace(name="Private Unanswered Name")],
+        }
+        self.login()
+
+        with patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            response = self.client.get("/attendance?name_style=display")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Display Attendee".encode(), response.data)
+        self.assertNotIn("Private Unanswered Name".encode(), response.data)
+        self.assertIn("1 人".encode(), response.data)
+        self.assertIn(b'href="/game-roster/23?name_style=display"', response.data)
+        self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(
+            23, use_display_name=True
+        )
 
     def test_attendance_reloads_games_and_replies_on_every_request(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")

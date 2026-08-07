@@ -32,10 +32,26 @@ class PhaseCAttendanceAnalyzerTests(unittest.TestCase):
         ):
             mapping = attendance_analyzer.get_attendance_of_game(23)
 
-        repository.attendance_summary.assert_called_once_with(23)
+        repository.attendance_summary.assert_called_once_with(
+            23, use_display_name=False
+        )
         self.assertEqual(mapping[1][0].name, "Fake Guest Formal")
         self.assertEqual(mapping[1][0].qualification, "guest_player")
         self.assertIsNone(mapping[1][0].member_id)
+
+    def test_phase_c_forwards_display_name_choice(self):
+        repository = MagicMock()
+        repository.attendance_summary.return_value = SimpleNamespace(participants=())
+        with patch.object(
+            attendance_analyzer, "is_phase_c_enabled", return_value=True
+        ), patch.object(
+            attendance_analyzer,
+            "get_identity_lifecycle_repository",
+            return_value=repository,
+        ):
+            attendance_analyzer.get_attendance_of_game(23, use_display_name=True)
+
+        repository.attendance_summary.assert_called_once_with(23, use_display_name=True)
 
     def test_default_off_preserves_legacy_analyzer(self):
         member = SimpleNamespace(name="Fake Member")
