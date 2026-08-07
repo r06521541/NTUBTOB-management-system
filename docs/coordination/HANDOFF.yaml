@@ -1,15 +1,17 @@
 active_task: TASK-056
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 4d4ee40a8561ad7cfc0c8a3d86aea0c5fe2bc554
-head_commit: null
+head_commit: ea241f7
 
-updated_by: work
-updated_at: 2026-08-07T13:55:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T13:58:00+08:00
 
 note: >
-  Owner supplied the required non-sensitive destination/credential classifications and local path preflight passed,
-  but Windows lacks host pg_restore. Codex must first add the fixed-image, network-none/read-only Docker inspection
-  backend specified in TASK-056, with offline tests only. No credential read, Supabase connection, production dump,
-  restore, migration, archive handling, arbitrary image/pull, push, PR, merge or deployment is authorized.
+  Codex added the explicit fixed-image Docker pg_restore inspection backend with pull disabled, network none,
+  read-only filesystem, dropped capabilities, no-new-privileges and a read-only archive-parent mount. Exact mocked
+  subprocess/security contracts pass 18 available-runtime tests; preflight starts no backend and host remains default.
+  Python 3.10, Black, isort, hosted CI and any real isolated Docker path rehearsal remain for Work. No env-file or
+  secret was read; no Docker, remote connection, production archive, dump, restore, SQL, migration, push, PR, merge
+  or deployment occurred. Production backup remains blocked pending review, merge and renewed Owner authorization.
