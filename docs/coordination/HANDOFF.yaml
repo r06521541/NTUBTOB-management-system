@@ -1,16 +1,15 @@
 active_task: TASK-062
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f138e6e
-head_commit: null
+head_commit: 1d810077a0d3fcfee9f9994aa2ea6400ef973733
 
-updated_by: work
-updated_at: 2026-08-07T20:05:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T21:00:00+08:00
 
 note: >
-  Work accepted TASK-061 after the strict repository validator passed all 33 fresh post-merge baseline metrics and 14
-  safety tests; no catalog, RLS or migration-owner boundary drift was found. An accidental local paste into the guarded
-  SQL was detected before use and, with Owner approval, restored to the reviewed hash. TASK-062 must now add exact
-  read-only pre/post-check SQL, strict sanitized evidence validation and local migration rehearsal before Work can
-  propose a production execution package. No Supabase access, migration, DDL/DML, deployment or notification is allowed.
+  Codex added checksum-pinned read-only pre/post SQL, strict sanitized CSV validation, cross-run legacy invariants,
+  mutation tests and runbook/evidence controls. The full portal-data suite passed 105 tests on isolated PostgreSQL 16,
+  the focused suite passed 9 tests on ephemeral PostgreSQL 15, and Draft PR #63 hosted Python 3.10/Black CI passed.
+  No Owner artifacts, Supabase/production access, migration, schema/data mutation, deployment or merge occurred.
