@@ -699,3 +699,16 @@
 - 授權：建立TASK-065，製作去識別化唯讀盤點、deterministic backfill/post-check/rollback artifacts及local
   PostgreSQL演練；一般Git流程依DEC-066處理。
 - 安全邊界：不授權production連線／查詢／DML/backfill、Phase C、deployment、Secret／IAM／Scheduler或通知。
+
+## DEC-069：Production Phase B identity backfill完成
+
+- 狀態：`approved_and_executed`
+- 日期：2026-08-07
+- 結果：Owner依TASK-067 exact package執行fresh inventory、唯一一次transactional backfill與post-check；strict
+  compare通過，建立197 People/member links、56 LINE identities、56 active team_player及309 append-only audits。
+- 安全結果：0 unlinked Member、0 unreliable／ignored identity、0 team_player without LINE、0 unexpected／
+  inconsistent audit；其他portal application rows維持0，Phase A RLS zero-policy boundary不變。
+- Recovery：transaction已commit，append-only audit不得刪除；若日後發現semantic error只能另案forward
+  compensation，不停用trigger、不重跑backfill、不宣稱exact rollback。
+- 持續邊界：Phase C尚未授權或執行。建立runtime同步策略前繼續凍結legacy Member／LINE identity mapping維護；
+  未部署、未修改Secret／IAM／Scheduler或發送通知。

@@ -64,6 +64,10 @@
   reliable links對應56位Members，4個pending candidates、5個ignored；Phase A與zero-row gates全數正常。
   Owner另批准本機準備TASK-067；repository外rendered SQL已固定為8,853 bytes／SHA-256 `3f9f8844...e8c831`。
   TASK-067 exact execution package等待Owner另行production DML批准，尚未執行backfill或post-check。
+- Production Phase B已完成：Owner依TASK-067執行fresh inventory、唯一一次exact backfill與post-check，strict
+  compare通過。Production現有197 People/member links、56 LINE identities、56 team_player、309 append-only audits，
+  所有關係與安全zero gates正常；其他portal tables仍為0 rows，Phase A boundary不變。未進入Phase C或部署。
+  在runtime reconciliation／dual-read策略建立前，Member／LINE identity mapping維護仍維持凍結。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
