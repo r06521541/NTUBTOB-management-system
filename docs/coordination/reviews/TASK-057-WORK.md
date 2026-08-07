@@ -49,3 +49,20 @@ container。隨機名稱使機率很低，但 destructive cleanup boundary 不�
 
 本 review 未讀取、mount 或 restore production archive，未讀 credential env-file、未連 Supabase、未執行
 production SQL／migration、未 push／PR／merge／部署。
+
+## Cleanup ownership correction re-review
+
+補正 commit `d91f19308dcb6bf0a4b672191d68860e28acd42b` 已解除 blocking finding：
+
+- 每次 forced removal 前以固定 inspect argv 驗證 64-character immutable container ID、exact
+  `com.ntubtob.task=TASK-057` label 與固定 image ID。
+- Removal 改以經驗證的 immutable ID 為目標，不再依 generated name 刪除。
+- Inspect timeout/nonzero/malformed、label/image mismatch 與 foreign same-name race 一律不呼叫 `rm --force`，
+  並以 sanitized cleanup failure fail closed。
+- Tests 覆蓋 successful start、ambiguous nonzero/timeout start、pre-existing container、foreign same-name、
+  ownership mismatch與 immutable-ID removal。
+- Work 重跑 combined suites：32/32 passed；compile、`git diff --check` passed；working tree clean。
+- Work 唯讀 Docker 盤點再次確認沒有 TASK-057 container 或 labeled volume 殘留。
+
+最終結論：`accepted`。尚待 PR 的 hosted Python 3.10 與 formatter evidence；該 PR／merge 不授權使用
+production archive。下一位角色：Owner。
