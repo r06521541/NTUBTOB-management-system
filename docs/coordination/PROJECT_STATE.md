@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-06T06:10:00+08:00
+更新時間：2026-08-07T08:38:35+08:00
 維護角色：Work
 證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`
 
@@ -127,10 +127,13 @@
 
 ## 4. 當前工作
 
-- `TASK-051` 已建立為 production portal-data migration readiness package：產出 deterministic
-  upgrade-only SQL、離線安全 verifier、transaction failure／bounded lock rehearsal、RLS 決策包與
-  production runbook。任務只允許 local exact fixture，不連 Supabase、不執行 production stamp／DDL／
-  backfill；真正 schema 操作仍需 Owner 另案精確批准。
+- `TASK-051` 已由 Codex 完成本機實作並交回 Work 驗收：固定 `0001 -> 0002 -> 0003` 的
+  deterministic upgrade-only SQL／SHA-256、fail-closed verifier、transaction failure／bounded
+  lock rehearsal、RLS 決策包、去識別 evidence template 與 production runbook 均已建立。
+  Python 3.10 的 43 項 portal-data tests、完整 migration chain、compile 與 `alembic check` 通過；
+  task-owned container 已停止且 named volume 保留。未連 Supabase、未執行 production schema
+  操作；backup/PITR、runtime role/table owner、API exposure 與新 tables RLS 仍是 production 前
+  Owner 決策／查證閘門。
 - `TASK-050` 補正後已通過 Work 離線驗收：local exact-schema fixture、bigint migration、
   deterministic attendance projection 與 Alembic ownership boundary 均已建立。Python 3.10 的
   35 項測試、完整 downgrade／fixture rebuild／upgrade chain、compile 與 `alembic check` 通過，
