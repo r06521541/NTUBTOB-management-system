@@ -1,18 +1,16 @@
 active_task: TASK-056
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 0e8138e09688eff8ae87ba8881f9ae5cbbb9a1d6
 head_commit: 50902dd7df86741f30e9d4632ed2af9d7332037b
 
-updated_by: codex
-updated_at: 2026-08-07T14:40:00+08:00
+updated_by: work
+updated_at: 2026-08-07T15:05:00+08:00
 
 note: >
-  Codex reproduced the verifier failure using only a fake TOC with repository-known identifier line_notify_tokens and
-  fixed password/secret/token matching to require standalone identifier boundaries. The fake TOC covers all ten legacy
-  table names recorded in the committed TASK-049 sanitized catalog. Nineteen available-runtime tests pass, including
-  focused standalone-sensitive mutations and existing URL/DSN, SQL, foreign-schema and arbitrary-TOC defenses. Python
-  3.10, Black and isort remain for Work/CI. Codex did not access the retained production archive,
-  destination or env-file and did not start Docker, connect remotely, dump, restore, run SQL/migration, create sidecars,
-  push, open a PR, merge or deploy. Retained-archive verification still requires later Owner approval after merge.
+  Work accepted the TOC identifier compatibility correction after code review, 19/19 focused tests, compile and
+  diff checks. Standalone sensitive terms remain rejected while all ten TASK-049 legacy table identifiers are covered.
+  Local Python 3.10 is unavailable, so hosted CI is the remaining evidence gate. No production archive/env-file access,
+  Docker, remote connection, dump retry, restore, SQL/migration, sidecar creation or deployment occurred. Retained-
+  archive verification remains separately gated after merge and must not repeat the production dump.
