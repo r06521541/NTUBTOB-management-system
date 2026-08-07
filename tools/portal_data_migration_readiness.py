@@ -38,6 +38,15 @@ EXPECTED_TABLES = {
     "people",
     "person_qualifications",
 }
+EXPECTED_INDEXES = {
+    ("ix_auth_identities_person", "auth_identities"),
+    ("ix_event_invitees_event_included", "event_invitees"),
+    ("ix_person_qualifications_active", "person_qualifications"),
+}
+EXPECTED_TRIGGERS = {
+    ("access_audit_append_only", "access_audit"),
+    ("event_audit_append_only", "event_audit"),
+}
 LEGACY_TABLES = {
     "attendance_reply_types",
     "ballparks",
@@ -51,9 +60,10 @@ LEGACY_TABLES = {
     "members",
 }
 HEADER = """-- GENERATED FILE: do not edit by hand.
--- Source: Alembic 0001_legacy_baseline -> 0003_legacy_bigint_activity_game.
+-- Source: Alembic base -> 0003_legacy_bigint_activity_game.
 -- REVIEW ARTIFACT ONLY. DO NOT RUN WITHOUT OWNER APPROVAL.
--- This file contains expand-only schema DDL and Alembic version bookkeeping.
+-- This file atomically records the reviewed baseline, applies expand-only DDL,
+-- and enables fail-closed RLS with zero policies on all new portal-data tables.
 
 """
 
@@ -82,7 +92,7 @@ def render_sql() -> str:
     try:
         command.upgrade(
             config,
-            "0001_legacy_baseline:0003_legacy_bigint_activity_game",
+            "0003_legacy_bigint_activity_game",
             sql=True,
         )
     finally:
@@ -90,7 +100,9 @@ def render_sql() -> str:
             os.environ.pop("PORTAL_DATA_DATABASE_URL", None)
         else:
             os.environ["PORTAL_DATA_DATABASE_URL"] = previous_url
-    rendered = output.getvalue().replace("\r\n", "\n").strip() + "\n"
+    rendered = "\n".join(
+        line.rstrip() for line in output.getvalue().replace("\r\n", "\n").splitlines()
+    ).strip() + "\n"
     rendered = rendered.replace(
         "BEGIN;\n",
         "BEGIN;\n\nSET LOCAL lock_timeout = '5s';\n"
@@ -125,7 +137,7 @@ def verify_sql(sql: str, expected_checksum: str | None = None) -> None:
     if "SET LOCAL STATEMENT_TIMEOUT = '60S';" not in upper:
         _fail(errors, "bounded transaction-local statement_timeout is missing")
 
-    for forbidden in ("DROP", "TRUNCATE", "DELETE", "INSERT", "COPY"):
+    for forbidden in ("DROP", "TRUNCATE", "DELETE", "COPY"):
         if re.search(rf"^\s*{forbidden}\b", sql, flags=re.IGNORECASE | re.MULTILINE):
             _fail(errors, f"forbidden SQL token: {forbidden}")
     for remote_pattern in (
@@ -138,13 +150,48 @@ def verify_sql(sql: str, expected_checksum: str | None = None) -> None:
         if re.search(remote_pattern, sql, flags=re.IGNORECASE):
             _fail(errors, f"remote or credential pattern found: {remote_pattern}")
 
-    created_tables = set(
-        re.findall(r"CREATE TABLE ntubtob\.([a-z_]+)", sql, flags=re.IGNORECASE)
+    created_table_items = re.findall(
+        r"CREATE TABLE ntubtob\.([a-z_]+)", sql, flags=re.IGNORECASE
     )
-    if created_tables != EXPECTED_TABLES:
+    created_tables = set(created_table_items)
+    expected_created_tables = EXPECTED_TABLES | {"alembic_version"}
+    if (
+        len(created_table_items) != len(expected_created_tables)
+        or created_tables != expected_created_tables
+    ):
         _fail(errors, f"unexpected created tables: {sorted(created_tables)}")
     if created_tables & LEGACY_TABLES:
         _fail(errors, "artifact attempts to create a catalog-owned legacy table")
+
+    marker_create = re.findall(
+        r"CREATE TABLE ntubtob\.alembic_version\s*\(\s*"
+        r"version_num VARCHAR\(32\) NOT NULL,\s*"
+        r"CONSTRAINT alembic_version_pkc PRIMARY KEY \(version_num\)\s*\);",
+        sql,
+        flags=re.IGNORECASE,
+    )
+    if len(marker_create) != 1:
+        _fail(
+            errors,
+            "canonical Alembic version table creation is missing or duplicated",
+        )
+
+    baseline_inserts = re.findall(
+        r"^INSERT INTO ntubtob\.alembic_version \(version_num\) VALUES "
+        r"\('([^']+)'\) RETURNING ntubtob\.alembic_version\.version_num;$",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    if baseline_inserts != ["0001_legacy_baseline"]:
+        _fail(errors, "exactly one canonical 0001 baseline insert is required")
+
+    all_inserts = re.findall(
+        r"^\s*INSERT\s+INTO\s+([^\s(]+)",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    if [target.lower() for target in all_inserts] != ["ntubtob.alembic_version"]:
+        _fail(errors, "baseline bookkeeping is the only allowed INSERT")
 
     alters = re.findall(
         r"ALTER TABLE ntubtob\.([a-z_]+)\s+(.+?);",
@@ -159,28 +206,88 @@ def verify_sql(sql: str, expected_checksum: str | None = None) -> None:
         ),
         (
             "members",
-            "add constraint fk_members_person foreign key (person_id) references ntubtob.people(id) on delete restrict",
+            "add constraint fk_members_person foreign key (person_id) "
+            "references ntubtob.people(id) on delete restrict",
         ),
         (
             "activities",
             "alter column game_id type bigint using game_id::bigint",
         ),
-    }
+    } | {(table, "enable row level security") for table in EXPECTED_TABLES}
     normalized_alters = {
         (table.lower(), " ".join(body.lower().split())) for table, body in alters
     }
-    if normalized_alters != allowed_alters:
+    if len(alters) != len(allowed_alters) or normalized_alters != allowed_alters:
         _fail(errors, f"unexpected ALTER TABLE statements: {sorted(normalized_alters)}")
 
-    updates = re.findall(r"^UPDATE\s+([^;]+);", sql, flags=re.IGNORECASE | re.MULTILINE)
-    if len(updates) != 2 or any(
-        not update.lower().startswith("ntubtob.alembic_version set version_num=")
-        for update in updates
+    rls_tables = re.findall(
+        r"^\s*ALTER TABLE ntubtob\.([a-z_]+) ENABLE ROW LEVEL SECURITY;$",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    if len(rls_tables) != len(EXPECTED_TABLES) or set(rls_tables) != EXPECTED_TABLES:
+        _fail(errors, "exactly the 13 expected portal tables must enable RLS")
+    for forbidden_rls in (
+        r"\bCREATE\s+POLICY\b",
+        r"\bALTER\s+POLICY\b",
+        r"\bFORCE\s+ROW\s+LEVEL\s+SECURITY\b",
+        r"^\s*(?:GRANT|REVOKE)\b",
     ):
-        _fail(errors, "only the two expected Alembic version updates are allowed")
+        if re.search(forbidden_rls, sql, flags=re.IGNORECASE | re.MULTILINE):
+            _fail(errors, f"forbidden RLS or privilege statement: {forbidden_rls}")
+
+    index_items = re.findall(
+        r"^\s*CREATE INDEX ([a-z_]+)\s+ON ntubtob\.([a-z_]+)",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    indexes = {(name.lower(), table.lower()) for name, table in index_items}
+    if len(index_items) != len(EXPECTED_INDEXES) or indexes != EXPECTED_INDEXES:
+        _fail(errors, f"unexpected CREATE INDEX statements: {sorted(indexes)}")
+
+    functions = re.findall(
+        r"^\s*CREATE FUNCTION ntubtob\.([a-z_]+)\(\)",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    if functions != ["reject_audit_mutation"]:
+        _fail(errors, f"unexpected CREATE FUNCTION statements: {functions}")
+
+    trigger_items = re.findall(
+        r"^\s*CREATE TRIGGER ([a-z_]+).*? ON ntubtob\.([a-z_]+)",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL,
+    )
+    triggers = {(name.lower(), table.lower()) for name, table in trigger_items}
+    if len(trigger_items) != len(EXPECTED_TRIGGERS) or triggers != EXPECTED_TRIGGERS:
+        _fail(errors, f"unexpected CREATE TRIGGER statements: {sorted(triggers)}")
+
+    create_kinds = re.findall(
+        r"^\s*CREATE\s+(?:UNIQUE\s+)?([A-Z]+)",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    allowed_create_kinds = {"TABLE", "INDEX", "FUNCTION", "TRIGGER"}
+    if any(kind.upper() not in allowed_create_kinds for kind in create_kinds):
+        _fail(errors, f"unexpected CREATE statement kind: {create_kinds}")
+
+    updates = re.findall(
+        r"^UPDATE ntubtob\.alembic_version SET version_num='([^']+)' "
+        r"WHERE ntubtob\.alembic_version\.version_num = '([^']+)';$",
+        sql,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    expected_updates = [
+        ("0002_portal_data_foundation", "0001_legacy_baseline"),
+        ("0003_legacy_bigint_activity_game", "0002_portal_data_foundation"),
+    ]
+    if updates != expected_updates:
+        _fail(errors, "only the two exact Alembic version updates are allowed")
 
     if expected_checksum is not None and checksum_for(sql) != expected_checksum.strip():
         _fail(errors, "artifact checksum does not match its reviewed sidecar")
+    if sql != render_sql():
+        _fail(errors, "SQL differs from the deterministic Alembic artifact")
     if errors:
         raise VerificationError("; ".join(errors))
 

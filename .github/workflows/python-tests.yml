@@ -55,7 +55,6 @@ jobs:
           PORTAL_DATA_TEST_DATABASE_URL: postgresql+psycopg2://portal_local:local-only-password@127.0.0.1:55432/ntubtob_portal_local
         run: |
           python -m tools.setup_portal_data_legacy
-          python -m alembic stamp 0001_legacy_baseline
           python -m alembic upgrade head
           python -m unittest discover -s tests/portal_data -v
 

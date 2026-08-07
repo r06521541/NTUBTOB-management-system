@@ -40,6 +40,8 @@ the archive, manifest contents, listing, storage path or connection metadata to 
 
 - Start and finish timestamps:
 - Baseline method approved:
+- Canonical marker table absent before execution: `yes / no`
+- Marker creation and `0001 -> 0002 -> 0003` bookkeeping were in the reviewed transaction: `yes / no`
 - Pre-execution revision state (revision only):
 - Applied SQL checksum matches reviewed checksum: `yes / no`
 - Transaction-local `lock_timeout`: `5s`
@@ -55,7 +57,8 @@ the archive, manifest contents, listing, storage path or connection metadata to 
 - Legacy table aggregate counts unchanged: `yes / no`
 - New tables contain zero application rows: `yes / no`
 - Runtime services were not opted into the new schema: `yes / no`
-- RLS state matches the approved decision: `yes / no`
+- All 13 new tables have RLS enabled, not forced, with zero policies: `yes / no`
+- No policy, grant or revoke was created by the artifact: `yes / no`
 - Secret, IAM, Scheduler and notification state unchanged: `yes / no`
 
 ## 5. Outcome and next gate

@@ -17,20 +17,21 @@ the intended access path are approved.
 - Keep Phase A schema-only. No Web Portal, webhook, scheduled service or backfill should read or
   write the new tables until a separate Phase B/C approval.
 
-This recommendation is not executable SQL and is not an approved production policy.
+DEC-065 records the Owner's Phase A choice: enable RLS on exactly the 13 new portal-data tables
+without `FORCE ROW LEVEL SECURITY`. Phase A creates zero policies and adds no grants or revokes.
+Application access remains none. The deterministic reviewed artifact is the only executable
+expression of that choice; this document does not authorize running it.
 
-## Owner decisions required before Phase A
+## Owner decisions recorded for Phase A
 
-1. Is the `ntubtob` schema exposed through REST, GraphQL, or another Supabase client API?
-2. Which generic access class owns the existing and new tables: migration owner, runtime service,
-   or another role? Do not record the actual role name in repository evidence.
-3. Does the application runtime need direct access during Phase A? Recommended answer: no.
-4. Must the reviewed artifact be amended to enable RLS on every new table before execution?
-   Recommended answer: yes when API exposure cannot be conclusively excluded.
-5. Should audit tables use stricter insert/select policies than operational tables when Phase C is
-   designed? Recommended answer: yes; their append-only triggers do not replace authorization.
-6. Who is authorized to verify grants and policies, and where will sensitive evidence be retained?
-   Repository evidence should contain only yes/no results.
+1. `ntubtob` was not listed as an exposed schema during the reviewed baseline.
+2. The future one-time executor is described only as the migration owner; its actual role name must
+   not be recorded in repository evidence.
+3. Application runtime access during Phase A is none.
+4. Every new table has RLS enabled before Phase A commits; no table has forced RLS.
+5. Phase A creates zero policies and changes no grants. Audit-specific and runtime policies are a
+   separate Phase C decision.
+6. Repository evidence remains sanitized yes/no results only.
 
 ## Table data classes
 

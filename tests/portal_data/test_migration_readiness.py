@@ -4,8 +4,6 @@ import os
 import unittest
 from unittest.mock import patch
 
-from alembic import command
-from alembic.config import Config
 from psycopg2 import Error as PsycopgError
 from sqlalchemy import create_engine, text
 
@@ -14,6 +12,7 @@ from shared_lib.shared_module.portal_data.local_database import (
 )
 from tools.portal_data_migration_readiness import (
     EXPECTED_REVISIONS,
+    EXPECTED_TABLES,
     HEADER,
     VerificationError,
     render_sql,
@@ -47,6 +46,98 @@ class MigrationReadinessStaticTests(unittest.TestCase):
                 with self.assertRaises(VerificationError):
                     verify_sql(safe.replace("COMMIT;", f"{mutation}\nCOMMIT;"))
 
+    def test_verifier_rejects_unapproved_create_statements(self):
+        safe = render_sql()
+        mutations = (
+            "CREATE VIEW ntubtob.fake_view AS SELECT 1;",
+            "CREATE INDEX fake_index ON ntubtob.members(id);",
+            "CREATE FUNCTION ntubtob.fake_function() RETURNS integer "
+            "LANGUAGE sql AS $$ SELECT 1 $$;",
+            "CREATE TRIGGER fake_trigger BEFORE UPDATE ON ntubtob.members "
+            "FOR EACH ROW EXECUTE FUNCTION ntubtob.reject_audit_mutation();",
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                with self.assertRaises(VerificationError):
+                    verify_sql(safe.replace("COMMIT;", f"{mutation}\nCOMMIT;"))
+
+    def test_verifier_rejects_marker_mutations(self):
+        safe = render_sql()
+        mutations = (
+            safe.replace(
+                "CREATE TABLE ntubtob.alembic_version",
+                "CREATE TABLE IF NOT EXISTS ntubtob.alembic_version",
+                1,
+            ),
+            safe.replace("'0001_legacy_baseline'", "'wrong_baseline'", 1),
+            safe.replace(
+                " RETURNING ntubtob.alembic_version.version_num;",
+                " ON CONFLICT DO NOTHING "
+                "RETURNING ntubtob.alembic_version.version_num;",
+                1,
+            ),
+            safe.replace(
+                "COMMIT;",
+                "DELETE FROM ntubtob.alembic_version;\nCOMMIT;",
+                1,
+            ),
+            safe.replace(
+                "COMMIT;",
+                "TRUNCATE TABLE ntubtob.alembic_version;\nCOMMIT;",
+                1,
+            ),
+            safe.replace(
+                "UPDATE ntubtob.alembic_version "
+                "SET version_num='0003_legacy_bigint_activity_game'",
+                "UPDATE ntubtob.alembic_version SET version_num='wrong_revision'",
+                1,
+            ),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation[:120]):
+                with self.assertRaises(VerificationError):
+                    verify_sql(mutation)
+
+    def test_verifier_rejects_rls_and_privilege_mutations(self):
+        safe = render_sql()
+        first_table = sorted(EXPECTED_TABLES)[0]
+        exact_rls = f"ALTER TABLE ntubtob.{first_table} ENABLE ROW LEVEL SECURITY;"
+        mutations = (
+            safe.replace(exact_rls, "", 1),
+            safe.replace(
+                exact_rls,
+                exact_rls
+                + "\nALTER TABLE ntubtob.unexpected ENABLE ROW LEVEL SECURITY;",
+                1,
+            ),
+            safe.replace(
+                exact_rls,
+                exact_rls
+                + f"\nALTER TABLE ntubtob.{first_table} "
+                "FORCE ROW LEVEL SECURITY;",
+                1,
+            ),
+            safe.replace(
+                exact_rls,
+                exact_rls + f"\nCREATE POLICY fake_policy ON ntubtob.{first_table};",
+                1,
+            ),
+            safe.replace(
+                exact_rls,
+                exact_rls + f"\nGRANT SELECT ON ntubtob.{first_table} TO PUBLIC;",
+                1,
+            ),
+            safe.replace("COMMIT;", "COMMIT;\nBEGIN;\nCOMMIT;", 1),
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation[-160:]):
+                with self.assertRaises(VerificationError):
+                    verify_sql(mutation)
+
+    def test_verifier_rejects_checksum_drift(self):
+        with self.assertRaisesRegex(VerificationError, "checksum"):
+            verify_sql(render_sql(), "0" * 64)
+
     def test_verifier_rejects_remote_or_credential_content(self):
         safe = render_sql()
         for mutation in (
@@ -73,19 +164,50 @@ class MigrationReadinessPostgresTests(unittest.TestCase):
     def setUpClass(cls):
         require_local_database_url(DATABASE_URL)
         cls.engine = create_engine(DATABASE_URL)
-        cls.config = Config("alembic.ini")
 
     @classmethod
     def tearDownClass(cls):
         cls.engine.dispose()
 
     def setUp(self):
-        command.downgrade(self.config, "0001_legacy_baseline")
+        self._reset_to_clean_baseline()
         setup_legacy_fixture()
-        command.stamp(self.config, "0001_legacy_baseline")
+
+    def tearDown(self):
+        self._reset_to_clean_baseline()
+        setup_legacy_fixture()
+        self._execute_offline_artifact(render_sql())
+
+    def _reset_to_clean_baseline(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    DROP TABLE IF EXISTS
+                      ntubtob.event_audit, ntubtob.event_managers,
+                      ntubtob.activity_attendance_replies,
+                      ntubtob.event_attendance_replies, ntubtob.event_invitees,
+                      ntubtob.event_invitee_overrides,
+                      ntubtob.event_eligibility_rules, ntubtob.activities,
+                      ntubtob.events, ntubtob.access_audit,
+                      ntubtob.person_qualifications, ntubtob.auth_identities,
+                      ntubtob.people
+                    CASCADE;
+                    ALTER TABLE IF EXISTS ntubtob.members
+                      DROP COLUMN IF EXISTS person_id CASCADE;
+                    DROP FUNCTION IF EXISTS ntubtob.reject_audit_mutation() CASCADE;
+                    DROP TABLE IF EXISTS ntubtob.alembic_version;
+                    """
+                )
+            )
 
     def _version(self):
         with self.engine.connect() as connection:
+            exists = connection.scalar(
+                text("SELECT to_regclass('ntubtob.alembic_version') IS NOT NULL")
+            )
+            if not exists:
+                return None
             return connection.scalar(
                 text("SELECT version_num FROM ntubtob.alembic_version")
             )
@@ -144,7 +266,7 @@ class MigrationReadinessPostgresTests(unittest.TestCase):
         )
         with self.assertRaises(PsycopgError):
             self._execute_offline_artifact(sql)
-        self.assertEqual(self._version(), "0001_legacy_baseline")
+        self.assertIsNone(self._version())
         self.assertEqual(self._portal_tables(), set())
         with self.engine.connect() as connection:
             person_id_exists = connection.scalar(
@@ -172,14 +294,65 @@ class MigrationReadinessPostgresTests(unittest.TestCase):
             transaction.rollback()
             locker.close()
 
+        self.assertIsNone(self._version())
+        self.assertEqual(self._portal_tables(), set())
+        self._execute_offline_artifact(render_sql())
+        self.assertEqual(self._version(), "0003_legacy_bigint_activity_game")
+
+    def test_clean_artifact_creates_marker_and_fail_closed_rls(self):
+        self._execute_offline_artifact(render_sql())
+        self.assertEqual(self._version(), "0003_legacy_bigint_activity_game")
+        self.assertEqual(self._portal_tables(), EXPECTED_TABLES)
+        with self.engine.connect() as connection:
+            rls = set(
+                connection.scalars(
+                    text(
+                        "SELECT c.relname FROM pg_class c JOIN pg_namespace n "
+                        "ON n.oid = c.relnamespace WHERE n.nspname = 'ntubtob' "
+                        "AND c.relname = ANY(:tables) AND c.relrowsecurity "
+                        "AND NOT c.relforcerowsecurity"
+                    ),
+                    {"tables": list(EXPECTED_TABLES)},
+                )
+            )
+            policies = connection.scalar(
+                text(
+                    "SELECT count(*) FROM pg_policies WHERE schemaname = 'ntubtob' "
+                    "AND tablename = ANY(:tables)"
+                ),
+                {"tables": list(EXPECTED_TABLES)},
+            )
+        self.assertEqual(rls, EXPECTED_TABLES)
+        self.assertEqual(policies, 0)
+
+    def test_preexisting_marker_is_rejected_without_partial_schema(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE TABLE ntubtob.alembic_version "
+                    "(version_num varchar(32) PRIMARY KEY); "
+                    "INSERT INTO ntubtob.alembic_version VALUES "
+                    "('0001_legacy_baseline')"
+                )
+            )
+        with self.assertRaises(PsycopgError):
+            self._execute_offline_artifact(render_sql())
         self.assertEqual(self._version(), "0001_legacy_baseline")
         self.assertEqual(self._portal_tables(), set())
-        command.upgrade(self.config, "head")
-        self.assertEqual(self._version(), "0003_legacy_bigint_activity_game")
+
+    def test_preexisting_portal_object_is_rejected_atomically(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("CREATE TABLE ntubtob.people (id bigint PRIMARY KEY)")
+            )
+        with self.assertRaises(PsycopgError):
+            self._execute_offline_artifact(render_sql())
+        self.assertIsNone(self._version())
+        self.assertEqual(self._portal_tables(), {"people"})
 
     def test_upgrade_preserves_legacy_rows_and_does_not_backfill(self):
         before = self._legacy_counts()
-        command.upgrade(self.config, "head")
+        self._execute_offline_artifact(render_sql())
         self.assertEqual(self._legacy_counts(), before)
         with self.engine.connect() as connection:
             self.assertEqual(
