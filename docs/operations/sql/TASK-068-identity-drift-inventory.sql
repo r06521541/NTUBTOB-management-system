@@ -19,6 +19,7 @@ WITH portal_tables(table_name) AS (VALUES
   UNION ALL SELECT '01_phase_a','revision','required',NULL,NULL,(SELECT version_num FROM ntubtob.alembic_version)
   UNION ALL SELECT '01_phase_a','portal_table_count','required',NULL,count(*),NULL FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace JOIN portal_tables p ON p.table_name=c.relname WHERE n.nspname='ntubtob' AND c.relkind IN ('r','p')
   UNION ALL SELECT '01_phase_a','portal_rls_enabled_count','required',NULL,count(*),NULL FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace JOIN portal_tables p ON p.table_name=c.relname WHERE n.nspname='ntubtob' AND c.relrowsecurity
+  UNION ALL SELECT '01_phase_a','portal_rls_forced_count','required',NULL,count(*),NULL FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace JOIN portal_tables p ON p.table_name=c.relname WHERE n.nspname='ntubtob' AND c.relforcerowsecurity
   UNION ALL SELECT '01_phase_a','portal_policy_count','required',NULL,count(*),NULL FROM pg_catalog.pg_policies p JOIN portal_tables e ON e.table_name=p.tablename WHERE p.schemaname='ntubtob'
   UNION ALL SELECT '01_phase_a','append_only_trigger_count','required',NULL,count(*),NULL FROM pg_catalog.pg_trigger t JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='ntubtob' AND NOT t.tgisinternal AND t.tgname IN ('access_audit_append_only','event_audit_append_only')
   UNION ALL SELECT '02_people','member_count','required',NULL,count(*),NULL FROM ntubtob.members
@@ -41,8 +42,26 @@ WITH portal_tables(table_name) AS (VALUES
   UNION ALL SELECT '04_qualification','team_player_extra_count','required',NULL,count(*),NULL FROM active_team_player q WHERE NOT EXISTS (SELECT 1 FROM reliable_line l WHERE l.person_id=q.person_id)
   UNION ALL SELECT '04_qualification','team_player_revoked_mismatch_count','required',NULL,count(DISTINCT l.person_id),NULL FROM reliable_line l JOIN ntubtob.person_qualifications q ON q.person_id=l.person_id AND q.qualification='team_player' AND q.status='revoked'
   UNION ALL SELECT '05_audit','access_audit_count','required',NULL,count(*),NULL FROM ntubtob.access_audit
-  UNION ALL SELECT '05_audit','unexpected_audit_count','required',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id NOT LIKE 'task065-%'
-  UNION ALL SELECT '05_audit','inconsistent_audit_count','required',NULL,count(*),NULL FROM ntubtob.access_audit a WHERE (a.action='member_backfilled' AND NOT EXISTS (SELECT 1 FROM ntubtob.members m WHERE m.person_id=a.target_person_id)) OR (a.action='identity_linked' AND NOT EXISTS (SELECT 1 FROM ntubtob.auth_identities i WHERE i.id=a.auth_identity_id AND i.person_id=a.target_person_id)) OR (a.action='qualification_granted' AND NOT EXISTS (SELECT 1 FROM active_team_player q WHERE q.person_id=a.target_person_id))
+  UNION ALL SELECT '05_audit','unexpected_audit_count','required',NULL,count(*),NULL FROM ntubtob.access_audit WHERE NOT (
+    (action='member_backfilled' AND request_id LIKE 'task065-member-%') OR
+    (action='identity_linked' AND request_id LIKE 'task065-identity-%') OR
+    (action='qualification_granted' AND request_id LIKE 'task065-team-player-%'))
+  UNION ALL SELECT '05_audit','inconsistent_audit_count','required',NULL,count(*),NULL FROM ntubtob.access_audit a WHERE NOT (
+    (a.action='member_backfilled' AND a.actor_person_id IS NULL AND a.auth_identity_id IS NULL AND a.before_state IS NULL
+     AND EXISTS (SELECT 1 FROM ntubtob.members m WHERE m.person_id=a.target_person_id
+                 AND a.request_id='task065-member-'||m.id
+                 AND a.after_state::jsonb=jsonb_build_object('member_id',m.id))) OR
+    (a.action='identity_linked' AND a.actor_person_id IS NULL AND a.before_state IS NULL
+     AND EXISTS (SELECT 1 FROM ntubtob.auth_identities i JOIN ntubtob.line_users l ON l.line_user_id=i.provider_subject
+                 JOIN ntubtob.members m ON m.id=l.member_id
+                 WHERE i.id=a.auth_identity_id AND i.person_id=a.target_person_id AND m.person_id=i.person_id
+                   AND l.ignored IS FALSE AND a.request_id='task065-identity-'||l.id
+                   AND a.after_state::jsonb=jsonb_build_object('provider','line'))) OR
+    (a.action='qualification_granted' AND a.actor_person_id IS NULL AND a.auth_identity_id IS NULL AND a.before_state IS NULL
+     AND EXISTS (SELECT 1 FROM ntubtob.person_qualifications q JOIN ntubtob.members m ON m.person_id=q.person_id
+                 WHERE q.person_id=a.target_person_id AND q.qualification='team_player' AND q.status='active'
+                   AND a.request_id='task065-team-player-'||m.id
+                   AND a.after_state::jsonb=jsonb_build_object('qualification','team_player'))))
 )
 SELECT section,metric,status,boolean_value,integer_value,text_value FROM evidence ORDER BY section,metric;
 ROLLBACK;

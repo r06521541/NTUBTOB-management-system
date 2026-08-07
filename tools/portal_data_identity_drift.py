@@ -41,6 +41,7 @@ INVENTORY_SCHEMA = {
     ("01_phase_a", "revision"): MetricSpec("text_value", _equals(REVISION)),
     ("01_phase_a", "portal_table_count"): MetricSpec("integer_value", _equals("13")),
     ("01_phase_a", "portal_rls_enabled_count"): MetricSpec("integer_value", _equals("13")),
+    ("01_phase_a", "portal_rls_forced_count"): _zero(),
     ("01_phase_a", "portal_policy_count"): _zero(),
     ("01_phase_a", "append_only_trigger_count"): MetricSpec("integer_value", _equals("2")),
     ("02_people", "member_count"): _info(),

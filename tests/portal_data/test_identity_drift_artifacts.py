@@ -30,6 +30,7 @@ def _valid_rows(pending: str = "0", ignored: str = "0"):
         ("01_phase_a", "revision"): "0003_legacy_bigint_activity_game",
         ("01_phase_a", "portal_table_count"): "13",
         ("01_phase_a", "portal_rls_enabled_count"): "13",
+        ("01_phase_a", "portal_rls_forced_count"): "0",
         ("01_phase_a", "append_only_trigger_count"): "2",
         ("03_identity", "pending_candidate_count"): pending,
         ("03_identity", "ignored_candidate_count"): ignored,
@@ -175,6 +176,82 @@ class IdentityDriftArtifactPostgresTests(unittest.TestCase):
                 self._execute(mutation)
                 with self.assertRaises(IdentityDriftEvidenceError):
                     validate_rows(self._evidence_rows(INVENTORY_SQL_PATH))
+
+    def test_forced_rls_and_exact_audit_relationship_drift_fail_closed(self):
+        audit_trigger = (
+            "ALTER TABLE ntubtob.access_audit DISABLE TRIGGER "
+            "access_audit_append_only; "
+        )
+        mutations = {
+            "forced RLS": (
+                "ALTER TABLE ntubtob.people FORCE ROW LEVEL SECURITY",
+                ("01_phase_a", "portal_rls_forced_count"),
+            ),
+            "task065-prefixed unexpected action": (
+                "INSERT INTO ntubtob.access_audit "
+                "(action,reason,request_id,created_at) VALUES "
+                "('status_changed','local drift fixture','task065-status-1',now())",
+                ("05_audit", "unexpected_audit_count"),
+            ),
+            "malformed deterministic request ID": (
+                audit_trigger
+                + "UPDATE ntubtob.access_audit SET request_id='task065-member-999999' "
+                "WHERE action='member_backfilled' AND request_id='task065-member-9201'; "
+                "ALTER TABLE ntubtob.access_audit ENABLE TRIGGER access_audit_append_only",
+                ("05_audit", "inconsistent_audit_count"),
+            ),
+            "wrong before state": (
+                audit_trigger
+                + "UPDATE ntubtob.access_audit SET before_state='{}'::json "
+                "WHERE action='member_backfilled' AND request_id='task065-member-9201'; "
+                "ALTER TABLE ntubtob.access_audit ENABLE TRIGGER access_audit_append_only",
+                ("05_audit", "inconsistent_audit_count"),
+            ),
+            "wrong after state": (
+                audit_trigger
+                + "UPDATE ntubtob.access_audit SET after_state='{}'::json "
+                "WHERE action='identity_linked'; "
+                "ALTER TABLE ntubtob.access_audit ENABLE TRIGGER access_audit_append_only",
+                ("05_audit", "inconsistent_audit_count"),
+            ),
+            "wrong actor relationship": (
+                audit_trigger
+                + "UPDATE ntubtob.access_audit SET actor_person_id=target_person_id "
+                "WHERE action='qualification_granted'; "
+                "ALTER TABLE ntubtob.access_audit ENABLE TRIGGER access_audit_append_only",
+                ("05_audit", "inconsistent_audit_count"),
+            ),
+            "wrong auth relationship": (
+                audit_trigger
+                + "UPDATE ntubtob.access_audit SET auth_identity_id="
+                "(SELECT id FROM ntubtob.auth_identities LIMIT 1) "
+                "WHERE action='member_backfilled' AND request_id='task065-member-9201'; "
+                "ALTER TABLE ntubtob.access_audit ENABLE TRIGGER access_audit_append_only",
+                ("05_audit", "inconsistent_audit_count"),
+            ),
+            "wrong target relationship": (
+                audit_trigger
+                + "UPDATE ntubtob.access_audit SET target_person_id="
+                "(SELECT person_id FROM ntubtob.members WHERE id=9202) "
+                "WHERE action='identity_linked'; "
+                "ALTER TABLE ntubtob.access_audit ENABLE TRIGGER access_audit_append_only",
+                ("05_audit", "inconsistent_audit_count"),
+            ),
+        }
+        for name, (mutation, expected_metric) in mutations.items():
+            with self.subTest(drift=name):
+                self._reset()
+                self._execute(mutation)
+                rows = self._evidence_rows(INVENTORY_SQL_PATH)
+                matching = [
+                    row
+                    for row in rows
+                    if (row["section"], row["metric"]) == expected_metric
+                ]
+                self.assertEqual(len(matching), 1)
+                self.assertNotEqual(matching[0]["integer_value"], "0")
+                with self.assertRaises(IdentityDriftEvidenceError):
+                    validate_rows(rows)
 
 
 if __name__ == "__main__":
