@@ -4,6 +4,8 @@
 
 Status: `ready_for_review`
 
+Implementation commit: `dfae960931b3cf2b03a9554e8815d8af7e25a2b8`
+
 Implemented the repository-only Phase C identity lifecycle, transactional administration, pending-review conversation,
 Person-based legacy attendance bridge and strict migration evidence. The new runtime paths remain disabled unless
 `PORTAL_DATA_PHASE_C_ENABLED` is exactly `true`; the existing admin Member allowlist remains the sole production admin

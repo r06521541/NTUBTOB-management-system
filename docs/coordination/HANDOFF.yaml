@@ -1,16 +1,16 @@
 active_task: TASK-070
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 926a808
-head_commit: null
+head_commit: dfae960931b3cf2b03a9554e8815d8af7e25a2b8
 
-updated_by: work
-updated_at: 2026-08-08T00:26:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T02:52:25+08:00
 
 note: >
-  Owner expanded and approved TASK-070 as a local-only complete Phase C identity lifecycle: next migration, transactional
-  identity and qualification management, LINE principal/session bridge, pending approval conversation, admin UI, Person-based
-  legacy attendance for team and time-bounded guest players, shared analyzer callers, strict drift evidence and demo UX.
-  Existing admin allowlist remains the sole authority. Production migration/data, deployment, real notifications, Secret/IAM/
-  Scheduler, People-role cutover, Person merge, Event eligibility and enabling the production guard remain out of scope.
+  Codex completed the local-only Phase C identity lifecycle, migration/evidence artifacts, transactional identity and
+  qualification management, principal/session bridge, pending conversation, admin/demo UX and Person-based attendance.
+  PostgreSQL 16 portal-data tests passed 141/141; all affected application and tool suites passed. Runtime is default-off
+  unless PORTAL_DATA_PHASE_C_ENABLED is exactly true. Production migration/data, deployment, real notifications, Secret/IAM/
+  Scheduler, People-role cutover, Person merge, Event eligibility and production flag enablement remain out of scope.
