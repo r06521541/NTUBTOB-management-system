@@ -1,16 +1,16 @@
 active_task: TASK-065
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: d33a42a9219f33a2bc191deba910de986fcb027e
 head_commit: 73a8c84389ee88464519034418284ac551fd0b50
 
-updated_by: codex
-updated_at: 2026-08-07T22:23:00+08:00
+updated_by: work
+updated_at: 2026-08-07T22:24:42+08:00
 
 note: >
-  TASK-065 Work review fixes are ready at 73a8c84. Explicit per-metric schemas now fix status/value type/gate and reject
-  every nonzero safety count; inventory verifies the 13-table Phase A RLS/zero-policy boundary; the checksummed mutation
-  template renders only from strict-valid aggregate inventory and rechecks all approved counts before writes; post-check
-  rejects unexpected and relationship-inconsistent audit rows. Local PostgreSQL 16 passed 119 portal_data tests. Exact
-  rollback remains pre-commit only; committed recovery remains forward compensation without disabling audit triggers.
+  Second Work review confirmed the original fail-open integer gates are fixed, but direct negative testing proved
+  render_backfill still accepts a partial ordinary mapping with a wrong revision and nonzero precondition metrics. Codex
+  must make the public renderer validate the complete inventory mapping before producing SQL and add regression coverage.
+  Execution-time Phase A drift checks must also reverify zero forced RLS and both append-only triggers, not only table,
+  RLS-enabled and policy counts. Preserve all prior fixes and the pre-commit-only exact rollback boundary.
