@@ -1,17 +1,15 @@
 active_task: TASK-056
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 4d4ee40a8561ad7cfc0c8a3d86aea0c5fe2bc554
-head_commit: ea241f7
+head_commit: 6d238d013959466fa6662470dab60b6f30910c87
 
-updated_by: codex
-updated_at: 2026-08-07T13:58:00+08:00
+updated_by: work
+updated_at: 2026-08-07T14:10:00+08:00
 
 note: >
-  Codex added the explicit fixed-image Docker pg_restore inspection backend with pull disabled, network none,
-  read-only filesystem, dropped capabilities, no-new-privileges and a read-only archive-parent mount. Exact mocked
-  subprocess/security contracts pass 18 available-runtime tests; preflight starts no backend and host remains default.
-  Python 3.10, Black, isort, hosted CI and any real isolated Docker path rehearsal remain for Work. No env-file or
-  secret was read; no Docker, remote connection, production archive, dump, restore, SQL, migration, push, PR, merge
-  or deployment occurred. Production backup remains blocked pending review, merge and renewed Owner authorization.
+  Work accepted the Docker inspection prerequisite after code/boundary review, 18 tests, compile/diff checks and real
+  local fake archive create/verify through the sandboxed backend. Production destination remained untouched and the
+  env-file unread. Owner may authorize push/PR/CI/squash merge for this prerequisite only; production dump, archive
+  handling, restore and migration remain blocked pending a post-merge exact command and renewed approval.
