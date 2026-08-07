@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -11,9 +12,13 @@ from unittest.mock import Mock, patch
 from tools.portal_data_logical_backup import (
     ROOT,
     BackupArtifactError,
+    DOCKER_IMAGE_ID,
+    DockerInspectionRunner,
     _reject_unsafe_path,
     _run_pg_restore,
     create_evidence,
+    inspection_runner,
+    main,
     validate_planned_paths,
     verify_evidence,
 )
@@ -268,6 +273,139 @@ class PgRestoreBoundaryTests(unittest.TestCase):
                     _run_pg_restore(("--list", "C:/fake/archive.dump"), 1)
                 self.assertNotIn("secret", str(caught.exception))
                 self.assertNotIn("archive listing", str(caught.exception))
+
+
+class DockerInspectionBoundaryTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="task056-fake-")
+        self.directory = Path(self.temporary.name).resolve()
+        self.archive = self.directory / "portal-data-backup-20260102T030405Z.dump"
+        self.manifest = (
+            self.directory / "portal-data-backup-20260102T030405Z.manifest.json"
+        )
+        self.checksum = self.directory / "portal-data-backup-20260102T030405Z.sha256"
+        self.archive.write_bytes(b"fake archive")
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    @patch("tools.portal_data_logical_backup.shutil.which", return_value="docker")
+    @patch("tools.portal_data_logical_backup.subprocess.run")
+    def test_list_uses_exact_fixed_image_and_security_argv(self, run, _which):
+        run.return_value = Mock(returncode=0, stdout=SAFE_LISTING)
+        runner = DockerInspectionRunner(self.archive)
+
+        with patch.dict(
+            "os.environ",
+            {"PATH": "fake-path", "PGPASSWORD": "must-not-pass", "SECRET": "no"},
+            clear=True,
+        ):
+            output = runner(("--list", str(self.archive)), 17)
+
+        self.assertEqual(output, SAFE_LISTING)
+        self.assertEqual(
+            run.call_args.args[0],
+            [
+                "docker",
+                "run",
+                "--rm",
+                "--pull",
+                "never",
+                "--network",
+                "none",
+                "--read-only",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges",
+                "--mount",
+                f"type=bind,source={self.directory},target=/backup,readonly",
+                DOCKER_IMAGE_ID,
+                "pg_restore",
+                "--list",
+                f"/backup/{self.archive.name}",
+            ],
+        )
+        kwargs = run.call_args.kwargs
+        self.assertFalse(kwargs["shell"])
+        self.assertTrue(kwargs["capture_output"])
+        self.assertEqual(kwargs["timeout"], 17)
+        self.assertEqual(kwargs["env"], {"PATH": "fake-path"})
+        command = run.call_args.args[0]
+        self.assertNotIn("--env-file", command)
+        self.assertNotIn("-e", command)
+        self.assertNotIn("/var/run/docker.sock", " ".join(command))
+
+    @patch("tools.portal_data_logical_backup.shutil.which", return_value="docker")
+    @patch("tools.portal_data_logical_backup.subprocess.run")
+    def test_version_uses_same_sandbox_and_no_archive_argument(self, run, _which):
+        run.return_value = Mock(returncode=0, stdout=VERSION)
+        output = DockerInspectionRunner(self.archive)(("--version",), 9)
+
+        self.assertEqual(output, VERSION)
+        command = run.call_args.args[0]
+        self.assertEqual(command[-2:], ["pg_restore", "--version"])
+        self.assertIn("--network", command)
+        self.assertIn("none", command)
+        self.assertNotIn(str(self.archive), command)
+
+    @patch("tools.portal_data_logical_backup.subprocess.run")
+    def test_rejects_arbitrary_backend_archive_and_options(self, run):
+        self.assertIs(inspection_runner("host", self.archive), _run_pg_restore)
+        with self.assertRaisesRegex(BackupArtifactError, "backend"):
+            inspection_runner("arbitrary", self.archive)
+        other = self.directory / "portal-data-backup-20260102T030406Z.dump"
+        other.write_bytes(b"other fake")
+        runner = DockerInspectionRunner(self.archive)
+        for args in (
+            ("--list", str(other)),
+            ("--list", str(self.archive), "--clean"),
+            ("--dbname", "fake"),
+        ):
+            with self.subTest(args=args):
+                with self.assertRaises(BackupArtifactError):
+                    runner(args, 1)
+        with patch("tools.portal_data_logical_backup.HOME", self.directory):
+            with self.assertRaisesRegex(BackupArtifactError, "home directory"):
+                runner(("--version",), 1)
+        run.assert_not_called()
+
+    @patch("tools.portal_data_logical_backup.shutil.which", return_value="docker")
+    @patch("tools.portal_data_logical_backup.subprocess.run")
+    def test_hides_timeout_nonzero_and_docker_output(self, run, _which):
+        failures = (
+            subprocess.TimeoutExpired("contains-path-and-secret", 1),
+            Mock(returncode=2, stdout="archive listing", stderr="contains-secret"),
+        )
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__):
+                if isinstance(failure, BaseException):
+                    run.side_effect = failure
+                else:
+                    run.side_effect = None
+                    run.return_value = failure
+                with self.assertRaises(BackupArtifactError) as caught:
+                    DockerInspectionRunner(self.archive)(("--version",), 1)
+                message = str(caught.exception)
+                self.assertNotIn("secret", message)
+                self.assertNotIn("archive listing", message)
+                self.assertNotIn(str(self.directory), message)
+
+    @patch("tools.portal_data_logical_backup.shutil.which")
+    def test_preflight_with_docker_backend_does_not_start_docker(self, which):
+        self.archive.unlink()
+        argv = [
+            "portal_data_logical_backup.py",
+            "preflight",
+            str(self.archive),
+            str(self.manifest),
+            str(self.checksum),
+            "--backend",
+            "docker",
+        ]
+        with patch.object(sys, "argv", argv), patch("builtins.print"):
+            main()
+        which.assert_not_called()
 
 
 if __name__ == "__main__":

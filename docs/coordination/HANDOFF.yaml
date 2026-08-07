@@ -1,15 +1,15 @@
-active_task: TASK-055
+active_task: TASK-056
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: fd647c01da9d7cc968a28e0b7229e1993b92abe1
-head_commit: 400d37d0c891eef9669fe62d85735e7918600b12
+base_commit: 4d4ee40a8561ad7cfc0c8a3d86aea0c5fe2bc554
+head_commit: 6d238d013959466fa6662470dab60b6f30910c87
 
 updated_by: work
-updated_at: 2026-08-07T13:25:00+08:00
+updated_at: 2026-08-07T14:10:00+08:00
 
 note: >
-  Work accepted TASK-055 after code/boundary review, 13 tests, compile/diff checks, an isolated PostgreSQL 16.4 fake
-  dump/list/restore rehearsal, and a successful corrected-parser rerun against the real fake archive listing. The
-  task-owned container is stopped and named volume retained. Python 3.10 and format evidence remains for PR CI.
-  Production backup, restore and Phase A migration remain blocked and require later exact Owner-approved work packages.
+  Work accepted the Docker inspection prerequisite after code/boundary review, 18 tests, compile/diff checks and real
+  local fake archive create/verify through the sandboxed backend. Production destination remained untouched and the
+  env-file unread. Owner may authorize push/PR/CI/squash merge for this prerequisite only; production dump, archive
+  handling, restore and migration remain blocked pending a post-merge exact command and renewed approval.
