@@ -1,16 +1,16 @@
-active_task: TASK-056
-status: completed
-next_actor: owner
+active_task: TASK-057
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 0e8138e09688eff8ae87ba8881f9ae5cbbb9a1d6
-head_commit: d8ec8b175ff3f7106fcad978e93970714afabdca
+base_commit: e2b75a8
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T15:13:00+08:00
+updated_at: 2026-08-07T15:20:00+08:00
 
 note: >
-  TASK-056 is complete. PR #60 Python 3.10 CI passed and merged as d8ec8b1. Under separate Owner approval, Work used
-  the merged Docker verifier to create sanitized manifest/checksum evidence for the retained 56,903-byte production
-  archive and independently verified it; custom format, ntubtob schema scope, listing and client major 16 passed.
-  No dump retry, credential env-file read, production connection, restore, SQL/migration, deletion, move, upload or
-  deployment occurred. Isolated restore rehearsal and any migration remain separate Owner-gated tasks.
+  TASK-057 specifies a fail-closed isolated restore rehearsal wrapper using a fixed Docker image, network-none,
+  no published ports or persistent volumes, bounded tmpfs, fixed restore/catalog commands and mandatory cleanup.
+  Codex may implement and test only with conspicuously fake local data. Production archive/sidecars, credential files,
+  Supabase, remote databases, production schema/data, migrations, notifications, push/PR/merge and deployment remain
+  out of scope. A real production-archive rehearsal requires a later separately approved gate after review and merge.
