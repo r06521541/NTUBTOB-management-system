@@ -1,16 +1,17 @@
 active_task: TASK-065
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: d33a42a9219f33a2bc191deba910de986fcb027e
-head_commit: null
+head_commit: 9b77bd1ed45a207c591057975456149f57fa4a03
 
-updated_by: work
-updated_at: 2026-08-07T21:51:52+08:00
+updated_by: codex
+updated_at: 2026-08-07T22:09:47+08:00
 
 note: >
-  Owner approved the TASK-065 Phase B product defaults. Every permanent-roster Member may receive a basic/inactive
-  Person, but only a Member with a reliable existing legacy LINE link may receive an active team_player qualification.
-  The task creates de-identified read-only inventory plus deterministic backfill/post-check/rollback artifacts and
-  proves them on local PostgreSQL. It must not connect to or query production, execute backfill, infer identity by name,
-  promote admins/officers, handle ignored identities automatically, begin Phase C, deploy or send notifications.
+  TASK-065 repository-only Phase B inventory, idempotent backfill, post-check, strict validator and exact pre-commit
+  rollback rehearsal are ready for Work review at 9b77bd1. Local PostgreSQL 16 passed 116 portal_data tests. Members
+  default to basic/inactive; only reliable non-ignored LINE-to-Member links create linked identities and team_player,
+  including the multiple-LINE-accounts-to-one-Person case. No production query/mutation, Secret, deploy, notification,
+  admin/officer promotion, ignored-user conversion or Phase C work occurred. Post-commit recovery must be forward
+  compensation because append-only audit rows cannot safely be deleted.
