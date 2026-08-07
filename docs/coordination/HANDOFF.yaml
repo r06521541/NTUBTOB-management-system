@@ -1,16 +1,17 @@
 active_task: TASK-058
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 1c07871feb8f64f59fd4909845476771caf2f346
-head_commit: null
+head_commit: 1c07871feb8f64f59fd4909845476771caf2f346
 
 updated_by: work
-updated_at: 2026-08-07T16:25:00+08:00
+updated_at: 2026-08-07T16:35:00+08:00
 
 note: >
-  TASK-057 passed Python 3.10 CI and merged through PR #61 as 1c07871. TASK-058 is an Owner-gated one-time execution
-  package for the exact retained archive, manifest and checksum. Approval permits only local preflight and one
-  fail-closed ephemeral Docker execute with network none, no ports/volumes, fixed catalog booleans, before/after
-  artifact verification and ownership-guarded cleanup. It does not permit production connection/dump, credentials,
-  persistent clone, row inspection, migration/SQL, artifact deletion/move/upload, push/PR/merge or deployment.
+  TASK-058 is complete. Under exact Owner approval, Work ran path preflight and one ephemeral Docker isolated restore
+  against the retained artifact set using merged commit 1c07871. Before/after artifact verification, restore, all 13
+  fixed catalog boolean categories and ownership-guarded cleanup passed. Independent post-check found no TASK-057
+  container or volume residue and artifact sizes remained unchanged. No production/remote connection, credential,
+  row inspection, retry, dump, migration/SQL, artifact mutation, deployment or notification occurred. Phase A remains
+  separately gated and requires a current production read-only baseline plus exact migration approval.

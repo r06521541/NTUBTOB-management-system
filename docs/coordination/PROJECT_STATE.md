@@ -15,6 +15,9 @@
   Docker restore rehearsal wrapper；本輪不讀或還原 production archive，正式 rehearsal 仍須另行批准。
 - TASK-057 已由 PR #61 合併為 `1c07871`，Python 3.10 CI 與 ownership-guarded cleanup通過。TASK-058 已建立
   一次性正式 archive isolated restore rehearsal執行包，等待 Owner批准 exact artifact與 cleanup範圍；尚未執行。
+- TASK-058 已依 Owner 精確批准完成：正式 retained archive 的 path preflight、唯一一次 ephemeral restore、13 類
+  sanitized catalog checks、restore 前後 verification與 ownership cleanup全數通過；無 container／volume殘留，
+  artifact set未變更。這證明 archive可還原，但不取代 Phase A 前的當下 production read-only baseline。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
