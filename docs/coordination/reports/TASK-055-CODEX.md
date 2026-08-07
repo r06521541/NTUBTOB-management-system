@@ -6,6 +6,7 @@
 - Task base commit: `fd647c01da9d7cc968a28e0b7229e1993b92abe1`
 - Work planning commit: `b5d6447cf42714c86b6986c5c25db1cf1f5eabf4`
 - Implementation commit: `046c5e9`
+- Standard-header compatibility fix: `afbb1a3`
 - Branch: `codex/task055-logical-backup-readiness`
 
 ## Delivered behavior
@@ -18,9 +19,10 @@
   no connection, dump, restore, SQL or deletion interface.
 - Path checks reject repository/traversal paths, symlink/reparse components, non-regular or empty
   archives, filename drift and existing planned/sidecar outputs. Sidecars use exclusive creation.
-- Listing checks require PostgreSQL custom format, parse each TOC entry, reject unsupported/injected
-  lines and reject application schemas other than `ntubtob`. Subprocess details, environment and the
-  listing are not returned in errors.
+- Listing checks allowlist standard PostgreSQL custom-archive comment metadata separately, then
+  sensitive-scan and parse every non-comment TOC entry. Unsupported/injected lines and application
+  schemas other than `ntubtob` remain rejected. Subprocess details, environment and the listing are
+  not returned in errors.
 - The fixed JSON manifest allows only generic purpose/version, UTC timestamp, basename, size,
   SHA-256, client major and three validation fields. Verification recomputes archive/listing/client,
   manifest and checksum contracts.
@@ -41,7 +43,9 @@
 
 - `py -3.10 -m unittest tests.portal_data.test_logical_backup -v`: not run; the Windows launcher
   points at a missing Microsoft Store Python 3.10 executable and fails before Python starts.
-- Equivalent available-runtime command using Visual Studio Python 3.9: 11/11 TASK-055 tests passed.
+- Equivalent available-runtime command using Visual Studio Python 3.9: 13/13 TASK-055 tests passed,
+  including PostgreSQL 16.4 generic header and SCHEMA/TABLE/SEQUENCE/TABLE DATA/SEQUENCE SET/
+  CONSTRAINT/ROW SECURITY TOC shapes.
 - Equivalent Python 3.9 `-m compileall -q tools tests/portal_data`: passed.
 - Equivalent Python 3.9 `-m tools.portal_data_logical_backup --help`: passed and exposed only the
   three local artifact actions and paths.
@@ -51,11 +55,15 @@
 - Black/isort: not run; the available runtime has neither module and Python 3.10 is unavailable.
   A line-length inspection found no lines over 88 characters after formatting adjustments.
 - `git diff --check`: passed before the implementation commit.
-- Docker/local PostgreSQL rehearsal: not run. Read-only Docker checks could not access the local
-  config/engine pipe due permissions; no container, database or artifact was created.
+- Codex's initial Docker check did not run because its session could not access the local config/
+  engine pipe. Work subsequently completed an isolated PostgreSQL 16.4 fake dump/list/restore
+  rehearsal: restored rows `2`, next sequence value `3`, RLS enabled `true`, RLS forced `false`, and
+  constraints `2`. Work stopped container `ntubtob-task055-review` and retained named volume
+  `ntubtob-task055-review-data`; no production system was accessed.
 
-Work or hosted CI must repeat the specified Python 3.10, Black and isort checks. The absence of a
-local dump/list/restore rehearsal means restore fidelity remains unproven.
+Work or hosted CI must repeat the specified Python 3.10, Black and isort checks and re-run the fixed
+verifier against an isolated generic archive. Work's rehearsal proves the local fake PostgreSQL
+dump/restore fidelity shape, not production recovery.
 
 ## Safety confirmation
 
@@ -69,10 +77,11 @@ local dump/list/restore rehearsal means restore fidelity remains unproven.
 
 - The reviewed command remains a template; exact production client/server compatibility, direct
   reachability, encrypted storage, credential process and window require later Owner approval.
-- `pg_restore --list` TOC behavior is covered by conspicuously fake output and mocks, not a real
-  custom-format archive in this environment.
+- Work's real local archive exposed and reproduced a compatibility defect: the standard comment
+  `Dumped from database version: 16.4` was scanned as sensitive before comment parsing. Commit
+  `afbb1a3` fixes that ordering with fixed safe comment formats while retaining sensitive scanning on
+  every non-comment TOC line; the follow-up regression uses no production identity or data.
 - Phase A and production backup remain blocked. Owner must later approve an exact production backup
   operation and, separately, an isolated non-production restore rehearsal before accepting logical
   recovery as the migration gate.
-- Working tree was clean after the implementation commit; this report/handoff are the only completion
-  changes pending their own descriptive commit.
+- The retained Work named volume is local-only evidence and is not touched or cleaned by Codex.

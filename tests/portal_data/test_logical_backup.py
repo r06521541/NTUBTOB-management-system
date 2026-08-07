@@ -18,16 +18,12 @@ from tools.portal_data_logical_backup import (
     verify_evidence,
 )
 
-SAFE_LISTING = """;
-; Archive created at 2026-01-02 03:04:05 UTC
-;     dbname: fake_local_database
-;     Format: CUSTOM
-;
-10; 2615 123 SCHEMA - ntubtob fake_owner
-11; 1259 124 TABLE ntubtob members fake_owner
-12; 0 124 TABLE DATA ntubtob members fake_owner
-13; 0 0 ACL ntubtob TABLE members fake_owner
-"""
+LISTING_FIXTURE = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "task055_pg_restore_list_fake.txt"
+)
+SAFE_LISTING = LISTING_FIXTURE.read_text(encoding="utf-8")
 VERSION = "pg_restore (PostgreSQL) 15.9\n"
 
 
@@ -89,6 +85,28 @@ class LogicalBackupArtifactTests(unittest.TestCase):
         self.assertEqual(manifest["pg_restore_client_major"], 15)
         self.assertEqual(runner.calls[0][0][0], "--list")
         self.assertNotIn("restore", runner.calls[0][0])
+
+    def test_accepts_pg16_header_and_expected_toc_shapes(self):
+        self._create(FakeRunner(SAFE_LISTING))
+        verify_evidence(
+            self.archive, self.manifest, self.checksum, run=FakeRunner(SAFE_LISTING)
+        )
+
+    def test_rejects_unknown_or_injected_comment_metadata(self):
+        listings = (
+            SAFE_LISTING.replace(
+                ";     TOC Entries: 18",
+                ";     Unknown Header: fake",
+            ),
+            SAFE_LISTING.replace(
+                ";     dbname: task055_fake_local",
+                ";     password: fake-value",
+            ),
+        )
+        for listing in listings:
+            with self.subTest(listing=listing[:120]):
+                with self.assertRaises(BackupArtifactError):
+                    self._create(FakeRunner(listing))
 
     def test_rejects_repository_traversal_and_bad_names(self):
         with self.assertRaisesRegex(BackupArtifactError, "outside the repository"):

@@ -1,0 +1,21 @@
+;
+; Archive created at 2026-01-02 03:04:05 UTC
+;     dbname: task055_fake_local
+;     TOC Entries: 18
+;     Compression: gzip
+;     Dump Version: 1.15-0
+;     Format: CUSTOM
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 16.4
+;     Dumped by pg_dump version: 16.4
+;
+; Selected TOC Entries:
+;
+10; 2615 123 SCHEMA - ntubtob fake_owner
+11; 1259 124 TABLE ntubtob members fake_owner
+12; 1259 125 SEQUENCE ntubtob members_id_seq fake_owner
+13; 0 124 TABLE DATA ntubtob members fake_owner
+14; 0 0 SEQUENCE SET ntubtob members_id_seq fake_owner
+15; 2606 126 CONSTRAINT ntubtob members pk_members fake_owner
+16; 0 127 ROW SECURITY ntubtob members fake_owner

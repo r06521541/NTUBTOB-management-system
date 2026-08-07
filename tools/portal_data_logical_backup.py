@@ -36,6 +36,49 @@ TOC_LINE = re.compile(
     r"^\d+;\s+\d+\s+\d+\s+(?P<body>.+)$",
     re.IGNORECASE,
 )
+COMMENT_METADATA = (
+    ("blank", re.compile(r"^;$")),
+    (
+        "archive_created",
+        re.compile(r"^; Archive created at \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC$"),
+    ),
+    ("dbname", re.compile(r"^;\s+dbname: [A-Za-z0-9_.-]+$")),
+    ("toc_entries", re.compile(r"^;\s+TOC Entries: \d+$")),
+    (
+        "compression",
+        re.compile(r"^;\s+Compression: (?:-?\d+|none|gzip|lz4|zstd)$"),
+    ),
+    (
+        "dump_version",
+        re.compile(r"^;\s+Dump Version: \d+(?:\.\d+)+(?:-\d+)?$"),
+    ),
+    ("format", re.compile(r"^;\s+Format: CUSTOM$")),
+    ("integer", re.compile(r"^;\s+Integer: [48] bytes$")),
+    ("offset", re.compile(r"^;\s+Offset: [48] bytes$")),
+    (
+        "source_version",
+        re.compile(
+            r"^;\s+Dumped from database version: "
+            r"\d+[A-Za-z0-9.+~() :_-]{0,120}$"
+        ),
+    ),
+    (
+        "client_version",
+        re.compile(
+            r"^;\s+Dumped by pg_dump version: "
+            r"\d+[A-Za-z0-9.+~() :_-]{0,120}$"
+        ),
+    ),
+    ("selected_entries", re.compile(r"^; Selected TOC Entries:$")),
+)
+REQUIRED_COMMENT_METADATA = {
+    "archive_created",
+    "dbname",
+    "format",
+    "source_version",
+    "client_version",
+    "selected_entries",
+}
 GLOBAL_OBJECT_TYPES = ("ENCODING", "STDSTRINGS", "SEARCHPATH")
 SCHEMA_OBJECT_TYPES = (
     "SEQUENCE OWNED BY",
@@ -227,16 +270,34 @@ def _client_major(run: Callable[[Sequence[str], int], str]) -> int:
 
 
 def _validate_listing(listing: str) -> None:
-    if "\x00" in listing or "\r" in listing or SENSITIVE.search(listing):
+    if "\x00" in listing or "\r" in listing:
         raise BackupArtifactError(
             "archive listing failed the sanitized-content contract"
         )
-    if not re.search(r"^;\s+Format:\s+CUSTOM\s*$", listing, re.MULTILINE):
-        raise BackupArtifactError("archive is not reported as PostgreSQL custom format")
+    comment_metadata: set[str] = set()
     found_schema_object = False
     for line in listing.splitlines():
-        if not line or line.startswith(";"):
+        if not line:
             continue
+        if line.startswith(";"):
+            metadata = next(
+                (name for name, pattern in COMMENT_METADATA if pattern.fullmatch(line)),
+                None,
+            )
+            if metadata is None:
+                raise BackupArtifactError(
+                    "archive listing contains unsupported comment metadata"
+                )
+            if metadata != "blank" and metadata in comment_metadata:
+                raise BackupArtifactError(
+                    "archive listing contains duplicate comment metadata"
+                )
+            comment_metadata.add(metadata)
+            continue
+        if SENSITIVE.search(line):
+            raise BackupArtifactError(
+                "archive TOC failed the sanitized-content contract"
+            )
         match = TOC_LINE.fullmatch(line)
         if not match:
             raise BackupArtifactError("archive listing contains an invalid TOC line")
@@ -271,6 +332,8 @@ def _validate_listing(listing: str) -> None:
             found_schema_object = True
     if not found_schema_object:
         raise BackupArtifactError("archive listing contains no ntubtob schema objects")
+    if not REQUIRED_COMMENT_METADATA <= comment_metadata:
+        raise BackupArtifactError("archive listing comment metadata is incomplete")
 
 
 def _digest(path: Path) -> str:
