@@ -1,16 +1,17 @@
 active_task: TASK-060
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 84b589129e85c17e7247014dee3e8eb1060f4c7a
-head_commit: null
+head_commit: 97c8ddc1ced3af13d432de59494b59d9ba313e44
 
-updated_by: work
-updated_at: 2026-08-07T17:10:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T17:42:00+08:00
 
 note: >
-  Owner accepted the generic high-privilege migration-owner boundary for one future exact reviewed transaction and
-  chose RLS enabled with zero policies for all 13 Phase-A tables. TASK-060 must build one deterministic transaction
-  that creates and records the absent 0001 baseline marker, upgrades through 0003, and enables RLS on exactly those
-  tables. Codex may use repository/local fake PostgreSQL only. No Supabase/production query or migration, credential,
-  push/PR/merge, deployment or notification is authorized. TASK-059 must be rerun after merge before execution approval.
+  Codex implemented one deterministic base-to-0003 transaction that creates and records the absent 0001 marker,
+  upgrades through 0003, and enables non-forced RLS with zero policies on exactly 13 Phase-A tables. Static mutation
+  tests and clean, rollback, lock, marker-conflict and portal-object-conflict rehearsals passed against local fake
+  PostgreSQL; the full portal-data suite passed 96/96. No Owner CSV, production archive, credential, Supabase/remote
+  operation, production SQL/migration, push/PR/merge, deployment or notification occurred. Work must inspect the actual
+  diff/commit and obtain hosted Python 3.10/Black evidence before any owner approval; TASK-059 must be rerun after merge.
