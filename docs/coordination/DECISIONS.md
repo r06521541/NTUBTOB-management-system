@@ -686,3 +686,16 @@
 - 事件：初次post-check因Windows CRLF造成raw function body MD5誤判；TASK-064只修正read-only fingerprint，未重跑
   或修改production function，最終post-check通過。
 - 邊界：Phase B backfill、Phase C runtime integration、deployment、Secret／IAM／Scheduler與通知均未授權或執行。
+
+## DEC-068：Member永久名冊與LINE-linked球員資格分離
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-07
+- 決策：Phase B為每位永久校友Member建立或重用一對一Person，預設`basic/inactive`；Member身份本身不授予
+  `team_player`，只有已由legacy明確Member link可靠連結LINE identity者才取得active `team_player`。
+- Identity：已明確連結Member的LINE user可連到該Person；未連結者維持pending，ignored者只進人工判定摘要，
+  不以姓名或display name自動配對。同一Person可有同provider多帳號，但provider+subject全域唯一。
+- 權限：Phase B大量回填不讀admin allowlist、不建立admin/officer；權限與其他資格另由可稽核mutation處理。
+- 授權：建立TASK-065，製作去識別化唯讀盤點、deterministic backfill/post-check/rollback artifacts及local
+  PostgreSQL演練；一般Git流程依DEC-066處理。
+- 安全邊界：不授權production連線／查詢／DML/backfill、Phase C、deployment、Secret／IAM／Scheduler或通知。

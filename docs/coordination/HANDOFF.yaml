@@ -1,16 +1,16 @@
-active_task: TASK-063
+active_task: TASK-065
 status: completed
 next_actor: owner
 
-base_commit: 871abd2bae8fefbe13f8ebc6cbd2f28baca1e56c
-head_commit: 9e12e672c0e6f4eaf252563597c9e69d6b3fcec2
+base_commit: d33a42a9219f33a2bc191deba910de986fcb027e
+head_commit: 04a10787d500793a43a41d93e902b2a41f64fcc6
 
 updated_by: work
-updated_at: 2026-08-08T00:25:00+08:00
+updated_at: 2026-08-07T22:32:54+08:00
 
 note: >
-  Production Phase A is complete. The approved atomic migration ran exactly once; after TASK-064 corrected only the
-  CRLF-sensitive read-only function fingerprint, the final strict combined pre/post validator passed. Revision 0003,
-  all 13 zero-row RLS-enabled portal tables, expected catalog objects and unchanged legacy fingerprints/counts were
-  confirmed. No migration retry, downgrade, backfill, application rollout, deployment or notification occurred. Phase B
-  and Phase C remain separately approval-gated.
+  Work accepted TASK-065 after three review rounds. The final public renderer rejects incomplete or unsafe inventory;
+  execution-time count, RLS and append-only-trigger drift fail before writes; local PostgreSQL 16 passed all 121
+  portal_data tests. Member defaults remain basic/inactive and only reliable non-ignored LINE-linked Members receive
+  team_player. No production inventory/backfill, Phase C, Secret, cloud mutation, deployment or notification occurred.
+  Exact rollback is pre-commit only; committed recovery must preserve audit history through forward compensation.
