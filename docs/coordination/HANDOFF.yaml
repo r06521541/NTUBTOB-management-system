@@ -1,17 +1,16 @@
-active_task: TASK-059
-status: awaiting_owner_decision
-next_actor: owner
+active_task: TASK-060
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 8f41dbcdb1d1dbcf271b02e08d3cefb250466e48
-head_commit: f48cb16
+base_commit: 84b589129e85c17e7247014dee3e8eb1060f4c7a
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T17:00:00+08:00
+updated_at: 2026-08-07T17:10:00+08:00
 
 note: >
-  Work validated the Owner CSV: 33-metric contract passed, all legacy fingerprints match, 10 tables keep RLS,
-  alembic_version is absent and new portal tables are zero. The SQL Editor session is a non-superuser migration owner
-  that bypasses RLS, can create roles/databases and has all legacy write privileges. Two artifact gaps block execution:
-  current SQL assumes baseline marker already exists, and 13 new tables do not enable RLS. Owner must decide whether
-  to accept this exact high-privilege role for one reviewed transaction and enable RLS with zero Phase-A policies.
-  After artifact correction/CI, the read-only baseline must be rerun; no migration is currently authorized.
+  Owner accepted the generic high-privilege migration-owner boundary for one future exact reviewed transaction and
+  chose RLS enabled with zero policies for all 13 Phase-A tables. TASK-060 must build one deterministic transaction
+  that creates and records the absent 0001 baseline marker, upgrades through 0003, and enables RLS on exactly those
+  tables. Codex may use repository/local fake PostgreSQL only. No Supabase/production query or migration, credential,
+  push/PR/merge, deployment or notification is authorized. TASK-059 must be rerun after merge before execution approval.

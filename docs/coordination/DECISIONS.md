@@ -655,3 +655,14 @@
 - 決策順序：先量測；cold start才評估minimum instances／startup CPU，DB connection才調pooling，query慢才看plan/index，只有優化後讀取壓力仍高才評估共享Redis短TTL。
 - 授權：Owner同意依建議執行；批准repository-only實作、離線測試與描述性本機commit並交棒Codex。
 - 安全邊界：不包含cloud config、pooling/query/schema、Redis/cache、production log/DB、load test、push／PR／merge／deployment或通知。
+
+## DEC-065：Phase A使用migration owner並以RLS zero-policy fail closed
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-07
+- Production baseline：TASK-059確認legacy catalog fingerprints吻合、10張tables RLS enabled、無Alembic marker或新portal tables；SQL Editor session不是superuser，但為schema/table owner、可bypass RLS且具完整legacy write privileges。
+- 角色決策：Owner接受未來使用此migration-owner邊界執行唯一exact reviewed、single-transaction Phase A SQL；不得記錄實際role identity，不授權任意SQL或互動式修改。
+- RLS決策：13張新portal-data tables在Phase A全部enable RLS、not forced、建立零policies；application access維持none，Phase C另行設計runtime grants與policies。
+- Artifact決策：production沒有marker，故baseline marker建立、`0001_legacy_baseline`記錄與0002/0003 expand必須在同一transaction deterministic artifact內完成，不能先手動stamp或使用`IF NOT EXISTS`繞過preflight。
+- 授權：建立TASK-060並交棒Codex，僅repository/local fake PostgreSQL實作、測試、文件與本機commit。
+- 安全邊界：不連Supabase、不執行production read-only/migration、credential、push／PR／merge、deployment或通知。TASK-060 merge後仍須重跑TASK-059並取得exact production execution批准。
