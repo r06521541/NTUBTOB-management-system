@@ -1,16 +1,17 @@
-active_task: TASK-057
+active_task: TASK-060
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: e2b75a8
-head_commit: d91f19308dcb6bf0a4b672191d68860e28acd42b
+base_commit: 84b589129e85c17e7247014dee3e8eb1060f4c7a
+head_commit: 97c8ddc1ced3af13d432de59494b59d9ba313e44
 
 updated_by: work
-updated_at: 2026-08-07T16:12:00+08:00
+updated_at: 2026-08-07T18:05:00+08:00
 
 note: >
-  Work accepted TASK-057 after reviewing d91f193 and rerunning 32/32 tests, compile, diff and Docker residue checks.
-  Cleanup now proves exact TASK label, fixed image ID and immutable container ID before forced removal; unknown,
-  mismatched and foreign same-name targets are preserved and fail closed. No TASK-057 container or volume remains.
-  Hosted Python 3.10/formatter evidence is still required by PR. Production artifacts, credentials, Supabase, remote
-  DB, SQL/migration and deployment remain out of scope; merge would not authorize a production-archive rehearsal.
+  Work accepted the actual TASK-060 diff and implementation commit after independently rerunning the deterministic
+  verifier and all 96 portal-data tests against local fake PostgreSQL, including clean execution, atomic rollback,
+  bounded lock retry and pre-existing-state rejection. Compile, isort, Compose config and diff checks passed; the local
+  container/network were removed and the pre-existing fake-data volume retained. Owner may approve push, Draft PR,
+  hosted Python 3.10/Black CI and squash merge. This does not authorize production migration; TASK-059 must be rerun
+  after merge and any production execution needs a separate exact approval.

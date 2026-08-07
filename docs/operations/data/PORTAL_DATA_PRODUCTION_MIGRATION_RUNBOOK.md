@@ -22,7 +22,8 @@ Reviewed inputs:
 
 ## Phase separation
 
-1. **Phase A — schema expand:** baseline, one transaction, no rows written except Alembic version.
+1. **Phase A — schema expand:** create and record the baseline marker, upgrade through `0003`, and
+   enable zero-policy RLS in one transaction; no rows are written except Alembic version bookkeeping.
 2. **Phase B — identity/Member backfill:** separate design, idempotency evidence and approval.
 3. **Phase C — application opt-in:** deploy compatible readers/writers only after Phase B review.
 
@@ -51,10 +52,13 @@ verify it in the provider control plane without copying sensitive metadata into 
 
 ## Baseline gate
 
-Because production had no Alembic version table during TASK-049, baseline is a metadata assertion,
-not a migration. The operator must independently prove that production legacy objects match the
-sanitized catalog before recording `0001_legacy_baseline`. If the version table now exists, contains
-another revision, or catalog drift appears, stop; do not overwrite, purge or re-stamp it.
+Because production had no Alembic version table during TASK-059, baseline is a reviewed metadata
+assertion recorded by the exact artifact. The operator must independently prove that production
+legacy objects match the sanitized catalog immediately before execution. The artifact then creates
+the canonical version table, inserts exactly `0001_legacy_baseline`, applies `0002` and `0003`, and
+updates the marker twice in that same transaction. If the version table now exists, any portal-data
+object exists, or catalog drift appears, stop; do not overwrite, purge, re-stamp, add `IF NOT EXISTS`,
+or retry individual statements.
 
 Baseline recording and schema execution must use the Owner-approved transaction plan. Do not run
 the local setup tool, local fixture, downgrade command or autogenerate against production.
@@ -66,6 +70,8 @@ the local setup tool, local fixture, downgrade command or autogenerate against p
   `statement_timeout = 60s`.
 - Do not edit around a timeout, retry individual statements or add ad-hoc RLS/grant SQL.
 - The only allowed row mutation is Alembic version bookkeeping.
+- Exactly the 13 new portal-data tables enable RLS without `FORCE`; the artifact creates zero
+  policies and performs no `GRANT` or `REVOKE`.
 - On a lock timeout, statement timeout, constraint/catalog error or connection loss, treat the run
   as failed until rollback is confirmed. Release competing work before one full retry.
 - Never run the destructive Alembic downgrade in production.
@@ -79,7 +85,7 @@ All checks are required before declaring Phase A complete:
 - `members.person_id` is nullable, unique/FK protected and contains no backfill values;
 - all ten legacy table aggregate row counts are unchanged;
 - new portal-data application tables contain zero rows;
-- RLS/grant state matches the separately approved decision;
+- all 13 new tables have RLS enabled, not forced, with zero policies; grants are unchanged;
 - current applications remain on legacy paths and no notification/external API was triggered.
 
 Record only sanitized yes/no and checksum evidence using the template.
@@ -98,13 +104,18 @@ and request a new recovery decision from the Owner.
 
 ## Local rehearsal evidence
 
-TASK-051 proves only the following against isolated localhost PostgreSQL:
+TASK-060 proves the following against isolated localhost PostgreSQL with conspicuously fake data:
 
 - deterministic source-to-artifact rendering and checksum verification;
-- fail-closed rejection of destructive DDL, DML, legacy ownership drift and remote/credential text;
-- atomic rollback on an injected mid-migration failure;
+- fail-closed rejection of destructive DDL, DML, unexpected legacy-table creation/alteration, and
+  remote/credential text;
+- creation of the absent canonical marker, its `0001` insert, and upgrades through `0003` in one
+  transaction;
+- exactly 13 RLS-enabled, not-forced, zero-policy tables;
+- atomic rollback on an injected mid-migration failure, including marker creation;
 - bounded lock failure with no partial schema, followed by a successful full retry;
+- fail-closed rejection of a pre-existing marker or portal-data object;
 - unchanged fake legacy row counts and zero new application rows.
 
-It does not prove production backup, lock duration, RLS policies, roles, API exposure or network
-behavior. Those remain mandatory preflight facts.
+It does not prove current production fingerprints, lock duration, roles, API exposure or network
+behavior. TASK-059 must be rerun after the TASK-060 merge and before any execution approval.

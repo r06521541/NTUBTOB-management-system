@@ -6,9 +6,12 @@ deidentified TASK-049 catalog rather than the original two-table minimum.
 Production must still revalidate its exact legacy schema, constraints and
 migration state before any separately approved action.
 
-`0001_legacy_baseline` is intentionally empty. Local rehearsal first creates the
-minimal legacy fixture, stamps that baseline, then upgrades to the expand
-revision. Emergency production rollback must prefer an application rollback
+`0001_legacy_baseline` is intentionally empty. The reviewed offline artifact starts
+from Alembic `base`, creates the canonical `ntubtob.alembic_version` table, records
+`0001_legacy_baseline`, and upgrades through `0003` in one transaction. It does not
+use `stamp`, `IF NOT EXISTS`, upsert, or an independent baseline transaction. Local
+rehearsal first creates the minimal legacy fixture, then executes that same clean
+chain. Emergency production rollback must prefer an application rollback
 while retaining expand-only tables; the destructive downgrade exists for an
 isolated local database only.
 
@@ -23,5 +26,7 @@ python3 -m tools.portal_data_migration_readiness verify
 On Windows, replace `python3` with `py -3.10`. The verifier requires the exact
 single revision chain and rejects destructive DDL, application DML, unexpected
 legacy-table alterations, remote connection text and checksum/source drift.
-The artifact is review material, not permission or a general production runner.
+The artifact also enables RLS (not forced) on exactly the 13 new tables and creates
+zero policies or grants. The artifact is review material, not permission or a
+general production runner.
 See `docs/operations/data/PORTAL_DATA_PRODUCTION_MIGRATION_RUNBOOK.md`.

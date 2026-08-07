@@ -1,12 +1,22 @@
 -- GENERATED FILE: do not edit by hand.
--- Source: Alembic 0001_legacy_baseline -> 0003_legacy_bigint_activity_game.
+-- Source: Alembic base -> 0003_legacy_bigint_activity_game.
 -- REVIEW ARTIFACT ONLY. DO NOT RUN WITHOUT OWNER APPROVAL.
--- This file contains expand-only schema DDL and Alembic version bookkeeping.
+-- This file atomically records the reviewed baseline, applies expand-only DDL,
+-- and enables fail-closed RLS with zero policies on all new portal-data tables.
 
 BEGIN;
 
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '60s';
+
+CREATE TABLE ntubtob.alembic_version (
+    version_num VARCHAR(32) NOT NULL,
+    CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+);
+
+-- Running upgrade  -> 0001_legacy_baseline
+
+INSERT INTO ntubtob.alembic_version (version_num) VALUES ('0001_legacy_baseline') RETURNING ntubtob.alembic_version.version_num;
 
 -- Running upgrade 0001_legacy_baseline -> 0002_portal_data_foundation
 
@@ -229,7 +239,21 @@ CREATE TABLE ntubtob.people (
           FOR EACH ROW EXECUTE FUNCTION ntubtob.reject_audit_mutation();
         CREATE TRIGGER event_audit_append_only
           BEFORE UPDATE OR DELETE ON ntubtob.event_audit
-          FOR EACH ROW EXECUTE FUNCTION ntubtob.reject_audit_mutation();;
+          FOR EACH ROW EXECUTE FUNCTION ntubtob.reject_audit_mutation();
+
+        ALTER TABLE ntubtob.people ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.auth_identities ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.person_qualifications ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.access_audit ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.events ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.activities ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_eligibility_rules ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_invitee_overrides ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_invitees ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_attendance_replies ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.activity_attendance_replies ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_managers ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_audit ENABLE ROW LEVEL SECURITY;
 
 UPDATE ntubtob.alembic_version SET version_num='0002_portal_data_foundation' WHERE ntubtob.alembic_version.version_num = '0001_legacy_baseline';
 

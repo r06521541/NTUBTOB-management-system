@@ -13,6 +13,21 @@
   rehearsal 與 migration 仍須另開任務。
 - TASK-057 已建立並交棒 Codex：先以假資料建立 fail-closed、無網路／port／persistent volume 的 ephemeral
   Docker restore rehearsal wrapper；本輪不讀或還原 production archive，正式 rehearsal 仍須另行批准。
+- TASK-057 已由 PR #61 合併為 `1c07871`，Python 3.10 CI 與 ownership-guarded cleanup通過。TASK-058 已建立
+  一次性正式 archive isolated restore rehearsal執行包，等待 Owner批准 exact artifact與 cleanup範圍；尚未執行。
+- TASK-058 已依 Owner 精確批准完成：正式 retained archive 的 path preflight、唯一一次 ephemeral restore、13 類
+  sanitized catalog checks、restore 前後 verification與 ownership cleanup全數通過；無 container／volume殘留，
+  artifact set未變更。這證明 archive可還原，但不取代 Phase A 前的當下 production read-only baseline。
+- TASK-059 已開始：Owner批准立即執行既有 reviewed read-only Supabase catalog/access SQL；等待 repository 外
+  six-column CSV供 Work驗證。結果只在目前無 schema/access/deployment變更的 migration window內有效。
+- TASK-059 baseline已驗證：33 metrics與三個 fingerprints通過，legacy 10 tables、RLS 10/10、無 Alembic marker
+  或新表。SQL Editor role是高權限 migration owner。現有 migration artifact缺 baseline marker建立且13張新表
+  未 enable RLS，故不得執行；等待 Owner角色/RLS決策後建立 TASK-060，完成後須重跑 execution-time baseline。
+- Owner已接受migration-owner高權限邊界並決定13張新表Phase A enable RLS／zero policies。TASK-060已建立並交棒
+  Codex，補齊同transaction baseline marker、RLS、verifier與local rollback/lock rehearsal；不授權production。
+- TASK-060已由Work驗收為`accepted`：實際implementation commit `97c8ddc1`與diff已查驗，local fake PostgreSQL
+  verifier及96項測試全數通過，涵蓋atomic rollback、lock timeout/retry與既存狀態fail closed。等待Owner批准
+  push／Draft PR／Python 3.10 CI／squash merge；合併後仍須重跑TASK-059，production migration另需精確批准。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

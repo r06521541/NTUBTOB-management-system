@@ -237,6 +237,20 @@ def upgrade() -> None:
         CREATE TRIGGER event_audit_append_only
           BEFORE UPDATE OR DELETE ON ntubtob.event_audit
           FOR EACH ROW EXECUTE FUNCTION ntubtob.reject_audit_mutation();
+
+        ALTER TABLE ntubtob.people ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.auth_identities ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.person_qualifications ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.access_audit ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.events ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.activities ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_eligibility_rules ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_invitee_overrides ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_invitees ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_attendance_replies ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.activity_attendance_replies ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_managers ENABLE ROW LEVEL SECURITY;
+        ALTER TABLE ntubtob.event_audit ENABLE ROW LEVEL SECURITY
         """
     )
 
