@@ -135,6 +135,53 @@ Before declaring restore-ready, compare sanitized results with the source eviden
 Do not inspect or copy production row contents for evidence. A successful import alone does not prove
 application rollback, runtime-role grants, API exposure or provider disaster recovery.
 
+### Fail-closed rehearsal wrapper
+
+`tools.portal_data_restore_rehearsal` separates path-only preflight from execution. Preflight validates
+that the existing archive, manifest and checksum are adjacent, repository-external regular files with
+the fixed basename contract. It neither resolves Docker nor starts a container:
+
+```powershell
+py -3.10 -m tools.portal_data_restore_rehearsal preflight <absolute-archive-path> <absolute-manifest-path> <absolute-checksum-path>
+```
+
+Execution is not authorized by the presence of the tool or by a successful preflight. After Work
+review, merge and an Owner approval naming the exact commit and artifact set, the fixed acknowledgement
+is required:
+
+```powershell
+py -3.10 -m tools.portal_data_restore_rehearsal execute <absolute-archive-path> <absolute-manifest-path> <absolute-checksum-path> --acknowledge TASK-057-EPHEMERAL-LOCAL-RESTORE
+```
+
+The wrapper first and last invokes the existing Docker archive verifier. Between those checks it uses
+only the repository-fixed PostgreSQL image ID with `--pull never`, `--network none`, no published port,
+no Docker volume and no Docker socket/repository/home mount. The PostgreSQL data directory, runtime
+socket and temporary directory are bounded tmpfs mounts. Only the archive parent is bind-mounted at
+`/backup` read-only. The container has a generated TASK-057 name and label, runs read-only with all
+capabilities dropped and is removed on both success and failure; failure to confirm cleanup is itself a
+terminal failure.
+
+The database exists only inside that container and uses local trust authentication in the no-network,
+no-port namespace. The wrapper accepts no DSN, host, port, database target, image, environment file,
+credential, restore option or SQL argument. Restore uses only `--exit-on-error --single-transaction
+--no-owner --no-privileges`; destructive restore flags and parallel jobs are absent.
+
+Before any forced removal, cleanup uses one fixed `docker container inspect --format` shape and
+requires the exact `com.ntubtob.task=TASK-057` label plus the repository-fixed image ID. It also
+validates the returned 64-character container ID and removes by that ID rather than by name. A missing
+container, inspect timeout/error, malformed output, label/image mismatch or same-name race is never
+deleted and makes cleanup fail closed.
+
+The fixed catalog query returns only named booleans. It compares the restored schema with the
+deidentified TASK-049 table/column/type/nullability/default/identity, PK/FK, validated-constraint,
+primary-index, trigger, RLS/policy and identity-sequence contract. It scans every legacy table only to
+prove that count queries complete; it does not return row values or exact counts. Reports may record
+only generic pass/fail categories and cleanup status.
+
+TASK-057 development and tests may use conspicuously fake archives only. Running this wrapper against
+the retained production archive remains a separate Owner gate; do not infer that approval from this
+runbook, a merged PR or a fake-data rehearsal.
+
 ## Failure and stop handling
 
 - Client/server major mismatch, missing client, direct-path ambiguity, insufficient storage,
@@ -149,5 +196,6 @@ application rollback, runtime-role grants, API exposure or provider disaster rec
 
 ## Current status
 
-TASK-055 prepares controls only. Until a production archive and an isolated restore rehearsal are
-separately approved, executed and reviewed, Phase A migration remains blocked.
+TASK-056 produced and independently verified the retained production logical-backup artifact set.
+TASK-057 prepares the isolated restore wrapper and tests it with fake data only. Until a production
+archive rehearsal is separately approved, executed and reviewed, Phase A migration remains blocked.

@@ -1,16 +1,16 @@
-active_task: TASK-056
+active_task: TASK-057
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 0e8138e09688eff8ae87ba8881f9ae5cbbb9a1d6
-head_commit: 50902dd7df86741f30e9d4632ed2af9d7332037b
+base_commit: e2b75a8
+head_commit: d91f19308dcb6bf0a4b672191d68860e28acd42b
 
 updated_by: work
-updated_at: 2026-08-07T15:05:00+08:00
+updated_at: 2026-08-07T16:12:00+08:00
 
 note: >
-  Work accepted the TOC identifier compatibility correction after code review, 19/19 focused tests, compile and
-  diff checks. Standalone sensitive terms remain rejected while all ten TASK-049 legacy table identifiers are covered.
-  Local Python 3.10 is unavailable, so hosted CI is the remaining evidence gate. No production archive/env-file access,
-  Docker, remote connection, dump retry, restore, SQL/migration, sidecar creation or deployment occurred. Retained-
-  archive verification remains separately gated after merge and must not repeat the production dump.
+  Work accepted TASK-057 after reviewing d91f193 and rerunning 32/32 tests, compile, diff and Docker residue checks.
+  Cleanup now proves exact TASK label, fixed image ID and immutable container ID before forced removal; unknown,
+  mismatched and foreign same-name targets are preserved and fail closed. No TASK-057 container or volume remains.
+  Hosted Python 3.10/formatter evidence is still required by PR. Production artifacts, credentials, Supabase, remote
+  DB, SQL/migration and deployment remain out of scope; merge would not authorize a production-archive rehearsal.
