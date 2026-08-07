@@ -1,16 +1,15 @@
-active_task: TASK-052
-status: completed
-next_actor: owner
+active_task: TASK-053
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 705983b281e60d9f586552e46aab3dd894db5fd2
-head_commit: 557b6efddb2a6a7863685eb5dd75b8039c8bcd4e
+base_commit: 7f53c12e590944e3d98b17df33cd8180b57869b1
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T09:50:00+08:00
+updated_at: 2026-08-07T10:20:00+08:00
 
 note: >
-  Owner accepted TASK-052 after Work independently verified the static safety boundary, 11 dedicated Python 3.10 tests,
-  format/compile/diff checks, and executing the reviewed query only against a localhost fake baseline where it parsed
-  and returned exactly 33 rows. No Supabase/production access or query occurred. Owner authorized push, PR and squash
-  merge after successful CI; personal SQL Editor execution, schema/RLS/role/backup mutation and production migration
-  remain prohibited.
+  TASK-053 is ready for Codex to add narrowly scoped compatibility for Supabase CSV exports that render SQL NULL as
+  the literal token null. Only the three value columns may be normalized, with a conspicuously fake regression fixture;
+  the Owner production CSV must stay outside the repository and will be revalidated read-only by Work. No Supabase
+  connection, SQL execution, schema/RLS/role/backup mutation, secret access, push, PR, merge or deployment is authorized.

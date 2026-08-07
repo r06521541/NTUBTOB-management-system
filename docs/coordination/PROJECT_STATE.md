@@ -127,6 +127,9 @@
 
 ## 4. 當前工作
 
+- `TASK-053` 已建立：修正 Supabase SQL Editor 將 SQL NULL 匯出成文字 `null` 時的 validator
+  相容性；只正規化三個 value 欄位的完整 `null` token，並以虛構 fixture 維持固定 contract 與
+  敏感內容 fail-closed。Owner 的原始 CSV 留在 repository 外，由 Work 驗收時唯讀重驗。
 - `TASK-052` 已通過 Work 驗收：已準備 transaction-level read-only SQL、固定
   catalog/function allowlist verifier、33-metric 去識別結果 contract／validator、虛構 fixture 與
   Owner SQL Editor／Dashboard checklist。Work 額外在 local fake baseline 驗證 query 語法與固定
