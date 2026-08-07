@@ -1,15 +1,15 @@
 active_task: TASK-056
-status: awaiting_owner_approval
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 84c20dbbab6c6134fcd1a3d010aefc154aa93e22
+base_commit: 4d4ee40a8561ad7cfc0c8a3d86aea0c5fe2bc554
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T13:40:00+08:00
+updated_at: 2026-08-07T13:55:00+08:00
 
 note: >
-  TASK-056 awaits Owner's non-sensitive destination, credential-file classification, connection class, execution window
-  and concurrency answers before Work may present a final exact production logical-backup command for separate approval.
-  No credential read, Supabase connection, production dump/restore/migration, archive handling, cloud setting change,
-  push, PR, merge or deployment is currently authorized.
+  Owner supplied the required non-sensitive destination/credential classifications and local path preflight passed,
+  but Windows lacks host pg_restore. Codex must first add the fixed-image, network-none/read-only Docker inspection
+  backend specified in TASK-056, with offline tests only. No credential read, Supabase connection, production dump,
+  restore, migration, archive handling, arbitrary image/pull, push, PR, merge or deployment is authorized.

@@ -22,6 +22,31 @@ archive handling、restore 或 migration。
 - Current runtime 使用 session pooler；backup connection 優先 direct，若 direct 在 operator network 不可達，
   只能停下並另行 review session-pooler，不得自行改用 transaction pooler。
 
+## 執行前工具缺口與 prerequisite
+
+Local path preflight 已確認 destination 空白、約 14.9 GB 可用、env-file 存在且非空、Git clean、固定
+image digest 正確，三個 planned artifact paths 亦通過 verifier。但 Windows host 沒有 `pg_restore`，
+現有 TASK-055 verifier 無法在 Docker-produced archive 上執行 `create/verify`。Production dump 在此缺口
+解除前不得開始。
+
+Codex 必須先為 verifier 增加固定且 fail-closed 的 Docker inspection backend：
+
+- 只允許既有固定 image ID
+  `sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a`，不得接受任意 image、
+  tag、registry 或 pull；
+- 只可執行 container 內 `pg_restore --list <mounted-archive>`／`pg_restore --version`；
+- `docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges`，archive parent
+  只讀 bind mount；不得 mount repository、env-file、home 或 Docker socket；
+- 不傳 `--env-file`、`-e`、host environment、credential、database/network options；
+- 使用 argument list、timeout、captured output、`shell=False`，錯誤不得回顯 listing、paths、Docker output
+  或 environment；
+- CLI 必須由明確 backend option 啟用，default host behavior 保持相容；preflight 不啟動 Docker；
+- tests mock subprocess，驗證 exact security flags、fixed image、read-only mount、allowed commands，以及拒絕
+  arbitrary backend/image/options、timeout/nonzero/output leakage；
+- 不得增加 `pg_dump`、restore、SQL、connection、delete、overwrite 或 network 能力。
+
+完成 Python 3.10 CI、Work review、push／PR／merge 後，才回到本文件列最終 production dump 命令。
+
 ## Owner 必須先提供的非敏感選項
 
 只回覆分類，不貼任何 path 內容以外的 connection metadata：
@@ -45,7 +70,7 @@ Docker `--env-file`。
 
 在 Owner 完成上述選項並另行批准後，Work 才可：
 
-1. 唯讀確認 Git clean／exact commit、Docker image digest、destination 在 repository 外、三個 artifact
+1. 唯讀確認 Git clean／exact merged commit、Docker image digest、destination 在 repository 外、三個 artifact
    path 不存在，並執行 verifier `preflight`。
 2. 以固定 image ID 啟動一次性 `docker run --rm` client：
    - 只 mount approved destination 到 container `/backup`；
@@ -54,7 +79,8 @@ Docker `--env-file`。
    - 執行 custom format、`--schema=ntubtob`、`--no-owner`、`--no-privileges`、
      `--lock-wait-timeout=5000`、固定 `/backup/<approved-basename>.dump`；
    - 不使用 transaction pooler、不輸出 archive 至 stdout、不 overwrite、不 retry 變更 options。
-3. 僅在 dump exit zero 後，以 TASK-055 verifier 建立 manifest/checksum，再對 retained copy執行 verify。
+3. 僅在 dump exit zero 後，以 TASK-055 verifier 的固定 Docker inspection backend 建立 manifest/checksum，
+   再對 retained copy 執行 verify。
 4. 回報 sanitized evidence：basename、byte size、SHA-256、UTC timestamp、client major、pass/fail；不回報
    listing、connection identity 或 row data。
 5. 不開啟 archive、不 restore、不 migration、不刪除任何 artifact。
