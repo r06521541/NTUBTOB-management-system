@@ -1,17 +1,16 @@
-active_task: TASK-058
-status: completed
+active_task: TASK-059
+status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 1c07871feb8f64f59fd4909845476771caf2f346
-head_commit: 1c07871feb8f64f59fd4909845476771caf2f346
+base_commit: 8f41dbcdb1d1dbcf271b02e08d3cefb250466e48
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T16:35:00+08:00
+updated_at: 2026-08-07T16:45:00+08:00
 
 note: >
-  TASK-058 is complete. Under exact Owner approval, Work ran path preflight and one ephemeral Docker isolated restore
-  against the retained artifact set using merged commit 1c07871. Before/after artifact verification, restore, all 13
-  fixed catalog boolean categories and ownership-guarded cleanup passed. Independent post-check found no TASK-057
-  container or volume residue and artifact sizes remained unchanged. No production/remote connection, credential,
-  row inspection, retry, dump, migration/SQL, artifact mutation, deployment or notification occurred. Phase A remains
-  separately gated and requires a current production read-only baseline plus exact migration approval.
+  Owner approved starting the Phase A read-only baseline now. TASK-059 reuses the reviewed TASK-052 SQL at exact
+  SHA-256 6b5da04c...4260. Owner must run it once unchanged in Supabase SQL Editor and return only the six-column CSV
+  outside Git. Work will validate 33 generic metrics and catalog/access drift. This approval does not authorize Work
+  access, DDL/DML, migration/baseline stamp, RLS/grant/role change, deployment or notification. The result expires if
+  schema/access/deployment maintenance occurs or the current work window is interrupted.
