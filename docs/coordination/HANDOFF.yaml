@@ -1,15 +1,15 @@
 active_task: TASK-064
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: a88f836fd0f8a1c7cad0af294e63b8e574729512
 head_commit: 2cd55a94f343d04eeca2fe4fae61970d11a1460b
 
-updated_by: codex
-updated_at: 2026-08-07T23:50:00+08:00
+updated_by: work
+updated_at: 2026-08-08T00:10:00+08:00
 
 note: >
-  TASK-064 normalizes only CRLF to LF in the read-only append-only function fingerprint. PostgreSQL 16 full tests
-  passed 108/108 and PostgreSQL 15 focused tests passed 12/12; substantive function mutation remains fail closed.
-  Pre-check and migration checksums are unchanged; the new post-check checksum is recorded in the Codex report.
-  Work must inspect the actual diff, commit and future hosted CI before merge or any new production read-only post-check.
+  Work accepted TASK-064 after inspecting the one-line CRLF normalization and independently rerunning the artifact
+  verifier plus all 108 portal-data tests on PostgreSQL 16. LF and CRLF exact bodies pass while substantive mutation
+  remains fail closed; final Python 3.10/Black CI passed. Work may merge under standing Git authorization. Owner must
+  then run only the new checksum-pinned read-only post-check and return its CSV; no production mutation is authorized.
