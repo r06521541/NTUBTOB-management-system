@@ -1,15 +1,15 @@
-active_task: TASK-055
+active_task: TASK-056
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: fd647c01da9d7cc968a28e0b7229e1993b92abe1
-head_commit: 400d37d0c891eef9669fe62d85735e7918600b12
+base_commit: 84c20dbbab6c6134fcd1a3d010aefc154aa93e22
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T13:25:00+08:00
+updated_at: 2026-08-07T13:40:00+08:00
 
 note: >
-  Work accepted TASK-055 after code/boundary review, 13 tests, compile/diff checks, an isolated PostgreSQL 16.4 fake
-  dump/list/restore rehearsal, and a successful corrected-parser rerun against the real fake archive listing. The
-  task-owned container is stopped and named volume retained. Python 3.10 and format evidence remains for PR CI.
-  Production backup, restore and Phase A migration remain blocked and require later exact Owner-approved work packages.
+  TASK-056 awaits Owner's non-sensitive destination, credential-file classification, connection class, execution window
+  and concurrency answers before Work may present a final exact production logical-backup command for separate approval.
+  No credential read, Supabase connection, production dump/restore/migration, archive handling, cloud setting change,
+  push, PR, merge or deployment is currently authorized.
