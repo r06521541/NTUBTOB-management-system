@@ -22,6 +22,21 @@ py -3.10 -m tools.portal_data_logical_backup create <absolute-archive-path> <abs
 py -3.10 -m tools.portal_data_logical_backup verify <absolute-archive-path> <absolute-manifest-path> <absolute-checksum-path>
 ```
 
+If the host has no `pg_restore`, the explicitly selected Docker inspection backend uses only the
+repository-fixed local image ID. It never pulls an image, joins a network or receives credentials:
+
+```powershell
+py -3.10 -m tools.portal_data_logical_backup create <absolute-archive-path> <absolute-manifest-path> <absolute-checksum-path> --backend docker
+py -3.10 -m tools.portal_data_logical_backup verify <absolute-archive-path> <absolute-manifest-path> <absolute-checksum-path> --backend docker
+```
+
+This maps internally to a fixed `docker run --rm --pull never --network none --read-only --cap-drop
+ALL --security-opt no-new-privileges` command. Only the archive parent is bind-mounted at `/backup`
+read-only, and the only container commands are `pg_restore --list /backup/<archive-basename>` and
+`pg_restore --version`. There is no image/backend passthrough, Docker socket/repository/home mount,
+environment forwarding or restore command. `preflight` never starts either inspection backend,
+including when `--backend docker` is present.
+
 It rejects repository paths, relative/traversal paths, symlinks/reparse points, wrong filenames,
 non-regular or empty archives, existing planned outputs, overwrite attempts, invalid custom-format
 listings, foreign schemas, checksum drift and manifest field drift. It never prints the listing or

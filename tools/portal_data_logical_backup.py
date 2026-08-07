@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
+HOME = Path.home().absolute()
 ARCHIVE_NAME = re.compile(r"^portal-data-backup-\d{8}T\d{6}Z\.dump$")
 MANIFEST_FIELDS = (
     "format_version",
@@ -26,6 +27,9 @@ MANIFEST_FIELDS = (
 )
 VALIDATION_FIELDS = ("custom_format", "schema_scope", "listing_verified")
 PURPOSE = "portal-data-phase-a-recovery"
+DOCKER_IMAGE_ID = (
+    "sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a"
+)
 SENSITIVE = re.compile(
     r"(?:postgres(?:ql)?://|https?://|password|secret|token|project[_ -]?ref|"
     r"\b(?:host|port|user|role|database|dsn)\b|\b(?:select|insert|update|delete|"
@@ -261,6 +265,87 @@ def _run_pg_restore(args: Sequence[str], timeout: int = 30) -> str:
     return completed.stdout
 
 
+class DockerInspectionRunner:
+    def __init__(self, archive: Path):
+        self.archive = archive
+
+    def __call__(self, args: Sequence[str], timeout: int) -> str:
+        archive = _reject_unsafe_path(self.archive, must_exist=True)
+        if not ARCHIVE_NAME.fullmatch(archive.name) or archive.stat().st_size <= 0:
+            raise BackupArtifactError("Docker inspection archive is invalid")
+        if archive.parent == HOME:
+            raise BackupArtifactError("Docker inspection cannot mount the home directory")
+        if tuple(args) == ("--version",):
+            pg_restore_args = ("--version",)
+        elif len(args) == 2 and args[0] == "--list":
+            requested_archive = Path(args[1]).resolve(strict=True)
+            if requested_archive != archive:
+                raise BackupArtifactError("Docker inspection archive does not match")
+            pg_restore_args = ("--list", f"/backup/{archive.name}")
+        else:
+            raise BackupArtifactError("Docker inspection command is not allowed")
+
+        parent = os.fspath(archive.parent)
+        if "," in parent:
+            raise BackupArtifactError("Docker inspection mount path is invalid")
+        executable = shutil.which("docker")
+        if not executable:
+            raise BackupArtifactError("Docker inspection backend is unavailable")
+        command = [
+            executable,
+            "run",
+            "--rm",
+            "--pull",
+            "never",
+            "--network",
+            "none",
+            "--read-only",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges",
+            "--mount",
+            f"type=bind,source={parent},target=/backup,readonly",
+            DOCKER_IMAGE_ID,
+            "pg_restore",
+            *pg_restore_args,
+        ]
+        safe_env = {
+            key: value
+            for key, value in os.environ.items()
+            if key.upper() in {"PATH", "PATHEXT", "SYSTEMROOT", "WINDIR"}
+        }
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                env=safe_env,
+                shell=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            raise BackupArtifactError("Docker inspection timed out") from error
+        except OSError as error:
+            raise BackupArtifactError("Docker inspection could not start") from error
+        if completed.returncode != 0:
+            raise BackupArtifactError("Docker inspection failed")
+        return completed.stdout
+
+
+def inspection_runner(
+    backend: str, archive: Path
+) -> Callable[[Sequence[str], int], str]:
+    if backend == "host":
+        return _run_pg_restore
+    if backend == "docker":
+        return DockerInspectionRunner(archive)
+    raise BackupArtifactError("inspection backend is not allowed")
+
+
 def _client_major(run: Callable[[Sequence[str], int], str]) -> int:
     output = run(("--version",), 10)
     match = re.fullmatch(r"pg_restore \(PostgreSQL\) (\d+)(?:\.\d+)*\s*", output)
@@ -487,15 +572,26 @@ def main() -> None:
     parser.add_argument("archive", type=Path)
     parser.add_argument("manifest", type=Path)
     parser.add_argument("checksum", type=Path)
+    parser.add_argument("--backend", choices=("host", "docker"), default="host")
     args = parser.parse_args()
     if args.action == "preflight":
         validate_planned_paths(args.archive, args.manifest, args.checksum)
         print("logical-backup output paths verified outside the repository")
     elif args.action == "create":
-        create_evidence(args.archive, args.manifest, args.checksum)
+        create_evidence(
+            args.archive,
+            args.manifest,
+            args.checksum,
+            run=inspection_runner(args.backend, args.archive),
+        )
         print("logical-backup evidence created outside the repository")
     else:
-        verify_evidence(args.archive, args.manifest, args.checksum)
+        verify_evidence(
+            args.archive,
+            args.manifest,
+            args.checksum,
+            run=inspection_runner(args.backend, args.archive),
+        )
         print("logical-backup evidence verified")
 
 
