@@ -3,13 +3,14 @@ status: ready_for_review
 next_actor: work
 
 base_commit: f138e6e
-head_commit: 1d810077a0d3fcfee9f9994aa2ea6400ef973733
+head_commit: 355e460e818eaed01a1c4cd7edc38615110c16ba
 
 updated_by: codex
-updated_at: 2026-08-07T21:00:00+08:00
+updated_at: 2026-08-07T21:45:00+08:00
 
 note: >
-  Codex added checksum-pinned read-only pre/post SQL, strict sanitized CSV validation, cross-run legacy invariants,
-  mutation tests and runbook/evidence controls. The full portal-data suite passed 105 tests on isolated PostgreSQL 16,
-  the focused suite passed 9 tests on ephemeral PostgreSQL 15, and Draft PR #63 hosted Python 3.10/Black CI passed.
+  Codex corrected the Work findings at final code HEAD 355e460: pre/post now preserve TASK-061 legacy fingerprints,
+  schema/access and generic grant boundaries, reject portal direct/default grant drift, and support strict pre-only
+  validation before migration. The full portal-data suite passed 106 tests on isolated PostgreSQL 16, the focused
+  suite passed 10 tests on ephemeral PostgreSQL 15, and Draft PR #63 final-code hosted Python 3.10/Black CI passed.
   No Owner artifacts, Supabase/production access, migration, schema/data mutation, deployment or merge occurred.
