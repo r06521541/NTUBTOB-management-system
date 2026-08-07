@@ -16,6 +16,43 @@ BEGIN
      (SELECT version_num FROM ntubtob.alembic_version) <> '0003_legacy_bigint_activity_game' THEN
     RAISE EXCEPTION 'TASK-065 revision precondition failed';
   END IF;
+  IF (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+      WHERE n.nspname='ntubtob' AND c.relname IN
+      ('access_audit','activities','activity_attendance_replies','auth_identities','event_attendance_replies',
+       'event_audit','event_eligibility_rules','event_invitee_overrides','event_invitees','event_managers','events',
+       'people','person_qualifications') AND c.relkind IN ('r','p')) <> 13
+     OR (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+         WHERE n.nspname='ntubtob' AND c.relname IN
+         ('access_audit','activities','activity_attendance_replies','auth_identities','event_attendance_replies',
+          'event_audit','event_eligibility_rules','event_invitee_overrides','event_invitees','event_managers','events',
+          'people','person_qualifications') AND c.relrowsecurity) <> 13
+     OR (SELECT count(*) FROM pg_catalog.pg_policies WHERE schemaname='ntubtob' AND tablename IN
+         ('access_audit','activities','activity_attendance_replies','auth_identities','event_attendance_replies',
+          'event_audit','event_eligibility_rules','event_invitee_overrides','event_invitees','event_managers','events',
+          'people','person_qualifications')) <> 0 THEN
+    RAISE EXCEPTION 'TASK-065 Phase A boundary drift';
+  END IF;
+  IF (SELECT count(*) FROM ntubtob.members) <> {{member_count}}
+     OR (SELECT count(*) FROM ntubtob.line_users) <> {{line_user_count}}
+     OR (SELECT count(*) FROM ntubtob.line_users WHERE member_id IS NOT NULL AND ignored IS FALSE)
+        <> {{linked_nonignored_line_count}}
+     OR (SELECT count(DISTINCT member_id) FROM ntubtob.line_users WHERE member_id IS NOT NULL AND ignored IS FALSE)
+        <> {{linked_nonignored_member_count}}
+     OR (SELECT count(*) FROM ntubtob.line_users WHERE member_id IS NOT NULL AND ignored IS TRUE)
+        <> {{linked_ignored_line_count}}
+     OR (SELECT count(*) FROM ntubtob.line_users WHERE member_id IS NULL AND ignored IS FALSE)
+        <> {{unlinked_nonignored_line_count}}
+     OR (SELECT count(*) FROM ntubtob.line_users WHERE member_id IS NULL AND ignored IS TRUE)
+        <> {{unlinked_ignored_line_count}} THEN
+    RAISE EXCEPTION 'TASK-065 approved inventory count drift';
+  END IF;
+  IF (SELECT count(*) FROM ntubtob.events)+(SELECT count(*) FROM ntubtob.activities)+
+     (SELECT count(*) FROM ntubtob.event_eligibility_rules)+(SELECT count(*) FROM ntubtob.event_invitee_overrides)+
+     (SELECT count(*) FROM ntubtob.event_invitees)+(SELECT count(*) FROM ntubtob.event_attendance_replies)+
+     (SELECT count(*) FROM ntubtob.activity_attendance_replies)+(SELECT count(*) FROM ntubtob.event_managers)+
+     (SELECT count(*) FROM ntubtob.event_audit) <> 0 THEN
+    RAISE EXCEPTION 'TASK-065 unrelated portal rows exist';
+  END IF;
   IF EXISTS (SELECT 1 FROM ntubtob.people p WHERE NOT EXISTS (SELECT 1 FROM ntubtob.members m WHERE m.person_id=p.id))
      OR EXISTS (SELECT 1 FROM ntubtob.access_audit WHERE request_id NOT LIKE 'task065-%')
      OR EXISTS (SELECT 1 FROM ntubtob.person_qualifications q WHERE q.qualification<>'team_player'

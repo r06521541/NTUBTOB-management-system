@@ -17,12 +17,17 @@ fresh inventory evidence and explicit Owner approval.
 ## Artifacts
 
 - `TASK-065-phase-b-inventory.sql`: read-only, de-identified pre-inventory.
-- `TASK-065-phase-b-backfill.sql`: bounded, advisory-locked and idempotent transaction. It fails closed on revision,
-  identity, foreign-key or non-batch portal-row drift.
+- `TASK-065-phase-b-backfill.sql`: checksummed execution template. It cannot execute until its aggregate-count
+  placeholders are rendered from a strict-valid inventory CSV. The rendered transaction is bounded, advisory-locked
+  and idempotent, and fails closed on revision, Phase A RLS/policy/table boundary, aggregate-count, identity,
+  foreign-key or non-batch portal-row drift before its first write.
 - `TASK-065-phase-b-postcheck.sql`: read-only, de-identified relationship/count checks.
 - `python -m tools.portal_data_phase_b verify`: verifies SQL checksums and static safety contracts.
 - `python -m tools.portal_data_phase_b compare INVENTORY.csv POSTCHECK.csv`: strict aggregate comparison without
   persisting raw identity or Member values.
+- `python -m tools.portal_data_phase_b render INVENTORY.csv`: after strict validation, renders the exact executable SQL
+  with counts only. Redirect generated output outside the repository; do not commit production evidence or rendered
+  execution SQL.
 
 The SQL Editor CSV contract is exactly `section,metric,status,boolean_value,integer_value,text_value`. Outputs contain
 only booleans, counts and the expected migration revision.
@@ -39,9 +44,15 @@ python -m unittest tests.portal_data.test_phase_b_artifacts -v
 docker compose -f docker-compose.portal-data.yml down
 ```
 
-The integration suite rebuilds the local fixture and Phase A schema, executes the full backfill, executes it again,
+The integration suite rebuilds the local fixture and Phase A schema, validates and binds an inventory, executes the
+full rendered backfill, executes it again,
 checks the sanitized post-state, injects drift, and renders the exact checksummed transaction with its final `COMMIT`
 replaced by `ROLLBACK` to prove exact pre-state restoration before commit.
+
+Every inventory and post-check metric has a fixed section, metric name, status, value column and gate. Safety counts
+such as orphan rows, policies, forced RLS, unrelated portal rows and inconsistent audits must equal zero; a nonzero
+integer never passes merely because its status says `required`. Phase A additionally requires exactly 13 portal tables,
+13 RLS-enabled portal tables, zero portal policies and the exact migration revision.
 
 ## Recovery boundary
 

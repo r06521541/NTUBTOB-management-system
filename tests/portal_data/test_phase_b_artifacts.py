@@ -13,12 +13,14 @@ from shared_lib.shared_module.portal_data.local_database import (
 )
 from tools.portal_data_migration_readiness import render_sql
 from tools.portal_data_phase_b import (
-    BACKFILL_SQL_PATH,
     FIELDS,
-    INVENTORY_METRICS,
+    INVENTORY_SCHEMA,
     INVENTORY_SQL_PATH,
+    POSTCHECK_SCHEMA,
     POSTCHECK_SQL_PATH,
     PhaseBEvidenceError,
+    compare_evidence,
+    render_backfill,
     render_rollback_rehearsal,
     validate_csv,
     validate_rows,
@@ -34,6 +36,25 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 
 class PhaseBArtifactStaticTests(unittest.TestCase):
+    @staticmethod
+    def _valid_rows(schema):
+        exact_values = {
+            ("01_phase_a", "revision"): "0003_legacy_bigint_activity_game",
+            ("01_phase_a", "portal_table_count"): "13",
+            ("01_phase_a", "portal_rls_enabled_count"): "13",
+            ("01_phase_a", "append_only_trigger_count"): "2",
+        }
+        rows = []
+        for key, spec in schema.items():
+            value = exact_values.get(key)
+            if value is None:
+                value = "true" if spec.field == "boolean_value" else "0"
+            row = dict.fromkeys(FIELDS, "")
+            row.update(section=key[0], metric=key[1], status=spec.status)
+            row[spec.field] = value
+            rows.append(row)
+        return rows
+
     def test_repository_artifacts_are_fixed_and_valid(self):
         verify_repository_artifacts()
 
@@ -53,50 +74,57 @@ class PhaseBArtifactStaticTests(unittest.TestCase):
             with self.assertRaises(PhaseBEvidenceError):
                 verify_read_only_sql(path)
 
-    def test_validator_rejects_sensitive_reordered_and_failed_rows(self):
-        base = {
-            "section": "00_session",
-            "metric": "transaction_read_only",
-            "status": "required",
-            "boolean_value": "true",
-            "integer_value": "",
-            "text_value": "",
-        }
-        rows = []
-        for section, metric in sorted(INVENTORY_METRICS):
-            rows.append(
-                {
-                    **base,
-                    "section": section,
-                    "metric": metric,
-                    "boolean_value": (
-                        "true" if metric == "transaction_read_only" else ""
-                    ),
-                    "integer_value": (
-                        "1"
-                        if metric != "transaction_read_only" and metric != "revision"
-                        else ""
-                    ),
-                    "text_value": (
-                        "0003_legacy_bigint_activity_game"
-                        if metric == "revision"
-                        else ""
-                    ),
-                    "status": "compare",
-                }
-            )
-        rows[0]["status"] = "required"
-        validate_rows(rows, "inventory")
-        failed = dict(base, boolean_value="false")
+    def test_metric_schema_fixes_status_field_and_gate_for_every_metric(self):
+        for kind, schema in (
+            ("inventory", INVENTORY_SCHEMA),
+            ("postcheck", POSTCHECK_SCHEMA),
+        ):
+            rows = self._valid_rows(schema)
+            validate_rows(rows, kind)
+            for index, (key, spec) in enumerate(schema.items()):
+                with self.subTest(kind=kind, key=key, failure="status"):
+                    mutated = [dict(row) for row in rows]
+                    mutated[index]["status"] = "unexpected"
+                    with self.assertRaises(PhaseBEvidenceError):
+                        validate_rows(mutated, kind)
+                with self.subTest(kind=kind, key=key, failure="field"):
+                    mutated = [dict(row) for row in rows]
+                    mutated[index][spec.field] = ""
+                    wrong_field = next(
+                        field for field in FIELDS[3:] if field != spec.field
+                    )
+                    mutated[index][wrong_field] = "0"
+                    with self.assertRaises(PhaseBEvidenceError):
+                        validate_rows(mutated, kind)
+                with self.subTest(kind=kind, key=key, failure="gate"):
+                    mutated = [dict(row) for row in rows]
+                    current = mutated[index][spec.field]
+                    if spec.field == "boolean_value":
+                        bad = "false"
+                    elif spec.field == "text_value":
+                        bad = "unexpected"
+                    elif current == "0":
+                        bad = "1" if spec.status != "compare" else "-1"
+                    else:
+                        bad = str(int(current) + 1)
+                    mutated[index][spec.field] = bad
+                    with self.assertRaises(PhaseBEvidenceError):
+                        validate_rows(mutated, kind)
+
+    def test_validator_rejects_missing_duplicate_unknown_and_reordered_rows(self):
+        rows = self._valid_rows(INVENTORY_SCHEMA)
+        for mutated in (
+            rows[:-1],
+            [*rows, dict(rows[0])],
+            [dict(row) for row in rows],
+        ):
+            if len(mutated) == len(rows):
+                mutated[0]["metric"] = "unknown"
+            with self.assertRaises(PhaseBEvidenceError):
+                validate_rows(mutated, "inventory")
+        reordered = [dict(reversed(list(row.items()))) for row in rows]
         with self.assertRaises(PhaseBEvidenceError):
-            validate_rows([failed], "inventory")
-        sensitive = dict(
-            base, boolean_value="", text_value="postgresql://fake.invalid/db"
-        )
-        with self.assertRaises(PhaseBEvidenceError):
-            validate_rows([sensitive], "inventory")
-        with self.assertRaises(PhaseBEvidenceError):
-            validate_rows([dict(reversed(list(base.items())))], "inventory")
+            validate_rows(reordered, "inventory")
 
     def test_csv_header_is_exact(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -187,13 +215,14 @@ class PhaseBArtifactPostgresTests(unittest.TestCase):
             raw.close()
 
     def test_backfill_defaults_identity_qualification_audit_and_rerun(self):
-        validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
-        sql = BACKFILL_SQL_PATH.read_text(encoding="utf-8")
+        inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
+        sql = render_backfill(inventory)
         self._execute(sql)
         self.assertEqual(self._counts(), (2, 1, 1, 4, 2))
         self._execute(sql)
         self.assertEqual(self._counts(), (2, 1, 1, 4, 2))
         post = validate_rows(self._evidence_rows(POSTCHECK_SQL_PATH), "postcheck")
+        compare_evidence(inventory, post)
         self.assertEqual(post[("02_people", "nonbasic_person_count")], "0")
         self.assertEqual(post[("02_people", "noninactive_person_count")], "0")
         self.assertEqual(post[("03_identity", "ignored_identity_count")], "0")
@@ -203,7 +232,8 @@ class PhaseBArtifactPostgresTests(unittest.TestCase):
 
     def test_exact_transaction_rollback_restores_prestate(self):
         before = self._counts()
-        self._execute(render_rollback_rehearsal())
+        inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
+        self._execute(render_rollback_rehearsal(inventory))
         self.assertEqual(self._counts(), before)
 
     def test_multiple_line_accounts_share_one_qualification(self):
@@ -215,14 +245,16 @@ class PhaseBArtifactPostgresTests(unittest.TestCase):
                     "VALUES (9511,'虛構第二帳號','fake-line-linked-second',9201,false,false)"
                 )
             )
-        self._execute(BACKFILL_SQL_PATH.read_text(encoding="utf-8"))
+        inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
+        self._execute(render_backfill(inventory))
         self.assertEqual(self._counts(), (2, 2, 1, 5, 2))
         post = validate_rows(self._evidence_rows(POSTCHECK_SQL_PATH), "postcheck")
         self.assertEqual(post[("03_identity", "linked_identity_count")], "2")
         self.assertEqual(post[("04_qualification", "team_player_count")], "1")
 
     def test_precondition_and_identity_collision_fail_closed(self):
-        sql = BACKFILL_SQL_PATH.read_text(encoding="utf-8")
+        inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
+        sql = render_backfill(inventory)
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -233,6 +265,42 @@ class PhaseBArtifactPostgresTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self._execute(sql)
         self.assertEqual(self._counts(), (1, 0, 0, 0, 0))
+
+    def test_execution_time_legacy_count_drift_fails_before_writes(self):
+        inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
+        sql = render_backfill(inventory)
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.line_users"
+                    "(id,nickname,line_user_id,member_id,has_replied,ignored) "
+                    "VALUES (9512,'虛構盤點後帳號','fake-after-inventory',NULL,false,false)"
+                )
+            )
+        with self.assertRaises(Exception):
+            self._execute(sql)
+        self.assertEqual(self._counts(), (0, 0, 0, 0, 0))
+
+    def test_postcheck_rejects_unexpected_and_inconsistent_audit(self):
+        inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")
+        self._execute(render_backfill(inventory))
+        mutations = (
+            "INSERT INTO ntubtob.access_audit(action,reason,request_id,created_at) "
+            "VALUES ('status_changed','虛構額外稽核','other-request',now())",
+            "INSERT INTO ntubtob.access_audit(action,reason,request_id,created_at) "
+            "VALUES ('member_backfilled','虛構不一致稽核','task065-member-999999',now())",
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                with self.engine.begin() as connection:
+                    connection.execute(text(mutation))
+                with self.assertRaises(PhaseBEvidenceError):
+                    validate_rows(self._evidence_rows(POSTCHECK_SQL_PATH), "postcheck")
+                self._reset()
+                inventory = validate_rows(
+                    self._evidence_rows(INVENTORY_SQL_PATH), "inventory"
+                )
+                self._execute(render_backfill(inventory))
 
 
 if __name__ == "__main__":
