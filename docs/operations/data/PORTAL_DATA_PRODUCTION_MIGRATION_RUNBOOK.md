@@ -19,6 +19,12 @@ Reviewed inputs:
 - RLS decisions: `PORTAL_DATA_RLS_DECISION_PACKAGE.md`
 - logical backup controls: `PORTAL_DATA_LOGICAL_BACKUP_RUNBOOK.md`
 - evidence form: `PORTAL_DATA_MIGRATION_EVIDENCE_TEMPLATE.md`
+- execution-time pre-check: `docs/operations/sql/TASK-062-phase-a-precheck.sql`
+- execution-time post-check: `docs/operations/sql/TASK-062-phase-a-postcheck.sql`
+
+Both checks have adjacent SHA-256 sidecars. Verify the fixed repository artifacts offline before the
+window with `python -m tools.portal_data_phase_a_evidence verify-repository`. Never edit either SQL
+file in the SQL Editor.
 
 ## Phase separation
 
@@ -65,6 +71,15 @@ the local setup tool, local fixture, downgrade command or autogenerate against p
 
 ## Phase A execution contract
 
+Immediately before migration, execute the exact TASK-062 pre-check in a new SQL Editor query and
+export its only result table as CSV. Stop on any SQL Editor warning/error, extra result set or strict
+validator rejection. Keep the CSV outside the repository; do not modify the query to work around a
+failure.
+
+```powershell
+python -m tools.portal_data_phase_a_evidence validate-pre <absolute-pre.csv>
+```
+
 - Execute only the reviewed SQL bytes whose SHA-256 matches the approved sidecar.
 - Use its single explicit transaction with transaction-local `lock_timeout = 5s` and
   `statement_timeout = 60s`.
@@ -89,6 +104,23 @@ All checks are required before declaring Phase A complete:
 - current applications remain on legacy paths and no notification/external API was triggered.
 
 Record only sanitized yes/no and checksum evidence using the template.
+
+Execute the exact TASK-062 post-check in a new SQL Editor query and export its only result table as
+CSV. Validate the pair offline with:
+
+```powershell
+python -m tools.portal_data_phase_a_evidence validate <absolute-pre.csv> <absolute-post.csv>
+```
+
+The validator requires the exact six-column contract and every allowlisted metric. The pre-check
+repeats the TASK-061 legacy table/column/PK-FK fingerprints and the approved generic schema owner,
+usage/create, relation ownership and privilege counts. The post-check requires the exact approved
+legacy fingerprint transition (only nullable `members.person_id` plus its reviewed FK changes) and
+the same legacy access counts. It fails closed on missing, duplicate or unknown metrics; catalog
+fingerprint drift; non-empty Phase A tables; `members.person_id` backfill; RLS/policy drift; PUBLIC
+or non-owner portal grants; non-owner table default ACLs; or any legacy aggregate/access change.
+Never commit these ephemeral CSV files. A successful transaction without a passing post-check is not
+a completed migration.
 
 ## Stop and recovery
 

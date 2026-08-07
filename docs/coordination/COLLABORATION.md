@@ -1040,3 +1040,12 @@ chore: update files
 8. Squash merge 不會取消稽核能力：最終 TASK、report、review、decision、PR discussion 與 GitHub Actions records 共同構成完整證據；branch 上的細碎流程 commits 不需要進入 `main`。
 
 例外情況包括安全事件、錯誤部署、資料風險、需要立即告知下一位角色的 blocking finding，或可獨立回復的緊急修正。此時可立即建立描述性 commit，不受上述數量目標限制，但必須在 commit body 說明例外原因。
+
+---
+
+## 十七、一般 Git 工作流程長期授權
+
+Owner已授權Work與Codex在任務範圍內，於實際diff驗收、required CI成功且無blocking finding後，自行完成branch、
+commit、push、PR、ready、squash merge、同步main及清理task branch，不需逐次請示。此授權不得用來擴張task範圍，
+也不包含production deployment、production database migration／DDL／DML、不可逆資料操作、Secret／IAM／
+Scheduler／cloud resource變更、真實LINE／Discord通知或重大架構／產品規則變更；上述事項仍需Owner另行明確批准。

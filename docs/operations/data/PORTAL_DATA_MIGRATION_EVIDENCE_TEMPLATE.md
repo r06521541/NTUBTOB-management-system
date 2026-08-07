@@ -38,6 +38,11 @@ the archive, manifest contents, listing, storage path or connection metadata to 
 
 ## 3. Execution evidence
 
+- TASK-062 pre-check SQL checksum verified: `yes / no`
+- Pre-check exported exactly one six-column sanitized CSV: `yes / no`
+- Strict pre-check validation passed before migration: `yes / no`
+- Legacy table/column/PK-FK fingerprints and schema/access boundary match TASK-061: `yes / no`
+
 - Start and finish timestamps:
 - Baseline method approved:
 - Canonical marker table absent before execution: `yes / no`
@@ -50,6 +55,14 @@ the archive, manifest contents, listing, storage path or connection metadata to 
 - Error category, if any (sanitized; no SQL values or connection details):
 
 ## 4. Post-check result
+
+- TASK-062 post-check SQL checksum verified: `yes / no`
+- Post-check exported exactly one six-column sanitized CSV: `yes / no`
+- Strict combined pre/post validator passed: `yes / no`
+- Exact catalog and append-only object fingerprints match: `yes / no`
+- Legacy aggregate invariants are unchanged: `yes / no`
+- Legacy ownership/privilege counts are unchanged: `yes / no`
+- Portal PUBLIC/non-owner direct grants and non-owner table default ACLs are zero: `yes / no`
 
 - Revision is exactly `0003_legacy_bigint_activity_game`: `yes / no`
 - Expected new tables, constraints, indexes, function and triggers exist: `yes / no`

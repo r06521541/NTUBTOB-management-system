@@ -1,17 +1,16 @@
-active_task: TASK-060
+active_task: TASK-062
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 84b589129e85c17e7247014dee3e8eb1060f4c7a
-head_commit: 97c8ddc1ced3af13d432de59494b59d9ba313e44
+base_commit: f138e6e
+head_commit: 355e460e818eaed01a1c4cd7edc38615110c16ba
 
 updated_by: work
-updated_at: 2026-08-07T18:05:00+08:00
+updated_at: 2026-08-07T22:20:00+08:00
 
 note: >
-  Work accepted the actual TASK-060 diff and implementation commit after independently rerunning the deterministic
-  verifier and all 96 portal-data tests against local fake PostgreSQL, including clean execution, atomic rollback,
-  bounded lock retry and pre-existing-state rejection. Compile, isort, Compose config and diff checks passed; the local
-  container/network were removed and the pre-existing fake-data volume retained. Owner may approve push, Draft PR,
-  hosted Python 3.10/Black CI and squash merge. This does not authorize production migration; TASK-059 must be rerun
-  after merge and any production execution needs a separate exact approval.
+  Work accepted TASK-062 after inspecting the corrected SQL/validator/tests and independently rerunning the artifact
+  verifier plus all 106 portal-data tests on local fake PostgreSQL 16. Final PR #63 hosted Python 3.10/Black CI passed.
+  Legacy fingerprints and access/grant invariants are now protected, and portal non-owner direct/default grants fail
+  closed. Under the Owner's standing Git-workflow authorization, Work may ready and squash merge PR #63, then prepare
+  TASK-063. Production migration remains separately approval-gated and no production access or mutation occurred.
