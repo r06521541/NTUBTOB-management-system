@@ -127,9 +127,10 @@
 
 ## 4. 當前工作
 
-- `TASK-055` 已建立：準備 schema-scoped custom-format logical backup、sanitized manifest、checksum、
-  repository-only artifact verifier 與 isolated fake restore rehearsal；不連 Supabase、不讀 DSN、不產生
-  production backup，實際備份與 production data handling 仍需 Owner 對精確工作包另行批准。
+- `TASK-055` 已通過 Work 驗收：repository-only artifact verifier、fixed manifest/checksum、backup/recovery
+  runbook 與 migration gates 完成；isolated PostgreSQL 16.4 fake dump/list/restore、row/sequence/RLS/constraint
+  fidelity 及 real-listing parser 均通過。Production backup 尚未建立，Phase A migration 仍 blocked；下一步
+  需先以 PR CI 補 Python 3.10 證據，再由 Owner 另行批准精確 production backup execution 工作包。
 - `TASK-054` 已完成控制面盤點：`ntubtob` 未暴露於 Data API，runtime 使用 session pooler、migration
   預定 direct connection，maintenance window 與 bounded timeout 可接受；但 backup、PITR 與 retention
   均不存在，故 Phase A migration 維持 blocked。下一步優先建立 logical backup 與 restore-readiness 工作包。
