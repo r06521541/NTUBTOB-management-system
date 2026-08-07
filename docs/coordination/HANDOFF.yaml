@@ -1,16 +1,15 @@
 active_task: TASK-064
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: a88f836fd0f8a1c7cad0af294e63b8e574729512
-head_commit: null
+head_commit: 2cd55a94f343d04eeca2fe4fae61970d11a1460b
 
-updated_by: work
-updated_at: 2026-08-07T23:20:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T23:50:00+08:00
 
 note: >
-  TASK-063 production Phase A migration was executed once after approved preflight and pre-check. The first post-check
-  produced 51 metrics and failed only the append-only function raw prosrc MD5; all other exact gates passed and legacy
-  aggregate counts matched. Work reproduced the same false result locally by executing the approved SQL with CRLF.
-  TASK-064 is approved to normalize line endings only in the read-only fingerprint and add LF/CRLF regression evidence.
-  No migration retry, production mutation, downgrade, deployment or notification is allowed.
+  TASK-064 normalizes only CRLF to LF in the read-only append-only function fingerprint. PostgreSQL 16 full tests
+  passed 108/108 and PostgreSQL 15 focused tests passed 12/12; substantive function mutation remains fail closed.
+  Pre-check and migration checksums are unchanged; the new post-check checksum is recorded in the Codex report.
+  Work must inspect the actual diff, commit and future hosted CI before merge or any new production read-only post-check.
