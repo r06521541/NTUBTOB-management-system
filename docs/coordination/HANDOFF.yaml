@@ -1,16 +1,16 @@
 active_task: TASK-062
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: f138e6e
 head_commit: 355e460e818eaed01a1c4cd7edc38615110c16ba
 
-updated_by: codex
-updated_at: 2026-08-07T21:45:00+08:00
+updated_by: work
+updated_at: 2026-08-07T22:20:00+08:00
 
 note: >
-  Codex corrected the Work findings at final code HEAD 355e460: pre/post now preserve TASK-061 legacy fingerprints,
-  schema/access and generic grant boundaries, reject portal direct/default grant drift, and support strict pre-only
-  validation before migration. The full portal-data suite passed 106 tests on isolated PostgreSQL 16, the focused
-  suite passed 10 tests on ephemeral PostgreSQL 15, and Draft PR #63 final-code hosted Python 3.10/Black CI passed.
-  No Owner artifacts, Supabase/production access, migration, schema/data mutation, deployment or merge occurred.
+  Work accepted TASK-062 after inspecting the corrected SQL/validator/tests and independently rerunning the artifact
+  verifier plus all 106 portal-data tests on local fake PostgreSQL 16. Final PR #63 hosted Python 3.10/Black CI passed.
+  Legacy fingerprints and access/grant invariants are now protected, and portal non-owner direct/default grants fail
+  closed. Under the Owner's standing Git-workflow authorization, Work may ready and squash merge PR #63, then prepare
+  TASK-063. Production migration remains separately approval-gated and no production access or mutation occurred.

@@ -34,6 +34,9 @@
 - TASK-061新鮮baseline已由strict validator驗證33/33 metrics及14項安全測試通過，與TASK-059無drift。準備
   execution package時發現runbook尚無fixed post-check SQL，故先建立TASK-062補齊deterministic pre/post-check、
   去識別化validator與local rehearsal；完成前不得執行production migration或ad-hoc SQL。
+- TASK-062補正後已由Work驗收為`accepted`：pre/post固定legacy fingerprints、generic grant/ownership boundary、
+  portal non-owner grants與aggregate invariants；Work獨立重跑PostgreSQL 16完整106項tests及artifact verifier通過，
+  PR #63最終Python 3.10／Black CI成功。依Owner長期Git授權可自行merge，再建立TASK-063；migration仍另需批准。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

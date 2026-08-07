@@ -666,3 +666,13 @@
 - Artifact決策：production沒有marker，故baseline marker建立、`0001_legacy_baseline`記錄與0002/0003 expand必須在同一transaction deterministic artifact內完成，不能先手動stamp或使用`IF NOT EXISTS`繞過preflight。
 - 授權：建立TASK-060並交棒Codex，僅repository/local fake PostgreSQL實作、測試、文件與本機commit。
 - 安全邊界：不連Supabase、不執行production read-only/migration、credential、push／PR／merge、deployment或通知。TASK-060 merge後仍須重跑TASK-059並取得exact production execution批准。
+
+## DEC-066：授權Work／Codex自行完成一般Git工作流程
+
+- 狀態：`approved`
+- 日期：2026-08-07
+- 授權：Owner長期授權Work／Codex在任務範圍內自行建立branch、commit、push、PR、查驗CI、標記ready、修正、
+  squash merge、同步main及清理task branch，不需逐次請示。
+- 前提：Work已查驗實際diff與測試，required CI成功，沒有blocking finding、範圍擴張或production副作用。
+- 明確排除：production deployment、production database migration／DDL／DML、不可逆資料操作、Secret／IAM／
+  Scheduler／cloud resource變更、真實LINE／Discord通知及重大架構／產品規則變更仍需Owner另行明確批准。
