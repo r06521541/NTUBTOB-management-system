@@ -131,7 +131,9 @@
   client、schema-scoped custom archive、Owner-owned env-file 與加密 repository-external destination；目前尚未
   授權讀 credential、連 Supabase、執行 dump／restore／migration 或處理 production archive。Local preflight
   發現 host 無 `pg_restore`；固定 image、network-none/read-only Docker inspection backend 已通過 Work code／
-  tests 與 real local fake archive create/verify，待 PR Python 3.10 CI 與 merge。Production dump 仍未授權。
+  tests、real local fake archive create/verify 與 PR Python 3.10 CI 後 merge。Owner 批准的 session-pooler dump
+  已建立 56,903-byte archive，但 verifier 將 repository-known `line_notify_tokens` identifier 誤判為敏感 token，
+  sidecars 未建立；archive 保留且不重做 dump，先離線修正 verifier，再另行批准 re-verify。
 - `TASK-055` 已通過 Work 驗收：repository-only artifact verifier、fixed manifest/checksum、backup/recovery
   runbook 與 migration gates 完成；isolated PostgreSQL 16.4 fake dump/list/restore、row/sequence/RLS/constraint
   fidelity 及 real-listing parser 均通過。Production backup 尚未建立，Phase A migration 仍 blocked；下一步

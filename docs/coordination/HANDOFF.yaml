@@ -1,15 +1,16 @@
 active_task: TASK-056
-status: awaiting_owner_approval
-next_actor: owner
+status: changes_requested
+next_actor: codex
 
-base_commit: 4d4ee40a8561ad7cfc0c8a3d86aea0c5fe2bc554
-head_commit: 6d238d013959466fa6662470dab60b6f30910c87
+base_commit: 0e8138e09688eff8ae87ba8881f9ae5cbbb9a1d6
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T14:10:00+08:00
+updated_at: 2026-08-07T14:35:00+08:00
 
 note: >
-  Work accepted the Docker inspection prerequisite after code/boundary review, 18 tests, compile/diff checks and real
-  local fake archive create/verify through the sandboxed backend. Production destination remained untouched and the
-  env-file unread. Owner may authorize push/PR/CI/squash merge for this prerequisite only; production dump, archive
-  handling, restore and migration remain blocked pending a post-merge exact command and renewed approval.
+  The approved session-pooler production dump created one retained 56,903-byte archive, but evidence creation failed
+  closed before sidecars because the sensitive scan likely mistakes repository-known identifier line_notify_tokens for
+  a standalone secret token. Codex must reproduce and fix this offline using fake TOC data only, without reading the
+  production archive/env-file or connecting remotely. No dump retry, cleanup, restore, migration, push/PR/merge or
+  deployment is authorized; retained-archive re-verification requires later Owner approval after review and merge.
