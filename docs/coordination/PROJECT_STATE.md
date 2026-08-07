@@ -6,6 +6,11 @@
 
 ## 1. 目前摘要
 
+- TASK-056 已完成 production `ntubtob` schema custom-format logical backup：archive 保留於 Owner 指定的
+  repository 外加密位置；PR #60 Python 3.10 CI 通過並 merge 為 `d8ec8b1`。Owner 另行批准後，Docker
+  verifier 已建立 manifest/checksum 並獨立驗證成功（56,903 bytes、client major 16、schema/listing verified）。
+  未重跑 dump、未 restore、未執行 SQL／migration 或變更 production schema/cloud resources；isolated restore
+  rehearsal 與 migration 仍須另開任務。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

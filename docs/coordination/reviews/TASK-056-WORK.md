@@ -75,3 +75,21 @@ migration、schema/cloud change 或 deployment。
 
 此接受不授權重新檢查 retained production archive。修正 merge 後仍須由 Owner 另行批准只對既有 archive
 執行 verifier `create`／`verify`；不得重跑 production dump。
+
+## Production logical-backup evidence closeout
+
+結論：`accepted`。Owner 批准後，Work 在 merged commit
+`d8ec8b175ff3f7106fcad978e93970714afabdca` 對既有 retained archive 執行一次 Docker verifier
+`create` 與一次 `verify`，兩者均通過。
+
+- Archive basename：`portal-data-backup-20260807T063211Z.dump`
+- Archive bytes：`56,903`
+- SHA-256：`a339a4ccd087a309468308e3912a08e5b661924447c93f57168d6e58b45f0f43`
+- Evidence created UTC：`2026-08-07T07:12:00.581462Z`
+- `pg_restore` client major：`16`
+- Validation：custom format、`ntubtob` schema scope、listing verified。
+- Adjacent `.manifest.json` 與 `.sha256` sidecars 已建立；隨後獨立 verify 通過。
+
+執行前的 `preflight` 因 archive 已存在而依設計拒絕；這是 pre-dump gate，不適用於 retained archive，且未
+造成寫入。其後只執行 Owner 明確批准的 evidence create／verify。未讀 credential env-file、未連 Supabase、
+未重跑 dump、未 restore、未執行 SQL／migration、未刪除／移動／上傳 archive，repository 保持乾淨。

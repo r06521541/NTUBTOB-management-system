@@ -144,3 +144,13 @@ Owner approval; production dump must not be repeated.
 ## Base commit
 
 `84c20dbbab6c6134fcd1a3d010aefc154aa93e22`
+
+## Closeout
+
+- Production schema-scoped custom archive 已建立並保留；Docker verifier compatibility 修正經 PR #60 的
+  Python 3.10 CI 通過，squash merge commit 為 `d8ec8b175ff3f7106fcad978e93970714afabdca`。
+- Owner 另行批准後，既有 archive 的 sanitized manifest/checksum `create` 與獨立 `verify` 均通過。
+- Sanitized evidence：56,903 bytes、PostgreSQL client major 16、custom format、`ntubtob` schema scope、
+  listing verified；完整 hash 與 timestamp 記錄於 Work review。
+- 未重跑 dump、未 restore、未執行 migration、未連線 production DB、未讀 credential env-file。
+- TASK-056 完成；下一階段 isolated restore rehearsal／migration gate 必須另開任務並重新取得授權。
