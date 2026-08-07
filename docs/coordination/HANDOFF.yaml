@@ -1,16 +1,17 @@
 active_task: TASK-070
-status: ready_for_codex
-next_actor: codex
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 926a808
-head_commit: null
+head_commit: 1ae131a0177fc17f70e4acaa5492e37edb1e2f2e
 
 updated_by: work
-updated_at: 2026-08-08T00:26:00+08:00
+updated_at: 2026-08-08T03:35:54+08:00
 
 note: >
-  Owner expanded and approved TASK-070 as a local-only complete Phase C identity lifecycle: next migration, transactional
-  identity and qualification management, LINE principal/session bridge, pending approval conversation, admin UI, Person-based
-  legacy attendance for team and time-bounded guest players, shared analyzer callers, strict drift evidence and demo UX.
-  Existing admin allowlist remains the sole authority. Production migration/data, deployment, real notifications, Secret/IAM/
-  Scheduler, People-role cutover, Person merge, Event eligibility and enabling the production guard remain out of scope.
+  Work accepted the corrected TASK-070 implementation. All three prior product-contract findings are resolved. Work
+  reproduced PostgreSQL 16 at 143/143, Web Portal at 120 passed with two platform skips, webhook 19, notify 9 and tools
+  41; both Phase C artifact verifiers and compileall passed. A non-blocking UI observation remains: disabled or blocked
+  identities retaining a Person may still see a remap form, but repository authorization safely rejects non-linked
+  remaps. Production migration/data, feature enablement, deployment, real notifications, Secret/IAM/Scheduler remain
+  separately prohibited and require explicit Owner approval.

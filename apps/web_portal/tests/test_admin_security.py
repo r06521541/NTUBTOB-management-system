@@ -1,5 +1,5 @@
-import importlib
 import html
+import importlib
 import logging
 import os
 import sys
@@ -7,9 +7,8 @@ import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from urllib.parse import parse_qs, urlsplit
 from unittest.mock import MagicMock, call, patch
-
+from urllib.parse import parse_qs, urlsplit
 
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 if str(WEB_PORTAL_DIR) not in sys.path:
@@ -62,7 +61,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "shared_module.models": types.ModuleType("shared_module.models"),
             "shared_module.models.games": cls._module(Game=cls.game_model),
             "shared_module.models.members": cls._module(Member=cls.member_model),
-            "shared_module.models.line_users": cls._module(LineUser=cls.line_user_model),
+            "shared_module.models.line_users": cls._module(
+                LineUser=cls.line_user_model
+            ),
             "shared_module.models.game_attendance_replies": cls._module(
                 GameAttendanceReply=cls.reply_model
             ),
@@ -104,7 +105,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.line_user_model.reset_mock()
         self.member_model.reset_mock()
         self.game_model.reset_mock()
-        self.attendance_analyzer.reset_mock()
+        self.attendance_analyzer.reset_mock(return_value=True, side_effect=True)
         self.notifier.reset_mock()
         self.line_user_model.search_all_unknowns.return_value = [
             SimpleNamespace(line_user_id="fake-line-user", nickname="Demo User")
@@ -163,9 +164,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 with self.subTest(value=value, path=path):
                     self.login()
                     environment = (
-                        {}
-                        if value is None
-                        else {"WEB_PORTAL_ADMIN_MEMBER_IDS": value}
+                        {} if value is None else {"WEB_PORTAL_ADMIN_MEMBER_IDS": value}
                     )
                     with patch.dict(os.environ, environment, clear=value is None):
                         response = method(path)
@@ -258,12 +257,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "userId": "fake-authenticated-user",
             "displayName": "Demo User",
         }
-        with patch.object(self.app_module.requests, "post", return_value=token_response), patch.object(
-            self.app_module.requests, "get", return_value=profile_response
-        ):
-            response = self.client.get(
-                f"/line/callback?code=fake-code&state={state}"
-            )
+        with patch.object(
+            self.app_module.requests, "post", return_value=token_response
+        ), patch.object(self.app_module.requests, "get", return_value=profile_response):
+            response = self.client.get(f"/line/callback?code=fake-code&state={state}")
         self.assertEqual(response.status_code, 302)
         with self.client.session_transaction() as current_session:
             self.assertEqual(current_session["user_id"], "fake-authenticated-user")
@@ -286,15 +283,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         choice = self.client.get(choice_url)
         choice_page = html.unescape(choice.data.decode())
-        normal_href = choice_page.split(
-            'data-login-mode="normal" href="', 1
-        )[1].split('"', 1)[0]
+        normal_href = choice_page.split('data-login-mode="normal" href="', 1)[1].split(
+            '"', 1
+        )[0]
         self.assertEqual(normal_href, "/line/login?next=/attendance")
 
         authorization = self.client.get(normal_href)
-        state = parse_qs(urlsplit(authorization.headers["Location"]).query)[
-            "state"
-        ][0]
+        state = parse_qs(urlsplit(authorization.headers["Location"]).query)["state"][0]
         self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
         self.member_model.search_by_id.return_value = SerializableMember(7)
         token_response = MagicMock()
@@ -306,12 +301,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         }
         with patch.object(
             self.app_module.requests, "post", return_value=token_response
-        ), patch.object(
-            self.app_module.requests, "get", return_value=profile_response
-        ):
-            callback = self.client.get(
-                f"/line/callback?code=fake-code&state={state}"
-            )
+        ), patch.object(self.app_module.requests, "get", return_value=profile_response):
+            callback = self.client.get(f"/line/callback?code=fake-code&state={state}")
 
         self.assertEqual(callback.status_code, 302)
         self.assertEqual(callback.headers["Location"], "/attendance")
@@ -330,13 +321,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 protected = client.get(path)
                 choice = client.get(protected.headers["Location"])
                 page = html.unescape(choice.data.decode())
-                normal_href = page.split(
-                    'data-login-mode="normal" href="', 1
-                )[1].split('"', 1)[0]
+                normal_href = page.split('data-login-mode="normal" href="', 1)[1].split(
+                    '"', 1
+                )[0]
                 authorization = client.get(normal_href)
-                state = parse_qs(
-                    urlsplit(authorization.headers["Location"]).query
-                )["state"][0]
+                state = parse_qs(urlsplit(authorization.headers["Location"]).query)[
+                    "state"
+                ][0]
                 with client.session_transaction() as current_session:
                     nonce = current_session["oauth_state_nonce"]
                 return_path, state_nonce = self.app_module.load_oauth_state(
@@ -380,7 +371,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.app_module.requests, "post", return_value=token_response
         ), patch.object(
             self.app_module.requests, "get", return_value=profile_response
-        ), self.assertLogs(self.app.logger.name, level="INFO") as captured:
+        ), self.assertLogs(
+            self.app.logger.name, level="INFO"
+        ) as captured:
             response = self.client.get(
                 f"/line/callback?code=sentinel-code&state={state}",
                 headers={"Cookie": "sentinel-cookie"},
@@ -437,6 +430,57 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertEqual(current_session["user_id"], "fake-authenticated-user")
             self.assertEqual(current_session["member_id"], 7)
 
+    def test_phase_c_callback_persists_person_identity_and_optional_member(self):
+        login = self.client.get("/line/login?next=/attendance")
+        state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "fake-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "fake-phase-c-user",
+            "displayName": "Phase C User",
+        }
+        identity = SimpleNamespace(id=81, status="linked")
+        principal = SimpleNamespace(
+            person=SimpleNamespace(id=80, member_id=None), identity=identity
+        )
+        repository = MagicMock()
+        repository.ensure_pending_line_identity.return_value = SimpleNamespace(
+            identity=identity, created=False
+        )
+        repository.resolve_line_principal.return_value = principal
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(
+            self.app_module.requests, "post", return_value=token_response
+        ), patch.object(
+            self.app_module.requests, "get", return_value=profile_response
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.get(f"/line/callback?code=fake-code&state={state}")
+        self.assertEqual(response.status_code, 302)
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["person_id"], 80)
+            self.assertEqual(current_session["auth_identity_id"], 81)
+            self.assertNotIn("member_id", current_session)
+
+    def test_phase_c_refresh_fails_closed_without_legacy_fallback(self):
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=80, auth_identity_id=81)
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = None
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/account")
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/redirect-to-login", response.headers["Location"])
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("person_id", current_session)
+            self.assertNotIn("member_id", current_session)
+
     def test_legacy_identity_payload_is_minimized_without_losing_other_state(self):
         legacy_member = {"id": 7, "name": "Legacy Member"}
         with self.client.session_transaction() as current_session:
@@ -466,18 +510,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertEqual(
                 current_session["member_matching_csrf_token"], "csrf-token"
             )
-            self.assertEqual(
-                current_session["demo_member"], {"id": "demo-member-01"}
-            )
+            self.assertEqual(current_session["demo_member"], {"id": "demo-member-01"})
 
     def test_callback_rejects_state_from_a_different_browser_session(self):
         login_client = self.app.test_client()
         callback_client = self.app.test_client()
 
         login_response = login_client.get("/line/login?next=/future-games")
-        state = parse_qs(urlsplit(login_response.headers["Location"]).query)["state"][
-            0
-        ]
+        state = parse_qs(urlsplit(login_response.headers["Location"]).query)["state"][0]
         with callback_client.session_transaction() as callback_session:
             callback_session["user_id"] = "existing-user"
             callback_session["member_id"] = 7
@@ -522,17 +562,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         page = response.data.decode()
-        self.assertNotIn("http-equiv=\"refresh\"", page)
+        self.assertNotIn('http-equiv="refresh"', page)
         self.assertNotIn("window.location", page)
         self.assertIn('href="/line/login?next=/future-games"', page)
-        self.assertIn(
-            'href="/line/login?mode=browser&amp;next=/future-games"', page
-        )
+        self.assertIn('href="/line/login?mode=browser&amp;next=/future-games"', page)
         self.assertIn("在 LINE 中登入", page)
         self.assertIn("使用電腦瀏覽器登入", page)
         self.assertIn("請回到 LINE", page)
         self.assertIn("同一支手機也不適合使用 QR Code 登入", page)
-        self.assertIn('/static/images/logo_square.png', page)
+        self.assertIn("/static/images/logo_square.png", page)
         self.assertNotIn("https://storage.googleapis.com", page)
 
     def test_login_choice_page_fails_closed_for_ambiguous_next(self):
@@ -546,9 +584,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_login_choices_preserve_safe_return_path_in_fresh_transactions(self):
         choice_page = self.client.get("/redirect-to-login?next=/future-games")
         page = html.unescape(choice_page.data.decode())
-        normal_href = page.split('data-login-mode="normal" href="', 1)[1].split(
-            '"', 1
-        )[0]
+        normal_href = page.split('data-login-mode="normal" href="', 1)[1].split('"', 1)[
+            0
+        ]
         browser_href = page.split('data-login-mode="browser" href="', 1)[1].split(
             '"', 1
         )[0]
@@ -637,9 +675,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         response = self.client.get("/line/login")
         cookies = response.headers.getlist("Set-Cookie")
         session_cookie = next(
-            value
-            for value in cookies
-            if value.startswith("ntubtob_web_session_v2=")
+            value for value in cookies if value.startswith("ntubtob_web_session_v2=")
         )
         self.assertIn("Secure", session_cookie)
         self.assertIn("HttpOnly", session_cookie)
@@ -664,9 +700,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("Path=/", legacy_cookie)
         self.assertNotIn("Domain=", legacy_cookie)
         self.assertTrue(
-            any(
-                value.startswith("ntubtob_web_session_v2=") for value in cookies
-            )
+            any(value.startswith("ntubtob_web_session_v2=") for value in cookies)
         )
 
     def test_invalid_state_rejects_before_line_or_database_calls(self):
@@ -724,9 +758,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             current_session["oauth_state_nonce"] = "different-nonce"
 
         with patch.object(self.app_module.requests, "post") as token_request:
-            response = self.client.get(
-                f"/line/callback?code=old-code&state={state}"
-            )
+            response = self.client.get(f"/line/callback?code=old-code&state={state}")
 
         self.assertEqual(response.status_code, 400)
         token_request.assert_not_called()
@@ -735,9 +767,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             page.split('data-login-action="options" href="', 1)[1].split('"', 1)[0]
         )
         self.assertEqual(options_href.path, "/redirect-to-login")
-        self.assertEqual(
-            parse_qs(options_href.query), {"next": ["/future-games"]}
-        )
+        self.assertEqual(parse_qs(options_href.query), {"next": ["/future-games"]})
 
         options = self.client.get(options_href.geturl())
         self.assertEqual(options.status_code, 200)
@@ -752,17 +782,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertNotIn("oauth_state_nonce", current_session)
 
     def test_tampered_state_fallback_uses_fixed_safe_default(self):
-        response = self.client.get(
-            "/line/callback?code=old-code&state=tampered-state"
-        )
+        response = self.client.get("/line/callback?code=old-code&state=tampered-state")
         page = html.unescape(response.data.decode())
         options_href = urlsplit(
             page.split('data-login-action="options" href="', 1)[1].split('"', 1)[0]
         )
         self.assertEqual(options_href.path, "/redirect-to-login")
-        self.assertEqual(
-            parse_qs(options_href.query), {"next": ["/attendance"]}
-        )
+        self.assertEqual(parse_qs(options_href.query), {"next": ["/attendance"]})
 
     def test_line_http_failure_is_safe_and_does_not_query_database(self):
         state = create_oauth_state(
@@ -779,9 +805,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         ) as token_request, patch.object(
             self.app_module.requests, "get"
         ) as profile_request:
-            response = self.client.get(
-                f"/line/callback?code=fake-code&state={state}"
-            )
+            response = self.client.get(f"/line/callback?code=fake-code&state={state}")
 
         self.assertEqual(response.status_code, 502)
         self.assertEqual(token_request.call_args.kwargs["timeout"], 10)
@@ -822,9 +846,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     "state"
                 ][0]
                 token_response = MagicMock()
-                token_response.json.return_value = {
-                    "access_token": "fake-access-token"
-                }
+                token_response.json.return_value = {"access_token": "fake-access-token"}
                 profile_response = MagicMock()
                 profile_response.json.return_value = payload
                 with patch.object(
@@ -840,47 +862,280 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     def test_authorized_match_preserves_update_notification_and_redirect(self):
         token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.line_identity.return_value = SimpleNamespace(id=72)
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
         with patch.dict(
             os.environ,
             {
                 "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
                 "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
             },
-        ):
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
             response = self.client.post(
                 "/match-member/match",
                 data={
                     "csrf_token": token,
                     "line_user_id": "fake-line-user",
                     "member_id": "8",
+                    "request_id": "identity-match-fake-request",
+                    "reason": "Verified team membership",
                 },
             )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/match-member"))
-        self.line_user_model.update_member_id.assert_called_once_with(
-            "fake-line-user", "8"
+        repository.approve_member.assert_called_once_with(
+            70, 72, 8, "Verified team membership", "identity-match-fake-request"
         )
         self.notifier.notify_management_message.assert_called_once()
 
     def test_authorized_ignore_preserves_update_and_redirect(self):
         token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.line_identity.return_value = SimpleNamespace(id=72)
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
         with patch.dict(
             os.environ,
             {
                 "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
                 "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
             },
-        ):
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
             response = self.client.post(
                 "/match-member/ignore",
-                data={"csrf_token": token, "line_user_id": "fake-line-user"},
+                data={
+                    "csrf_token": token,
+                    "line_user_id": "fake-line-user",
+                    "request_id": "identity-ignore-fake-request",
+                    "reason": "Duplicate identity request",
+                },
             )
         self.assertEqual(response.status_code, 302)
         self.assertTrue(response.headers["Location"].endswith("/match-member"))
-        self.line_user_model.update_as_ignored.assert_called_once_with(
-            "fake-line-user"
+        repository.set_ignored.assert_called_once_with(
+            70, 72, True, "Duplicate identity request", "identity-ignore-fake-request"
         )
         self.notifier.notify_management_message.assert_not_called()
+
+    def test_phase_c_person_can_update_only_own_display_name(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=None),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.post(
+                "/account/profile",
+                data={
+                    "csrf_token": token,
+                    "request_id": "profile-fake-request",
+                    "display_name": "Updated Display",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        repository.update_profile.assert_called_once_with(
+            70, 70, "Updated Display", "profile-fake-request"
+        )
+
+    def test_phase_c_admin_qualification_action_uses_transactional_repository(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.post(
+                "/identity-admin/action",
+                data={
+                    "csrf_token": token,
+                    "action": "grant_qualification",
+                    "person_id": "80",
+                    "qualification": "staff",
+                    "reason": "Assign event support",
+                    "request_id": "qualification-fake-request",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        repository.grant_qualification.assert_called_once_with(
+            70,
+            80,
+            "staff",
+            "Assign event support",
+            "qualification-fake-request",
+            valid_from=None,
+            valid_until=None,
+        )
+
+    def test_phase_c_admin_ui_and_route_require_confirmed_identity_remap(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "identities": (
+                {
+                    "identity_id": 72,
+                    "nickname": "Linked Applicant",
+                    "identity_status": "linked",
+                    "ignored": False,
+                    "stale": False,
+                    "person_id": 70,
+                    "person_name": "Source Member",
+                    "person_status": "active",
+                    "member_id": 7,
+                    "review_status": "closed",
+                },
+            ),
+            "people": (
+                {
+                    "person_id": 70,
+                    "member_id": 7,
+                    "display_name": "Source Display",
+                    "formal_name": "Source Member",
+                    "status": "active",
+                    "qualifications": (),
+                    "admin_note": None,
+                },
+                {
+                    "person_id": 80,
+                    "member_id": 8,
+                    "display_name": "Target Display",
+                    "formal_name": "Target Member",
+                    "status": "inactive",
+                    "qualifications": (),
+                    "admin_note": None,
+                },
+            ),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-admin-user",
+                member_id=7,
+                person_id=70,
+                auth_identity_id=71,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            page = self.client.get("/match-member")
+            missing_confirmation = self.client.post(
+                "/identity-admin/action",
+                data={
+                    "csrf_token": token,
+                    "action": "remap",
+                    "identity_id": "72",
+                    "member_id": "8",
+                    "reason": "Correct the verified Member mapping",
+                    "request_id": "identity-remap-fake-request",
+                },
+            )
+            remapped = self.client.post(
+                "/identity-admin/action",
+                data={
+                    "csrf_token": token,
+                    "action": "remap",
+                    "identity_id": "72",
+                    "member_id": "8",
+                    "reason": "Correct the verified Member mapping",
+                    "request_id": "identity-remap-fake-request",
+                    "confirm_remap": "yes",
+                },
+            )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b'name="confirm_remap"', page.data)
+        self.assertIn(b'value="8"', page.data)
+        self.assertIn("inactive 目標會轉為 active".encode(), page.data)
+        self.assertEqual(missing_confirmation.status_code, 400)
+        self.assertEqual(remapped.status_code, 302)
+        repository.remap_member_identity.assert_called_once_with(
+            70,
+            72,
+            8,
+            "Correct the verified Member mapping",
+            "identity-remap-fake-request",
+            current_identity_id=71,
+        )
+
+    def test_phase_c_admin_ui_omits_remap_for_current_login_identity(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "identities": (
+                {
+                    "identity_id": 71,
+                    "nickname": "Current Login",
+                    "identity_status": "linked",
+                    "ignored": False,
+                    "stale": False,
+                    "person_id": 70,
+                    "person_name": "Admin Member",
+                    "person_status": "active",
+                    "member_id": 7,
+                    "review_status": "closed",
+                },
+            ),
+            "people": (),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-admin-user",
+                member_id=7,
+                person_id=70,
+                auth_identity_id=71,
+            )
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/match-member")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("目前登入使用的 LINE 身分不可重新配對".encode(), response.data)
+        self.assertNotIn(b'value="remap"', response.data)
 
     def test_roster_rejects_missing_or_invalid_member_session_before_queries(self):
         invalid_sessions = (
@@ -922,7 +1177,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 http_get.assert_not_called()
                 http_post.assert_not_called()
 
-    def test_valid_member_session_preserves_roster_response(self):
+    def test_valid_member_session_hides_unanswered_names_on_roster(self):
         game = SimpleNamespace(
             id=23,
             generate_summary_for_team=lambda: "Fictional game summary",
@@ -940,12 +1195,117 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Demo Player".encode(), response.data)
-        self.assertIn("Waiting Player".encode(), response.data)
+        self.assertNotIn("Waiting Player".encode(), response.data)
+        self.assertIn("1 人".encode(), response.data)
         self.assertIn('href="/"'.encode(), response.data)
         self.assertIn('href="/attendance"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
         self.game_model.search_by_id.assert_called_once_with(23)
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_phase_c_roster_hides_unanswered_names_for_all_active_people(self):
+        game = SimpleNamespace(
+            id=23,
+            generate_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_by_id.return_value = game
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [SimpleNamespace(name="Confirmed Player")],
+            5: [
+                SimpleNamespace(name="Unanswered Team Player"),
+                SimpleNamespace(name="Unanswered Guest Player"),
+                SimpleNamespace(name="Unanswered Viewer"),
+            ],
+        }
+
+        for qualification, member_id in (
+            ("team_player", 7),
+            ("guest_player", None),
+            (None, None),
+        ):
+            with self.subTest(qualification=qualification):
+                repository = MagicMock()
+                repository.resolve_line_principal.return_value = SimpleNamespace(
+                    person=SimpleNamespace(
+                        id=70,
+                        member_id=member_id,
+                        qualifications=(qualification,) if qualification else (),
+                    ),
+                    identity=SimpleNamespace(id=71),
+                )
+                with self.client.session_transaction() as current_session:
+                    current_session.clear()
+                    current_session.update(
+                        user_id="fake-phase-c-user",
+                        person_id=70,
+                        auth_identity_id=71,
+                    )
+                    if member_id is not None:
+                        current_session["member_id"] = member_id
+                with patch.dict(
+                    os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get("/game-roster/23")
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn("Confirmed Player".encode(), response.data)
+                self.assertIn("3 人".encode(), response.data)
+                self.assertNotIn("Unanswered Team Player".encode(), response.data)
+                self.assertNotIn("Unanswered Guest Player".encode(), response.data)
+                self.assertNotIn("Unanswered Viewer".encode(), response.data)
+
+    def test_roster_name_style_is_allowlisted_and_not_stored_in_session(self):
+        game = SimpleNamespace(
+            id=23,
+            generate_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_by_id.return_value = game
+
+        def attendance_for_name_style(game_id, use_display_name=False):
+            self.assertEqual(game_id, 23)
+            name = "Display Player" if use_display_name else "Formal Player"
+            return {1: [SimpleNamespace(name=name)]}
+
+        self.attendance_analyzer.get_attendance_of_game.side_effect = (
+            attendance_for_name_style
+        )
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=None),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-active-person",
+                person_id=70,
+                auth_identity_id=71,
+            )
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            formal = self.client.get("/game-roster/23")
+            display = self.client.get("/game-roster/23?name_style=display")
+            invalid = self.client.get("/game-roster/23?name_style=nickname")
+            duplicate = self.client.get(
+                "/game-roster/23?name_style=formal&name_style=display"
+            )
+
+        self.assertEqual(formal.status_code, 200)
+        self.assertIn("Formal Player".encode(), formal.data)
+        self.assertNotIn("Display Player".encode(), formal.data)
+        self.assertEqual(display.status_code, 200)
+        self.assertIn("Display Player".encode(), display.data)
+        self.assertNotIn("Formal Player".encode(), display.data)
+        self.assertEqual(invalid.status_code, 400)
+        self.assertEqual(duplicate.status_code, 400)
+        self.assertEqual(
+            self.attendance_analyzer.get_attendance_of_game.call_args_list,
+            [call(23), call(23, use_display_name=True)],
+        )
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("name_style", current_session)
 
     def test_attendance_loads_fresh_member_from_member_id(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")
@@ -969,6 +1329,33 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.assert_called_once_with(7)
         self.game_model.search_for_invited.assert_called_once_with()
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+
+    def test_attendance_hides_unanswered_names_and_uses_display_name_style(self):
+        fresh_member = SimpleNamespace(id=7, name="Fresh Member")
+        self.member_model.search_by_id.return_value = fresh_member
+        game = SimpleNamespace(
+            id=23,
+            generate_short_summary_for_team=lambda: "Fictional game summary",
+        )
+        self.game_model.search_for_invited.return_value = [game]
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [SimpleNamespace(name="Display Attendee")],
+            5: [SimpleNamespace(name="Private Unanswered Name")],
+        }
+        self.login()
+
+        with patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            response = self.client.get("/attendance?name_style=display")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Display Attendee".encode(), response.data)
+        self.assertNotIn("Private Unanswered Name".encode(), response.data)
+        self.assertIn("1 人".encode(), response.data)
+        self.assertIn(b'href="/game-roster/23?name_style=display"', response.data)
+        self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(
+            23, use_display_name=True
+        )
 
     def test_attendance_reloads_games_and_replies_on_every_request(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")
@@ -1075,9 +1462,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.return_value = None
         self.login()
 
-        with patch.object(
-            self.app_module.requests, "get"
-        ) as http_get, patch.object(
+        with patch.object(self.app_module.requests, "get") as http_get, patch.object(
             self.app_module.requests, "post"
         ) as http_post:
             response = self.client.get("/attendance")

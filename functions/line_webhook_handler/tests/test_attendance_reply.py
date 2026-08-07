@@ -9,7 +9,6 @@ from unittest.mock import Mock, patch
 
 from flask import Flask, g
 
-
 FUNCTION_DIR = Path(__file__).resolve().parents[1]
 
 
@@ -118,7 +117,9 @@ class AttendanceReplyTest(unittest.TestCase):
         cls._stub("shared_module.models", __path__=[])
         cls._stub("shared_module.models.line_users", LineUser=type("LineUser", (), {}))
         cls._stub("shared_module.models.games", Game=type("Game", (), {}))
-        cls._stub("shared_module.models.line_groups", LineGroup=type("LineGroup", (), {}))
+        cls._stub(
+            "shared_module.models.line_groups", LineGroup=type("LineGroup", (), {})
+        )
         cls._stub(
             "shared_module.models.game_attendance_replies",
             GameAttendanceReply=FakeAttendanceReply,
@@ -148,6 +149,17 @@ class AttendanceReplyTest(unittest.TestCase):
             produce_attendance_message=Mock(),
         )
         cls._stub("shared_module.line_messaging_api", reply=Mock())
+        cls._stub("shared_module.portal_data", __path__=[])
+        cls._stub(
+            "shared_module.portal_data.domain",
+            AuthorizationError=type("AuthorizationError", (Exception,), {}),
+            ConflictError=type("ConflictError", (Exception,), {}),
+            ValidationError=type("ValidationError", (Exception,), {}),
+        )
+        cls._stub(
+            "shared_module.portal_data.runtime",
+            get_identity_lifecycle_repository=Mock(),
+        )
 
     def setUp(self):
         FakeAttendanceReply.add.reset_mock()
@@ -182,6 +194,7 @@ class AttendanceReplyTest(unittest.TestCase):
             side_effect=AssertionError("attendance reply must not use HTTP"),
         ):
             g.user = user
+            g.user_id = "fake-line-subject"
             g.messages_to_reply = []
             self.webhook.handle_postback_reply_game_attendance(query)
             return [message.text for message in g.messages_to_reply]
@@ -259,6 +272,27 @@ class AttendanceReplyTest(unittest.TestCase):
             messages[-1],
             self.webhook.message_templates_user.first_game_reply_hint,
         )
+
+    def test_phase_c_reply_uses_person_repository_without_legacy_member_write(self):
+        person = types.SimpleNamespace(
+            id=44, preferred_name=lambda: "Fake Guest Formal"
+        )
+        repository = types.SimpleNamespace(
+            resolve_line_principal=Mock(
+                return_value=types.SimpleNamespace(person=person)
+            ),
+            reply_to_game=Mock(return_value=True),
+        )
+        runtime = sys.modules["shared_module.portal_data.runtime"]
+        runtime.get_identity_lifecycle_repository.return_value = repository
+
+        with patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}):
+            messages = self.run_reply()
+
+        repository.resolve_line_principal.assert_called_once_with("fake-line-subject")
+        repository.reply_to_game.assert_called_once_with(44, 23, 1, 9)
+        FakeAttendanceReply.add.assert_not_called()
+        self.assertIn("Fictional game", messages[0])
 
 
 if __name__ == "__main__":

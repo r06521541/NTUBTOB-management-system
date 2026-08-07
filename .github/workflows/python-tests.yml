@@ -53,11 +53,21 @@ jobs:
         run: >-
           python -m black --check
           migrations/versions/0002_portal_data_foundation.py
+          migrations/versions/0004_phase_c_identity_lifecycle.py
+          shared_lib/shared_module/portal_data/identity_lifecycle.py
           tools/portal_data_migration_readiness.py
           tools/portal_data_phase_a_evidence.py
+          tools/portal_data_phase_c_evidence.py
+          tools/portal_data_phase_c_migration.py
           tools/setup_portal_data_legacy.py
           tests/portal_data/test_migration_readiness.py
           tests/portal_data/test_phase_a_evidence.py
+          tests/portal_data/test_phase_c_lifecycle.py
+
+      - name: Verify Phase C review artifacts
+        run: |
+          python -m tools.portal_data_phase_c_migration verify
+          python -m tools.portal_data_phase_c_evidence
 
       - name: Run portal data PostgreSQL tests
         env:

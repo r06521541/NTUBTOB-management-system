@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.orm import Session
@@ -42,6 +43,12 @@ def seed_fake_data(engine: Engine) -> dict[str, int]:
             identity_id = repository.create_pending_identity("line", subject).id
             identity_status = "pending"
         if identity_status == "pending":
+            guest_valid_from = None
+            guest_valid_until = None
+            if "guest_player" in qualifications:
+                now = datetime.now(timezone.utc)
+                guest_valid_from = now - timedelta(days=1)
+                guest_valid_until = now + timedelta(days=365)
             repository.approve_identity(
                 admin_person_id,
                 identity_id,
@@ -49,6 +56,8 @@ def seed_fake_data(engine: Engine) -> dict[str, int]:
                 f"seed-{subject}",
                 display_name=display_name,
                 qualifications=qualifications,
+                guest_valid_from=guest_valid_from,
+                guest_valid_until=guest_valid_until,
             )
             created += 1
         elif identity_status == "linked":

@@ -35,6 +35,8 @@ class PostgresConstraintTests(unittest.TestCase):
                 text(
                     """
                     TRUNCATE TABLE
+                      ntubtob.identity_review_messages,
+                      ntubtob.identity_review_threads,
                       ntubtob.event_audit, ntubtob.event_managers,
                       ntubtob.activity_attendance_replies, ntubtob.event_attendance_replies,
                       ntubtob.event_invitees, ntubtob.event_invitee_overrides,

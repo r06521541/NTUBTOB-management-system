@@ -82,6 +82,21 @@ py -3.10 -m tools.portal_data_migration_readiness verify
 The adjacent SHA-256 sidecar and exact-source comparison make hand edits fail
 closed. The SQL is explicitly marked `DO NOT RUN WITHOUT OWNER APPROVAL`.
 
+Phase C adds a separate deterministic `0003 -> 0004` artifact and read-only
+pre/post evidence:
+
+```powershell
+py -3.10 -m tools.portal_data_phase_c_migration render
+py -3.10 -m tools.portal_data_phase_c_migration verify
+py -3.10 -m tools.portal_data_phase_c_evidence
+```
+
+These commands render or verify repository files and may be executed only
+against the named local database during rehearsal. The migration aborts
+atomically if any attendance reply still cannot resolve a Person. Runtime
+integration remains default-off behind `PORTAL_DATA_PHASE_C_ENABLED`; admin
+mutations also require `WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=true`.
+
 ## Run the shared contract suite
 
 Windows PowerShell:

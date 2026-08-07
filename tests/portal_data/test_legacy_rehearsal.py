@@ -96,6 +96,7 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
                     ("cancellations", "game_id", "games", "id"),
                     ("game_attendance_replies", "game_id", "games", "id"),
                     ("game_attendance_replies", "member_id", "members", "id"),
+                    ("game_attendance_replies", "person_id", "people", "id"),
                     ("game_attendance_replies", "reply", "attendance_reply_types", "id"),
                     ("game_attendance_replies", "user_id", "line_users", "id"),
                     ("line_users", "member_id", "members", "id"),
