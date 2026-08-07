@@ -122,6 +122,10 @@ or non-owner portal grants; non-owner table default ACLs; or any legacy aggregat
 Never commit these ephemeral CSV files. A successful transaction without a passing post-check is not
 a completed migration.
 
+The append-only function fingerprint normalizes only CRLF line endings to LF before hashing
+`pg_proc.prosrc`. This preserves one approved body fingerprint across LF and Windows CRLF SQL input;
+any substantive function-body change still fails closed. Isolated CR characters are not normalized.
+
 ## Stop and recovery
 
 Before commit, PostgreSQL transactional DDL should roll back schema and version changes together.

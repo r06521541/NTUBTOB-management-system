@@ -1,16 +1,15 @@
-active_task: TASK-063
+active_task: TASK-064
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 871abd2bae8fefbe13f8ebc6cbd2f28baca1e56c
-head_commit: null
+base_commit: a88f836fd0f8a1c7cad0af294e63b8e574729512
+head_commit: 2cd55a94f343d04eeca2fe4fae61970d11a1460b
 
 updated_by: work
-updated_at: 2026-08-07T22:45:00+08:00
+updated_at: 2026-08-08T00:10:00+08:00
 
 note: >
-  TASK-062 was accepted and PR #63 squash-merged as 871abd2 after final Python 3.10/Black CI passed. TASK-063 now fixes
-  the exact commit, three SQL checksums, retained recovery artifact, 30-minute maintenance boundary, conditional
-  precheck/migration/postcheck order and stop/recovery behavior. Owner approval is required before Work reads/verifies
-  the retained artifact or any production SQL is executed. No production migration, deployment or notification has
-  occurred.
+  Work accepted TASK-064 after inspecting the one-line CRLF normalization and independently rerunning the artifact
+  verifier plus all 108 portal-data tests on PostgreSQL 16. LF and CRLF exact bodies pass while substantive mutation
+  remains fail closed; final Python 3.10/Black CI passed. Work may merge under standing Git authorization. Owner must
+  then run only the new checksum-pinned read-only post-check and return its CSV; no production mutation is authorized.
