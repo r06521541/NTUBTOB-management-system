@@ -47,7 +47,14 @@ jobs:
         run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0
 
       - name: Install portal data test dependencies
-        run: python -m pip install -r requirements-migrations.txt
+        run: python -m pip install -r requirements-migrations.txt black==24.4.2
+
+      - name: Check portal data formatting
+        run: >-
+          python -m black --check
+          migrations/versions/0002_portal_data_foundation.py
+          tools/portal_data_migration_readiness.py
+          tests/portal_data/test_migration_readiness.py
 
       - name: Run portal data PostgreSQL tests
         env:
