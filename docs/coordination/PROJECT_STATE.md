@@ -31,6 +31,9 @@
 - TASK-060已由PR #62 squash merge為`0d54a4c`；hosted Python 3.10、Black與所有service test steps通過。
   TASK-061已建立為合併後execution-time baseline：Owner須重跑既有read-only SQL並提供repository外CSV，Work
   離線驗證後才提出production migration execution package；目前仍未授權migration。
+- TASK-061新鮮baseline已由strict validator驗證33/33 metrics及14項安全測試通過，與TASK-059無drift。準備
+  execution package時發現runbook尚無fixed post-check SQL，故先建立TASK-062補齊deterministic pre/post-check、
+  去識別化validator與local rehearsal；完成前不得執行production migration或ad-hoc SQL。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

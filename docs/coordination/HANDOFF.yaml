@@ -1,16 +1,16 @@
-active_task: TASK-061
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-062
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 0d54a4c017dc66dc0d25b037e93f09e1e62a6a12
+base_commit: f138e6e
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T19:25:00+08:00
+updated_at: 2026-08-07T20:05:00+08:00
 
 note: >
-  TASK-060 merged through PR #62 as 0d54a4c after hosted Python 3.10, Black and all test steps passed. TASK-061 now
-  requires Owner to execute the unchanged reviewed TASK-052 read-only SQL once in a fresh Supabase SQL Editor query and
-  return only the six-column CSV outside the repository. Work will validate it offline. No migration, DDL/DML, stamp,
-  credential access, deployment or production mutation is authorized; passing this baseline still requires a separate
-  exact migration execution approval.
+  Work accepted TASK-061 after the strict repository validator passed all 33 fresh post-merge baseline metrics and 14
+  safety tests; no catalog, RLS or migration-owner boundary drift was found. An accidental local paste into the guarded
+  SQL was detected before use and, with Owner approval, restored to the reviewed hash. TASK-062 must now add exact
+  read-only pre/post-check SQL, strict sanitized evidence validation and local migration rehearsal before Work can
+  propose a production execution package. No Supabase access, migration, DDL/DML, deployment or notification is allowed.
