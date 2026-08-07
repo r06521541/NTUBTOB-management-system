@@ -46,6 +46,9 @@
 - TASK-064已由Work驗收為`accepted`：只正規化post-check CRLF、LF/CRLF及實質mutation tests通過，Work獨立
   PostgreSQL 16完整108項與artifact verifier成功。新post-check checksum為`8ee0b812...0526a8a7`；merge後只需
   Owner重跑一次唯讀post-check，production schema不再修改。
+- Production Phase A已完成：exact migration只執行一次，TASK-064 CRLF-safe final post-check與原pre-check通過
+  strict combined validation。Revision為0003、13張新表RLS enabled／zero policies且零application rows，legacy
+  fingerprints、grants與counts不變；未backfill、部署或接線，Phase B/C仍須另案批准。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

@@ -1,15 +1,16 @@
-active_task: TASK-064
-status: awaiting_owner_approval
+active_task: TASK-063
+status: completed
 next_actor: owner
 
-base_commit: a88f836fd0f8a1c7cad0af294e63b8e574729512
-head_commit: 2cd55a94f343d04eeca2fe4fae61970d11a1460b
+base_commit: 871abd2bae8fefbe13f8ebc6cbd2f28baca1e56c
+head_commit: 9e12e672c0e6f4eaf252563597c9e69d6b3fcec2
 
 updated_by: work
-updated_at: 2026-08-08T00:10:00+08:00
+updated_at: 2026-08-08T00:25:00+08:00
 
 note: >
-  Work accepted TASK-064 after inspecting the one-line CRLF normalization and independently rerunning the artifact
-  verifier plus all 108 portal-data tests on PostgreSQL 16. LF and CRLF exact bodies pass while substantive mutation
-  remains fail closed; final Python 3.10/Black CI passed. Work may merge under standing Git authorization. Owner must
-  then run only the new checksum-pinned read-only post-check and return its CSV; no production mutation is authorized.
+  Production Phase A is complete. The approved atomic migration ran exactly once; after TASK-064 corrected only the
+  CRLF-sensitive read-only function fingerprint, the final strict combined pre/post validator passed. Revision 0003,
+  all 13 zero-row RLS-enabled portal tables, expected catalog objects and unchanged legacy fingerprints/counts were
+  confirmed. No migration retry, downgrade, backfill, application rollout, deployment or notification occurred. Phase B
+  and Phase C remain separately approval-gated.

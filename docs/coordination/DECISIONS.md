@@ -676,3 +676,13 @@
 - 前提：Work已查驗實際diff與測試，required CI成功，沒有blocking finding、範圍擴張或production副作用。
 - 明確排除：production deployment、production database migration／DDL／DML、不可逆資料操作、Secret／IAM／
   Scheduler／cloud resource變更、真實LINE／Discord通知及重大架構／產品規則變更仍需Owner另行明確批准。
+
+## DEC-067：Production Phase A atomic schema expand完成
+
+- 狀態：`approved_and_executed`
+- 日期：2026-08-07
+- 結果：Owner依TASK-063 exact package執行一次atomic migration；final strict pre/post evidence passed，revision為
+  `0003_legacy_bigint_activity_game`，13張portal tables為zero-row、RLS enabled／zero policies，legacy boundary不變。
+- 事件：初次post-check因Windows CRLF造成raw function body MD5誤判；TASK-064只修正read-only fingerprint，未重跑
+  或修改production function，最終post-check通過。
+- 邊界：Phase B backfill、Phase C runtime integration、deployment、Secret／IAM／Scheduler與通知均未授權或執行。
