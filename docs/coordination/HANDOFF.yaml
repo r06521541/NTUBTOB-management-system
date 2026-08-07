@@ -1,16 +1,15 @@
 active_task: TASK-068
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f1df7e3
-head_commit: null
+head_commit: a6b8b10
 
-updated_by: work
-updated_at: 2026-08-07T23:05:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T23:12:43+08:00
 
 note: >
-  TASK-068 is ready for the dedicated Codex implementation session. Add a default-off, fail-closed Web Portal guard so
-  match/ignore POST routes stop before DB or Discord side effects, keep the admin GET page read-only with a maintenance
-  notice, and add a checksummed de-identified cross-model drift inventory/validator with local PostgreSQL tests. Do not
-  implement dual-write, ignored mapping, Person activation, production access, schema/RLS changes, deployment or
-  notification. Production Member/LINE mapping maintenance remains frozen.
+  TASK-068 repository-only implementation is ready for Work review at a6b8b10. The default-off Web Portal guard freezes
+  legacy match/ignore side effects, and the checksummed aggregate drift inventory plus strict validator passed the full
+  local PostgreSQL suite. No production access, deployment, notification, schema/RLS change or dual-write occurred.
+  See docs/coordination/reports/TASK-068-CODEX.md; Work should reproduce Black/CI under Python 3.10.
