@@ -25,6 +25,9 @@
   未 enable RLS，故不得執行；等待 Owner角色/RLS決策後建立 TASK-060，完成後須重跑 execution-time baseline。
 - Owner已接受migration-owner高權限邊界並決定13張新表Phase A enable RLS／zero policies。TASK-060已建立並交棒
   Codex，補齊同transaction baseline marker、RLS、verifier與local rollback/lock rehearsal；不授權production。
+- TASK-060已由Work驗收為`accepted`：實際implementation commit `97c8ddc1`與diff已查驗，local fake PostgreSQL
+  verifier及96項測試全數通過，涵蓋atomic rollback、lock timeout/retry與既存狀態fail closed。等待Owner批准
+  push／Draft PR／Python 3.10 CI／squash merge；合併後仍須重跑TASK-059，production migration另需精確批准。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
