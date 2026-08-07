@@ -2,7 +2,7 @@
 
 ## 結論
 
-狀態：`changes_requested`
+狀態：`accepted`
 
 驗收 commit：`dfae960931b3cf2b03a9554e8815d8af7e25a2b8`
 
@@ -61,3 +61,27 @@ Person status 或 identity security status。
   `git status --short`。
 - 不得進行 production migration/data、deployment、真實通知、Secret/IAM/Scheduler 或 production flag enablement。
 
+## 修正版複驗
+
+修正 commit：`1ae131a0177fc17f70e4acaa5492e37edb1e2f2e`
+
+上一輪三項 blocking findings 均已解除：一般賽事頁只顯示未回覆人數；formal/display name 由固定 allowlist query
+切換且不寫入 authentication session；非目前登入的已連結 identity 提供具 CSRF、原因、目標 Member 與明確確認的
+remap 入口。Dual-write 說明亦已釐清為本機 transaction projection，而非 production rollout。
+
+Work 複驗結果：
+
+- Local PostgreSQL 16 portal-data：143 passed。
+- Web Portal：120 passed、2 platform skips。
+- LINE webhook：19 passed。
+- Notify cron：9 passed。
+- Tools：41 passed。
+- Phase C migration artifact verifier：passed。
+- Phase C evidence artifact verifier：passed。
+- compileall：passed。
+- `git diff --check`：修正本 review 原有 EOF whitespace 後 passed。
+
+非阻塞觀察：remap 表單目前以 `person_id` 判斷顯示，因此 disabled／blocked 且仍保留 Person 的 identity 也可能看到入口；
+repository 會拒絕非 `linked` 狀態，不構成授權或資料風險。後續可將 UI 條件收斂為 `identity_status == 'linked'`。
+
+最終驗收：`accepted`。本結論不授權 production migration、feature enablement 或 deployment。
