@@ -1,16 +1,16 @@
-active_task: TASK-062
+active_task: TASK-063
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: f138e6e
-head_commit: 355e460e818eaed01a1c4cd7edc38615110c16ba
+base_commit: 871abd2bae8fefbe13f8ebc6cbd2f28baca1e56c
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T22:20:00+08:00
+updated_at: 2026-08-07T22:45:00+08:00
 
 note: >
-  Work accepted TASK-062 after inspecting the corrected SQL/validator/tests and independently rerunning the artifact
-  verifier plus all 106 portal-data tests on local fake PostgreSQL 16. Final PR #63 hosted Python 3.10/Black CI passed.
-  Legacy fingerprints and access/grant invariants are now protected, and portal non-owner direct/default grants fail
-  closed. Under the Owner's standing Git-workflow authorization, Work may ready and squash merge PR #63, then prepare
-  TASK-063. Production migration remains separately approval-gated and no production access or mutation occurred.
+  TASK-062 was accepted and PR #63 squash-merged as 871abd2 after final Python 3.10/Black CI passed. TASK-063 now fixes
+  the exact commit, three SQL checksums, retained recovery artifact, 30-minute maintenance boundary, conditional
+  precheck/migration/postcheck order and stop/recovery behavior. Owner approval is required before Work reads/verifies
+  the retained artifact or any production SQL is executed. No production migration, deployment or notification has
+  occurred.
