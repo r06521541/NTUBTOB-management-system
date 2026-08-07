@@ -76,6 +76,10 @@ export its only result table as CSV. Stop on any SQL Editor warning/error, extra
 validator rejection. Keep the CSV outside the repository; do not modify the query to work around a
 failure.
 
+```powershell
+python -m tools.portal_data_phase_a_evidence validate-pre <absolute-pre.csv>
+```
+
 - Execute only the reviewed SQL bytes whose SHA-256 matches the approved sidecar.
 - Use its single explicit transaction with transaction-local `lock_timeout = 5s` and
   `statement_timeout = 60s`.

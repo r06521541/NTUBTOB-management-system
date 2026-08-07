@@ -280,6 +280,8 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser("verify-repository")
+    validate_pre = subparsers.add_parser("validate-pre")
+    validate_pre.add_argument("pre_csv", type=Path)
     validate = subparsers.add_parser("validate")
     validate.add_argument("pre_csv", type=Path)
     validate.add_argument("post_csv", type=Path)
@@ -287,6 +289,10 @@ def main() -> None:
     if args.action == "verify-repository":
         verify_repository_artifacts()
         print("TASK-062 Phase A evidence artifacts verified")
+        return
+    if args.action == "validate-pre":
+        validate_csv(args.pre_csv, "pre")
+        print("TASK-062 Phase A pre-check evidence passed")
         return
     pre = validate_csv(args.pre_csv, "pre")
     post = validate_csv(args.post_csv, "post")
