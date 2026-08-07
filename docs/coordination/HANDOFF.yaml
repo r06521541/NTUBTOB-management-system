@@ -1,15 +1,16 @@
 active_task: TASK-051
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: 00c98866ecdb7c217bf47a7f8bc2a0873603348f
-head_commit: f57a29c36210080d42b6953fdae98842905977d2
+head_commit: da2d7e51cc91dcd5a07ecdad4a4e956c05936648
 
-updated_by: codex
-updated_at: 2026-08-07T08:55:00+08:00
+updated_by: work
+updated_at: 2026-08-07T09:00:00+08:00
 
 note: >
-  Codex corrected the formatting-only finding in the two TASK-051 Python files. Exact Python 3.10 Black check and
-  isort --profile black --check-only now pass; artifact verification, 43/43 portal-data tests, compileall and
-  alembic check also pass. Work should re-review the focused correction and updated report. Production/Supabase
-  access and all external actions remain prohibited and did not occur.
+  Owner accepted TASK-051 after Work independently verified the SQL/checksum, fail-closed verifier, transaction and lock
+  rehearsals, 43 Python 3.10 tests, alembic check, compile and corrected Black/isort evidence. Backup/PITR, runtime
+  role/table owner, Supabase API exposure and new-table RLS remain production blockers. Owner authorized push, PR and
+  squash merge after successful CI; production connection, stamp, DDL, backfill, RLS, deployment and external actions
+  remain prohibited.
