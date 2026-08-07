@@ -127,10 +127,10 @@
 
 ## 4. 當前工作
 
-- `TASK-052` 已由 Codex 完成並等待 Work 驗收：已準備 transaction-level read-only SQL、固定
+- `TASK-052` 已通過 Work 驗收：已準備 transaction-level read-only SQL、固定
   catalog/function allowlist verifier、33-metric 去識別結果 contract／validator、虛構 fixture 與
-  Owner SQL Editor／Dashboard checklist。Python 3.10 共 54 項 portal-data tests 通過、22 項因未設定
-  隔離 PostgreSQL 而跳過；未連 Supabase、未執行 SQL 或任何 schema／RLS／backup 變更。後續真正
+  Owner SQL Editor／Dashboard checklist。Work 額外在 local fake baseline 驗證 query 語法與固定
+  33-row 輸出；未連 Supabase、未執行 production SQL 或任何 schema／RLS／backup 變更。後續真正
   SQL Editor 執行仍需 Owner 另行批准。
 - `TASK-051` 已通過 Work 驗收：固定 `0001 -> 0002 -> 0003` 的
   deterministic upgrade-only SQL／SHA-256、fail-closed verifier、transaction failure／bounded
