@@ -13,6 +13,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -58,8 +59,12 @@ class LegacyMemberRecord(PortalDataBase):
     __tablename__ = "members"
     __table_args__ = {"schema": SCHEMA}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    enroll_year: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    major: Mapped[Optional[str]] = mapped_column(String)
+    number: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    positions: Mapped[Optional[str]] = mapped_column(String)
     person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
@@ -72,17 +77,19 @@ class LegacyGameRecord(PortalDataBase):
     __tablename__ = "games"
     __table_args__ = {"schema": SCHEMA}
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    year: Mapped[int] = mapped_column(Integer, nullable=False)
-    season: Mapped[int] = mapped_column(Integer, nullable=False)
-    start_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    duration: Mapped[int] = mapped_column(Integer, nullable=False)
-    location: Mapped[str] = mapped_column(String, nullable=False)
-    home_team: Mapped[str] = mapped_column(String, nullable=False)
-    away_team: Mapped[str] = mapped_column(String, nullable=False)
-    invitation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
-    cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    year: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    season: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    start_datetime: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    duration: Mapped[Optional[int]] = mapped_column(SmallInteger)
+    location: Mapped[Optional[str]] = mapped_column(String)
+    home_team: Mapped[Optional[str]] = mapped_column(String)
+    away_team: Mapped[Optional[str]] = mapped_column(String)
+    invitation_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True)
+    )
 
 
 class AuthIdentityRecord(PortalDataBase):
@@ -270,7 +277,7 @@ class ActivityRecord(PortalDataBase):
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     game_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
+        BigInteger, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
     )
 
 

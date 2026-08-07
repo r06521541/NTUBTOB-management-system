@@ -11,6 +11,19 @@ from shared_lib.shared_module.portal_data.local_database import (
 )
 from shared_lib.shared_module.portal_data.models import PortalDataBase
 
+LEGACY_UNMANAGED_TABLES = frozenset(
+    {
+        "attendance_reply_types",
+        "ballparks",
+        "cancellations",
+        "discord_webhooks",
+        "game_attendance_replies",
+        "line_groups",
+        "line_notify_tokens",
+        "line_users",
+    }
+)
+
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -20,6 +33,13 @@ config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = PortalDataBase.metadata
 
 
+def include_object(object_, name, type_, reflected, compare_to):
+    """Keep production legacy tables outside portal-data autogenerate ownership."""
+    if type_ == "table" and reflected and name in LEGACY_UNMANAGED_TABLES:
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     context.configure(
         url=database_url,
@@ -27,6 +47,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
+        include_object=include_object,
         version_table_schema="ntubtob",
     )
     with context.begin_transaction():
@@ -44,6 +65,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_schemas=True,
+            include_object=include_object,
             version_table_schema="ntubtob",
         )
         with context.begin_transaction():

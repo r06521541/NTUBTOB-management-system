@@ -127,6 +127,18 @@
 
 ## 4. 當前工作
 
+- `TASK-050` 補正後已通過 Work 離線驗收：local exact-schema fixture、bigint migration、
+  deterministic attendance projection 與 Alembic ownership boundary 均已建立。Python 3.10 的
+  35 項測試、完整 downgrade／fixture rebuild／upgrade chain、compile 與 `alembic check` 通過，
+  且沒有新 upgrade operations。未連 production、未做 DDL／stamp／backfill；production RLS、
+  backup／PITR、lock time 與 rollout compatibility 仍留待後續規劃與 Owner 明確授權。
+- `TASK-049` 已完成 Supabase production schema 與 aggregate data-quality 唯讀盤點：
+  兩次 transaction 都為 read-only，未讀 application row values。確認 production 有
+  10 張 legacy tables、197 Members、65 LINE users、128 Games 與 1,648 attendance rows；
+  無 orphan 或 identity collision。106 組 attendance duplicates 含 144 次真正狀態變更
+  與 9 次連續相同回覆，沒有 exact duplicate、timestamp tie 或 identity mismatch；legacy
+  history 不可刪除或直接加 unique constraint。下一步為離線 exact-schema migration
+  rehearsal。尚未授權 production DDL、stamp、backfill、RLS、Secret 或 deployment。
 - `TASK-029` 已由 PR #39 squash merge為 `6765448`，Python 3.10 CI成功；尚未部署或以真實瀏覽器驗證。
 - `TASK-030` 已建立production rollout與Owner手動LINE Login smoke-test工作包，等待Owner對exact commit、rollback與真實LINE API／production唯讀Member查詢做精確批准。
 - `TASK-030` 首次執行在Cloud Build前因Windows無法由Python啟動硬編碼的`gcloud`而安全停止；沒有新build／revision，traffic仍為`web-portal-00027-fwf=100%`。Owner已批准TASK-031修正wrapper executable resolution及PR工作包，TASK-030待其merge後更新exact source再續行。
