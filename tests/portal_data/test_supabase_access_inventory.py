@@ -15,6 +15,12 @@ from tools.supabase_access_inventory import (
     verify_sql,
 )
 
+SUPABASE_NULL_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "task053_supabase_null_export_fake.csv"
+)
+
 
 class SupabaseAccessInventorySqlTests(unittest.TestCase):
     def setUp(self):
@@ -116,6 +122,36 @@ class SupabaseAccessInventoryResultTests(unittest.TestCase):
 
     def test_fake_fixture_matches_contract(self):
         self.assertEqual(len(validate_csv(FIXTURE_PATH)), 33)
+
+    def test_supabase_null_export_matches_blank_fixture(self):
+        expected = validate_csv(FIXTURE_PATH)
+        actual = validate_csv(SUPABASE_NULL_FIXTURE_PATH)
+
+        self.assertEqual(actual, expected)
+
+    def test_null_token_is_only_normalized_in_value_columns(self):
+        for field in ("section", "metric", "status"):
+            rows = [dict(row) for row in self.rows]
+            rows[0][field] = "null"
+            with self.subTest(field=field):
+                with self.assertRaises(InventoryValidationError):
+                    validate_rows(rows)
+
+    def test_null_substrings_are_not_normalized(self):
+        samples = (
+            "null@example.invalid",
+            "https://null.example.invalid",
+            "postgresql://null.invalid/fake",
+            "NULLIF(fake, null)",
+            "null-value",
+        )
+        for sample in samples:
+            rows = [dict(row) for row in self.rows]
+            target = next(row for row in rows if row["text_value"])
+            target["text_value"] = sample
+            with self.subTest(sample=sample):
+                with self.assertRaises(InventoryValidationError):
+                    validate_rows(rows)
 
     def test_rejects_unknown_extra_or_missing_fields(self):
         extra = dict(self.rows[0])

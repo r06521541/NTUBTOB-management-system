@@ -91,6 +91,11 @@ correct migration connection path. Those remain manual Dashboard checks.
    project, account or connection metadata.
 5. Keep the raw export outside Git. Give it to Work for local validation and deidentification review.
 
+Supabase SQL Editor may serialize SQL `NULL` cells as the literal token `null`. The offline validator
+accepts that token only when it occupies an entire `boolean_value`, `integer_value` or `text_value`
+cell, and normalizes it to an empty value before enforcing the one-value-per-row contract. It does not
+normalize identity/contract columns or strings that merely contain `null`.
+
 ## Dashboard checklist
 
 Owner records only `yes`, `no`, `unknown` and the listed broad classification. No screenshot,
