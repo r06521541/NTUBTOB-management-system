@@ -1,15 +1,15 @@
 active_task: TASK-052
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 705983b281e60d9f586552e46aab3dd894db5fd2
-head_commit: null
+head_commit: 557b6efddb2a6a7863685eb5dd75b8039c8bcd4e
 
-updated_by: work
-updated_at: 2026-08-07T09:20:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T09:35:00+08:00
 
 note: >
-  TASK-051 merged through PR #55 as 705983b. TASK-052 is ready for Codex to prepare a transaction-level read-only,
-  sanitized Supabase access-boundary inventory, offline verifier/validator and Owner Dashboard checklist. No
-  production/Supabase connection or query, Secret access, schema/RLS/role/backup mutation, push, PR, merge,
-  deployment or external action is authorized.
+  Codex prepared the transaction-level read-only catalog query, fixed allowlist verifier, 33-metric sanitized
+  result contract/validator, fake fixture and Owner SQL Editor/Dashboard procedure. Python 3.10 portal-data tests
+  passed 54 with 22 local-PostgreSQL skips. No Supabase/production access or SQL execution, Secret access,
+  schema/RLS/role/backup mutation, push, PR, merge, deployment or external action occurred. Ready for Work review.
