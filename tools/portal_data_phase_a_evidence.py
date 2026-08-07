@@ -125,17 +125,25 @@ def verify_sql(path: Path, kind: str) -> None:
     if normalized.count("rollback") != 1:
         errors.append("exactly one ROLLBACK is required")
     for operation in (
-        "alter", "copy", "create", "delete", "do", "drop", "grant", "insert",
-        "merge", "revoke", "truncate", "update",
+        "alter",
+        "copy",
+        "create",
+        "delete",
+        "do",
+        "drop",
+        "grant",
+        "insert",
+        "merge",
+        "revoke",
+        "truncate",
+        "update",
     ):
         if re.search(rf"\b{operation}\b", normalized):
             errors.append(f"forbidden SQL operation: {operation}")
     if re.search(r"\bset\s+(?:local\s+)?role\b", normalized):
         errors.append("SET ROLE is forbidden")
     emitted = set(
-        re.findall(
-            r"select\s+'([0-9]{2}_[a-z]+)'\s*,\s*'([a-z0-9_]+)'", sql, re.I
-        )
+        re.findall(r"select\s+'([0-9]{2}_[a-z]+)'\s*,\s*'([a-z0-9_]+)'", sql, re.I)
     )
     if emitted != _expected_metrics(kind):
         errors.append("query metrics do not match the fixed contract")

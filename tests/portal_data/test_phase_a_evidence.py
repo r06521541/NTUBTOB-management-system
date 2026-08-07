@@ -152,11 +152,15 @@ class PhaseAEvidencePostgresTests(unittest.TestCase):
                     zip(
                         names,
                         (
-                            ""
-                            if value is None
-                            else str(value).lower()
-                            if isinstance(value, bool)
-                            else str(value)
+                            (
+                                ""
+                                if value is None
+                                else (
+                                    str(value).lower()
+                                    if isinstance(value, bool)
+                                    else str(value)
+                                )
+                            )
                             for value in row
                         ),
                     )
