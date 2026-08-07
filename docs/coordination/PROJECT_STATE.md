@@ -28,6 +28,9 @@
 - TASK-060已由Work驗收為`accepted`：實際implementation commit `97c8ddc1`與diff已查驗，local fake PostgreSQL
   verifier及96項測試全數通過，涵蓋atomic rollback、lock timeout/retry與既存狀態fail closed。等待Owner批准
   push／Draft PR／Python 3.10 CI／squash merge；合併後仍須重跑TASK-059，production migration另需精確批准。
+- TASK-060已由PR #62 squash merge為`0d54a4c`；hosted Python 3.10、Black與所有service test steps通過。
+  TASK-061已建立為合併後execution-time baseline：Owner須重跑既有read-only SQL並提供repository外CSV，Work
+  離線驗證後才提出production migration execution package；目前仍未授權migration。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
