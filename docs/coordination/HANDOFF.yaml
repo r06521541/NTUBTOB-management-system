@@ -1,17 +1,17 @@
 active_task: TASK-057
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: e2b75a8
-head_commit: df03a462c9daf54e3ba398748f0bf669b146abbd
+head_commit: d91f19308dcb6bf0a4b672191d68860e28acd42b
 
-updated_by: work
-updated_at: 2026-08-07T16:05:00+08:00
+updated_by: codex
+updated_at: 2026-08-07T16:05:11+08:00
 
 note: >
-  Work reran 29/29 tests, compile and diff checks and confirmed no TASK-057 Docker container/volume remains. One
-  blocking cleanup ownership gap remains: after an ambiguous docker run failure or name race, cleanup currently may
-  rm --force by generated name without first proving the TASK-057 label and fixed image ID. Codex must add strict
-  ownership inspection, refuse deletion on unknown/mismatch, and test successful, ambiguous-start, pre-existing and
-  foreign same-name paths. Do not expand image/network/mount/restore/catalog boundaries or access production artifacts,
-  credentials, Supabase, remote DB, SQL/migration, push/PR/merge or deployment.
+  Codex corrected the blocking cleanup ownership boundary in d91f19308dcb6bf0a4b672191d68860e28acd42b.
+  Every forced removal now requires a fixed-format inspect proving the exact TASK-057 label, fixed image ID and valid
+  immutable container ID; unknown/mismatch and foreign same-name races are never removed and fail closed. Focused
+  tests are 13/13, combined restore/backup tests are 32/32, compile/diff checks pass and a fresh fake-data Docker
+  rehearsal passed with no container remaining. Work should review the correction. Production artifacts, credentials,
+  Supabase, remote DB, SQL/migration, push/PR/merge and deployment remain out of scope.

@@ -8,6 +8,19 @@
 - Implementation commit: `df03a462c9daf54e3ba398748f0bf669b146abbd`
 - Branch: `codex/task057-isolated-restore-rehearsal`
 
+### Cleanup ownership correction
+
+- Work review / correction base: `754f52817dbbf49910e90f3b6a3804e5745323c5`
+- Correction commit: `d91f19308dcb6bf0a4b672191d68860e28acd42b`
+- Cleanup now uses a fixed `docker container inspect --format` argv and accepts ownership only when
+  the output contains one valid 64-character container ID, exact `com.ntubtob.task=TASK-057` label
+  and exact fixed image ID.
+- Forced removal targets the inspected immutable container ID, not the generated name. Missing,
+  malformed, timeout/nonzero, label mismatch, image mismatch and foreign same-name results never
+  receive `docker rm --force` and make the rehearsal fail closed.
+- Initial pre-existing-name detection and post-cleanup absence checks remain fixed, bounded Docker
+  argv. A pre-existing container is preserved without starting or cleaning anything.
+
 `e27d296` adds the TASK-057 specification on top of the recorded `e2b75a8` task base. Codex created
 the implementation branch from that current planning commit and did not rewrite either commit.
 
@@ -59,6 +72,19 @@ the implementation branch from that current planning commit and did not rewrite 
   dependency. Its task-owned generator container was independently confirmed absent. The fixture
   harness was corrected without changing security boundaries, and the two later fake rehearsals
   passed.
+
+Correction verification:
+
+- Visual Studio Python 3.9 focused TASK-057 suite: 13/13 passed.
+- Bundled Python 3.12 combined restore/logical-backup suites: 32/32 passed.
+- Python 3.9 compile and `git diff --check`: passed.
+- Tests cover successful start, ambiguous nonzero and timeout starts, pre-existing container, exact
+  ownership inspect argv, immutable-ID removal, label mismatch, image mismatch and foreign same-name
+  race. Every unproven/mismatched ownership case asserts that no forced removal occurs.
+- A fresh real local fake-data Docker rehearsal passed after the correction: artifact verification,
+  restore, all 13 catalog categories, post-restore verification and ownership-guarded cleanup passed;
+  no TASK-057 container remained. Its fake archive, sidecars, database tmpfs and generator container
+  were removed.
 
 ## Environment limitations
 
