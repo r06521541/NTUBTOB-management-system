@@ -186,6 +186,43 @@ class PhaseAEvidencePostgresTests(unittest.TestCase):
         post = validate_rows(self._rows(POST_SQL_PATH), "post")
         compare_evidence(pre, post)
 
+    def test_append_only_function_fingerprint_accepts_lf_and_crlf(self):
+        migration = render_sql()
+        for line_ending, sql in (
+            ("LF", migration),
+            ("CRLF", migration.replace("\n", "\r\n")),
+        ):
+            with self.subTest(line_ending=line_ending):
+                self._reset()
+                self._execute_artifact(sql)
+                post = validate_rows(self._rows(POST_SQL_PATH), "post")
+                self.assertEqual(
+                    post[("03_catalog", "append_only_function_matches")], "true"
+                )
+
+    def test_append_only_function_fingerprint_rejects_body_mutation(self):
+        self._reset()
+        self._execute_artifact(render_sql())
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    CREATE OR REPLACE FUNCTION ntubtob.reject_audit_mutation()
+                    RETURNS trigger
+                    LANGUAGE plpgsql
+                    AS $function$
+                    BEGIN
+                      RAISE EXCEPTION 'immutable audit row';
+                    END;
+                    $function$
+                    """
+                )
+            )
+        with self.assertRaisesRegex(
+            PhaseAEvidenceError, "append_only_function_matches"
+        ):
+            validate_rows(self._rows(POST_SQL_PATH), "post")
+
     def test_postcheck_rejects_rows_rls_policy_and_legacy_drift(self):
         mutations = (
             "INSERT INTO ntubtob.people(display_name,portal_access_level,"

@@ -59,7 +59,7 @@ the archive, manifest contents, listing, storage path or connection metadata to 
 - TASK-062 post-check SQL checksum verified: `yes / no`
 - Post-check exported exactly one six-column sanitized CSV: `yes / no`
 - Strict combined pre/post validator passed: `yes / no`
-- Exact catalog and append-only object fingerprints match: `yes / no`
+- Exact catalog and append-only object fingerprints match after CRLF-to-LF normalization: `yes / no`
 - Legacy aggregate invariants are unchanged: `yes / no`
 - Legacy ownership/privilege counts are unchanged: `yes / no`
 - Portal PUBLIC/non-owner direct grants and non-owner table default ACLs are zero: `yes / no`
