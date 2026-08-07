@@ -4,7 +4,16 @@
 
 Status: `ready_for_review`
 
-Implementation commit: `dfae960931b3cf2b03a9554e8815d8af7e25a2b8`
+Branch: `main`
+
+Base commit: `926a808dca2ce46f41be6dd4fb74a8059babf80b`
+
+Review head: `1ae131a0177fc17f70e4acaa5492e37edb1e2f2e`
+
+Implementation commits:
+
+- `dfae960931b3cf2b03a9554e8815d8af7e25a2b8` — initial Phase C implementation
+- `1ae131a0177fc17f70e4acaa5492e37edb1e2f2e` — Work-review product-contract corrections
 
 Implemented the repository-only Phase C identity lifecycle, transactional administration, pending-review conversation,
 Person-based legacy attendance bridge and strict migration evidence. The new runtime paths remain disabled unless
@@ -13,6 +22,19 @@ authority.
 
 No production database, migration, deployment, Secret, IAM, Scheduler, LINE/Discord delivery, production feature flag,
 push or pull request was used or changed.
+
+## Work review correction
+
+- Ordinary `/attendance` and `/game-roster/<game_id>` pages now show only the unanswered count. They never render
+  reply-5 names; route/template tests cover team player, guest player and qualification-free active Person viewers.
+- Active Persons can switch between formal and display names with the allowlisted `name_style=formal|display` query.
+  Formal is the default, invalid or duplicate values return 400, and the choice is never stored in the authentication
+  session. Member formal names still come from `members.name`; non-Member missing formal names fall back to display.
+- Linked non-current identities now have an admin remap form with CSRF, target Member, reason and exact confirmation.
+  Current-login remap remains blocked in the repository and omitted from the UI. Inactive-target activation is explicit
+  in the confirmation and audit before/after state; revoked qualifications and identity security status are unchanged.
+- Clarification: approved local Phase C lifecycle mutations intentionally update the legacy `line_users` projection and
+  Phase C identity records atomically. This task does not enable or authorize a production dual-write rollout.
 
 ## Delivered behavior
 
@@ -42,10 +64,10 @@ push or pull request was used or changed.
 
 ## Verification
 
-- Local PostgreSQL 16 full portal-data suite: 141/141 passed. This includes migration rollback on unresolved attendance,
+- Local PostgreSQL 16 full portal-data suite: 143/143 passed. This includes migration rollback on unresolved attendance,
   fresh/legacy/downgrade rehearsals, RLS and zero-policy checks, exact five-calendar-year guest bounds, lifecycle state
   transitions, locks/audits, 24-hour throttle, retention dry-run/mutation, Person attendance and evidence negative gates.
-- Web Portal suite: 115 passed, 2 skipped because this Windows environment lacks `make`/`sh`.
+- Web Portal suite: 120 passed, 2 skipped because this Windows environment lacks `make`/`sh`.
 - LINE webhook suite: 19/19 passed.
 - Notify cronjob service suite: 9/9 passed.
 - Game broadcast service suite: 28/28 passed.
@@ -57,6 +79,9 @@ push or pull request was used or changed.
 - `python -m compileall -q apps/web_portal apps/notify_cronjob_service functions/line_webhook_handler shared_lib tools tests/portal_data`: passed.
 - Black API check for the 11 files required by hosted CI: passed. `isort --profile black --check-only` for all changed
   Python modules: passed. The bundled runtime is Python 3.12.13; hosted Python 3.10 CI has not yet run.
+- The Windows Black CLI stalled after formatting and was terminated by timeout; the equivalent in-process Black check
+  passed for all six correction Python files. One attempted dotted-module focused unittest command loaded the unrelated
+  legacy package initializer and failed on its absent `config`; the repository's required discovery command then passed.
 - `git diff --check`: passed. The local PostgreSQL Compose container/network was stopped; its fake-data volume was
   retained.
 
@@ -68,7 +93,8 @@ push or pull request was used or changed.
   fixture. No real notification was sent.
 - Production migration execution, pre/post evidence collection, deployment, feature enablement and notification delivery
   remain separately gated Owner/Work tasks. Passing local tests does not establish production data compatibility.
-- This task deliberately does not add People-based admin/officer authority, Person merge, Event eligibility, dual-write,
-  production cleanup scheduling or automatic production rollout.
+- This task deliberately does not add People-based admin/officer authority, Person merge, Event eligibility, production
+  cleanup scheduling or automatic production rollout. Transactional legacy/Phase C projection writes exist locally,
+  but no production dual-write rollout was enabled or authorized.
 - Work should review the large lifecycle transaction surface, the 0003-to-0004 backfill/recovery contract, all exact audit
   relationships, and the default-off caller branches before approving any later production plan.

@@ -1,17 +1,17 @@
 active_task: TASK-070
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 926a808
-head_commit: dfae960931b3cf2b03a9554e8815d8af7e25a2b8
+head_commit: 1ae131a0177fc17f70e4acaa5492e37edb1e2f2e
 
-updated_by: work
-updated_at: 2026-08-08T02:59:15+08:00
+updated_by: codex
+updated_at: 2026-08-08T03:21:04+08:00
 
 note: >
-  Work reproduced the initialized local PostgreSQL 16 suite at 141/141 and the Web Portal suite at 115 passed with two
-  platform skips, but requested changes for three product-contract gaps: ordinary game pages still enumerate unanswered
-  names, display/formal attendance name switching is not wired through the Portal, and linked identities have no remap UI.
-  Codex must fix these gaps, add route/template coverage, clarify the report's dual-write wording and rerun the affected
-  suites. Production migration/data, deployment, real notifications, Secret/IAM/Scheduler and production flag enablement
-  remain prohibited.
+  Codex fixed all three Work findings: ordinary attendance pages expose only unanswered counts, active Persons can use
+  an allowlisted formal/display name query without session persistence, and linked non-current identities have a
+  confirmed admin remap UI with audited inactive-target activation. PostgreSQL 16 passed 143/143 and Web Portal passed
+  120 with two platform skips; webhook 19, notify 9 and tools 41 also passed. The report now distinguishes transactional
+  legacy/Phase C projection writes from an unapproved production dual-write rollout. Production migration/data,
+  deployment, real notifications, Secret/IAM/Scheduler and production flag enablement remain prohibited.
