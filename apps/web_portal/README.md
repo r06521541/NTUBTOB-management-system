@@ -207,6 +207,14 @@ The member matching page creates a session CSRF token, and both matching actions
 require that token. Unauthorized requests are rejected before management data is
 queried or changed. Run the offline route and demo tests from the repository root:
 
+Legacy Member matching and ignore writes are additionally frozen unless
+`WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED` is exactly `true`. Missing, empty,
+case-variant, or unknown values fail closed. The default is `false`; while
+disabled, administrators can inspect pending rows but the page displays a
+maintenance notice and disables its controls. This temporary guard does not
+implement Person/identity dual-write and must not be enabled in production
+without a separately approved rollout.
+
 The production game roster is team-private. `/game-roster/<game_id>` requires a
 valid LINE Login session linked to a positive integer Member ID; anonymous or
 malformed sessions are redirected to login before roster data is queried. This

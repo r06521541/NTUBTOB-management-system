@@ -71,6 +71,9 @@
 - TASK-068已建立為Phase C前置安全任務：Web Portal配對／ignore將新增預設關閉的server-side maintenance guard，
   並建立去識別化cross-model drift detector；新unlinked／ignored rows只分類、不自動處置。本輪repository/local-only，
   不做dual-write、activation、production query或deployment，等待固定「Codex－實作」session接手。
+- TASK-068已由Work第二輪驗收為`accepted`：guard default-off且在副作用前503；drift inventory補齊forced-RLS與
+  exact Phase B audit關係gate。Local PostgreSQL 16為128/128，Web Portal 110 passed／2 platform skips，PR #67
+  hosted Python 3.10 formatting及所有required suites成功。尚未部署，production配對freeze仍需人工維持。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
