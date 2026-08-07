@@ -30,6 +30,18 @@ LISTING_FIXTURE = (
 )
 SAFE_LISTING = LISTING_FIXTURE.read_text(encoding="utf-8")
 VERSION = "pg_restore (PostgreSQL) 15.9\n"
+LEGACY_TABLE_NAMES = {
+    "attendance_reply_types",
+    "ballparks",
+    "cancellations",
+    "discord_webhooks",
+    "game_attendance_replies",
+    "games",
+    "line_groups",
+    "line_notify_tokens",
+    "line_users",
+    "members",
+}
 
 
 class FakeRunner:
@@ -96,11 +108,24 @@ class LogicalBackupArtifactTests(unittest.TestCase):
         verify_evidence(
             self.archive, self.manifest, self.checksum, run=FakeRunner(SAFE_LISTING)
         )
+        for table_name in LEGACY_TABLE_NAMES:
+            with self.subTest(table_name=table_name):
+                self.assertIn(
+                    f"TABLE ntubtob {table_name} fake_owner",
+                    SAFE_LISTING,
+                )
+
+    def test_sensitive_terms_require_identifier_boundaries(self):
+        for sensitive in ("token", "secret", "password", "token-value"):
+            listing = SAFE_LISTING.replace("fake_owner", sensitive, 1)
+            with self.subTest(sensitive=sensitive):
+                with self.assertRaisesRegex(BackupArtifactError, "sanitized-content"):
+                    self._create(FakeRunner(listing))
 
     def test_rejects_unknown_or_injected_comment_metadata(self):
         listings = (
             SAFE_LISTING.replace(
-                ";     TOC Entries: 18",
+                ";     TOC Entries: 27",
                 ";     Unknown Header: fake",
             ),
             SAFE_LISTING.replace(

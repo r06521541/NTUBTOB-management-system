@@ -31,7 +31,9 @@ DOCKER_IMAGE_ID = (
     "sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a"
 )
 SENSITIVE = re.compile(
-    r"(?:postgres(?:ql)?://|https?://|password|secret|token|project[_ -]?ref|"
+    r"(?:postgres(?:ql)?://|https?://|"
+    r"(?<![A-Za-z0-9_])(?:password|secret|token)(?![A-Za-z0-9_])|"
+    r"project[_ -]?ref|"
     r"\b(?:host|port|user|role|database|dsn)\b|\b(?:select|insert|update|delete|"
     r"drop|alter|create|grant|revoke|copy)\b)",
     re.IGNORECASE,
@@ -274,7 +276,9 @@ class DockerInspectionRunner:
         if not ARCHIVE_NAME.fullmatch(archive.name) or archive.stat().st_size <= 0:
             raise BackupArtifactError("Docker inspection archive is invalid")
         if archive.parent == HOME:
-            raise BackupArtifactError("Docker inspection cannot mount the home directory")
+            raise BackupArtifactError(
+                "Docker inspection cannot mount the home directory"
+            )
         if tuple(args) == ("--version",):
             pg_restore_args = ("--version",)
         elif len(args) == 2 and args[0] == "--list":
