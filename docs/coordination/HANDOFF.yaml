@@ -1,16 +1,16 @@
 active_task: TASK-065
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: d33a42a9219f33a2bc191deba910de986fcb027e
-head_commit: 9b77bd1ed45a207c591057975456149f57fa4a03
+head_commit: 73a8c84389ee88464519034418284ac551fd0b50
 
-updated_by: work
-updated_at: 2026-08-07T22:12:07+08:00
+updated_by: codex
+updated_at: 2026-08-07T22:23:00+08:00
 
 note: >
-  Work review found blocking fail-open evidence behavior: status=required integer safety metrics accept nonzero values,
-  so orphan, unexpected qualification and other unsafe counts can validate. Codex must use explicit metric schemas and
-  zero gates, add Phase A RLS/policy/table boundary inventory, bind the rendered mutation to validated approved inventory
-  counts, and reject unexpected/inconsistent audit rows. Preserve the accepted append-only rule: exact rollback is only
-  pre-commit; post-commit recovery is forward compensation and must never disable the audit trigger.
+  TASK-065 Work review fixes are ready at 73a8c84. Explicit per-metric schemas now fix status/value type/gate and reject
+  every nonzero safety count; inventory verifies the 13-table Phase A RLS/zero-policy boundary; the checksummed mutation
+  template renders only from strict-valid aggregate inventory and rechecks all approved counts before writes; post-check
+  rejects unexpected and relationship-inconsistent audit rows. Local PostgreSQL 16 passed 119 portal_data tests. Exact
+  rollback remains pre-commit only; committed recovery remains forward compensation without disabling audit triggers.
