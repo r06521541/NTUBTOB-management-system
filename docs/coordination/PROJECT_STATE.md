@@ -127,6 +127,9 @@
 
 ## 4. 當前工作
 
+- `TASK-052` 已建立為 Supabase migration access boundary 唯讀盤點準備：Codex 僅準備
+  read-only SQL、去識別結果 contract／validator 與 Owner Dashboard checklist，不連 Supabase、
+  不執行 query 或任何 schema／RLS／backup 變更。後續真正 SQL Editor 執行仍需 Owner 另行批准。
 - `TASK-051` 已通過 Work 驗收：固定 `0001 -> 0002 -> 0003` 的
   deterministic upgrade-only SQL／SHA-256、fail-closed verifier、transaction failure／bounded
   lock rehearsal、RLS 決策包、去識別 evidence template 與 production runbook 均已建立。

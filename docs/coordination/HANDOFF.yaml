@@ -1,16 +1,15 @@
-active_task: TASK-051
-status: completed
-next_actor: owner
+active_task: TASK-052
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 00c98866ecdb7c217bf47a7f8bc2a0873603348f
-head_commit: da2d7e51cc91dcd5a07ecdad4a4e956c05936648
+base_commit: 705983b281e60d9f586552e46aab3dd894db5fd2
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T09:00:00+08:00
+updated_at: 2026-08-07T09:20:00+08:00
 
 note: >
-  Owner accepted TASK-051 after Work independently verified the SQL/checksum, fail-closed verifier, transaction and lock
-  rehearsals, 43 Python 3.10 tests, alembic check, compile and corrected Black/isort evidence. Backup/PITR, runtime
-  role/table owner, Supabase API exposure and new-table RLS remain production blockers. Owner authorized push, PR and
-  squash merge after successful CI; production connection, stamp, DDL, backfill, RLS, deployment and external actions
-  remain prohibited.
+  TASK-051 merged through PR #55 as 705983b. TASK-052 is ready for Codex to prepare a transaction-level read-only,
+  sanitized Supabase access-boundary inventory, offline verifier/validator and Owner Dashboard checklist. No
+  production/Supabase connection or query, Secret access, schema/RLS/role/backup mutation, push, PR, merge,
+  deployment or external action is authorized.
