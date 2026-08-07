@@ -112,8 +112,7 @@ class MigrationReadinessStaticTests(unittest.TestCase):
             ),
             safe.replace(
                 exact_rls,
-                exact_rls
-                + f"\nALTER TABLE ntubtob.{first_table} "
+                exact_rls + f"\nALTER TABLE ntubtob.{first_table} "
                 "FORCE ROW LEVEL SECURITY;",
                 1,
             ),

@@ -100,9 +100,13 @@ def render_sql() -> str:
             os.environ.pop("PORTAL_DATA_DATABASE_URL", None)
         else:
             os.environ["PORTAL_DATA_DATABASE_URL"] = previous_url
-    rendered = "\n".join(
-        line.rstrip() for line in output.getvalue().replace("\r\n", "\n").splitlines()
-    ).strip() + "\n"
+    rendered = (
+        "\n".join(
+            line.rstrip()
+            for line in output.getvalue().replace("\r\n", "\n").splitlines()
+        ).strip()
+        + "\n"
+    )
     rendered = rendered.replace(
         "BEGIN;\n",
         "BEGIN;\n\nSET LOCAL lock_timeout = '5s';\n"
