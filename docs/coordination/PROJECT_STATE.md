@@ -60,6 +60,10 @@
 - TASK-066已建立為Phase B正式去識別化唯讀inventory execution gate，固定merge commit、SQL checksum、六欄CSV、
   strict validator、freshness/freeze及stop boundary，等待Owner精確批准。此任務不render或執行backfill；正式DML
   仍須後續TASK-067另行批准。
+- TASK-066已完成：production唯讀inventory strict validation通過，確認197 Members、65 LINE users，其中56個
+  reliable links對應56位Members，4個pending candidates、5個ignored；Phase A與zero-row gates全數正常。
+  Owner另批准本機準備TASK-067；repository外rendered SQL已固定為8,853 bytes／SHA-256 `3f9f8844...e8c831`。
+  TASK-067 exact execution package等待Owner另行production DML批准，尚未執行backfill或post-check。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

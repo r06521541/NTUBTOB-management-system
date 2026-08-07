@@ -1,16 +1,16 @@
-active_task: TASK-066
+active_task: TASK-067
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 8f40278bdbdabc0876ededba77264fa1016fd04b
+base_commit: 9e552acaf277c1284ce48bbc2a78ba83137350fc
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T22:40:00+08:00
+updated_at: 2026-08-07T22:55:00+08:00
 
 note: >
-  TASK-066 fixes the exact merged commit, checksum and one-time read-only Supabase SQL Editor inventory contract. It
-  awaits Owner approval to execute only that sanitized transaction and provide the repository-external six-column CSV
-  for Work validation. It does not authorize rendering or executing backfill, post-check, DML/DDL, Phase C, deployment,
-  Secret/IAM/Scheduler changes or notifications. Member/LINE matching and portal schema/security maintenance must remain
-  frozen after inventory until execution or evidence expiry.
+  TASK-066 production inventory passed all strict gates: 197 Members, 65 LINE users, 56 reliable links to 56 Members,
+  four pending candidates and five ignored users; Phase A remains zero-row and fail closed. Owner approved local TASK-067
+  preparation only. The 8,853-byte repository-external rendered artifact and checksums are fixed; TASK-067 now awaits
+  separate exact production DML approval. No backfill, post-check, Phase C, deployment, Secret/IAM/Scheduler change or
+  notification has occurred. The Member/LINE and portal security freeze remains active.
