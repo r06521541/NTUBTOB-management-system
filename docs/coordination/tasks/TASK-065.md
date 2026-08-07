@@ -69,6 +69,11 @@ SQL僅供Owner日後在Supabase SQL Editor手動執行；本任務不得自行�
 - rollback不得刪除或改寫legacy Member、LINE user、game或attendance資料；
 - application一旦開始讀寫新模型，rollback即失效，必須在Phase C前清楚標記boundary。
 
+驗收期間確認Phase A的audit trigger禁止UPDATE／DELETE，因此上述「移除本batch audit」只可由**尚未commit的
+同一transaction整體ROLLBACK**達成。正式batch一旦commit，不得停用或繞過append-only trigger，也不得宣稱
+能回到exact pre-state；此時只能另案設計保留audit歷史的forward compensation。此安全限制取代任何可能被
+解讀為post-commit delete rollback的文字。
+
 ### D. 本機 PostgreSQL 演練與測試
 
 使用明顯虛構fixture，在repository支援的PostgreSQL版本離線驗證：

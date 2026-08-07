@@ -1,16 +1,16 @@
 active_task: TASK-065
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: d33a42a9219f33a2bc191deba910de986fcb027e
 head_commit: 04a10787d500793a43a41d93e902b2a41f64fcc6
 
-updated_by: codex
-updated_at: 2026-08-07T22:29:00+08:00
+updated_by: work
+updated_at: 2026-08-07T22:32:54+08:00
 
 note: >
-  TASK-065 second-review fixes are ready at 04a1078. The public renderer now requires exactly every inventory schema key
-  and reapplies every metric gate, rejecting partial mappings, wrong revision, nonzero stop gates and unknown keys.
-  Rendered SQL also rechecks zero forced RLS and exactly two append-only triggers before its first write; both drift cases
-  are proven to leave all target tables unchanged. Local PostgreSQL 16 passed 121 portal_data tests. Exact rollback
-  remains pre-commit only; committed recovery remains forward compensation without disabling audit triggers.
+  Work accepted TASK-065 after three review rounds. The final public renderer rejects incomplete or unsafe inventory;
+  execution-time count, RLS and append-only-trigger drift fail before writes; local PostgreSQL 16 passed all 121
+  portal_data tests. Member defaults remain basic/inactive and only reliable non-ignored LINE-linked Members receive
+  team_player. No production inventory/backfill, Phase C, Secret, cloud mutation, deployment or notification occurred.
+  Exact rollback is pre-commit only; committed recovery must preserve audit history through forward compensation.

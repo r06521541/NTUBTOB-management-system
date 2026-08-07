@@ -53,6 +53,10 @@
   可靠legacy Member link的LINE identity才取得`team_player`；不因Member身份自動授予球員資格，不自動提升
   admin/officer，不猜測未連結或ignored identity。本任務只製作去識別化盤點與deterministic artifacts並在local
   PostgreSQL演練，尚未授權任何production查詢、backfill或Phase C接線。
+- TASK-065已由Work第三輪驗收為`accepted`：修正required-integer與public renderer兩項fail-open問題後，
+  PostgreSQL 16 portal_data 121/121通過。Inventory-bound mutation會在寫入前重驗Phase A、legacy counts、forced
+  RLS與audit triggers；Member為basic/inactive且僅可靠LINE-linked Member取得team_player。Commit前可exact
+  rollback，commit後因append-only audit只能forward compensation。尚未執行任何production inventory/backfill。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
