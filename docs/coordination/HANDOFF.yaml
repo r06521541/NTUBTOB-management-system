@@ -1,17 +1,15 @@
 active_task: TASK-068
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f1df7e3
-head_commit: a6b8b10
+head_commit: a69ab20
 
-updated_by: work
-updated_at: 2026-08-07T23:16:18+08:00
+updated_by: codex
+updated_at: 2026-08-07T23:24:16+08:00
 
 note: >
-  Work review accepted the Web Portal guard behavior but found two blocking fail-open inventory gaps. Add a fixed
-  portal_rls_forced_count metric gated at zero. Strengthen audit drift checks to the exact Phase B relationship contract:
-  reject every action/request shape outside member_backfilled/task065-member, identity_linked/task065-identity and
-  qualification_granted/task065-team-player, and verify actor/auth/target, before/after state and deterministic request ID
-  relationships. Add negative PostgreSQL fixtures for FORCE RLS, a status_changed row with task065 prefix, malformed
-  request IDs and wrong before/after state. Preserve all prior guard behavior and repository-only boundaries.
+  TASK-068 correction is ready for Work review at a69ab20. The inventory now gates forced RLS at zero and validates the
+  exact Phase B audit action, request ID, actor, auth identity, target and state relationships. Local PostgreSQL negative
+  fixtures cover every requested case plus wrong actor/auth/target relationships; the full portal_data and Web Portal
+  suites passed. Existing maintenance guard behavior is unchanged. No production access, push, PR or deployment occurred.

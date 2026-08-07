@@ -8,7 +8,17 @@ Implemented the repository-only Phase C maintenance freeze and cross-model ident
 and LINE mapping maintenance remains frozen by default. No production service, database, Secret, notification,
 deployment, schema/RLS change, ignored-user mapping, Person activation, or dual-write behavior was used or added.
 
-Implementation commit: `a6b8b10` (`fix(identity): freeze legacy matching and detect cross-model drift`).
+Implementation commits:
+
+- `a6b8b10` (`fix(identity): freeze legacy matching and detect cross-model drift`)
+- `a69ab20` (`fix(identity): close RLS and audit drift gates`)
+
+## Work review correction
+
+The Work-requested fail-open gaps are closed. The fixed inventory now includes `portal_rls_forced_count`, which must
+equal zero. Audit evidence now accepts only the three Phase B action/request families and requires the exact Phase B
+deterministic relationship for request ID, actor, auth identity, target Person, and before/after state. The existing Web
+Portal maintenance guard was not changed.
 
 ## Behavior
 
@@ -28,10 +38,13 @@ Implementation commit: `a6b8b10` (`fix(identity): freeze legacy matching and det
 ## Verification
 
 - Web Portal suite: 110 tests passed, 2 skipped because this Windows environment lacks `make`/`sh`.
-- Full `tests/portal_data` suite against repository Compose PostgreSQL 16.4 on `127.0.0.1:55432`: 127 tests passed.
+- Full `tests/portal_data` suite against repository Compose PostgreSQL 16.4 on `127.0.0.1:55432`: 128 tests passed.
 - TASK-068 PostgreSQL fixtures cover the Phase B-consistent state, safe pending/ignored candidates, and fail-closed
   detection for missing/wrong/unreliable identities, missing/extra/revoked qualification, duplicate subject, orphan
   Member link, and unexpected/inconsistent audit rows.
+- Work-requested negative PostgreSQL fixtures separately prove FORCE RLS, a `status_changed` row with a `task065`
+  prefix, malformed deterministic request IDs, and wrong before/after state fail closed. Additional fixtures prove wrong
+  actor, auth identity and target relationships fail through the intended aggregate metric.
 - `python -m compileall -q apps/web_portal shared_lib tools tests/portal_data`: passed using bundled Python 3.12.13.
 - isort check for the three new Python modules: passed.
 - `git diff --check`: passed.
