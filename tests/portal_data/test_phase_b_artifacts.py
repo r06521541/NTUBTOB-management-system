@@ -136,6 +136,29 @@ class PhaseBArtifactStaticTests(unittest.TestCase):
             with self.assertRaises(PhaseBEvidenceError):
                 validate_csv(path, "inventory")
 
+    def test_public_renderer_rejects_unvalidated_mapping_bypasses(self):
+        rows = self._valid_rows(INVENTORY_SCHEMA)
+        valid = validate_rows(rows, "inventory")
+        render_backfill(valid)
+        cases = []
+        partial = dict(valid)
+        partial.pop(next(iter(partial)))
+        cases.append(partial)
+        wrong_revision = dict(valid)
+        wrong_revision[("01_phase_a", "revision")] = "WRONG"
+        cases.append(wrong_revision)
+        nonzero_gate = dict(valid)
+        nonzero_gate[("02_precondition", "people_count")] = "999"
+        cases.append(nonzero_gate)
+        unknown = dict(valid)
+        unknown[("99_unknown", "unexpected")] = "0"
+        cases.append(unknown)
+        for mapping in cases:
+            with self.subTest(keys=len(mapping)), self.assertRaises(
+                PhaseBEvidenceError
+            ):
+                render_backfill(mapping)
+
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class PhaseBArtifactPostgresTests(unittest.TestCase):
@@ -280,6 +303,24 @@ class PhaseBArtifactPostgresTests(unittest.TestCase):
         with self.assertRaises(Exception):
             self._execute(sql)
         self.assertEqual(self._counts(), (0, 0, 0, 0, 0))
+
+    def test_execution_time_forced_rls_and_trigger_drift_fail_before_writes(self):
+        mutations = (
+            "ALTER TABLE ntubtob.people FORCE ROW LEVEL SECURITY",
+            "DROP TRIGGER access_audit_append_only ON ntubtob.access_audit",
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                inventory = validate_rows(
+                    self._evidence_rows(INVENTORY_SQL_PATH), "inventory"
+                )
+                sql = render_backfill(inventory)
+                with self.engine.begin() as connection:
+                    connection.execute(text(mutation))
+                with self.assertRaises(Exception):
+                    self._execute(sql)
+                self.assertEqual(self._counts(), (0, 0, 0, 0, 0))
+                self._reset()
 
     def test_postcheck_rejects_unexpected_and_inconsistent_audit(self):
         inventory = validate_rows(self._evidence_rows(INVENTORY_SQL_PATH), "inventory")

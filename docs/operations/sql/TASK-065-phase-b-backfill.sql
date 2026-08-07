@@ -26,10 +26,18 @@ BEGIN
          ('access_audit','activities','activity_attendance_replies','auth_identities','event_attendance_replies',
           'event_audit','event_eligibility_rules','event_invitee_overrides','event_invitees','event_managers','events',
           'people','person_qualifications') AND c.relrowsecurity) <> 13
+     OR (SELECT count(*) FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+         WHERE n.nspname='ntubtob' AND c.relname IN
+         ('access_audit','activities','activity_attendance_replies','auth_identities','event_attendance_replies',
+          'event_audit','event_eligibility_rules','event_invitee_overrides','event_invitees','event_managers','events',
+          'people','person_qualifications') AND c.relforcerowsecurity) <> 0
      OR (SELECT count(*) FROM pg_catalog.pg_policies WHERE schemaname='ntubtob' AND tablename IN
          ('access_audit','activities','activity_attendance_replies','auth_identities','event_attendance_replies',
           'event_audit','event_eligibility_rules','event_invitee_overrides','event_invitees','event_managers','events',
-          'people','person_qualifications')) <> 0 THEN
+          'people','person_qualifications')) <> 0
+     OR (SELECT count(*) FROM pg_catalog.pg_trigger t JOIN pg_catalog.pg_class c ON c.oid=t.tgrelid
+         JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='ntubtob'
+         AND t.tgname IN ('access_audit_append_only','event_audit_append_only') AND NOT t.tgisinternal) <> 2 THEN
     RAISE EXCEPTION 'TASK-065 Phase A boundary drift';
   END IF;
   IF (SELECT count(*) FROM ntubtob.members) <> {{member_count}}

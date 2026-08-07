@@ -282,7 +282,26 @@ def _inventory_counts(inventory: Mapping[tuple[str, str], str]) -> dict[str, str
     }
 
 
+def _validate_inventory_mapping(inventory: Mapping[tuple[str, str], str]) -> None:
+    supplied = set(inventory)
+    expected = set(INVENTORY_SCHEMA)
+    if supplied != expected:
+        missing = sorted(expected - supplied)
+        unknown = sorted(supplied - expected)
+        raise PhaseBEvidenceError(
+            f"inventory mapping contract mismatch; missing={missing}; unknown={unknown}"
+        )
+    errors = []
+    for key, spec in INVENTORY_SCHEMA.items():
+        value = inventory[key]
+        if not isinstance(value, str) or not spec.gate(value):
+            errors.append(key)
+    if errors:
+        raise PhaseBEvidenceError(f"inventory mapping gate failed: {sorted(errors)}")
+
+
 def render_backfill(inventory: Mapping[tuple[str, str], str]) -> str:
+    _validate_inventory_mapping(inventory)
     verify_mutation_template(BACKFILL_SQL_PATH)
     counts = _inventory_counts(inventory)
     sql = BACKFILL_SQL_PATH.read_text(encoding="utf-8")

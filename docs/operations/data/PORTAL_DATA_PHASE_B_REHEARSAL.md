@@ -29,6 +29,11 @@ fresh inventory evidence and explicit Owner approval.
   with counts only. Redirect generated output outside the repository; do not commit production evidence or rendered
   execution SQL.
 
+`render_backfill()` is itself a fail-closed public boundary: it requires exactly every `INVENTORY_SCHEMA` key and
+reapplies each metric gate. A caller cannot bypass CSV validation with a partial mapping, wrong revision, nonzero stop
+gate or unknown key. The rendered SQL independently rechecks zero forced RLS and both append-only triggers immediately
+before mutation, in addition to the table/RLS/policy and aggregate-count gates.
+
 The SQL Editor CSV contract is exactly `section,metric,status,boolean_value,integer_value,text_value`. Outputs contain
 only booleans, counts and the expected migration revision.
 
