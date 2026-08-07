@@ -8,6 +8,25 @@
 - Implementation commit: `ea241f7`
 - Branch: `codex/task056-production-backup-authorization`
 
+### TOC identifier compatibility correction
+
+- Correction base: `0e8138e09688eff8ae87ba8881f9ae5cbbb9a1d6`
+- Work planning commit: `80f35d7d8c0f7bbda091971407f29d172e1d81c2`
+- Correction commit: `50902dd`
+- Correction branch: `codex/task056-toc-identifier-compatibility`
+- Work reported that the approved session-pooler dump produced one retained 56,903-byte custom
+  archive, but verifier evidence creation failed closed before sidecar creation. Codex did not access
+  that archive, its destination or the credential env-file.
+- The failure was reproduced only with a conspicuously fake TOC line containing the repository-known
+  legitimate identifier `line_notify_tokens`. The previous unbounded `token` alternative matched the
+  identifier substring.
+- `password`, `secret` and `token` now require ASCII identifier boundaries. Standalone terms and
+  hyphen-delimited values remain rejected, while `line_notify_tokens` is accepted as one identifier.
+- The fake TOC regression covers all ten legacy table names recorded in the committed, sanitized
+  TASK-049 catalog, preventing another known identifier-substring collision from escaping review.
+- URL/DSN, SQL injection, foreign-schema, arbitrary-TOC and standard comment-metadata defenses are
+  unchanged.
+
 ## Delivered behavior
 
 - Added an explicit `--backend docker` inspection path while preserving `host` as the CLI default.
@@ -50,6 +69,16 @@
   attempted. Hosted Python 3.10 CI therefore remains required after a separately authorized push/PR.
 - No real Docker command was executed; behavior is offline/mock verified only.
 
+Correction verification:
+
+- Available Visual Studio Python 3.9 focused suite: 19/19 passed, including the new legitimate
+  identifier regression across all ten TASK-049 legacy tables and standalone
+  `token`/`secret`/`password`/`token-value` mutations.
+- Available Python 3.9 compile check: passed.
+- `git diff --check`: passed before the correction commit.
+- Python 3.10, Black and isort commands could not start because the configured Microsoft Store
+  Python executable remains unavailable; Work/hosted CI must repeat them.
+
 ## Safety confirmation
 
 - No env-file, `.env.yaml`, DSN, credential, Secret, host, project ref, role or external Owner file was
@@ -59,6 +88,8 @@
   occurred.
 - No production data, schema, RLS/grant/role, cloud resource or deployment setting was touched.
 - No push, PR, merge or deployment occurred.
+- During the correction, Codex did not read or inspect the retained production archive or env-file,
+  start Docker, connect remotely, execute dump/restore/SQL/migration or create sidecars.
 
 ## Remaining risk and next gate
 
@@ -68,3 +99,5 @@
   scope; this Codex task does not prove Docker Desktop path syntax against the intended destination.
 - Production dump remains blocked. This prerequisite does not authorize env-file access, Supabase,
   archive creation/inspection, restore, migration or any production operation.
+- Re-verifying the retained archive remains blocked until this correction is reviewed, merged and
+  separately approved by Owner; the production dump must not be repeated.

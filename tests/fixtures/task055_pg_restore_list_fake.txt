@@ -1,7 +1,7 @@
 ;
 ; Archive created at 2026-01-02 03:04:05 UTC
 ;     dbname: task055_fake_local
-;     TOC Entries: 18
+;     TOC Entries: 27
 ;     Compression: gzip
 ;     Dump Version: 1.15-0
 ;     Format: CUSTOM
@@ -19,3 +19,12 @@
 14; 0 0 SEQUENCE SET ntubtob members_id_seq fake_owner
 15; 2606 126 CONSTRAINT ntubtob members pk_members fake_owner
 16; 0 127 ROW SECURITY ntubtob members fake_owner
+17; 1259 128 TABLE ntubtob line_notify_tokens fake_owner
+18; 1259 129 TABLE ntubtob attendance_reply_types fake_owner
+19; 1259 130 TABLE ntubtob ballparks fake_owner
+20; 1259 131 TABLE ntubtob cancellations fake_owner
+21; 1259 132 TABLE ntubtob discord_webhooks fake_owner
+22; 1259 133 TABLE ntubtob game_attendance_replies fake_owner
+23; 1259 134 TABLE ntubtob games fake_owner
+24; 1259 135 TABLE ntubtob line_groups fake_owner
+25; 1259 136 TABLE ntubtob line_users fake_owner

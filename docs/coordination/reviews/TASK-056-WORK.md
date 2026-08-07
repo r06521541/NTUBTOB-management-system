@@ -57,3 +57,21 @@ Python 3.10 CI／merge 後，由 Work 重新鎖定 merged commit 與 exact comma
 
 未讀 `.env.yaml`／env-file／DSN／secret，未連 remote／production，未執行 production dump、restore、SQL、
 migration、schema/cloud change 或 deployment。
+
+## TOC identifier compatibility correction 驗收
+
+結論：`accepted`，可進入 push／PR／Python 3.10 CI 閘門。
+
+- 驗收 branch：`codex/task056-toc-identifier-compatibility`
+- 實作 commit：`50902dd7df86741f30e9d4632ed2af9d7332037b`
+- `line_notify_tokens` 等十張 TASK-049 catalog 既有表名均可通過假 TOC 驗證。
+- `password`、`secret`、`token` 僅在 ASCII identifier 邊界完整出現時命中；獨立詞與
+  `token-value` 仍會 fail closed，URL／DSN、SQL、foreign schema 與任意 TOC 防線未移除。
+- Visual Studio Python 3.9 focused suite：19/19 passed。
+- Python compile：passed；`git diff --check`：passed；working tree clean。
+- 本機已登錄的 Python 3.10 WindowsApps executable 無法啟動，故 Python 3.10 證據必須由 hosted CI 補足。
+- 驗收期間未讀 production archive／env-file，未啟動 Docker、連線 Supabase、重跑 dump、建立 sidecar、
+  restore、執行 SQL／migration 或部署。
+
+此接受不授權重新檢查 retained production archive。修正 merge 後仍須由 Owner 另行批准只對既有 archive
+執行 verifier `create`／`verify`；不得重跑 production dump。

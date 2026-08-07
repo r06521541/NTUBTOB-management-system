@@ -121,6 +121,26 @@ TASK-056 只有在以下皆完成才可結案：
 4. Sanitized evidence review 完成；archive 留在 approved encrypted location。
 5. Phase A 仍未執行，下一步另開 isolated restore rehearsal／maintenance gate。
 
+## Production attempt evidence and required compatibility fix
+
+- Direct-connection attempt failed with output suppressed and produced only a 0-byte artifact; Owner approved deletion
+  of that exact empty file. No retry occurred under the direct approval.
+- Owner changed the private env-file to session-pooler and approved one new attempt. The production schema-scoped
+  custom archive completed successfully at 56,903 bytes.
+- Docker verifier `create` then failed closed before sidecar creation with generic category
+  `archive TOC failed the sanitized-content contract`; archive is retained, manifest/checksum are absent, and no dump
+  retry, cleanup, restore or migration occurred.
+- Repository sanitized catalog already contains the legitimate table identifier `line_notify_tokens`. The current
+  sensitive regex treats the identifier substring `token` as a secret token, so this is the primary reproducible
+  compatibility hypothesis; Codex must not inspect the production archive or listing.
+
+Codex must add a regression using only conspicuously fake TOC metadata and repository-known identifier
+`line_notify_tokens`, then narrow `password`／`secret`／`token` detection to standalone sensitive terms rather than
+valid identifier substrings. Tests must still reject standalone token/secret/password values, URLs/DSNs, SQL injection,
+foreign schemas and arbitrary TOC lines. Do not special-case an unreviewed production listing or remove the overall
+sensitive scan. After Work review and Python 3.10 CI/merge, re-verifying the retained production archive requires a new
+Owner approval; production dump must not be repeated.
+
 ## Base commit
 
 `84c20dbbab6c6134fcd1a3d010aefc154aa93e22`
