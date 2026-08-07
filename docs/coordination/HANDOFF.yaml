@@ -1,15 +1,15 @@
-active_task: TASK-053
+active_task: TASK-055
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 7f53c12e590944e3d98b17df33cd8180b57869b1
-head_commit: 10e1e347b76a39db398d6e850d1cd37a394d91ef
+base_commit: fd647c01da9d7cc968a28e0b7229e1993b92abe1
+head_commit: 400d37d0c891eef9669fe62d85735e7918600b12
 
 updated_by: work
-updated_at: 2026-08-07T10:45:00+08:00
+updated_at: 2026-08-07T13:25:00+08:00
 
 note: >
-  Work accepted TASK-053 after inspecting the actual commits and diff, rerunning 14 tests and compile, and validating
-  the repository-external Owner CSV read-only as the fixed 33-row contract without printing, copying or committing it.
-  Local Python 3.10 and Black/isort evidence remains unavailable and should be supplied by PR CI. No Supabase connection,
-  SQL execution, schema/RLS/role/backup mutation, secret access, push, PR, merge or deployment occurred.
+  Work accepted TASK-055 after code/boundary review, 13 tests, compile/diff checks, an isolated PostgreSQL 16.4 fake
+  dump/list/restore rehearsal, and a successful corrected-parser rerun against the real fake archive listing. The
+  task-owned container is stopped and named volume retained. Python 3.10 and format evidence remains for PR CI.
+  Production backup, restore and Phase A migration remain blocked and require later exact Owner-approved work packages.

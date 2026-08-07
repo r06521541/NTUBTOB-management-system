@@ -15,7 +15,13 @@
 
 ## 2. Preflight result
 
-- Backup/PITR readiness confirmed by Owner: `yes / no`
+- Provider backup/PITR readiness confirmed by Owner: `yes / no`
+- Approved logical archive basename (generic UTC contract only; no path):
+- Logical archive SHA-256:
+- Logical archive byte size:
+- Sanitized manifest fixed-contract validation: `yes / no`
+- Retained-copy second checksum/listing validation: `yes / no`
+- Isolated non-production restore fidelity confirmed: `yes / no`
 - Restore procedure and authority confirmed: `yes / no`
 - Catalog fingerprint matches TASK-049 sanitized catalog: `yes / no`
 - `ntubtob.alembic_version` absent before baseline: `yes / no`
@@ -25,7 +31,10 @@
 - RLS decision recorded and approved: `yes / no`
 - Conflicting application/deployment change frozen: `yes / no`
 
-Stop if any answer is `no` or unknown.
+Stop if any required answer is `no` or unknown. When provider backup/PITR is unavailable, that one
+answer may remain `no` only if every logical-archive and
+isolated-restore item above is `yes` and Owner explicitly accepts that recovery boundary. Never attach
+the archive, manifest contents, listing, storage path or connection metadata to this evidence file.
 
 ## 3. Execution evidence
 
