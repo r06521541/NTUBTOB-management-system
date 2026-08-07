@@ -127,6 +127,10 @@
 
 ## 4. 當前工作
 
+- `TASK-051` 已建立為 production portal-data migration readiness package：產出 deterministic
+  upgrade-only SQL、離線安全 verifier、transaction failure／bounded lock rehearsal、RLS 決策包與
+  production runbook。任務只允許 local exact fixture，不連 Supabase、不執行 production stamp／DDL／
+  backfill；真正 schema 操作仍需 Owner 另案精確批准。
 - `TASK-050` 補正後已通過 Work 離線驗收：local exact-schema fixture、bigint migration、
   deterministic attendance projection 與 Alembic ownership boundary 均已建立。Python 3.10 的
   35 項測試、完整 downgrade／fixture rebuild／upgrade chain、compile 與 `alembic check` 通過，
