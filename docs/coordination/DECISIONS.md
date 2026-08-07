@@ -725,3 +725,14 @@
 - 保留決策：新unlinked user視為pending candidate；ignored維持獨立人工判定，不自動映射blocked／disabled；
   People activation、remap/unlink與transactional dual-write另案處理。
 - 安全邊界：repository/local-only，不連production、不部署、不改schema／RLS／Secret／IAM／Scheduler或通知。
+
+## DEC-071：部署 default-off identity maintenance guard
+
+- 狀態：`approved_and_executed`
+- 日期：2026-08-07
+- 決策：Owner批准將TASK-068 exact commit `44acdcd1576be57fe2d9c08861872fa75146a2ef`部署至production
+  `web-portal`，maintenance flag維持不存在／default-off，不啟用legacy identity maintenance。
+- 結果：Cloud Build `e8534be4-cb7a-4efc-814d-ba4fa735ccf4`成功；`web-portal-00040-wm9` Ready並承接
+  100% traffic；首頁200、production demo 404，public IAM與runtime Secret classifications維持，未觸發rollback。
+- 安全邊界：未人工登入或呼叫match／ignore、未讀寫production DB、未發通知、未修改Secret／IAM／Scheduler／
+  schema／RLS，也未部署其他服務。Phase C transactional dual-write仍須另案。

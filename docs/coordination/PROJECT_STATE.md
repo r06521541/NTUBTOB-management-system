@@ -463,3 +463,15 @@
 - Web Portal 產品與風險規劃：`docs/planning/WEB_PORTAL_PLAN.md`。
 - TASK-004 Codex report：`docs/coordination/reports/TASK-004-CODEX.md`。
 - TASK-004 Work review：`docs/coordination/reviews/TASK-004-WORK.md`。
+
+### TASK-069 Web Portal identity maintenance guard production deployment（2026-08-07）
+
+- Owner批准將`44acdcd1576be57fe2d9c08861872fa75146a2ef`部署至production `web-portal`。
+- 部署前`web-portal-00039-87s` Ready且承接100% traffic，作為exact rollback target。
+- Cloud Build `e8534be4-cb7a-4efc-814d-ba4fa735ccf4`成功；新revision `web-portal-00040-wm9`
+  Ready並承接100% traffic，image digest為`sha256:1c4ec082515fd0369ead487ccf02137fa76b42fb666bf4fae47a90a78c6cf01c`。
+- 首頁200、production demo 404、public IAM與runtime Secret classifications維持；新revision 30分鐘範圍內
+  ERROR log為0，未觸發rollback。
+- Maintenance flag維持不存在／default-off，因此legacy match／ignore POST在production fail closed；未做具副作用的
+  管理POST、DB、LINE／Discord、Secret、IAM、Scheduler、schema或其他服務操作。
+- 完整證據見`docs/operations/deployments/WEB_PORTAL_44ACDCD.md`及`docs/coordination/reviews/TASK-069-WORK.md`。

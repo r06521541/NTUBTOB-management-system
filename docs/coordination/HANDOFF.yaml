@@ -1,16 +1,16 @@
-active_task: TASK-068
+active_task: TASK-069
 status: completed
 next_actor: owner
 
-base_commit: f1df7e3
-head_commit: a69ab20
+base_commit: 44acdcd
+head_commit: 44acdcd
 
 updated_by: work
-updated_at: 2026-08-07T23:28:44+08:00
+updated_at: 2026-08-07T23:45:17+08:00
 
 note: >
-  Work accepted TASK-068 after the forced-RLS and exact audit gates were fixed. Local PostgreSQL 16 passed 128/128,
-  Web Portal passed 110 with two existing Windows tool skips, and PR #67 hosted Python 3.10 formatting plus every required
-  suite passed. The guard is default-off and stops match/ignore before DB or Discord side effects, but it is not deployed;
-  production maintenance remains manually frozen. No production inventory, dual-write, schema/RLS change, deployment or
-  notification occurred. Deploying the default-off guard requires separate Owner approval.
+  Owner approved TASK-069 production deployment. Commit 44acdcd was deployed as web-portal-00040-wm9 and now serves
+  100% traffic; root returned 200, production demo returned 404, public IAM and runtime Secret classifications remained
+  intact, and no rollback was required. WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED remains absent/default-off, so legacy
+  match/ignore POST stays fail closed. No management POST, production DB write, notification, Secret/IAM/Scheduler/schema
+  change or other service deployment occurred.
