@@ -1,16 +1,17 @@
 active_task: TASK-059
-status: awaiting_owner_approval
+status: awaiting_owner_decision
 next_actor: owner
 
 base_commit: 8f41dbcdb1d1dbcf271b02e08d3cefb250466e48
-head_commit: null
+head_commit: f48cb16
 
 updated_by: work
-updated_at: 2026-08-07T16:45:00+08:00
+updated_at: 2026-08-07T17:00:00+08:00
 
 note: >
-  Owner approved starting the Phase A read-only baseline now. TASK-059 reuses the reviewed TASK-052 SQL at exact
-  SHA-256 6b5da04c...4260. Owner must run it once unchanged in Supabase SQL Editor and return only the six-column CSV
-  outside Git. Work will validate 33 generic metrics and catalog/access drift. This approval does not authorize Work
-  access, DDL/DML, migration/baseline stamp, RLS/grant/role change, deployment or notification. The result expires if
-  schema/access/deployment maintenance occurs or the current work window is interrupted.
+  Work validated the Owner CSV: 33-metric contract passed, all legacy fingerprints match, 10 tables keep RLS,
+  alembic_version is absent and new portal tables are zero. The SQL Editor session is a non-superuser migration owner
+  that bypasses RLS, can create roles/databases and has all legacy write privileges. Two artifact gaps block execution:
+  current SQL assumes baseline marker already exists, and 13 new tables do not enable RLS. Owner must decide whether
+  to accept this exact high-privilege role for one reviewed transaction and enable RLS with zero Phase-A policies.
+  After artifact correction/CI, the read-only baseline must be rerun; no migration is currently authorized.

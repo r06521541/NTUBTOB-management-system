@@ -20,6 +20,9 @@
   artifact set未變更。這證明 archive可還原，但不取代 Phase A 前的當下 production read-only baseline。
 - TASK-059 已開始：Owner批准立即執行既有 reviewed read-only Supabase catalog/access SQL；等待 repository 外
   six-column CSV供 Work驗證。結果只在目前無 schema/access/deployment變更的 migration window內有效。
+- TASK-059 baseline已驗證：33 metrics與三個 fingerprints通過，legacy 10 tables、RLS 10/10、無 Alembic marker
+  或新表。SQL Editor role是高權限 migration owner。現有 migration artifact缺 baseline marker建立且13張新表
+  未 enable RLS，故不得執行；等待 Owner角色/RLS決策後建立 TASK-060，完成後須重跑 execution-time baseline。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。
