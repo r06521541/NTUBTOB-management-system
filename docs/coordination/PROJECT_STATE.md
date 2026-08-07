@@ -57,6 +57,9 @@
   PostgreSQL 16 portal_data 121/121通過。Inventory-bound mutation會在寫入前重驗Phase A、legacy counts、forced
   RLS與audit triggers；Member為basic/inactive且僅可靠LINE-linked Member取得team_player。Commit前可exact
   rollback，commit後因append-only audit只能forward compensation。尚未執行任何production inventory/backfill。
+- TASK-066已建立為Phase B正式去識別化唯讀inventory execution gate，固定merge commit、SQL checksum、六欄CSV、
+  strict validator、freshness/freeze及stop boundary，等待Owner精確批准。此任務不render或執行backfill；正式DML
+  仍須後續TASK-067另行批准。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

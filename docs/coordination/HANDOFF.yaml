@@ -1,16 +1,16 @@
-active_task: TASK-065
-status: completed
+active_task: TASK-066
+status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: d33a42a9219f33a2bc191deba910de986fcb027e
-head_commit: 04a10787d500793a43a41d93e902b2a41f64fcc6
+base_commit: 8f40278bdbdabc0876ededba77264fa1016fd04b
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T22:32:54+08:00
+updated_at: 2026-08-07T22:40:00+08:00
 
 note: >
-  Work accepted TASK-065 after three review rounds. The final public renderer rejects incomplete or unsafe inventory;
-  execution-time count, RLS and append-only-trigger drift fail before writes; local PostgreSQL 16 passed all 121
-  portal_data tests. Member defaults remain basic/inactive and only reliable non-ignored LINE-linked Members receive
-  team_player. No production inventory/backfill, Phase C, Secret, cloud mutation, deployment or notification occurred.
-  Exact rollback is pre-commit only; committed recovery must preserve audit history through forward compensation.
+  TASK-066 fixes the exact merged commit, checksum and one-time read-only Supabase SQL Editor inventory contract. It
+  awaits Owner approval to execute only that sanitized transaction and provide the repository-external six-column CSV
+  for Work validation. It does not authorize rendering or executing backfill, post-check, DML/DDL, Phase C, deployment,
+  Secret/IAM/Scheduler changes or notifications. Member/LINE matching and portal schema/security maintenance must remain
+  frozen after inventory until execution or evidence expiry.
