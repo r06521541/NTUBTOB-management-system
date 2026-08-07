@@ -3,7 +3,6 @@ import secrets
 from functools import wraps
 
 from flask import abort, redirect, request, session, url_for
-
 from role_policy import (
     MANAGE_MEMBERS,
     VIEW_MEMBER_PORTAL,
@@ -11,10 +10,15 @@ from role_policy import (
     resolve_production_principal,
 )
 
-
 ADMIN_MEMBER_IDS_ENV = "WEB_PORTAL_ADMIN_MEMBER_IDS"
 CSRF_SESSION_KEY = "member_matching_csrf_token"
 LOGOUT_CSRF_SESSION_KEY = "logout_csrf_token"
+_phase_c_principal_loader = None
+
+
+def configure_phase_c_principal_loader(loader):
+    global _phase_c_principal_loader
+    _phase_c_principal_loader = loader
 
 
 def parse_admin_member_ids(value):
@@ -59,6 +63,12 @@ def capability_required(capability):
 
 def get_current_principal():
     """Resolve the current production principal without persisting its role."""
+    if _phase_c_principal_loader is not None:
+        principal = _phase_c_principal_loader(session)
+        # False means Phase C is deliberately disabled. Once enabled, a None
+        # result is fail-closed and must not fall back to legacy authorization.
+        if principal is not False:
+            return principal
     allowlist = parse_admin_member_ids(os.environ.get(ADMIN_MEMBER_IDS_ENV))
     return resolve_production_principal(session, allowlist)
 

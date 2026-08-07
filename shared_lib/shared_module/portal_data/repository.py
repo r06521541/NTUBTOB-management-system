@@ -26,6 +26,7 @@ from .domain import (
     is_qualification_active,
     require_choice,
     require_reason,
+    validate_guest_period,
 )
 from .models import (
     AccessAuditRecord,
@@ -58,6 +59,8 @@ class TeamPortalRepository(Protocol):
         status: str = "active",
         member_id: int | None = None,
         qualifications: Iterable[str] = (),
+        guest_valid_from: datetime | None = None,
+        guest_valid_until: datetime | None = None,
     ) -> Person: ...
 
     def create_pending_identity(self, provider: str, subject: str) -> AuthIdentity: ...
@@ -85,6 +88,8 @@ class TeamPortalRepository(Protocol):
         display_name: str | None = None,
         member_id: int | None = None,
         qualifications: Iterable[str] = (),
+        guest_valid_from: datetime | None = None,
+        guest_valid_until: datetime | None = None,
     ) -> Person: ...
 
     def block_identity(
@@ -184,6 +189,8 @@ class InMemoryTeamPortalRepository:
         status: str = "active",
         member_id: int | None = None,
         qualifications: Iterable[str] = (),
+        guest_valid_from: datetime | None = None,
+        guest_valid_until: datetime | None = None,
     ) -> Person:
         require_choice(access_level, ACCESS_LEVELS, "access level")
         require_choice(status, PORTAL_STATUSES, "portal status")
@@ -199,7 +206,12 @@ class InMemoryTeamPortalRepository:
                 self.members[member_id] = person.id
                 self.member_names.setdefault(member_id, display_name)
             for qualification in qualifications:
-                self.grant_qualification(person.id, qualification)
+                self.grant_qualification(
+                    person.id,
+                    qualification,
+                    guest_valid_from if qualification == "guest_player" else None,
+                    guest_valid_until if qualification == "guest_player" else None,
+                )
             return person
 
     def add_legacy_member(self, member_id: int, name: str) -> None:
@@ -247,6 +259,8 @@ class InMemoryTeamPortalRepository:
     ) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
         self.get_person(person_id)
+        if qualification == "guest_player":
+            validate_guest_period(valid_from, valid_until)
         if valid_from and valid_until and valid_until <= valid_from:
             raise ConflictError("qualification validity is inverted")
         self.qualifications[(person_id, qualification)] = {
@@ -265,6 +279,8 @@ class InMemoryTeamPortalRepository:
         display_name: str | None = None,
         member_id: int | None = None,
         qualifications: Iterable[str] = (),
+        guest_valid_from: datetime | None = None,
+        guest_valid_until: datetime | None = None,
     ) -> Person:
         reason = require_reason(reason)
         with self._lock:
@@ -292,6 +308,8 @@ class InMemoryTeamPortalRepository:
                             display_name,
                             member_id=member_id,
                             qualifications=qualifications,
+                            guest_valid_from=guest_valid_from,
+                            guest_valid_until=guest_valid_until,
                         ).id
                 person = self.get_person(person_id)
                 linked = AuthIdentity(
@@ -648,6 +666,8 @@ class PostgresTeamPortalRepository:
         status: str = "active",
         member_id: int | None = None,
         qualifications: Iterable[str] = (),
+        guest_valid_from: datetime | None = None,
+        guest_valid_until: datetime | None = None,
     ) -> Person:
         require_choice(access_level, ACCESS_LEVELS, "access level")
         require_choice(status, PORTAL_STATUSES, "portal status")
@@ -676,11 +696,23 @@ class PostgresTeamPortalRepository:
                     raise ConflictError("member missing or already linked")
             for qualification in qualifications:
                 require_choice(qualification, QUALIFICATIONS, "qualification")
+                if qualification == "guest_player":
+                    validate_guest_period(guest_valid_from, guest_valid_until)
                 session.add(
                     PersonQualificationRecord(
                         person_id=row.id,
                         qualification=qualification,
                         status="active",
+                        valid_from=(
+                            guest_valid_from
+                            if qualification == "guest_player"
+                            else None
+                        ),
+                        valid_until=(
+                            guest_valid_until
+                            if qualification == "guest_player"
+                            else None
+                        ),
                         created_at=now,
                         updated_at=now,
                     )
@@ -744,6 +776,8 @@ class PostgresTeamPortalRepository:
         valid_until: datetime | None = None,
     ) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
+        if qualification == "guest_player":
+            validate_guest_period(valid_from, valid_until)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
             row = session.scalar(
@@ -780,6 +814,8 @@ class PostgresTeamPortalRepository:
         display_name: str | None = None,
         member_id: int | None = None,
         qualifications: Iterable[str] = (),
+        guest_valid_from: datetime | None = None,
+        guest_valid_until: datetime | None = None,
     ) -> Person:
         reason = require_reason(reason)
         now = utc_now()
@@ -839,11 +875,23 @@ class PostgresTeamPortalRepository:
                 identity.updated_at = now
                 for qualification in qualifications:
                     require_choice(qualification, QUALIFICATIONS, "qualification")
+                    if qualification == "guest_player":
+                        validate_guest_period(guest_valid_from, guest_valid_until)
                     session.add(
                         PersonQualificationRecord(
                             person_id=person.id,
                             qualification=qualification,
                             status="active",
+                            valid_from=(
+                                guest_valid_from
+                                if qualification == "guest_player"
+                                else None
+                            ),
+                            valid_until=(
+                                guest_valid_until
+                                if qualification == "guest_player"
+                                else None
+                            ),
                             created_at=now,
                             updated_at=now,
                         )

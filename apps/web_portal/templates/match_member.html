@@ -24,7 +24,9 @@
                             <h5>{{ line_user.nickname }}</p>
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('ignore_line_user') }}" {% if not identity_maintenance_enabled %}disabled{% endif %}>忽視他</button>
+                            <input type="hidden" name="request_id" value="identity-match-{{ csrf_token }}-{{ loop.index }}">
+                            <label>原因 <input name="reason" minlength="3" maxlength="300" required {% if not identity_maintenance_enabled %}disabled{% endif %}></label>
+                            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('ignore_line_user') }}" onclick="this.form.request_id.value='identity-ignore-{{ csrf_token }}-{{ loop.index }}'" {% if not identity_maintenance_enabled %}disabled{% endif %}>暫時忽略</button>
                         </div>
                         <div class="col-md-2">
                             <p>或是將他綁定為</p>

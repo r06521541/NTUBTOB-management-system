@@ -39,11 +39,21 @@ class PersonRecord(PortalDataBase):
             "portal_status IN ('pending', 'active', 'disabled', 'inactive', 'blocked')",
             name="ck_people_status",
         ),
+        CheckConstraint(
+            "formal_name IS NULL OR length(btrim(formal_name)) BETWEEN 1 AND 120",
+            name="ck_people_formal_name",
+        ),
+        CheckConstraint(
+            "admin_note IS NULL OR length(btrim(admin_note)) BETWEEN 1 AND 1000",
+            name="ck_people_admin_note",
+        ),
         {"schema": SCHEMA},
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    formal_name: Mapped[Optional[str]] = mapped_column(String(120))
+    admin_note: Mapped[Optional[str]] = mapped_column(String(1000))
     portal_access_level: Mapped[str] = mapped_column(String(20), nullable=False)
     portal_status: Mapped[str] = mapped_column(String(20), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -86,10 +96,71 @@ class LegacyGameRecord(PortalDataBase):
     home_team: Mapped[Optional[str]] = mapped_column(String)
     away_team: Mapped[Optional[str]] = mapped_column(String)
     invitation_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    cancellation_time: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True)
+    )
     cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True)
     )
+
+
+class LegacyLineUserRecord(PortalDataBase):
+    __tablename__ = "line_users"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    nickname: Mapped[str] = mapped_column(String, nullable=False)
+    line_user_id: Mapped[str] = mapped_column(String, nullable=False)
+    member_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.members.id")
+    )
+    submit_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    has_replied: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    ignored: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class LegacyAttendanceReplyTypeRecord(PortalDataBase):
+    __tablename__ = "attendance_reply_types"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class LegacyGameAttendanceReplyRecord(PortalDataBase):
+    __tablename__ = "game_attendance_replies"
+    __table_args__ = {"schema": SCHEMA}
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    game_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.games.id"), nullable=False
+    )
+    user_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.line_users.id")
+    )
+    member_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.members.id")
+    )
+    person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    reply: Mapped[int] = mapped_column(
+        SmallInteger,
+        ForeignKey(f"{SCHEMA}.attendance_reply_types.id"),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_game_attendance_person_game_updated",
+    LegacyGameAttendanceReplyRecord.person_id,
+    LegacyGameAttendanceReplyRecord.game_id,
+    LegacyGameAttendanceReplyRecord.updated_at.desc(),
+    LegacyGameAttendanceReplyRecord.id.desc(),
+)
 
 
 class AuthIdentityRecord(PortalDataBase):
@@ -147,6 +218,13 @@ class PersonQualificationRecord(PortalDataBase):
             "valid_until IS NULL OR valid_from IS NULL OR valid_until > valid_from",
             name="ck_qualification_dates",
         ),
+        CheckConstraint(
+            "qualification <> 'guest_player' OR "
+            "(valid_from IS NOT NULL AND valid_until IS NOT NULL AND "
+            "valid_until > valid_from AND "
+            "valid_until <= valid_from + interval '5 years')",
+            name="ck_guest_player_bounded",
+        ),
         {"schema": SCHEMA},
     )
 
@@ -185,9 +263,14 @@ class AccessAuditRecord(PortalDataBase):
     __table_args__ = (
         UniqueConstraint("request_id", name="uq_access_audit_request"),
         CheckConstraint(
-            "action IN ('identity_linked', 'identity_blocked', 'access_changed', "
-            "'status_changed', 'qualification_granted', 'qualification_revoked', "
-            "'member_backfilled')",
+            "action IN ('identity_pending', 'identity_linked', 'identity_ignored', "
+            "'identity_unignored', 'identity_unlinked', 'identity_remapped', "
+            "'identity_disabled', 'identity_enabled', 'identity_rejected', "
+            "'identity_unblocked', 'identity_blocked', 'person_approved', "
+            "'person_profile_updated', 'access_changed', 'status_changed', "
+            "'qualification_granted', 'qualification_revoked', "
+            "'qualification_restored', 'review_message_sent', 'review_closed', "
+            "'review_redacted', 'member_backfilled')",
             name="ck_access_audit_action",
         ),
         CheckConstraint(
@@ -214,6 +297,92 @@ class AccessAuditRecord(PortalDataBase):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
+
+
+class IdentityReviewThreadRecord(PortalDataBase):
+    __tablename__ = "identity_review_threads"
+    __table_args__ = (
+        UniqueConstraint("auth_identity_id", name="uq_identity_review_thread"),
+        CheckConstraint(
+            "status IN ('open', 'closed')", name="ck_identity_review_thread_status"
+        ),
+        CheckConstraint(
+            "(status = 'open' AND closed_at IS NULL) OR "
+            "(status = 'closed' AND closed_at IS NOT NULL)",
+            name="ck_identity_review_thread_closed",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    auth_identity_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    last_applicant_message_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True)
+    )
+    last_activity_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    redacted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_identity_review_threads_status_activity",
+    IdentityReviewThreadRecord.status,
+    IdentityReviewThreadRecord.last_activity_at,
+)
+
+
+class IdentityReviewMessageRecord(PortalDataBase):
+    __tablename__ = "identity_review_messages"
+    __table_args__ = (
+        CheckConstraint(
+            "(sender_role = 'applicant' AND sender_person_id IS NULL) OR "
+            "(sender_role = 'admin' AND sender_person_id IS NOT NULL)",
+            name="ck_identity_review_sender",
+        ),
+        CheckConstraint(
+            "(body_redacted IS FALSE AND length(body) BETWEEN 1 AND 1000) OR "
+            "(body_redacted IS TRUE AND body IS NULL)",
+            name="ck_identity_review_body",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    thread_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.identity_review_threads.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    sender_role: Mapped[str] = mapped_column(String(20), nullable=False)
+    sender_person_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT")
+    )
+    body: Mapped[Optional[str]] = mapped_column(Text)
+    body_redacted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_identity_review_messages_thread_created",
+    IdentityReviewMessageRecord.thread_id,
+    IdentityReviewMessageRecord.created_at,
+    IdentityReviewMessageRecord.id,
+)
 
 
 class EventRecord(PortalDataBase):

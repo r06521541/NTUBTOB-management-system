@@ -1,0 +1,22 @@
+{% extends 'demo/base.html' %}
+{% block title %}Phase C 身分生命週期示範{% endblock %}
+{% block content %}
+<section class="card">
+  <span class="eyebrow">LOCAL SESSION-ONLY DEMO</span>
+  <h1>Person 與 LINE 身分生命週期</h1>
+  <p>此頁只改變目前瀏覽器的 demo session，不連資料庫、不通知 LINE 或 Discord。</p>
+  <dl>
+    <div><dt>Identity</dt><dd>{{ state.identity_status }}{% if state.ignored %} · ignored{% endif %}</dd></div>
+    <div><dt>Person</dt><dd>{{ state.person_status or '尚未建立' }}</dd></div>
+    <div><dt>Qualification</dt><dd>{{ state.qualification or '尚未授予' }}</dd></div>
+  </dl>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button name="action" value="{{ 'unignore' if state.ignored else 'ignore' }}">{{ '取消忽略' if state.ignored else '暫時忽略' }}</button>
+    <button name="action" value="{{ 'unblock' if state.identity_status == 'blocked' else 'reject' }}">{{ '解除拒絕' if state.identity_status == 'blocked' else '拒絕申請' }}</button>
+    <button name="action" value="approve_guest">核可五年內 Guest</button>
+    <button name="action" value="revoke_guest">撤銷 Guest 資格</button>
+    <button name="action" value="{{ 'activate_person' if state.person_status == 'disabled' else 'disable_person' }}">{{ '重新啟用 Person' if state.person_status == 'disabled' else '停用 Person' }}</button>
+  </form>
+</section>
+{% endblock %}

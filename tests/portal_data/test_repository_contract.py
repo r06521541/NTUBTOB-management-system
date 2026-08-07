@@ -56,10 +56,13 @@ class RepositoryContractMixin:
             self.repository.create_pending_identity("line", "fake-line-subject-a")
 
     def test_non_member_affiliate_admin_does_not_become_team_player(self):
+        now = datetime.now(timezone.utc)
         person = self.repository.create_person(
             "虛構親友管理員",
             access_level="admin",
             qualifications=("affiliate", "guest_player"),
+            guest_valid_from=now - timedelta(days=1),
+            guest_valid_until=now + timedelta(days=365),
         )
         self.assertTrue(person.is_admin)
         self.assertEqual(
@@ -210,19 +213,23 @@ class RepositoryContractMixin:
         )
 
     def test_publish_snapshot_is_stable_and_roster_separates_guests(self):
+        game_start = datetime.now(timezone.utc) + timedelta(days=7)
         officer = self.repository.create_person("虛構幹部", access_level="officer")
         team_player = self.repository.create_person(
             "虛構正式球員", qualifications=("team_player",)
         )
         guest = self.repository.create_person(
-            "虛構客座球員", qualifications=("guest_player",)
+            "虛構客座球員",
+            qualifications=("guest_player",),
+            guest_valid_from=datetime.now(timezone.utc) - timedelta(days=1),
+            guest_valid_until=game_start + timedelta(days=365),
         )
         late_player = self.repository.create_person("虛構稍後加入者")
         event_id = self.repository.create_event(
             officer.id,
             "虛構友誼賽",
             "game",
-            datetime.now(timezone.utc) + timedelta(days=7),
+            game_start,
             ("team_player", "guest_player"),
         )
 
@@ -330,6 +337,8 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
                 text(
                     """
                     TRUNCATE TABLE
+                      ntubtob.identity_review_messages,
+                      ntubtob.identity_review_threads,
                       ntubtob.event_audit,
                       ntubtob.event_managers,
                       ntubtob.activity_attendance_replies,

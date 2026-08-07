@@ -215,6 +215,15 @@ maintenance notice and disables its controls. This temporary guard does not
 implement Person/identity dual-write and must not be enabled in production
 without a separately approved rollout.
 
+The Phase C Person/identity read and attendance bridge has a separate exact
+opt-in, `PORTAL_DATA_PHASE_C_ENABLED=true`. It defaults off. When enabled, LINE
+Login persists `person_id` and `auth_identity_id`, every protected request
+refreshes identity, Person, Member, and qualification state from PostgreSQL,
+and an invalid principal fails closed without legacy-session fallback. Admin
+mutations additionally require the existing maintenance flag and Member-ID
+allowlist. Do not enable either production flag until the Phase C migration and
+pre/post evidence have been separately approved and completed.
+
 The production game roster is team-private. `/game-roster/<game_id>` requires a
 valid LINE Login session linked to a positive integer Member ID; anonymous or
 malformed sessions are redirected to login before roster data is queried. This

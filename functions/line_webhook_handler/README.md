@@ -26,3 +26,9 @@ Attendance postbacks persist the reply and build the LINE acknowledgement in
 the same request. They do not call the Web Portal or any cache invalidation
 endpoint. The Web Portal attendance page reads current database state on each
 page request instead.
+
+`PORTAL_DATA_PHASE_C_ENABLED=true` opts attendance postbacks into Person-based
+principal resolution and transactional replies. Active `team_player` and
+time-bounded `guest_player` qualifications are evaluated at game start; pending,
+disabled, blocked, inactive, expired, and revoked principals fail closed. The
+default remains `false`, and enabling it in production is outside TASK-070.

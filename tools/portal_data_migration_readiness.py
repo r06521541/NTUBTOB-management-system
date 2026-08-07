@@ -22,6 +22,7 @@ EXPECTED_REVISIONS = (
     "0001_legacy_baseline",
     "0002_portal_data_foundation",
     "0003_legacy_bigint_activity_game",
+    "0004_phase_c_identity_lifecycle",
 )
 EXPECTED_TABLES = {
     "access_audit",

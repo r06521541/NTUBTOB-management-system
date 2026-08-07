@@ -5,7 +5,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
@@ -94,6 +93,32 @@ class DemoPortalTest(unittest.TestCase):
                 response = self.client.get(path)
                 self.assertEqual(response.status_code, 200)
                 self.assertIn(expected.encode(), response.data)
+
+    def test_phase_c_identity_demo_is_admin_only_and_session_backed(self):
+        self.client.post("/demo/login", data={"role": "member"})
+        self.assertEqual(self.client.get("/demo/identity-lifecycle").status_code, 403)
+
+        self.client.post("/demo/login", data={"role": "admin"})
+        response = self.client.get("/demo/identity-lifecycle")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"LOCAL SESSION-ONLY DEMO", response.data)
+        token = self.csrf_token()
+        self.assertEqual(
+            self.client.post(
+                "/demo/identity-lifecycle",
+                data={"csrf_token": token, "action": "approve_guest"},
+            ).status_code,
+            302,
+        )
+        refreshed = self.client.get("/demo/identity-lifecycle")
+        self.assertIn(b"guest_player (bounded)", refreshed.data)
+        self.assertEqual(
+            self.client.post(
+                "/demo/identity-lifecycle",
+                data={"csrf_token": token, "action": "unknown"},
+            ).status_code,
+            400,
+        )
 
     def test_reply_uses_prg_and_is_reflected_across_pages(self):
         self.login()
@@ -250,11 +275,19 @@ class DemoPortalTest(unittest.TestCase):
 
     def test_filters_calendar_and_unknown_game(self):
         self.login()
-        self.assertIn("晨光示範隊".encode(), self.client.get("/demo/games?status=pending").data)
-        self.assertNotIn("海風原型隊".encode(), self.client.get("/demo/games?status=pending").data)
+        self.assertIn(
+            "晨光示範隊".encode(), self.client.get("/demo/games?status=pending").data
+        )
+        self.assertNotIn(
+            "海風原型隊".encode(), self.client.get("/demo/games?status=pending").data
+        )
         self.assertEqual(self.client.get("/demo/games?status=invalid").status_code, 400)
-        self.assertIn("海風原型隊".encode(), self.client.get("/demo/games?venue=away").data)
-        self.assertNotIn("晨光示範隊".encode(), self.client.get("/demo/games?venue=away").data)
+        self.assertIn(
+            "海風原型隊".encode(), self.client.get("/demo/games?venue=away").data
+        )
+        self.assertNotIn(
+            "晨光示範隊".encode(), self.client.get("/demo/games?venue=away").data
+        )
         month = self.client.get("/demo/games?view=month")
         self.assertIn("2026 年 8 月".encode(), month.data)
         self.assertIn("calendar-grid".encode(), month.data)
@@ -263,21 +296,34 @@ class DemoPortalTest(unittest.TestCase):
         calendar = self.client.get("/demo/games/demo-game-01/calendar.ics")
         self.assertEqual(calendar.status_code, 200)
         self.assertTrue(calendar.content_type.startswith("text/calendar"))
-        self.assertIn("attachment; filename=\"demo-game-01.ics\"", calendar.headers["Content-Disposition"])
+        self.assertIn(
+            'attachment; filename="demo-game-01.ics"',
+            calendar.headers["Content-Disposition"],
+        )
         self.assertIn(b"DTSTART;TZID=Asia/Taipei:20260809T090000", calendar.data)
         self.assertIn(b"\r\nEND:VCALENDAR\r\n", calendar.data)
-        self.assertEqual(self.client.get("/demo/games/unknown/calendar.ics").status_code, 404)
+        self.assertEqual(
+            self.client.get("/demo/games/unknown/calendar.ics").status_code, 404
+        )
 
     def test_game_day_operations_are_session_only_and_resettable(self):
         self.login()
         endpoint = "/demo/game-day/demo-game-01/operations"
         token = self.csrf_token()
         for action, item_id in (("gear", "gear-catcher"), ("check", "0")):
-            response = self.client.post(endpoint, data={"csrf_token": token, "action": action, "item_id": item_id})
+            response = self.client.post(
+                endpoint,
+                data={"csrf_token": token, "action": action, "item_id": item_id},
+            )
             self.assertEqual(response.status_code, 302)
         transport = self.client.post(
             "/demo/game-day/demo-game-01/transport",
-            data={"csrf_token": token, "mode": "offers_ride", "meeting_point": "demo_station", "seats": "2"},
+            data={
+                "csrf_token": token,
+                "mode": "offers_ride",
+                "meeting_point": "demo_station",
+                "seats": "2",
+            },
         )
         self.assertEqual(transport.status_code, 302)
         page = self.client.get("/demo/game-day/demo-game-01")
@@ -295,7 +341,13 @@ class DemoPortalTest(unittest.TestCase):
             self.assertIsNone(other["transport"])
             self.assertEqual(other["claimed_gear"], [])
             self.assertEqual(other["completed_checks"], [])
-        self.assertEqual(self.client.post(endpoint, data={"csrf_token": token, "action": "gear", "item_id": "unknown"}).status_code, 400)
+        self.assertEqual(
+            self.client.post(
+                endpoint,
+                data={"csrf_token": token, "action": "gear", "item_id": "unknown"},
+            ).status_code,
+            400,
+        )
         self.client.post("/demo/reset", data={"csrf_token": token})
         with self.client.session_transaction() as demo_session:
             self.assertEqual(demo_session["demo_operations"]["games"], {})
@@ -311,7 +363,12 @@ class DemoPortalTest(unittest.TestCase):
         )
         for values in valid_cases:
             with self.subTest(values=values):
-                self.assertEqual(self.client.post(endpoint, data={"csrf_token": token, **values}).status_code, 302)
+                self.assertEqual(
+                    self.client.post(
+                        endpoint, data={"csrf_token": token, **values}
+                    ).status_code,
+                    302,
+                )
         invalid_cases = (
             {"mode": "unknown", "meeting_point": "none", "seats": "0"},
             {"mode": "self", "meeting_point": "demo_station", "seats": "0"},
@@ -321,8 +378,18 @@ class DemoPortalTest(unittest.TestCase):
         )
         for values in invalid_cases:
             with self.subTest(values=values):
-                self.assertEqual(self.client.post(endpoint, data={"csrf_token": token, **values}).status_code, 400)
-        self.assertEqual(self.client.post(endpoint, data={"csrf_token": "bad", **valid_cases[0]}).status_code, 400)
+                self.assertEqual(
+                    self.client.post(
+                        endpoint, data={"csrf_token": token, **values}
+                    ).status_code,
+                    400,
+                )
+        self.assertEqual(
+            self.client.post(
+                endpoint, data={"csrf_token": "bad", **valid_cases[0]}
+            ).status_code,
+            400,
+        )
 
     def test_notification_preferences_are_session_only_validated_and_reset(self):
         self.login()
@@ -330,7 +397,13 @@ class DemoPortalTest(unittest.TestCase):
         self.assertIn("已開啟".encode(), profile.data)
         token = self.csrf_token()
         endpoint = "/demo/profile/notifications"
-        self.assertEqual(self.client.post(endpoint, data={"csrf_token": token, "key": "game_invites", "enabled": "false"}).status_code, 302)
+        self.assertEqual(
+            self.client.post(
+                endpoint,
+                data={"csrf_token": token, "key": "game_invites", "enabled": "false"},
+            ).status_code,
+            302,
+        )
         with self.client.session_transaction() as demo_session:
             self.assertFalse(demo_session["demo_notifications"]["game_invites"])
         for data in (
@@ -350,9 +423,30 @@ class DemoPortalTest(unittest.TestCase):
         dashboard = self.client.get("/demo/dashboard")
         self.assertIn("我的待辦 · 3".encode(), dashboard.data)
         token = self.csrf_token()
-        self.client.post("/demo/games/demo-game-01/reply", data={"csrf_token": token, "status": "attending", "arrival": "spectator", "position": "flexible", "eta": "09:00", "note": ""})
-        self.client.post("/demo/game-day/demo-game-01/transport", data={"csrf_token": token, "mode": "self", "meeting_point": "none", "seats": "0"})
-        self.client.post("/demo/game-day/demo-game-01/operations", data={"csrf_token": token, "action": "gear", "item_id": "gear-balls"})
+        self.client.post(
+            "/demo/games/demo-game-01/reply",
+            data={
+                "csrf_token": token,
+                "status": "attending",
+                "arrival": "spectator",
+                "position": "flexible",
+                "eta": "09:00",
+                "note": "",
+            },
+        )
+        self.client.post(
+            "/demo/game-day/demo-game-01/transport",
+            data={
+                "csrf_token": token,
+                "mode": "self",
+                "meeting_point": "none",
+                "seats": "0",
+            },
+        )
+        self.client.post(
+            "/demo/game-day/demo-game-01/operations",
+            data={"csrf_token": token, "action": "gear", "item_id": "gear-balls"},
+        )
         dashboard = self.client.get("/demo/dashboard")
         self.assertIn("我的待辦 · 0".encode(), dashboard.data)
         self.assertIn("下一場準備完成".encode(), dashboard.data)
