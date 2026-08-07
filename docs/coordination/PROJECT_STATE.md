@@ -40,6 +40,9 @@
 - TASK-062已由PR #63 squash merge為`871abd2`。TASK-063 exact execution package已固定三份SQL checksum、retained
   recovery artifact、30分鐘window、freeze、precheck／migration／postcheck與ambiguous-connection recovery流程，
   等待Owner精確批准；尚未讀backup artifact或執行任何production SQL／migration。
+- TASK-063已完成backup及artifact preflight、production pre-check與唯一一次Phase A migration。Post-check 51項中
+  僅raw `prosrc` function MD5失敗，其餘exact gates通過且legacy counts一致；Work以CRLF在local精確重現誤判。
+  TASK-064已獲批准修正read-only fingerprint並補LF/CRLF tests；production schema保留，不重跑或downgrade。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

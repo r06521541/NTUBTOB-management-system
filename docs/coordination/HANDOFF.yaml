@@ -1,16 +1,16 @@
-active_task: TASK-063
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-064
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 871abd2bae8fefbe13f8ebc6cbd2f28baca1e56c
+base_commit: a88f836fd0f8a1c7cad0af294e63b8e574729512
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T22:45:00+08:00
+updated_at: 2026-08-07T23:20:00+08:00
 
 note: >
-  TASK-062 was accepted and PR #63 squash-merged as 871abd2 after final Python 3.10/Black CI passed. TASK-063 now fixes
-  the exact commit, three SQL checksums, retained recovery artifact, 30-minute maintenance boundary, conditional
-  precheck/migration/postcheck order and stop/recovery behavior. Owner approval is required before Work reads/verifies
-  the retained artifact or any production SQL is executed. No production migration, deployment or notification has
-  occurred.
+  TASK-063 production Phase A migration was executed once after approved preflight and pre-check. The first post-check
+  produced 51 metrics and failed only the append-only function raw prosrc MD5; all other exact gates passed and legacy
+  aggregate counts matched. Work reproduced the same false result locally by executing the approved SQL with CRLF.
+  TASK-064 is approved to normalize line endings only in the read-only fingerprint and add LF/CRLF regression evidence.
+  No migration retry, production mutation, downgrade, deployment or notification is allowed.
