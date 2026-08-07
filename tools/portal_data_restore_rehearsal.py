@@ -21,6 +21,10 @@ ACKNOWLEDGEMENT = "TASK-057-EPHEMERAL-LOCAL-RESTORE"
 CONTAINER_PREFIX = "ntubtob-task057-"
 DATABASE_NAME = "task057_rehearsal"
 DATABASE_USER = "postgres"
+TASK_LABEL = "TASK-057"
+OWNERSHIP_FORMAT = (
+    '{{.Id}}|{{index .Config.Labels "com.ntubtob.task"}}|{{.Image}}'
+)
 LEGACY_TABLES = (
     "attendance_reply_types",
     "ballparks",
@@ -444,7 +448,7 @@ class DockerRestoreRehearsal:
                 "--name",
                 name,
                 "--label",
-                "com.ntubtob.task=TASK-057",
+                f"com.ntubtob.task={TASK_LABEL}",
                 "--network",
                 "none",
                 "--read-only",
@@ -537,31 +541,75 @@ class DockerRestoreRehearsal:
         if actual != expected:
             raise RestoreRehearsalError("restored catalog contract did not match")
 
-    def _cleanup(self, name: str) -> bool:
+    def _container_exists(self, name: str) -> bool:
+        completed = self._invoke(
+            (
+                "ps",
+                "--all",
+                "--filter",
+                f"name={name}",
+                "--format",
+                "{{.Names}}",
+            ),
+            timeout=5,
+        )
+        if completed.returncode != 0:
+            raise RestoreRehearsalError("container existence check failed")
+        names = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+        if not names:
+            return False
+        if names == [name]:
+            return True
+        raise RestoreRehearsalError("container existence check was ambiguous")
+
+    def _owned_container_id(self, name: str) -> str | None:
         try:
-            self._invoke(("rm", "--force", name), timeout=15)
-            remaining = self._invoke(
+            inspected = self._invoke(
                 (
-                    "ps",
-                    "--all",
-                    "--filter",
-                    f"name=^{name}$",
+                    "container",
+                    "inspect",
                     "--format",
-                    "{{.Names}}",
+                    OWNERSHIP_FORMAT,
+                    name,
                 ),
                 timeout=5,
             )
         except RestoreRehearsalError:
+            return None
+        if inspected.returncode != 0:
+            return None
+        fields = inspected.stdout.strip().split("|")
+        if len(fields) != 3:
+            return None
+        container_id, task_label, image_id = fields
+        if (
+            len(container_id) != 64
+            or any(character not in "0123456789abcdef" for character in container_id)
+            or task_label != TASK_LABEL
+            or image_id != DOCKER_IMAGE_ID
+        ):
+            return None
+        return container_id
+
+    def _cleanup(self, name: str) -> bool:
+        container_id = self._owned_container_id(name)
+        if container_id is None:
             return False
-        return remaining.returncode == 0 and not remaining.stdout.strip()
+        try:
+            removed = self._invoke(("rm", "--force", container_id), timeout=15)
+            if removed.returncode != 0:
+                return False
+            remaining = self._container_exists(name)
+        except RestoreRehearsalError:
+            return False
+        return not remaining
 
     def execute(self, acknowledgement: str) -> RehearsalResult:
         if acknowledgement != ACKNOWLEDGEMENT:
             raise RestoreRehearsalError("explicit execute acknowledgement is required")
         self._verify_artifact()
         name = self._container_name()
-        inspected = self._invoke(("container", "inspect", name), timeout=5)
-        if inspected.returncode == 0:
+        if self._container_exists(name):
             raise RestoreRehearsalError("task-owned container name already exists")
 
         may_need_cleanup = False

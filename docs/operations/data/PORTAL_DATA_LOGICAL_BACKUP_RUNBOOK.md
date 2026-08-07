@@ -166,6 +166,12 @@ no-port namespace. The wrapper accepts no DSN, host, port, database target, imag
 credential, restore option or SQL argument. Restore uses only `--exit-on-error --single-transaction
 --no-owner --no-privileges`; destructive restore flags and parallel jobs are absent.
 
+Before any forced removal, cleanup uses one fixed `docker container inspect --format` shape and
+requires the exact `com.ntubtob.task=TASK-057` label plus the repository-fixed image ID. It also
+validates the returned 64-character container ID and removes by that ID rather than by name. A missing
+container, inspect timeout/error, malformed output, label/image mismatch or same-name race is never
+deleted and makes cleanup fail closed.
+
 The fixed catalog query returns only named booleans. It compares the restored schema with the
 deidentified TASK-049 table/column/type/nullability/default/identity, PK/FK, validated-constraint,
 primary-index, trigger, RLS/policy and identity-sequence contract. It scans every legacy table only to

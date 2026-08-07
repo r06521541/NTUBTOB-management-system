@@ -15,12 +15,16 @@ from tools.portal_data_restore_rehearsal import (
     DOCKER_IMAGE_ID,
     EXPECTED_COLUMNS,
     LEGACY_TABLES,
+    OWNERSHIP_FORMAT,
     RESULT_KEYS,
     DockerRestoreRehearsal,
     RestoreRehearsalError,
     main,
     preflight_artifacts,
 )
+
+FAKE_CONTAINER_ID = "a" * 64
+EXPECTED_OWNERSHIP = f"{FAKE_CONTAINER_ID}|TASK-057|{DOCKER_IMAGE_ID}"
 
 
 class FakeDocker:
@@ -37,8 +41,12 @@ class FakeDocker:
             raise override
         if override is not None:
             return override
-        if operation == "inspect":
-            return subprocess.CompletedProcess(command, 1, "", "not found")
+        if operation == "existence_check":
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if operation == "ownership_inspect":
+            return subprocess.CompletedProcess(
+                command, 0, f"{EXPECTED_OWNERSHIP}\n", ""
+            )
         if operation == "catalog":
             output = "\n".join(f"{key}=t" for key in RESULT_KEYS) + "\n"
             return subprocess.CompletedProcess(command, 0, output, "")
@@ -47,13 +55,13 @@ class FakeDocker:
     @staticmethod
     def _operation(command: list[str]) -> str:
         if command[1:3] == ["container", "inspect"]:
-            return "inspect"
+            return "ownership_inspect"
         if command[1] == "run":
             return "start"
         if command[1:3] == ["rm", "--force"]:
             return "cleanup"
         if command[1:3] == ["ps", "--all"]:
-            return "cleanup_check"
+            return "existence_check"
         if "pg_isready" in command:
             return "ready"
         if "pg_restore" in command:
@@ -150,6 +158,33 @@ class RestoreRehearsalTests(unittest.TestCase):
         for forbidden in ("--clean", "--create", "--if-exists", "--jobs"):
             self.assertNotIn(forbidden, restore)
         self.assertEqual(len(docker.commands("cleanup")), 1)
+        self.assertEqual(
+            docker.commands("cleanup")[0],
+            ["docker", "rm", "--force", FAKE_CONTAINER_ID],
+        )
+        ownership = docker.commands("ownership_inspect")[0]
+        self.assertEqual(
+            ownership,
+            [
+                "docker",
+                "container",
+                "inspect",
+                "--format",
+                OWNERSHIP_FORMAT,
+                f"{CONTAINER_PREFIX}0123abcdef45",
+            ],
+        )
+        cleanup_index = next(
+            index
+            for index, (command, _kwargs) in enumerate(docker.calls)
+            if FakeDocker._operation(command) == "cleanup"
+        )
+        ownership_index = next(
+            index
+            for index, (command, _kwargs) in enumerate(docker.calls)
+            if FakeDocker._operation(command) == "ownership_inspect"
+        )
+        self.assertLess(ownership_index, cleanup_index)
 
         for _command, kwargs in docker.calls:
             self.assertFalse(kwargs["shell"])
@@ -175,12 +210,76 @@ class RestoreRehearsalTests(unittest.TestCase):
         self, verify, _which
     ):
         docker = FakeDocker()
-        docker.overrides["inspect"] = subprocess.CompletedProcess([], 0, "id", "")
+        docker.overrides["existence_check"] = subprocess.CompletedProcess(
+            [], 0, f"{CONTAINER_PREFIX}0123abcdef45\n", ""
+        )
         with self.assertRaisesRegex(RestoreRehearsalError, "already exists"):
             self._rehearsal(docker).execute(ACKNOWLEDGEMENT)
         self.assertEqual(verify.call_count, 1)
         self.assertEqual(docker.commands("start"), [])
+        self.assertEqual(docker.commands("ownership_inspect"), [])
         self.assertEqual(docker.commands("cleanup"), [])
+
+    @patch(
+        "tools.portal_data_restore_rehearsal.shutil.which", return_value="docker"
+    )
+    @patch("tools.portal_data_restore_rehearsal.verify_evidence")
+    def test_foreign_same_name_race_is_never_removed(self, _verify, _which):
+        mismatches = (
+            f"{FAKE_CONTAINER_ID}|FOREIGN-TASK|{DOCKER_IMAGE_ID}\n",
+            f"{FAKE_CONTAINER_ID}|TASK-057|sha256:{'0' * 64}\n",
+        )
+        for mismatch in mismatches:
+            with self.subTest(mismatch=mismatch.split("|")[1]):
+                docker = FakeDocker()
+                docker.overrides["start"] = subprocess.CompletedProcess(
+                    [], 2, "foreign-id", "name conflict"
+                )
+                docker.overrides["ownership_inspect"] = subprocess.CompletedProcess(
+                    [], 0, mismatch, ""
+                )
+
+                with self.assertRaisesRegex(RestoreRehearsalError, "cleanup failed"):
+                    self._rehearsal(docker).execute(ACKNOWLEDGEMENT)
+
+                self.assertEqual(len(docker.commands("ownership_inspect")), 1)
+                self.assertEqual(docker.commands("cleanup"), [])
+
+    @patch(
+        "tools.portal_data_restore_rehearsal.shutil.which", return_value="docker"
+    )
+    @patch("tools.portal_data_restore_rehearsal.verify_evidence")
+    def test_ambiguous_start_failures_require_proven_ownership(
+        self, _verify, _which
+    ):
+        failures = (
+            subprocess.CompletedProcess([], 2, "unknown", "unknown"),
+            subprocess.TimeoutExpired("docker run", 30),
+        )
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__):
+                docker = FakeDocker()
+                docker.overrides["start"] = failure
+                docker.overrides["ownership_inspect"] = subprocess.CompletedProcess(
+                    [], 1, "", "not found"
+                )
+                with self.assertRaisesRegex(RestoreRehearsalError, "cleanup failed"):
+                    self._rehearsal(docker).execute(ACKNOWLEDGEMENT)
+                self.assertEqual(docker.commands("cleanup"), [])
+
+    @patch(
+        "tools.portal_data_restore_rehearsal.shutil.which", return_value="docker"
+    )
+    @patch("tools.portal_data_restore_rehearsal.verify_evidence")
+    def test_ambiguous_timeout_cleans_only_verified_owned_container(
+        self, _verify, _which
+    ):
+        docker = FakeDocker()
+        docker.overrides["start"] = subprocess.TimeoutExpired("docker run", 30)
+        with self.assertRaisesRegex(RestoreRehearsalError, "timed out"):
+            self._rehearsal(docker).execute(ACKNOWLEDGEMENT)
+        self.assertEqual(len(docker.commands("ownership_inspect")), 1)
+        self.assertEqual(len(docker.commands("cleanup")), 1)
 
     @patch(
         "tools.portal_data_restore_rehearsal.shutil.which", return_value="docker"
@@ -217,9 +316,6 @@ class RestoreRehearsalTests(unittest.TestCase):
         docker = FakeDocker()
         docker.overrides["cleanup"] = subprocess.CompletedProcess(
             [], 2, "container-id", "secret"
-        )
-        docker.overrides["cleanup_check"] = subprocess.CompletedProcess(
-            [], 0, f"{CONTAINER_PREFIX}0123abcdef45\n", ""
         )
         with self.assertRaisesRegex(RestoreRehearsalError, "cleanup failed") as caught:
             self._rehearsal(docker).execute(ACKNOWLEDGEMENT)
