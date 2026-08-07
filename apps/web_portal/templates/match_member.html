@@ -13,6 +13,9 @@
     <body>
         <div class="container">
             <h1 class="mb-4">配對新的LINE帳號成員</h1>
+            {% if not identity_maintenance_enabled %}
+                <div class="alert alert-warning" role="status">配對維護暫停中；目前僅可唯讀查看待配對帳號。</div>
+            {% endif %}
             {% for line_user in line_users %}
                 <form method="post" action="{{ url_for('match_line_user') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -21,20 +24,20 @@
                             <h5>{{ line_user.nickname }}</p>
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('ignore_line_user') }}">忽視他</button>
+                            <button type="submit" class="btn btn-secondary" formaction="{{ url_for('ignore_line_user') }}" {% if not identity_maintenance_enabled %}disabled{% endif %}>忽視他</button>
                         </div>
                         <div class="col-md-2">
                             <p>或是將他綁定為</p>
                         </div>
                         <div class="col-md-2">
-                            <select name="member_id">
+                            <select name="member_id" {% if not identity_maintenance_enabled %}disabled{% endif %}>
                                 {% for member in members %}
                                     <option value="{{ member.id }}">{{ member.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-primary">確認</button>
+                            <button type="submit" class="btn btn-primary" {% if not identity_maintenance_enabled %}disabled{% endif %}>確認</button>
                         </div>
                         <div class="col">
                             <input type="hidden" name="line_user_id" value="{{ line_user.line_user_id }}">

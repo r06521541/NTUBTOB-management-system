@@ -183,6 +183,38 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertEqual(current_session["member_matching_csrf_token"], token)
         self.line_user_model.search_all_unknowns.assert_called()
         self.member_model.search_all.assert_called()
+        self.assertIn("配對維護暫停中".encode(), second.data)
+        self.assertGreaterEqual(second.data.count(b"disabled"), 3)
+
+    def test_identity_maintenance_guard_fails_closed_before_side_effects(self):
+        token = self.get_csrf_token()
+        for value in (None, "", "false", "False", "TRUE", "1", "unknown"):
+            for path, extra_data in (
+                ("/match-member/match", {"member_id": "8"}),
+                ("/match-member/ignore", {}),
+            ):
+                with self.subTest(value=value, path=path):
+                    self.line_user_model.reset_mock()
+                    self.member_model.reset_mock()
+                    self.notifier.reset_mock()
+                    environment = {"WEB_PORTAL_ADMIN_MEMBER_IDS": "7"}
+                    if value is not None:
+                        environment["WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED"] = value
+                    with patch.dict(os.environ, environment, clear=True):
+                        response = self.client.post(
+                            path,
+                            data={
+                                "csrf_token": token,
+                                "line_user_id": "fake-line-user",
+                                **extra_data,
+                            },
+                        )
+                    self.assertEqual(response.status_code, 503)
+                    self.assertEqual(
+                        response.data,
+                        b"Identity maintenance is temporarily unavailable",
+                    )
+                    self.assert_no_management_side_effects()
 
     def test_both_posts_reject_bad_csrf_without_side_effects(self):
         token = self.get_csrf_token()
@@ -808,7 +840,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     def test_authorized_match_preserves_update_notification_and_redirect(self):
         token = self.get_csrf_token()
-        with patch.dict(os.environ, {"WEB_PORTAL_ADMIN_MEMBER_IDS": "7"}):
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            },
+        ):
             response = self.client.post(
                 "/match-member/match",
                 data={
@@ -826,7 +864,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     def test_authorized_ignore_preserves_update_and_redirect(self):
         token = self.get_csrf_token()
-        with patch.dict(os.environ, {"WEB_PORTAL_ADMIN_MEMBER_IDS": "7"}):
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            },
+        ):
             response = self.client.post(
                 "/match-member/ignore",
                 data={"csrf_token": token, "line_user_id": "fake-line-user"},

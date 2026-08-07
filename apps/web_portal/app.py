@@ -42,6 +42,7 @@ from line_login import (
     safe_return_path,
 )
 from performance_diagnostics import AttendanceTiming
+from identity_maintenance import is_identity_maintenance_enabled
 
 DEMO_MODE_ENABLED = is_demo_mode_enabled()
 
@@ -417,12 +418,15 @@ def index():
         line_users=line_users,
         members=members,
         csrf_token=get_or_create_csrf_token(),
+        identity_maintenance_enabled=is_identity_maintenance_enabled(),
     )
 
 @app.route('/match-member/match', methods=['POST'])
 @admin_required
 def match_line_user():
     require_valid_csrf()
+    if not is_identity_maintenance_enabled():
+        return "Identity maintenance is temporarily unavailable", 503
     line_user_id = request.form['line_user_id']
     member_id = request.form['member_id']
     if member_id:
@@ -437,6 +441,8 @@ def match_line_user():
 @admin_required
 def ignore_line_user():
     require_valid_csrf()
+    if not is_identity_maintenance_enabled():
+        return "Identity maintenance is temporarily unavailable", 503
     line_user_id = request.form['line_user_id']
     
     LineUser.update_as_ignored(line_user_id)
