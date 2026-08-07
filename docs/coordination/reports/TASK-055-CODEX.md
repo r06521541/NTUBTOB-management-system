@@ -6,7 +6,7 @@
 - Task base commit: `fd647c01da9d7cc968a28e0b7229e1993b92abe1`
 - Work planning commit: `b5d6447cf42714c86b6986c5c25db1cf1f5eabf4`
 - Implementation commit: `046c5e9`
-- Standard-header compatibility fix: `afbb1a3`
+- Standard-header compatibility fix: `3da76e1`
 - Branch: `codex/task055-logical-backup-readiness`
 
 ## Delivered behavior
@@ -79,7 +79,7 @@ dump/restore fidelity shape, not production recovery.
   reachability, encrypted storage, credential process and window require later Owner approval.
 - Work's real local archive exposed and reproduced a compatibility defect: the standard comment
   `Dumped from database version: 16.4` was scanned as sensitive before comment parsing. Commit
-  `afbb1a3` fixes that ordering with fixed safe comment formats while retaining sensitive scanning on
+  `3da76e1` fixes that ordering with fixed safe comment formats while retaining sensitive scanning on
   every non-comment TOC line; the follow-up regression uses no production identity or data.
 - Phase A and production backup remain blocked. Owner must later approve an exact production backup
   operation and, separately, an isolated non-production restore rehearsal before accepting logical
