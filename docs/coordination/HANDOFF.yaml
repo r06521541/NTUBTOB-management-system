@@ -1,15 +1,15 @@
-active_task: TASK-054
-status: completed
-next_actor: owner
+active_task: TASK-055
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 700f7244e15a267054aba1eeca8aec6f603879fa
-head_commit: 429948ff93dff5fb56b5a4b2b375c0533adb91fe
+base_commit: fd647c01da9d7cc968a28e0b7229e1993b92abe1
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T11:20:00+08:00
+updated_at: 2026-08-07T11:40:00+08:00
 
 note: >
-  TASK-054 is accepted with all ten deidentified control-plane answers recorded. API exposure is closed, runtime uses
-  a session pooler, migration intends direct access, and bounded maintenance/timeouts are acceptable. Phase A migration
-  remains blocked because backup, PITR and retention are absent. The next recommended task is a logical-backup and
-  restore-readiness work package; no production backup, SQL, setting change, migration or deployment is authorized.
+  TASK-055 is ready for Codex to prepare offline logical-backup and restore-readiness controls, a repository-only
+  artifact verifier, sanitized manifest/checksum contracts and optional isolated fake rehearsal. Codex must not read
+  secrets or external Owner files, connect to Supabase, execute production pg_dump/SQL/restore/migration, handle
+  production data, alter cloud/database settings, push, create a PR, merge or deploy.

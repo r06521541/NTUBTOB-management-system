@@ -127,6 +127,9 @@
 
 ## 4. 當前工作
 
+- `TASK-055` 已建立：準備 schema-scoped custom-format logical backup、sanitized manifest、checksum、
+  repository-only artifact verifier 與 isolated fake restore rehearsal；不連 Supabase、不讀 DSN、不產生
+  production backup，實際備份與 production data handling 仍需 Owner 對精確工作包另行批准。
 - `TASK-054` 已完成控制面盤點：`ntubtob` 未暴露於 Data API，runtime 使用 session pooler、migration
   預定 direct connection，maintenance window 與 bounded timeout 可接受；但 backup、PITR 與 retention
   均不存在，故 Phase A migration 維持 blocked。下一步優先建立 logical backup 與 restore-readiness 工作包。
