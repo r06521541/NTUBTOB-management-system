@@ -1,16 +1,16 @@
-active_task: TASK-067
-status: completed
-next_actor: owner
+active_task: TASK-068
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 9e552acaf277c1284ce48bbc2a78ba83137350fc
-head_commit: 76b41ca7389407b5b90abb04567ab81f74ee18ce
+base_commit: f1df7e3
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-07T22:49:52+08:00
+updated_at: 2026-08-07T23:05:00+08:00
 
 note: >
-  TASK-067 production Phase B is complete. Fresh inventory exactly matched TASK-066; the approved transaction committed
-  once; strict post-check/compare confirms 197 People/member links, 56 LINE identities, 56 team_player and 309 valid
-  append-only audits with all unsafe counts zero. No retry, rollback, Phase C, deployment, Secret/IAM/Scheduler change or
-  notification occurred. Because runtime reconciliation is not implemented, legacy Member/LINE identity maintenance
-  remains frozen until the next approved task.
+  TASK-068 is ready for the dedicated Codex implementation session. Add a default-off, fail-closed Web Portal guard so
+  match/ignore POST routes stop before DB or Discord side effects, keep the admin GET page read-only with a maintenance
+  notice, and add a checksummed de-identified cross-model drift inventory/validator with local PostgreSQL tests. Do not
+  implement dual-write, ignored mapping, Person activation, production access, schema/RLS changes, deployment or
+  notification. Production Member/LINE mapping maintenance remains frozen.

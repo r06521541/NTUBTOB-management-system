@@ -68,6 +68,9 @@
   compare通過。Production現有197 People/member links、56 LINE identities、56 team_player、309 append-only audits，
   所有關係與安全zero gates正常；其他portal tables仍為0 rows，Phase A boundary不變。未進入Phase C或部署。
   在runtime reconciliation／dual-read策略建立前，Member／LINE identity mapping維護仍維持凍結。
+- TASK-068已建立為Phase C前置安全任務：Web Portal配對／ignore將新增預設關閉的server-side maintenance guard，
+  並建立去識別化cross-model drift detector；新unlinked／ignored rows只分類、不自動處置。本輪repository/local-only，
+  不做dual-write、activation、production query或deployment，等待固定「Codex－實作」session接手。
 - 系統整合球隊賽程、成員、出席回覆、LINE webhook/通知、Discord 管理通知與網站顯示。
 - 最近完成的 P0 工作集中在 `game-broadcast-service` 的氣象 API 與 LINE access token 安全邊界。
 - P0 程式與部署設定已提交，但尚未部署、尚未驗證 Cloud Build/Cloud Run/Secret Manager，也沒有發送真實 LINE 或 Discord 訊息。

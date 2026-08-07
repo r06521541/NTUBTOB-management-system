@@ -712,3 +712,16 @@
   compensation，不停用trigger、不重跑backfill、不宣稱exact rollback。
 - 持續邊界：Phase C尚未授權或執行。建立runtime同步策略前繼續凍結legacy Member／LINE identity mapping維護；
   未部署、未修改Secret／IAM／Scheduler或發送通知。
+
+## DEC-070：Phase C前先建立drift detector與配對維護閘門
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-07
+- 背景：Phase B已commit，但Web Portal現有match／ignore routes仍只更新legacy `line_users`；在dual-write前操作會
+  使新Person／identity／qualification模型漂移。
+- 決策：TASK-068先建立預設關閉、未知值fail closed的identity-maintenance guard，以及去識別化read-only drift
+  inventory／strict validator。GET可唯讀查看pending candidates，POST match／ignore在guard關閉時於任何DB／通知
+  前回503。
+- 保留決策：新unlinked user視為pending candidate；ignored維持獨立人工判定，不自動映射blocked／disabled；
+  People activation、remap/unlink與transactional dual-write另案處理。
+- 安全邊界：repository/local-only，不連production、不部署、不改schema／RLS／Secret／IAM／Scheduler或通知。
