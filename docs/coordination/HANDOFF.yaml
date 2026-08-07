@@ -1,15 +1,16 @@
 active_task: TASK-068
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: f1df7e3
 head_commit: a69ab20
 
-updated_by: codex
-updated_at: 2026-08-07T23:24:16+08:00
+updated_by: work
+updated_at: 2026-08-07T23:28:44+08:00
 
 note: >
-  TASK-068 correction is ready for Work review at a69ab20. The inventory now gates forced RLS at zero and validates the
-  exact Phase B audit action, request ID, actor, auth identity, target and state relationships. Local PostgreSQL negative
-  fixtures cover every requested case plus wrong actor/auth/target relationships; the full portal_data and Web Portal
-  suites passed. Existing maintenance guard behavior is unchanged. No production access, push, PR or deployment occurred.
+  Work accepted TASK-068 after the forced-RLS and exact audit gates were fixed. Local PostgreSQL 16 passed 128/128,
+  Web Portal passed 110 with two existing Windows tool skips, and PR #67 hosted Python 3.10 formatting plus every required
+  suite passed. The guard is default-off and stops match/ignore before DB or Discord side effects, but it is not deployed;
+  production maintenance remains manually frozen. No production inventory, dual-write, schema/RLS change, deployment or
+  notification occurred. Deploying the default-off guard requires separate Owner approval.
