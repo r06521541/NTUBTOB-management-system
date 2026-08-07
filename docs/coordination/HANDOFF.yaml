@@ -1,16 +1,17 @@
 active_task: TASK-070
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: 926a808
 head_commit: dfae960931b3cf2b03a9554e8815d8af7e25a2b8
 
-updated_by: codex
-updated_at: 2026-08-08T02:52:25+08:00
+updated_by: work
+updated_at: 2026-08-08T02:59:15+08:00
 
 note: >
-  Codex completed the local-only Phase C identity lifecycle, migration/evidence artifacts, transactional identity and
-  qualification management, principal/session bridge, pending conversation, admin/demo UX and Person-based attendance.
-  PostgreSQL 16 portal-data tests passed 141/141; all affected application and tool suites passed. Runtime is default-off
-  unless PORTAL_DATA_PHASE_C_ENABLED is exactly true. Production migration/data, deployment, real notifications, Secret/IAM/
-  Scheduler, People-role cutover, Person merge, Event eligibility and production flag enablement remain out of scope.
+  Work reproduced the initialized local PostgreSQL 16 suite at 141/141 and the Web Portal suite at 115 passed with two
+  platform skips, but requested changes for three product-contract gaps: ordinary game pages still enumerate unanswered
+  names, display/formal attendance name switching is not wired through the Portal, and linked identities have no remap UI.
+  Codex must fix these gaps, add route/template coverage, clarify the report's dual-write wording and rerun the affected
+  suites. Production migration/data, deployment, real notifications, Secret/IAM/Scheduler and production flag enablement
+  remain prohibited.
