@@ -17,6 +17,7 @@ Reviewed inputs:
 - checksum: adjacent `.sha256` file
 - sanitized production catalog: `TASK-049-SUPABASE-CATALOG-SANITIZED.md`
 - RLS decisions: `PORTAL_DATA_RLS_DECISION_PACKAGE.md`
+- logical backup controls: `PORTAL_DATA_LOGICAL_BACKUP_RUNBOOK.md`
 - evidence form: `PORTAL_DATA_MIGRATION_EVIDENCE_TEMPLATE.md`
 
 ## Phase separation
@@ -36,7 +37,9 @@ Stop unless every item is confirmed immediately before the window:
 - TASK-049 catalog fingerprint still matches columns, types, nullability, defaults, identity,
   PK/FK and RLS flags;
 - `ntubtob.alembic_version` is absent and there is no other migration owner/history;
-- backup/PITR is active, retention covers the window, restoration authority and procedure are known;
+- either provider backup/PITR covers the full window, or a separately approved `ntubtob` logical
+  archive has passed checksum, sanitized-manifest, retained-copy and isolated restore-fidelity gates;
+- the exact recovery artifact remains available through Phase A verification and Owner confirmation;
 - migration role can create/alter required objects, and its relation to table ownership is understood;
 - runtime database role, grants, RLS bypass behavior and Supabase API exposure are known;
 - Owner approved the RLS choice, including any separately reviewed amendment to the artifact;
