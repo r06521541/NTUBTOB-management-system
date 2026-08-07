@@ -25,6 +25,7 @@ FIELDS = (
     "integer_value",
     "text_value",
 )
+VALUE_FIELDS = ("boolean_value", "integer_value", "text_value")
 EXPECTED_METRICS = {
     "00_session": {
         "transaction_read_only",
@@ -230,15 +231,27 @@ def verify_sql(sql: str) -> None:
 
 
 def validate_rows(rows: Iterable[dict[str, str]]) -> list[dict[str, str]]:
-    materialized = list(rows)
+    materialized: list[dict[str, str]] = []
     seen: dict[str, set[str]] = {section: set() for section in EXPECTED_METRICS}
     errors: list[str] = []
-    for index, row in enumerate(materialized, start=2):
+    for index, source_row in enumerate(rows, start=2):
+        row = dict(source_row)
         if tuple(row.keys()) != FIELDS:
             errors.append(f"row {index}: unexpected or reordered columns")
             continue
+        for name in VALUE_FIELDS:
+            value = row[name]
+            if value is not None and value.strip().lower() == "null":
+                row[name] = ""
+        materialized.append(row)
         section = row["section"]
         metric = row["metric"]
+        if any(
+            value is not None and value.strip().lower() == "null"
+            for name, value in row.items()
+            if name not in VALUE_FIELDS
+        ):
+            errors.append(f"row {index}: null token is only allowed in value columns")
         if section not in EXPECTED_METRICS or metric not in EXPECTED_METRICS.get(
             section, set()
         ):
@@ -249,7 +262,7 @@ def validate_rows(rows: Iterable[dict[str, str]]) -> list[dict[str, str]]:
             seen[section].add(metric)
         populated = [
             name
-            for name in ("boolean_value", "integer_value", "text_value")
+            for name in VALUE_FIELDS
             if row[name] != ""
         ]
         if len(populated) != 1:
