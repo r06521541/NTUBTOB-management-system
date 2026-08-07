@@ -40,7 +40,10 @@ All database commands used only the Compose database
 - Lock test: 250ms test-only timeout failed without partial state; release and full retry passed.
 - `py -3.10 -m compileall -q shared_lib/shared_module tools migrations tests/portal_data`:
   passed.
-- Black and isort applied to the two new Python files.
+- `py -3.10 -m black --check tools/portal_data_migration_readiness.py
+  tests/portal_data/test_migration_readiness.py`: passed; both files unchanged.
+- `py -3.10 -m isort --profile black --check-only
+  tools/portal_data_migration_readiness.py tests/portal_data/test_migration_readiness.py`: passed.
 - `git diff --check`: passed before implementation commit.
 - Task-owned container stopped; named volume retained.
 
@@ -68,3 +71,13 @@ All database commands used only the Compose database
 Ready for Work to review the implementation commit, generated SQL/checksum, verifier mutation
 coverage, local transaction/lock evidence and production stop gates. Acceptance must not be treated
 as authorization for a production migration.
+
+## Formatting evidence correction
+
+Work found that the initial report's statement that Black/isort had been applied was insufficient:
+running Black independently showed that `tests/portal_data/test_migration_readiness.py` still needed
+formatting because the initial isort-after-Black order reintroduced incompatible wrapping. Codex
+corrected only the two TASK-051 Python files using isort's Black-compatible profile followed by
+Black. The exact Black and isort checks above now both pass. The full Python 3.10 suite remained
+43/43 passing; artifact verification, compileall and `alembic check` also passed. No production or
+external action occurred, and the task-owned container was stopped with its named volume retained.

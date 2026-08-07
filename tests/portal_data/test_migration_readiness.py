@@ -9,12 +9,18 @@ from alembic.config import Config
 from psycopg2 import Error as PsycopgError
 from sqlalchemy import create_engine, text
 
-from shared_lib.shared_module.portal_data.local_database import \
-    require_local_database_url
-from tools.portal_data_migration_readiness import (EXPECTED_REVISIONS, HEADER,
-                                                   VerificationError,
-                                                   render_sql, revision_chain,
-                                                   verify_artifact, verify_sql)
+from shared_lib.shared_module.portal_data.local_database import (
+    require_local_database_url,
+)
+from tools.portal_data_migration_readiness import (
+    EXPECTED_REVISIONS,
+    HEADER,
+    VerificationError,
+    render_sql,
+    revision_chain,
+    verify_artifact,
+    verify_sql,
+)
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(

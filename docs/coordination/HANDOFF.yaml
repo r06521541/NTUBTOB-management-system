@@ -6,11 +6,10 @@ base_commit: 00c98866ecdb7c217bf47a7f8bc2a0873603348f
 head_commit: f57a29c36210080d42b6953fdae98842905977d2
 
 updated_by: codex
-updated_at: 2026-08-07T08:38:35+08:00
+updated_at: 2026-08-07T08:55:00+08:00
 
 note: >
-  Codex completed the repository-only migration readiness package at f57a29c: deterministic upgrade-only SQL and
-  checksum, fail-closed source/static verification, local atomicity and bounded-lock rehearsal, RLS decisions,
-  sanitized evidence template, and production runbook. Python 3.10 passed 43 tests, compile, the full local migration
-  chain, and alembic check. Work must review actual diff and evidence. No production/Supabase connection or schema
-  action, Secret access, cloud action, notification, push, PR, merge, or deployment occurred or is authorized.
+  Codex corrected the formatting-only finding in the two TASK-051 Python files. Exact Python 3.10 Black check and
+  isort --profile black --check-only now pass; artifact verification, 43/43 portal-data tests, compileall and
+  alembic check also pass. Work should re-review the focused correction and updated report. Production/Supabase
+  access and all external actions remain prohibited and did not occur.
