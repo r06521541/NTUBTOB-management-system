@@ -29,7 +29,8 @@
 - Repository evidence artifact verifier, compileall, focused isort, focused Black, Compose config
   and `git diff --check`: passed.
 - Repository-wide local isort/Black reported pre-existing unrelated formatting findings; the changed
-  Python file passes both. Hosted Python 3.10/Black CI remains required on the PR.
+  Python file passes both.
+- Hosted Python 3.10/Black CI run `31183335968`, job `92881713397`: passed.
 - TASK-064 PostgreSQL 15 container and PostgreSQL 16 Compose container/network were removed. The
   existing local fake-data volume was retained.
 
