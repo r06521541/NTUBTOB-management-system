@@ -127,9 +127,9 @@
 
 ## 4. 當前工作
 
-- `TASK-054` 已建立：由 Owner 以唯讀 Dashboard／既有維運資訊回答 backup、PITR、restore authority、
-  API exposure、migration/runtime connection path、maintenance window 與 timeout 共 10 項去識別化分類；
-  Work 將依 stop conditions 決定下一個最小任務。未授權任何 Supabase 設定變更或 migration。
+- `TASK-054` 已完成控制面盤點：`ntubtob` 未暴露於 Data API，runtime 使用 session pooler、migration
+  預定 direct connection，maintenance window 與 bounded timeout 可接受；但 backup、PITR 與 retention
+  均不存在，故 Phase A migration 維持 blocked。下一步優先建立 logical backup 與 restore-readiness 工作包。
 - `TASK-053` 已通過 Work 本機驗收：validator 只正規化三個 value 欄位的 standalone `null`，14 項
   regression tests 與 compile 通過；repository 外的 Owner CSV 已唯讀驗證為固定 33-row contract，未印出、
   複製或提交原始資料。Python 3.10 hosted runner 與格式工具證據待 PR CI 補足；未連 Supabase 或修改任何
