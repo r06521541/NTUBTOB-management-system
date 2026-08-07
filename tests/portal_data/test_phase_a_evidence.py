@@ -127,6 +127,10 @@ class PhaseAEvidencePostgresTests(unittest.TestCase):
     def tearDownClass(cls):
         cls.engine.dispose()
 
+    def tearDown(self):
+        self._reset()
+        self._execute_artifact(render_sql())
+
     def _execute_artifact(self, sql: str) -> None:
         raw = self.engine.raw_connection()
         try:
@@ -191,6 +195,9 @@ class PhaseAEvidencePostgresTests(unittest.TestCase):
             "CREATE POLICY fake_policy ON ntubtob.people USING (true)",
             "INSERT INTO ntubtob.members(name) VALUES ('Fake')",
             "DROP INDEX ntubtob.ix_auth_identities_person",
+            "GRANT SELECT ON ntubtob.people TO pg_monitor",
+            "ALTER DEFAULT PRIVILEGES IN SCHEMA ntubtob "
+            "GRANT SELECT ON TABLES TO pg_monitor",
         )
         for mutation in mutations:
             with self.subTest(mutation=mutation):
@@ -208,6 +215,20 @@ class PhaseAEvidencePostgresTests(unittest.TestCase):
         self._execute_artifact(render_sql())
         with self.assertRaises(PhaseAEvidenceError):
             validate_rows(self._rows(PRE_SQL_PATH), "pre")
+
+    def test_precheck_rejects_legacy_column_and_constraint_drift(self):
+        mutations = (
+            "ALTER TABLE ntubtob.members ADD COLUMN unexpected text",
+            "ALTER TABLE ntubtob.cancellations DROP CONSTRAINT "
+            "ntubtob_cancellations_game_id_fkey",
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation):
+                self._reset()
+                with self.engine.begin() as connection:
+                    connection.execute(text(mutation))
+                with self.assertRaises(PhaseAEvidenceError):
+                    validate_rows(self._rows(PRE_SQL_PATH), "pre")
 
 
 if __name__ == "__main__":

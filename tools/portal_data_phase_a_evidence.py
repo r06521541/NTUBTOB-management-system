@@ -54,18 +54,34 @@ PORTAL_TABLES = (
 COMMON_EXACT = {
     ("00_session", "transaction_read_only"): "true",
     ("01_legacy", "legacy_table_count"): "10",
+    ("01_legacy", "legacy_table_fingerprint_matches"): "true",
     ("01_legacy", "legacy_rls_enabled_count"): "10",
     ("01_legacy", "legacy_rls_forced_count"): "0",
     ("01_legacy", "legacy_policy_count"): "0",
+    ("06_access", "ntubtob_exists"): "true",
+    ("06_access", "schema_owned_by_session"): "true",
+    ("06_access", "session_has_usage"): "true",
+    ("06_access", "session_has_create"): "true",
+    ("06_access", "legacy_owned_by_session_count"): "10",
+    ("06_access", "legacy_owned_by_other_count"): "0",
+    ("06_access", "legacy_session_named_grant_count"): "70",
+    ("06_access", "legacy_visible_write_grant_count"): "40",
+    ("06_access", "legacy_public_grant_count"): "0",
+    ("06_access", "legacy_other_visible_grant_count"): "0",
+    ("06_access", "nonowner_default_table_grant_count"): "0",
 }
 PRE_EXACT = {
     **COMMON_EXACT,
+    ("01_legacy", "legacy_column_fingerprint_matches"): "true",
+    ("01_legacy", "legacy_constraint_fingerprint_matches"): "true",
     ("02_gate", "alembic_version_exists"): "false",
     ("02_gate", "portal_table_count"): "0",
     ("02_gate", "members_person_id_exists"): "false",
 }
 POST_EXACT = {
     **COMMON_EXACT,
+    ("01_legacy", "legacy_column_fingerprint_matches"): "true",
+    ("01_legacy", "legacy_constraint_fingerprint_matches"): "true",
     ("02_revision", "revision_matches"): "true",
     ("03_catalog", "portal_table_count"): "13",
     ("03_catalog", "portal_column_count"): "97",
@@ -87,6 +103,7 @@ POST_EXACT = {
     ("05_portal", "portal_rls_forced_count"): "0",
     ("05_portal", "portal_policy_count"): "0",
     ("05_portal", "portal_public_grant_count"): "0",
+    ("05_portal", "portal_other_visible_grant_count"): "0",
 }
 
 
@@ -154,11 +171,9 @@ def verify_sql(path: Path, kind: str) -> None:
     ):
         errors.append("final output is not the six-column sanitized contract")
     for sensitive in (
-        "current_user",
         "session_user",
         "current_role",
         "current_database",
-        "rolname",
         "tableowner",
         "policyname",
         "qual",

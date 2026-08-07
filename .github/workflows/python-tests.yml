@@ -55,6 +55,7 @@ jobs:
           migrations/versions/0002_portal_data_foundation.py
           tools/portal_data_migration_readiness.py
           tools/portal_data_phase_a_evidence.py
+          tools/setup_portal_data_legacy.py
           tests/portal_data/test_migration_readiness.py
           tests/portal_data/test_phase_a_evidence.py
 

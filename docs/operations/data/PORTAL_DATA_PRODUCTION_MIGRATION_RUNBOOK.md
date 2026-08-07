@@ -108,9 +108,13 @@ CSV. Validate the pair offline with:
 python -m tools.portal_data_phase_a_evidence validate <absolute-pre.csv> <absolute-post.csv>
 ```
 
-The validator requires the exact six-column contract and every allowlisted metric. It fails closed
-on missing, duplicate or unknown metrics; catalog fingerprint drift; non-empty Phase A tables;
-`members.person_id` backfill; RLS, policy or public-grant drift; and any legacy aggregate change.
+The validator requires the exact six-column contract and every allowlisted metric. The pre-check
+repeats the TASK-061 legacy table/column/PK-FK fingerprints and the approved generic schema owner,
+usage/create, relation ownership and privilege counts. The post-check requires the exact approved
+legacy fingerprint transition (only nullable `members.person_id` plus its reviewed FK changes) and
+the same legacy access counts. It fails closed on missing, duplicate or unknown metrics; catalog
+fingerprint drift; non-empty Phase A tables; `members.person_id` backfill; RLS/policy drift; PUBLIC
+or non-owner portal grants; non-owner table default ACLs; or any legacy aggregate/access change.
 Never commit these ephemeral CSV files. A successful transaction without a passing post-check is not
 a completed migration.
 
