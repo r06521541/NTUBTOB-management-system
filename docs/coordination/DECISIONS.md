@@ -736,3 +736,26 @@
   100% traffic；首頁200、production demo 404，public IAM與runtime Secret classifications維持，未觸發rollback。
 - 安全邊界：未人工登入或呼叫match／ignore、未讀寫production DB、未發通知、未修改Secret／IAM／Scheduler／
   schema／RLS，也未部署其他服務。Phase C transactional dual-write仍須另案。
+
+## DEC-072：一次建立Phase C identity lifecycle與Person-based attendance
+
+- 狀態：`approved_for_local_implementation`
+- 日期：2026-08-08
+- 決策：TASK-070一次完成local-only Phase C identity lifecycle、LINE principal/session、核可對話、admin UI、
+  Person-based legacy attendance與所有direct shared-library callers；legacy／portal writes、qualification與audits必須
+  transactional、locked、idempotent且fail closed。
+- Person：配對／核可即active；Person狀態優先qualification。「暫停參與／全域封鎖」影響整個人，「停用登入方式／
+  拒絕此登入帳號」只影響identity。Display name可自行修改；Member正式姓名取Member，非Member使用formal name；
+  admin note僅admin。
+- Qualification：LINE配對Member預設授team_player但LINE不是持續必要條件；team_player只給Member。Guest player必須
+  有Asia/Taipei有限日期、最長5年，以比賽開始時間判定。撤銷不刪歷史，未來不合資格回覆不計入有效名單。
+- Access：所有active Person可看既有賽程與已回覆名單；不列舉尚未回覆者。Team player與有效guest可由Portal／LINE
+  回覆；guest未回覆不進分母／提醒。姓名可切換display／formal，通知預設formal fallback display。
+- Pending：新LINE登入建立pending identity及legacy candidate，不建立Person。申請者每24小時可送一則Portal自介／
+  提醒；admin可回覆，LINE只推「有新回覆」。Ignore仍可留言，reject不可；30天只標久未處理，結案365天後redact。
+- Admin：授權仍只依env allowlist，People admin不生效；需last-admin concurrency及self-lockout保護。Person merge、
+  People-role cutover與Event eligibility保留後續。
+- Migration：新增0003後單一head，含Person名稱／note、明確audit actions、pending conversation及legacy attendance
+  person_id/backfill；只在repository/local演練，不執行production。
+- 安全邊界：production guard維持default-off；不連Supabase、不執行production migration/data、不部署、不發真實
+  LINE／Discord、不改Secret／IAM／Scheduler或cloud resources。

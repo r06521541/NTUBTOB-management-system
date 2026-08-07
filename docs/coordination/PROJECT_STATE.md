@@ -475,3 +475,15 @@
 - Maintenance flag維持不存在／default-off，因此legacy match／ignore POST在production fail closed；未做具副作用的
   管理POST、DB、LINE／Discord、Secret、IAM、Scheduler、schema或其他服務操作。
 - 完整證據見`docs/operations/deployments/WEB_PORTAL_44ACDCD.md`及`docs/coordination/reviews/TASK-069-WORK.md`。
+
+### TASK-070 Phase C identity lifecycle與Person-based attendance（2026-08-08）
+
+- Owner已批准repository／local-only實作及一般Git／PR工作包，交由Codex執行。
+- 範圍擴大為完整Phase C application bridge：transactional identity lifecycle、Person status／names／qualifications、
+  pending核可對話、LINE principal/session、mobile-first admin UI及Person-based legacy attendance。
+- 所有active Person可查看賽事；active team_player與有期限guest_player可由Portal／LINE回覆。Guest未回覆不計入
+  尚未回覆；一般頁面不列舉尚未回覆姓名，姓名可切換display／formal。
+- Repository將新增0003後的expand migration及local rehearsal；production migration、Supabase操作、部署、真實通知與
+  maintenance flag啟用仍須另案批准。
+- 過渡期只有現有Web Portal admin allowlist可管理；People role cutover、Person merge、Event eligibility及正式
+  Google／Apple OAuth不在本任務。
