@@ -1,9 +1,10 @@
 # Local Person and Event persistence
 
-This environment exists only to rehearse the TASK-048 expand schema and domain
-contracts. It does not read `envs/**/.env.yaml`, does not connect to Supabase,
-and is not imported by current Web Portal, LINE, webhook, or scheduled-service
-request paths.
+This environment exists only to rehearse the portal-data expand schema and
+domain contracts. Its fake legacy fixture follows the ten-table, deidentified
+TASK-049 catalog. It does not read `envs/**/.env.yaml`, does not connect to
+Supabase, and is not imported by current Web Portal, LINE, webhook, or
+scheduled-service request paths.
 
 The local database gate accepts only PostgreSQL on `localhost`, `127.0.0.1`,
 `::1`, or the Compose service `portal-postgres`, and only the database named
@@ -63,10 +64,23 @@ python3 -m tools.seed_portal_data_fake
 python3 -m alembic current
 ```
 
-`0001_legacy_baseline` is intentionally empty and represents only the minimal
-reviewed local fixture (`members` and `games`). A future production rollout
-must inventory its exact schema and rows before an explicitly approved stamp;
-these commands are not a production runbook.
+`0001_legacy_baseline` is intentionally empty and represents the reviewed local
+ten-table legacy fixture. A future production rollout must revalidate its exact
+catalog before an explicitly approved baseline; these commands are not a
+production runbook.
+
+## Render and verify the review-only SQL artifact
+
+This command performs no database connection and uses a fixed localhost-only
+URL solely for Alembic offline rendering:
+
+```powershell
+py -3.10 -m tools.portal_data_migration_readiness render
+py -3.10 -m tools.portal_data_migration_readiness verify
+```
+
+The adjacent SHA-256 sidecar and exact-source comparison make hand edits fail
+closed. The SQL is explicitly marked `DO NOT RUN WITHOUT OWNER APPROVAL`.
 
 ## Run the shared contract suite
 
@@ -86,6 +100,11 @@ python3 -m unittest discover -s tests/portal_data -v
 
 Without `PORTAL_DATA_TEST_DATABASE_URL`, the same command runs the in-memory
 contract and safety tests and explicitly skips PostgreSQL cases.
+
+With the isolated URL configured, the suite also injects a mid-migration error,
+holds a real PostgreSQL lock until the artifact's bounded timeout fires, retries
+after releasing the lock, and confirms fake legacy row counts are unchanged and
+new tables remain empty.
 
 ## Rehearse downgrade and upgrade
 
