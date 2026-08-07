@@ -1,17 +1,17 @@
 active_task: TASK-057
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: e2b75a8
 head_commit: df03a462c9daf54e3ba398748f0bf669b146abbd
 
-updated_by: codex
-updated_at: 2026-08-07T15:51:59+08:00
+updated_by: work
+updated_at: 2026-08-07T16:05:00+08:00
 
 note: >
-  Codex implemented the fail-closed fixed-image Docker restore wrapper, 10 offline tests, sanitized TASK-049 catalog
-  checks and runbook updates. A real local fake custom archive passed preflight, restore, all 13 catalog categories,
-  post-restore artifact verification and mandatory cleanup; 29 combined restore/backup tests passed. Work must review
-  commit df03a462c9daf54e3ba398748f0bf669b146abbd and obtain Python 3.10/formatter CI evidence. Production archive or
-  sidecar access, credentials, Supabase, remote databases, SQL/migration, push/PR/merge and deployment remain out of
-  scope until their separate gates.
+  Work reran 29/29 tests, compile and diff checks and confirmed no TASK-057 Docker container/volume remains. One
+  blocking cleanup ownership gap remains: after an ambiguous docker run failure or name race, cleanup currently may
+  rm --force by generated name without first proving the TASK-057 label and fixed image ID. Codex must add strict
+  ownership inspection, refuse deletion on unknown/mismatch, and test successful, ambiguous-start, pre-existing and
+  foreign same-name paths. Do not expand image/network/mount/restore/catalog boundaries or access production artifacts,
+  credentials, Supabase, remote DB, SQL/migration, push/PR/merge or deployment.
