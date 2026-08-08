@@ -511,3 +511,11 @@
   inventory collection。
 - Work驗證30分鐘內fresh inventory後，Owner仍須另行批准exact migration window；read-only批准不包含DDL／DML。
 - Migration成功後runtime flags仍保持關閉；application deployment與staged activation另立任務。
+
+### TASK-074 PostgreSQL 15 Phase C readiness修正（2026-08-08）
+
+- 第一份TASK-073 fresh inventory唯一required failure為production PostgreSQL 15不符合錯誤的version-16 gate；依
+  fail-closed規則停止，未執行migration／DDL／DML，資料異動freeze已解除。
+- 修正任務要求PostgreSQL 15與16皆通過相同exact catalog fingerprints、migration／post-check／compare及failure
+  rehearsals；PostgreSQL 14以下與未知版本必須fail closed。
+- TASK-074合併後將重新鎖定commit與三份SQL checksums，再回到TASK-073取得新的30分鐘fresh inventory。
