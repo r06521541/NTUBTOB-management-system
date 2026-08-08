@@ -1,15 +1,15 @@
 active_task: TASK-071
-status: ready_for_codex
+status: changes_requested
 next_actor: codex
 
 base_commit: 6c4be49
-head_commit: null
+head_commit: e468caf2849ff00dde0359c90e22b5016ae15318
 
 updated_by: work
-updated_at: 2026-08-08T04:33:57+08:00
+updated_at: 2026-08-08T06:20:00+08:00
 
 note: >
-  Owner approved TASK-071 as a repository-only Phase C production migration readiness package. Codex must build
-  deterministic checksummed read-only inventory, exact 0003-to-0004 migration, post-check, strict validators, compare,
-  execution/recovery runbook and localhost PostgreSQL 16 rehearsals. No production connection or SQL execution,
-  migration, deployment, runtime flag enablement, real notification, Secret/IAM/Scheduler or cloud mutation is allowed.
+  Work reviewed e468caf and requested one blocking correction: the Phase C post-check currently verifies only object
+  names/counts and does not prove exact column, constraint or index definitions. Codex must add deterministic Phase C
+  catalog fingerprints, strict validator gates and PostgreSQL mutation tests, then update checksums, runbook, report and
+  this handoff. Local PostgreSQL 16 passed 154 tests after fixture initialization. No production access or mutation occurred.
