@@ -80,6 +80,7 @@ class FakeRunner:
         revision_digest=FULL_REVISION_DIGEST,
         traffic=True,
         traffic_command_failure=False,
+        interrupt_traffic=False,
     ):
         self.root = root
         self.dirty = dirty
@@ -89,6 +90,7 @@ class FakeRunner:
         self.revision_digest = revision_digest
         self.traffic = traffic
         self.traffic_command_failure = traffic_command_failure
+        self.interrupt_traffic = interrupt_traffic
         self.commands = []
         self.describe_calls = 0
 
@@ -147,6 +149,8 @@ class FakeRunner:
             )
         elif "update-traffic" in arguments:
             destination = arguments[arguments.index("--to-revisions") + 1]
+            if self.interrupt_traffic and destination.startswith(NEW_REVISION):
+                raise KeyboardInterrupt()
             if self.traffic_command_failure and destination.startswith(NEW_REVISION):
                 raise subprocess.CalledProcessError(1, arguments)
         return subprocess.CompletedProcess(arguments, 0, stdout=stdout, stderr="")
@@ -311,7 +315,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         runner = FakeRunner(self.root, no_op=True)
         with self.assertRaisesRegex(deploy.DeploymentError, "new revision"):
             self.execute(runner)
-        self.assert_only_exact_rollback(runner)
+        self.assertEqual(self.traffic_commands(runner), [])
         self.assertNotIn(f"{BASELINE_REVISION}=100", repr(runner.commands))
         self.assertFalse(self.temporary_env().exists())
 
@@ -322,7 +326,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(deploy.DeploymentError, "approved image tag"):
             self.execute(runner)
-        self.assert_only_exact_rollback(runner)
+        self.assertEqual(self.traffic_commands(runner), [])
         self.assertNotIn(f"{NEW_REVISION}=100", repr(runner.commands))
         self.assertFalse(self.temporary_env().exists())
 
@@ -330,7 +334,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         runner = FakeRunner(self.root, revision_ready=False)
         with self.assertRaisesRegex(deploy.DeploymentError, "not ready"):
             self.execute(runner)
-        self.assert_only_exact_rollback(runner)
+        self.assertEqual(self.traffic_commands(runner), [])
         self.assertFalse(self.temporary_env().exists())
 
     def test_build_failure_cleans_environment_without_traffic_command(self):
@@ -354,6 +358,18 @@ class DeploymentWrapperTests(unittest.TestCase):
         )
         self.assertFalse(self.temporary_env().exists())
 
+    def test_interrupted_traffic_promotion_rolls_back_and_cleans_environment(self):
+        runner = FakeRunner(self.root, interrupt_traffic=True)
+        with self.assertRaises(KeyboardInterrupt):
+            self.execute(runner)
+        traffic = self.traffic_commands(runner)
+        self.assertEqual(len(traffic), 2)
+        self.assertEqual(
+            traffic[-1][traffic[-1].index("--to-revisions") + 1],
+            f"{ROLLBACK_REVISION}=100",
+        )
+        self.assertFalse(self.temporary_env().exists())
+
     def test_traffic_verification_failure_rolls_back_exact_revision_and_cleans(self):
         runner = FakeRunner(self.root, traffic=False)
         with self.assertRaisesRegex(
@@ -367,6 +383,133 @@ class DeploymentWrapperTests(unittest.TestCase):
             f"{ROLLBACK_REVISION}=100",
         )
         self.assertFalse(self.temporary_env().exists())
+
+    def test_resume_verify_only_promotes_exact_successful_candidate(self):
+        commands = []
+
+        def runner(arguments, _cwd):
+            commands.append(list(arguments))
+            if arguments[:2] == ["git", "status"]:
+                output = ""
+            elif arguments[:3] == ["git", "rev-parse", "HEAD"]:
+                output = SHA
+            elif arguments[:3] == ["gcloud", "builds", "describe"]:
+                output = json.dumps({"status": "SUCCESS", "substitutions": {"_SERVICE_NAME": "game-broadcast-service", "_IMAGE_TAG": SHA}})
+            elif arguments[:3] == ["gcloud", "artifacts", "docker"]:
+                output = APPROVED_DIGEST
+            elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
+                output = json.dumps({"status": {"imageDigest": FULL_REVISION_DIGEST, "conditions": [{"type": "Ready", "status": "True"}]}})
+            elif arguments[:4] == ["gcloud", "run", "services", "describe"]:
+                output = json.dumps({"status": {"latestCreatedRevisionName": NEW_REVISION, "latestReadyRevisionName": NEW_REVISION, "traffic": [{"revisionName": NEW_REVISION, "percent": 100}] if len([item for item in commands if "update-traffic" in item]) else [{"revisionName": ROLLBACK_REVISION, "percent": 100}]}})
+            else:
+                output = ""
+            return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr="")
+
+        result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        self.assertFalse(result["already_promoted"])
+        self.assertEqual(len([item for item in commands if "update-traffic" in item]), 1)
+
+    def make_resume_runner(
+        self,
+        *,
+        latest_created=NEW_REVISION,
+        initial_traffic=None,
+        post_traffic=None,
+        interrupt=False,
+        rollback_failure=False,
+    ):
+        commands = []
+        service_describes = 0
+        initial_traffic = initial_traffic or [{"revisionName": ROLLBACK_REVISION, "percent": 100}]
+        post_traffic = post_traffic or [{"revisionName": NEW_REVISION, "percent": 100}]
+
+        def runner(arguments, _cwd):
+            nonlocal service_describes
+            commands.append(list(arguments))
+            if arguments[:2] == ["git", "status"]:
+                output = ""
+            elif arguments[:3] == ["git", "rev-parse", "HEAD"]:
+                output = SHA
+            elif arguments[:3] == ["gcloud", "builds", "describe"]:
+                output = json.dumps({"status": "SUCCESS", "substitutions": {"_SERVICE_NAME": "game-broadcast-service", "_IMAGE_TAG": SHA}})
+            elif arguments[:3] == ["gcloud", "artifacts", "docker"]:
+                output = APPROVED_DIGEST
+            elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
+                output = json.dumps({"status": {"imageDigest": FULL_REVISION_DIGEST, "conditions": [{"type": "Ready", "status": "True"}]}})
+            elif arguments[:4] == ["gcloud", "run", "services", "describe"]:
+                service_describes += 1
+                output = json.dumps({"status": {"latestCreatedRevisionName": latest_created, "latestReadyRevisionName": ROLLBACK_REVISION, "traffic": initial_traffic if service_describes == 1 else post_traffic}})
+            elif "update-traffic" in arguments:
+                destination = arguments[arguments.index("--to-revisions") + 1].split("=", 1)[0]
+                if destination == NEW_REVISION and interrupt:
+                    raise KeyboardInterrupt()
+                if destination == ROLLBACK_REVISION and rollback_failure:
+                    raise deploy.DeploymentError("rollback unavailable")
+                output = ""
+            else:
+                output = ""
+            return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr="")
+
+        runner.commands = commands
+        return runner
+
+    def test_resume_rejects_unknown_baseline_without_promotion(self):
+        runner = self.make_resume_runner(initial_traffic=[{"revisionName": "unknown-baseline", "percent": 100}])
+        with self.assertRaisesRegex(deploy.DeploymentError, "traffic state is ambiguous"):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        self.assertEqual(self.traffic_commands(runner), [])
+
+    def test_resume_rejects_candidate_that_is_not_latest_created(self):
+        runner = self.make_resume_runner(latest_created=BASELINE_REVISION)
+        with self.assertRaisesRegex(deploy.DeploymentError, "latest created"):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        self.assertEqual(self.traffic_commands(runner), [])
+
+    def test_resume_interruption_rolls_back_exact_revision(self):
+        runner = self.make_resume_runner(interrupt=True)
+        with self.assertRaises(KeyboardInterrupt):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        traffic = self.traffic_commands(runner)
+        self.assertEqual(len(traffic), 2)
+        self.assertEqual(traffic[-1][traffic[-1].index("--to-revisions") + 1], f"{ROLLBACK_REVISION}=100")
+
+    def test_resume_post_promotion_verification_failure_rolls_back_exact_revision(self):
+        runner = self.make_resume_runner(post_traffic=[{"revisionName": NEW_REVISION, "percent": 99}])
+        with self.assertRaisesRegex(deploy.DeploymentError, "exact 100% traffic"):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        traffic = self.traffic_commands(runner)
+        self.assertEqual(len(traffic), 2)
+        self.assertEqual(traffic[-1][traffic[-1].index("--to-revisions") + 1], f"{ROLLBACK_REVISION}=100")
+
+    def test_resume_already_promoted_candidate_performs_no_mutation(self):
+        runner = self.make_resume_runner(initial_traffic=[{"revisionName": NEW_REVISION, "percent": 100}])
+        result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        self.assertTrue(result["already_promoted"])
+        self.assertEqual(self.traffic_commands(runner), [])
+
+    def test_resume_reports_combined_failure_when_rollback_fails(self):
+        runner = self.make_resume_runner(interrupt=True, rollback_failure=True)
+        with self.assertRaisesRegex(deploy.DeploymentError, "rollback also failed"):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        self.assertEqual(len(self.traffic_commands(runner)), 2)
+
+    def test_resume_rejects_failed_or_ambiguous_state_without_promotion(self):
+        runner = FakeRunner(self.root)
+        with self.assertRaisesRegex(deploy.DeploymentError, "Cloud Build resume"):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
+        self.assertEqual(self.traffic_commands(runner), [])
+
+    def test_resume_cli_rejects_mixed_or_incomplete_execution_inputs(self):
+        combinations = (
+            ["game-broadcast-service", "--execute", "--resume-verify-only"],
+            ["game-broadcast-service", "--build-id", "build-12345678"],
+            ["game-broadcast-service", "--resume-verify-only", "--approved-commit", SHA],
+        )
+        for arguments in combinations:
+            with self.subTest(arguments=arguments), patch.object(
+                deploy, "repository_root", return_value=self.root
+            ):
+                self.assertEqual(deploy.main(arguments), 2)
 
 
 if __name__ == "__main__":

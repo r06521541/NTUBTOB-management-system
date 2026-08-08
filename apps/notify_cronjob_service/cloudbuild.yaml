@@ -26,6 +26,7 @@ steps:
         --region ${_REGION} \
         --platform managed \
         --no-allow-unauthenticated \
+        --no-traffic \
         --env-vars-file .env.yaml
     env:
     - 'CLOUDSDK_CORE_PROJECT=$PROJECT_ID'

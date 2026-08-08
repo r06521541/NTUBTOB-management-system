@@ -21,6 +21,7 @@ from typing import Callable, Dict, List, Optional, Sequence
 PROJECT_ID = "ntubtob-schedule-405614"
 REGION = "asia-east1"
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+BUILD_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]{7,}$")
 
 
 @dataclass(frozen=True)
@@ -109,6 +110,12 @@ def validate_rollback_revision(service: ServiceConfig, revision: str) -> str:
     if not re.fullmatch(pattern, revision):
         raise DeploymentError("Rollback revision does not belong to the target service")
     return revision
+
+
+def validate_build_id(value: str) -> str:
+    if BUILD_ID_PATTERN.fullmatch(value) is None:
+        raise DeploymentError("Build ID is invalid")
+    return value
 
 
 def parse_env_key(line: str) -> Optional[str]:
@@ -204,6 +211,83 @@ def rollback_command(service: ServiceConfig, revision: str) -> List[str]:
     ]
 
 
+def resume_verify_only(
+    root: Path, service_name: str, approved_commit: str, build_id: str,
+    candidate_revision: str, rollback_revision: str, runner: Runner = run_command,
+    check_tools: bool = True,
+) -> dict:
+    """Verify a no-traffic build and promote only its exact ready candidate."""
+    service = SERVICES[service_name]
+    if check_tools:
+        require_tool("git")
+        require_tool("gcloud")
+    if command_output(runner, ["git", "status", "--porcelain"], root):
+        raise DeploymentError("Repository working tree must be clean")
+    if command_output(runner, ["git", "rev-parse", "HEAD"], root).lower() != validate_sha(approved_commit):
+        raise DeploymentError("HEAD does not match the approved commit")
+    build_id = validate_build_id(build_id)
+    candidate_revision = validate_rollback_revision(service, candidate_revision)
+    rollback_revision = validate_rollback_revision(service, rollback_revision)
+    if candidate_revision == rollback_revision:
+        raise DeploymentError("Candidate revision must differ from rollback revision")
+    build = parse_json_output(command_output(runner, [
+        "gcloud", "builds", "describe", build_id, "--project", PROJECT_ID,
+        "--format=json"], root), "Cloud Build resume")
+    substitutions = build.get("substitutions")
+    if build.get("status") != "SUCCESS" or not isinstance(substitutions, dict):
+        raise DeploymentError("Cloud Build is not a successful resumable build")
+    if substitutions.get("_SERVICE_NAME") != service.cloud_run_name or substitutions.get("_IMAGE_TAG") != approved_commit:
+        raise DeploymentError("Cloud Build substitutions do not match the approved release")
+    image = f"{REGION}-docker.pkg.dev/{PROJECT_ID}/management-system-docker-repo/{service.cloud_run_name}-image:{approved_commit}"
+    digest = normalize_image_digest(command_output(runner, [
+        "gcloud", "artifacts", "docker", "images", "describe", image,
+        "--project", PROJECT_ID, "--format", "value(image_summary.digest)"], root))
+    revision = parse_json_output(command_output(runner, [
+        "gcloud", "run", "revisions", "describe", candidate_revision,
+        "--project", PROJECT_ID, "--region", REGION, "--format=json"], root), "candidate revision")
+    if not revision_is_ready(revision) or normalize_image_digest(revision.get("status", {}).get("imageDigest")) != digest:
+        raise DeploymentError("Candidate revision is not a ready approved image")
+    service_state = parse_json_output(command_output(runner, [
+        "gcloud", "run", "services", "describe", service.cloud_run_name,
+        "--project", PROJECT_ID, "--region", REGION, "--format=json"], root), "Cloud Run traffic")
+    traffic = service_state.get("status", {}).get("traffic", [])
+    if not isinstance(traffic, list):
+        raise DeploymentError("Cloud Run traffic state is invalid")
+    if service_state.get("status", {}).get("latestCreatedRevisionName") != candidate_revision:
+        raise DeploymentError("Candidate revision is not the latest created revision")
+    candidate_percent = next((item.get("percent") for item in traffic if item.get("revisionName") == candidate_revision), 0)
+    promoted = candidate_percent == 100 and len(traffic) == 1
+    pending = (
+        candidate_percent == 0
+        and len(traffic) == 1
+        and traffic[0].get("percent") == 100
+        and traffic[0].get("revisionName") == rollback_revision
+    )
+    if not promoted and not pending:
+        raise DeploymentError("Cloud Run traffic state is ambiguous")
+    if pending:
+        try:
+            command_output(runner, [
+                "gcloud", "run", "services", "update-traffic", service.cloud_run_name,
+                "--project", PROJECT_ID, "--region", REGION,
+                "--to-revisions", f"{candidate_revision}=100", "--quiet"], root)
+            verified = parse_json_output(command_output(runner, [
+                "gcloud", "run", "services", "describe", service.cloud_run_name,
+                "--project", PROJECT_ID, "--region", REGION, "--format=json"], root), "Cloud Run promotion verification")
+            verified_traffic = verified.get("status", {}).get("traffic", [])
+            if verified.get("status", {}).get("latestReadyRevisionName") != candidate_revision or verified_traffic != [{"revisionName": candidate_revision, "percent": 100}]:
+                raise DeploymentError("Candidate revision did not receive exact 100% traffic")
+        except BaseException as error:
+            try:
+                command_output(runner, rollback_command(service, rollback_revision), root)
+            except DeploymentError as rollback_error:
+                raise DeploymentError(
+                    f"Resume promotion failed and rollback also failed: {rollback_error}"
+                ) from error
+            raise
+    return {"build_id": build_id, "revision": candidate_revision, "image_digest": digest, "already_promoted": promoted}
+
+
 def execute_deployment(
     root: Path,
     service_name: str,
@@ -277,8 +361,6 @@ def execute_deployment(
         )
         if build.get("status") != "SUCCESS" or not build.get("id"):
             raise DeploymentError("Cloud Build did not report SUCCESS with a build ID")
-        traffic_may_have_changed = True
-
         image_reference = (
             f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
             "management-system-docker-repo/"
@@ -331,6 +413,7 @@ def execute_deployment(
                 "New revision digest does not match the approved image tag"
             )
 
+        traffic_may_have_changed = True
         command_output(
             runner,
             [
@@ -365,7 +448,7 @@ def execute_deployment(
             "image_tag": approved_commit,
             "image_digest": image_digest,
         }
-    except (DeploymentError, subprocess.CalledProcessError):
+    except BaseException:
         if traffic_may_have_changed:
             try:
                 command_output(
@@ -387,13 +470,24 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--approved-commit")
     parser.add_argument("--rollback-revision")
+    parser.add_argument("--resume-verify-only", action="store_true")
+    parser.add_argument("--build-id")
+    parser.add_argument("--candidate-revision")
     return parser
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        if args.execute:
+        execution_inputs = (args.approved_commit, args.rollback_revision, args.build_id, args.candidate_revision)
+        if args.execute and args.resume_verify_only:
+            raise DeploymentError("--execute cannot be combined with --resume-verify-only")
+        if args.resume_verify_only:
+            if not all(execution_inputs):
+                raise DeploymentError("--resume-verify-only requires approved commit, rollback revision, build ID and candidate revision")
+            result = resume_verify_only(repository_root(), args.service, args.approved_commit, args.build_id, args.candidate_revision, args.rollback_revision)
+            print(json.dumps(result, sort_keys=True))
+        elif args.execute:
             if not args.approved_commit or not args.rollback_revision:
                 raise DeploymentError(
                     "--execute requires --approved-commit and --rollback-revision"
@@ -406,7 +500,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
             print(json.dumps(result, sort_keys=True))
         else:
-            if args.approved_commit or args.rollback_revision:
+            if any(execution_inputs):
                 raise DeploymentError("Execution-only arguments require --execute")
             preflight(repository_root(), args.service, None, None)
             print(f"Preflight passed for {args.service}; no cloud commands were run.")
