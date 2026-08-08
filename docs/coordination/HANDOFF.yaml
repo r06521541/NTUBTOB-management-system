@@ -3,13 +3,13 @@ status: ready_for_review
 next_actor: work
 
 base_commit: d9213acea1708f051fc457753b3b941dbad305f6
-head_commit: 314e8d970a0384c9ec7cfc5ee01dc984a442e83f
+head_commit: 317c9706d835e9f2eb345cea1edee5f460a667d7
 
 updated_by: codex
-updated_at: 2026-08-08T20:50:00+08:00
+updated_at: 2026-08-08T21:40:00+08:00
 
 note: >
-  TASK-081 A adds scheduled no-traffic promotion safety with interruption rollback, a bounded local-only Phase C release
-  manifest renderer, static deployment contracts and a Stage B work-package template. Related offline tests passed. No
-  production build/deploy, gcloud, Secret/env read, flags/Scheduler/IAM/database/traffic operation, endpoint invocation or
-  notification occurred. Return to Work review.
+  TASK-081 correction adds a dedicated full-SHA/build-ID/candidate-revision resume/verify-only path. It cannot mix with
+  execute, submits no build and reads no env file; build, substitutions, candidate, digest and traffic ambiguity fail closed,
+  while an already-promoted candidate is verify-only. Offline regressions passed; no cloud, env/Secret, deployment,
+  flags, Scheduler/IAM/DB or notification action occurred. Return to Work review.
