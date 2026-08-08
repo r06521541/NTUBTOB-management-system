@@ -1,15 +1,15 @@
 active_task: TASK-079
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 1838ec6fc77a74e23700f9cd29b8ea910c0a29fb
-head_commit: null
+head_commit: 9bc188649915c91e410609e85e140b2caa7a26aa
 
-updated_by: work
-updated_at: 2026-08-08T19:10:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T19:35:00+08:00
 
 note: >
-  TASK-079 fixes active Cloud Build contracts that still pin game-broadcast-service and notify-cronjob-service to the
-  revoked CHANNEL_ACCESS_TOKEN Secret version 1. Repository-only implementation and offline verification are authorized.
+  TASK-079 changes the two active Cloud Build CHANNEL_ACCESS_TOKEN bindings to version 2 and adds contract gates rejecting
+  version 1. Offline service contract and deployment tooling tests passed; active YAML config search found no version-1 pin.
   No deployment, Cloud Build execution, Secret operation/read, production mutation, Scheduler/IAM action, invoke or real
-  notification is authorized. A later notify feature-off source deployment needs a separate Owner approval.
+  notification occurred. A later notify feature-off source deployment remains a separate Owner-approved task.
