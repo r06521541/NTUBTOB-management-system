@@ -69,7 +69,6 @@ def _path_scope(path: str) -> Optional[str]:
     ):
         return "full"
     if lower in (
-        "shared_lib/shared_module/portal_data/runtime.py",
         "tests/portal_data/test_phase_c_rollout_state.py",
         "tools/phase_c_rollout_preflight.py",
         "tools/phase_c_transition_controller.py",
@@ -153,6 +152,16 @@ def classify_paths(paths: Iterable[str]) -> Classification:
 
     scopes = set()
     for path in normalized_paths:
+        if path.lower() == "shared_lib/shared_module/portal_data/runtime.py":
+            scopes.update(
+                {
+                    "deployment_tools",
+                    "web_portal",
+                    "line_webhook",
+                    "notify_cron",
+                }
+            )
+            continue
         scope = _path_scope(path)
         if scope is None or scope == "full":
             return _full()
