@@ -159,6 +159,8 @@ class AttendanceReplyTest(unittest.TestCase):
         cls._stub(
             "shared_module.portal_data.runtime",
             get_identity_lifecycle_repository=Mock(),
+            is_phase_c_enabled=lambda: os.environ.get("PORTAL_DATA_PHASE_C_ENABLED")
+            == "true",
         )
 
     def setUp(self):

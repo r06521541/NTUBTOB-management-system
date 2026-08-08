@@ -37,6 +37,7 @@ from shared_module.models.games import Game
 from shared_module.models.line_groups import LineGroup
 from shared_module.models.line_users import LineUser
 from shared_module.notify.discord_notify import DiscordNotifyHelper
+from shared_module.portal_data.runtime import is_phase_c_enabled
 
 from envs import channel_access_token, channel_secret
 
@@ -248,7 +249,7 @@ def handle_postback(event: PostbackEvent):
 
 
 def handle_postback_reply_game_attendance(query: str):
-    if os.environ.get("PORTAL_DATA_PHASE_C_ENABLED") == "true":
+    if is_phase_c_enabled():
         from shared_module.portal_data.domain import (
             AuthorizationError,
             ConflictError,

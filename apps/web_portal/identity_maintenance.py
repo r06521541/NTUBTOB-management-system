@@ -1,10 +1,21 @@
-"""Temporary fail-closed boundary for legacy identity maintenance."""
-
-import os
-
-IDENTITY_MAINTENANCE_ENV = "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED"
+"""Temporary fail-closed boundary for Phase C identity lifecycle features."""
 
 
-def is_identity_maintenance_enabled() -> bool:
-    """Only the exact, explicit opt-in value can permit legacy writes."""
-    return os.environ.get(IDENTITY_MAINTENANCE_ENV) == "true"
+def is_phase_c_enabled(*, demo_mode: bool = False) -> bool:
+    """Keep the offline demo independent from the deployed shared package."""
+    if demo_mode:
+        return False
+    from shared_module.portal_data.runtime import is_phase_c_enabled as enabled
+
+    return enabled()
+
+
+def is_identity_maintenance_enabled(*, demo_mode: bool = False) -> bool:
+    """Maintenance requires both exact Phase C and maintenance opt-ins."""
+    if demo_mode:
+        return False
+    from shared_module.portal_data.runtime import (
+        is_identity_maintenance_enabled as enabled,
+    )
+
+    return enabled()

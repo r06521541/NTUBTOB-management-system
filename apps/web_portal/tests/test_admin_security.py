@@ -17,6 +17,10 @@ if str(WEB_PORTAL_DIR) not in sys.path:
 from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
 
+from shared_lib.shared_module.portal_data import (  # noqa: E402
+    runtime as phase_c_runtime,
+)
+
 
 class AdminAllowlistTest(unittest.TestCase):
     def test_allowlist_parsing(self):
@@ -79,6 +83,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "shared_module.message_templates.general_message": cls._module(
                 reply_text_mapping={}
             ),
+            "shared_module.portal_data": types.ModuleType("shared_module.portal_data"),
+            "shared_module.portal_data.runtime": phase_c_runtime,
         }
         cls.modules = patch.dict(sys.modules, fake_modules)
         cls.modules.start()
@@ -187,7 +193,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     def test_identity_maintenance_guard_fails_closed_before_side_effects(self):
         token = self.get_csrf_token()
-        for value in (None, "", "false", "False", "TRUE", "1", "unknown"):
+        for value in (None, "", "false", "False", "TRUE", "1", "unknown", "true"):
             for path, extra_data in (
                 ("/match-member/match", {"member_id": "8"}),
                 ("/match-member/ignore", {}),

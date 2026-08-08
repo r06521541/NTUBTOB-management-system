@@ -33,6 +33,16 @@
 - TASK-073在production inventory前安全暫緩；reviewed source commit與三份SQL checksums維持有效，本任務不授權
   production SQL、migration或任何cloud／GitHub settings mutation。
 
+### TASK-073 Phase C production schema migration（2026-08-08）
+
+- Owner依exact checksums執行fresh inventory、唯一一次`0003 -> 0004`transaction及immediate read-only post-check。
+- Inventory 51列／38 required gates通過，zero Phase C collisions；session非superuser，BYPASSRLS風險由Owner明確接受。
+- Post-check 55列／44 required gates通過，revision為`0004_phase_c_identity_lifecycle`，精確確認2 tables、19 columns、
+  15 constraints及3 indexes；10個compare metrics一致，strict compare結果為`pass`。
+- Schema migration已完成且不做downgrade。`PORTAL_DATA_PHASE_C_ENABLED`及identity maintenance維持off；尚未部署
+  application、改Secret／IAM／Scheduler／RLS／grants、發通知或執行其他production mutation。
+- 結案文件保持本機未提交，應併入下一個實質application rollout task，不另開純closeout PR或觸發昂貴CI。
+
 更新時間：2026-08-07T21:51:52+08:00
 維護角色：Work
 證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`
@@ -556,3 +566,16 @@
   exact catalog fingerprints未弱化，驗收結論為accepted。
 - PR #71已squash merge為`5cdedd60d999a095a66230101818fdaa31acd46d`；TASK-073已重新鎖定新inventory／
   post-check checksums，等待Owner重新批准並提供fresh read-only inventory。
+
+### TASK-076 Phase C跨服務啟用準備（2026-08-08）
+
+- Production schema已完成0004 migration，但runtime flags仍維持off；本任務只完成repository-only rollout準備。
+- 已建立三服務共同exact-`true`旗標狀態機；maintenance不能在Phase C off時生效，任一單服務／雙服務mixed vector
+  會被preflight拒絕。
+- Portal／Webhook／notify共用PostgreSQL 0004 attendance與identity contract；compatibility adapters只保護過渡資料，
+  不把mixed mode宣稱為normal-traffic相容。
+- Shared artifact source fingerprint、三份deployment artifacts、requirements與build-context exclusions皆有離線檢查；
+  `game_broadcast_service`經查不是Phase C direct caller。
+- Work風險式驗收沒有blocking finding；唯一ready PR仍須取得hosted Python 3.10／PostgreSQL final gate後才能merge。
+- 後續TASK-077若要部署或啟用，必須另取Owner對exact commit／revisions、runtime flags、可驗證attendance／notification
+  freeze、observation、production smoke及rollback traffic mutation的明確批准；無freeze則activation blocked。

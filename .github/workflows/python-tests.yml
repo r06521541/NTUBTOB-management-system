@@ -140,8 +140,14 @@ jobs:
           python -m black --check
           migrations/versions/0002_portal_data_foundation.py
           migrations/versions/0004_phase_c_identity_lifecycle.py
+          apps/web_portal/app.py
+          apps/web_portal/identity_maintenance.py
+          functions/line_webhook_handler/webhook.py
+          shared_lib/shared_module/attendance_analyzer.py
           shared_lib/shared_module/portal_data/identity_lifecycle.py
+          shared_lib/shared_module/portal_data/runtime.py
           tools/ci_change_classifier.py
+          tools/phase_c_rollout_preflight.py
           tools/portal_data_migration_readiness.py
           tools/portal_data_phase_a_evidence.py
           tools/portal_data_phase_c_evidence.py
@@ -151,9 +157,13 @@ jobs:
           tests/portal_data/test_migration_readiness.py
           tests/portal_data/test_phase_a_evidence.py
           tests/portal_data/test_phase_c_lifecycle.py
+          tests/portal_data/test_phase_c_attendance_analyzer.py
+          tests/portal_data/test_phase_c_cross_service_rollout.py
           tests/portal_data/test_phase_c_readiness.py
+          tests/portal_data/test_phase_c_rollout_state.py
           tools/tests/test_ci_change_classifier.py
           tools/tests/test_ci_workflow_contract.py
+          tools/tests/test_deploy_phase_c_rollout.py
 
       - name: Verify Phase C review artifacts
         run: |

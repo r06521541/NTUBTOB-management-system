@@ -19,3 +19,8 @@ analyzer emits eligible Person participants, including bounded guest players,
 using formal/Member names before display-name fallback. Guest players are not
 part of the unanswered team-player denominator. The setting defaults to false;
 TASK-070 does not authorize changing production runtime configuration.
+
+Phase C activation is a coordinated three-service contract, not an independent
+cron toggle. Follow
+`docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md` and keep this
+service private; do not use notification routes as smoke checks.

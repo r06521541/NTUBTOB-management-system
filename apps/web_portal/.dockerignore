@@ -4,6 +4,9 @@
 *.key
 credentials*.json
 service-account*.json
+*.dump
+*.backup
+*.sqlite*
 
 tests/
 __pycache__/
@@ -11,6 +14,9 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
+
+dist/*
+!dist/shared_lib-0.0.1.tar.gz
 
 .venv/
 venv/
