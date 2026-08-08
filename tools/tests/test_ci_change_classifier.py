@@ -78,6 +78,21 @@ class ChangeClassifierTests(unittest.TestCase):
             "line_webhook",
         )
 
+    def test_phase_c_runtime_freeze_boundaries_avoid_database_matrix(self):
+        self.assertScopes(
+            [
+                "shared_lib/shared_module/portal_data/runtime.py",
+                "tests/portal_data/test_phase_c_rollout_state.py",
+                "tools/phase_c_rollout_preflight.py",
+                "tools/phase_c_transition_controller.py",
+                "docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md",
+                "envs/web_portal/.env_example.yaml",
+                "envs/line_webhook_handler/.env_example.yaml",
+                "envs/notify_cronjob_service/.env_example.yaml",
+            ],
+            "deployment_tools",
+        )
+
     def test_shared_dependencies_workflow_models_and_unknown_paths_are_full(self):
         for path in (
             "shared_lib/shared_module/models/member.py",

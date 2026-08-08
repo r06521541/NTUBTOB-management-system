@@ -17,9 +17,9 @@ if str(WEB_PORTAL_DIR) not in sys.path:
 from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
 
-from shared_lib.shared_module.portal_data import (  # noqa: E402
+from shared_lib.shared_module.portal_data import (
     runtime as phase_c_runtime,
-)
+)  # noqa: E402
 
 
 class AdminAllowlistTest(unittest.TestCase):
@@ -470,6 +470,55 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertEqual(current_session["person_id"], 80)
             self.assertEqual(current_session["auth_identity_id"], 81)
             self.assertNotIn("member_id", current_session)
+
+    def test_phase_c_callback_freeze_preserves_oauth_checks_and_has_zero_side_effects(
+        self,
+    ):
+        login = self.client.get("/line/login?next=/attendance")
+        state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
+        repository = MagicMock()
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module.requests, "post"
+        ) as token_request, patch.object(
+            self.app_module.requests, "get"
+        ) as profile_request, patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.get(f"/line/callback?code=fake-code&state={state}")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.data, self.app_module.ROLLOUT_FREEZE_RESPONSE[0].encode()
+        )
+        token_request.assert_not_called()
+        profile_request.assert_not_called()
+        repository.assert_not_called()
+        repository.ensure_pending_line_identity.assert_not_called()
+        repository.resolve_line_principal.assert_not_called()
+        self.line_user_model.search_by_id.assert_not_called()
+        self.member_model.search_by_id.assert_not_called()
+        self.notifier.notify_management_message.assert_not_called()
+
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+            },
+            clear=False,
+        ), patch.object(self.app_module.requests, "post") as invalid_token_request:
+            invalid = self.client.get(
+                "/line/callback?code=fake-code&state=invalid-state"
+            )
+        self.assertEqual(invalid.status_code, 400)
+        invalid_token_request.assert_not_called()
 
     def test_phase_c_refresh_fails_closed_without_legacy_fallback(self):
         self.login()
@@ -959,6 +1008,125 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.update_profile.assert_called_once_with(
             70, 70, "Updated Display", "profile-fake-request"
         )
+
+    def test_freeze_blocks_profile_and_admin_writes_after_auth_and_csrf(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                pending_identity_id=72,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+        }
+        requests_to_test = (
+            (
+                "/account/profile",
+                {
+                    "csrf_token": token,
+                    "request_id": "profile-frozen-request",
+                    "display_name": "Blocked Display",
+                },
+            ),
+            (
+                "/identity-review",
+                {
+                    "csrf_token": token,
+                    "request_id": "review-frozen-request",
+                    "message": "Blocked review message",
+                },
+            ),
+            (
+                "/identity-admin/action",
+                {
+                    "csrf_token": token,
+                    "action": "grant_qualification",
+                    "person_id": "80",
+                    "qualification": "staff",
+                    "reason": "Blocked change",
+                    "request_id": "qualification-frozen-request",
+                },
+            ),
+            (
+                "/match-member/match",
+                {
+                    "csrf_token": token,
+                    "line_user_id": "fake-line-user",
+                    "member_id": "8",
+                },
+            ),
+            (
+                "/match-member/ignore",
+                {
+                    "csrf_token": token,
+                    "line_user_id": "fake-line-user",
+                },
+            ),
+        )
+        with patch.dict(os.environ, environment, clear=False), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            for path, data in requests_to_test:
+                with self.subTest(path=path):
+                    response = self.client.post(path, data=data)
+                    self.assertEqual(response.status_code, 503)
+                    self.assertEqual(
+                        response.data,
+                        self.app_module.ROLLOUT_FREEZE_RESPONSE[0].encode(),
+                    )
+
+        repository.update_profile.assert_not_called()
+        repository.post_review_message.assert_not_called()
+        repository.grant_qualification.assert_not_called()
+        repository.approve_member.assert_not_called()
+        repository.set_ignored.assert_not_called()
+        repository.line_identity.assert_not_called()
+        self.notifier.notify_management_message.assert_not_called()
+
+    def test_freeze_does_not_bypass_admin_or_csrf_guards(self):
+        token = self.get_csrf_token()
+        self.login(member_id=8)
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module, "is_rollout_freeze_enabled", return_value=True
+        ) as freeze_check:
+            unauthorized = self.client.post(
+                "/identity-admin/action", data={"csrf_token": token}
+            )
+        self.assertEqual(unauthorized.status_code, 403)
+        freeze_check.assert_not_called()
+
+        self.login()
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module, "is_rollout_freeze_enabled", return_value=True
+        ) as freeze_check:
+            bad_csrf = self.client.post(
+                "/identity-admin/action", data={"csrf_token": "wrong-token"}
+            )
+        self.assertEqual(bad_csrf.status_code, 400)
+        freeze_check.assert_not_called()
 
     def test_phase_c_admin_qualification_action_uses_transactional_repository(self):
         token = self.get_csrf_token()

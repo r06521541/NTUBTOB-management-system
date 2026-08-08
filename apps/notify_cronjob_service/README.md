@@ -24,3 +24,10 @@ Phase C activation is a coordinated three-service contract, not an independent
 cron toggle. Follow
 `docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md` and keep this
 service private; do not use notification routes as smoke checks.
+
+When `PORTAL_DATA_ROLLOUT_FREEZE_ENABLED` is exactly `true`,
+`POST /run-game-attendance-count` returns HTTP 200 with the fixed JSON
+classification `rollout_freeze` before database, analyzer, clock, LINE or Discord
+work. This successful no-op avoids Scheduler retry storms during a separately
+approved transition. `GET /healthz` and the non-attendance future-game route keep
+their existing contracts. The freeze is not authorization to invoke either route.

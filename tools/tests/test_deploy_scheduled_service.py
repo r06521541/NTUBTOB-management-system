@@ -165,7 +165,10 @@ class DeploymentWrapperTests(unittest.TestCase):
             env_root = self.root / "envs" / service.directory
             env_root.mkdir(parents=True)
             (env_root / ".env.yaml").write_text(
-                "SAFE: visible\n  CHANNEL_ACCESS_TOKEN: fixture-access\n"
+                "SAFE: visible\n"
+                "PORTAL_DATA_PHASE_C_ENABLED: false\n"
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: false\n"
+                "  CHANNEL_ACCESS_TOKEN: fixture-access\n"
                 "\tCHANNEL_SECRET: fixture-secret\n WEATHER_API_KEY: fixture-weather\n"
                 "  DSN_PASSWORD: fixture-password\n",
                 encoding="utf-8",
@@ -259,7 +262,12 @@ class DeploymentWrapperTests(unittest.TestCase):
             deploy.SERVICES["game-broadcast-service"].secret_env_keys,
         )
         output = destination.read_text(encoding="utf-8")
-        self.assertEqual(output, "SAFE: visible\n")
+        self.assertEqual(
+            output,
+            "SAFE: visible\n"
+            "PORTAL_DATA_PHASE_C_ENABLED: false\n"
+            "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: false\n",
+        )
         for fixture_value in (
             "fixture-access",
             "fixture-secret",

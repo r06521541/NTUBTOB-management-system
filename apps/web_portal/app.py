@@ -32,7 +32,11 @@ from flask import (
     url_for,
 )
 from flask_caching import Cache
-from identity_maintenance import is_identity_maintenance_enabled, is_phase_c_enabled
+from identity_maintenance import (
+    is_identity_maintenance_enabled,
+    is_phase_c_enabled,
+    is_rollout_freeze_enabled,
+)
 from line_login import (
     LINE_HTTP_TIMEOUT_SECONDS,
     InvalidOAuthState,
@@ -91,6 +95,7 @@ LEGACY_IDENTITY_SESSION_KEYS = ("member", "display_name")
 AUTHENTICATED_IDENTITY_SESSION_KEYS = ("user_id", "member_id")
 PHASE_C_SESSION_KEYS = ("person_id", "auth_identity_id", "member_id", "user_id")
 ATTENDANCE_NAME_STYLES = frozenset({"formal", "display"})
+ROLLOUT_FREEZE_RESPONSE = ("System transition is in progress; try again later", 503)
 
 
 def requested_attendance_name_style():
@@ -336,6 +341,11 @@ def line_callback():
     if not code:
         return "Invalid authorization response", 400
 
+    if is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED) and is_rollout_freeze_enabled(
+        demo_mode=DEMO_MODE_ENABLED
+    ):
+        return ROLLOUT_FREEZE_RESPONSE
+
     # 使用授權碼獲取access token
     data = {
         "grant_type": "authorization_code",
@@ -456,6 +466,8 @@ def identity_review():
         return render_template("not_authenticated.html"), 403
     if request.method == "POST":
         require_valid_csrf()
+        if is_rollout_freeze_enabled(demo_mode=DEMO_MODE_ENABLED):
+            return ROLLOUT_FREEZE_RESPONSE
         request_id = request.form.get("request_id", "")
         if not request_id.startswith("review-") or len(request_id) > 100:
             abort(400)
@@ -577,6 +589,8 @@ def account():
 @member_required
 def update_own_profile():
     require_valid_csrf()
+    if is_rollout_freeze_enabled(demo_mode=DEMO_MODE_ENABLED):
+        return ROLLOUT_FREEZE_RESPONSE
     repository = phase_c_repository()
     person_id = session.get("person_id")
     request_id = request.form.get("request_id", "")
@@ -638,6 +652,8 @@ def index():
 @admin_required
 def match_line_user():
     require_valid_csrf()
+    if is_rollout_freeze_enabled(demo_mode=DEMO_MODE_ENABLED):
+        return ROLLOUT_FREEZE_RESPONSE
     if not is_identity_maintenance_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity maintenance is temporarily unavailable", 503
     repository = phase_c_repository()
@@ -683,6 +699,8 @@ def _optional_form_datetime(name):
 @admin_required
 def identity_admin_action():
     require_valid_csrf()
+    if is_rollout_freeze_enabled(demo_mode=DEMO_MODE_ENABLED):
+        return ROLLOUT_FREEZE_RESPONSE
     if not is_identity_maintenance_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity maintenance is temporarily unavailable", 503
     repository = phase_c_repository()
@@ -837,6 +855,8 @@ def identity_admin_action():
 @admin_required
 def ignore_line_user():
     require_valid_csrf()
+    if is_rollout_freeze_enabled(demo_mode=DEMO_MODE_ENABLED):
+        return ROLLOUT_FREEZE_RESPONSE
     if not is_identity_maintenance_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity maintenance is temporarily unavailable", 503
     repository = phase_c_repository()

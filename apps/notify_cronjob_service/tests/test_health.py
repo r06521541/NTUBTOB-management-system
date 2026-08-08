@@ -1,4 +1,5 @@
 import importlib.util
+import os
 import sys
 import types
 import unittest
@@ -89,6 +90,14 @@ def load_isolated_service_app():
             "shared_module.message_templates.linebot_attendance_message",
             produce_attendance_message_text=fail("attendance template"),
         ),
+        "shared_module.portal_data": module("shared_module.portal_data"),
+        "shared_module.portal_data.runtime": module(
+            "shared_module.portal_data.runtime",
+            is_rollout_freeze_enabled=lambda: os.environ.get(
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED"
+            )
+            == "true",
+        ),
         "envs": module("envs", game_crawl_api="unused"),
         "message_templates": module(
             "message_templates",
@@ -155,6 +164,48 @@ class HealthRouteTests(unittest.TestCase):
         ):
             self.assertEqual(methods_by_path[path], {"POST", "OPTIONS"})
         self.assertEqual(self.app.test_client().post("/healthz").status_code, 405)
+
+    def test_frozen_attendance_count_is_successful_zero_side_effect_noop(self):
+        with patch.dict(
+            os.environ,
+            {"PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true"},
+            clear=False,
+        ):
+            response = self.app.test_client().post("/run-game-attendance-count")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.get_json(),
+            {"classification": "rollout_freeze", "status": "ok"},
+        )
+        for dependency in self.fail_calls:
+            dependency.assert_not_called()
+        self.line_helper_constructor.assert_not_called()
+
+    def test_freeze_does_not_block_non_attendance_announcement_route(self):
+        crawler = Mock()
+        crawler.get_games.return_value = []
+        with patch.dict(
+            os.environ,
+            {"PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true"},
+            clear=False,
+        ), patch.object(
+            self.app_module, "CrawlerClient", return_value=crawler
+        ), patch.object(
+            self.app_module, "generate_schedule_message_for_team", return_value="safe"
+        ), patch.object(
+            self.app_module, "announce"
+        ) as announce, patch.object(
+            self.app_module, "notify_successful_log"
+        ) as notify_success:
+            response = self.app.test_client().post("/run-future-game-announcement")
+
+        self.assertEqual(response.status_code, 200)
+        crawler.get_games.assert_called_once_with()
+        announce.assert_called_once_with("safe")
+        notify_success.assert_called_once_with(
+            self.app_module.message_templates.run_future_game_announcement_successful
+        )
 
 
 if __name__ == "__main__":

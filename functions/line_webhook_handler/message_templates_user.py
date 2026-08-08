@@ -40,3 +40,4 @@ game_already_cancelled = '{game_verbal_summary}這場已經取消囉！'
 game_attendance = '{game_verbal_summary} 這場的出席狀況是：\n{members}'
 
 feature_not_implemented_yet = "此功能尚未開放喔！"
+rollout_freeze = "系統切換中，請稍後再試。"

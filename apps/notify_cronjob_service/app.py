@@ -12,6 +12,7 @@ from shared_module.message_templates.line_notify_message import (
 )
 import shared_module.attendance_analyzer as attendance_analyzer
 import shared_module.message_templates.linebot_attendance_message as linebot_attendance_message
+from shared_module.portal_data.runtime import is_rollout_freeze_enabled
 
 from envs import (
     game_crawl_api
@@ -64,7 +65,9 @@ def run_future_game_announcement():
     return ""
 
 @app.route("/run-game-attendance-count", methods=['POST'])
-def run_game_attendance_count():    
+def run_game_attendance_count():
+    if is_rollout_freeze_enabled():
+        return jsonify(status="ok", classification="rollout_freeze")
     try:
         games = Game.search_for_invited()
         for game in games:

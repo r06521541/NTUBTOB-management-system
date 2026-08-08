@@ -579,3 +579,4 @@
 - Work風險式驗收沒有blocking finding；唯一ready PR仍須取得hosted Python 3.10／PostgreSQL final gate後才能merge。
 - 後續TASK-077若要部署或啟用，必須另取Owner對exact commit／revisions、runtime flags、可驗證attendance／notification
   freeze、observation、production smoke及rollback traffic mutation的明確批准；無freeze則activation blocked。
+- PR #77 final hosted CI全部通過，已squash merge為`43eb67c`；未部署且所有Phase C runtime flags仍關閉。
