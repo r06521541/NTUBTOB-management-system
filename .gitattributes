@@ -4,3 +4,5 @@ docs/operations/sql/TASK-071-phase-c-production-postcheck.sql text eol=lf
 docs/operations/sql/TASK-071-phase-c-production-postcheck.sql.sha256 text eol=lf
 docs/operations/sql/portal-data-0003-to-0004.sql text eol=lf
 docs/operations/sql/portal-data-0003-to-0004.sql.sha256 text eol=lf
+docs/operations/sql/TASK-084-phase-c-closeout-inventory.sql text eol=lf
+docs/operations/sql/TASK-084-phase-c-closeout-inventory.sql.sha256 text eol=lf

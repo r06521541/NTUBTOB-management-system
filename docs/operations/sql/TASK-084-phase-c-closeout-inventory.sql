@@ -1,4 +1,4 @@
--- Sanitized Phase C closeout inventory. Aggregate evidence only; no identifiers.
+-- Sanitized Phase C closeout inventory. Aggregate evidence only; no identifiers. Canonical checkout uses LF.
 BEGIN TRANSACTION READ ONLY;
 SET LOCAL statement_timeout = '15s';
 SET LOCAL lock_timeout = '2s';
