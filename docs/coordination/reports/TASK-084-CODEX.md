@@ -23,6 +23,15 @@
   `identity_ignored`/`identity_unignored` action counts and restored candidate
   classifications. Route and PostgreSQL domain regressions replay the same POST
   and same request ID without bypassing existing gates.
+- Third-review correction replaces the known-failing TASK-068 post-audit step
+  with one executable five-snapshot closeout contract. The SQL retains its
+  non-audit Member/Person, identity-link, duplicate-link and team-player drift
+  gates; only the exact Owner-approved ignore/unignore audit pair may be new.
+  A sanitized same-target join count proves both actions reference one
+  `auth_identity_id`, while candidate aggregates must change exactly `-1/+1`,
+  remain unchanged on retry, and fully recover. The runbook now treats psql
+  variable substitution as server-bound statement content and requires a
+  no-sensitive-input statement-logging/provider preflight before parameters.
 
 ## Verification
 
@@ -40,6 +49,11 @@
   tests passed; 9 isolated-PostgreSQL tests skipped locally because no test DB
   URL was configured. The same-request-ID domain assertion is in that hosted
   PostgreSQL path.
+- Third-review targeted rerun: `python -m unittest
+  tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
+  tools.tests.test_deploy_phase_c_transition_controller -v`: 22 passed;
+  compileall, Black 24.4.2 formatter API comparison, checksum verification,
+  and `git diff --check` passed.
 
 ## Not performed / remaining boundary
 

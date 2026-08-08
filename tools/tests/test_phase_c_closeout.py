@@ -1,6 +1,6 @@
-import json
 import csv
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,10 +10,19 @@ from tools import phase_c_closeout as closeout
 
 DATABASE = {
     "schema_revision": "0004_phase_c_identity_lifecycle",
+    "statement_logging_safe": True,
     "admin_principal_count": 1,
     "identity_drift_count": 0,
     "member_person_drift_count": 0,
+    "duplicate_person_link_count": 0,
     "qualification_drift_count": 0,
+    "missing_identity_count": 0,
+    "wrong_person_link_count": 0,
+    "identity_without_reliable_link_count": 0,
+    "orphan_member_link_count": 0,
+    "team_player_missing_count": 0,
+    "team_player_extra_count": 0,
+    "team_player_revoked_mismatch_count": 0,
     "audit_count": 1,
     "duplicate_request_id_count": 0,
     "safe_ignore_candidate_count": 1,
@@ -22,6 +31,7 @@ DATABASE = {
     "mutation_other_action_count": 0,
     "recovery_unignored_action_count": 0,
     "recovery_other_action_count": 0,
+    "bounded_same_target_count": 0,
 }
 RUNTIME = {
     "revisions": {
@@ -41,6 +51,11 @@ class CloseoutEvidenceTests(unittest.TestCase):
     def inventory_rows(self, **overrides):
         values = {
             ("00_session", "transaction_read_only"): (
+                "required",
+                "boolean_value",
+                "true",
+            ),
+            ("00_session", "statement_logging_safe"): (
                 "required",
                 "boolean_value",
                 "true",
@@ -72,6 +87,31 @@ class CloseoutEvidenceTests(unittest.TestCase):
                 "integer_value",
                 "0",
             ),
+            ("02_identity", "duplicate_person_link_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("02_identity", "missing_identity_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("02_identity", "wrong_person_link_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("02_identity", "identity_without_reliable_link_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("02_identity", "orphan_member_link_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
             ("03_audit", "access_audit_count"): ("required", "integer_value", "10"),
             ("03_audit", "duplicate_request_id_count"): (
                 "required",
@@ -98,12 +138,32 @@ class CloseoutEvidenceTests(unittest.TestCase):
                 "integer_value",
                 "0",
             ),
+            ("03_audit", "bounded_same_target_count"): (
+                "bounded",
+                "integer_value",
+                "0",
+            ),
             ("04_qualification", "active_team_player_count"): (
                 "required",
                 "integer_value",
                 "2",
             ),
             ("04_qualification", "qualification_drift_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("04_qualification", "team_player_missing_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("04_qualification", "team_player_extra_count"): (
+                "required",
+                "integer_value",
+                "0",
+            ),
+            ("04_qualification", "team_player_revoked_mismatch_count"): (
                 "required",
                 "integer_value",
                 "0",
@@ -121,7 +181,7 @@ class CloseoutEvidenceTests(unittest.TestCase):
     def test_csv_ingestion_and_bounded_audit_sequence_fail_closed(self):
         database = closeout.ingest_inventory_rows(self.inventory_rows())
         before = {"database": database, "runtime": RUNTIME}
-        retry = {
+        action = {
             "database": {
                 **database,
                 "audit_count": 11,
@@ -131,19 +191,61 @@ class CloseoutEvidenceTests(unittest.TestCase):
             },
             "runtime": RUNTIME,
         }
-        recovery = {"database": dict(retry["database"]), "runtime": RUNTIME}
-        post = {
+        retry = {"database": dict(action["database"]), "runtime": RUNTIME}
+        recovery = {
             "database": {
                 **database,
                 "audit_count": 12,
                 "mutation_ignored_action_count": 1,
                 "recovery_unignored_action_count": 1,
+                "bounded_same_target_count": 1,
             },
             "runtime": RUNTIME,
         }
-        closeout.compare_sequence(before, retry, recovery, post)
+        post = {"database": dict(recovery["database"]), "runtime": RUNTIME}
+        closeout.compare_sequence(before, action, retry, recovery, post)
         with self.assertRaises(closeout.CloseoutEvidenceError):
-            closeout.compare_sequence(before, before, recovery, post)
+            closeout.compare_sequence(before, before, retry, recovery, post)
+
+    def test_sequence_requires_exact_candidate_deltas_and_same_target(self):
+        before = {"database": DATABASE, "runtime": RUNTIME}
+        action_database = {
+            **DATABASE,
+            "audit_count": 2,
+            "safe_ignore_candidate_count": 0,
+            "safe_unignore_candidate_count": 1,
+            "mutation_ignored_action_count": 1,
+        }
+        action = {"database": action_database, "runtime": RUNTIME}
+        recovery_database = {
+            **DATABASE,
+            "audit_count": 3,
+            "mutation_ignored_action_count": 1,
+            "recovery_unignored_action_count": 1,
+            "bounded_same_target_count": 1,
+        }
+        recovery = {"database": recovery_database, "runtime": RUNTIME}
+        closeout.compare_sequence(before, action, action, recovery, recovery)
+        cases = (
+            {**action_database, "safe_ignore_candidate_count": 1},
+            {**action_database, "safe_unignore_candidate_count": 2},
+            {**recovery_database, "bounded_same_target_count": 0},
+        )
+        for drift in cases:
+            with (
+                self.subTest(drift=drift),
+                self.assertRaises(closeout.CloseoutEvidenceError),
+            ):
+                if "bounded_same_target_count" in drift and drift["audit_count"] == 3:
+                    bad_recovery = {"database": drift, "runtime": RUNTIME}
+                    closeout.compare_sequence(
+                        before, action, action, bad_recovery, bad_recovery
+                    )
+                else:
+                    bad_action = {"database": drift, "runtime": RUNTIME}
+                    closeout.compare_sequence(
+                        before, bad_action, bad_action, recovery, recovery
+                    )
 
     def test_complete_sql_row_contract_rejects_every_shape_drift(self):
         rows = self.inventory_rows()
@@ -193,7 +295,10 @@ class CloseoutEvidenceTests(unittest.TestCase):
     def test_database_and_runtime_drift_fail_closed(self):
         cases = (
             ({**DATABASE, "admin_principal_count": 0}, RUNTIME),
+            ({**DATABASE, "statement_logging_safe": False}, RUNTIME),
             ({**DATABASE, "duplicate_request_id_count": 1}, RUNTIME),
+            ({**DATABASE, "missing_identity_count": 1}, RUNTIME),
+            ({**DATABASE, "duplicate_person_link_count": 1}, RUNTIME),
             (DATABASE, {**RUNTIME, "traffic": {**RUNTIME["traffic"], "web_portal": 0}}),
             (
                 DATABASE,

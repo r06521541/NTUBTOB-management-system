@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import io
 import json
 import re
-import csv
 from pathlib import Path
 from typing import Mapping
 
@@ -27,10 +27,19 @@ INVENTORY_SQL_PATH = (
 DATABASE_FIELDS = frozenset(
     {
         "schema_revision",
+        "statement_logging_safe",
         "admin_principal_count",
         "identity_drift_count",
         "member_person_drift_count",
+        "duplicate_person_link_count",
         "qualification_drift_count",
+        "missing_identity_count",
+        "wrong_person_link_count",
+        "identity_without_reliable_link_count",
+        "orphan_member_link_count",
+        "team_player_missing_count",
+        "team_player_extra_count",
+        "team_player_revoked_mismatch_count",
         "audit_count",
         "duplicate_request_id_count",
         "safe_ignore_candidate_count",
@@ -39,6 +48,7 @@ DATABASE_FIELDS = frozenset(
         "mutation_other_action_count",
         "recovery_unignored_action_count",
         "recovery_other_action_count",
+        "bounded_same_target_count",
     }
 )
 CSV_FIELDS = (
@@ -51,6 +61,7 @@ CSV_FIELDS = (
 )
 CSV_METRICS = {
     ("00_session", "transaction_read_only"): ("boolean_value", "true"),
+    ("00_session", "statement_logging_safe"): ("boolean_value", "true"),
     ("01_schema", "revision"): ("text_value", "0004_phase_c_identity_lifecycle"),
     ("02_identity", "identity_count"): ("integer_value", None),
     ("02_identity", "active_linked_allowlisted_admin_count"): ("integer_value", None),
@@ -58,14 +69,23 @@ CSV_METRICS = {
     ("02_identity", "safe_unignore_candidate_count"): ("integer_value", None),
     ("02_identity", "identity_drift_count"): ("integer_value", "0"),
     ("02_identity", "member_person_drift_count"): ("integer_value", "0"),
+    ("02_identity", "duplicate_person_link_count"): ("integer_value", "0"),
+    ("02_identity", "missing_identity_count"): ("integer_value", "0"),
+    ("02_identity", "wrong_person_link_count"): ("integer_value", "0"),
+    ("02_identity", "identity_without_reliable_link_count"): ("integer_value", "0"),
+    ("02_identity", "orphan_member_link_count"): ("integer_value", "0"),
     ("03_audit", "access_audit_count"): ("integer_value", None),
     ("03_audit", "duplicate_request_id_count"): ("integer_value", "0"),
     ("03_audit", "mutation_ignored_action_count"): ("integer_value", None),
     ("03_audit", "mutation_other_action_count"): ("integer_value", "0"),
     ("03_audit", "recovery_unignored_action_count"): ("integer_value", None),
     ("03_audit", "recovery_other_action_count"): ("integer_value", "0"),
+    ("03_audit", "bounded_same_target_count"): ("integer_value", None),
     ("04_qualification", "active_team_player_count"): ("integer_value", None),
     ("04_qualification", "qualification_drift_count"): ("integer_value", "0"),
+    ("04_qualification", "team_player_missing_count"): ("integer_value", "0"),
+    ("04_qualification", "team_player_extra_count"): ("integer_value", "0"),
+    ("04_qualification", "team_player_revoked_mismatch_count"): ("integer_value", "0"),
 }
 RUNTIME_FIELDS = frozenset(
     {"revisions", "traffic", "iam", "phase_c", "freeze", "maintenance"}
@@ -137,7 +157,11 @@ def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
             else (
                 "bounded"
                 if key[0] == "03_audit"
-                and (key[1].startswith("mutation_") or key[1].startswith("recovery_"))
+                and (
+                    key[1].startswith("mutation_")
+                    or key[1].startswith("recovery_")
+                    or key[1] == "bounded_same_target_count"
+                )
                 else "required"
             )
         )
@@ -156,6 +180,8 @@ def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
         raise CloseoutEvidenceError("inventory CSV is incomplete")
     return {
         "schema_revision": seen[("01_schema", "revision")],
+        "statement_logging_safe": seen[("00_session", "statement_logging_safe")]
+        == "true",
         "admin_principal_count": int(
             seen[("02_identity", "active_linked_allowlisted_admin_count")]
         ),
@@ -163,8 +189,30 @@ def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
         "member_person_drift_count": int(
             seen[("02_identity", "member_person_drift_count")]
         ),
+        "duplicate_person_link_count": int(
+            seen[("02_identity", "duplicate_person_link_count")]
+        ),
+        "missing_identity_count": int(seen[("02_identity", "missing_identity_count")]),
+        "wrong_person_link_count": int(
+            seen[("02_identity", "wrong_person_link_count")]
+        ),
+        "identity_without_reliable_link_count": int(
+            seen[("02_identity", "identity_without_reliable_link_count")]
+        ),
+        "orphan_member_link_count": int(
+            seen[("02_identity", "orphan_member_link_count")]
+        ),
         "qualification_drift_count": int(
             seen[("04_qualification", "qualification_drift_count")]
+        ),
+        "team_player_missing_count": int(
+            seen[("04_qualification", "team_player_missing_count")]
+        ),
+        "team_player_extra_count": int(
+            seen[("04_qualification", "team_player_extra_count")]
+        ),
+        "team_player_revoked_mismatch_count": int(
+            seen[("04_qualification", "team_player_revoked_mismatch_count")]
         ),
         "audit_count": int(seen[("03_audit", "access_audit_count")]),
         "duplicate_request_id_count": int(
@@ -188,11 +236,15 @@ def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
         "recovery_other_action_count": int(
             seen[("03_audit", "recovery_other_action_count")]
         ),
+        "bounded_same_target_count": int(
+            seen[("03_audit", "bounded_same_target_count")]
+        ),
     }
 
 
 def compare_sequence(
     before: Mapping[str, object],
+    action: Mapping[str, object],
     retry: Mapping[str, object],
     recovery: Mapping[str, object],
     post: Mapping[str, object],
@@ -200,30 +252,44 @@ def compare_sequence(
     """Require one action audit, no retry audit, one recovery audit and restored protected counts."""
     manifests = [
         build_manifest(item["database"], item["runtime"])
-        for item in (before, retry, recovery, post)
+        for item in (before, action, retry, recovery, post)
     ]
     databases = [entry["database"] for entry in manifests]
     counts = [entry["audit_count"] for entry in databases]
-    if (
-        counts[1] != counts[0] + 1
-        or counts[2] != counts[1]
-        or counts[3] != counts[2] + 1
-    ):
+    if counts != [
+        counts[0],
+        counts[0] + 1,
+        counts[0] + 1,
+        counts[0] + 2,
+        counts[0] + 2,
+    ]:
         raise CloseoutEvidenceError("audit sequence is invalid")
-    expected_actions = ((0, 0), (1, 0), (1, 0), (1, 1))
+    expected_actions = ((0, 0), (1, 0), (1, 0), (1, 1), (1, 1))
+    expected_same_target = (0, 0, 0, 1, 1)
     if any(
         (item["mutation_ignored_action_count"], item["recovery_unignored_action_count"])
         != expected
         or item["mutation_other_action_count"] != 0
         or item["recovery_other_action_count"] != 0
-        for item, expected in zip(databases, expected_actions)
+        or item["bounded_same_target_count"] != same_target
+        for item, expected, same_target in zip(
+            databases, expected_actions, expected_same_target
+        )
     ):
         raise CloseoutEvidenceError("bounded action sequence is invalid")
     protected = (
         "admin_principal_count",
         "identity_drift_count",
         "member_person_drift_count",
+        "duplicate_person_link_count",
         "qualification_drift_count",
+        "missing_identity_count",
+        "wrong_person_link_count",
+        "identity_without_reliable_link_count",
+        "orphan_member_link_count",
+        "team_player_missing_count",
+        "team_player_extra_count",
+        "team_player_revoked_mismatch_count",
         "duplicate_request_id_count",
     )
     if any(
@@ -233,13 +299,29 @@ def compare_sequence(
         raise CloseoutEvidenceError("protected closeout counts drifted")
     if (
         databases[0]["safe_ignore_candidate_count"] < 1
-        or databases[1]["safe_unignore_candidate_count"] < 1
-        or databases[2]["safe_unignore_candidate_count"]
-        != databases[1]["safe_unignore_candidate_count"]
+        or databases[1]["safe_ignore_candidate_count"]
+        != databases[0]["safe_ignore_candidate_count"] - 1
+        or databases[1]["safe_unignore_candidate_count"]
+        != databases[0]["safe_unignore_candidate_count"] + 1
+        or any(
+            databases[phase][field] != databases[1][field]
+            for phase in (2,)
+            for field in (
+                "safe_ignore_candidate_count",
+                "safe_unignore_candidate_count",
+            )
+        )
         or databases[3]["safe_ignore_candidate_count"]
         != databases[0]["safe_ignore_candidate_count"]
         or databases[3]["safe_unignore_candidate_count"]
         != databases[0]["safe_unignore_candidate_count"]
+        or any(
+            databases[4][field] != databases[3][field]
+            for field in (
+                "safe_ignore_candidate_count",
+                "safe_unignore_candidate_count",
+            )
+        )
     ):
         raise CloseoutEvidenceError("candidate classification did not recover")
 
@@ -292,24 +374,38 @@ def build_manifest(
         raise CloseoutEvidenceError("database evidence fields are invalid")
     if database["schema_revision"] != "0004_phase_c_identity_lifecycle":
         raise CloseoutEvidenceError("schema revision is invalid")
+    if database["statement_logging_safe"] is not True:
+        raise CloseoutEvidenceError("statement logging boundary is unsafe")
     result = {
         name: _integer(database[name], name)
         for name in DATABASE_FIELDS
-        if name != "schema_revision"
+        if name not in ("schema_revision", "statement_logging_safe")
     }
     if result["admin_principal_count"] < 1:
         raise CloseoutEvidenceError("no active allowlisted admin classification")
     for name in (
         "identity_drift_count",
         "member_person_drift_count",
+        "duplicate_person_link_count",
         "qualification_drift_count",
+        "missing_identity_count",
+        "wrong_person_link_count",
+        "identity_without_reliable_link_count",
+        "orphan_member_link_count",
+        "team_player_missing_count",
+        "team_player_extra_count",
+        "team_player_revoked_mismatch_count",
         "duplicate_request_id_count",
     ):
         if result[name] != 0:
             raise CloseoutEvidenceError("database drift classification is unsafe")
     return {
         "schema": "phase-c-closeout-v1",
-        "database": {"schema_revision": database["schema_revision"], **result},
+        "database": {
+            "schema_revision": database["schema_revision"],
+            "statement_logging_safe": True,
+            **result,
+        },
         "runtime": _runtime(runtime),
         "candidate_boundary": "owner_supplies-target-outside-repository",
         "mutation_boundary": "domain-recovery-only-new-request-id",
