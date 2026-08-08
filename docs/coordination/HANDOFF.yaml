@@ -1,15 +1,15 @@
 active_task: TASK-081
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: d9213acea1708f051fc457753b3b941dbad305f6
-head_commit: null
+head_commit: 314e8d970a0384c9ec7cfc5ee01dc984a442e83f
 
-updated_by: work
-updated_at: 2026-08-08T20:35:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T20:50:00+08:00
 
 note: >
-  TASK-081 is the Phase C release train. Codex is authorized only for repository/local readiness: interruption-safe deployment
-  tooling, activation manifest/controller, static deployment contracts and offline tests. Production feature activation, flags,
-  deployment, Scheduler/Secret/IAM/DB operations, endpoint invocation and notification remain blocked pending a later exact
-  Owner approval after hosted CI and execution-time inventory.
+  TASK-081 A adds scheduled no-traffic promotion safety with interruption rollback, a bounded local-only Phase C release
+  manifest renderer, static deployment contracts and a Stage B work-package template. Related offline tests passed. No
+  production build/deploy, gcloud, Secret/env read, flags/Scheduler/IAM/database/traffic operation, endpoint invocation or
+  notification occurred. Return to Work review.
