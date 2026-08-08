@@ -1,15 +1,15 @@
-active_task: TASK-074
+active_task: TASK-073
 status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 4e0c30f1277058b9d27a4941454f6e8dcc2b978d
-head_commit: 29854a5bcda321d16a046f44611a813b0615f26a
+base_commit: 5cdedd60d999a095a66230101818fdaa31acd46d
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T11:10:00+08:00
+updated_at: 2026-08-08T11:25:00+08:00
 
 note: >
-  Work accepted TASK-074 after independent 157-test runs on PostgreSQL 15.8 and 16.4 and hosted matrix CI run 31234515858
-  passed both jobs. Exact catalog gates remain intact. Work also clarified that repository-recorded standing Git/PR
-  authorization remains valid across sessions, so Codex may create Draft PRs without repeated conversational approval.
-  No production access or mutation occurred; standing Git authority permits squash merge after final CI.
+  TASK-074 passed independent and hosted PostgreSQL 15.8/16.4 verification and PR #71 squash merged as 5cdedd6. TASK-073
+  is re-locked to exact commit 5cdedd60d999a095a66230101818fdaa31acd46d, inventory checksum 9dc3d2e5...ae2d46,
+  unchanged migration checksum 67ea4490...d1f91, and post-check checksum 6de46c7c...13166. Owner must newly approve
+  and run only the read-only inventory; the prior CSV and approval do not authorize migration or reuse.
