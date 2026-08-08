@@ -1,5 +1,6 @@
 import importlib
 import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -32,6 +33,42 @@ class DemoGateTest(unittest.TestCase):
         ):
             with self.subTest(values=values):
                 self.assertFalse(is_demo_mode_enabled(values))
+
+    def test_demo_app_import_does_not_require_installed_shared_package(self):
+        script = """
+import os
+import sys
+
+sys.modules["shared_module"] = None
+sys.path.insert(0, os.environ["WEB_PORTAL_TEST_ROOT"])
+import app
+
+assert app.DEMO_MODE_ENABLED
+assert app.phase_c_repository() is None
+assert not app.is_identity_maintenance_enabled(demo_mode=True)
+"""
+        environment = {
+            name: os.environ[name]
+            for name in ("PATH", "SYSTEMROOT", "TEMP", "TMP", "WINDIR")
+            if name in os.environ
+        }
+        environment.update(
+            {
+                "WEB_PORTAL_ENV": "development",
+                "WEB_PORTAL_DEMO_MODE": "true",
+                "WEB_PORTAL_TEST_ROOT": str(WEB_PORTAL_DIR),
+            }
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=WEB_PORTAL_DIR,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
 
 
 class DemoPortalTest(unittest.TestCase):

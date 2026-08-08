@@ -32,7 +32,7 @@ from flask import (
     url_for,
 )
 from flask_caching import Cache
-from identity_maintenance import is_identity_maintenance_enabled
+from identity_maintenance import is_identity_maintenance_enabled, is_phase_c_enabled
 from line_login import (
     LINE_HTTP_TIMEOUT_SECONDS,
     InvalidOAuthState,
@@ -46,7 +46,6 @@ from performance_diagnostics import AttendanceTiming
 from role_policy import MANAGE_MEMBERS, ROLE_ADMIN, ROLE_MEMBER
 from role_policy import Principal as WebPrincipal
 from role_policy import has_capability
-from shared_module.portal_data.runtime import is_phase_c_enabled
 
 from envs import login_channel_id, login_channel_secret, secret_key
 
@@ -616,7 +615,9 @@ def index():
             dashboard=repository.admin_dashboard(actor_person_id),
             csrf_token=get_or_create_csrf_token(),
             request_nonce=secrets.token_urlsafe(16),
-            identity_maintenance_enabled=is_identity_maintenance_enabled(),
+            identity_maintenance_enabled=is_identity_maintenance_enabled(
+                demo_mode=DEMO_MODE_ENABLED
+            ),
             current_identity_id=session.get("auth_identity_id"),
         )
     line_users = LineUser.search_all_unknowns()
@@ -627,7 +628,9 @@ def index():
         line_users=line_users,
         members=members,
         csrf_token=get_or_create_csrf_token(),
-        identity_maintenance_enabled=is_identity_maintenance_enabled(),
+        identity_maintenance_enabled=is_identity_maintenance_enabled(
+            demo_mode=DEMO_MODE_ENABLED
+        ),
     )
 
 
@@ -635,7 +638,7 @@ def index():
 @admin_required
 def match_line_user():
     require_valid_csrf()
-    if not is_identity_maintenance_enabled():
+    if not is_identity_maintenance_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity maintenance is temporarily unavailable", 503
     repository = phase_c_repository()
     if repository is None:
@@ -680,7 +683,7 @@ def _optional_form_datetime(name):
 @admin_required
 def identity_admin_action():
     require_valid_csrf()
-    if not is_identity_maintenance_enabled():
+    if not is_identity_maintenance_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity maintenance is temporarily unavailable", 503
     repository = phase_c_repository()
     actor_person_id = session.get("person_id")
@@ -834,7 +837,7 @@ def identity_admin_action():
 @admin_required
 def ignore_line_user():
     require_valid_csrf()
-    if not is_identity_maintenance_enabled():
+    if not is_identity_maintenance_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity maintenance is temporarily unavailable", 503
     repository = phase_c_repository()
     if repository is None:

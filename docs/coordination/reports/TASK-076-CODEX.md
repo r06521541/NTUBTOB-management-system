@@ -142,3 +142,26 @@ mutation；若無可驗證freeze機制，Phase C activation應停止而非接受
 - Implementation commit：`699259a5025eed27125b85d17a4fcf38f61564e2`
 - Completion report／handoff將建立一次描述性commit並push同一branch。
 - Completion commit後預期無未提交修改；不建立Draft或ready PR。
+
+## Hosted CI 修正循環（run 31246847243）
+
+- Hosted Python 3.10 Web Portal job 在未安裝 `shared_module` 的乾淨環境重現
+  `identity_maintenance.py` module-load import failure；其他 hosted service jobs 與
+  PostgreSQL 15／16已由Work確認通過。
+- 修正把 Web Portal Phase C／maintenance runtime imports 移到 production-only
+  呼叫時機。Demo mode先明確回傳disabled，維持fail closed且不需要部署用shared
+  package；production仍使用共用runtime state machine，缺少部署套件時不會靜默
+  fallback到另一套旗標規則。
+- 新增獨立subprocess regression test，使用乾淨環境並明確封鎖
+  `shared_module`，驗證完整demo app可匯入、Phase C repository不可用且maintenance
+  disabled。
+- 本機先以相同封鎖條件確認修正前失敗，修正後Web Portal完整suite為121 tests：
+  119 passed、2個既有Windows `make`／`sh` skips。正常環境完整suite亦為相同結果。
+- Phase C flag tests為7 passed；5個需要隔離PostgreSQL URL的cross-service tests在
+  本輪local-only修正中skipped，hosted PostgreSQL 15／16先前結果由Work確認通過。
+- 受影響檔案`compileall`、isort check、Black 24.4.2等價內容check及
+  `git diff --check`通過。Windows bundled runtime的Black CLI multiprocessing未在
+  預期時間結束，已終止且未留下程序；改以同版本Black formatter API做唯讀內容
+  比對，未寫入額外檔案。
+- 最終Hosted Python 3.10重跑仍由Work在既有ready PR執行；本輪未部署、未接觸
+  production、未修改runtime flags、Secret／IAM／Scheduler，亦未發送通知。
