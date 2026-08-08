@@ -3,12 +3,11 @@ status: ready_for_review
 next_actor: work
 
 base_commit: caf77e1226aafa120dd98e62f72373a6511fb3b8
-head_commit: 5a1e7a3
+head_commit: 005a440
 
 updated_by: codex
-updated_at: 2026-08-08T23:32:00+08:00
+updated_at: 2026-08-08T23:48:00+08:00
 
 note: >
-  TASK-083 adds regional build describe and machine-readable submit protections to the scheduled-service wrapper, with offline
-  regression coverage. Targeted suite passed; fail-closed promotion/rollback behavior remains covered. No external operation
-  occurred. Return to Work review.
+  TASK-083 now adds explicit table-driven fail-closed regressions for FAILURE, WORKING and wrong build substitutions; each
+  proves no update-traffic command occurs. Targeted suite passed; no external operation occurred. Return to Work review.
