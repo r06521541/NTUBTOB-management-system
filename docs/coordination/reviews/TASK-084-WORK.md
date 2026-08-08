@@ -110,3 +110,12 @@ SQL 只檢查 `auth_identities.status='pending' AND person_id IS NULL`，但正�
 - 未執行production inventory、gcloud、DB、build/deploy、flag、traffic、IAM、Scheduler或通知操作。
 
 Stage A本機驗收結論：`accepted`，等待唯一ready PR的hosted Python 3.10與PostgreSQL 15／16 final gate。Hosted gate通過且branch未再改變後可依standing Git authorization squash merge；Stage B production唯讀inventory仍須Owner另行精確批准。
+
+## Stage B pre-execution security finding（2026-08-09）
+
+- PR #84已通過hosted gate並merge為`10cc550`；Windows CRLF checksum prerequisite亦經PR #85通過並merge為`afee2e3`。
+- Owner批准Stage B後，GCP唯讀inventory確認三服務Ready／100% traffic、Phase C all-on、freeze all-off、maintenance off、IAM與Secret binding metadata符合既有部署契約；未讀Secret值，最近精確revision ERROR與兩個Scheduler job metadata-only log查詢無紀錄可回傳，分類為unavailable而非成功流量證據。
+- 執行production SQL前，Work查證Supabase官方文件：平台提供Postgres／Supavisor logs，且`pg_stat_statements`保存representative statement。現有psql `:'var'`會把allowlist及request IDs替換進server-bound SQL文字；只檢查`log_statement`／pgAudit不足以證明其他provider／statistics層不保存literal。
+- PostgreSQL 16支援psql `\bind` extended query protocol，可將SQL placeholders與參數值分離。為符合既有「不得將target／request ID寫入log」邊界，production SQL執行暫停，須先將controlled query改成`$1/$2/$3` parameter binding並加入offline contract／checksum／runbook驗證。不得以放寬logging假設繞過。
+
+結論：`changes_requested / codex`。既有Stage B批准仍有效，但在參數化prerequisite merge前不得執行production DB inventory；已完成的GCP唯讀證據不構成任何mutation授權。
