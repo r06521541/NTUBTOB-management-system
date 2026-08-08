@@ -1,15 +1,15 @@
-active_task: TASK-075
-status: ready_for_review
-next_actor: work
+active_task: TASK-073
+status: completed
+next_actor: owner
 
-base_commit: 945375c82761efe9a19e5a477c53f7fd4d3c5c49
-head_commit: cd76a94924f237d6eb464f4be4d58e5a51864b72
+base_commit: 5a63a0c77e2725c828b17b784680b90a6cffb03f
+head_commit: null
 
-updated_by: codex
-updated_at: 2026-08-08T13:54:00+08:00
+updated_by: work
+updated_at: 2026-08-08T14:52:00+08:00
 
 note: >
-  Codex implemented fail-conservative change classification, scoped suites, PostgreSQL 15/16 database jobs, concurrency and
-  one stable final gate. Local classifier/workflow contracts, all service suites and both 157-test PostgreSQL suites passed.
-  Owner-reviewed policy files were preserved in the same implementation commit and are distinguished in the Codex report.
-  No PR was opened; Work must review the shared branch, add its review and create the single ready PR for hosted full baseline.
+  TASK-073 production Phase C migration completed. Fresh inventory passed at revision 0003; Owner accepted the bounded BYPASSRLS
+  risk and reported the exact transaction successful. The 55-row post-check passed all 44 required gates at revision 0004 with
+  exact 2-table, 19-column, 15-constraint and 3-index fingerprints; inventory/post-check comparison returned pass. Runtime flags
+  remain off and no application deployment or other production mutation is authorized. Next step requires a separate rollout task.

@@ -33,6 +33,16 @@
 - TASK-073在production inventory前安全暫緩；reviewed source commit與三份SQL checksums維持有效，本任務不授權
   production SQL、migration或任何cloud／GitHub settings mutation。
 
+### TASK-073 Phase C production schema migration（2026-08-08）
+
+- Owner依exact checksums執行fresh inventory、唯一一次`0003 -> 0004`transaction及immediate read-only post-check。
+- Inventory 51列／38 required gates通過，zero Phase C collisions；session非superuser，BYPASSRLS風險由Owner明確接受。
+- Post-check 55列／44 required gates通過，revision為`0004_phase_c_identity_lifecycle`，精確確認2 tables、19 columns、
+  15 constraints及3 indexes；10個compare metrics一致，strict compare結果為`pass`。
+- Schema migration已完成且不做downgrade。`PORTAL_DATA_PHASE_C_ENABLED`及identity maintenance維持off；尚未部署
+  application、改Secret／IAM／Scheduler／RLS／grants、發通知或執行其他production mutation。
+- 結案文件保持本機未提交，應併入下一個實質application rollout task，不另開純closeout PR或觸發昂貴CI。
+
 更新時間：2026-08-07T21:51:52+08:00
 維護角色：Work
 證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`
