@@ -36,7 +36,7 @@ WITH legacy_tables(name) AS (VALUES
   WHERE qualification='team_player' AND status='active'
 ), evidence(section,metric,status,boolean_value,integer_value,text_value) AS (
   SELECT '00_session','transaction_read_only','required',current_setting('transaction_read_only')='on',NULL::bigint,NULL::text
-  UNION ALL SELECT '00_session','server_major_at_least_16','required',current_setting('server_version_num')::int >= 160000,NULL,NULL
+  UNION ALL SELECT '00_session','server_major_supported','required',current_setting('server_version_num')::int / 10000 IN (15,16),NULL,NULL
   UNION ALL SELECT '00_session','schema_owned_by_session','required',pg_get_userbyid(nspowner)=current_user,NULL,NULL FROM pg_namespace WHERE nspname='ntubtob'
   UNION ALL SELECT '00_session','session_has_schema_usage','required',has_schema_privilege(current_user,'ntubtob','USAGE'),NULL,NULL
   UNION ALL SELECT '00_session','session_has_schema_create','required',has_schema_privilege(current_user,'ntubtob','CREATE'),NULL,NULL

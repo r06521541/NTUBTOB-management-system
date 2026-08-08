@@ -12,13 +12,19 @@ permissions:
 
 jobs:
   python-3-10-tests:
-    name: Python 3.10 unittest suite
+    name: Python 3.10 / ${{ matrix.postgres_image }} unittest suite
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres_image:
+          - postgres:15.8-alpine
+          - postgres:16.4-alpine
 
     services:
       portal-postgres:
-        image: postgres:16.4-alpine
+        image: ${{ matrix.postgres_image }}
         env:
           POSTGRES_DB: ntubtob_portal_local
           POSTGRES_USER: portal_local

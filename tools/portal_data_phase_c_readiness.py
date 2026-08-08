@@ -102,7 +102,7 @@ COMMON_INVARIANTS = {
 
 INVENTORY_SCHEMA = {
     ("00_session", "transaction_read_only"): _exact("boolean_value", "true"),
-    ("00_session", "server_major_at_least_16"): _exact("boolean_value", "true"),
+    ("00_session", "server_major_supported"): _exact("boolean_value", "true"),
     ("00_session", "schema_owned_by_session"): _exact("boolean_value", "true"),
     ("00_session", "session_has_schema_usage"): _exact("boolean_value", "true"),
     ("00_session", "session_has_schema_create"): _exact("boolean_value", "true"),
@@ -134,7 +134,7 @@ INVENTORY_SCHEMA = {
 
 POSTCHECK_SCHEMA = {
     ("00_session", "transaction_read_only"): _exact("boolean_value", "true"),
-    ("00_session", "server_major_at_least_16"): _exact("boolean_value", "true"),
+    ("00_session", "server_major_supported"): _exact("boolean_value", "true"),
     ("01_contract", "revision"): _exact("text_value", REVISION_0004),
     **COMMON_INVARIANTS,
     ("01_contract", "phase_b_column_fingerprint_matches"): _exact(
@@ -252,6 +252,16 @@ def verify_sql(path: Path) -> None:
         }
         if observed_metrics != set(schema):
             errors.append("SQL metric set does not match the strict validator contract")
+        supported_version_gate = re.findall(
+            r"select\s*'00_session'\s*,\s*'server_major_supported'\s*,\s*"
+            r"'required'\s*,\s*current_setting\('server_version_num'\)::int\s*"
+            r"/\s*10000\s+in\s*\(\s*15\s*,\s*16\s*\)",
+            sql.lower(),
+        )
+        if len(supported_version_gate) != 1:
+            errors.append(
+                "PostgreSQL major gate must accept exactly versions 15 and 16"
+            )
     if errors:
         raise PhaseCReadinessError("; ".join(errors))
 
