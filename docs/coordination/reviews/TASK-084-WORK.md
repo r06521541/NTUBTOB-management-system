@@ -110,3 +110,39 @@ SQL 只檢查 `auth_identities.status='pending' AND person_id IS NULL`，但正�
 - 未執行production inventory、gcloud、DB、build/deploy、flag、traffic、IAM、Scheduler或通知操作。
 
 Stage A本機驗收結論：`accepted`，等待唯一ready PR的hosted Python 3.10與PostgreSQL 15／16 final gate。Hosted gate通過且branch未再改變後可依standing Git authorization squash merge；Stage B production唯讀inventory仍須Owner另行精確批准。
+
+## Stage B pre-execution security finding（2026-08-09）
+
+- PR #84已通過hosted gate並merge為`10cc550`；Windows CRLF checksum prerequisite亦經PR #85通過並merge為`afee2e3`。
+- Owner批准Stage B後，GCP唯讀inventory確認三服務Ready／100% traffic、Phase C all-on、freeze all-off、maintenance off、IAM與Secret binding metadata符合既有部署契約；未讀Secret值，最近精確revision ERROR與兩個Scheduler job metadata-only log查詢無紀錄可回傳，分類為unavailable而非成功流量證據。
+- 執行production SQL前，Work查證Supabase官方文件：平台提供Postgres／Supavisor logs，且`pg_stat_statements`保存representative statement。現有psql `:'var'`會把allowlist及request IDs替換進server-bound SQL文字；只檢查`log_statement`／pgAudit不足以證明其他provider／statistics層不保存literal。
+- PostgreSQL 16支援psql `\bind` extended query protocol，可將SQL placeholders與參數值分離。為符合既有「不得將target／request ID寫入log」邊界，production SQL執行暫停，須先將controlled query改成`$1/$2/$3` parameter binding並加入offline contract／checksum／runbook驗證。不得以放寬logging假設繞過。
+
+結論：`changes_requested / codex`。既有Stage B批准仍有效，但在參數化prerequisite merge前不得執行production DB inventory；已完成的GCP唯讀證據不構成任何mutation授權。
+
+## Parameter-binding review（`78dfc0a`／`9bfe93d`）
+
+### 已確認通過
+
+- Controlled query只使用`$1/$2/$3`，固定一個`\bind`順序後以extended query protocol執行；舊colon interpolation、literal request ID、錯誤bind數量／順序均有fail-closed tests。
+- `BEGIN TRANSACTION READ ONLY`、local timeouts、`ROLLBACK`、strict metrics與canonical checksum均保留。
+- Work獨立重跑closeout／rollout／transition suites：23/23 passed；`git diff --check` passed。
+
+### 唯一remaining blocking
+
+Runbook Docker command尚不可安全／可重現執行：`<owner-approved-read-only-connection>`可能把DSN放入argv；container沒有read-only mount repository，故`\i docs/...sql`找不到artifact；image使用mutable tag且沒有`--pull never`；也未使用Owner既有批准的private env-file與`default_transaction_read_only=on`連線級防線。
+
+請只修operator command及contract test：沿用TASK-056已驗證的PostgreSQL 16 image digest `sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a`與`--pull never`，以`--env-file C:\Users\USER\.ntubtob-private\backup.env`載入PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD（不得讀檔），將exact repository root唯讀掛載至container並設定workdir，使`\i`可讀controlled SQL；加入非機密`PGOPTIONS=-c default_transaction_read_only=on`。禁止DSN／password／host/user出現在argv或文件。SQL與verifier其他行為不要再改。
+
+結論仍為`changes_requested / codex`；修正此唯一operator boundary後可進PR。
+
+## Docker operator final review（`1e7c7a9`／`36ba942`）
+
+- Exact command使用既有PostgreSQL 16 image digest與`--pull never`，不接受mutable tag或隱性pull。
+- Production connection只經Owner既有private `backup.env`傳入；argv與文件沒有DSN、password、host、port、database或user值。
+- Repository以exact Windows path唯讀mount至`/workspace`且設定workdir，checksummed `\i` artifact可解析。
+- `PGOPTIONS=-c default_transaction_read_only=on`提供connection-level read-only防線；SQL內仍保留transaction read-only、timeouts與rollback。
+- Work獨立重跑targeted suites：24/24 passed；compileall與`git diff --check`通過。
+- Fixed Docker version command因Docker Desktop daemon目前未啟動而無法實跑；命令以`--pull never`失敗且沒有下載或網路fallback。這是執行前本機prerequisite，不影響repository contract驗收；production SQL前必須先啟動Docker Desktop並取得exact PostgreSQL 16 version evidence。
+
+結論：`accepted`，等待本branch唯一ready PR hosted gate。通過並merge後，Stage B可從Docker version preflight繼續；仍不得在Docker未啟動或version不符時連production。

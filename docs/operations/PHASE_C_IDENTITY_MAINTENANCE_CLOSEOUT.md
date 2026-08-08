@@ -40,15 +40,51 @@ SELECT current_setting('log_statement') = 'none'
 The only acceptable result is one boolean `true`; do not broaden this query to
 print configuration or extension rows.
 
-Only after that preflight, open an interactive `psql` session through the
-approved read-only channel and use `\prompt` three times to populate
-`admin_member_ids`, `mutation_request_id`, and `recovery_request_id`; execute
-the checksummed SQL with `\i`. `\prompt` avoids command-line and shell-history
-arguments, but psql substitution does embed those values in the server-bound
-statement. It therefore does not by itself protect terminal transcripts,
-client tracing, server logs, or provider logs. Disable client echo/tracing and
-stop on any unverified logging boundary. The fixed SQL output contains only
-aggregate counts and never selects the supplied values.
+Use PostgreSQL 16 psql, not an earlier client. Before connecting, verify the
+isolated client image exactly as follows:
+
+```sh
+docker run --rm --pull never sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a psql --version
+```
+
+Stop unless the result identifies PostgreSQL 16. Start the Owner-approved
+read-only PostgreSQL 16 interactive session with `-X -n`. The command uses the
+pre-provisioned private environment file without opening it, mounts the exact
+repository root read-only so `\i` can load the checksummed artifact, and adds
+connection-level `default_transaction_read_only`. Do not add a DSN, password,
+host, port, database or user option/value to the Docker or `psql` argv:
+
+```powershell
+docker run --rm -it --pull never --env-file C:\Users\USER\.ntubtob-private\backup.env --env "PGOPTIONS=-c default_transaction_read_only=on" --mount "type=bind,source=C:\Users\USER\Repos\NTUBTOB-management-system,target=/workspace,readonly" --workdir /workspace sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a psql -X -n
+```
+
+Only after the logging preflight in that same session, enter these psql
+meta-commands exactly, supplying values only at the three interactive prompts:
+
+```text
+\set ON_ERROR_STOP on
+\pset format csv
+\prompt 'Approved admin Member-ID allowlist:' admin_member_ids
+\prompt 'Opaque mutation request ID:' mutation_request_id
+\prompt 'Opaque recovery request ID:' recovery_request_id
+\i docs/operations/sql/TASK-084-phase-c-closeout-inventory.sql
+```
+
+The checksummed artifact keeps `BEGIN TRANSACTION READ ONLY`, all local
+timeouts, and `ROLLBACK`. Its final query uses `$1`, `$2` and `$3`; its one
+fixed `\bind … \g` meta-command binds the three prompted values in that order
+and executes the query via PostgreSQL 16's extended query protocol. The values
+therefore do not enter the server-bound SQL statement text or the representative
+statement. Do not use SQL colon interpolation, command-line arguments, a
+different bind count/order, `\g` before binding, `\p`, query echo, or a
+noninteractive transcript.
+
+Extended parameters still do not prove that a client, provider, proxy or audit
+product never captures parameter payloads. Stop if the approved channel cannot
+confirm that its parameter-payload logging boundary is acceptable; do not relax
+that condition based only on `log_statement`, pgAudit, or a lack of observed
+output. The fixed SQL output contains only aggregate counts and never selects
+the supplied values.
 
 1. Run fresh account/project/region guards, the logging preflight, the
    checksummed read-only SQL, and the closeout verifier with aggregate evidence.

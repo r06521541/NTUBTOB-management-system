@@ -3,11 +3,12 @@ status: in_progress
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: d7fca44783c7e4047fa5537a5cf3b39591c119d6
+head_commit: 36ba942eaca30cab1c412cf0d6c46f3c77cf3571
 
 updated_by: work
-updated_at: 2026-08-09T01:40:00+08:00
+updated_at: 2026-08-09T03:50:00+08:00
 
 note: >
-  Stage A local review accepted. Work is creating the single ready PR and waiting for hosted Python 3.10 plus PostgreSQL 15/16
-  final evidence. Production Stage B inventory and all production mutation remain unapproved and must not run.
+  Parameter-binding and pinned Docker operator boundary accepted locally; Work is creating the single ready PR. Targeted suites
+  passed. Docker Desktop daemon is currently stopped, so exact PostgreSQL 16 version preflight remains required after merge and
+  before any production DB connection. No production DB query or mutation ran.
