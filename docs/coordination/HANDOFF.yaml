@@ -1,14 +1,14 @@
 active_task: TASK-082
-status: awaiting_owner_approval
-next_actor: owner
+status: ready_for_review
+next_actor: work
 
-base_commit: 0e79763115ff5549a8fdf045eb48f48012ea5469
-head_commit: null
+base_commit: 0cfbf0f06e1c541b58251f5ded46df18c7d2bdd0
+head_commit: 48faa94
 
-updated_by: work
-updated_at: 2026-08-08T22:58:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T23:42:00+08:00
 
 note: >
-  TASK-082 read-only inventory found a blocking LINE deployment contract gap: production pins CHANNEL_ACCESS_TOKEN and
-  CHANNEL_SECRET to version 2, while the repository's --set-secrets target omits both and would overwrite the existing secret
-  configuration. Await Owner approval for the repository-only prerequisite; no deployment or production mutation occurred.
+  TASK-082 adds the exact version-2 LINE credential bindings to the complete webhook deployment secret contract and offline
+  tests that reject missing or version-1 bindings. The webhook suite passed; no Secret read, deployment, or production mutation
+  occurred. Return to Work review.
