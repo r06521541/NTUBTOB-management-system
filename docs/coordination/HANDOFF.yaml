@@ -1,16 +1,16 @@
 active_task: TASK-076
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 893e365
 head_commit: 699259a5025eed27125b85d17a4fcf38f61564e2
 
-updated_by: codex
-updated_at: 2026-08-08T15:40:00+08:00
+updated_by: work
+updated_at: 2026-08-08T15:42:38+08:00
 
 note: >
-  Codex implemented and locally verified the fail-closed flag state machine, PostgreSQL 16.4 cross-service contracts,
-  mixed-version attendance adapters, exact shared artifact preflight and staged rollout/rollback runbook at implementation head
-  699259a5025eed27125b85d17a4fcf38f61564e2. All local suites and three legal preflight vectors passed; task-owned PostgreSQL
-  resources were removed. No production, deployment, flag, Secret/IAM/Scheduler or real-notification action occurred. Work must
-  inspect the shared branch and report, run risk-based review, then create the single ready PR and verify final hosted CI.
+  Work inspected the actual branch, commits, diff, report and risk boundaries and independently reran 17 targeted flag,
+  attendance-adapter and preflight tests plus compile/diff checks; no blocking finding remains. TASK-076 is accepted pending the
+  single ready PR and hosted Python 3.10/PostgreSQL final gate. Work owns PR creation, CI review and squash merge under standing
+  Git authorization. No deployment, production flag/database mutation, Secret/IAM/Scheduler action or real notification is
+  authorized; TASK-077 production activation still requires a separate exact Owner approval and a verifiable freeze mechanism.
