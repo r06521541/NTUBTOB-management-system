@@ -1,14 +1,14 @@
 active_task: TASK-084
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: null
+head_commit: d4d0152
 
-updated_by: work
-updated_at: 2026-08-08T23:25:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T23:58:00+08:00
 
 note: >
-  Owner approved TASK-084 direction: finish all remaining Phase C work in one gated task. Codex may perform Stage A repository/local
-  readiness only: closeout verifier, read-only inventory contract, exact activation/mutation/recovery runbook and offline tests.
-  Production inventory, maintenance flag, traffic and any real mutation require later exact Owner approval inside this same task.
+  TASK-084 Stage A adds repository/local closeout verifier, checksummed sanitized read-only inventory contract and bounded
+  maintenance/recovery runbook with offline tests. No production inventory, maintenance flag, traffic or identity mutation occurred.
+  Return to Work review.
