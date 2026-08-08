@@ -1,16 +1,15 @@
 active_task: TASK-074
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 4e0c30f1277058b9d27a4941454f6e8dcc2b978d
 head_commit: 29854a5bcda321d16a046f44611a813b0615f26a
 
-updated_by: codex
-updated_at: 2026-08-08T10:21:00+08:00
+updated_by: work
+updated_at: 2026-08-08T11:10:00+08:00
 
 note: >
-  Codex updated the exact readiness gate to accept only PostgreSQL majors 15 and 16, retained all catalog and safety gates,
-  and passed the same 157-test portal-data suite on local PostgreSQL 15.8 and 16.4. Checksums, runbook, TASK-073 references
-  and dual-version CI are updated; the branch is pushed, but Draft PR creation awaits explicit Owner authorization in the
-  current conversation, so hosted CI has not run. No production access, migration, deployment, runtime flags, notifications
-  or cloud mutation occurred; Work must review the implementation commit and hosted matrix CI before Owner approval.
+  Work accepted TASK-074 after independent 157-test runs on PostgreSQL 15.8 and 16.4 and hosted matrix CI run 31234515858
+  passed both jobs. Exact catalog gates remain intact. Work also clarified that repository-recorded standing Git/PR
+  authorization remains valid across sessions, so Codex may create Draft PRs without repeated conversational approval.
+  No production access or mutation occurred; standing Git authority permits squash merge after final CI.

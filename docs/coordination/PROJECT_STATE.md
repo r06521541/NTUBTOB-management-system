@@ -519,3 +519,5 @@
 - 修正任務要求PostgreSQL 15與16皆通過相同exact catalog fingerprints、migration／post-check／compare及failure
   rehearsals；PostgreSQL 14以下與未知版本必須fail closed。
 - TASK-074合併後將重新鎖定commit與三份SQL checksums，再回到TASK-073取得新的30分鐘fresh inventory。
+- Work獨立驗證PostgreSQL 15.8與16.4各157項測試通過；PR #71 hosted matrix兩個Python 3.10 jobs亦成功，
+  exact catalog fingerprints未弱化，驗收結論為accepted。
