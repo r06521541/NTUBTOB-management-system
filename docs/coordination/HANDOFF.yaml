@@ -1,14 +1,13 @@
 active_task: TASK-084
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 6c91a027cea89e299f7591871f06797fd00254c2
+head_commit: d7fca44783c7e4047fa5537a5cf3b39591c119d6
 
-updated_by: codex
-updated_at: 2026-08-09T01:25:00+08:00
+updated_by: work
+updated_at: 2026-08-09T01:40:00+08:00
 
 note: >
-  Fourth-review correction is ready for Work review: five snapshots require exact runtime-vector equality and stable aggregate
-  Person/Member/identity/reliable-LINE/team-player/attendance counts; notification safety uses the no-caller boundary and a later
-  approved log/error classification, not deprecated token-table evidence. Repository/local tests passed; no external operation ran.
+  Stage A local review accepted. Work is creating the single ready PR and waiting for hosted Python 3.10 plus PostgreSQL 15/16
+  final evidence. Production Stage B inventory and all production mutation remain unapproved and must not run.
