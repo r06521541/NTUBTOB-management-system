@@ -501,5 +501,13 @@
 
 - 目標是以 required CI 與 squash merge 將 TASK-071 readiness package 整合至 `main`，鎖定後續 migration task 的
   exact merged commit。
-- 本機 branch 已建立；GitHub CLI token 失效，等待 Owner 在本機重新執行 `gh auth login -h github.com` 後續行。
+- PR #69 的Python 3.10 CI成功，已squash merge為`36016ee80911f98db1f638b43550e77fc75e87b1`；本機
+  `main`已同步，原始多commit歷史保留於local archive branch。
 - 本任務不授權 production database、migration、deployment、runtime flags、Secret／IAM／Scheduler或通知操作。
+
+### TASK-073 Phase C production migration execution（2026-08-08）
+
+- 已鎖定merged commit及inventory／migration／post-check三份SQL checksum，等待Owner先批准production read-only
+  inventory collection。
+- Work驗證30分鐘內fresh inventory後，Owner仍須另行批准exact migration window；read-only批准不包含DDL／DML。
+- Migration成功後runtime flags仍保持關閉；application deployment與staged activation另立任務。
