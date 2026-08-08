@@ -146,3 +146,22 @@ Runbook Docker command尚不可安全／可重現執行：`<owner-approved-read-
 - Fixed Docker version command因Docker Desktop daemon目前未啟動而無法實跑；命令以`--pull never`失敗且沒有下載或網路fallback。這是執行前本機prerequisite，不影響repository contract驗收；production SQL前必須先啟動Docker Desktop並取得exact PostgreSQL 16 version evidence。
 
 結論：`accepted`，等待本branch唯一ready PR hosted gate。通過並merge後，Stage B可從Docker version preflight繼續；仍不得在Docker未啟動或version不符時連production。
+
+## Stage B logging preflight production finding（2026-08-09）
+
+- PR #86通過hosted gate並merge為`117fe1c`；固定Docker image實跑確認psql 16.4。
+- Owner在production read-only session先執行無敏感輸入的logging preflight：duration、sample與pgAudit皆off，但`log_statement='none'`單一條件為false。進一步只回傳booleans的分類確認：`log_statement`屬`none/ddl/mod`安全集合、`log_duration=off`、transaction sample rate=0、`log_parameter_max_length_on_error=0`；全部為true。
+- PostgreSQL 16官方規則下，`ddl`／`mod`不記錄本次pure SELECT；duration／transaction sampling均off，error parameter logging亦off。此組合對bound SELECT提供與任務相符的no-parameter-log boundary。
+- Controlled SQL內嵌`statement_logging_safe`仍只接受`log_statement='none'`，因此若現在執行會把安全production組合誤判失敗。Work在任何allowlist／request ID prompt前停止並要求Owner`\q`；未執行inventory、未傳敏感參數。
+
+結論：`changes_requested / codex`。請將preflight及SQL logging CTE共用同一個官方等價safe predicate：`log_statement IN ('none','ddl','mod')`、duration/sample off、`log_duration=off`、transaction sample rate=0、pgAudit none、on-error parameter length=0；保留unknown/failing cases與`log_statement=all` fail closed。更新checksum、runbook與offline tests，不得用session SET繞過。
+
+## Logging preflight correction review（2026-08-09）
+
+- 實際驗收 implementation commit `d4657f031d71328a02e5bec57c996206aeb0a8ed`；branch 與 HANDOFF 一致，驗收前工作樹乾淨。
+- Controlled SQL、operator runbook 與 verifier 已統一使用同一個 fail-closed predicate；production 已觀察到的 `ddl` 安全組合可通過，`all`、缺失、未知或任一 logging/sampling 條件不安全時均拒絕。
+- Canonical LF checksum 隨 SQL 更新；artifact verifier 同時驗證 checksum、read-only/bound-parameter contract 與完整 logging predicate。
+- Work 重跑 targeted closeout/rollout/transition suites：26/26 passed；`compileall`、artifact/runbook verifier、`git diff --check` 均通過。
+- 未讀 env/Secret、未連 production DB、未執行 gcloud/build/deploy 或任何外部操作。
+
+結論：`accepted`。建立本 prerequisite 的唯一 ready PR，待 hosted CI 通過並 squash merge 後，依既有 Stage B 授權恢復 production read-only inventory。

@@ -483,6 +483,75 @@ class CloseoutEvidenceTests(unittest.TestCase):
                 ):
                     closeout.verify_execution_runbook(path)
 
+    def test_logging_preflight_accepts_only_the_documented_safe_boundary(self):
+        production_safe = {
+            "log_statement": "ddl",
+            "log_min_duration_statement": "-1",
+            "log_min_duration_sample": "-1",
+            "log_duration": "off",
+            "log_transaction_sample_rate": "0",
+            "log_parameter_max_length_on_error": "0",
+        }
+        for log_statement in ("none", "ddl", "mod"):
+            with self.subTest(log_statement=log_statement):
+                self.assertTrue(
+                    closeout.logging_preflight_is_safe(
+                        {**production_safe, "log_statement": log_statement}
+                    )
+                )
+        self.assertFalse(closeout.logging_preflight_is_safe({}))
+        for setting, value in (
+            ("log_statement", "all"),
+            ("log_statement", None),
+            ("log_min_duration_statement", "0"),
+            ("log_min_duration_sample", "0"),
+            ("log_duration", "on"),
+            ("log_transaction_sample_rate", "1"),
+            ("pgaudit.log", "read"),
+            ("log_parameter_max_length_on_error", "-1"),
+        ):
+            with self.subTest(setting=setting, value=value):
+                self.assertFalse(
+                    closeout.logging_preflight_is_safe(
+                        {**production_safe, setting: value}
+                    )
+                )
+
+    def test_logging_boundary_contract_rejects_old_or_incomplete_predicate(self):
+        sql = closeout.INVENTORY_SQL_PATH.read_text(encoding="utf-8")
+        runbook = closeout.RUNBOOK_PATH.read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+
+            def write_checked(path, contents):
+                path.write_text(contents, encoding="utf-8", newline="\n")
+                path.with_suffix(path.suffix + ".sha256").write_text(
+                    f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n",
+                    encoding="ascii",
+                )
+
+            old_sql = directory_path / "old-predicate.sql"
+            write_checked(
+                old_sql,
+                sql.replace(
+                    "coalesce(current_setting('log_statement',true),'all') IN ('none','ddl','mod')",
+                    "current_setting('log_statement')='none'",
+                ),
+            )
+            with self.assertRaises(closeout.CloseoutEvidenceError):
+                closeout.verify_inventory_artifact(old_sql)
+
+            incomplete_runbook = directory_path / "incomplete-runbook.md"
+            incomplete_runbook.write_text(
+                runbook.replace(
+                    "AND coalesce(current_setting('log_duration', true), 'on') = 'off'\n",
+                    "",
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaises(closeout.CloseoutEvidenceError):
+                closeout.verify_execution_runbook(incomplete_runbook)
+
     def test_manifest_accepts_redacted_safe_evidence(self):
         manifest = closeout.build_manifest(DATABASE, RUNTIME)
         self.assertEqual(

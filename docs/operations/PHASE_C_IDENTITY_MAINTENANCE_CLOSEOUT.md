@@ -21,19 +21,23 @@ read-only database channel and pass only its six sanitized columns plus the
 aggregate metadata to `tools.phase_c_closeout.build_manifest`.
 
 Before supplying any allowlist or request ID, use the approved read-only channel
-to query only `log_statement`, `log_min_duration_statement`,
-`log_min_duration_sample`, and `pgaudit.log`. Stop unless statement logging is
-`none`, both duration settings are `-1`, and `pgaudit.log` is absent or `none`.
-Also stop if the database provider or approved access channel cannot confirm
-that it does not retain full SQL statements. This preflight must run before the
-parameterized inventory: discovering unsafe logging from the inventory itself
-would be too late.
+to run the exact boolean-only preflight below. Stop unless `log_statement` is
+`none`, `ddl`, or `mod`; both duration thresholds are `-1`; `log_duration` and
+transaction sampling are off; pgAudit is absent or `none`; and error parameter
+logging length is zero. Unknown or unavailable settings are unsafe. Also stop if
+the database provider or approved access channel cannot confirm that it does not
+retain parameter payloads. This preflight must run before the parameterized
+inventory: discovering unsafe logging from the inventory itself would be too
+late. Do not use session `SET` commands to alter this boundary.
 
 ```sql
-SELECT current_setting('log_statement') = 'none'
-   AND current_setting('log_min_duration_statement')::integer = -1
-   AND coalesce(current_setting('log_min_duration_sample', true), '-1')::integer = -1
+SELECT coalesce(current_setting('log_statement', true), 'all') IN ('none', 'ddl', 'mod')
+   AND coalesce(current_setting('log_min_duration_statement', true), '0')::integer = -1
+   AND coalesce(current_setting('log_min_duration_sample', true), '0')::integer = -1
+   AND coalesce(current_setting('log_duration', true), 'on') = 'off'
+   AND coalesce(current_setting('log_transaction_sample_rate', true), '1')::numeric = 0
    AND coalesce(current_setting('pgaudit.log', true), 'none') = 'none'
+   AND coalesce(current_setting('log_parameter_max_length_on_error', true), '-1')::integer = 0
    AS statement_logging_safe;
 ```
 

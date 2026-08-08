@@ -56,6 +56,11 @@
   and mounts only the exact repository root read-only at `/workspace` before
   loading the checksummed SQL. It contains no DSN or connection identity/value
   in argv.
+- Logging-preflight correction adopts one fail-closed Boolean predicate in the
+  controlled SQL, runbook and verifier contract. It accepts only
+  `log_statement` `none`/`ddl`/`mod` together with disabled duration and
+  sampling logging, no pgAudit logging, and zero on-error parameter logging;
+  missing, unknown, or unsafe settings (including `all`) stop the flow.
 
 ## Verification
 
@@ -94,6 +99,10 @@
   compileall, Black 24.4.2 formatter API comparison, and `git diff --check`
   passed. The local `python` command was unavailable, so the repository's
   bundled Python runtime was used.
+- Logging-preflight correction targeted rerun: `python -m unittest
+  tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
+  tools.tests.test_deploy_phase_c_transition_controller -v`: 26 passed;
+  compileall and `git diff --check` passed.
 
 ## Not performed / remaining boundary
 
