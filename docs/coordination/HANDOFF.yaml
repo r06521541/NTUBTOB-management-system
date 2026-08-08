@@ -3,14 +3,14 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 43eb67c
-head_commit: d02e0a31e2ac44491fa81bc9d07db38f511a7099
+head_commit: 9d46aa3357734e2c5853a613ccfd860d5a16cb8e
 
 updated_by: codex
-updated_at: 2026-08-08T18:04:00+08:00
+updated_at: 2026-08-08T18:10:00+08:00
 
 note: >
-  Codex completed the repository-only exact cross-service freeze gate, zero-side-effect service boundaries, offline canonical
-  transition controller, artifact/preflight checks, tests and rollout documentation at implementation commit d02e0a3. Local
-  suites passed; bundled Windows Black CLI hang is documented and equivalent same-version formatter API comparison passed, while
-  hosted Python 3.10 evidence remains for Work's single ready PR. No deployment, production flag/traffic/database mutation,
-  Scheduler action, Secret/IAM change, production invoke or real notification occurred; TASK-078/079 remain Owner decisions.
+  Codex resolved Work's classifier finding at 9d46aa3: shared portal_data/runtime.py now selects deployment_tools plus the
+  Web Portal, LINE webhook and notify cron consumer suites, but not portal_data; controller/preflight remain deployment_tools
+  only. The targeted classifier/runtime/controller regression command passed 33 tests, with compile, formatter API and diff
+  checks passing. No deployment, production flag/traffic/database mutation, Scheduler action, Secret/IAM change, production
+  invoke or real notification occurred; Work must review before creating the single ready PR.

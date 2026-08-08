@@ -92,3 +92,21 @@
   stale commit／fingerprint rejection 與 output redaction。
 - 在 hosted Python 3.10 執行唯一 ready PR 的 change-aware final gate，補上本機
   Black CLI 無法提供的證據。
+
+## Work changes_requested 修正
+
+- Work 發現 `shared_lib/shared_module/portal_data/runtime.py` 原先僅選取
+  `deployment_tools`，會漏跑三個直接 consumer suites。已於
+  `9d46aa3357734e2c5853a613ccfd860d5a16cb8e` 將該單檔精準分類為
+  `deployment_tools`、`web_portal`、`line_webhook` 與 `notify_cron`；仍不選取
+  `portal_data`，避免本任務範圍無關的 PostgreSQL matrix。
+- `tools/phase_c_rollout_preflight.py` 與
+  `tools/phase_c_transition_controller.py` 等既有 deployment boundary 仍只選取
+  `deployment_tools`。新的 classifier regression tests 覆蓋兩種向量。
+- 已執行：
+  `python -m unittest tools.tests.test_ci_change_classifier
+  tools.tests.test_deploy_phase_c_runtime
+  tools.tests.test_deploy_phase_c_transition_controller -v`，33 passed；另以 CLI
+  helper 輸出確認 runtime 為四個 scope、controller/preflight 僅為
+  `deployment_tools`。`compileall`、Black 24.4.2 formatter API 內容比對與
+  `git diff --check` 均通過。
