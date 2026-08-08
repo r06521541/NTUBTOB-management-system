@@ -590,3 +590,13 @@
 - 後續TASK-077若要部署或啟用，必須另取Owner對exact commit／revisions、runtime flags、可驗證attendance／notification
   freeze、observation、production smoke及rollback traffic mutation的明確批准；無freeze則activation blocked。
 - PR #77 final hosted CI全部通過，已squash merge為`43eb67c`；未部署且所有Phase C runtime flags仍關閉。
+
+### TASK-081 Phase C release train（2026-08-08）
+
+- Repository release-readiness 已通過 Work 本機驗收：scheduled Cloud Build candidate 使用 `--no-traffic`，只有在
+  SHA、digest、Ready、latest-created 與 exact rollback baseline 驗證後才可 promotion。
+- Resume flow 對未知／mixed traffic fail closed；中斷或 post-promotion verification failure 會精確 rollback，
+  already-promoted 狀態不重複 mutation，rollback failure 會保留 combined failure。
+- Redacted release manifest 與 Stage B template 已建立；本機 46 項 targeted tests、compileall、diff check 通過。
+- 尚待唯一 ready PR 的 hosted Python 3.10 final gate；未部署、未啟用 Phase C flags、未操作 production／Secret／IAM／
+  Scheduler／DB／通知。Stage B 仍須 Owner 對 exact production work package 另行批准。

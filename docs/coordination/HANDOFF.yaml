@@ -1,13 +1,13 @@
 active_task: TASK-081
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: d9213acea1708f051fc457753b3b941dbad305f6
 head_commit: 406c991
 
-updated_by: codex
-updated_at: 2026-08-08T22:30:00+08:00
+updated_by: work
+updated_at: 2026-08-08T22:42:00+08:00
 
 note: >
-  TASK-081 adds explicit offline scheduled resume safety regression coverage, including fail-closed CLI inputs and required
-  baseline/candidate/promotion/rollback invariants. Targeted suite passed; no external action occurred. Return to Work review.
+  TASK-081 A passed Work review with 46 targeted tests, compileall and diff check. Work is preparing the single ready PR and
+  hosted Python 3.10 final gate. Production activation remains outside this approval and requires a separate exact Owner grant.
