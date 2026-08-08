@@ -1,15 +1,15 @@
-active_task: TASK-077
-status: accepted_pending_hosted_ci
-next_actor: work
+active_task: TASK-079
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 43eb67c
-head_commit: 9d46aa3357734e2c5853a613ccfd860d5a16cb8e
+base_commit: 1838ec6fc77a74e23700f9cd29b8ea910c0a29fb
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T18:13:00+08:00
+updated_at: 2026-08-08T19:10:00+08:00
 
 note: >
-  Work accepted TASK-077 after verifying fix 9d46aa3 and rerunning the 33-test classifier/runtime/controller regression suite.
-  The shared runtime now selects all three direct consumer suites plus deployment tools without selecting the PostgreSQL matrix.
-  The single ready PR and hosted Python 3.10 final gate remain before squash merge. No deployment, production
-  flag/traffic/database mutation, Scheduler action, Secret/IAM change, production invoke or real notification is authorized.
+  TASK-079 fixes active Cloud Build contracts that still pin game-broadcast-service and notify-cronjob-service to the
+  revoked CHANNEL_ACCESS_TOKEN Secret version 1. Repository-only implementation and offline verification are authorized.
+  No deployment, Cloud Build execution, Secret operation/read, production mutation, Scheduler/IAM action, invoke or real
+  notification is authorized. A later notify feature-off source deployment needs a separate Owner approval.
