@@ -49,6 +49,11 @@
 
 ## 1. 目前摘要
 
+- TASK-079 已由 PR #79 squash merge為 `d9213ac`：兩個 scheduled service 的未來 Cloud Build contract 都固定
+  `CHANNEL_ACCESS_TOKEN:2`，hosted CI成功；production未因此變動。TASK-080 已建立為 notify cron 的 Phase C
+  feature-off deployment工作包，等待 Owner 對 exact source、build/deploy/traffic、條件式rollback與無副作用驗證
+  的明確批准。
+
 - TASK-079 已交棒 Codex：修正 game broadcast 與 notify cron 的 active Cloud Build contract，避免未來 source
   deploy 把 LINE access token 從已輪替的 Secret version 2 重新釘回 version 1。本輪只做 repository／offline
   contract 修正；不部署、不讀取 Secret、不發送通知。notify 若要取得 TASK-077 Phase C feature-off source，仍須

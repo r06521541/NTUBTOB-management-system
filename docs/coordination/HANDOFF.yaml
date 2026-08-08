@@ -1,15 +1,14 @@
-active_task: TASK-079
-status: accepted_pending_hosted_ci
-next_actor: work
+active_task: TASK-080
+status: awaiting_owner_approval
+next_actor: owner
 
-base_commit: 1838ec6fc77a74e23700f9cd29b8ea910c0a29fb
-head_commit: 9bc188649915c91e410609e85e140b2caa7a26aa
+base_commit: d9213acea1708f051fc457753b3b941dbad305f6
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T19:42:00+08:00
+updated_at: 2026-08-08T20:00:00+08:00
 
 note: >
-  Work accepted TASK-079 after independently verifying the exact config/test diff, 25 relevant offline tests, compileall,
-  active-config version-1 search and diff check. Create one ready PR for the hosted CI gate; no deployment, Cloud Build,
-  Secret operation/read, production mutation, Scheduler/IAM action, invoke or real notification is authorized. A later notify
-  feature-off source deployment remains a separate Owner-approved task.
+  TASK-079 merged as d9213ac after hosted CI. TASK-080 is the production notify Phase C feature-off deployment work package.
+  It awaits Owner approval of the exact source commit, build/deploy/traffic scope, conditional rollback, read-only metadata
+  verification and natural Scheduler operation. No action is authorized until Owner approves this task's stated scope.
