@@ -1,15 +1,15 @@
-active_task: TASK-072
-status: blocked
+active_task: TASK-073
+status: awaiting_owner_approval
 next_actor: owner
 
-base_commit: 027b6b8
-head_commit: f458088
+base_commit: 36016ee80911f98db1f638b43550e77fc75e87b1
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T09:45:00+08:00
+updated_at: 2026-08-08T10:00:00+08:00
 
 note: >
-  Owner approved Phase C repository integration, but GitHub CLI reports that the existing r06521541 token is invalid.
-  Owner must complete gh auth login -h github.com locally; do not share credentials or codes. After authentication, Work
-  may push the task branch, create the PR, inspect required CI and squash merge under the standing Git workflow authority.
-  No production database, migration, deployment, runtime flag, notification or cloud mutation is authorized.
+  PR #69 passed Python 3.10 CI and squash merged as 36016ee. TASK-073 is ready for the first Owner gate: approve only the
+  checksummed production read-only inventory collection and return its sanitized six-column CSV. Migration remains
+  unapproved until Work validates fresh evidence and Owner approves the exact migration window. No deployment, runtime
+  flag, notification, Secret/IAM/Scheduler or other cloud mutation is authorized.
