@@ -9,5 +9,6 @@ updated_by: work
 updated_at: 2026-08-08T22:58:00+08:00
 
 note: >
-  TASK-081 merged as PR #80 at 0e79763. TASK-082 is prepared and awaits Owner approval for a non-secret, read-only production
-  inventory only. Deployment, runtime flag, traffic/source, Scheduler, IAM, Secret and database mutations remain unapproved.
+  TASK-082 read-only inventory found a blocking LINE deployment contract gap: production pins CHANNEL_ACCESS_TOKEN and
+  CHANNEL_SECRET to version 2, while the repository's --set-secrets target omits both and would overwrite the existing secret
+  configuration. Await Owner approval for the repository-only prerequisite; no deployment or production mutation occurred.

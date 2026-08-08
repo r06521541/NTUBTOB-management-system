@@ -37,6 +37,18 @@ Inventory 輸出必須去識別化，不記錄 token、DB URL、Member／Person�
 4. 每一單元完成後只做無副作用驗證：Web Portal首頁與demo 404、notify authenticated `GET /healthz`、LINE僅檢查metadata／logs，不人工送 webhook event。
 5. 每單元觀察15分鐘；三單元 feature-off baseline共同觀察30分鐘。若時間不足，允許保持 feature-off並於稍後繼續，不得跳過觀察直接 activation。
 
+## 階段 A inventory finding：LINE deployment prerequisite
+
+Fresh metadata顯示 production LINE webhook目前將`CHANNEL_ACCESS_TOKEN`與`CHANNEL_SECRET`精確綁定至Secret Manager version 2；但repository的`deploy-line-webhook-handler`只在`--set-secrets`列出DB password與Web Portal URL。已安裝gcloud說明確認`--set-secrets`會覆寫整份既有secrets configuration，因此照現況重新部署可能移除兩個LINE credential bindings。
+
+在B1前必須先完成並合併一個最小repository prerequisite：
+
+1. LINE webhook deployment target的完整`--set-secrets`契約必須包含`CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:2`、`CHANNEL_SECRET=CHANNEL_SECRET:2`、DB password與Web Portal URL。
+2. 加入離線deployment contract tests，要求兩個LINE binding均為version 2並拒絕version 1或缺漏。
+3. 不讀取Secret值、不部署、不修改production；經Work review與唯一hosted CI合併後，TASK-082重新鎖定新的merged source commit。
+
+此finding為blocking；未完成前不得執行LINE webhook B1 deployment或任何B2 activation。
+
 ## 階段 B2：coordinated activation
 
 必須在 feature-off baseline通過後、同一份 Owner批准邊界內按 controller唯一順序執行：
@@ -80,4 +92,3 @@ Inventory 輸出必須去識別化，不記錄 token、DB URL、Member／Person�
 
 1. 先批准階段 A 的 production唯讀 inventory；此批准不包含 build、deploy、flag／traffic／source、Scheduler、IAM、Secret或DB mutation。
 2. Work填妥 exact work package後，Owner再一次批准 B1、B2及條件式 rollback的精確範圍。
-
