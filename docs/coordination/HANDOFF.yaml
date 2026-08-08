@@ -1,16 +1,16 @@
 active_task: TASK-078
-status: awaiting_owner_approval
-next_actor: owner
+status: ready_for_review
+next_actor: work
 
 base_commit: 1838ec6
-head_commit: b925d392b25fb4b8499c334cb427a77a076825fa
+head_commit: d5e9bb494e2946f481180bc8bba6dce1609fe88d
 
 updated_by: codex
-updated_at: 2026-08-08T18:27:00+08:00
+updated_at: 2026-08-08T18:45:00+08:00
 
 note: >
-  TASK-078 local feature-off work package completed at b925d39 with a rebuilt shared artifact, locked source fingerprint and
-  byte hash, offline preflight/controller evidence, prepared commands and regression tests. The current shell has no gcloud
-  executable, so current production revisions, traffic, non-secret flag vector, Scheduler metadata and rollback targets remain
-  unverified and intentionally block execution. Owner must obtain fresh read-only inventory and explicitly approve every target
-  before any build, deploy, traffic/env mutation, endpoint invoke, Scheduler, Secret/IAM/database action or notification.
+  TASK-078 correction adds the existing Gen2 immutable-source rollback boundary for LINE webhook: read-only inventory includes
+  buildConfig.source.storageSource bucket/object/generation, and the work package provides an official Functions v2 PATCH shape
+  limited to updateMask=buildConfig.source with Owner approval and pre/post checks. Production values remain unverified because
+  no gcloud executable is available. No build, deploy, traffic/env mutation, endpoint invoke, Scheduler, Secret/IAM/database
+  action or notification was performed.
