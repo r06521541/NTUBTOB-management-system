@@ -1,16 +1,15 @@
-active_task: TASK-073
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-075
+status: ready_for_review
+next_actor: work
 
-base_commit: 5a63a0c77e2725c828b17b784680b90a6cffb03f
-head_commit: null
+base_commit: 945375c82761efe9a19e5a477c53f7fd4d3c5c49
+head_commit: cd76a94924f237d6eb464f4be4d58e5a51864b72
 
-updated_by: work
-updated_at: 2026-08-08T10:54:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T13:54:00+08:00
 
 note: >
-  TASK-074 passed independent and hosted PostgreSQL 15.8/16.4 verification. PR #74 added LF checkout protection and
-  merged as 5a63a0c. TASK-073 is re-locked to exact commit 5a63a0c77e2725c828b17b784680b90a6cffb03f,
-  inventory checksum 9dc3d2e5...ae2d46,
-  unchanged migration checksum 67ea4490...d1f91, and post-check checksum 6de46c7c...13166. Owner must newly approve
-  and run only the read-only inventory; the prior CSV and approval do not authorize migration or reuse.
+  Codex implemented fail-conservative change classification, scoped suites, PostgreSQL 15/16 database jobs, concurrency and
+  one stable final gate. Local classifier/workflow contracts, all service suites and both 157-test PostgreSQL suites passed.
+  Owner-reviewed policy files were preserved in the same implementation commit and are distinguished in the Codex report.
+  No PR was opened; Work must review the shared branch, add its review and create the single ready PR for hosted full baseline.
