@@ -232,7 +232,7 @@ def resume_verify_only(
         raise DeploymentError("Candidate revision must differ from rollback revision")
     build = parse_json_output(command_output(runner, [
         "gcloud", "builds", "describe", build_id, "--project", PROJECT_ID,
-        "--format=json"], root), "Cloud Build resume")
+        "--region", REGION, "--format=json"], root), "Cloud Build resume")
     substitutions = build.get("substitutions")
     if build.get("status") != "SUCCESS" or not isinstance(substitutions, dict):
         raise DeploymentError("Cloud Build is not a successful resumable build")
@@ -353,7 +353,8 @@ def execute_deployment(
                 [
                     "gcloud", "builds", "submit", ".", "--project", PROJECT_ID,
                     "--region", REGION, "--config", "cloudbuild.yaml",
-                    "--substitutions", substitutions, "--format=json", "--quiet",
+                    "--substitutions", substitutions, "--suppress-logs",
+                    "--format=json", "--quiet",
                 ],
                 service_root,
             ),

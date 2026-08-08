@@ -295,6 +295,9 @@ class DeploymentWrapperTests(unittest.TestCase):
             if command[:3] == ["gcloud", "builds", "submit"]
         )
         self.assertIn(f"_IMAGE_TAG={SHA}", build[build.index("--substitutions") + 1])
+        self.assertEqual(build[build.index("--region") + 1], deploy.REGION)
+        self.assertIn("--suppress-logs", build)
+        self.assertIn("--format=json", build)
         artifact_lookup = next(
             command
             for command in runner.commands
@@ -408,6 +411,14 @@ class DeploymentWrapperTests(unittest.TestCase):
         result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
         self.assertFalse(result["already_promoted"])
         self.assertEqual(len([item for item in commands if "update-traffic" in item]), 1)
+        build_describe = next(
+            command
+            for command in commands
+            if command[:3] == ["gcloud", "builds", "describe"]
+        )
+        self.assertEqual(
+            build_describe[build_describe.index("--region") + 1], deploy.REGION
+        )
 
     def make_resume_runner(
         self,
@@ -415,6 +426,8 @@ class DeploymentWrapperTests(unittest.TestCase):
         latest_created=NEW_REVISION,
         initial_traffic=None,
         post_traffic=None,
+        build_status="SUCCESS",
+        substitutions=None,
         interrupt=False,
         rollback_failure=False,
     ):
@@ -422,6 +435,10 @@ class DeploymentWrapperTests(unittest.TestCase):
         service_describes = 0
         initial_traffic = initial_traffic or [{"revisionName": ROLLBACK_REVISION, "percent": 100}]
         post_traffic = post_traffic or [{"revisionName": NEW_REVISION, "percent": 100}]
+        substitutions = substitutions or {
+            "_SERVICE_NAME": "game-broadcast-service",
+            "_IMAGE_TAG": SHA,
+        }
 
         def runner(arguments, _cwd):
             nonlocal service_describes
@@ -431,7 +448,9 @@ class DeploymentWrapperTests(unittest.TestCase):
             elif arguments[:3] == ["git", "rev-parse", "HEAD"]:
                 output = SHA
             elif arguments[:3] == ["gcloud", "builds", "describe"]:
-                output = json.dumps({"status": "SUCCESS", "substitutions": {"_SERVICE_NAME": "game-broadcast-service", "_IMAGE_TAG": SHA}})
+                output = json.dumps(
+                    {"status": build_status, "substitutions": substitutions}
+                )
             elif arguments[:3] == ["gcloud", "artifacts", "docker"]:
                 output = APPROVED_DIGEST
             elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
@@ -498,6 +517,39 @@ class DeploymentWrapperTests(unittest.TestCase):
         with self.assertRaisesRegex(deploy.DeploymentError, "Cloud Build resume"):
             deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
         self.assertEqual(self.traffic_commands(runner), [])
+
+    def test_resume_rejects_non_resumable_builds_without_promotion(self):
+        cases = (
+            ("FAILURE", None, "not a successful resumable build"),
+            ("WORKING", None, "not a successful resumable build"),
+            (
+                "SUCCESS",
+                {"_SERVICE_NAME": "wrong-service", "_IMAGE_TAG": SHA},
+                "substitutions do not match",
+            ),
+            (
+                "SUCCESS",
+                {"_SERVICE_NAME": "game-broadcast-service", "_IMAGE_TAG": "c" * 40},
+                "substitutions do not match",
+            ),
+        )
+        for status, substitutions, error in cases:
+            with self.subTest(status=status, substitutions=substitutions):
+                runner = self.make_resume_runner(
+                    build_status=status, substitutions=substitutions
+                )
+                with self.assertRaisesRegex(deploy.DeploymentError, error):
+                    deploy.resume_verify_only(
+                        self.root,
+                        "game-broadcast-service",
+                        SHA,
+                        "build-12345678",
+                        NEW_REVISION,
+                        ROLLBACK_REVISION,
+                        runner,
+                        False,
+                    )
+                self.assertEqual(self.traffic_commands(runner), [])
 
     def test_resume_cli_rejects_mixed_or_incomplete_execution_inputs(self):
         combinations = (

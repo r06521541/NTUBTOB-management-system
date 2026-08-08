@@ -1,16 +1,15 @@
-active_task: TASK-082
+active_task: TASK-083
 status: completed
 next_actor: owner
 
-base_commit: ae6a345879f864e9826a17e4a725f6177c8eb6dc
-head_commit: d6c2757
+base_commit: caf77e1226aafa120dd98e62f72373a6511fb3b8
+head_commit: 005a440
 
 updated_by: work
-updated_at: 2026-08-08T23:00:00+08:00
+updated_at: 2026-08-08T23:50:00+08:00
 
 note: >
-  Owner-approved TASK-082 B1 and B2 production rollout completed from exact source ae6a345. Web Portal, LINE webhook and notify
-  cron are each Ready on exact 100% traffic with Phase C true and freeze false; identity maintenance remains false. Final
-  controller state is phase_c_unfrozen/complete, homepage is HTTP 200 and the queried final-revision ERROR logs were empty.
-  No artificial invoke, database operation, Secret/IAM/Scheduler mutation or notification was performed. Natural Scheduler
-  evidence and the regional scheduled-deploy resume bug remain follow-up work.
+  TASK-083 accepted after Work review. Scheduled-service submit suppresses streamed logs while retaining JSON output, and resume
+  build describe uses the exact regional location. Explicit FAILURE, WORKING, wrong substitutions and traffic-drift regressions
+  remain fail closed. Work reran 26 tests, compileall and diff check. No external operation occurred; proceed through the single
+  ready PR under standing Git authorization.
