@@ -157,9 +157,26 @@ target; do not invoke business endpoints.
   --line-login-secret-ref <WEB_PORTAL_LINE_LOGIN_SECRET_REF> `
   --session-secret-ref <WEB_PORTAL_SESSION_SECRET_REF>
 
-# LINE webhook Gen2 deployment uses the existing repository target. Do not
-# alter its runtime, entry point, public signature boundary or Secret bindings.
-make deploy-line-webhook-handler
+# LINE webhook Gen2: Windows-safe equivalent of the existing Make target.
+# Do not alter runtime, entry point, public signature boundary or Secret bindings.
+$TaskPython = 'C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+$Gcloud = 'C:\Users\USER\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd'
+Push-Location shared_lib
+& $TaskPython setup.py sdist
+Pop-Location
+Copy-Item -LiteralPath shared_lib\dist\shared_lib-0.0.1.tar.gz -Destination functions\line_webhook_handler\dist\shared_lib-0.0.1.tar.gz -Force
+& $Gcloud functions deploy line-webhook-handler `
+  --project ntubtob-schedule-405614 `
+  --region asia-east1 `
+  --gen2 `
+  --set-secrets 'DSN_PASSWORD=supabase-database-password:latest,WEB_PORTAL_URL=web-portal-url:latest' `
+  --env-vars-file envs/line_webhook_handler/.env.yaml `
+  --runtime python310 `
+  --trigger-http `
+  --allow-unauthenticated `
+  --entry-point main `
+  --source functions/line_webhook_handler/ `
+  --clear-labels
 
 # Notify cron wrapper performs exact SHA and rollback validation.
 & <PYTHON> tools/deploy_scheduled_service.py notify-cronjob-service --execute `
