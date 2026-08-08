@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import io
+import json
 import re
 import csv
 from pathlib import Path
@@ -32,18 +33,39 @@ DATABASE_FIELDS = frozenset(
         "qualification_drift_count",
         "audit_count",
         "duplicate_request_id_count",
-        "safe_candidate_count",
+        "safe_ignore_candidate_count",
+        "safe_unignore_candidate_count",
+        "mutation_ignored_action_count",
+        "mutation_other_action_count",
+        "recovery_unignored_action_count",
+        "recovery_other_action_count",
     }
 )
-CSV_FIELDS = ("section", "metric", "status", "boolean_value", "integer_value", "text_value")
+CSV_FIELDS = (
+    "section",
+    "metric",
+    "status",
+    "boolean_value",
+    "integer_value",
+    "text_value",
+)
 CSV_METRICS = {
     ("00_session", "transaction_read_only"): ("boolean_value", "true"),
     ("01_schema", "revision"): ("text_value", "0004_phase_c_identity_lifecycle"),
+    ("02_identity", "identity_count"): ("integer_value", None),
+    ("02_identity", "active_linked_allowlisted_admin_count"): ("integer_value", None),
     ("02_identity", "safe_ignore_candidate_count"): ("integer_value", None),
     ("02_identity", "safe_unignore_candidate_count"): ("integer_value", None),
+    ("02_identity", "identity_drift_count"): ("integer_value", "0"),
+    ("02_identity", "member_person_drift_count"): ("integer_value", "0"),
     ("03_audit", "access_audit_count"): ("integer_value", None),
     ("03_audit", "duplicate_request_id_count"): ("integer_value", "0"),
+    ("03_audit", "mutation_ignored_action_count"): ("integer_value", None),
+    ("03_audit", "mutation_other_action_count"): ("integer_value", "0"),
+    ("03_audit", "recovery_unignored_action_count"): ("integer_value", None),
+    ("03_audit", "recovery_other_action_count"): ("integer_value", "0"),
     ("04_qualification", "active_team_player_count"): ("integer_value", None),
+    ("04_qualification", "qualification_drift_count"): ("integer_value", "0"),
 }
 RUNTIME_FIELDS = frozenset(
     {"revisions", "traffic", "iam", "phase_c", "freeze", "maintenance"}
@@ -77,6 +99,14 @@ def verify_inventory_artifact(path: Path = INVENTORY_SQL_PATH) -> None:
         sql,
     ):
         raise CloseoutEvidenceError("inventory contains a mutation")
+    observed = {
+        (section, metric)
+        for section, metric in re.findall(
+            r"(?:select|union all select)\s*'([^']+)'\s*,\s*'([^']+)'", sql
+        )
+    }
+    if observed != set(CSV_METRICS):
+        raise CloseoutEvidenceError("inventory metric contract is invalid")
 
 
 def _integer(value: object, label: str, *, minimum: int = 0) -> int:
@@ -85,8 +115,15 @@ def _integer(value: object, label: str, *, minimum: int = 0) -> int:
     return value
 
 
-def ingest_inventory_rows(rows: list[dict[str, str]], *, admin_principal_count: int, identity_drift_count: int, member_person_drift_count: int, qualification_drift_count: int) -> dict:
-    """Strictly ingest the fixed sanitized SQL columns; external aggregates remain explicit."""
+def parse_inventory_csv(text: str) -> list[dict[str, str]]:
+    reader = csv.DictReader(io.StringIO(text))
+    if tuple(reader.fieldnames or ()) != CSV_FIELDS:
+        raise CloseoutEvidenceError("inventory CSV header is invalid")
+    return list(reader)
+
+
+def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
+    """Strictly ingest every row emitted by the fixed sanitized SQL."""
     seen = {}
     for row in rows:
         if tuple(row) != CSV_FIELDS:
@@ -94,7 +131,23 @@ def ingest_inventory_rows(rows: list[dict[str, str]], *, admin_principal_count: 
         key = (row["section"], row["metric"])
         field, expected = CSV_METRICS.get(key, (None, None))
         values = [name for name in CSV_FIELDS[3:] if row[name] not in ("", "null")]
-        if key in seen or field is None or values != [field] or (expected is not None and row[field] != expected):
+        expected_status = (
+            "classification"
+            if key[1].startswith("safe_")
+            else (
+                "bounded"
+                if key[0] == "03_audit"
+                and (key[1].startswith("mutation_") or key[1].startswith("recovery_"))
+                else "required"
+            )
+        )
+        if (
+            key in seen
+            or field is None
+            or row["status"] != expected_status
+            or values != [field]
+            or (expected is not None and row[field] != expected)
+        ):
             raise CloseoutEvidenceError("inventory CSV metric is invalid")
         if field == "integer_value" and not re.fullmatch(r"\d+", row[field]):
             raise CloseoutEvidenceError("inventory CSV count is invalid")
@@ -103,25 +156,92 @@ def ingest_inventory_rows(rows: list[dict[str, str]], *, admin_principal_count: 
         raise CloseoutEvidenceError("inventory CSV is incomplete")
     return {
         "schema_revision": seen[("01_schema", "revision")],
-        "admin_principal_count": admin_principal_count,
-        "identity_drift_count": identity_drift_count,
-        "member_person_drift_count": member_person_drift_count,
-        "qualification_drift_count": qualification_drift_count,
+        "admin_principal_count": int(
+            seen[("02_identity", "active_linked_allowlisted_admin_count")]
+        ),
+        "identity_drift_count": int(seen[("02_identity", "identity_drift_count")]),
+        "member_person_drift_count": int(
+            seen[("02_identity", "member_person_drift_count")]
+        ),
+        "qualification_drift_count": int(
+            seen[("04_qualification", "qualification_drift_count")]
+        ),
         "audit_count": int(seen[("03_audit", "access_audit_count")]),
-        "duplicate_request_id_count": int(seen[("03_audit", "duplicate_request_id_count")]),
-        "safe_candidate_count": int(seen[("02_identity", "safe_ignore_candidate_count")]),
+        "duplicate_request_id_count": int(
+            seen[("03_audit", "duplicate_request_id_count")]
+        ),
+        "safe_ignore_candidate_count": int(
+            seen[("02_identity", "safe_ignore_candidate_count")]
+        ),
+        "safe_unignore_candidate_count": int(
+            seen[("02_identity", "safe_unignore_candidate_count")]
+        ),
+        "mutation_ignored_action_count": int(
+            seen[("03_audit", "mutation_ignored_action_count")]
+        ),
+        "mutation_other_action_count": int(
+            seen[("03_audit", "mutation_other_action_count")]
+        ),
+        "recovery_unignored_action_count": int(
+            seen[("03_audit", "recovery_unignored_action_count")]
+        ),
+        "recovery_other_action_count": int(
+            seen[("03_audit", "recovery_other_action_count")]
+        ),
     }
 
 
-def compare_sequence(before: Mapping[str, object], retry: Mapping[str, object], recovery: Mapping[str, object], post: Mapping[str, object]) -> None:
+def compare_sequence(
+    before: Mapping[str, object],
+    retry: Mapping[str, object],
+    recovery: Mapping[str, object],
+    post: Mapping[str, object],
+) -> None:
     """Require one action audit, no retry audit, one recovery audit and restored protected counts."""
-    manifests = [build_manifest(item["database"], item["runtime"]) for item in (before, retry, recovery, post)]
-    counts = [entry["database"]["audit_count"] for entry in manifests]
-    if counts[1] != counts[0] + 1 or counts[2] != counts[1] or counts[3] != counts[2] + 1:
+    manifests = [
+        build_manifest(item["database"], item["runtime"])
+        for item in (before, retry, recovery, post)
+    ]
+    databases = [entry["database"] for entry in manifests]
+    counts = [entry["audit_count"] for entry in databases]
+    if (
+        counts[1] != counts[0] + 1
+        or counts[2] != counts[1]
+        or counts[3] != counts[2] + 1
+    ):
         raise CloseoutEvidenceError("audit sequence is invalid")
-    protected = ("admin_principal_count", "identity_drift_count", "member_person_drift_count", "qualification_drift_count", "duplicate_request_id_count")
-    if any(manifests[0]["database"][field] != manifests[-1]["database"][field] for field in protected):
+    expected_actions = ((0, 0), (1, 0), (1, 0), (1, 1))
+    if any(
+        (item["mutation_ignored_action_count"], item["recovery_unignored_action_count"])
+        != expected
+        or item["mutation_other_action_count"] != 0
+        or item["recovery_other_action_count"] != 0
+        for item, expected in zip(databases, expected_actions)
+    ):
+        raise CloseoutEvidenceError("bounded action sequence is invalid")
+    protected = (
+        "admin_principal_count",
+        "identity_drift_count",
+        "member_person_drift_count",
+        "qualification_drift_count",
+        "duplicate_request_id_count",
+    )
+    if any(
+        manifests[0]["database"][field] != manifests[-1]["database"][field]
+        for field in protected
+    ):
         raise CloseoutEvidenceError("protected closeout counts drifted")
+    if (
+        databases[0]["safe_ignore_candidate_count"] < 1
+        or databases[1]["safe_unignore_candidate_count"] < 1
+        or databases[2]["safe_unignore_candidate_count"]
+        != databases[1]["safe_unignore_candidate_count"]
+        or databases[3]["safe_ignore_candidate_count"]
+        != databases[0]["safe_ignore_candidate_count"]
+        or databases[3]["safe_unignore_candidate_count"]
+        != databases[0]["safe_unignore_candidate_count"]
+    ):
+        raise CloseoutEvidenceError("candidate classification did not recover")
 
 
 def _runtime(evidence: Mapping[str, object]) -> dict:

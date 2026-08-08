@@ -17,6 +17,12 @@
   before/action/retry/recovery/post audit comparison, and exact aggregate
   `set_ignored` candidate classification. The runbook now fixes the active
   linked allowlisted-admin classification and same-POST retry boundary.
+- Second-review correction makes the SQL metric set and parser contract
+  identical, derives admin/drift evidence only from the sanitized SQL, and
+  validates the two externally supplied request IDs through exact bounded
+  `identity_ignored`/`identity_unignored` action counts and restored candidate
+  classifications. Route and PostgreSQL domain regressions replay the same POST
+  and same request ID without bypassing existing gates.
 
 ## Verification
 
@@ -28,6 +34,12 @@
 - `python -m compileall -q tools/phase_c_closeout.py
   tools/tests/test_phase_c_closeout.py`: passed.
 - Black 24.4.2 formatter API applied to the new Python files; `git diff --check` passed.
+- `python -m unittest discover -s apps/web_portal/tests -p
+  test_admin_security.py -v`: 63 passed.
+- `python -m unittest tests.portal_data.test_phase_c_lifecycle -v`: 3 static
+  tests passed; 9 isolated-PostgreSQL tests skipped locally because no test DB
+  URL was configured. The same-request-ID domain assertion is in that hosted
+  PostgreSQL path.
 
 ## Not performed / remaining boundary
 

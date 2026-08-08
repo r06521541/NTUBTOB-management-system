@@ -20,6 +20,15 @@ than widening the command. Execute the checksummed SQL through the approved
 read-only database channel and pass only its six sanitized columns plus the
 aggregate metadata to `tools.phase_c_closeout.build_manifest`.
 
+Open an interactive `psql` session through the approved read-only channel, then
+use `\prompt` three times to populate `admin_member_ids`,
+`mutation_request_id`, and `recovery_request_id`; execute the checksummed SQL
+with `\i`. This keeps the allowlist, target-independent opaque request IDs and
+credentials out of shell history, repository files and normal output. The SQL
+uses the allowlist only to emit the aggregate count of active People having a
+linked identity and an allowlisted Member; it emits only bounded action counts
+for the two request IDs and never echoes their values.
+
 1. Run fresh account/project/region guards, the checksummed read-only SQL, the
    TASK-068 drift inventory, and the closeout verifier with aggregate evidence.
    Require schema 0004, all-on/unfrozen Phase C, at least one classified active
@@ -47,6 +56,9 @@ a linked identity and a Member ID present in the runtime allowlist. The operator
 must confirm its count is at least one without printing the allowlist or any
 principal identifier. The action operator obtains CSRF, target and opaque
 request ID only from the authenticated browser/session at execution time; it
-replays the exact same POST body once before following its redirect, then uses
-a distinct opaque request ID only for recovery. No special endpoint, CSRF bypass
-or shell argument may be used for retry.
+uses browser developer tools' Network tab to select the first POST and choose
+"Replay XHR"/"Resend" before navigating away. The replay must preserve the
+same authenticated cookie, CSRF token, target, reason and mutation request ID.
+The operator then uses a newly rendered form and the distinct recovery request
+ID for recovery. No exported HAR, copied shell command, special endpoint, CSRF
+bypass or persisted request body is allowed.
