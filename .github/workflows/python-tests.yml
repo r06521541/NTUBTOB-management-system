@@ -59,15 +59,18 @@ jobs:
           tools/portal_data_phase_a_evidence.py
           tools/portal_data_phase_c_evidence.py
           tools/portal_data_phase_c_migration.py
+          tools/portal_data_phase_c_readiness.py
           tools/setup_portal_data_legacy.py
           tests/portal_data/test_migration_readiness.py
           tests/portal_data/test_phase_a_evidence.py
           tests/portal_data/test_phase_c_lifecycle.py
+          tests/portal_data/test_phase_c_readiness.py
 
       - name: Verify Phase C review artifacts
         run: |
           python -m tools.portal_data_phase_c_migration verify
           python -m tools.portal_data_phase_c_evidence
+          python -m tools.portal_data_phase_c_readiness verify
 
       - name: Run portal data PostgreSQL tests
         env:

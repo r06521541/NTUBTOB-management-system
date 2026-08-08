@@ -9,6 +9,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "docs" / "operations" / "sql" / "portal-data-0003-to-0004.sql"
@@ -66,6 +67,8 @@ def verify_sql(sql: str, checksum: str | None = None) -> None:
     upper = sql.upper()
     if not sql.startswith(HEADER):
         errors.append("approval boundary header missing")
+    if "\r" in sql or sql.startswith("\ufeff"):
+        errors.append("artifact must be BOM-free UTF-8 with LF line endings")
     if upper.count("BEGIN;") != 1 or upper.count("COMMIT;") != 1:
         errors.append("one atomic transaction is required")
     if not upper.rstrip().endswith("COMMIT;"):
@@ -92,6 +95,7 @@ def verify_sql(sql: str, checksum: str | None = None) -> None:
         r"postgres(?:ql)?://",
         r"supabase",
         r"password\s*=",
+        r"\{\{[^}]+\}\}|<[^>]*(?:PLACEHOLDER|REPLACE|VALUE)[^>]*>",
     ):
         if re.search(forbidden, sql, flags=re.IGNORECASE):
             errors.append(f"forbidden migration content: {forbidden}")
@@ -112,12 +116,22 @@ def write_artifact() -> None:
 
 
 def verify_artifact() -> None:
-    sql = ARTIFACT.read_text(encoding="utf-8")
+    raw = ARTIFACT.read_bytes()
+    if raw.startswith(b"\xef\xbb\xbf") or b"\r" in raw:
+        raise PhaseCMigrationError("artifact encoding or line ending is not canonical")
+    try:
+        sql = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise PhaseCMigrationError("artifact is not UTF-8") from exc
     checksum, separator, filename = (
         CHECKSUM.read_text(encoding="ascii").strip().partition("  ")
     )
     if not separator or filename != ARTIFACT.name:
         raise PhaseCMigrationError("invalid checksum sidecar")
+    config = Config(str(ROOT / "alembic.ini"))
+    heads = ScriptDirectory.from_config(config).get_heads()
+    if heads != ["0004_phase_c_identity_lifecycle"]:
+        raise PhaseCMigrationError(f"unexpected Alembic heads: {heads}")
     verify_sql(sql, checksum)
 
 

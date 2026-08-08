@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import re
 from pathlib import Path
@@ -59,7 +60,17 @@ def verify_artifacts() -> None:
             raise PhaseCEvidenceError(f"checksum mismatch: {path.name}")
 
 
-if __name__ == "__main__":
-    write_checksums()
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "action", nargs="?", choices=("verify", "checksum"), default="verify"
+    )
+    args = parser.parse_args()
+    if args.action == "checksum":
+        write_checksums()
     verify_artifacts()
     print("Phase C evidence artifacts verified")
+
+
+if __name__ == "__main__":
+    main()
