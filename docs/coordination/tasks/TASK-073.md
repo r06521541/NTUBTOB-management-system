@@ -10,6 +10,8 @@
 - Inventory SQL SHA-256：`9dc3d2e589ca298e40a9bf529d5801e6b7081016547996bbd5010df7adae2d46`
 - Migration SQL SHA-256：`67ea4490a1e3459221f440ae280e95f3be5a868ad2c37c78ae3519073e7d1f91`
 - Post-check SQL SHA-256：`6de46c7c46c5ea1dd75e0172a1369368c3d3d4ec7f1ddf8077afe4bcec613166`
+- TASK-073 的六個 SQL／checksum artifacts 必須依 `.gitattributes` 以 LF checkout；operator 必須對實際
+  checkout 執行兩個 repository verifier，不得用 Git blob checksum 取代 checkout-time gate。
 - Runbook：`docs/operations/data/PORTAL_DATA_PHASE_C_PRODUCTION_READINESS.md`
 - PostgreSQL 15.8／16.4 compatibility baseline：PR #71，GitHub Actions run `31234608763`（兩個jobs皆成功）
 
