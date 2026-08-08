@@ -3,11 +3,12 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: f9558be
+head_commit: 74d3793
 
 updated_by: codex
-updated_at: 2026-08-08T23:28:58+08:00
+updated_at: 2026-08-09T00:18:00+08:00
 
 note: >
-  TASK-084 Stage A now adds strict CSV ingestion, bounded audit-sequence comparison, exact set_ignored aggregate classification,
-  and an allowlisted-admin/same-POST retry operator boundary. Local tests passed; no production access or mutation occurred.
+  TASK-084 Stage A now binds the exact SQL/CSV metric set, derives sanitized admin/drift evidence, validates the bounded two-request
+  action/retry/recovery sequence and candidate restoration, and tests exact same-POST routing/domain idempotency. Local suites passed
+  with the isolated PostgreSQL path skipped because no test DB URL was configured. No production access or mutation occurred.
