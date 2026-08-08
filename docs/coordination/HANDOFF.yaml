@@ -3,12 +3,12 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 74d3793
+head_commit: 9fa4401ab1c2b5011303a9c365b352c4f076da34
 
 updated_by: codex
-updated_at: 2026-08-09T00:18:00+08:00
+updated_at: 2026-08-09T00:55:00+08:00
 
 note: >
-  TASK-084 Stage A now binds the exact SQL/CSV metric set, derives sanitized admin/drift evidence, validates the bounded two-request
-  action/retry/recovery sequence and candidate restoration, and tests exact same-POST routing/domain idempotency. Local suites passed
-  with the isolated PostgreSQL path skipped because no test DB URL was configured. No production access or mutation occurred.
+  Third-review correction is ready for Work review: a single five-snapshot post-check retains TASK-068 non-audit drift gates,
+  permits only the exact bounded audit pair, proves same-target recovery, enforces exact candidate deltas, and fails closed on
+  unverified statement logging. Repository/local tests passed; no production or external operation was performed.
