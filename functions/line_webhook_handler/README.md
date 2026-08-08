@@ -37,3 +37,10 @@ The Web Portal, webhook and notify cron flags must be activated as one
 coordinated rollout contract. The repository preflight rejects a normal-traffic
 single-service or two-service plan; see
 `docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md`.
+
+When `PORTAL_DATA_ROLLOUT_FREEZE_ENABLED` is exactly `true`, an attendance reply
+postback receives only the fixed retry-later LINE reply. The gate runs after LINE
+signature dispatch but before postback query parsing, LINE-user/principal/Member
+or Game lookup, attendance/audit writes and Discord notification. It does not
+push or broadcast, and it does not block text/help handling or the read-only
+attendance-query postback. Missing, empty or non-exact values are unfrozen.

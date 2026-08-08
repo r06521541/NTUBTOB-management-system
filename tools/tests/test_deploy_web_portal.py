@@ -257,6 +257,8 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         env.parent.mkdir(parents=True)
         env.write_text(
             "SAFE_SETTING: kept\n"
+            "PORTAL_DATA_PHASE_C_ENABLED: false\n"
+            "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: false\n"
             "DSN_PASSWORD: fixture-password\n"
             "LINE_LOGIN_CHANNEL_SECRET: fixture-line-value\n"
             "SECRET_KEY: fixture-session-value\n",
@@ -351,7 +353,12 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
     def test_filtered_env_keeps_safe_key_without_disclosing_fixture_secrets(self):
         source = self.root / "envs" / "web_portal" / ".env.yaml"
         deploy.write_filtered_env(source, self.temporary_env)
-        self.assertEqual(self.temporary_env.read_text(), "SAFE_SETTING: kept\n")
+        self.assertEqual(
+            self.temporary_env.read_text(),
+            "SAFE_SETTING: kept\n"
+            "PORTAL_DATA_PHASE_C_ENABLED: false\n"
+            "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: false\n",
+        )
 
     def test_success_uses_fixed_context_single_substitution_argument_and_http_once(self):
         runner = FakeRunner(self.root)

@@ -161,6 +161,10 @@ class AttendanceReplyTest(unittest.TestCase):
             get_identity_lifecycle_repository=Mock(),
             is_phase_c_enabled=lambda: os.environ.get("PORTAL_DATA_PHASE_C_ENABLED")
             == "true",
+            is_rollout_freeze_enabled=lambda: os.environ.get(
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED"
+            )
+            == "true",
         )
 
     def setUp(self):
@@ -172,7 +176,11 @@ class AttendanceReplyTest(unittest.TestCase):
         )
         FakeAttendanceReply.search_single_game_reply_of_member.return_value = []
         self.webhook.Game.search_by_id = Mock(return_value=self.make_game())
+        self.webhook.LineUser.search_by_id = Mock()
         self.webhook.notify_management_message = Mock()
+        self.webhook.line_messaging_api.reply.reset_mock()
+        runtime = sys.modules["shared_module.portal_data.runtime"]
+        runtime.get_identity_lifecycle_repository.reset_mock()
 
     @staticmethod
     def make_game(*, hours_from_now=48, cancelled=False):
@@ -295,6 +303,62 @@ class AttendanceReplyTest(unittest.TestCase):
         repository.reply_to_game.assert_called_once_with(44, 23, 1, 9)
         FakeAttendanceReply.add.assert_not_called()
         self.assertIn("Fictional game", messages[0])
+
+    def test_freeze_blocks_legacy_and_phase_c_reply_before_every_side_effect(self):
+        event = self.webhook.PostbackEvent()
+        event.reply_token = "fake-reply-token"
+        event.source = types.SimpleNamespace(user_id="fake-line-subject")
+        event.postback = types.SimpleNamespace(
+            data="reply-game-attendance?id=23&reply=1"
+        )
+        runtime = sys.modules["shared_module.portal_data.runtime"]
+
+        for phase_c in ("false", "true"):
+            with self.subTest(
+                phase_c=phase_c
+            ), self.app.test_request_context(), patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": phase_c,
+                    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+                },
+                clear=False,
+            ):
+                g.messages_to_reply = []
+                self.webhook.handle_event_default(event)
+
+            self.webhook.LineUser.search_by_id.assert_not_called()
+            self.webhook.Game.search_by_id.assert_not_called()
+            FakeAttendanceReply.search_by_member_id.assert_not_called()
+            FakeAttendanceReply.search_single_game_reply_of_member.assert_not_called()
+            FakeAttendanceReply.add.assert_not_called()
+            runtime.get_identity_lifecycle_repository.assert_not_called()
+            self.webhook.notify_management_message.assert_not_called()
+            self.webhook.line_messaging_api.reply.assert_called_once()
+            reply_messages = self.webhook.line_messaging_api.reply.call_args.args[1]
+            self.assertEqual(len(reply_messages), 1)
+            self.assertEqual(
+                reply_messages[0].text,
+                self.webhook.message_templates_user.rollout_freeze,
+            )
+            self.webhook.line_messaging_api.reply.reset_mock()
+
+    def test_freeze_does_not_block_read_only_attendance_query(self):
+        event = self.webhook.PostbackEvent()
+        event.postback = types.SimpleNamespace(data="query-attendance-of-game?id=23")
+        with self.app.test_request_context(), patch.dict(
+            os.environ,
+            {"PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true"},
+            clear=False,
+        ):
+            g.messages_to_reply = []
+            self.webhook.handle_postback(event)
+
+        self.webhook.Game.search_by_id.assert_called_once_with(23)
+        self.webhook.attendance_analyzer.get_attendance_of_game.assert_called_once_with(
+            23
+        )
+        FakeAttendanceReply.add.assert_not_called()
 
 
 if __name__ == "__main__":

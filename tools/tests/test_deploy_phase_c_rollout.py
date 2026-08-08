@@ -28,7 +28,7 @@ class PhaseCRolloutPreflightTests(unittest.TestCase):
             "false",
             require_artifacts=False,
         )
-        self.assertEqual(result.mode, "legacy")
+        self.assertEqual(result.mode, "legacy_unfrozen")
 
     def test_every_mixed_service_vector_fails_closed(self):
         vectors = (
@@ -65,7 +65,30 @@ class PhaseCRolloutPreflightTests(unittest.TestCase):
             "true",
             require_artifacts=False,
         )
-        self.assertEqual(result.mode, "phase_c_maintenance")
+        self.assertEqual(result.mode, "maintenance_unfrozen")
+
+    def test_mixed_phase_c_is_accepted_only_when_every_service_is_frozen(self):
+        all_frozen = {service: "true" for service in preflight.ROLLOUT_SERVICES}
+        result = preflight.verify_rollout(
+            REPOSITORY_ROOT,
+            self.rollout(web_portal="true"),
+            "false",
+            freeze_values=all_frozen,
+            require_artifacts=False,
+        )
+        self.assertEqual(result.mode, "mixed_frozen")
+
+        for service in preflight.ROLLOUT_SERVICES:
+            with self.subTest(service=service), self.assertRaises(
+                preflight.RolloutPreflightError
+            ):
+                preflight.verify_rollout(
+                    REPOSITORY_ROOT,
+                    self.rollout(web_portal="true"),
+                    "false",
+                    freeze_values={**all_frozen, service: "false"},
+                    require_artifacts=False,
+                )
 
     def test_environment_typo_or_context_gap_fails_without_showing_values(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -160,10 +183,16 @@ class PhaseCRolloutPreflightTests(unittest.TestCase):
                         "false",
                         "--identity-maintenance",
                         "false",
+                        "--web-portal-freeze",
+                        "false",
+                        "--line-webhook-freeze",
+                        "false",
+                        "--notify-cron-freeze",
+                        "false",
                     ]
                 )
             self.assertEqual(result, 0)
-            self.assertIn("mode=legacy", output.getvalue())
+            self.assertIn("mode=legacy_unfrozen", output.getvalue())
             self.assertNotIn(".env", output.getvalue())
 
     @staticmethod
@@ -171,13 +200,16 @@ class PhaseCRolloutPreflightTests(unittest.TestCase):
         envs = {
             "web_portal": (
                 f'PORTAL_DATA_PHASE_C_ENABLED: "{phase_c_value}"\n'
+                'PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: "false"\n'
                 'WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED: "false"\n'
             ),
             "line_webhook_handler": (
                 f'PORTAL_DATA_PHASE_C_ENABLED: "{phase_c_value}"\n'
+                'PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: "false"\n'
             ),
             "notify_cronjob_service": (
                 f'PORTAL_DATA_PHASE_C_ENABLED: "{phase_c_value}"\n'
+                'PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: "false"\n'
             ),
         }
         for directory, content in envs.items():

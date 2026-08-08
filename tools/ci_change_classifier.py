@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Iterable, Mapping, Optional, Sequence
 
-
 SCOPES = (
     "portal_data",
     "web_portal",
@@ -69,6 +68,16 @@ def _path_scope(path: str) -> Optional[str]:
         "tools/tests/test_ci_workflow_contract.py",
     ):
         return "full"
+    if lower in (
+        "tests/portal_data/test_phase_c_rollout_state.py",
+        "tools/phase_c_rollout_preflight.py",
+        "tools/phase_c_transition_controller.py",
+        "docs/operations/data/portal_data_phase_c_application_rollout.md",
+        "envs/web_portal/.env_example.yaml",
+        "envs/line_webhook_handler/.env_example.yaml",
+        "envs/notify_cronjob_service/.env_example.yaml",
+    ):
+        return "deployment_tools"
     if (
         name.startswith("requirements")
         or name
@@ -143,6 +152,16 @@ def classify_paths(paths: Iterable[str]) -> Classification:
 
     scopes = set()
     for path in normalized_paths:
+        if path.lower() == "shared_lib/shared_module/portal_data/runtime.py":
+            scopes.update(
+                {
+                    "deployment_tools",
+                    "web_portal",
+                    "line_webhook",
+                    "notify_cron",
+                }
+            )
+            continue
         scope = _path_scope(path)
         if scope is None or scope == "full":
             return _full()

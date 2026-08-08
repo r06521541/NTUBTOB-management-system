@@ -1,16 +1,15 @@
-active_task: TASK-076
-status: in_progress
+active_task: TASK-077
+status: accepted_pending_hosted_ci
 next_actor: work
 
-base_commit: 893e365
-head_commit: 83f954790f0448fb5415abbe74f6eb7d55b56b5d
+base_commit: 43eb67c
+head_commit: 9d46aa3357734e2c5853a613ccfd860d5a16cb8e
 
 updated_by: work
-updated_at: 2026-08-08T16:00:00+08:00
+updated_at: 2026-08-08T18:13:00+08:00
 
 note: >
-  Work accepted commit 83f9547 after inspecting the clean-import fix and independently rerunning Web Portal 121 tests and seven
-  Phase C flag tests successfully. The Work-owned review trailing blank was corrected and the hosted failure evidence was added
-  to the review. TASK-076 now awaits the latest PR #77 Python 3.10/PostgreSQL final gate; Work will squash merge only if every
-  required job succeeds. No deployment, production flag/database mutation, Secret/IAM/Scheduler action or notification is
-  authorized.
+  Work accepted TASK-077 after verifying fix 9d46aa3 and rerunning the 33-test classifier/runtime/controller regression suite.
+  The shared runtime now selects all three direct consumer suites plus deployment tools without selecting the PostgreSQL matrix.
+  The single ready PR and hosted Python 3.10 final gate remain before squash merge. No deployment, production
+  flag/traffic/database mutation, Scheduler action, Secret/IAM change, production invoke or real notification is authorized.

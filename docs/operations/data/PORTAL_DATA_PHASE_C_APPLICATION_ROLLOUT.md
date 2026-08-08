@@ -1,10 +1,10 @@
 # Phase C application rollout and rollback runbook
 
-Status: repository-only readiness evidence for TASK-076. This document does not
+Status: repository-only readiness evidence through TASK-077. This document does not
 authorize a production deployment, runtime flag mutation, traffic change,
-Scheduler invocation, database operation, or real notification. TASK-077 must
-lock exact commits, revisions, flag values, observation ownership, and rollback
-targets and obtain Owner approval before any external mutation.
+Scheduler invocation, database operation, or real notification. TASK-078 and
+TASK-079 must lock exact commits, revisions, flag values, observation ownership,
+and rollback targets and obtain Owner approval before any external mutation.
 
 ## Locked database and runtime assumptions
 
@@ -14,6 +14,9 @@ targets and obtain Owner approval before any external mutation.
 - `PORTAL_DATA_PHASE_C_ENABLED` and
   `WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED` remain exactly `false` until a later
   approved activation window.
+- `PORTAL_DATA_ROLLOUT_FREEZE_ENABLED` defaults exactly `false` in Web Portal,
+  LINE webhook and notify cron. It is the only repository-defined transition
+  freeze; missing, empty, case-variant or other values are not frozen.
 - Missing, empty, case-variant, padded, or unknown flag values are runtime-off.
   Maintenance requested while Phase C is off is invalid and effectively off.
 - The offline preflight accepts only explicit `true` or `false`; it never reads
@@ -49,19 +52,37 @@ Pop-Location
 Copy-Item shared_lib/dist/shared_lib-0.0.1.tar.gz apps/web_portal/dist/shared_lib-0.0.1.tar.gz -Force
 Copy-Item shared_lib/dist/shared_lib-0.0.1.tar.gz functions/line_webhook_handler/dist/shared_lib-0.0.1.tar.gz -Force
 Copy-Item shared_lib/dist/shared_lib-0.0.1.tar.gz apps/notify_cronjob_service/dist/shared_lib-0.0.1.tar.gz -Force
-python -m tools.phase_c_rollout_preflight --web-portal false --line-webhook false --notify-cron false --identity-maintenance false
+python -m tools.phase_c_rollout_preflight --web-portal false --line-webhook false --notify-cron false --identity-maintenance false --web-portal-freeze false --line-webhook-freeze false --notify-cron-freeze false
 ```
 
 Unix-like environments may use `python3`, `cp`, and the same module command.
-The preflight also verifies that all example environments default both features
+The preflight also verifies that all example environments default all features
 off and that Docker/gcloud contexts exclude env files, credentials, private
 backup/database files, and unrelated `dist` content. Its output contains only
 the mode and a source-content fingerprint, never env or credential values.
 
-Run the preflight again with all three Phase C arguments `true` and maintenance
-`false` before preparing an activation package. Run it with all four `true` only
-for the final maintenance stage. Any single-service or two-service vector is
-rejected.
+The Web Portal and notify deployment helpers preserve every non-secret key from
+their complete source `.env.yaml` while filtering only their named secret keys;
+the LINE webhook deploy target passes its complete env file directly. Cloud
+deployment consumes those complete files, so TASK-078 must not assume an
+unlisted runtime key survives. Before any approved execution, the operator must
+add both Phase C and freeze keys to each controlled non-secret env source, lock
+their exact values in the work package, and verify the resulting revision
+metadata. Repository tests use fixtures and examples only and never read the
+real env files.
+
+Run the preflight for every controller step. A single-service or two-service
+Phase C vector is accepted only when all three freeze arguments are exactly
+`true`; any mixed vector with even one service unfrozen is rejected. Run all
+Phase C arguments `true`, all freeze arguments `false` and maintenance `true`
+only for the final maintenance stage.
+
+`python -m tools.phase_c_transition_controller` is the offline authority for the
+canonical forward or rollback order. It requires complete current/target Phase C,
+freeze and maintenance vectors, matching reviewed/expected 40-character source
+commits, and the expected 64-character shared source fingerprint. It validates
+the repository artifacts and outputs only a bounded next step; it cannot run a
+shell, `gcloud`, Scheduler, HTTP request or database operation.
 
 ## Supported and prohibited states
 
@@ -69,10 +90,14 @@ rejected.
 | --- | --- | --- |
 | 0004 + current production apps + all flags off | supported legacy | Confirmed production starting point; no Phase C runtime write |
 | 0004 + new artifacts + all flags off | supported feature-off | Required deployment and rollback baseline |
-| Portal on; webhook/notify off | prohibited for normal traffic | Phase C reader can project new legacy Member rows, but guest visibility and cross-service behavior are not consistent |
+| All Phase C off; one/two freeze flags on | supported freeze transition | Only the already-frozen services block controlled side effects; Phase C must remain all off |
+| All Phase C off; all freeze flags on | supported legacy frozen | Required boundary before the first Phase C flag changes |
+| Portal on; webhook/notify off; all frozen | supported transition only | Mixed data model is bounded because every controlled writer/notifier is frozen |
 | Webhook on; Portal/notify off | prohibited for normal traffic | Legacy readers safely ignore Member-less guest rows, but guests are not visible until every reader is on |
 | Notify on; Portal/webhook off | prohibited for normal traffic | Read compatibility exists, but user-facing writers/readers are not one coordinated contract |
-| Any two services on | prohibited for normal traffic | Same bounded visibility inconsistency; do not use as an observation stage |
+| Any mixed Phase C vector with one service unfrozen | unsafe, fail closed | Controller and preflight reject the transition |
+| Any two services on; all frozen | supported transition only | Never reopen user writes or Scheduler invocation in this state |
+| All three Phase C on; all frozen | supported transition only | Required state before removing any freeze flag |
 | All three Phase C on; maintenance off | supported Phase C | Required first active state |
 | All three Phase C on; maintenance on | supported final state | Enable only after the Phase C state has passed observation |
 | Maintenance on while Portal Phase C off | invalid, fail closed | Runtime disables maintenance; preflight rejects the plan |
@@ -90,7 +115,7 @@ Owner approval is required before using any existing deployment wrapper.
 
 1. Lock the exact source commit, the three newly built artifact source
    fingerprints, each target revision/rollback revision, and confirm all flags
-   will remain exactly `false`.
+   will remain exactly `false`, including all three rollout freeze flags.
 2. Deploy Web Portal, LINE webhook, and notify cron artifacts one at a time.
    Feature-off makes service order data-compatible; use the exact order locked in
    TASK-077 so rollback evidence remains unambiguous.
@@ -112,28 +137,32 @@ identity row should be created by a feature-off request.
 
 ## Stage 2: coordinated Phase C activation
 
-There is no atomic cross-service environment update in this repository. TASK-077
-must therefore provide an Owner-approved bounded activation window that prevents
-attendance mutations and scheduled attendance notifications while revisions are
-temporarily mixed. If that freeze cannot be established and verified, activation
-is blocked; do not claim that a sequential flag update is atomic.
+There is no atomic cross-service environment update in this repository. The
+shared exact freeze gate and offline controller bound the sequential transition;
+they do not make it atomic. TASK-079 must still lock an Owner-approved activation
+window, exact revisions and an observer. If all three frozen states cannot be
+verified before Phase C changes, activation is blocked.
 
 1. Confirm feature-off revisions remain the known-good rollback set, 0004 is
    unchanged, and the all-on/maintenance-off preflight passes.
-2. Begin the explicit attendance/notification freeze. Do not invoke LINE
-   postbacks, Portal attendance writes, cron notification routes, identity
-   maintenance, or ad-hoc SQL during the transition.
-3. Activate Phase C on read surfaces first: Web Portal, then notify cron. Verify
+2. Turn freeze on one service at a time in controller order: Web Portal, LINE
+   webhook, notify cron. After each revision, verify the exact non-secret flag
+   metadata. Do not change any Phase C flag until all three freezes are `true`.
+3. With all services frozen, activate Phase C on read surfaces first: Web Portal,
+   then notify cron. Verify
    readiness/config metadata only; these mixed states are not opened to normal
    traffic or scheduled invocation.
-4. Activate LINE webhook last. Verify all three flags are exactly `true`, then end
-   the freeze.
-5. Observe the all-on/maintenance-off state for at least 30 minutes. Use aggregate
+4. Activate LINE webhook last. Verify all three Phase C and all three freeze flags
+   are exactly `true`.
+5. Remove freeze one service at a time in controller order: Web Portal, LINE
+   webhook, notify cron. Do not invoke attendance or notification routes until all
+   Phase C flags are on and the target service's freeze is confirmed off.
+6. Observe the all-on/maintenance-off state for at least 30 minutes. Use aggregate
    error/latency counters and fixed classifications only. Stop for principal
    resolution failures, attendance projection disagreement, duplicated audit or
    attendance effects, unexpected guest/member names, notification errors, or any
    secret/identifier in logs.
-6. Only after this observation may a separately approved smoke use one explicitly
+7. Only after this observation may a separately approved smoke use one explicitly
    designated fictional/non-production identity. TASK-076 itself authorizes no
    production write, endpoint invoke, or notification.
 
@@ -157,11 +186,14 @@ Identity maintenance is the final flag. It must never be an activation shortcut.
 
 First layer—coordinated flags off:
 
-1. Re-enter the attendance/notification freeze.
-2. Turn maintenance off first.
-3. Turn Phase C off in the reverse activation order: LINE webhook, notify cron,
+1. Turn maintenance off, then re-enter freeze in reverse controller order until
+   every service is frozen. Verify all three exact freeze flags before Phase C
+   rollback begins.
+2. Turn Phase C off in the reverse activation order: LINE webhook, notify cron,
    then Web Portal. Do not reopen normal traffic while only some flags are off.
-4. Verify the all-off preflight/runtime metadata, then end the freeze. Retain 0004
+3. Verify all Phase C flags are off while all services remain frozen. Remove
+   freeze in reverse of its forward enable order, one service at a time.
+4. Verify the all-off/unfrozen preflight/runtime metadata. Retain 0004
    and all committed data/audits.
 
 Second layer—known-good revisions:
@@ -176,12 +208,24 @@ Second layer—known-good revisions:
    audit trigger, run cleanup SQL, or restore a backup as application rollback.
    Semantic data repair requires a separate forward-recovery task.
 
-## Evidence required for TASK-077
+## Evidence required for TASK-078 feature-off deployment
+
+- reviewed source commit and three matching shared artifact fingerprints;
+- exact current and rollback revisions for all three deployment units;
+- every deployed non-secret Phase C/freeze/maintenance value, proving all off;
+- deployment wrapper input, image digest, runtime identity/IAM and stop authority;
+- Owner approval for the exact deployment work package and rollback traffic.
+
+## Evidence required for TASK-079 activation
 
 - exact reviewed commit and all three feature-off revision names;
 - local preflight mode/fingerprint and complete test results;
 - exact non-secret flag plan for each deployment unit;
-- named operator/observer, freeze mechanism, start/end time and stop authority;
+- controller current/target output for each exact flag mutation;
+- named operator/observer, freeze confirmation for all three services, start/end
+  time and stop authority;
+- relevant Scheduler job names and a separately approved pause/resume plan; the
+  repository freeze no-op is a safety boundary, not permission to invoke jobs;
 - 15/30-minute observation windows and aggregate dashboards/log filters;
 - first-layer flag-off commands and second-layer exact traffic/revision commands;
 - explicit Owner approvals for deployment, flag mutation, freeze/external

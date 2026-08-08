@@ -46,6 +46,7 @@ import app
 assert app.DEMO_MODE_ENABLED
 assert app.phase_c_repository() is None
 assert not app.is_identity_maintenance_enabled(demo_mode=True)
+assert not app.is_rollout_freeze_enabled(demo_mode=True)
 """
         environment = {
             name: os.environ[name]
@@ -57,6 +58,7 @@ assert not app.is_identity_maintenance_enabled(demo_mode=True)
                 "WEB_PORTAL_ENV": "development",
                 "WEB_PORTAL_DEMO_MODE": "true",
                 "WEB_PORTAL_TEST_ROOT": str(WEB_PORTAL_DIR),
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
             }
         )
         completed = subprocess.run(

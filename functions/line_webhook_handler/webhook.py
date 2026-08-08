@@ -37,7 +37,10 @@ from shared_module.models.games import Game
 from shared_module.models.line_groups import LineGroup
 from shared_module.models.line_users import LineUser
 from shared_module.notify.discord_notify import DiscordNotifyHelper
-from shared_module.portal_data.runtime import is_phase_c_enabled
+from shared_module.portal_data.runtime import (
+    is_phase_c_enabled,
+    is_rollout_freeze_enabled,
+)
 
 from envs import channel_access_token, channel_secret
 
@@ -71,8 +74,15 @@ def handle_event(body: str, signature: str):
 
 @handler.default()
 def handle_event_default(event: Event):
+    reply_token = None
     if hasattr(event, "reply_token"):
         reply_token = event.reply_token
+
+    if _is_attendance_reply_postback(event) and is_rollout_freeze_enabled():
+        add_text_message_to_reply(message_templates_user.rollout_freeze)
+        if reply_token and len(g.messages_to_reply) > 0:
+            line_messaging_api.reply(reply_token, g.messages_to_reply)
+        return
 
     g.group_id = None
     if hasattr(event.source, "group_id"):
@@ -103,6 +113,16 @@ def handle_event_default(event: Event):
 
     if reply_token and len(g.messages_to_reply) > 0:
         line_messaging_api.reply(reply_token, g.messages_to_reply)
+
+
+def _is_attendance_reply_postback(event: Event) -> bool:
+    if not isinstance(event, PostbackEvent):
+        return False
+    data = getattr(getattr(event, "postback", None), "data", None)
+    if not isinstance(data, str):
+        return False
+    path = data.partition("?")[0]
+    return path in {"reply-game-attendance", "reply_game_attendance"}
 
 
 def get_user_nickname(user_id: str) -> str:

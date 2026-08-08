@@ -12,7 +12,7 @@ from typing import Mapping, Sequence
 
 from shared_lib.shared_module.portal_data.runtime import (
     ROLLOUT_SERVICES,
-    classify_phase_c_rollout,
+    classify_phase_c_transition,
 )
 
 ARTIFACT_NAME = "shared_lib-0.0.1.tar.gz"
@@ -96,6 +96,10 @@ def verify_environment_examples(root: Path) -> None:
         if values.get("PORTAL_DATA_PHASE_C_ENABLED") != "false":
             raise RolloutPreflightError(
                 f"{service} Phase C example must remain explicitly false"
+            )
+        if values.get("PORTAL_DATA_ROLLOUT_FREEZE_ENABLED") != "false":
+            raise RolloutPreflightError(
+                f"{service} rollout freeze example must remain explicitly false"
             )
     web_values = _example_values(root / ENV_EXAMPLES["web_portal"])
     if web_values.get("WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED") != "false":
@@ -211,6 +215,7 @@ def verify_rollout(
     flag_values: Mapping[str, str],
     identity_maintenance: str,
     *,
+    freeze_values: Mapping[str, str] | None = None,
     require_artifacts: bool = True,
 ) -> RolloutPreflightResult:
     if set(flag_values) != set(ROLLOUT_SERVICES):
@@ -219,11 +224,24 @@ def verify_rollout(
         service: _boolean(flag_values[service], f"{service} Phase C flag")
         for service in ROLLOUT_SERVICES
     }
+    freeze_input = (
+        {service: "false" for service in ROLLOUT_SERVICES}
+        if freeze_values is None
+        else freeze_values
+    )
+    if set(freeze_input) != set(ROLLOUT_SERVICES):
+        raise RolloutPreflightError("the freeze plan must name every runtime service")
+    freezes = {
+        service: _boolean(freeze_input[service], f"{service} freeze flag")
+        for service in ROLLOUT_SERVICES
+    }
     maintenance = _boolean(identity_maintenance, "identity maintenance flag")
-    state = classify_phase_c_rollout(flags, identity_maintenance=maintenance)
+    state = classify_phase_c_transition(
+        flags, freezes, identity_maintenance=maintenance
+    )
     if not state.safe:
         raise RolloutPreflightError(
-            "mixed or invalid Phase C rollout state is forbidden"
+            "mixed Phase C is allowed only while every service is frozen"
         )
     verify_environment_examples(root)
     verify_build_contexts(root)
@@ -240,6 +258,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--web-portal", required=True, choices=("true", "false"))
     parser.add_argument("--line-webhook", required=True, choices=("true", "false"))
     parser.add_argument("--notify-cron", required=True, choices=("true", "false"))
+    parser.add_argument("--web-portal-freeze", required=True, choices=("true", "false"))
+    parser.add_argument(
+        "--line-webhook-freeze", required=True, choices=("true", "false")
+    )
+    parser.add_argument(
+        "--notify-cron-freeze", required=True, choices=("true", "false")
+    )
     parser.add_argument(
         "--identity-maintenance", required=True, choices=("true", "false")
     )
@@ -257,6 +282,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "notify_cron": arguments.notify_cron,
             },
             arguments.identity_maintenance,
+            freeze_values={
+                "web_portal": arguments.web_portal_freeze,
+                "line_webhook": arguments.line_webhook_freeze,
+                "notify_cron": arguments.notify_cron_freeze,
+            },
         )
     except RolloutPreflightError as error:
         print(f"Phase C rollout preflight failed: {error}")

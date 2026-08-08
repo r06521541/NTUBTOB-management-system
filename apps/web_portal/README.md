@@ -233,6 +233,15 @@ maintenance. Cross-service activation and rollback must follow
 `docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md`; a mixed flag
 vector is not an accepted normal-traffic state.
 
+`PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=true` is the exact Phase C transition
+freeze. After OAuth state, browser-session nonce and authorization response
+validation, it returns a fixed 503 before a Phase C callback can exchange the
+code or create identity data. Authenticated identity/profile and administrator
+POST routes retain their member/admin and CSRF checks, then return the same 503
+before repository writes, audit creation or Discord notification. Read-only
+member pages continue to operate. The double-gated offline demo always treats
+this production freeze as off and remains database-free.
+
 The production game roster is team-private. `/game-roster/<game_id>` requires a
 valid LINE Login session linked to a positive integer Member ID; anonymous or
 malformed sessions are redirected to login before roster data is queried. This
