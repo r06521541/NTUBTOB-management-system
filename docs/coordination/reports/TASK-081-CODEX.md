@@ -32,5 +32,11 @@
 
 ## Not performed
 
+Work-review correction: added a dedicated `--resume-verify-only` flow requiring
+a full SHA, non-secret build ID and exact candidate revision. It cannot mix
+with `--execute`, submits no build, reads no env file, and fails closed on
+build/substitution/revision/digest/traffic drift; an already-promoted revision
+is verified without another promotion.
+
 No production build/deploy, gcloud call, Secret/env read, flag/Scheduler/IAM/DB
 operation, traffic mutation, endpoint invocation or notification occurred.

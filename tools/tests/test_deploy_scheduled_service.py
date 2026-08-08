@@ -384,6 +384,37 @@ class DeploymentWrapperTests(unittest.TestCase):
         )
         self.assertFalse(self.temporary_env().exists())
 
+    def test_resume_verify_only_promotes_exact_successful_candidate(self):
+        commands = []
+
+        def runner(arguments, _cwd):
+            commands.append(list(arguments))
+            if arguments[:2] == ["git", "status"]:
+                output = ""
+            elif arguments[:3] == ["git", "rev-parse", "HEAD"]:
+                output = SHA
+            elif arguments[:3] == ["gcloud", "builds", "describe"]:
+                output = json.dumps({"status": "SUCCESS", "substitutions": {"_SERVICE_NAME": "game-broadcast-service", "_IMAGE_TAG": SHA}})
+            elif arguments[:3] == ["gcloud", "artifacts", "docker"]:
+                output = APPROVED_DIGEST
+            elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
+                output = json.dumps({"status": {"imageDigest": FULL_REVISION_DIGEST, "conditions": [{"type": "Ready", "status": "True"}]}})
+            elif arguments[:4] == ["gcloud", "run", "services", "describe"]:
+                output = json.dumps({"status": {"traffic": [{"revisionName": BASELINE_REVISION, "percent": 100}]}})
+            else:
+                output = ""
+            return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr="")
+
+        result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, runner, False)
+        self.assertFalse(result["already_promoted"])
+        self.assertEqual(len([item for item in commands if "update-traffic" in item]), 1)
+
+    def test_resume_rejects_failed_or_ambiguous_state_without_promotion(self):
+        runner = FakeRunner(self.root)
+        with self.assertRaisesRegex(deploy.DeploymentError, "Cloud Build resume"):
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, runner, False)
+        self.assertEqual(self.traffic_commands(runner), [])
+
 
 if __name__ == "__main__":
     unittest.main()
