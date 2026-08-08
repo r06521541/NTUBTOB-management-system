@@ -1,15 +1,15 @@
-active_task: TASK-071
-status: completed
+active_task: TASK-072
+status: blocked
 next_actor: owner
 
-base_commit: 6c4be49
-head_commit: e979cd61f6a2473bc819da3ea4304784b1f19935
+base_commit: 027b6b8
+head_commit: f458088
 
 updated_by: work
-updated_at: 2026-08-08T09:20:00+08:00
+updated_at: 2026-08-08T09:45:00+08:00
 
 note: >
-  Work accepted TASK-071 at e979cd6. Exact Phase C column, constraint and index fingerprints, forced-RLS/policy gates,
-  strict metric-contract verification and negative catalog mutation tests passed independent review. The localhost-only
-  PostgreSQL 16 suite passed 155 tests after fixture initialization. This completes only the repository readiness package;
-  no production inventory, migration, deployment, runtime flag, notification, Secret/IAM/Scheduler or cloud mutation occurred.
+  Owner approved Phase C repository integration, but GitHub CLI reports that the existing r06521541 token is invalid.
+  Owner must complete gh auth login -h github.com locally; do not share credentials or codes. After authentication, Work
+  may push the task branch, create the PR, inspect required CI and squash merge under the standing Git workflow authority.
+  No production database, migration, deployment, runtime flag, notification or cloud mutation is authorized.

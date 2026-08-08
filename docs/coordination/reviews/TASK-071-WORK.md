@@ -35,4 +35,3 @@
 - 未連線 production Supabase、未執行 production migration、未部署、未開啟 runtime／identity-maintenance flags。
 - 未發送 LINE／Discord 通知，未修改 Secret、IAM、Scheduler 或其他雲端資源。
 - 後續若要執行 migration，仍須依 runbook 取得 fresh inventory、backup verification、exact commit／checksum 與 Owner 對該次 migration window 的明確批准。
-

@@ -487,3 +487,19 @@
   maintenance flag啟用仍須另案批准。
 - 過渡期只有現有Web Portal admin allowlist可管理；People role cutover、Person merge、Event eligibility及正式
   Google／Apple OAuth不在本任務。
+
+### TASK-071 Phase C production migration readiness（2026-08-08）
+
+- Repository-only readiness package 已由 Work 接受：包含 checksummed inventory／migration／post-check SQL、strict
+  validator、compare、runbook 與 recovery boundaries。
+- Post-check 精確 fingerprint 19 個 Phase C-owned columns、15 個 constraints 與3個 indexes，並驗證
+  RLS／forced-RLS／zero-policy boundary；負向 catalog mutation 測試會 fail closed。
+- Work 獨立驗證 localhost-only PostgreSQL 16 完整155項測試及三個 verifier通過。
+- 尚未取得 fresh production inventory、執行 production migration、部署或開啟 runtime flags。
+
+### TASK-072 Phase C repository integration（2026-08-08）
+
+- 目標是以 required CI 與 squash merge 將 TASK-071 readiness package 整合至 `main`，鎖定後續 migration task 的
+  exact merged commit。
+- 本機 branch 已建立；GitHub CLI token 失效，等待 Owner 在本機重新執行 `gh auth login -h github.com` 後續行。
+- 本任務不授權 production database、migration、deployment、runtime flags、Secret／IAM／Scheduler或通知操作。
