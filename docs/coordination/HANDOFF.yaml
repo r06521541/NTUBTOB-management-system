@@ -1,15 +1,14 @@
 active_task: TASK-084
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 1e7c7a98274cf29ef98613f745a428da562b29e4
+head_commit: 36ba942eaca30cab1c412cf0d6c46f3c77cf3571
 
-updated_by: codex
-updated_at: 2026-08-09T03:35:00+08:00
+updated_by: work
+updated_at: 2026-08-09T03:50:00+08:00
 
 note: >
-  Docker operator-command correction is ready for Work review: the PostgreSQL 16 preflight and interactive psql use the TASK-056
-  pinned image ID with --pull never. The interactive command receives the approved private env-file without reading it, supplies
-  PGOPTIONS default_transaction_read_only, mounts the exact repository root read-only at /workspace, and rejects DSN/connection
-  identity arguments through an exact offline contract. No production DB query, mutation or other external operation ran.
+  Parameter-binding and pinned Docker operator boundary accepted locally; Work is creating the single ready PR. Targeted suites
+  passed. Docker Desktop daemon is currently stopped, so exact PostgreSQL 16 version preflight remains required after merge and
+  before any production DB connection. No production DB query or mutation ran.
