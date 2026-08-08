@@ -16,6 +16,9 @@
   `COLLABORATION.md`、`DECISIONS.md` 或當前 task 的 standing authorization 也屬有效的明確要求，不因更換
   session 而失效，無須要求 Owner 在每個新對話重複口頭批准；若較新的 `HANDOFF.yaml`、task 或 Owner 指示撤回
   或縮小授權，則以較新的限制為準。
+- 依 `COLLABORATION.md` 的預設交付流程，Codex 完成實作、測試、commit、push、report 與 handoff 後先不建立 PR；
+  Work 驗收共享 task branch 後建立一次 ready PR。只有任務明定需要 hosted runner／平台證據等例外時，才提前建立
+  Draft PR。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。
 - 不以「測試通過」推定線上整合正確。無法驗證的部分必須在交付時明說。
 
