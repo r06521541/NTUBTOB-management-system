@@ -1049,3 +1049,16 @@ Owner已授權Work與Codex在任務範圍內，於實際diff驗收、required CI
 commit、push、PR、ready、squash merge、同步main及清理task branch，不需逐次請示。此授權不得用來擴張task範圍，
 也不包含production deployment、production database migration／DDL／DML、不可逆資料操作、Secret／IAM／
 Scheduler／cloud resource變更、真實LINE／Discord通知或重大架構／產品規則變更；上述事項仍需Owner另行明確批准。
+
+### 跨 session 效力與 PR 角色
+
+1. 本節及當前 task／decision 中記錄的 standing authorization，就是 Owner 的明確授權；它以 repository 作為
+   跨 session 的持久交接，不要求 Owner 在每個 Codex 對話再次輸入相同批准。只有 Owner 後續撤回、task 明確
+   排除，或 `HANDOFF.yaml` 顯示尚未授權時才停止。
+2. Codex 原則上負責完成實作、測試、commit、push，並建立或更新同一 task branch 的 Draft PR；完成後更新
+   report 與 handoff 為 `ready_for_review / work`。不得僅因「目前對話沒有重複授權文字」而停在 Draft PR 前。
+3. Work 負責查驗實際 diff、commit、hosted CI 與 PR；有 blocking finding 時交回 Codex。驗收通過後由 Work 將
+   PR 標記 ready，並在 required CI 成功後依長期授權 squash merge。若 Codex 無法建立 PR，Work 可代為建立，
+   但這是 fallback，不是固定要求。
+4. Standing authorization 只涵蓋 task 範圍內的一般 Git／GitHub 流程。Production database、deployment、Secret、
+   IAM、Scheduler、通知及其他本節已排除的外部副作用，仍不得因 PR 權限而推定已獲批准。

@@ -20,6 +20,8 @@ python -m tools.portal_data_phase_c_readiness verify
 The inventory and post-check return only the fixed sanitized CSV columns
 `section,metric,status,boolean_value,integer_value,text_value`. Runtime flag state is explicitly
 reported as `not_checked_by_database`; verify it separately without recording values or secrets.
+The required `server_major_supported` metric accepts only PostgreSQL major versions 15 and 16;
+version 14 or lower, newer unreviewed majors and malformed/unknown evidence fail closed.
 The post-check also requires deterministic exact fingerprints for all 19 Phase C-owned columns,
 all 15 added or changed PK/FK/unique/check constraints, and all three explicit Phase C indexes.
 These fingerprints include type, nullability, default, identity/generated attributes, complete
@@ -83,9 +85,12 @@ maintenance disabled.
 The 0004 migration is expand-only for legacy services. Application rollback therefore means keeping
 the legacy feature flags off; it is not schema rollback.
 
-## Local PostgreSQL 16 rehearsal boundary
+## Local PostgreSQL 15 and 16 rehearsal boundary
 
-Tests use only the repository localhost database fixture and fake values. They cover deterministic
+The same core portal-data suite must pass against pinned PostgreSQL 15 and 16 images. Compose keeps
+PostgreSQL 16.4 as its default; set `PORTAL_DATA_POSTGRES_IMAGE=postgres:15.8-alpine` for the
+PostgreSQL 15 rehearsal, using a clean task-owned volume for each major version. Tests use only the
+repository localhost database fixture and fake values. They cover deterministic
 render/checksum/graph validation, encoding and mutation rejection, clean 0003-to-0004 execution,
 attendance backfill invariants, atomic unresolved-row rollback, bounded lock failure and full retry,
 strict evidence validation, drift negatives and inventory/post-check comparison. Local success does

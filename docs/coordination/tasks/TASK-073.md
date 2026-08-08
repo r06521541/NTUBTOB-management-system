@@ -6,13 +6,14 @@
 
 ## 精確版本與 artifacts
 
-- Merged commit：`36016ee80911f98db1f638b43550e77fc75e87b1`
-- Inventory SQL SHA-256：`dca831e4b3a19292c11874cd2e7ddcd642ef7a576e8bb6c4dff41a5352bdc72a`
+- Merged commit：TASK-074 squash merge後重新鎖定；未填入exact 40-character commit前不得執行
+- Inventory SQL SHA-256：`9dc3d2e589ca298e40a9bf529d5801e6b7081016547996bbd5010df7adae2d46`
 - Migration SQL SHA-256：`67ea4490a1e3459221f440ae280e95f3be5a868ad2c37c78ae3519073e7d1f91`
-- Post-check SQL SHA-256：`701f34d4be9f6944da6d8f5ec118efa2191606976f6df603499449369f71015d`
+- Post-check SQL SHA-256：`6de46c7c46c5ea1dd75e0172a1369368c3d3d4ec7f1ddf8077afe4bcec613166`
 - Runbook：`docs/operations/data/PORTAL_DATA_PHASE_C_PRODUCTION_READINESS.md`
 
-任何 commit 或 checksum 改變都使本任務批准失效，必須重新驗收與批准。
+任何 commit 或 checksum 改變都使本任務批准失效，必須重新驗收與批准。TASK-074
+合併後必須填入exact merged commit，並取得新的30分鐘fresh inventory；先前CSV已失效。
 
 ## 執行階段與停損點
 

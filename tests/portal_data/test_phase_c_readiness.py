@@ -69,6 +69,25 @@ def valid_rows(schema):
 
 
 class PhaseCReadinessArtifactTests(unittest.TestCase):
+    def test_version_gate_rejects_unsupported_or_malformed_evidence(self):
+        key = ("00_session", "server_major_supported")
+        self.assertIn(key, INVENTORY_SCHEMA)
+        self.assertIn(key, POSTCHECK_SCHEMA)
+
+        for kind, schema in (
+            ("inventory", INVENTORY_SCHEMA),
+            ("postcheck", POSTCHECK_SCHEMA),
+        ):
+            for value in ("false", "", "14", "unknown"):
+                with self.subTest(kind=kind, value=value):
+                    rows = valid_rows(schema)
+                    row = next(
+                        row for row in rows if (row["section"], row["metric"]) == key
+                    )
+                    row["boolean_value"] = value
+                    with self.assertRaises(PhaseCReadinessError):
+                        validate_rows(rows, kind)
+
     def test_readiness_artifacts_are_canonical_and_checksummed(self):
         verify_repository_artifacts()
 
@@ -97,6 +116,24 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(
                 PhaseCReadinessError, "strict validator contract"
+            ):
+                verify_evidence_sql(path)
+
+    def test_read_only_artifact_rejects_a_broadened_version_gate(self):
+        source = INVENTORY_SQL_PATH.read_text(encoding="utf-8")
+        mutated = source.replace(
+            "current_setting('server_version_num')::int / 10000 IN (15,16)",
+            "current_setting('server_version_num')::int / 10000 >= 15",
+        ).encode("utf-8")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / INVENTORY_SQL_PATH.name
+            path.write_bytes(mutated)
+            path.with_suffix(".sql.sha256").write_text(
+                f"{hashlib.sha256(mutated).hexdigest()}  {path.name}\n",
+                encoding="ascii",
+            )
+            with self.assertRaisesRegex(
+                PhaseCReadinessError, "accept exactly versions 15 and 16"
             ):
                 verify_evidence_sql(path)
 
@@ -252,6 +289,16 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
         return validate_rows(self._evidence_rows(path), kind)
 
     def test_clean_0003_to_0004_inventory_postcheck_and_compare(self):
+        with self.engine.connect() as connection:
+            server_major = (
+                int(
+                    connection.scalar(
+                        text("SELECT current_setting('server_version_num')")
+                    )
+                )
+                // 10000
+            )
+        self.assertIn(server_major, (15, 16))
         inventory = self._execute(INVENTORY_SQL_PATH, "inventory")
         command.upgrade(self.config, "0004_phase_c_identity_lifecycle")
         postcheck = self._execute(POSTCHECK_SQL_PATH, "postcheck")

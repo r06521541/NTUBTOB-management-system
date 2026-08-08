@@ -38,7 +38,7 @@ WITH legacy_tables(name) AS (VALUES
   SELECT l.line_user_id,m.person_id FROM ntubtob.line_users l JOIN ntubtob.members m ON m.id=l.member_id WHERE l.ignored IS FALSE AND m.person_id IS NOT NULL
 ), active_team_player AS (SELECT person_id FROM ntubtob.person_qualifications WHERE qualification='team_player' AND status='active'), evidence(section,metric,status,boolean_value,integer_value,text_value) AS (
   SELECT '00_session','transaction_read_only','required',current_setting('transaction_read_only')='on',NULL::bigint,NULL::text
-  UNION ALL SELECT '00_session','server_major_at_least_16','required',current_setting('server_version_num')::int >= 160000,NULL,NULL
+  UNION ALL SELECT '00_session','server_major_supported','required',current_setting('server_version_num')::int / 10000 IN (15,16),NULL,NULL
   UNION ALL SELECT '01_contract','revision','required',NULL,NULL,(SELECT version_num FROM ntubtob.alembic_version)
   UNION ALL SELECT '01_contract','legacy_table_count','required',NULL,count(*),NULL FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN legacy_tables e ON e.name=c.relname WHERE n.nspname='ntubtob' AND c.relkind IN ('r','p')
   UNION ALL SELECT '01_contract','phase_b_table_count','required',NULL,count(*),NULL FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN phase_b_tables e ON e.name=c.relname WHERE n.nspname='ntubtob' AND c.relkind IN ('r','p')

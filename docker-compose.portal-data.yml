@@ -2,7 +2,7 @@ name: ntubtob-portal-data-local
 
 services:
   portal-postgres:
-    image: postgres:16.4-alpine
+    image: ${PORTAL_DATA_POSTGRES_IMAGE:-postgres:16.4-alpine}
     environment:
       POSTGRES_DB: ntubtob_portal_local
       POSTGRES_USER: portal_local
