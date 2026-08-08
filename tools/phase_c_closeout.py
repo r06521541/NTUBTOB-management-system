@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from decimal import Decimal, InvalidOperation
 import hashlib
 import io
 import json
@@ -41,6 +42,15 @@ DOCKER_PSQL_COMMAND = (
 BIND_COMMAND = re.compile(
     r"\\bind\s+:'admin_member_ids'\s+:'mutation_request_id'\s+:'recovery_request_id'\s+\\g",
     re.IGNORECASE,
+)
+LOGGING_BOUNDARY_TERMS = (
+    "coalesce(current_setting('log_statement',true),'all')in('none','ddl','mod')",
+    "coalesce(current_setting('log_min_duration_statement',true),'0')::integer=-1",
+    "coalesce(current_setting('log_min_duration_sample',true),'0')::integer=-1",
+    "coalesce(current_setting('log_duration',true),'on')='off'",
+    "coalesce(current_setting('log_transaction_sample_rate',true),'1')::numeric=0",
+    "coalesce(current_setting('pgaudit.log',true),'none')='none'",
+    "coalesce(current_setting('log_parameter_max_length_on_error',true),'-1')::integer=0",
 )
 DATABASE_FIELDS = frozenset(
     {
@@ -165,6 +175,9 @@ def verify_inventory_artifact(path: Path = INVENTORY_SQL_PATH) -> None:
     if set(re.findall(r"\$\d+", query_sql)) != {"$1", "$2", "$3"}:
         raise CloseoutEvidenceError("inventory parameters are invalid")
     normalized = re.sub(r"\s+", " ", query_sql)
+    compact = re.sub(r"\s+", "", query_sql)
+    if not all(term in compact for term in LOGGING_BOUNDARY_TERMS):
+        raise CloseoutEvidenceError("inventory logging boundary is invalid")
     for predicate in (
         "m.id=any(string_to_array($1,',')::bigint[])",
         "request_id=$2 and action='identity_ignored'",
@@ -202,6 +215,9 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
     )
     if any(item not in text for item in required):
         raise CloseoutEvidenceError("runbook binding contract is incomplete")
+    compact = re.sub(r"\s+", "", text.lower())
+    if not all(term in compact for term in LOGGING_BOUNDARY_TERMS):
+        raise CloseoutEvidenceError("runbook logging boundary is invalid")
     for command in (DOCKER_PSQL_VERSION_COMMAND, DOCKER_PSQL_COMMAND):
         if len(re.findall(rf"(?m)^{re.escape(command)}\r?$", text)) != 1:
             raise CloseoutEvidenceError("runbook Docker command is invalid")
@@ -211,6 +227,38 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
         raise CloseoutEvidenceError("runbook logging preflight is too late")
     if ":'admin_member_ids'" in text or ":'mutation_request_id'" in text:
         raise CloseoutEvidenceError("runbook contains literal SQL interpolation")
+
+
+def logging_preflight_is_safe(settings: Mapping[str, object]) -> bool:
+    """Mirror the fixed Boolean PostgreSQL logging preflight fail-closed."""
+
+    try:
+        transaction_sampling_off = (
+            Decimal(str(settings.get("log_transaction_sample_rate", "1"))) == 0
+        )
+    except (InvalidOperation, TypeError, ValueError):
+        transaction_sampling_off = False
+    try:
+        statement_duration_off = (
+            int(str(settings.get("log_min_duration_statement", "0"))) == -1
+        )
+        sample_duration_off = (
+            int(str(settings.get("log_min_duration_sample", "0"))) == -1
+        )
+        error_parameter_logging_off = (
+            int(str(settings.get("log_parameter_max_length_on_error", "-1"))) == 0
+        )
+    except (TypeError, ValueError):
+        return False
+    return (
+        settings.get("log_statement", "all") in ("none", "ddl", "mod")
+        and statement_duration_off
+        and sample_duration_off
+        and settings.get("log_duration", "on") == "off"
+        and transaction_sampling_off
+        and settings.get("pgaudit.log", "none") in (None, "none")
+        and error_parameter_logging_off
+    )
 
 
 def _integer(value: object, label: str, *, minimum: int = 0) -> int:

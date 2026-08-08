@@ -10,10 +10,13 @@ WITH reliable_line AS (
 ), active_team_player AS (
   SELECT person_id FROM ntubtob.person_qualifications WHERE qualification='team_player' AND status='active'
 ), logging_boundary AS (
-  SELECT current_setting('log_statement')='none'
-    AND current_setting('log_min_duration_statement')::integer=-1
-    AND coalesce(current_setting('log_min_duration_sample',true),'-1')::integer=-1
-    AND coalesce(current_setting('pgaudit.log',true),'none')='none' AS safe
+  SELECT coalesce(current_setting('log_statement',true),'all') IN ('none','ddl','mod')
+    AND coalesce(current_setting('log_min_duration_statement',true),'0')::integer=-1
+    AND coalesce(current_setting('log_min_duration_sample',true),'0')::integer=-1
+    AND coalesce(current_setting('log_duration',true),'on')='off'
+    AND coalesce(current_setting('log_transaction_sample_rate',true),'1')::numeric=0
+    AND coalesce(current_setting('pgaudit.log',true),'none')='none'
+    AND coalesce(current_setting('log_parameter_max_length_on_error',true),'-1')::integer=0 AS safe
 ), evidence(section,metric,status,boolean_value,integer_value,text_value) AS (
   SELECT '00_session','transaction_read_only','required',current_setting('transaction_read_only')='on',NULL::bigint,NULL::text
   UNION ALL SELECT '00_session','statement_logging_safe','required',(SELECT safe FROM logging_boundary),NULL,NULL
