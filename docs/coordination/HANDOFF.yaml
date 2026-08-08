@@ -1,15 +1,14 @@
-active_task: TASK-083
-status: completed
-next_actor: owner
+active_task: TASK-084
+status: ready_for_codex
+next_actor: codex
 
-base_commit: caf77e1226aafa120dd98e62f72373a6511fb3b8
-head_commit: 005a440
+base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T23:50:00+08:00
+updated_at: 2026-08-08T23:25:00+08:00
 
 note: >
-  TASK-083 accepted after Work review. Scheduled-service submit suppresses streamed logs while retaining JSON output, and resume
-  build describe uses the exact regional location. Explicit FAILURE, WORKING, wrong substitutions and traffic-drift regressions
-  remain fail closed. Work reran 26 tests, compileall and diff check. No external operation occurred; proceed through the single
-  ready PR under standing Git authorization.
+  Owner approved TASK-084 direction: finish all remaining Phase C work in one gated task. Codex may perform Stage A repository/local
+  readiness only: closeout verifier, read-only inventory contract, exact activation/mutation/recovery runbook and offline tests.
+  Production inventory, maintenance flag, traffic and any real mutation require later exact Owner approval inside this same task.
