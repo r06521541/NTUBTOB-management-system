@@ -80,6 +80,7 @@ class FakeRunner:
         revision_digest=FULL_REVISION_DIGEST,
         traffic=True,
         traffic_command_failure=False,
+        interrupt_traffic=False,
     ):
         self.root = root
         self.dirty = dirty
@@ -89,6 +90,7 @@ class FakeRunner:
         self.revision_digest = revision_digest
         self.traffic = traffic
         self.traffic_command_failure = traffic_command_failure
+        self.interrupt_traffic = interrupt_traffic
         self.commands = []
         self.describe_calls = 0
 
@@ -147,6 +149,8 @@ class FakeRunner:
             )
         elif "update-traffic" in arguments:
             destination = arguments[arguments.index("--to-revisions") + 1]
+            if self.interrupt_traffic and destination.startswith(NEW_REVISION):
+                raise KeyboardInterrupt()
             if self.traffic_command_failure and destination.startswith(NEW_REVISION):
                 raise subprocess.CalledProcessError(1, arguments)
         return subprocess.CompletedProcess(arguments, 0, stdout=stdout, stderr="")
@@ -311,7 +315,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         runner = FakeRunner(self.root, no_op=True)
         with self.assertRaisesRegex(deploy.DeploymentError, "new revision"):
             self.execute(runner)
-        self.assert_only_exact_rollback(runner)
+        self.assertEqual(self.traffic_commands(runner), [])
         self.assertNotIn(f"{BASELINE_REVISION}=100", repr(runner.commands))
         self.assertFalse(self.temporary_env().exists())
 
@@ -322,7 +326,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(deploy.DeploymentError, "approved image tag"):
             self.execute(runner)
-        self.assert_only_exact_rollback(runner)
+        self.assertEqual(self.traffic_commands(runner), [])
         self.assertNotIn(f"{NEW_REVISION}=100", repr(runner.commands))
         self.assertFalse(self.temporary_env().exists())
 
@@ -330,7 +334,7 @@ class DeploymentWrapperTests(unittest.TestCase):
         runner = FakeRunner(self.root, revision_ready=False)
         with self.assertRaisesRegex(deploy.DeploymentError, "not ready"):
             self.execute(runner)
-        self.assert_only_exact_rollback(runner)
+        self.assertEqual(self.traffic_commands(runner), [])
         self.assertFalse(self.temporary_env().exists())
 
     def test_build_failure_cleans_environment_without_traffic_command(self):
@@ -346,6 +350,18 @@ class DeploymentWrapperTests(unittest.TestCase):
             self.execute(runner)
         self.assertNotIn("fixture-access", str(caught.exception))
         self.assertNotIn("fixture-secret", str(caught.exception))
+        traffic = self.traffic_commands(runner)
+        self.assertEqual(len(traffic), 2)
+        self.assertEqual(
+            traffic[-1][traffic[-1].index("--to-revisions") + 1],
+            f"{ROLLBACK_REVISION}=100",
+        )
+        self.assertFalse(self.temporary_env().exists())
+
+    def test_interrupted_traffic_promotion_rolls_back_and_cleans_environment(self):
+        runner = FakeRunner(self.root, interrupt_traffic=True)
+        with self.assertRaises(KeyboardInterrupt):
+            self.execute(runner)
         traffic = self.traffic_commands(runner)
         self.assertEqual(len(traffic), 2)
         self.assertEqual(

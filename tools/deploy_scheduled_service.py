@@ -277,8 +277,6 @@ def execute_deployment(
         )
         if build.get("status") != "SUCCESS" or not build.get("id"):
             raise DeploymentError("Cloud Build did not report SUCCESS with a build ID")
-        traffic_may_have_changed = True
-
         image_reference = (
             f"{REGION}-docker.pkg.dev/{PROJECT_ID}/"
             "management-system-docker-repo/"
@@ -331,6 +329,7 @@ def execute_deployment(
                 "New revision digest does not match the approved image tag"
             )
 
+        traffic_may_have_changed = True
         command_output(
             runner,
             [
@@ -365,7 +364,7 @@ def execute_deployment(
             "image_tag": approved_commit,
             "image_digest": image_digest,
         }
-    except (DeploymentError, subprocess.CalledProcessError):
+    except BaseException:
         if traffic_may_have_changed:
             try:
                 command_output(

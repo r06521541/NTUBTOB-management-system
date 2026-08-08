@@ -67,6 +67,7 @@ class DeploymentContractTests(unittest.TestCase):
     def test_game_broadcast_service_remains_private(self):
         command = normalize_shell_command(self.cloudbuild)
         self.assertIn("--no-allow-unauthenticated", command)
+        self.assertIn("--no-traffic", command)
         self.assertIsNone(
             re.search(r"(?<!no-)--allow-unauthenticated\b", command),
             "game-broadcast-service must not allow unauthenticated access",
