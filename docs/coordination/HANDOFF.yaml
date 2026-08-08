@@ -3,10 +3,10 @@ status: ready_for_review
 next_actor: work
 
 base_commit: d9213acea1708f051fc457753b3b941dbad305f6
-head_commit: a70936c5b1d9d1700798ce33b9ce9b08346ab828
+head_commit: 406c991
 
 updated_by: codex
-updated_at: 2026-08-08T22:12:00+08:00
+updated_at: 2026-08-08T22:30:00+08:00
 
 note: >
   TASK-081 adds explicit offline scheduled resume safety regression coverage, including fail-closed CLI inputs and required
