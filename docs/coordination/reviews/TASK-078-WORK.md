@@ -2,13 +2,14 @@
 
 ## 驗收結論
 
-結論：`accepted_local_package_pending_production_inventory`
+結論：`accepted_package_pending_owner_env_preparation`
 
 Work已查驗branch `codex/phase-c-feature-off-deployment`、implementation commit
 `b925d392b25fb4b8499c334cb427a77a076825fa`、completion commit
 `763f113d5b319c3b3b717b2608565aa74d1bc5c7`、修正commit
 `d5e9bb494e2946f481180bc8bba6dce1609fe88d`、實際diff、Codex report與部署工作包。本機artifact、離線
-deployment tooling與Gen2 rollback boundary均可接受；尚缺fresh production inventory，因此本結論不構成部署批准。
+deployment tooling與Gen2 rollback boundary均可接受。Work已補齊fresh named-field production inventory；目前只剩Owner
+須在私有env檔加入七個explicit `"false"`及確認既有Web Portal Secret resource references，本結論仍不構成部署批准。
 
 ## Blocking finding
 
@@ -44,6 +45,9 @@ identity，並沿用官方Functions v2 PATCH、`updateMask=buildConfig.source`�
 ## 非阻擋限制
 
 - Codex依新AGENTS規範未執行Windows Black CLI；本task沒有Python source變更，未格式化既有檔案是正確行為。
-- Production revisions、traffic、flags、Scheduler與Gen2 source generation仍須fresh唯讀inventory，不能以歷史文件替代。
-- Owner下一步僅需選擇已驗證身分的Cloud SDK或Cloud Shell執行工作包中的唯讀inventory；取得結果後仍須Work查驗並
-  另產生exact deployment批准文字，不能直接執行prepared deployment commands。
+- Work以active account／project guard及精準gcloud投影補齊：兩個Cloud Run revisions、traffic、image digests、runtime
+  identities、ingress／allUsers IAM classification，以及LINE Gen2 underlying service public boundary。
+- 七個named feature flag keys均確認不存在；依exact-`true` contract目前有效狀態為off，但TASK-078要求新revision明確
+  使用`"false"`，因此部署前Owner須親自更新三份私有`.env.yaml`，agent不得讀取或修改其餘Secret-bearing內容。
+- Owner完成後仍須Work做不顯示內容的key-presence validation，並另產生exact deployment批准文字；不能直接執行
+  prepared deployment commands。

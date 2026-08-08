@@ -45,15 +45,20 @@ authorization:
 
 | Target | Current ready revision | 100% traffic revision | Rollback revision | Non-secret flag vector |
 | --- | --- | --- | --- | --- |
-| Cloud Run `web-portal` | `web-portal-00040-wm9` | `web-portal-00040-wm9` (100%) | Owner must approve this current revision before any deploy | unverified: no safe exact single-flag projection used |
-| Gen2 function `line-webhook-handler` | function state `ACTIVE`; source identity below | n/a: Gen2 source recovery uses immutable GCS source | Owner must approve the immutable source triple below | unverified: no safe exact single-flag projection used |
-| Cloud Run `notify-cronjob-service` | `notify-cronjob-service-00011-jpj` | `notify-cronjob-service-00011-jpj` (100%) | Owner must approve this current revision before any deploy | unverified: no safe exact single-flag projection used |
+| Cloud Run `web-portal` | `web-portal-00040-wm9` | `web-portal-00040-wm9` (100%) | Owner must approve this current revision before any deploy | all three named keys absent; effective exact-`true` state is off |
+| Gen2 function `line-webhook-handler` | function state `ACTIVE`; source identity below | n/a: Gen2 source recovery uses immutable GCS source | Owner must approve the immutable source triple below | both named keys absent; effective exact-`true` state is off |
+| Cloud Run `notify-cronjob-service` | `notify-cronjob-service-00011-jpj` | `notify-cronjob-service-00011-jpj` (100%) | Owner must approve this current revision before any deploy | both named keys absent; effective exact-`true` state is off |
 
 Historical revision names in older deployment records are **not** valid rollback
 targets for this package. Do not substitute them for a fresh read-only result.
-Cloud Run image digest and ingress/auth classification remain unverified: the
-safe single-image projection returned no value, and IAM/config enumeration is
-outside this task's authorization. Do not infer either value from omission.
+Work subsequently completed narrow, named-field read-only projections without
+reading the complete environment or any Secret value:
+
+| Target | Image digest / runtime identity | Ingress and invocation classification |
+| --- | --- | --- |
+| Web Portal | `sha256:1c4ec082515fd0369ead487ccf02137fa76b42fb666bf4fae47a90a78c6cf01c`; default compute service account | ingress `all`; `allUsers` has `roles/run.invoker` |
+| Notify cron | `sha256:8f7d551c41bb6e911d1a2cbc8a22c2b0911ea98650c6e27d613b4c5e6057c596`; default compute service account | ingress `all`; no `allUsers` IAM binding |
+| LINE webhook | Gen2 runtime identity recorded below | ingress `ALLOW_ALL`; underlying Cloud Run service grants `roles/run.invoker` to `allUsers`; application still requires LINE signature validation |
 
 The Gen2 immutable-source rollback candidate is:
 
@@ -97,10 +102,12 @@ gcloud functions describe line-webhook-handler --gen2 --project ntubtob-schedule
 gcloud scheduler jobs list --project ntubtob-schedule-405614 --location asia-east1 --format="table(name.basename(),schedule,timeZone,httpTarget.uri,httpTarget.oidcToken.serviceAccountEmail,state)"
 ```
 
-For each Cloud Run service and the Gen2 function, the following exact
-non-secret flag values are still required. They remain unverified because this
-task did not authorize a safe exact per-flag projection and must not print the
-full runtime configuration:
+Exact per-key projections confirmed that all seven named keys are absent in the
+current production configurations. This is an effective all-off vector because
+the runtime enables a feature only for exact `true`, but the feature-off deploy
+must not preserve the omission: before deployment the Owner must add every key
+below to the corresponding private `.env.yaml` with explicit string value
+`"false"`. Agents must not read or edit those secret-bearing files.
 
 | Runtime | Required exact values |
 | --- | --- |
@@ -108,8 +115,9 @@ full runtime configuration:
 | LINE webhook | `PORTAL_DATA_PHASE_C_ENABLED=false`, `PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false` |
 | Notify cron | `PORTAL_DATA_PHASE_C_ENABLED=false`, `PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false` |
 
-Any missing, empty, case-variant or non-`false` value blocks this feature-off
-deployment. Do not display or copy other variables, Secret bindings or values.
+The present missing values therefore block deployment until the Owner confirms
+the private files contain every explicit `"false"`. Do not display or copy
+other variables, Secret bindings or values.
 
 ## Owner approval fields
 

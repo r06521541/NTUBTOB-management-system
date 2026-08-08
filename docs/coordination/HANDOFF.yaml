@@ -1,16 +1,16 @@
 active_task: TASK-078
-status: ready_for_review
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 1838ec6
 head_commit: d8a2afa62d38e1faa2aa3b5f713d113a6106958b
 
-updated_by: codex
-updated_at: 2026-08-08T19:20:00+08:00
+updated_by: work
+updated_at: 2026-08-08T19:28:00+08:00
 
 note: >
-  TASK-078 completed the Owner-authorized, non-secret read-only inventory using the full gcloud.cmd path after an exact project
-  guard. The package records current Cloud Run traffic revisions, the LINE Gen2 immutable source triple and relevant Scheduler
-  metadata; feature flags, Cloud Run image digest and ingress/auth remain intentionally unverified because no full config or
-  IAM read was authorized. No build, deploy, traffic/env mutation, endpoint invoke, Scheduler mutation, Secret/IAM/database
-  action or notification was performed. Return to Work review.
+  Work accepted TASK-078 after independent 67-test verification and narrow named-field production inventory. Exact revisions,
+  traffic, image digests, runtime identities, ingress/auth, Scheduler metadata and the Gen2 rollback source are recorded. All
+  seven Phase C/freeze/maintenance keys are absent and therefore effectively off, but deployment remains blocked until Owner adds
+  every key as explicit string false in the three private env YAML files and confirms the existing Web Portal Secret references.
+  No build, deploy, mutation, endpoint invoke, Scheduler action, Secret value read, database action or notification is authorized.
