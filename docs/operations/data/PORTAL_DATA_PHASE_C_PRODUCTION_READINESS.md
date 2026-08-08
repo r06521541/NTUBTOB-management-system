@@ -10,12 +10,19 @@
 - Migration: `docs/operations/sql/portal-data-0003-to-0004.sql`
 - Post-check: `docs/operations/sql/TASK-071-phase-c-production-postcheck.sql`
 - Each SQL file has an adjacent SHA-256 sidecar. Do not edit SQL in the database console.
+- The controlled SQL and checksum files are pinned to LF by `.gitattributes`. After pulling or
+  switching commits, verify the checked-out files before copying them into the database console;
+  do not bypass a `non-canonical encoding or line ending` failure. This is especially important on
+  Windows checkouts configured to convert text files to CRLF.
 - Offline verification:
 
 ```powershell
 python -m tools.portal_data_phase_c_migration verify
 python -m tools.portal_data_phase_c_readiness verify
 ```
+
+Both commands must pass against the actual checkout used by the operator. A checksum calculated
+from a Git blob or a previously validated machine does not replace this checkout-time gate.
 
 The inventory and post-check return only the fixed sanitized CSV columns
 `section,metric,status,boolean_value,integer_value,text_value`. Runtime flag state is explicitly
