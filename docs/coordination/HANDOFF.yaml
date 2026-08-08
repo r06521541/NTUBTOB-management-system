@@ -1,15 +1,15 @@
 active_task: TASK-071
-status: changes_requested
-next_actor: codex
+status: completed
+next_actor: owner
 
 base_commit: 6c4be49
-head_commit: e468caf2849ff00dde0359c90e22b5016ae15318
+head_commit: e979cd61f6a2473bc819da3ea4304784b1f19935
 
 updated_by: work
-updated_at: 2026-08-08T06:20:00+08:00
+updated_at: 2026-08-08T09:20:00+08:00
 
 note: >
-  Work reviewed e468caf and requested one blocking correction: the Phase C post-check currently verifies only object
-  names/counts and does not prove exact column, constraint or index definitions. Codex must add deterministic Phase C
-  catalog fingerprints, strict validator gates and PostgreSQL mutation tests, then update checksums, runbook, report and
-  this handoff. Local PostgreSQL 16 passed 154 tests after fixture initialization. No production access or mutation occurred.
+  Work accepted TASK-071 at e979cd6. Exact Phase C column, constraint and index fingerprints, forced-RLS/policy gates,
+  strict metric-contract verification and negative catalog mutation tests passed independent review. The localhost-only
+  PostgreSQL 16 suite passed 155 tests after fixture initialization. This completes only the repository readiness package;
+  no production inventory, migration, deployment, runtime flag, notification, Secret/IAM/Scheduler or cloud mutation occurred.

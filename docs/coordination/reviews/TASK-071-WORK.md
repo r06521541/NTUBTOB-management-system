@@ -2,48 +2,37 @@
 
 ## 結論
 
-`changes_requested`
+`accepted`
 
-驗收 commit：`e468caf2849ff00dde0359c90e22b5016ae15318`
+驗收 commit：`e979cd61f6a2473bc819da3ea4304784b1f19935`
 
-整體 production-readiness 工作包方向正確，三份 SQL、checksum、validator、compare 與 runbook 均已建立；本機 PostgreSQL 16 完整測試亦通過 154/154。惟 Phase C post-check 尚未精確驗證新 schema 定義，因此目前不能作為 production migration 的最終成功證據。
+前次 blocking finding 已解除。Phase C production migration readiness package 現在能精確驗證新增 schema 定義，且本機 PostgreSQL 16 完整測試通過。此結論只接受 repository readiness package，不代表 production migration 已執行或已獲批准。
 
-## Blocking finding
+## 修正驗收
 
-### Phase C post-check 只計數，未驗證精確 catalog 定義
+- post-check 現在 fingerprint 全部 19 個 Phase C-owned columns，包含 type、nullable、default、identity 與 generated 狀態。
+- fingerprint 全部 15 個新增或修改的 constraints，包含 relation、名稱、constraint type、`pg_get_constraintdef` 與 validated 狀態。
+- fingerprint 三個明確 indexes 的完整 `indexdef`。
+- review tables 同時要求 RLS enabled、forced RLS 為零、policy 為零。
+- strict verifier 會比對 SQL metric set 與 validator schema；即使竄改 SQL 並同步更新 checksum，也不能移除 required metric。
+- PostgreSQL 負向測試證明錯誤 column default、同名錯誤 check constraint、同名同數量但定義錯誤的 index、forced RLS 與 policy 均會 fail closed。
 
-`TASK-071-phase-c-production-postcheck.sql` 目前僅檢查：
+## Work 獨立驗證
 
-- 3 個指定欄位名稱存在；
-- review tables 合計有 10 個 constraints；
-- 3 個指定 index 名稱存在。
+- `python -m tools.portal_data_phase_c_migration verify`：passed。
+- `python -m tools.portal_data_phase_c_evidence verify`：passed。
+- `python -m tools.portal_data_phase_c_readiness verify`：passed。
+- `python -m compileall -q migrations tools tests/portal_data`：passed。
+- 初始化 repository localhost-only PostgreSQL 16 fixture，stamp `0001` 並 upgrade 至 head：passed。
+- `python -m unittest discover -s tests/portal_data -v`：155 tests passed。
+- `git diff --check 501496b..e979cd6`：passed。
 
-這不足以滿足 TASK-071 要求的「exact columns/tables/PK/FK/check/indexes」：
+第一次完整測試在 PostgreSQL container 尚未 ready 時開始，因 startup/recovery 無法連線而失敗；確認 health 為 healthy 後，資料庫仍需依 repository 文件初始化 `ntubtob` fixture。完成初始化後，完整 155 項測試通過。這兩次是環境前置狀態，不是程式 assertion failure。
 
-- 欄位型別、nullable、default 或 identity 錯誤仍可能通過；
-- `ck_people_formal_name`、`ck_people_admin_note` 未在 post-check 被驗證；
-- review tables 的 constraint 名稱與 `pg_get_constraintdef` 未驗證；
-- 同名 index 即使建立在錯誤欄位或使用錯誤排序，仍可能通過。
+## 尚未執行與安全邊界
 
-請補上 deterministic Phase C catalog fingerprints，至少涵蓋：
-
-1. Phase C 新增欄位的 type、nullable、default、identity；
-2. 全部新增 PK/FK/check constraint 的名稱、型別、定義與 validated 狀態；
-3. 全部新增 indexes 的名稱與完整 definition；
-4. review tables 的 RLS/forced-RLS 與 zero-policy boundary。
-
-validator 必須把上述 fingerprints 列為 required exact values；PostgreSQL 測試需加入負向 mutation，證明錯誤欄位定義、錯誤 constraint definition、錯誤 index definition 均會 fail closed。修改 SQL 後同步更新 checksum、runbook 與 report。
-
-## Work 驗證
-
-- `git diff --check 027b6b8..e468caf`：passed。
-- 初始化 localhost-only PostgreSQL fixture，stamp `0001` 並 upgrade 至 head：passed。
-- `python -m unittest discover -s tests/portal_data -v`：154 tests passed。
-- 靜態檢查確認目前 post-check 僅使用 `phase_c_column_count`、`phase_c_constraint_count` 與 `phase_c_index_count`，未包含 Phase C exact fingerprint。
-
-首次測試因本機 fixture 尚未建立 `ntubtob` schema 而失敗；依 repository 文件初始化隔離的 local database 後，完整 suite 通過。這是本機前置設定，不是程式失敗。
-
-## 安全邊界
-
-驗收期間未連線 production Supabase、未執行 production migration、未部署、未啟用 runtime flags、未發送通知，亦未修改 Secret、IAM、Scheduler 或其他雲端資源。
+- 尚未取得 fresh production inventory，也未驗證 production revision、catalog、資料關係、權限或實際鎖定時間。
+- 未連線 production Supabase、未執行 production migration、未部署、未開啟 runtime／identity-maintenance flags。
+- 未發送 LINE／Discord 通知，未修改 Secret、IAM、Scheduler 或其他雲端資源。
+- 後續若要執行 migration，仍須依 runbook 取得 fresh inventory、backup verification、exact commit／checksum 與 Owner 對該次 migration window 的明確批准。
 
