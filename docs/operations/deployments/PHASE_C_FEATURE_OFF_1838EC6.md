@@ -1,7 +1,8 @@
 # Phase C feature-off production deployment package
 
-Status: awaiting Owner approval; **not executable** until the missing current
-production inventory is collected with the approved account and project.
+Status: awaiting Owner approval; **not executable** until Owner approves the
+fresh production inventory recorded below and resolves the intentionally
+unverified feature-flag and Cloud Run boundary fields.
 
 This document prepares TASK-078 only. It does not authorize a Cloud Build,
 image build/push, deploy, revision creation, traffic or environment mutation,
@@ -35,24 +36,46 @@ maintenance values set to `false`. The offline controller also accepted the
 planning checkout's all-off/unfrozen state with zero steps. Its source-commit
 lock is the planning checkout commit, not a claim about the approved image tag.
 
-## Required production inventory: blocked locally
+## Required production inventory: partially collected
 
-The current shell has no `gcloud` or `gcloud.cmd` executable. Therefore none of
-the following have been read or inferred:
+The active account and project guard succeeded for the expected project. The
+following values were collected through narrowly projected, read-only
+`gcloud.cmd` queries. They are inventory evidence, not deployment or rollback
+authorization:
 
 | Target | Current ready revision | 100% traffic revision | Rollback revision | Non-secret flag vector |
 | --- | --- | --- | --- | --- |
-| Cloud Run `web-portal` | unverified | unverified | unverified | unverified |
-| Gen2 function `line-webhook-handler` | unverified | n/a: Gen2 source recovery uses immutable GCS source | unverified immutable GCS bucket/object/generation | unverified |
-| Cloud Run `notify-cronjob-service` | unverified | unverified | unverified | unverified |
+| Cloud Run `web-portal` | `web-portal-00040-wm9` | `web-portal-00040-wm9` (100%) | Owner must approve this current revision before any deploy | unverified: no safe exact single-flag projection used |
+| Gen2 function `line-webhook-handler` | function state `ACTIVE`; source identity below | n/a: Gen2 source recovery uses immutable GCS source | Owner must approve the immutable source triple below | unverified: no safe exact single-flag projection used |
+| Cloud Run `notify-cronjob-service` | `notify-cronjob-service-00011-jpj` | `notify-cronjob-service-00011-jpj` (100%) | Owner must approve this current revision before any deploy | unverified: no safe exact single-flag projection used |
 
 Historical revision names in older deployment records are **not** valid rollback
 targets for this package. Do not substitute them for a fresh read-only result.
-The current Scheduler job name, URI and OIDC target are also unverified.
+Cloud Run image digest and ingress/auth classification remain unverified: the
+safe single-image projection returned no value, and IAM/config enumeration is
+outside this task's authorization. Do not infer either value from omission.
+
+The Gen2 immutable-source rollback candidate is:
+
+| Field | Fresh read-only value |
+| --- | --- |
+| Function | `line-webhook-handler` (`ACTIVE`) |
+| Source bucket | `gcf-v2-sources-556891917512-asia-east1` |
+| Source object | `line-webhook-handler/function-source.zip` |
+| Source generation | `1761236780707683` |
+| Runtime / entry point | runtime unverified / `main` |
+| Service account | `556891917512-compute@developer.gserviceaccount.com` |
+
+The relevant notify Scheduler jobs are enabled and target the expected notify
+Cloud Run service: `GameAttendanceCount` (`0 10 * * 0,2,4`) and
+`WeeklyGameNotify` (`0 10 * * 3`), both in `Asia/Taipei`. Their URI and OIDC
+service-account metadata were read but are not copied here because no endpoint
+invocation is authorized.
 
 Before Owner approval, an authorized operator must run these read-only commands
-and record only the returned revision names, traffic percentages, image digest,
-ingress/auth classification, runtime identity and the four named flag values.
+again if the inventory becomes stale, and record only the returned revision
+names, traffic percentages, image digest, ingress/auth classification, runtime
+identity and the four named flag values.
 Do not redirect full service/function JSON to a terminal or a committed file,
 because it can contain unrelated environment settings or Secret references.
 
@@ -74,9 +97,10 @@ gcloud functions describe line-webhook-handler --gen2 --project ntubtob-schedule
 gcloud scheduler jobs list --project ntubtob-schedule-405614 --location asia-east1 --format="table(name.basename(),schedule,timeZone,httpTarget.uri,httpTarget.oidcToken.serviceAccountEmail,state)"
 ```
 
-For each Cloud Run service and the Gen2 function, extract only these exact
-non-secret values from the runtime environment using the cloud console's
-configuration view or an approved redacting procedure:
+For each Cloud Run service and the Gen2 function, the following exact
+non-secret flag values are still required. They remain unverified because this
+task did not authorize a safe exact per-flag projection and must not print the
+full runtime configuration:
 
 | Runtime | Required exact values |
 | --- | --- |

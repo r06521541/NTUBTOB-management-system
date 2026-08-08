@@ -30,17 +30,27 @@
 
 ## Production inventory result
 
-- The current Windows shell does not have `gcloud` or `gcloud.cmd` available.
-  `where gcloud` and standard Google Cloud SDK locations produced no executable.
-- No GCP command was run. Therefore current/rollback revisions, traffic,
-  image digests, ingress/auth, runtime identity, non-secret flag values and
-  Scheduler metadata are all explicitly **unverified**.
+- The installed Google Cloud SDK was invoked only through its full approved
+  `gcloud.cmd` path and command-specific sandbox escalation. The active-account
+  and project guard matched `ntubtob-schedule-405614` before any inventory.
+- Read-only Cloud Run inventory found `web-portal-00040-wm9` and
+  `notify-cronjob-service-00011-jpj`, each carrying 100% traffic. These are
+  current rollback candidates only; Owner approval is still required.
+- Read-only Gen2 inventory found `line-webhook-handler` in `ACTIVE` state with
+  immutable source `gcf-v2-sources-556891917512-asia-east1` /
+  `line-webhook-handler/function-source.zip` / generation `1761236780707683`.
+  That triple is a candidate only, not an approved rollback action.
+- The relevant notify Scheduler jobs are enabled: `GameAttendanceCount` and
+  `WeeklyGameNotify`, with the expected notify Cloud Run targets. No job was
+  invoked, paused, resumed or changed.
+- Feature flags, Cloud Run image digest and ingress/auth classification remain
+  **unverified**. No full runtime configuration, environment value, Secret
+  binding, IAM policy or endpoint was read in an attempt to obtain them.
 - Historical deployment records were not used as current state or rollback
   targets. The work package blocks execution until an authorized operator runs
   the listed read-only commands and Owner locks their results.
-- In particular, the LINE webhook source bucket, object and generation remain
-  unverified; the prepared PATCH request deliberately contains placeholders
-  rather than a guessed production source identity.
+- The prepared LINE PATCH request deliberately retains placeholders: inventory
+  does not itself authorize a production mutation.
 
 ## Verification
 
@@ -55,6 +65,8 @@
 - `git diff --check`: passed.
 - After the Gen2 rollback documentation correction, the same 67 deployment
   tooling tests and `git diff --check` were re-run and passed.
+- After the authorized read-only inventory, the same 67 deployment tooling
+  tests and `git diff --check` were re-run and passed.
 - Black CLI was not run under bundled Windows Python. Black formatter API
   version `24.4.2` was used for a non-mutating comparison: the existing
   `tools/phase_c_rollout_preflight.py` and
