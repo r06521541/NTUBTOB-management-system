@@ -1,15 +1,16 @@
 active_task: TASK-078
-status: ready_for_codex
-next_actor: codex
+status: awaiting_owner_approval
+next_actor: owner
 
 base_commit: 1838ec6
-head_commit: null
+head_commit: b925d392b25fb4b8499c334cb427a77a076825fa
 
-updated_by: work
-updated_at: 2026-08-08T18:23:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T18:27:00+08:00
 
 note: >
-  TASK-077 merged as 1838ec6. TASK-078 prepares the exact three-target feature-off production deployment package using local
-  artifact checks and non-secret production read-only inventory only. Codex must stop at awaiting_owner_approval after recording
-  exact revisions, flags, fingerprints, commands, validation and rollback boundaries. No build, deploy, traffic/env mutation,
-  endpoint invoke, Scheduler action, Secret/IAM/database change or notification is authorized.
+  TASK-078 local feature-off work package completed at b925d39 with a rebuilt shared artifact, locked source fingerprint and
+  byte hash, offline preflight/controller evidence, prepared commands and regression tests. The current shell has no gcloud
+  executable, so current production revisions, traffic, non-secret flag vector, Scheduler metadata and rollback targets remain
+  unverified and intentionally block execution. Owner must obtain fresh read-only inventory and explicitly approve every target
+  before any build, deploy, traffic/env mutation, endpoint invoke, Scheduler, Secret/IAM/database action or notification.
