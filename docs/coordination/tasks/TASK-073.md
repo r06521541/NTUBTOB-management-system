@@ -6,7 +6,7 @@
 
 ## 精確版本與 artifacts
 
-- Merged commit：`5cdedd60d999a095a66230101818fdaa31acd46d`
+- Merged commit：`5a63a0c77e2725c828b17b784680b90a6cffb03f`
 - Inventory SQL SHA-256：`9dc3d2e589ca298e40a9bf529d5801e6b7081016547996bbd5010df7adae2d46`
 - Migration SQL SHA-256：`67ea4490a1e3459221f440ae280e95f3be5a868ad2c37c78ae3519073e7d1f91`
 - Post-check SQL SHA-256：`6de46c7c46c5ea1dd75e0172a1369368c3d3d4ec7f1ddf8077afe4bcec613166`
