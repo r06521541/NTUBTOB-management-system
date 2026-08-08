@@ -25,6 +25,10 @@
   apps.notify_cronjob_service.tests.test_deployment_contract -v`: 37 passed.
 - `python -m compileall -q` for changed Python modules/tests: passed.
 - `git diff --check`: passed.
+- Resume safety regression coverage now exercises unknown/wrong baseline,
+  latest-created candidate drift, interrupted and post-promotion rollback,
+  already-promoted no-op, rollback failure combined error, and invalid CLI
+  execution-input combinations with fake runners only.
 - Black formatter API `24.4.2` identified pre-existing reformat differences in
   the two existing deployment files and their existing test module; no
   unrelated full-file formatting was applied. The new manifest files were
