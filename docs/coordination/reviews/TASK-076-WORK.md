@@ -59,3 +59,12 @@ platform skips）、Webhook 19／19、notify 9／9、game broadcast 28／28、up
   observation與rollback commands並另取Owner批准；否則activation為blocked。
 - 本輪未連production Supabase、未執行DDL／DML、未修改Secret／IAM／Scheduler、未invoke production，也未發送通知。
 
+## Hosted CI修正循環
+
+- PR #77首次run `31246847243`的PostgreSQL 15／16及其他服務jobs通過；Web Portal clean Python 3.10
+  job因module-load `shared_module` import失敗，Quick gate另抓到本review檔尾空白，final gate正確阻擋合併。
+- Codex以`83f954790f0448fb5415abbe74f6eb7d55b56b5d`將shared runtime import延後到production-only
+  呼叫時機；demo mode先明確停用Phase C與maintenance，production仍使用共用state machine，未以CI預裝套件掩蓋。
+- 新subprocess regression test在封鎖`shared_module`的乾淨環境匯入完整demo app。
+- Work重跑Web Portal 121項（119通過、2個既有Windows platform skips）及Phase C flag tests 7／7，全部通過；
+  檔尾空白亦已修正。結論維持`accepted_pending_hosted_ci`，等待最新PR run。
