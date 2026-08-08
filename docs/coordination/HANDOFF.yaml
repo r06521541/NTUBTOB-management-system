@@ -1,14 +1,14 @@
 active_task: TASK-084
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: afee2e300d0533ec2d01855ceebc134533adb901
+head_commit: 78dfc0a3c8ce953f3fd1a2db758cadd4e34cbcb9
 
-updated_by: work
-updated_at: 2026-08-09T02:25:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T03:05:00+08:00
 
 note: >
-  Stage B GCP read-only inventory completed under Owner approval, but production SQL is stopped before execution: psql literal
-  substitution cannot satisfy the provider/statistics logging boundary. Codex must convert the controlled query to PostgreSQL 16
-  extended-protocol $1/$2/$3 binding, update checksum/runbook/tests, and return for review. No production DB query or mutation ran.
+  Stage B parameter-binding prerequisite is ready for Work review: the controlled inventory uses PostgreSQL 16 extended-protocol
+  $1/$2/$3 placeholders and one fixed-order psql bind flow, with checksum/runbook/offline rejection coverage. Provider parameter
+  payload logging remains a fail-closed stop condition. No production DB query, mutation or other external operation ran.
