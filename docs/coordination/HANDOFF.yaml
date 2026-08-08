@@ -1,15 +1,16 @@
-active_task: TASK-073
-status: completed
-next_actor: owner
+active_task: TASK-076
+status: ready_for_review
+next_actor: work
 
-base_commit: 5a63a0c77e2725c828b17b784680b90a6cffb03f
-head_commit: null
+base_commit: 893e365
+head_commit: 699259a5025eed27125b85d17a4fcf38f61564e2
 
-updated_by: work
-updated_at: 2026-08-08T14:52:00+08:00
+updated_by: codex
+updated_at: 2026-08-08T15:40:00+08:00
 
 note: >
-  TASK-073 production Phase C migration completed. Fresh inventory passed at revision 0003; Owner accepted the bounded BYPASSRLS
-  risk and reported the exact transaction successful. The 55-row post-check passed all 44 required gates at revision 0004 with
-  exact 2-table, 19-column, 15-constraint and 3-index fingerprints; inventory/post-check comparison returned pass. Runtime flags
-  remain off and no application deployment or other production mutation is authorized. Next step requires a separate rollout task.
+  Codex implemented and locally verified the fail-closed flag state machine, PostgreSQL 16.4 cross-service contracts,
+  mixed-version attendance adapters, exact shared artifact preflight and staged rollout/rollback runbook at implementation head
+  699259a5025eed27125b85d17a4fcf38f61564e2. All local suites and three legal preflight vectors passed; task-owned PostgreSQL
+  resources were removed. No production, deployment, flag, Secret/IAM/Scheduler or real-notification action occurred. Work must
+  inspect the shared branch and report, run risk-based review, then create the single ready PR and verify final hosted CI.
