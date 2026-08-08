@@ -1,17 +1,16 @@
 active_task: TASK-078
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: 1838ec6
 head_commit: d8a2afa62d38e1faa2aa3b5f713d113a6106958b
 
 updated_by: work
-updated_at: 2026-08-08T19:28:00+08:00
+updated_at: 2026-08-08T20:20:00+08:00
 
 note: >
-  Work accepted TASK-078 after independent 67-test verification and narrow named-field production inventory. Exact revisions,
-  traffic, image digests, runtime identities, ingress/auth, Scheduler metadata and the Gen2 rollback source are recorded. All
-  seven Phase C/freeze/maintenance keys were absent and therefore effectively off; Owner has now prepared every key as explicit
-  string false in the three private env YAML files. Work has also obtained the two approved Web Portal Secret resource:version
-  references without reading values. The exact feature-off deployment authorization remains required. No build, deploy, mutation,
-  endpoint invoke, Scheduler action, Secret value read, database action or notification is authorized.
+  TASK-078 deployment package and approved production operations are complete. Web Portal and LINE webhook received the Phase C
+  feature-off source; LINE credential containment also moved webhook, game broadcast and notify cron to Secret Manager token
+  version 2 without plaintext channel credentials. Notify has not yet received the TASK-077 feature-off application source, and
+  repository Cloud Build configs still pin token version 1; Owner should next approve a focused repository task to prevent future
+  credential rollback and then complete notify feature-off deployment. No further production action is authorized by this handoff.

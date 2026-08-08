@@ -596,3 +596,12 @@
 - 本階段僅允許repository／local工作及production唯讀`describe`／`list`；不build、deploy、切traffic、改env、invoke、
   操作Scheduler／Secret／IAM／DB或發送通知。
 - Work查驗工作包後，須由Owner另行批准exact commit、targets與rollback範圍，才可執行production部署。
+
+### LINE credential rotation containment（2026-08-08）
+
+- LINE webhook既有deploy輸出曾意外回顯plain Messaging API credentials；Owner已自行輪替憑證並在Secret Manager建立version `2`。
+- `line-webhook-handler`已改用`CHANNEL_ACCESS_TOKEN:2`與`CHANNEL_SECRET:2` Secret bindings，plain key已不存在；
+  `game-broadcast-service`及`notify-cronjob-service`已改用`CHANNEL_ACCESS_TOKEN:2`。
+- 三個新revision均Ready／100% traffic或ACTIVE，指定boundary及五分鐘ERROR檢查通過；未人工invoke或發送測試通知。
+- repository中game／notify Cloud Build仍pin version `1`，下次source deployment前必須先修正；notify尚未部署TASK-077
+  feature-off source，需另立任務完成。
