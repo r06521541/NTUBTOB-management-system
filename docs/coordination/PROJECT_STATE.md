@@ -609,3 +609,5 @@
   DB操作或通知。
 - 唯讀inventory發現LINE webhook deploy target的`--set-secrets`會漏掉production既有version 2 LINE bindings；
   repository prerequisite已補齊完整四項Secret contract及離線tests，Work本機驗收23項Webhook tests通過，待hosted CI／merge。
+- PR #81 required CI通過並squash merge為`ae6a345`；fresh inventory、artifact fingerprint、all-off preflight及canonical
+  nine-step release manifest均通過。精確B1／B2／rollback工作包已完成，等待Owner批准；尚未部署或改變production。

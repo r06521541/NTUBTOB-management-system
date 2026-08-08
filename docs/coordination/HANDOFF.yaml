@@ -1,13 +1,14 @@
 active_task: TASK-082
-status: in_progress
-next_actor: work
+status: awaiting_owner_approval
+next_actor: owner
 
-base_commit: 0cfbf0f06e1c541b58251f5ded46df18c7d2bdd0
-head_commit: 48faa94
+base_commit: ae6a345879f864e9826a17e4a725f6177c8eb6dc
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T23:48:00+08:00
+updated_at: 2026-08-08T21:50:00+08:00
 
 note: >
-  TASK-082 LINE deployment prerequisite passed Work review with 23 webhook tests, compileall and diff check. Work is preparing
-  the single ready PR and hosted CI. Production deployment, flags and all external mutations remain unapproved.
+  PR #81 merged at ae6a345. Fresh read-only inventory, artifact preflight and the canonical nine-step controller plan passed.
+  TASK-082 now awaits Owner approval of the exact B1 feature-off deployment, B2 activation, no-side-effect GET checks, natural
+  Scheduler behavior and conditional rollback package in PHASE_C_ACTIVATION_AE6A345.md.
