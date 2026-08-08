@@ -10,9 +10,95 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  python-3-10-tests:
-    name: Python 3.10 / ${{ matrix.postgres_image }} unittest suite
+  classify:
+    name: Classify changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      docs_only: ${{ steps.changes.outputs.docs_only }}
+      portal_data: ${{ steps.changes.outputs.portal_data }}
+      web_portal: ${{ steps.changes.outputs.web_portal }}
+      game_broadcast: ${{ steps.changes.outputs.game_broadcast }}
+      notify_cron: ${{ steps.changes.outputs.notify_cron }}
+      deployment_tools: ${{ steps.changes.outputs.deployment_tools }}
+      update_schedule: ${{ steps.changes.outputs.update_schedule }}
+      line_webhook: ${{ steps.changes.outputs.line_webhook }}
+      full: ${{ steps.changes.outputs.full }}
+      base_sha: ${{ steps.changes.outputs.base_sha }}
+      head_sha: ${{ steps.changes.outputs.head_sha }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Classify changed paths
+        id: changes
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            python -m tools.ci_change_classifier classify --full >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python -m tools.ci_change_classifier classify \
+              --git-diff "$BASE_SHA" "$HEAD_SHA" --merge-base >> "$GITHUB_OUTPUT"
+          elif [[ "$EVENT_NAME" == "push" ]]; then
+            python -m tools.ci_change_classifier classify \
+              --git-diff "$BASE_SHA" "$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          else
+            python -m tools.ci_change_classifier classify --full >> "$GITHUB_OUTPUT"
+          fi
+
+  quick:
+    name: Quick repository gate
+    needs: classify
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Check changed lines
+        shell: bash
+        env:
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$BASE_SHA" && -n "$HEAD_SHA" ]]; then
+            git diff --check "$BASE_SHA" "$HEAD_SHA"
+          else
+            git diff-tree --check --root -r HEAD
+          fi
+
+      - name: Run CI classifier and workflow contracts
+        run: python -m unittest discover -s tools/tests -p "test_ci_*.py" -v
+
+  portal_data:
+    name: Portal data / ${{ matrix.postgres_image }}
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.portal_data == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -21,7 +107,6 @@ jobs:
         postgres_image:
           - postgres:15.8-alpine
           - postgres:16.4-alpine
-
     services:
       portal-postgres:
         image: ${{ matrix.postgres_image }}
@@ -36,7 +121,6 @@ jobs:
           --health-interval 2s
           --health-timeout 3s
           --health-retries 20
-
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,12 +129,8 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
-
-      - name: Show Python version
-        run: python --version
-
-      - name: Install route test dependencies
-        run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0
+          cache: pip
+          cache-dependency-path: requirements-migrations.txt
 
       - name: Install portal data test dependencies
         run: python -m pip install -r requirements-migrations.txt black==24.4.2
@@ -61,6 +141,7 @@ jobs:
           migrations/versions/0002_portal_data_foundation.py
           migrations/versions/0004_phase_c_identity_lifecycle.py
           shared_lib/shared_module/portal_data/identity_lifecycle.py
+          tools/ci_change_classifier.py
           tools/portal_data_migration_readiness.py
           tools/portal_data_phase_a_evidence.py
           tools/portal_data_phase_c_evidence.py
@@ -71,11 +152,13 @@ jobs:
           tests/portal_data/test_phase_a_evidence.py
           tests/portal_data/test_phase_c_lifecycle.py
           tests/portal_data/test_phase_c_readiness.py
+          tools/tests/test_ci_change_classifier.py
+          tools/tests/test_ci_workflow_contract.py
 
       - name: Verify Phase C review artifacts
         run: |
           python -m tools.portal_data_phase_c_migration verify
-          python -m tools.portal_data_phase_c_evidence
+          python -m tools.portal_data_phase_c_evidence verify
           python -m tools.portal_data_phase_c_readiness verify
 
       - name: Run portal data PostgreSQL tests
@@ -87,20 +170,177 @@ jobs:
           python -m alembic upgrade head
           python -m unittest discover -s tests/portal_data -v
 
-      - name: Run Web Portal tests
-        run: python -m unittest discover -s apps/web_portal/tests -v
+  web_portal:
+    name: Web Portal tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.web_portal == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install route test dependencies
+        run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0 -r requirements-migrations.txt
+      - run: python -m unittest discover -s apps/web_portal/tests -v
 
-      - name: Run game broadcast service tests
-        run: python -m unittest discover -s apps/game_broadcast_service/tests -v
+  game_broadcast:
+    name: Game broadcast tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.game_broadcast == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install route test dependencies
+        run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0 -r requirements-migrations.txt
+      - run: python -m unittest discover -s apps/game_broadcast_service/tests -v
 
-      - name: Run notify cronjob service tests
-        run: python -m unittest discover -s apps/notify_cronjob_service/tests -v
+  notify_cron:
+    name: Notify cron tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.notify_cron == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install route test dependencies
+        run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0 -r requirements-migrations.txt
+      - run: python -m unittest discover -s apps/notify_cronjob_service/tests -v
 
-      - name: Run scheduled service deployment wrapper tests
-        run: python -m unittest discover -s tools/tests -v
+  deployment_tools:
+    name: Deployment tool tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.deployment_tools == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - run: python -m unittest discover -s tools/tests -p "test_deploy_*.py" -v
 
-      - name: Run update game schedule tests
-        run: python -m unittest discover -s functions/update_game_schedule/tests -v
+  update_schedule:
+    name: Update schedule tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.update_schedule == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - run: python -m unittest discover -s functions/update_game_schedule/tests -v
 
-      - name: Run LINE webhook ingress tests
-        run: python -m unittest discover -s functions/line_webhook_handler/tests -v
+  line_webhook:
+    name: LINE webhook tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.line_webhook == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+      - name: Install route test dependencies
+        run: python -m pip install flask==3.0.0 flask-caching==2.3.0 functions-framework==3.* line-bot-sdk==3.11.0 -r requirements-migrations.txt
+      - run: python -m unittest discover -s functions/line_webhook_handler/tests -v
+
+  final:
+    name: CI final gate
+    if: always()
+    needs:
+      - classify
+      - quick
+      - portal_data
+      - web_portal
+      - game_broadcast
+      - notify_cron
+      - deployment_tools
+      - update_schedule
+      - line_webhook
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify selected jobs
+        shell: bash
+        env:
+          CI_SCOPE_DOCS_ONLY: ${{ needs.classify.outputs.docs_only }}
+          CI_SCOPE_PORTAL_DATA: ${{ needs.classify.outputs.portal_data }}
+          CI_SCOPE_WEB_PORTAL: ${{ needs.classify.outputs.web_portal }}
+          CI_SCOPE_GAME_BROADCAST: ${{ needs.classify.outputs.game_broadcast }}
+          CI_SCOPE_NOTIFY_CRON: ${{ needs.classify.outputs.notify_cron }}
+          CI_SCOPE_DEPLOYMENT_TOOLS: ${{ needs.classify.outputs.deployment_tools }}
+          CI_SCOPE_UPDATE_SCHEDULE: ${{ needs.classify.outputs.update_schedule }}
+          CI_SCOPE_LINE_WEBHOOK: ${{ needs.classify.outputs.line_webhook }}
+          CI_SCOPE_FULL: ${{ needs.classify.outputs.full }}
+          CI_RESULT_CLASSIFY: ${{ needs.classify.result }}
+          CI_RESULT_QUICK: ${{ needs.quick.result }}
+          CI_RESULT_PORTAL_DATA: ${{ needs.portal_data.result }}
+          CI_RESULT_WEB_PORTAL: ${{ needs.web_portal.result }}
+          CI_RESULT_GAME_BROADCAST: ${{ needs.game_broadcast.result }}
+          CI_RESULT_NOTIFY_CRON: ${{ needs.notify_cron.result }}
+          CI_RESULT_DEPLOYMENT_TOOLS: ${{ needs.deployment_tools.result }}
+          CI_RESULT_UPDATE_SCHEDULE: ${{ needs.update_schedule.result }}
+          CI_RESULT_LINE_WEBHOOK: ${{ needs.line_webhook.result }}
+        run: |
+          set -euo pipefail
+          failed=0
+          require_success() {
+            if [[ "$2" != "success" ]]; then
+              echo "required job did not succeed: $1 ($2)" >&2
+              failed=1
+            fi
+          }
+          require_success classify "$CI_RESULT_CLASSIFY"
+          require_success quick "$CI_RESULT_QUICK"
+
+          enabled=0
+          for output in DOCS_ONLY PORTAL_DATA WEB_PORTAL GAME_BROADCAST \
+            NOTIFY_CRON DEPLOYMENT_TOOLS UPDATE_SCHEDULE LINE_WEBHOOK FULL; do
+            variable="CI_SCOPE_$output"
+            value="${!variable}"
+            if [[ "$value" != "true" && "$value" != "false" ]]; then
+              echo "classification output is invalid: $output" >&2
+              failed=1
+            elif [[ "$value" == "true" ]]; then
+              enabled=$((enabled + 1))
+            fi
+          done
+          if [[ "$enabled" -eq 0 ]]; then
+            echo "classification selected no execution path" >&2
+            failed=1
+          fi
+          if [[ "$CI_SCOPE_FULL" == "true" && "$enabled" -ne 1 ]]; then
+            echo "full classification must be exclusive" >&2
+            failed=1
+          fi
+          if [[ "$CI_SCOPE_DOCS_ONLY" == "true" && "$enabled" -ne 1 ]]; then
+            echo "docs-only classification must be exclusive" >&2
+            failed=1
+          fi
+
+          for scope in PORTAL_DATA WEB_PORTAL GAME_BROADCAST NOTIFY_CRON \
+            DEPLOYMENT_TOOLS UPDATE_SCHEDULE LINE_WEBHOOK; do
+            selected_variable="CI_SCOPE_$scope"
+            result_variable="CI_RESULT_$scope"
+            selected="${!selected_variable}"
+            result="${!result_variable}"
+            if [[ "$CI_SCOPE_FULL" == "true" || "$selected" == "true" ]]; then
+              require_success "${scope,,}" "$result"
+            elif [[ "$result" != "skipped" ]]; then
+              echo "unselected job was not skipped: ${scope,,} ($result)" >&2
+              failed=1
+            fi
+          done
+          exit "$failed"

@@ -759,3 +759,19 @@
   person_id/backfill；只在repository/local演練，不執行production。
 - 安全邊界：production guard維持default-off；不連Supabase、不執行production migration/data、不部署、不發真實
   LINE／Discord、不改Secret／IAM／Scheduler或cloud resources。
+
+## DEC-073：以單一最終PR與change-aware CI穩定協作流程
+
+- 狀態：`approved`
+- 日期：2026-08-08
+- 決策：一個可獨立交付單位原則上只建立一個ready PR與一次final hosted CI；純task／report／review／handoff／
+  closeout或merge metadata不各自建立PR，除非文件本身必須立即成為安全、授權或production操作邊界。
+- CI分級：一般純文件只走快速gate；單一服務跑受影響suite；shared library跑直接受影響服務；database schema／
+  migration／model／受控SQL／checksum／verifier才跑PostgreSQL 15／16 matrix。`docs/operations/sql/**`不得視為一般文件。
+- 重複執行：在main branch protection與禁止direct push完成前保留main push safety net；完成後可用final PR tree作
+  主要merge evidence，main改跑輕量smoke／artifact integrity或人工full suite。CI應採concurrency與
+  `cancel-in-progress`。
+- Production鎖定：批准應鎖定material artifact digest、revision、manifest或reviewed source evidence；純文件或
+  merge metadata不使批准失效。受控artifact、validator、runbook順序或安全邊界變更仍須fail closed並重新批准。
+- 衝突處理：已完成task保留為歷史事實；active task在下一個外部操作前修正；未開始舊task重新啟動時先做規範
+  相容性檢查。只有有理由、有範圍、有結束條件的較嚴格task例外可覆蓋全域流程，不得降低現行安全邊界。

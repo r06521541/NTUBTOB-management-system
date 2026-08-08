@@ -37,8 +37,10 @@ not pass. Both review tables must remain RLS-enabled, not forced, with zero poli
 
 ## Approval and freshness gates
 
-Before opening a migration window, record the exact merged 40-character commit and all three
-approved checksums. Confirm provider backup/PITR readiness in the provider control plane. This
+Before opening a migration window, record the reviewed source commit and all three approved
+checksums. A later documentation-only merge does not invalidate the package; any material change to
+the controlled SQL, checksum, validator, execution sequence or safety boundary does. Confirm
+provider backup/PITR readiness in the provider control plane. This
 repository does not prove backup availability, production role behavior, current locks or API
 exposure.
 
@@ -55,7 +57,7 @@ Required sequence:
 3. Work confirms revision `0003`, zero Phase C collisions, Phase A/B/RLS/audit invariants, resolved
    attendance ownership and acceptable session privilege risk. A superuser or BYPASSRLS result is a
    stop gate requiring a new explicit risk decision, even though it is reported as `risk`.
-4. Owner issues a new approval naming the exact commit, migration checksum, target, operator and
+4. Owner issues a new approval naming the reviewed source commit, migration checksum, target, operator and
    window. Earlier repository or Phase B approval is insufficient.
 5. Owner executes the exact migration once, as a single transaction. No statement may be copied,
    skipped, retried individually or augmented with cleanup, grants, roles or policies.
