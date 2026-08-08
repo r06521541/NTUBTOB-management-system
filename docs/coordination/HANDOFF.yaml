@@ -3,12 +3,13 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 78dfc0a3c8ce953f3fd1a2db758cadd4e34cbcb9
+head_commit: 1e7c7a98274cf29ef98613f745a428da562b29e4
 
 updated_by: codex
-updated_at: 2026-08-09T03:05:00+08:00
+updated_at: 2026-08-09T03:35:00+08:00
 
 note: >
-  Stage B parameter-binding prerequisite is ready for Work review: the controlled inventory uses PostgreSQL 16 extended-protocol
-  $1/$2/$3 placeholders and one fixed-order psql bind flow, with checksum/runbook/offline rejection coverage. Provider parameter
-  payload logging remains a fail-closed stop condition. No production DB query, mutation or other external operation ran.
+  Docker operator-command correction is ready for Work review: the PostgreSQL 16 preflight and interactive psql use the TASK-056
+  pinned image ID with --pull never. The interactive command receives the approved private env-file without reading it, supplies
+  PGOPTIONS default_transaction_read_only, mounts the exact repository root read-only at /workspace, and rejects DSN/connection
+  identity arguments through an exact offline contract. No production DB query, mutation or other external operation ran.
