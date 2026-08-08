@@ -31,6 +31,19 @@ was accessed or changed.
 - Added Python 3.10/PostgreSQL 16 CI coverage. No application behavior, migration source, grants,
   policies, roles, cleanup or dual-write path changed.
 
+## Work review correction
+
+- Replaced the Phase C name/count-only acceptance gap with required exact catalog fingerprints.
+  The post-check now fingerprints all 19 Phase C-owned columns, all 15 added or modified constraints
+  and all three explicit indexes, including type/nullability/default/identity, exact constraint
+  definition and validation state, and full index definition.
+- Added a separate zero forced-RLS gate for both review tables; the existing RLS-enabled and
+  zero-policy gates remain required.
+- The repository verifier now proves that the SQL metric set exactly matches the strict validator
+  schema even if an altered SQL sidecar checksum is also updated.
+- PostgreSQL tests mutate a column default, a same-name check constraint, a same-name/same-count
+  index definition, forced RLS and policy state, and prove each post-check fails closed.
+
 ## Verification
 
 - `python -m tools.portal_data_phase_c_migration verify`: passed.
@@ -38,8 +51,8 @@ was accessed or changed.
 - `python -m tools.portal_data_phase_c_readiness verify`: passed.
 - `python -m compileall -q migrations tools tests/portal_data`: passed.
 - Hosted-CI-equivalent Black check for all 13 listed files: passed.
-- `python -m unittest discover -s tests/portal_data -v`: 154/154 passed against the repository
-  localhost-only PostgreSQL 16.4 fixture.
+- `python -m unittest discover -s tests/portal_data -v`: 155/155 passed against the repository
+  localhost-only PostgreSQL 16.4 fixture after the Work-review correction.
 - New rehearsal coverage includes clean 0003-to-0004 inventory/post-check comparison, catalog
   fingerprints, complete attendance bridge, exact forced-RLS/audit/policy drift negatives, atomic
   injected mid-migration failure, five-second lock timeout/full retry, graph/checksum/encoding/EOL/
@@ -47,6 +60,10 @@ was accessed or changed.
   unresolved-attendance atomic rollback, fresh install and downgrade/upgrade coverage.
 - `git diff --check`: passed before coordination handoff.
 - The local Compose container/network was stopped; the fake-data volume was retained.
+- The first full correction-suite rerun had one failure in the synthetic validator row builder: its
+  allowlisted exact-count candidates had not yet been extended from the former 3/10 values to the
+  new 19/15 catalog totals. The fake-only helper was corrected, and the full 155-test suite then
+  passed; the PostgreSQL exact fingerprint mutation tests passed in both runs.
 
 ## Review and safety boundaries
 

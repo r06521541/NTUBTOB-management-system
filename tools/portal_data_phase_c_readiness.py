@@ -148,11 +148,21 @@ POSTCHECK_SCHEMA = {
     ),
     ("01_contract", "phase_c_table_count"): _exact("integer_value", "2"),
     ("01_contract", "phase_c_rls_enabled_count"): _exact("integer_value", "2"),
+    ("01_contract", "phase_c_forced_rls_count"): _zero(),
     ("01_contract", "phase_c_policy_count"): _zero(),
     ("03_phase_c", "alembic_revision_row_count"): _exact("integer_value", "1"),
-    ("03_phase_c", "phase_c_column_count"): _exact("integer_value", "3"),
-    ("03_phase_c", "phase_c_constraint_count"): _exact("integer_value", "10"),
+    ("03_phase_c", "phase_c_column_count"): _exact("integer_value", "19"),
+    ("03_phase_c", "phase_c_column_fingerprint_matches"): _exact(
+        "boolean_value", "true"
+    ),
+    ("03_phase_c", "phase_c_constraint_count"): _exact("integer_value", "15"),
+    ("03_phase_c", "phase_c_constraint_fingerprint_matches"): _exact(
+        "boolean_value", "true"
+    ),
     ("03_phase_c", "phase_c_index_count"): _exact("integer_value", "3"),
+    ("03_phase_c", "phase_c_index_fingerprint_matches"): _exact(
+        "boolean_value", "true"
+    ),
     ("03_phase_c", "attendance_person_fk_count"): _exact("integer_value", "1"),
     ("03_phase_c", "guest_bound_constraint_count"): _exact("integer_value", "1"),
     ("04_attendance", "attendance_person_column_count"): _exact("integer_value", "1"),
@@ -225,6 +235,23 @@ def verify_sql(path: Path) -> None:
         not in compact
     ):
         errors.append("missing fixed sanitized six-column output")
+    schema = (
+        INVENTORY_SCHEMA
+        if path.name == INVENTORY_SQL_PATH.name
+        else POSTCHECK_SCHEMA if path.name == POSTCHECK_SQL_PATH.name else None
+    )
+    if schema is None:
+        errors.append("unknown readiness artifact")
+    else:
+        observed_metrics = {
+            (section, metric)
+            for section, metric in re.findall(
+                r"(?:select|union all select)\s*'([^']+)'\s*,\s*'([^']+)'",
+                sql.lower(),
+            )
+        }
+        if observed_metrics != set(schema):
+            errors.append("SQL metric set does not match the strict validator contract")
     if errors:
         raise PhaseCReadinessError("; ".join(errors))
 

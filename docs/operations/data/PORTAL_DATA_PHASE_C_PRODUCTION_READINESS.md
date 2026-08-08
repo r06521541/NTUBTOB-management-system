@@ -20,6 +20,11 @@ python -m tools.portal_data_phase_c_readiness verify
 The inventory and post-check return only the fixed sanitized CSV columns
 `section,metric,status,boolean_value,integer_value,text_value`. Runtime flag state is explicitly
 reported as `not_checked_by_database`; verify it separately without recording values or secrets.
+The post-check also requires deterministic exact fingerprints for all 19 Phase C-owned columns,
+all 15 added or changed PK/FK/unique/check constraints, and all three explicit Phase C indexes.
+These fingerprints include type, nullability, default, identity/generated attributes, complete
+`pg_get_constraintdef`, validation state and complete `indexdef`; matching names or counts alone do
+not pass. Both review tables must remain RLS-enabled, not forced, with zero policies.
 
 ## Approval and freshness gates
 
@@ -85,3 +90,5 @@ render/checksum/graph validation, encoding and mutation rejection, clean 0003-to
 attendance backfill invariants, atomic unresolved-row rollback, bounded lock failure and full retry,
 strict evidence validation, drift negatives and inventory/post-check comparison. Local success does
 not prove production locks, data shape, ownership, backup, transaction duration or runtime flags.
+Dedicated mutations of a Phase C column default, check definition and index column order prove that
+same-name/same-count catalog drift fails the exact fingerprint gates.

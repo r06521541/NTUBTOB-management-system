@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 import unittest
@@ -56,7 +57,7 @@ def valid_rows(schema):
                 )
             )
         elif not spec.gate(value):
-            for candidate in ("1", "2", "3", "10", "13"):
+            for candidate in ("1", "2", "3", "10", "13", "15", "19"):
                 if spec.gate(candidate):
                     value = candidate
                     break
@@ -85,6 +86,18 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
                 verify_evidence_sql(path)
             path.write_bytes(source.replace("\n", "\r\n").encode())
             with self.assertRaises(PhaseCReadinessError):
+                verify_evidence_sql(path)
+            mutated = source.replace(
+                "'phase_c_column_count'", "'fake_unknown_metric'", 1
+            ).encode("utf-8")
+            path.write_bytes(mutated)
+            path.with_suffix(".sql.sha256").write_text(
+                f"{hashlib.sha256(mutated).hexdigest()}  {path.name}\n",
+                encoding="ascii",
+            )
+            with self.assertRaisesRegex(
+                PhaseCReadinessError, "strict validator contract"
+            ):
                 verify_evidence_sql(path)
 
     def test_validator_rejects_reordered_unknown_and_sensitive_values(self):
@@ -203,7 +216,7 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
                 {"person_id": person_id},
             )
 
-    def _execute(self, path: Path, kind: str):
+    def _evidence_rows(self, path: Path):
         raw = self.engine.raw_connection()
         try:
             with raw.cursor() as cursor:
@@ -214,29 +227,29 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
                 cursor.execute("ROLLBACK")
         finally:
             raw.close()
-        return validate_rows(
-            (
-                dict(
-                    zip(
-                        fields,
+        return [
+            dict(
+                zip(
+                    fields,
+                    (
                         (
-                            (
-                                ""
-                                if value is None
-                                else (
-                                    str(value).lower()
-                                    if isinstance(value, bool)
-                                    else str(value)
-                                )
+                            ""
+                            if value is None
+                            else (
+                                str(value).lower()
+                                if isinstance(value, bool)
+                                else str(value)
                             )
-                            for value in row
-                        ),
-                    )
+                        )
+                        for value in row
+                    ),
                 )
-                for row in rows
-            ),
-            kind,
-        )
+            )
+            for row in rows
+        ]
+
+    def _execute(self, path: Path, kind: str):
+        return validate_rows(self._evidence_rows(path), kind)
 
     def test_clean_0003_to_0004_inventory_postcheck_and_compare(self):
         inventory = self._execute(INVENTORY_SQL_PATH, "inventory")
@@ -291,6 +304,64 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
                         "ON ntubtob.identity_review_threads"
                     )
                 )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE ntubtob.identity_review_threads "
+                    "FORCE ROW LEVEL SECURITY"
+                )
+            )
+        try:
+            with self.assertRaises(PhaseCReadinessError):
+                self._execute(POSTCHECK_SQL_PATH, "postcheck")
+        finally:
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "ALTER TABLE ntubtob.identity_review_threads "
+                        "NO FORCE ROW LEVEL SECURITY"
+                    )
+                )
+
+    def test_postcheck_rejects_exact_phase_c_catalog_definition_drift(self):
+        mutations = (
+            (
+                "phase_c_column_fingerprint_matches",
+                "ALTER TABLE ntubtob.people "
+                "ALTER COLUMN admin_note SET DEFAULT 'Fake drift'",
+            ),
+            (
+                "phase_c_constraint_fingerprint_matches",
+                "ALTER TABLE ntubtob.identity_review_threads "
+                "DROP CONSTRAINT ck_identity_review_thread_status; "
+                "ALTER TABLE ntubtob.identity_review_threads "
+                "ADD CONSTRAINT ck_identity_review_thread_status "
+                "CHECK (status IN ('open', 'closed', 'fake'))",
+            ),
+            (
+                "phase_c_index_fingerprint_matches",
+                "DROP INDEX ntubtob.ix_identity_review_messages_thread_created; "
+                "CREATE INDEX ix_identity_review_messages_thread_created "
+                "ON ntubtob.identity_review_messages(created_at, thread_id, id)",
+            ),
+        )
+        for metric, mutation in mutations:
+            with self.subTest(metric=metric):
+                command.upgrade(self.config, "0004_phase_c_identity_lifecycle")
+                try:
+                    with self.engine.begin() as connection:
+                        connection.execute(text(mutation))
+                    rows = self._evidence_rows(POSTCHECK_SQL_PATH)
+                    observed = {
+                        row["metric"]: row["boolean_value"]
+                        for row in rows
+                        if row["section"] == "03_phase_c"
+                    }
+                    self.assertEqual(observed[metric], "false")
+                    with self.assertRaises(PhaseCReadinessError):
+                        validate_rows(rows, "postcheck")
+                finally:
+                    command.downgrade(self.config, "0003_legacy_bigint_activity_game")
 
     def test_lock_timeout_rolls_back_and_retry_succeeds(self):
         blocker = self.engine.connect()

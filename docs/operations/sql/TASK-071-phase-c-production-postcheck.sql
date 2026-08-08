@@ -20,6 +20,20 @@ WITH legacy_tables(name) AS (VALUES
   SELECT md5(string_agg(r.relname||'.'||c.conname||'|'||c.contype::text||'|'||pg_get_constraintdef(c.oid,true)||'|'||c.convalidated::text,E'\n' ORDER BY r.relname,c.conname)) value FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace JOIN phase_b_tables e ON e.name=r.relname WHERE n.nspname='ntubtob'
 ), phase_b_index_fingerprint AS (
   SELECT md5(string_agg(indexname||'|'||indexdef,E'\n' ORDER BY indexname)) value FROM pg_indexes WHERE schemaname='ntubtob' AND indexname IN ('ix_auth_identities_person','ix_person_qualifications_active','ix_event_invitees_event_included')
+), phase_c_column_fingerprint AS (
+  SELECT md5(string_agg(c.table_name||'.'||c.column_name||'|'||c.data_type||'|'||c.udt_name||'|'||c.is_nullable||'|'||coalesce(c.column_default,'NULL')||'|'||c.is_identity||'|'||c.is_generated,E'\n' ORDER BY c.table_name,c.ordinal_position)) value
+  FROM information_schema.columns c WHERE c.table_schema='ntubtob' AND (
+    (c.table_name='people' AND c.column_name IN ('formal_name','admin_note')) OR
+    (c.table_name='game_attendance_replies' AND c.column_name='person_id') OR
+    c.table_name IN ('identity_review_threads','identity_review_messages'))
+), phase_c_constraint_fingerprint AS (
+  SELECT md5(string_agg(r.relname||'.'||c.conname||'|'||c.contype::text||'|'||pg_get_constraintdef(c.oid,true)||'|'||c.convalidated::text,E'\n' ORDER BY r.relname,c.conname)) value
+  FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace
+  WHERE n.nspname='ntubtob' AND (r.relname IN ('identity_review_threads','identity_review_messages') OR
+    c.conname IN ('ck_people_formal_name','ck_people_admin_note','ck_access_audit_action','ck_guest_player_bounded','fk_game_attendance_person'))
+), phase_c_index_fingerprint AS (
+  SELECT md5(string_agg(indexname||'|'||indexdef,E'\n' ORDER BY indexname)) value FROM pg_indexes
+  WHERE schemaname='ntubtob' AND indexname IN ('ix_identity_review_threads_status_activity','ix_identity_review_messages_thread_created','ix_game_attendance_person_game_updated')
 ), reliable_line AS (
   SELECT l.line_user_id,m.person_id FROM ntubtob.line_users l JOIN ntubtob.members m ON m.id=l.member_id WHERE l.ignored IS FALSE AND m.person_id IS NOT NULL
 ), active_team_player AS (SELECT person_id FROM ntubtob.person_qualifications WHERE qualification='team_player' AND status='active'), evidence(section,metric,status,boolean_value,integer_value,text_value) AS (
@@ -42,6 +56,7 @@ WITH legacy_tables(name) AS (VALUES
   UNION ALL SELECT '01_contract','phase_b_index_fingerprint_matches','required',value='a1437ec9eb26c32e6d03a5e932463e48',NULL,NULL FROM phase_b_index_fingerprint
   UNION ALL SELECT '01_contract','phase_c_table_count','required',NULL,count(*),NULL FROM information_schema.tables WHERE table_schema='ntubtob' AND table_name IN ('identity_review_threads','identity_review_messages')
   UNION ALL SELECT '01_contract','phase_c_rls_enabled_count','required',NULL,count(*),NULL FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='ntubtob' AND c.relname IN ('identity_review_threads','identity_review_messages') AND c.relrowsecurity
+  UNION ALL SELECT '01_contract','phase_c_forced_rls_count','required',NULL,count(*),NULL FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='ntubtob' AND c.relname IN ('identity_review_threads','identity_review_messages') AND c.relforcerowsecurity
   UNION ALL SELECT '01_contract','phase_c_policy_count','required',NULL,count(*),NULL FROM pg_policies WHERE schemaname='ntubtob' AND tablename IN ('identity_review_threads','identity_review_messages')
   UNION ALL SELECT '02_phase_b','member_count','compare',NULL,count(*),NULL FROM ntubtob.members
   UNION ALL SELECT '02_phase_b','people_count','compare',NULL,count(*),NULL FROM ntubtob.people
@@ -59,9 +74,12 @@ WITH legacy_tables(name) AS (VALUES
     (a.action='identity_linked' AND a.actor_person_id IS NULL AND a.before_state IS NULL AND EXISTS (SELECT 1 FROM ntubtob.auth_identities i JOIN ntubtob.line_users l ON l.line_user_id=i.provider_subject JOIN ntubtob.members m ON m.id=l.member_id WHERE i.id=a.auth_identity_id AND i.person_id=a.target_person_id AND m.person_id=i.person_id AND l.ignored IS FALSE AND a.request_id='task065-identity-'||l.id AND a.after_state::jsonb=jsonb_build_object('provider','line'))) OR
     (a.action='qualification_granted' AND a.actor_person_id IS NULL AND a.auth_identity_id IS NULL AND a.before_state IS NULL AND EXISTS (SELECT 1 FROM ntubtob.person_qualifications q JOIN ntubtob.members m ON m.person_id=q.person_id WHERE q.person_id=a.target_person_id AND q.qualification='team_player' AND q.status='active' AND a.request_id='task065-team-player-'||m.id AND a.after_state::jsonb=jsonb_build_object('qualification','team_player'))))
   UNION ALL SELECT '03_phase_c','alembic_revision_row_count','required',NULL,count(*),NULL FROM ntubtob.alembic_version
-  UNION ALL SELECT '03_phase_c','phase_c_column_count','required',NULL,count(*),NULL FROM information_schema.columns WHERE table_schema='ntubtob' AND ((table_name='people' AND column_name IN ('formal_name','admin_note')) OR (table_name='game_attendance_replies' AND column_name='person_id'))
-  UNION ALL SELECT '03_phase_c','phase_c_constraint_count','required',NULL,count(*),NULL FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='ntubtob' AND t.relname IN ('identity_review_threads','identity_review_messages')
+  UNION ALL SELECT '03_phase_c','phase_c_column_count','required',NULL,count(*),NULL FROM information_schema.columns WHERE table_schema='ntubtob' AND ((table_name='people' AND column_name IN ('formal_name','admin_note')) OR (table_name='game_attendance_replies' AND column_name='person_id') OR table_name IN ('identity_review_threads','identity_review_messages'))
+  UNION ALL SELECT '03_phase_c','phase_c_column_fingerprint_matches','required',value='21515e2b449df86d4d31a2789638a3d7',NULL,NULL FROM phase_c_column_fingerprint
+  UNION ALL SELECT '03_phase_c','phase_c_constraint_count','required',NULL,count(*),NULL FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='ntubtob' AND (t.relname IN ('identity_review_threads','identity_review_messages') OR c.conname IN ('ck_people_formal_name','ck_people_admin_note','ck_access_audit_action','ck_guest_player_bounded','fk_game_attendance_person'))
+  UNION ALL SELECT '03_phase_c','phase_c_constraint_fingerprint_matches','required',value='6fb4bde4b853d543d377f8a3b767d01f',NULL,NULL FROM phase_c_constraint_fingerprint
   UNION ALL SELECT '03_phase_c','phase_c_index_count','required',NULL,count(*),NULL FROM pg_indexes WHERE schemaname='ntubtob' AND indexname IN ('ix_identity_review_threads_status_activity','ix_identity_review_messages_thread_created','ix_game_attendance_person_game_updated')
+  UNION ALL SELECT '03_phase_c','phase_c_index_fingerprint_matches','required',value='b0dacc9d12f7a1114831805d3e56954d',NULL,NULL FROM phase_c_index_fingerprint
   UNION ALL SELECT '03_phase_c','attendance_person_fk_count','required',NULL,count(*),NULL FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='ntubtob' AND t.relname='game_attendance_replies' AND c.conname='fk_game_attendance_person' AND c.contype='f'
   UNION ALL SELECT '03_phase_c','guest_bound_constraint_count','required',NULL,count(*),NULL FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='ntubtob' AND t.relname='person_qualifications' AND c.conname='ck_guest_player_bounded' AND c.contype='c'
   UNION ALL SELECT '04_attendance','attendance_reply_count','compare',NULL,count(*),NULL FROM ntubtob.game_attendance_replies
