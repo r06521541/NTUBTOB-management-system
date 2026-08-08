@@ -295,6 +295,9 @@ class DeploymentWrapperTests(unittest.TestCase):
             if command[:3] == ["gcloud", "builds", "submit"]
         )
         self.assertIn(f"_IMAGE_TAG={SHA}", build[build.index("--substitutions") + 1])
+        self.assertEqual(build[build.index("--region") + 1], deploy.REGION)
+        self.assertIn("--suppress-logs", build)
+        self.assertIn("--format=json", build)
         artifact_lookup = next(
             command
             for command in runner.commands
@@ -408,6 +411,14 @@ class DeploymentWrapperTests(unittest.TestCase):
         result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
         self.assertFalse(result["already_promoted"])
         self.assertEqual(len([item for item in commands if "update-traffic" in item]), 1)
+        build_describe = next(
+            command
+            for command in commands
+            if command[:3] == ["gcloud", "builds", "describe"]
+        )
+        self.assertEqual(
+            build_describe[build_describe.index("--region") + 1], deploy.REGION
+        )
 
     def make_resume_runner(
         self,
