@@ -213,7 +213,8 @@ def rollback_command(service: ServiceConfig, revision: str) -> List[str]:
 
 def resume_verify_only(
     root: Path, service_name: str, approved_commit: str, build_id: str,
-    candidate_revision: str, runner: Runner = run_command, check_tools: bool = True,
+    candidate_revision: str, rollback_revision: str, runner: Runner = run_command,
+    check_tools: bool = True,
 ) -> dict:
     """Verify a no-traffic build and promote only its exact ready candidate."""
     service = SERVICES[service_name]
@@ -226,6 +227,9 @@ def resume_verify_only(
         raise DeploymentError("HEAD does not match the approved commit")
     build_id = validate_build_id(build_id)
     candidate_revision = validate_rollback_revision(service, candidate_revision)
+    rollback_revision = validate_rollback_revision(service, rollback_revision)
+    if candidate_revision == rollback_revision:
+        raise DeploymentError("Candidate revision must differ from rollback revision")
     build = parse_json_output(command_output(runner, [
         "gcloud", "builds", "describe", build_id, "--project", PROJECT_ID,
         "--format=json"], root), "Cloud Build resume")
@@ -249,16 +253,28 @@ def resume_verify_only(
     traffic = service_state.get("status", {}).get("traffic", [])
     if not isinstance(traffic, list):
         raise DeploymentError("Cloud Run traffic state is invalid")
+    if service_state.get("status", {}).get("latestCreatedRevisionName") != candidate_revision:
+        raise DeploymentError("Candidate revision is not the latest created revision")
     candidate_percent = next((item.get("percent") for item in traffic if item.get("revisionName") == candidate_revision), 0)
     promoted = candidate_percent == 100 and len(traffic) == 1
     pending = candidate_percent == 0 and len(traffic) == 1 and traffic[0].get("percent") == 100
     if not promoted and not pending:
         raise DeploymentError("Cloud Run traffic state is ambiguous")
     if pending:
-        command_output(runner, [
-            "gcloud", "run", "services", "update-traffic", service.cloud_run_name,
-            "--project", PROJECT_ID, "--region", REGION,
-            "--to-revisions", f"{candidate_revision}=100", "--quiet"], root)
+        try:
+            command_output(runner, [
+                "gcloud", "run", "services", "update-traffic", service.cloud_run_name,
+                "--project", PROJECT_ID, "--region", REGION,
+                "--to-revisions", f"{candidate_revision}=100", "--quiet"], root)
+            verified = parse_json_output(command_output(runner, [
+                "gcloud", "run", "services", "describe", service.cloud_run_name,
+                "--project", PROJECT_ID, "--region", REGION, "--format=json"], root), "Cloud Run promotion verification")
+            verified_traffic = verified.get("status", {}).get("traffic", [])
+            if verified.get("status", {}).get("latestReadyRevisionName") != candidate_revision or verified_traffic != [{"revisionName": candidate_revision, "percent": 100}]:
+                raise DeploymentError("Candidate revision did not receive exact 100% traffic")
+        except BaseException:
+            command_output(runner, rollback_command(service, rollback_revision), root)
+            raise
     return {"build_id": build_id, "revision": candidate_revision, "image_digest": digest, "already_promoted": promoted}
 
 
@@ -453,14 +469,13 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        execution_inputs = (args.approved_commit, args.rollback_revision, args.build_id, args.candidate_revision)
         if args.execute and args.resume_verify_only:
             raise DeploymentError("--execute cannot be combined with --resume-verify-only")
         if args.resume_verify_only:
-            if not args.approved_commit or not args.build_id or not args.candidate_revision:
-                raise DeploymentError("--resume-verify-only requires approved commit, build ID and candidate revision")
-            if args.rollback_revision:
-                raise DeploymentError("--rollback-revision is not valid with --resume-verify-only")
-            result = resume_verify_only(repository_root(), args.service, args.approved_commit, args.build_id, args.candidate_revision)
+            if not all(execution_inputs):
+                raise DeploymentError("--resume-verify-only requires approved commit, rollback revision, build ID and candidate revision")
+            result = resume_verify_only(repository_root(), args.service, args.approved_commit, args.build_id, args.candidate_revision, args.rollback_revision)
             print(json.dumps(result, sort_keys=True))
         elif args.execute:
             if not args.approved_commit or not args.rollback_revision:
@@ -475,7 +490,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
             print(json.dumps(result, sort_keys=True))
         else:
-            if args.approved_commit or args.rollback_revision:
+            if any(execution_inputs):
                 raise DeploymentError("Execution-only arguments require --execute")
             preflight(repository_root(), args.service, None, None)
             print(f"Preflight passed for {args.service}; no cloud commands were run.")

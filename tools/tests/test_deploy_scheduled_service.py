@@ -400,19 +400,19 @@ class DeploymentWrapperTests(unittest.TestCase):
             elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
                 output = json.dumps({"status": {"imageDigest": FULL_REVISION_DIGEST, "conditions": [{"type": "Ready", "status": "True"}]}})
             elif arguments[:4] == ["gcloud", "run", "services", "describe"]:
-                output = json.dumps({"status": {"traffic": [{"revisionName": BASELINE_REVISION, "percent": 100}]}})
+                output = json.dumps({"status": {"latestCreatedRevisionName": NEW_REVISION, "latestReadyRevisionName": NEW_REVISION, "traffic": [{"revisionName": NEW_REVISION, "percent": 100}] if len([item for item in commands if "update-traffic" in item]) else [{"revisionName": BASELINE_REVISION, "percent": 100}]}})
             else:
                 output = ""
             return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr="")
 
-        result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, runner, False)
+        result = deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
         self.assertFalse(result["already_promoted"])
         self.assertEqual(len([item for item in commands if "update-traffic" in item]), 1)
 
     def test_resume_rejects_failed_or_ambiguous_state_without_promotion(self):
         runner = FakeRunner(self.root)
         with self.assertRaisesRegex(deploy.DeploymentError, "Cloud Build resume"):
-            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, runner, False)
+            deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
         self.assertEqual(self.traffic_commands(runner), [])
 
 
