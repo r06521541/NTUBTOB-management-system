@@ -1,14 +1,15 @@
 active_task: TASK-080
-status: in_progress
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: d9213acea1708f051fc457753b3b941dbad305f6
-head_commit: null
+head_commit: d9213acea1708f051fc457753b3b941dbad305f6
 
 updated_by: work
-updated_at: 2026-08-08T20:05:00+08:00
+updated_at: 2026-08-08T20:18:00+08:00
 
 note: >
-  Owner approved TASK-080's exact deployment scope. Work is running the bounded preflight for the specified source commit;
-  build/deploy may proceed only if account/project/region, private boundary, exact healthy rollback revision, token version 2
-  binding and both feature-off flags verify as required. All other boundaries remain prohibited.
+  TASK-080 completed: approved commit d9213ac deployed to notify-cronjob-service revision 00013-ddr, Ready and serving 100%.
+  Cloud Build 4ebde37e succeeded; exact prior rollback baseline is notify-cronjob-service-00012-gfm. No endpoint invoke,
+  Scheduler/IAM/Secret/DB/flag mutation, notification or other-service deployment occurred. See deployment record for the
+  bounded feature-off evidence and its direct-runtime-value verification limitation.

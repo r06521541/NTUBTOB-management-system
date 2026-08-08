@@ -49,6 +49,11 @@
 
 ## 1. 目前摘要
 
+- TASK-080 已依 Owner 批准完成 production `notify-cronjob-service` feature-off deployment：Cloud Build
+  `4ebde37e-1752-4a4c-9f8a-d4b39e9b1efe`成功，新 revision `notify-cronjob-service-00013-ddr` Ready且承接100%
+  traffic，rollback baseline為`notify-cronjob-service-00012-gfm`。未呼叫具副作用 route或Scheduler、未改Secret／IAM／
+  DB／schema或其他服務；詳細證據見`docs/operations/deployments/NOTIFY_CRON_D9213AC.md`。
+
 - TASK-079 已由 PR #79 squash merge為 `d9213ac`：兩個 scheduled service 的未來 Cloud Build contract 都固定
   `CHANNEL_ACCESS_TOKEN:2`，hosted CI成功；production未因此變動。TASK-080 已建立為 notify cron 的 Phase C
   feature-off deployment工作包，等待 Owner 對 exact source、build/deploy/traffic、條件式rollback與無副作用驗證
