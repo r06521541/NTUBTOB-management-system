@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import io
 import json
 import tempfile
@@ -350,10 +351,22 @@ class CloseoutEvidenceTests(unittest.TestCase):
             attributes,
         )
         closeout.verify_inventory_artifact()
+        closeout.verify_execution_runbook()
         sql = closeout.INVENTORY_SQL_PATH.read_text(encoding="utf-8")
         self.assertIn("ntubtob.game_attendance_replies", sql)
         self.assertNotIn("line_notify_tokens", sql)
+        self.assertEqual(len(closeout.BIND_COMMAND.findall(sql)), 1)
+        self.assertNotIn(":'", closeout.BIND_COMMAND.sub("", sql))
         with tempfile.TemporaryDirectory() as directory:
+
+            def write_checked(path, contents):
+                path.write_text(contents, encoding="utf-8", newline="\n")
+                canonical = path.read_bytes().replace(b"\r\n", b"\n")
+                path.with_suffix(path.suffix + ".sha256").write_text(
+                    f"{hashlib.sha256(canonical).hexdigest()}  {path.name}\n",
+                    encoding="ascii",
+                )
+
             crlf_path = Path(directory) / closeout.INVENTORY_SQL_PATH.name
             crlf_path.write_bytes(
                 closeout.INVENTORY_SQL_PATH.read_bytes()
@@ -380,6 +393,51 @@ class CloseoutEvidenceTests(unittest.TestCase):
             )
             with self.assertRaises(closeout.CloseoutEvidenceError):
                 closeout.verify_inventory_artifact(path)
+
+            for suffix, replacement in (
+                (
+                    "wrong-bind-order",
+                    "\\bind :'mutation_request_id' :'admin_member_ids' :'recovery_request_id' \\g",
+                ),
+                (
+                    "wrong-bind-count",
+                    "\\bind :'admin_member_ids' :'mutation_request_id' \\g",
+                ),
+                (
+                    "old-sql-interpolation",
+                    "string_to_array(:'admin_member_ids',',')",
+                ),
+            ):
+                candidate = Path(directory) / f"{suffix}.sql"
+                source = sql.replace(
+                    "\\bind :'admin_member_ids' :'mutation_request_id' :'recovery_request_id' \\g",
+                    replacement,
+                )
+                if suffix == "old-sql-interpolation":
+                    source = source.replace("string_to_array($1,',')", replacement)
+                write_checked(candidate, source)
+                with (
+                    self.subTest(suffix=suffix),
+                    self.assertRaises(closeout.CloseoutEvidenceError),
+                ):
+                    closeout.verify_inventory_artifact(candidate)
+
+            literal_id_path = Path(directory) / "literal-request-id.sql"
+            write_checked(
+                literal_id_path,
+                sql.replace("request_id=$2", "request_id='fake-request-id'"),
+            )
+            with self.assertRaises(closeout.CloseoutEvidenceError):
+                closeout.verify_inventory_artifact(literal_id_path)
+
+            runbook = closeout.RUNBOOK_PATH.read_text(encoding="utf-8")
+            runbook_path = Path(directory) / "runbook.md"
+            runbook_path.write_text(
+                runbook.replace("statement_logging_safe", "preflight_removed"),
+                encoding="utf-8",
+            )
+            with self.assertRaises(closeout.CloseoutEvidenceError):
+                closeout.verify_execution_runbook(runbook_path)
 
     def test_manifest_accepts_redacted_safe_evidence(self):
         manifest = closeout.build_manifest(DATABASE, RUNTIME)

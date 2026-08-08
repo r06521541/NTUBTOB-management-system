@@ -22,7 +22,7 @@ WITH reliable_line AS (
   UNION ALL SELECT '02_identity','member_count','required',NULL,count(*),NULL FROM ntubtob.members
   UNION ALL SELECT '02_identity','identity_count','required',NULL,count(*),NULL FROM ntubtob.auth_identities
   UNION ALL SELECT '02_identity','reliable_linked_line_count','required',NULL,count(*),NULL FROM reliable_line
-  UNION ALL SELECT '02_identity','active_linked_allowlisted_admin_count','required',NULL,count(DISTINCT a.person_id),NULL FROM ntubtob.auth_identities a JOIN ntubtob.people p ON p.id=a.person_id JOIN ntubtob.members m ON m.person_id=p.id WHERE a.status='linked' AND p.portal_status='active' AND m.id=ANY(string_to_array(:'admin_member_ids',',')::bigint[])
+  UNION ALL SELECT '02_identity','active_linked_allowlisted_admin_count','required',NULL,count(DISTINCT a.person_id),NULL FROM ntubtob.auth_identities a JOIN ntubtob.people p ON p.id=a.person_id JOIN ntubtob.members m ON m.person_id=p.id WHERE a.status='linked' AND p.portal_status='active' AND m.id=ANY(string_to_array($1,',')::bigint[])
   UNION ALL SELECT '02_identity','safe_ignore_candidate_count','classification',NULL,count(*),NULL FROM ntubtob.auth_identities a JOIN ntubtob.line_users l ON l.line_user_id=a.provider_subject WHERE a.provider='line' AND a.status='pending' AND a.person_id IS NULL AND l.member_id IS NULL AND l.ignored IS FALSE
   UNION ALL SELECT '02_identity','safe_unignore_candidate_count','classification',NULL,count(*),NULL FROM ntubtob.auth_identities a JOIN ntubtob.line_users l ON l.line_user_id=a.provider_subject WHERE a.provider='line' AND a.status='pending' AND a.person_id IS NULL AND l.member_id IS NULL AND l.ignored IS TRUE
   UNION ALL SELECT '02_identity','identity_drift_count','required',NULL,count(*),NULL FROM (SELECT provider,provider_subject FROM ntubtob.auth_identities GROUP BY provider,provider_subject HAVING count(*)>1) d
@@ -34,11 +34,11 @@ WITH reliable_line AS (
   UNION ALL SELECT '02_identity','orphan_member_link_count','required',NULL,count(*),NULL FROM ntubtob.line_users l WHERE l.member_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ntubtob.members m WHERE m.id=l.member_id)
   UNION ALL SELECT '03_audit','access_audit_count','required',NULL,count(*),NULL FROM ntubtob.access_audit
   UNION ALL SELECT '03_audit','duplicate_request_id_count','required',NULL,count(*),NULL FROM (SELECT request_id FROM ntubtob.access_audit GROUP BY request_id HAVING count(*)>1) duplicates
-  UNION ALL SELECT '03_audit','mutation_ignored_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=:'mutation_request_id' AND action='identity_ignored'
-  UNION ALL SELECT '03_audit','mutation_other_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=:'mutation_request_id' AND action<>'identity_ignored'
-  UNION ALL SELECT '03_audit','recovery_unignored_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=:'recovery_request_id' AND action='identity_unignored'
-  UNION ALL SELECT '03_audit','recovery_other_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=:'recovery_request_id' AND action<>'identity_unignored'
-  UNION ALL SELECT '03_audit','bounded_same_target_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit mutation JOIN ntubtob.access_audit recovery ON recovery.auth_identity_id=mutation.auth_identity_id WHERE mutation.request_id=:'mutation_request_id' AND mutation.action='identity_ignored' AND recovery.request_id=:'recovery_request_id' AND recovery.action='identity_unignored'
+  UNION ALL SELECT '03_audit','mutation_ignored_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=$2 AND action='identity_ignored'
+  UNION ALL SELECT '03_audit','mutation_other_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=$2 AND action<>'identity_ignored'
+  UNION ALL SELECT '03_audit','recovery_unignored_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=$3 AND action='identity_unignored'
+  UNION ALL SELECT '03_audit','recovery_other_action_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit WHERE request_id=$3 AND action<>'identity_unignored'
+  UNION ALL SELECT '03_audit','bounded_same_target_count','bounded',NULL,count(*),NULL FROM ntubtob.access_audit mutation JOIN ntubtob.access_audit recovery ON recovery.auth_identity_id=mutation.auth_identity_id WHERE mutation.request_id=$2 AND mutation.action='identity_ignored' AND recovery.request_id=$3 AND recovery.action='identity_unignored'
   UNION ALL SELECT '04_qualification','active_team_player_count','required',NULL,count(*),NULL FROM active_team_player
   UNION ALL SELECT '04_qualification','qualification_drift_count','required',NULL,count(*),NULL FROM ntubtob.person_qualifications q WHERE NOT EXISTS (SELECT 1 FROM ntubtob.people p WHERE p.id=q.person_id)
   UNION ALL SELECT '04_qualification','team_player_missing_count','required',NULL,count(DISTINCT l.person_id),NULL FROM reliable_line l WHERE NOT EXISTS (SELECT 1 FROM active_team_player q WHERE q.person_id=l.person_id)
@@ -46,5 +46,6 @@ WITH reliable_line AS (
   UNION ALL SELECT '04_qualification','team_player_revoked_mismatch_count','required',NULL,count(DISTINCT l.person_id),NULL FROM reliable_line l JOIN ntubtob.person_qualifications q ON q.person_id=l.person_id AND q.qualification='team_player' AND q.status='revoked'
   UNION ALL SELECT '05_attendance','game_attendance_reply_count','required',NULL,count(*),NULL FROM ntubtob.game_attendance_replies
 )
-SELECT section,metric,status,boolean_value,integer_value,text_value FROM evidence ORDER BY section,metric;
+SELECT section,metric,status,boolean_value,integer_value,text_value FROM evidence ORDER BY section,metric
+\bind :'admin_member_ids' :'mutation_request_id' :'recovery_request_id' \g
 ROLLBACK;

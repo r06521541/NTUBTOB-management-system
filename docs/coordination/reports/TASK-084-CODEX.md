@@ -41,6 +41,14 @@
   runbook records that `set_ignored()` has no notification caller and reserves
   Stage D notification validation for approved production error/log
   classification only.
+- Stage B security prerequisite replaces the three controlled SQL inputs with
+  PostgreSQL 16 extended-protocol placeholders `$1/$2/$3`. The checksummed
+  artifact has one exact-order psql `\bind … \g` execution boundary, preserves
+  the read-only transaction, local timeouts and rollback, and rejects SQL-side
+  colon interpolation, literal request IDs, or a wrong bind order/count. The
+  runbook requires an isolated Docker PostgreSQL 16 client check, `-X -n`
+  interactive psql flow, preflight before prompts, and a separate provider
+  parameter-payload logging stop condition.
 
 ## Verification
 
@@ -64,6 +72,11 @@
   compileall, Black 24.4.2 formatter API comparison, checksum verification,
   and `git diff --check` passed.
 - Fourth-review targeted rerun: `python -m unittest
+  tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
+  tools.tests.test_deploy_phase_c_transition_controller -v`: 23 passed;
+  compileall, Black 24.4.2 formatter API comparison, checksum verification,
+  and `git diff --check` passed.
+- Stage B prerequisite targeted rerun: `python -m unittest
   tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
   tools.tests.test_deploy_phase_c_transition_controller -v`: 23 passed;
   compileall, Black 24.4.2 formatter API comparison, checksum verification,
