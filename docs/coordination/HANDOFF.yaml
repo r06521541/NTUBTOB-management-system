@@ -1,13 +1,15 @@
 active_task: TASK-083
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: caf77e1226aafa120dd98e62f72373a6511fb3b8
 head_commit: 005a440
 
-updated_by: codex
-updated_at: 2026-08-08T23:48:00+08:00
+updated_by: work
+updated_at: 2026-08-08T23:50:00+08:00
 
 note: >
-  TASK-083 now adds explicit table-driven fail-closed regressions for FAILURE, WORKING and wrong build substitutions; each
-  proves no update-traffic command occurs. Targeted suite passed; no external operation occurred. Return to Work review.
+  TASK-083 accepted after Work review. Scheduled-service submit suppresses streamed logs while retaining JSON output, and resume
+  build describe uses the exact regional location. Explicit FAILURE, WORKING, wrong substitutions and traffic-drift regressions
+  remain fail closed. Work reran 26 tests, compileall and diff check. No external operation occurred; proceed through the single
+  ready PR under standing Git authorization.

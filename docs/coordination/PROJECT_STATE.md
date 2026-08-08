@@ -620,3 +620,10 @@
 - Web Portal 首頁為 HTTP 200；最終三個 revisions 的查詢區間沒有 ERROR log。Web Portal 與 LINE 維持 public，notify 維持 private。
 - 未人工 invoke webhook、Scheduler、attendance、identity 或通知，未操作 production DB、Secret、IAM 或 Scheduler。下一次自然 Scheduler 執行後證據仍待後續觀察。
 - Scheduled-service deployment wrapper 對 regional Cloud Build response／resume 的處理有缺陷；本次以精確 build、candidate、digest、traffic 與 rollback metadata 人工核對後完成 promotion，應另立 repository 修正任務。
+
+### TASK-083 Regional Cloud Build resume 修正（2026-08-08）
+
+- 已建立 repository-only 修正任務，處理 scheduled-service submit streamed logs 汙染 machine-readable output，以及 resume build describe 漏帶 region 的問題。
+- 修正必須保留 exact commit／candidate／digest／rollback／traffic fail-closed boundary；不執行 production build、deploy 或查詢。
+- 實作與 Work 驗收完成：submit 使用 `--suppress-logs` 並保留 JSON，resume describe 使用精確 region；26 項 deployment wrapper tests 通過。
+- `FAILURE`、`WORKING`、錯誤 service／image substitutions 均明確在 traffic mutation 前停止。本任務不需要重新部署既有服務。
