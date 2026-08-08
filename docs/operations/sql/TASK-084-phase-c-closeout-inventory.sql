@@ -18,7 +18,10 @@ WITH reliable_line AS (
   SELECT '00_session','transaction_read_only','required',current_setting('transaction_read_only')='on',NULL::bigint,NULL::text
   UNION ALL SELECT '00_session','statement_logging_safe','required',(SELECT safe FROM logging_boundary),NULL,NULL
   UNION ALL SELECT '01_schema','revision','required',NULL,NULL,(SELECT version_num FROM ntubtob.alembic_version)
+  UNION ALL SELECT '02_identity','people_count','required',NULL,count(*),NULL FROM ntubtob.people
+  UNION ALL SELECT '02_identity','member_count','required',NULL,count(*),NULL FROM ntubtob.members
   UNION ALL SELECT '02_identity','identity_count','required',NULL,count(*),NULL FROM ntubtob.auth_identities
+  UNION ALL SELECT '02_identity','reliable_linked_line_count','required',NULL,count(*),NULL FROM reliable_line
   UNION ALL SELECT '02_identity','active_linked_allowlisted_admin_count','required',NULL,count(DISTINCT a.person_id),NULL FROM ntubtob.auth_identities a JOIN ntubtob.people p ON p.id=a.person_id JOIN ntubtob.members m ON m.person_id=p.id WHERE a.status='linked' AND p.portal_status='active' AND m.id=ANY(string_to_array(:'admin_member_ids',',')::bigint[])
   UNION ALL SELECT '02_identity','safe_ignore_candidate_count','classification',NULL,count(*),NULL FROM ntubtob.auth_identities a JOIN ntubtob.line_users l ON l.line_user_id=a.provider_subject WHERE a.provider='line' AND a.status='pending' AND a.person_id IS NULL AND l.member_id IS NULL AND l.ignored IS FALSE
   UNION ALL SELECT '02_identity','safe_unignore_candidate_count','classification',NULL,count(*),NULL FROM ntubtob.auth_identities a JOIN ntubtob.line_users l ON l.line_user_id=a.provider_subject WHERE a.provider='line' AND a.status='pending' AND a.person_id IS NULL AND l.member_id IS NULL AND l.ignored IS TRUE
@@ -41,6 +44,7 @@ WITH reliable_line AS (
   UNION ALL SELECT '04_qualification','team_player_missing_count','required',NULL,count(DISTINCT l.person_id),NULL FROM reliable_line l WHERE NOT EXISTS (SELECT 1 FROM active_team_player q WHERE q.person_id=l.person_id)
   UNION ALL SELECT '04_qualification','team_player_extra_count','required',NULL,count(*),NULL FROM active_team_player q WHERE NOT EXISTS (SELECT 1 FROM reliable_line l WHERE l.person_id=q.person_id)
   UNION ALL SELECT '04_qualification','team_player_revoked_mismatch_count','required',NULL,count(DISTINCT l.person_id),NULL FROM reliable_line l JOIN ntubtob.person_qualifications q ON q.person_id=l.person_id AND q.qualification='team_player' AND q.status='revoked'
+  UNION ALL SELECT '05_attendance','game_attendance_reply_count','required',NULL,count(*),NULL FROM ntubtob.game_attendance_replies
 )
 SELECT section,metric,status,boolean_value,integer_value,text_value FROM evidence ORDER BY section,metric;
 ROLLBACK;

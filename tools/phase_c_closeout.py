@@ -28,6 +28,10 @@ DATABASE_FIELDS = frozenset(
     {
         "schema_revision",
         "statement_logging_safe",
+        "people_count",
+        "member_count",
+        "identity_count",
+        "reliable_linked_line_count",
         "admin_principal_count",
         "identity_drift_count",
         "member_person_drift_count",
@@ -40,6 +44,8 @@ DATABASE_FIELDS = frozenset(
         "team_player_missing_count",
         "team_player_extra_count",
         "team_player_revoked_mismatch_count",
+        "active_team_player_count",
+        "game_attendance_reply_count",
         "audit_count",
         "duplicate_request_id_count",
         "safe_ignore_candidate_count",
@@ -63,7 +69,10 @@ CSV_METRICS = {
     ("00_session", "transaction_read_only"): ("boolean_value", "true"),
     ("00_session", "statement_logging_safe"): ("boolean_value", "true"),
     ("01_schema", "revision"): ("text_value", "0004_phase_c_identity_lifecycle"),
+    ("02_identity", "people_count"): ("integer_value", None),
+    ("02_identity", "member_count"): ("integer_value", None),
     ("02_identity", "identity_count"): ("integer_value", None),
+    ("02_identity", "reliable_linked_line_count"): ("integer_value", None),
     ("02_identity", "active_linked_allowlisted_admin_count"): ("integer_value", None),
     ("02_identity", "safe_ignore_candidate_count"): ("integer_value", None),
     ("02_identity", "safe_unignore_candidate_count"): ("integer_value", None),
@@ -86,6 +95,7 @@ CSV_METRICS = {
     ("04_qualification", "team_player_missing_count"): ("integer_value", "0"),
     ("04_qualification", "team_player_extra_count"): ("integer_value", "0"),
     ("04_qualification", "team_player_revoked_mismatch_count"): ("integer_value", "0"),
+    ("05_attendance", "game_attendance_reply_count"): ("integer_value", None),
 }
 RUNTIME_FIELDS = frozenset(
     {"revisions", "traffic", "iam", "phase_c", "freeze", "maintenance"}
@@ -182,6 +192,12 @@ def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
         "schema_revision": seen[("01_schema", "revision")],
         "statement_logging_safe": seen[("00_session", "statement_logging_safe")]
         == "true",
+        "people_count": int(seen[("02_identity", "people_count")]),
+        "member_count": int(seen[("02_identity", "member_count")]),
+        "identity_count": int(seen[("02_identity", "identity_count")]),
+        "reliable_linked_line_count": int(
+            seen[("02_identity", "reliable_linked_line_count")]
+        ),
         "admin_principal_count": int(
             seen[("02_identity", "active_linked_allowlisted_admin_count")]
         ),
@@ -213,6 +229,12 @@ def ingest_inventory_rows(rows: list[dict[str, str]]) -> dict:
         ),
         "team_player_revoked_mismatch_count": int(
             seen[("04_qualification", "team_player_revoked_mismatch_count")]
+        ),
+        "active_team_player_count": int(
+            seen[("04_qualification", "active_team_player_count")]
+        ),
+        "game_attendance_reply_count": int(
+            seen[("05_attendance", "game_attendance_reply_count")]
         ),
         "audit_count": int(seen[("03_audit", "access_audit_count")]),
         "duplicate_request_id_count": int(
@@ -255,6 +277,10 @@ def compare_sequence(
         for item in (before, action, retry, recovery, post)
     ]
     databases = [entry["database"] for entry in manifests]
+    if any(
+        manifest["runtime"] != manifests[0]["runtime"] for manifest in manifests[1:]
+    ):
+        raise CloseoutEvidenceError("runtime evidence drifted")
     counts = [entry["audit_count"] for entry in databases]
     if counts != [
         counts[0],
@@ -278,6 +304,10 @@ def compare_sequence(
     ):
         raise CloseoutEvidenceError("bounded action sequence is invalid")
     protected = (
+        "people_count",
+        "member_count",
+        "identity_count",
+        "reliable_linked_line_count",
         "admin_principal_count",
         "identity_drift_count",
         "member_person_drift_count",
@@ -290,10 +320,13 @@ def compare_sequence(
         "team_player_missing_count",
         "team_player_extra_count",
         "team_player_revoked_mismatch_count",
+        "active_team_player_count",
+        "game_attendance_reply_count",
         "duplicate_request_id_count",
     )
     if any(
-        manifests[0]["database"][field] != manifests[-1]["database"][field]
+        database[field] != databases[0][field]
+        for database in databases[1:]
         for field in protected
     ):
         raise CloseoutEvidenceError("protected closeout counts drifted")

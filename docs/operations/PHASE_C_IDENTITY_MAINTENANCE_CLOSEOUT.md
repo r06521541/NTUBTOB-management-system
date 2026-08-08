@@ -76,9 +76,20 @@ aggregate counts and never selects the supplied values.
 5. Pass the five snapshots to the single `compare_sequence` post-check. The two
    Owner-approved request IDs may add exactly the bounded ignore/unignore pair;
    no other audit delta is accepted, while the full TASK-068 non-audit drift
-   rules remain zero throughout. On recovery or
+   rules remain zero throughout. Every snapshot must also have the exact same
+   complete runtime vector (revisions, traffic, IAM, Phase C, freeze and
+   maintenance) and the same aggregate People, Member, identity, reliable LINE,
+   active team-player and game-attendance-reply counts. On recovery or
    audit mismatch, set maintenance=false or return to the locked revision,
    retain Phase C, stop, and escalate to Owner.
+
+`set_ignored()` has no notification caller: it changes the qualified legacy
+LINE row and appends its access audit inside the domain transaction. The
+inventory deliberately does not query the deprecated `line_notify_tokens`
+table or infer a notification count. During Stage D, use only the approved
+production notification error/log classification to confirm that no unexpected
+notification side effect or delivery error accompanied the smoke; do not print
+notification payloads, recipients, tokens or full logs.
 
 The admin pre-check is an aggregate classification only: an active Person with
 a linked identity and a Member ID present in the runtime allowlist. The operator

@@ -11,6 +11,10 @@ from tools import phase_c_closeout as closeout
 DATABASE = {
     "schema_revision": "0004_phase_c_identity_lifecycle",
     "statement_logging_safe": True,
+    "people_count": 3,
+    "member_count": 3,
+    "identity_count": 3,
+    "reliable_linked_line_count": 2,
     "admin_principal_count": 1,
     "identity_drift_count": 0,
     "member_person_drift_count": 0,
@@ -23,6 +27,8 @@ DATABASE = {
     "team_player_missing_count": 0,
     "team_player_extra_count": 0,
     "team_player_revoked_mismatch_count": 0,
+    "active_team_player_count": 2,
+    "game_attendance_reply_count": 4,
     "audit_count": 1,
     "duplicate_request_id_count": 0,
     "safe_ignore_candidate_count": 1,
@@ -65,7 +71,14 @@ class CloseoutEvidenceTests(unittest.TestCase):
                 "text_value",
                 "0004_phase_c_identity_lifecycle",
             ),
+            ("02_identity", "people_count"): ("required", "integer_value", "3"),
+            ("02_identity", "member_count"): ("required", "integer_value", "3"),
             ("02_identity", "identity_count"): ("required", "integer_value", "3"),
+            ("02_identity", "reliable_linked_line_count"): (
+                "required",
+                "integer_value",
+                "2",
+            ),
             ("02_identity", "active_linked_allowlisted_admin_count"): (
                 "required",
                 "integer_value",
@@ -168,6 +181,11 @@ class CloseoutEvidenceTests(unittest.TestCase):
                 "integer_value",
                 "0",
             ),
+            ("05_attendance", "game_attendance_reply_count"): (
+                "required",
+                "integer_value",
+                "4",
+            ),
         }
         values.update(overrides)
         rows = []
@@ -247,6 +265,58 @@ class CloseoutEvidenceTests(unittest.TestCase):
                         before, bad_action, bad_action, recovery, recovery
                     )
 
+    def test_sequence_rejects_runtime_revision_or_aggregate_drift(self):
+        before = {"database": DATABASE, "runtime": RUNTIME}
+        action_database = {
+            **DATABASE,
+            "audit_count": 2,
+            "safe_ignore_candidate_count": 0,
+            "safe_unignore_candidate_count": 1,
+            "mutation_ignored_action_count": 1,
+        }
+        action = {"database": action_database, "runtime": RUNTIME}
+        recovery_database = {
+            **DATABASE,
+            "audit_count": 3,
+            "mutation_ignored_action_count": 1,
+            "recovery_unignored_action_count": 1,
+            "bounded_same_target_count": 1,
+        }
+        recovery = {"database": recovery_database, "runtime": RUNTIME}
+        changed_revision = {
+            **RUNTIME,
+            "revisions": {**RUNTIME["revisions"], "web_portal": "web-portal-00002-xyz"},
+        }
+        cases = [{"database": action_database, "runtime": changed_revision}]
+        cases.extend(
+            {
+                "database": {**action_database, field: value + 1},
+                "runtime": RUNTIME,
+            }
+            for field, value in (
+                ("people_count", DATABASE["people_count"]),
+                ("member_count", DATABASE["member_count"]),
+                ("identity_count", DATABASE["identity_count"]),
+                (
+                    "reliable_linked_line_count",
+                    DATABASE["reliable_linked_line_count"],
+                ),
+                ("active_team_player_count", DATABASE["active_team_player_count"]),
+                (
+                    "game_attendance_reply_count",
+                    DATABASE["game_attendance_reply_count"],
+                ),
+            )
+        )
+        for bad_action in cases:
+            with (
+                self.subTest(action=bad_action),
+                self.assertRaises(closeout.CloseoutEvidenceError),
+            ):
+                closeout.compare_sequence(
+                    before, bad_action, action, recovery, recovery
+                )
+
     def test_complete_sql_row_contract_rejects_every_shape_drift(self):
         rows = self.inventory_rows()
         stream = io.StringIO()
@@ -271,6 +341,9 @@ class CloseoutEvidenceTests(unittest.TestCase):
 
     def test_inventory_artifact_is_checksummed_and_read_only(self):
         closeout.verify_inventory_artifact()
+        sql = closeout.INVENTORY_SQL_PATH.read_text(encoding="utf-8")
+        self.assertIn("ntubtob.game_attendance_replies", sql)
+        self.assertNotIn("line_notify_tokens", sql)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / closeout.INVENTORY_SQL_PATH.name
             path.write_bytes(

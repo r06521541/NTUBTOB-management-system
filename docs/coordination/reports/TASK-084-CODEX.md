@@ -32,6 +32,15 @@
   remain unchanged on retry, and fully recover. The runbook now treats psql
   variable substitution as server-bound statement content and requires a
   no-sensitive-input statement-logging/provider preflight before parameters.
+- Fourth-review correction requires the complete runtime evidence of all five
+  snapshots to equal `before`, including revisions, traffic, IAM, Phase C,
+  freeze and maintenance. It also carries five invariant aggregates through
+  SQL ingestion and every snapshot comparison: People, Members, identities,
+  reliable linked LINE identities, active team players and attendance replies.
+  The inventory explicitly excludes deprecated `line_notify_tokens`; the
+  runbook records that `set_ignored()` has no notification caller and reserves
+  Stage D notification validation for approved production error/log
+  classification only.
 
 ## Verification
 
@@ -52,6 +61,11 @@
 - Third-review targeted rerun: `python -m unittest
   tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
   tools.tests.test_deploy_phase_c_transition_controller -v`: 22 passed;
+  compileall, Black 24.4.2 formatter API comparison, checksum verification,
+  and `git diff --check` passed.
+- Fourth-review targeted rerun: `python -m unittest
+  tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
+  tools.tests.test_deploy_phase_c_transition_controller -v`: 23 passed;
   compileall, Black 24.4.2 formatter API comparison, checksum verification,
   and `git diff --check` passed.
 
