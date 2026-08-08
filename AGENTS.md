@@ -12,7 +12,10 @@
 - 修改前執行 `git status --short`。既有變更均視為使用者所有，不覆寫、不回復、不納入無關修改。
 - 搜尋檔案與文字優先使用 `rg --files` 與 `rg`。
 - 修改檔案使用 patch，保持 diff 小而聚焦，並沿用附近程式碼的風格。
-- 不得自行 commit、push、建立 PR、部署、變更雲端資源或寫入正式資料；除非使用者明確要求。
+- 不得自行 commit、push、建立 PR、部署、變更雲端資源或寫入正式資料；除非使用者明確要求。由 Owner 寫入
+  `COLLABORATION.md`、`DECISIONS.md` 或當前 task 的 standing authorization 也屬有效的明確要求，不因更換
+  session 而失效，無須要求 Owner 在每個新對話重複口頭批准；若較新的 `HANDOFF.yaml`、task 或 Owner 指示撤回
+  或縮小授權，則以較新的限制為準。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。
 - 不以「測試通過」推定線上整合正確。無法驗證的部分必須在交付時明說。
 
