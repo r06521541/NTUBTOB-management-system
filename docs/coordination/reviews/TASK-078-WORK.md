@@ -9,7 +9,8 @@ Work已查驗branch `codex/phase-c-feature-off-deployment`、implementation comm
 `763f113d5b319c3b3b717b2608565aa74d1bc5c7`、修正commit
 `d5e9bb494e2946f481180bc8bba6dce1609fe88d`、實際diff、Codex report與部署工作包。本機artifact、離線
 deployment tooling與Gen2 rollback boundary均可接受。Work已補齊fresh named-field production inventory；目前只剩Owner
-須在私有env檔加入七個explicit `"false"`及確認既有Web Portal Secret resource references，本結論仍不構成部署批准。
+已在私有env檔加入七個explicit `"false"`，且Work以Owner授權的memory-only metadata parse確認既有Web Portal
+Secret resource references；本結論仍不構成部署批准。
 
 ## Blocking finding
 
@@ -49,5 +50,7 @@ identity，並沿用官方Functions v2 PATCH、`updateMask=buildConfig.source`�
   identities、ingress／allUsers IAM classification，以及LINE Gen2 underlying service public boundary。
 - 七個named feature flag keys均確認不存在；依exact-`true` contract目前有效狀態為off，但TASK-078要求新revision明確
   使用`"false"`，因此部署前Owner須親自更新三份私有`.env.yaml`，agent不得讀取或修改其餘Secret-bearing內容。
-- Owner完成後仍須Work做不顯示內容的key-presence validation，並另產生exact deployment批准文字；不能直接執行
-  prepared deployment commands。
+- Owner已確認三份私有`.env.yaml`的explicit `"false"`準備完成；agent未讀取其內容。另以只在記憶體解析的revision
+  metadata取得`web-portal-line-login-channel-secret:1`與`web-portal-session-secret-key:1`兩個Secret reference，未讀取
+  Secret value或輸出其他env value。
+- Work已可產生exact deployment批准文字；批准前不得執行prepared deployment commands。

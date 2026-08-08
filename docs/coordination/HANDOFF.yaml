@@ -11,6 +11,7 @@ updated_at: 2026-08-08T19:28:00+08:00
 note: >
   Work accepted TASK-078 after independent 67-test verification and narrow named-field production inventory. Exact revisions,
   traffic, image digests, runtime identities, ingress/auth, Scheduler metadata and the Gen2 rollback source are recorded. All
-  seven Phase C/freeze/maintenance keys are absent and therefore effectively off, but deployment remains blocked until Owner adds
-  every key as explicit string false in the three private env YAML files and confirms the existing Web Portal Secret references.
-  No build, deploy, mutation, endpoint invoke, Scheduler action, Secret value read, database action or notification is authorized.
+  seven Phase C/freeze/maintenance keys were absent and therefore effectively off; Owner has now prepared every key as explicit
+  string false in the three private env YAML files. Work has also obtained the two approved Web Portal Secret resource:version
+  references without reading values. The exact feature-off deployment authorization remains required. No build, deploy, mutation,
+  endpoint invoke, Scheduler action, Secret value read, database action or notification is authorized.

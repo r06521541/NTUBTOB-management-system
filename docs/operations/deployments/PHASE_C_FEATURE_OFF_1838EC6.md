@@ -131,10 +131,14 @@ invalid until Owner fills every field from the fresh read-only inventory.
 | `LINE_WEBHOOK_ROLLBACK_SOURCE_OBJECT` | Current function's approved immutable GCS source object |
 | `LINE_WEBHOOK_ROLLBACK_SOURCE_GENERATION` | Current function's approved immutable GCS source generation |
 | `NOTIFY_ROLLBACK_REVISION` | Ready, 100%-traffic current revision from the inventory |
-| `WEB_PORTAL_LINE_LOGIN_SECRET_REF` | Existing approved resource:version reference; never the value |
-| `WEB_PORTAL_SESSION_SECRET_REF` | Existing approved resource:version reference; never the value |
+| `WEB_PORTAL_LINE_LOGIN_SECRET_REF` | `web-portal-line-login-channel-secret:1` (reference only; value not read) |
+| `WEB_PORTAL_SESSION_SECRET_REF` | `web-portal-session-secret-key:1` (reference only; value not read) |
 | Current traffic / image digest / runtime identity | Fresh per-target values, recorded without secrets |
 | Scheduler metadata | Existing relevant job name and target, recorded without invocation |
+
+Owner confirmed the three private env YAML files now contain every required
+Phase C/freeze/maintenance key with explicit string value `"false"`. Their
+contents were not read or copied by an agent.
 
 ## Commands prepared but not executed
 
