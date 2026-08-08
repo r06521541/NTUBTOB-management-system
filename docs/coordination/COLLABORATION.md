@@ -2,7 +2,7 @@
 
 
 
-版本：1.3
+版本：1.4
 
 制定者：專案負責人
 
@@ -778,11 +778,12 @@ Work 與 Codex 原則上採取輪流接手，不得同時修改相同檔案。
 
 
 
-\## 十四、Draft PR 一次授權流程
+\## 十四、單次最終 PR 授權流程
 
 
 
-為減少 Owner 在 commit、push、建立 PR、查看 CI 與補驗收證據之間反覆交接，本專案採用以下標準流程。
+為減少 Owner 反覆交接及同一內容重複觸發 hosted CI，本專案預設在實作與 Work 本機驗收內容都完成後，才建立
+一次 ready PR。Draft PR 是需要 early hosted evidence 時的例外，不是每個 task 的固定階段。
 
 
 
@@ -800,13 +801,13 @@ Owner 可在批准任務時，一次授權該任務的「PR 工作包」。授�
 
 \* push 該任務 branch
 
-\* 建立或更新 Draft PR
+\* 在 Work 完成本機驗收後建立或更新 ready PR
 
 \* 唯讀監看與查驗 CI、PR checks 及 job logs
 
 \* 依查驗結果更新 Codex report、Work review、`PROJECT_STATE.md` 與 `HANDOFF.yaml`
 
-\* 將上述驗收文件 commit 並 push 到同一個 Draft PR
+\* 將上述驗收文件 commit 並 push 到同一個 task branch
 
 
 
@@ -820,31 +821,47 @@ Owner 的授權必須記錄在任務文件或 `DECISIONS.md`。沒有明確記�
 
 1\. Work 完成任務規格，Owner 同時批准任務與 PR 工作包。
 
-2\. Codex 依任務規格實作、測試、commit、push，並建立或更新 Draft PR。
+2\. Codex 依任務規格實作、測試、commit、push，完成 report 與 handoff；預設先不建立 PR。
 
 3\. Codex 將 report 與 handoff 更新為 `ready_for_review / work`。
 
-4\. Work 查驗實際 diff、commit、PR、CI、Python/runtime 版本與測試 log。
+4\. Work 直接查驗共享 task branch 的實際 diff、commit與Codex本機測試證據，並依風險執行獨立驗證。
 
-5\. 若需修正，Work 交回 `changes_requested / codex`，Codex 在同一個 Draft PR 補正。
+5\. 若需修正，Work交回`changes_requested / codex`，Codex在同一個task branch補正；仍不需為每輪補正建立PR。
 
-6\. 若通過，Work 將 review 與證據更新 commit/push 到同一個 Draft PR，等待最終 CI 成功。
+6\. 若本機驗收通過，Work將review、`PROJECT_STATE.md`與handoff合併為一個驗收commit並push，然後建立一次
+ready PR，觸發該branch完整內容的最終hosted CI。
 
-7\. Work 更新 handoff 為 `awaiting_owner_approval / owner`，Owner 最後決定是否 merge。
+7\. Required CI成功且沒有blocking finding後，Work依一般Git長期授權squash merge；若task或Owner另有限制，
+則停在`awaiting_owner_approval / owner`。
 
 8\. merge 後由 Work 做唯讀確認；若沒有新事實需要補寫，不再建立純 closeout PR。
 
+\### 3. Early Draft PR 例外
+
+只有下列情況之一明確成立時，Codex才應在Work驗收前建立Draft PR：
+
+\* 問題只能在GitHub hosted runner重現
+
+\* workflow、service container、Docker或平台差異本身就是任務驗收範圍
+
+\* task文件明確要求先取得early hosted evidence
+
+\* Work或Owner在當次任務中明確要求
+
+使用此例外時，必須接受後續實質修正或Work review commit可能再次觸發CI；不得只為一般進度展示提前開PR。
 
 
-\### 3. 永遠不包含於 PR 工作包的授權
+
+\### 4. 永遠不包含於 PR 工作包的授權
 
 
 
-即使 Owner 已批准 PR 工作包，仍不得自行執行：
+PR 工作包本身不包含下列授權；其中 merge 只有在第十七節的一般 Git 長期授權或 Owner 當次明確授權成立時才能執行：
 
 
 
-\* merge PR 或直接寫入受保護/default branch
+\* 在沒有一般 Git 長期授權或當次明確授權時 merge PR，或直接寫入受保護/default branch
 
 \* production deployment、release 或 package publish
 
@@ -1055,10 +1072,20 @@ Scheduler／cloud resource變更、真實LINE／Discord通知或重大架構／�
 1. 本節及當前 task／decision 中記錄的 standing authorization，就是 Owner 的明確授權；它以 repository 作為
    跨 session 的持久交接，不要求 Owner 在每個 Codex 對話再次輸入相同批准。只有 Owner 後續撤回、task 明確
    排除，或 `HANDOFF.yaml` 顯示尚未授權時才停止。
-2. Codex 原則上負責完成實作、測試、commit、push，並建立或更新同一 task branch 的 Draft PR；完成後更新
-   report 與 handoff 為 `ready_for_review / work`。不得僅因「目前對話沒有重複授權文字」而停在 Draft PR 前。
-3. Work 負責查驗實際 diff、commit、hosted CI 與 PR；有 blocking finding 時交回 Codex。驗收通過後由 Work 將
-   PR 標記 ready，並在 required CI 成功後依長期授權 squash merge。若 Codex 無法建立 PR，Work 可代為建立，
-   但這是 fallback，不是固定要求。
+2. Codex原則上負責完成實作、測試、commit、push、report及`ready_for_review / work` handoff；預設不在此階段
+   建立PR。不得僅因「目前對話沒有重複授權文字」而停止commit或push。
+3. Work負責查驗實際diff與測試，加入最終review／handoff後建立ready PR，查驗唯一一次最終hosted CI，並在成功
+   後依長期授權squash merge。只有第十四節的early hosted evidence例外，才由Codex先建立Draft PR。
 4. Standing authorization 只涵蓋 task 範圍內的一般 Git／GitHub 流程。Production database、deployment、Secret、
    IAM、Scheduler、通知及其他本節已排除的外部副作用，仍不得因 PR 權限而推定已獲批准。
+
+### CI與驗收成本控制
+
+1. Codex負責受影響範圍的主要完整本機suite；Work以diff inspection、targeted tests與高價值反例為預設。只有
+   schema、migration、authentication、authorization、安全邊界、deployment tooling等高風險任務，Work才重跑
+   完整suite或多runtime matrix。
+2. Hosted CI只以final branch內容作為required merge evidence。若CI成功且未再改branch，不為補run ID、merge時間
+   或純狀態文字建立新commit。
+3. 純task／review／handoff鎖定應併入前一個驗收commit或下一個實質規劃commit，不另開會觸發完整suite的closeout PR。
+4. CI workflow應逐步採用PR concurrency與`cancel-in-progress`，並在branch protection允許下使用change detection：
+   純文件變更走快速required gate；只有受影響程式、migration、model、test或workflow變更才跑昂貴matrix。
