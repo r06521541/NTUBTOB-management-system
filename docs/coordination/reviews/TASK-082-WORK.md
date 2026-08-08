@@ -29,3 +29,13 @@ LINE webhook production deployment prerequisite已完成，沒有blocking findin
 ## 下一步
 
 Work建立ready PR；CI成功後依standing Git authorization squash merge。Merge後重新鎖定TASK-082 reviewed source commit，再提出B1／B2 exact production work package給Owner批准。
+
+## Production activation 驗收
+
+`accepted`
+
+Owner 已批准精確部署工作包，並以無副作用 final gates 取代缺乏實際流量時價值有限的 15／30 分鐘空等。B1 以精確 merged source `ae6a345879f864e9826a17e4a725f6177c8eb6dc` 完成三服務 feature-off deployment；B2 完成 controller 核准的九步狀態轉換。
+
+最終 serving revisions 為 `web-portal-00046-g8v`、`line-webhook-handler-00013-yab`、`notify-cronjob-service-00017-qms`，均 Ready 且承接精確 100% traffic。三服務 Phase C 均為 true、freeze 均為 false，Web Portal maintenance 為 false，首頁 HTTP 200；查詢區間內三個最終 revision 均無 ERROR log。Controller 回報 `phase_c_unfrozen`、`complete`、無下一步。
+
+未人工 invoke webhook／Scheduler／attendance／identity／notification，未操作 production DB、Secret、IAM 或 Scheduler，亦未啟用 identity maintenance。下一次自然 Scheduler 證據與 regional scheduled-service deployment resume 缺陷列為後續工作。

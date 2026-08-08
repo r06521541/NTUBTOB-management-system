@@ -1,13 +1,16 @@
 active_task: TASK-082
-status: in_progress
-next_actor: work
+status: completed
+next_actor: owner
 
-base_commit: 0cfbf0f06e1c541b58251f5ded46df18c7d2bdd0
-head_commit: 48faa94
+base_commit: ae6a345879f864e9826a17e4a725f6177c8eb6dc
+head_commit: d6c2757
 
 updated_by: work
-updated_at: 2026-08-08T23:48:00+08:00
+updated_at: 2026-08-08T23:00:00+08:00
 
 note: >
-  TASK-082 LINE deployment prerequisite passed Work review with 23 webhook tests, compileall and diff check. Work is preparing
-  the single ready PR and hosted CI. Production deployment, flags and all external mutations remain unapproved.
+  Owner-approved TASK-082 B1 and B2 production rollout completed from exact source ae6a345. Web Portal, LINE webhook and notify
+  cron are each Ready on exact 100% traffic with Phase C true and freeze false; identity maintenance remains false. Final
+  controller state is phase_c_unfrozen/complete, homepage is HTTP 200 and the queried final-revision ERROR logs were empty.
+  No artificial invoke, database operation, Secret/IAM/Scheduler mutation or notification was performed. Natural Scheduler
+  evidence and the regional scheduled-deploy resume bug remain follow-up work.
