@@ -580,3 +580,19 @@
 - 後續TASK-077若要部署或啟用，必須另取Owner對exact commit／revisions、runtime flags、可驗證attendance／notification
   freeze、observation、production smoke及rollback traffic mutation的明確批准；無freeze則activation blocked。
 - PR #77 final hosted CI全部通過，已squash merge為`43eb67c`；未部署且所有Phase C runtime flags仍關閉。
+
+### TASK-077 Phase C跨服務freeze gate（2026-08-08）
+
+- 三服務共用exact freeze state、零副作用freeze boundaries與離線transition controller已完成。
+- Work首次驗收發現shared runtime的CI consumer分類漏測；修正後runtime變更會跑Web Portal、Webhook、notify與
+  deployment tools，但不因本身觸發PostgreSQL matrix。
+- PR #78 hosted final gate全數通過，已squash merge為
+  `1838ec6fc77a74e23700f9cd29b8ea910c0a29fb`。
+- 尚未部署；production Phase C、freeze與identity maintenance flags仍預期維持off，實際值須由TASK-078唯讀盤點確認。
+
+### TASK-078 Phase C feature-off deployment準備（2026-08-08）
+
+- 先建立三服務exact artifact、production current／rollback revision、非機密flag vector與停止條件的部署工作包。
+- 本階段僅允許repository／local工作及production唯讀`describe`／`list`；不build、deploy、切traffic、改env、invoke、
+  操作Scheduler／Secret／IAM／DB或發送通知。
+- Work查驗工作包後，須由Owner另行批准exact commit、targets與rollback範圍，才可執行production部署。

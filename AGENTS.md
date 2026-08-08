@@ -80,7 +80,7 @@ python -m unittest discover -s apps/game_broadcast_service/tests -v
 
 在 Unix-like 環境可使用等價的 `make test-game-broadcast-service`。Makefiles 使用 `python3`、`cp`、`rm`、`grep` 等指令；Windows PowerShell 環境若沒有相容工具，直接執行上面的 Python 測試命令，不要為了跑測試而修改 Makefile。
 
-在 bundled Windows Python 下，若多檔或連續執行 Black CLI 時出現持續高 CPU 停滯，應終止該程序，改用逐檔 Black check 或同版本 formatter API 比對內容，並由 hosted CI 補足最終證據；不得因此跳過格式檢查或修改 Makefile。
+在 bundled Windows Python 環境下，不執行 Black CLI。直接使用專案指定版本的 Black formatter API，僅對本次變更的 Python 檔案進行格式化或內容比對；最終以 hosted CI 的 Black check 為準。不得為此調查本機 CLI、修改 Makefile，或格式化無關檔案。交付報告須明確區分 API 已寫回格式、API 比對 unchanged，或 hosted CI check 通過，不得只籠統宣稱「Black 通過」。
 
 每次交付至少：
 
