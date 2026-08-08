@@ -1,16 +1,16 @@
 active_task: TASK-078
-status: awaiting_owner_approval
-next_actor: owner
+status: ready_for_codex
+next_actor: codex
 
 base_commit: 1838ec6
 head_commit: d5e9bb494e2946f481180bc8bba6dce1609fe88d
 
 updated_by: work
-updated_at: 2026-08-08T18:48:00+08:00
+updated_at: 2026-08-08T18:55:00+08:00
 
 note: >
-  Work accepted the repository/local TASK-078 package after the Gen2 immutable-source rollback correction and independent
-  67-test verification. Deployment approval is not yet possible: fresh non-secret production inventory remains missing because
-  this environment has no gcloud executable. Owner must choose an authenticated Cloud SDK/Cloud Shell inventory path and return
-  the exact redacted results before Work can lock revisions, flags, Scheduler metadata and rollback targets. No production
-  mutation, endpoint invoke, Scheduler, Secret/IAM/database action or notification is authorized.
+  Work confirmed Google Cloud SDK 481.0.0 exists at the standard LOCALAPPDATA path; the earlier absence was a sandbox execution
+  boundary. Owner instructed TASK-078 to continue. Codex may use the exact full gcloud.cmd path with command-specific escalation
+  for the already-authorized non-secret auth/project guards and production describe/list inventory only, then update the package
+  and return to Work. No build, deploy, traffic/env mutation, endpoint invoke, Scheduler mutation, Secret/IAM/database action or
+  notification is authorized.

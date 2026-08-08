@@ -82,6 +82,8 @@ python -m unittest discover -s apps/game_broadcast_service/tests -v
 
 在 bundled Windows Python 環境下，不執行 Black CLI。直接使用專案指定版本的 Black formatter API，僅對本次變更的 Python 檔案進行格式化或內容比對；最終以 hosted CI 的 Black check 為準。不得為此調查本機 CLI、修改 Makefile，或格式化無關檔案。交付報告須明確區分 API 已寫回格式、API 比對 unchanged，或 hosted CI check 通過，不得只籠統宣稱「Black 通過」。
 
+在 Windows 判定 Google Cloud CLI 不存在前，除 `Get-Command gcloud`／`where.exe gcloud` 外，必須檢查標準使用者安裝路徑 `%LOCALAPPDATA%\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd`。若檔案存在但 sandbox 回報 `Access is denied`，這代表執行權限邊界，不得據此宣稱未安裝；應在任務既有授權範圍內，以該完整路徑申請精確命令的 sandbox escalation。只讀 `version`、`auth list`、`config get-value`或明定的`describe`／`list`不因此取得任何production mutation授權。
+
 每次交付至少：
 
 ```sh
