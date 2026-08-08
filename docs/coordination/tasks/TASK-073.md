@@ -11,6 +11,7 @@
 - Migration SQL SHA-256：`67ea4490a1e3459221f440ae280e95f3be5a868ad2c37c78ae3519073e7d1f91`
 - Post-check SQL SHA-256：`6de46c7c46c5ea1dd75e0172a1369368c3d3d4ec7f1ddf8077afe4bcec613166`
 - Runbook：`docs/operations/data/PORTAL_DATA_PHASE_C_PRODUCTION_READINESS.md`
+- PostgreSQL 15.8／16.4 compatibility baseline：PR #71，GitHub Actions run `31234608763`（兩個jobs皆成功）
 
 任何 commit 或 checksum 改變都使本任務批准失效，必須重新驗收與批准。TASK-074已合併並鎖定上述exact
 merged commit；仍須取得新的30分鐘fresh inventory，先前CSV已失效。
