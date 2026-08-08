@@ -1,15 +1,13 @@
 active_task: TASK-084
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
 head_commit: d4657f031d71328a02e5bec57c996206aeb0a8ed
 
-updated_by: codex
-updated_at: 2026-08-09T04:30:00+08:00
+updated_by: work
+updated_at: 2026-08-09T04:40:00+08:00
 
 note: >
-  Logging-preflight correction is ready for Work review: controlled SQL, runbook and verifier now share the fail-closed Boolean
-  contract for log_statement none/ddl/mod, disabled duration and sampling logging, pgAudit none and zero on-error parameter
-  logging. Checksum and offline safe/unsafe contract coverage are updated. No sensitive prompts, production inventory or external
-  operation ran.
+  Logging-preflight correction accepted locally: 26 targeted tests, compileall, artifact/runbook verification and diff check pass.
+  Work is creating the single ready PR for hosted CI. No sensitive prompts, production inventory or external operation ran.
