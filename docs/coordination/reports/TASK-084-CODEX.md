@@ -13,6 +13,10 @@
   idempotent retry, forward recovery and post-check runbook. Candidate IDs and
   request IDs remain outside the repository and require the later exact Owner
   package.
+- Work-review correction adds strict six-column CSV ingestion, bounded
+  before/action/retry/recovery/post audit comparison, and exact aggregate
+  `set_ignored` candidate classification. The runbook now fixes the active
+  linked allowlisted-admin classification and same-POST retry boundary.
 
 ## Verification
 

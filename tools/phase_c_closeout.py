@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import hashlib
 import re
+import csv
 from pathlib import Path
 from typing import Mapping
 
@@ -34,6 +35,16 @@ DATABASE_FIELDS = frozenset(
         "safe_candidate_count",
     }
 )
+CSV_FIELDS = ("section", "metric", "status", "boolean_value", "integer_value", "text_value")
+CSV_METRICS = {
+    ("00_session", "transaction_read_only"): ("boolean_value", "true"),
+    ("01_schema", "revision"): ("text_value", "0004_phase_c_identity_lifecycle"),
+    ("02_identity", "safe_ignore_candidate_count"): ("integer_value", None),
+    ("02_identity", "safe_unignore_candidate_count"): ("integer_value", None),
+    ("03_audit", "access_audit_count"): ("integer_value", None),
+    ("03_audit", "duplicate_request_id_count"): ("integer_value", "0"),
+    ("04_qualification", "active_team_player_count"): ("integer_value", None),
+}
 RUNTIME_FIELDS = frozenset(
     {"revisions", "traffic", "iam", "phase_c", "freeze", "maintenance"}
 )
@@ -72,6 +83,45 @@ def _integer(value: object, label: str, *, minimum: int = 0) -> int:
     if type(value) is not int or value < minimum:
         raise CloseoutEvidenceError(f"{label} is invalid")
     return value
+
+
+def ingest_inventory_rows(rows: list[dict[str, str]], *, admin_principal_count: int, identity_drift_count: int, member_person_drift_count: int, qualification_drift_count: int) -> dict:
+    """Strictly ingest the fixed sanitized SQL columns; external aggregates remain explicit."""
+    seen = {}
+    for row in rows:
+        if tuple(row) != CSV_FIELDS:
+            raise CloseoutEvidenceError("inventory CSV columns are invalid")
+        key = (row["section"], row["metric"])
+        field, expected = CSV_METRICS.get(key, (None, None))
+        values = [name for name in CSV_FIELDS[3:] if row[name] not in ("", "null")]
+        if key in seen or field is None or values != [field] or (expected is not None and row[field] != expected):
+            raise CloseoutEvidenceError("inventory CSV metric is invalid")
+        if field == "integer_value" and not re.fullmatch(r"\d+", row[field]):
+            raise CloseoutEvidenceError("inventory CSV count is invalid")
+        seen[key] = row[field]
+    if set(seen) != set(CSV_METRICS):
+        raise CloseoutEvidenceError("inventory CSV is incomplete")
+    return {
+        "schema_revision": seen[("01_schema", "revision")],
+        "admin_principal_count": admin_principal_count,
+        "identity_drift_count": identity_drift_count,
+        "member_person_drift_count": member_person_drift_count,
+        "qualification_drift_count": qualification_drift_count,
+        "audit_count": int(seen[("03_audit", "access_audit_count")]),
+        "duplicate_request_id_count": int(seen[("03_audit", "duplicate_request_id_count")]),
+        "safe_candidate_count": int(seen[("02_identity", "safe_ignore_candidate_count")]),
+    }
+
+
+def compare_sequence(before: Mapping[str, object], retry: Mapping[str, object], recovery: Mapping[str, object], post: Mapping[str, object]) -> None:
+    """Require one action audit, no retry audit, one recovery audit and restored protected counts."""
+    manifests = [build_manifest(item["database"], item["runtime"]) for item in (before, retry, recovery, post)]
+    counts = [entry["database"]["audit_count"] for entry in manifests]
+    if counts[1] != counts[0] + 1 or counts[2] != counts[1] or counts[3] != counts[2] + 1:
+        raise CloseoutEvidenceError("audit sequence is invalid")
+    protected = ("admin_principal_count", "identity_drift_count", "member_person_drift_count", "qualification_drift_count", "duplicate_request_id_count")
+    if any(manifests[0]["database"][field] != manifests[-1]["database"][field] for field in protected):
+        raise CloseoutEvidenceError("protected closeout counts drifted")
 
 
 def _runtime(evidence: Mapping[str, object]) -> dict:

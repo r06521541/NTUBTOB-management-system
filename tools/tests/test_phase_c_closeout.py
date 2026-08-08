@@ -31,6 +31,31 @@ RUNTIME = {
 
 
 class CloseoutEvidenceTests(unittest.TestCase):
+    def test_csv_ingestion_and_bounded_audit_sequence_fail_closed(self):
+        rows = []
+        values = {
+            ("00_session", "transaction_read_only"): ("boolean_value", "true"),
+            ("01_schema", "revision"): ("text_value", "0004_phase_c_identity_lifecycle"),
+            ("02_identity", "safe_ignore_candidate_count"): ("integer_value", "1"),
+            ("02_identity", "safe_unignore_candidate_count"): ("integer_value", "0"),
+            ("03_audit", "access_audit_count"): ("integer_value", "10"),
+            ("03_audit", "duplicate_request_id_count"): ("integer_value", "0"),
+            ("04_qualification", "active_team_player_count"): ("integer_value", "2"),
+        }
+        for (section, metric), (field, value) in values.items():
+            row = dict.fromkeys(closeout.CSV_FIELDS, "")
+            row.update(section=section, metric=metric, status="required")
+            row[field] = value
+            rows.append(row)
+        database = closeout.ingest_inventory_rows(rows, admin_principal_count=1, identity_drift_count=0, member_person_drift_count=0, qualification_drift_count=0)
+        before = {"database": database, "runtime": RUNTIME}
+        retry = {"database": {**database, "audit_count": 11}, "runtime": RUNTIME}
+        recovery = {"database": {**database, "audit_count": 11}, "runtime": RUNTIME}
+        post = {"database": {**database, "audit_count": 12}, "runtime": RUNTIME}
+        closeout.compare_sequence(before, retry, recovery, post)
+        with self.assertRaises(closeout.CloseoutEvidenceError):
+            closeout.compare_sequence(before, before, recovery, post)
+
     def test_inventory_artifact_is_checksummed_and_read_only(self):
         closeout.verify_inventory_artifact()
         with tempfile.TemporaryDirectory() as directory:

@@ -41,3 +41,12 @@ aggregate metadata to `tools.phase_c_closeout.build_manifest`.
    and the original business-state classification restored. On recovery or
    audit mismatch, set maintenance=false or return to the locked revision,
    retain Phase C, stop, and escalate to Owner.
+
+The admin pre-check is an aggregate classification only: an active Person with
+a linked identity and a Member ID present in the runtime allowlist. The operator
+must confirm its count is at least one without printing the allowlist or any
+principal identifier. The action operator obtains CSRF, target and opaque
+request ID only from the authenticated browser/session at execution time; it
+replays the exact same POST body once before following its redirect, then uses
+a distinct opaque request ID only for recovery. No special endpoint, CSRF bypass
+or shell argument may be used for retry.
