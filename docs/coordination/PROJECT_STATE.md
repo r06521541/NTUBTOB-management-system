@@ -598,5 +598,14 @@
 - Resume flow 對未知／mixed traffic fail closed；中斷或 post-promotion verification failure 會精確 rollback，
   already-promoted 狀態不重複 mutation，rollback failure 會保留 combined failure。
 - Redacted release manifest 與 Stage B template 已建立；本機 46 項 targeted tests、compileall、diff check 通過。
-- 尚待唯一 ready PR 的 hosted Python 3.10 final gate；未部署、未啟用 Phase C flags、未操作 production／Secret／IAM／
-  Scheduler／DB／通知。Stage B 仍須 Owner 對 exact production work package 另行批准。
+- PR #80 hosted Python 3.10 final gate 全部通過，已 squash merge為`0e79763115ff5549a8fdf045eb48f48012ea5469`。
+  尚未部署、未啟用 Phase C flags、未操作 production／Secret／IAM／Scheduler／DB／通知。
+
+### TASK-082 Phase C production activation（2026-08-08）
+
+- 已建立 Stage B 任務，先要求去機密的 production唯讀 inventory，再鎖定三服務 feature-off deployment、freeze、
+  activation、observation與條件式 rollback的 exact work package。
+- 目前等待 Owner只批准唯讀 inventory；尚未批准build／deploy、flag／traffic／source mutation、Scheduler、IAM、Secret、
+  DB操作或通知。
+- 唯讀inventory發現LINE webhook deploy target的`--set-secrets`會漏掉production既有version 2 LINE bindings；
+  repository prerequisite已補齊完整四項Secret contract及離線tests，Work本機驗收23項Webhook tests通過，待hosted CI／merge。

@@ -1,13 +1,13 @@
-active_task: TASK-081
+active_task: TASK-082
 status: in_progress
 next_actor: work
 
-base_commit: d9213acea1708f051fc457753b3b941dbad305f6
-head_commit: 406c991
+base_commit: 0cfbf0f06e1c541b58251f5ded46df18c7d2bdd0
+head_commit: 48faa94
 
 updated_by: work
-updated_at: 2026-08-08T22:42:00+08:00
+updated_at: 2026-08-08T23:48:00+08:00
 
 note: >
-  TASK-081 A passed Work review with 46 targeted tests, compileall and diff check. Work is preparing the single ready PR and
-  hosted Python 3.10 final gate. Production activation remains outside this approval and requires a separate exact Owner grant.
+  TASK-082 LINE deployment prerequisite passed Work review with 23 webhook tests, compileall and diff check. Work is preparing
+  the single ready PR and hosted CI. Production deployment, flags and all external mutations remain unapproved.
