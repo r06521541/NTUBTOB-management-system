@@ -49,6 +49,11 @@
 
 ## 1. 目前摘要
 
+- TASK-079 已交棒 Codex：修正 game broadcast 與 notify cron 的 active Cloud Build contract，避免未來 source
+  deploy 把 LINE access token 從已輪替的 Secret version 2 重新釘回 version 1。本輪只做 repository／offline
+  contract 修正；不部署、不讀取 Secret、不發送通知。notify 若要取得 TASK-077 Phase C feature-off source，仍須
+  另立精確 deployment task 並取得 Owner 批准。
+
 - TASK-056 已完成 production `ntubtob` schema custom-format logical backup：archive 保留於 Owner 指定的
   repository 外加密位置；PR #60 Python 3.10 CI 通過並 merge 為 `d8ec8b1`。Owner 另行批准後，Docker
   verifier 已建立 manifest/checksum 並獨立驗證成功（56,903 bytes、client major 16、schema/listing verified）。
