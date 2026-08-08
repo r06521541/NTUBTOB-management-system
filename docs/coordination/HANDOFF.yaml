@@ -3,12 +3,11 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: d4d0152
+head_commit: f9558be
 
 updated_by: codex
-updated_at: 2026-08-08T23:58:00+08:00
+updated_at: 2026-08-08T23:28:58+08:00
 
 note: >
-  TASK-084 Stage A adds repository/local closeout verifier, checksummed sanitized read-only inventory contract and bounded
-  maintenance/recovery runbook with offline tests. No production inventory, maintenance flag, traffic or identity mutation occurred.
-  Return to Work review.
+  TASK-084 Stage A now adds strict CSV ingestion, bounded audit-sequence comparison, exact set_ignored aggregate classification,
+  and an allowlisted-admin/same-POST retry operator boundary. Local tests passed; no production access or mutation occurred.
