@@ -607,3 +607,5 @@
   activation、observation與條件式 rollback的 exact work package。
 - 目前等待 Owner只批准唯讀 inventory；尚未批准build／deploy、flag／traffic／source mutation、Scheduler、IAM、Secret、
   DB操作或通知。
+- 唯讀inventory發現LINE webhook deploy target的`--set-secrets`會漏掉production既有version 2 LINE bindings；
+  repository prerequisite已補齊完整四項Secret contract及離線tests，Work本機驗收23項Webhook tests通過，待hosted CI／merge。
