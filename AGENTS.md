@@ -19,6 +19,12 @@
 - 依 `COLLABORATION.md` 的預設交付流程，Codex 完成實作、測試、commit、push、report 與 handoff 後先不建立 PR；
   Work 驗收共享 task branch 後建立一次 ready PR。只有任務明定需要 hosted runner／平台證據等例外時，才提前建立
   Draft PR。
+- 一個可獨立交付單位原則上只建立一個 PR。純 coordination／task／report／review／handoff／closeout 文件不單獨
+  開 PR，應併入同一實質任務的 final branch，或延至下一個實質規劃 commit；只有文件本身是必須立即生效的安全、
+  授權或操作邊界時才例外。不得直接寫入 default branch。
+- Hosted CI 應依實際變更範圍選擇最小充分測試。只有 database schema／migration／受控 SQL／model／workflow 等
+  相關變更才需要 PostgreSQL 多版本 matrix；一般純文件變更只需快速文件 gate。CI 尚未實作 change detection 前，
+  不得假稱已跳過完整 suite，也不得為純狀態更新額外建立 PR。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。
 - 不以「測試通過」推定線上整合正確。無法驗證的部分必須在交付時明說。
 

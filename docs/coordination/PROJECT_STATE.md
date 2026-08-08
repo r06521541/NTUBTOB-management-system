@@ -1,5 +1,38 @@
 # 專案狀態
 
+## 現行協作與 CI 規則
+
+- Owner已批准穩定收斂規則：一個可獨立交付單位原則上只建立一個ready PR；純task／report／review／handoff／
+  closeout文件不各自開PR，而是併入同一final branch或下一個實質規劃commit。只有文件本身是必須立即生效的
+  安全、授權或操作邊界時才例外。
+- Hosted CI應依變更範圍分級：一般純文件走快速gate；單一服務跑受影響suite；database schema／migration／
+  model／受控SQL與verifier才跑PostgreSQL 15／16 matrix。現行workflow尚未實作change detection，故這是下一個
+  CI實作目標，不代表目前可假稱完整checks已被替代。
+- Production批准鎖定material artifacts與reviewed source evidence；純coordination文件或merge metadata不再觸發
+  self-referential relock PR。material SQL／checksum／validator／runbook boundary改變仍須fail closed並重新批准。
+- 下方關於Draft PR、逐次Owner merge與個別歷史task的敘述是當時事實，不覆蓋目前`COLLABORATION.md`版本1.5
+  及較新的standing authorization。
+
+### 舊task相容性盤點（2026-08-08）
+
+- 目前唯一active task為TASK-073；其「任何commit都使批准失效」已修正為material-change gate，reviewed source
+  commit與三份SQL checksums維持不變，純coordination文件不再觸發relock。
+- TASK-001～074中出現的Draft PR、不得push／PR、merge另批、完整CI或exact merge commit等文字，多數是已完成
+  任務的當次授權與執行證據；保留原文，不追溯套用新規則，也不視為目前全域要求。
+- TASK-071／072／074與其report／review中要求TASK-073在合併後relock的敘述，屬當時安全修正歷程；對未來
+  操作的規範性已由TASK-073現行文字、DEC-073與`COLLABORATION.md`版本1.5取代。
+- 任何舊task若日後重開，不得直接沿用其歷史PR／CI／授權條款；Work須先依新版優先序分類為歷史事實、仍有效
+  安全邊界或需修訂的流程限制，再更新active task與`HANDOFF.yaml`。
+
+### TASK-075 change-aware CI（2026-08-08）
+
+- Owner已同意依新版規範建立TASK-075；目前交棒Codex，目標是一般純文件走快速gate、服務變更跑受影響suite、
+  database／受控artifact才跑PostgreSQL 15／16 matrix，並提供穩定final aggregate gate。
+- 本任務承接7份Owner已審閱但未提交的policy／TASK-073文件；不得拆成另一個純文件PR。
+- Workflow自身變更使TASK-075唯一final PR必須跑一次完整hosted baseline；完成後日常docs-only PR才不再啟動DB matrix。
+- TASK-073在production inventory前安全暫緩；reviewed source commit與三份SQL checksums維持有效，本任務不授權
+  production SQL、migration或任何cloud／GitHub settings mutation。
+
 更新時間：2026-08-07T21:51:52+08:00
 維護角色：Work
 證據基準：PR #38 squash merge `196c2087a1bfdf816f16aafc267c7008aa376f41`

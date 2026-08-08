@@ -6,7 +6,7 @@
 
 ## 精確版本與 artifacts
 
-- Merged commit：`5a63a0c77e2725c828b17b784680b90a6cffb03f`
+- Reviewed source commit：`5a63a0c77e2725c828b17b784680b90a6cffb03f`
 - Inventory SQL SHA-256：`9dc3d2e589ca298e40a9bf529d5801e6b7081016547996bbd5010df7adae2d46`
 - Migration SQL SHA-256：`67ea4490a1e3459221f440ae280e95f3be5a868ad2c37c78ae3519073e7d1f91`
 - Post-check SQL SHA-256：`6de46c7c46c5ea1dd75e0172a1369368c3d3d4ec7f1ddf8077afe4bcec613166`
@@ -15,8 +15,10 @@
 - Runbook：`docs/operations/data/PORTAL_DATA_PHASE_C_PRODUCTION_READINESS.md`
 - PostgreSQL 15.8／16.4 compatibility baseline：PR #71，GitHub Actions run `31234608763`（兩個jobs皆成功）
 
-任何 commit 或 checksum 改變都使本任務批准失效，必須重新驗收與批准。TASK-074已合併並鎖定上述exact
-merged commit；仍須取得新的30分鐘fresh inventory，先前CSV已失效。
+上述任一 SQL／checksum、Phase C verifier、runbook 執行順序或安全邊界的 material change，都使本任務批准
+失效，必須重新驗收與批准。純 task／handoff／closeout 文件、merge metadata 或其他不影響受控 artifacts 的
+commit 不使批准失效，也不得因此建立 self-referential relock PR。TASK-074與LF checkout修正已納入上述 reviewed
+source commit；仍須取得新的30分鐘fresh inventory，先前CSV已失效。
 
 ## 執行階段與停損點
 

@@ -2,7 +2,7 @@
 
 
 
-版本：1.4
+版本：1.5
 
 制定者：專案負責人
 
@@ -1089,3 +1089,59 @@ Scheduler／cloud resource變更、真實LINE／Discord通知或重大架構／�
 3. 純task／review／handoff鎖定應併入前一個驗收commit或下一個實質規劃commit，不另開會觸發完整suite的closeout PR。
 4. CI workflow應逐步採用PR concurrency與`cancel-in-progress`，並在branch protection允許下使用change detection：
    純文件變更走快速required gate；只有受影響程式、migration、model、test或workflow變更才跑昂貴matrix。
+
+## 十八、穩定的 PR、文件與 CI 收斂規則
+
+本節是第十四至十七節的具體收斂規則；若舊版文字、歷史 task、report、review、`PROJECT_STATE.md` 或
+`DECISIONS.md` 的歷史紀錄與本節衝突，以本節及當前 task 的較新明確限制為準。
+
+### 1. PR 單位
+
+1. 一個可獨立交付、可一起驗收的工作單位原則上只有一個 ready PR 與一次 final hosted CI。
+2. task、Codex report、Work review、`PROJECT_STATE.md`、`HANDOFF.yaml` 與 closeout 應盡量併入該工作單位的
+   final branch，不得因角色交接或狀態文字各自建立 PR。
+3. 純 coordination／狀態／run ID／merge metadata 文件預設不立即開 PR；併入下一個實質規劃或實作 PR。
+4. 只有文件本身必須先成為有效安全邊界、production 操作授權、合規證據，或不立即合併會阻塞安全作業時，
+   才可建立 docs-only PR。此例外不代表必須執行昂貴 matrix。
+5. 不因減少 PR 而直接寫入 default branch。所有預定進入 repository 的內容仍須經 task branch 與適當 review。
+
+### 2. Hosted CI 分級
+
+1. 純一般文件變更：執行 whitespace、必要格式與連結／結構等快速 gate，不啟動 PostgreSQL service container。
+2. 單一服務程式變更：執行共用快速 gate、該服務測試及其直接依賴測試。
+3. Shared library 或跨服務介面變更：執行所有直接受影響服務測試。
+4. Database schema、migration、model、受控 SQL／checksum、database verifier 或 database CI workflow 變更：
+   執行 PostgreSQL 15／16 matrix 與完整 portal-data gates。
+5. Authentication、authorization、webhook signature、deployment tooling 或 workflow 邊界變更：依風險加跑其
+   專屬完整 suite；不得只因檔案位於 `docs/` 就把 `docs/operations/sql/**` 判成一般文件。
+6. CI workflow 尚未實作上述 change detection 前，現有完整 workflow 的成功仍是事實證據；本規範本身不表示
+   可以手動跳過當前 repository 實際要求的 check。
+
+### 3. PR 與 main 的重複執行
+
+1. Final PR head 未再改變且 required CI 已成功時，該 tree 是主要 merge evidence。
+2. 在建立 default-branch protection、禁止直接 push 並確認 squash merge tree 等價後，CI 可取消 merge 後對 main
+   重跑完全相同的昂貴 suite，改為輕量 smoke／artifact integrity gate 或人工 `workflow_dispatch`。
+3. 在上述 repository setting 尚未完成前，不得只改 workflow 就移除 main push safety net；branch protection 屬
+   GitHub repository setting，仍依本文件的外部變更授權規則處理。
+4. CI 應使用 concurrency group 與 `cancel-in-progress` 取消同一 PR 的過時 run；依賴安裝應使用安全且可驗證的 cache。
+
+### 4. Production artifact 鎖定
+
+1. Production 操作批准應鎖定真正會影響行為的 material artifacts，例如 SQL SHA-256、image digest、migration
+   revision、deployment manifest 或明確的 reviewed source commit；不得只因後續純 coordination 文件變更而失效。
+2. Merge commit、PR number、run ID 與時間是 traceability evidence，不應成為會迫使 repository 再產生一個
+   self-referential relock PR 的唯一批准基準。
+3. 若受控 artifact、checksum、validator、runbook 執行順序或安全邊界改變，原批准仍必須 fail closed 並重新驗收。
+4. 若只有 task／handoff／closeout 說明改變，且受控 artifact 與其執行邊界完全不變，應更新證據但不重跑昂貴 CI、
+   不重新取得等價批准，也不另開純 relock PR。
+
+### 5. 舊 task 與全域規範衝突
+
+1. 已完成 task、report 與 review 保留原文，視為當時授權與執行事實，不回寫成今日規則。
+2. Active task 若與新版全域規範衝突，Work 必須在下一個外部操作或交棒前修正 task 與 `HANDOFF.yaml`。
+3. 尚未開始的舊 task 在重新啟動時，必須先做規範相容性檢查；流程性限制預設由新版全域規範取代。
+4. Task 只有在明確寫出理由、範圍與結束條件時，才能採用比全域規範更嚴格的 PR、CI 或授權要求；不得以較舊、
+   較寬鬆的 task 降低目前的安全邊界。
+5. 衝突解決優先序為：Owner 最新明確指示 → active task 的明確安全例外 → `HANDOFF.yaml` 當前狀態 →
+   `COLLABORATION.md`／`AGENTS.md` 現行全域規範 → 歷史 decision／task／report／review。
