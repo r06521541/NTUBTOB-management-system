@@ -340,11 +340,34 @@ class CloseoutEvidenceTests(unittest.TestCase):
                 closeout.ingest_inventory_rows(case)
 
     def test_inventory_artifact_is_checksummed_and_read_only(self):
+        attributes = (closeout.ROOT / ".gitattributes").read_text(encoding="utf-8")
+        self.assertIn(
+            "docs/operations/sql/TASK-084-phase-c-closeout-inventory.sql text eol=lf",
+            attributes,
+        )
+        self.assertIn(
+            "docs/operations/sql/TASK-084-phase-c-closeout-inventory.sql.sha256 text eol=lf",
+            attributes,
+        )
         closeout.verify_inventory_artifact()
         sql = closeout.INVENTORY_SQL_PATH.read_text(encoding="utf-8")
         self.assertIn("ntubtob.game_attendance_replies", sql)
         self.assertNotIn("line_notify_tokens", sql)
         with tempfile.TemporaryDirectory() as directory:
+            crlf_path = Path(directory) / closeout.INVENTORY_SQL_PATH.name
+            crlf_path.write_bytes(
+                closeout.INVENTORY_SQL_PATH.read_bytes()
+                .replace(b"\r\n", b"\n")
+                .replace(b"\n", b"\r\n")
+            )
+            crlf_path.with_suffix(crlf_path.suffix + ".sha256").write_text(
+                closeout.INVENTORY_SQL_PATH.with_suffix(".sql.sha256").read_text(
+                    encoding="ascii"
+                ),
+                encoding="ascii",
+            )
+            closeout.verify_inventory_artifact(crlf_path)
+
             path = Path(directory) / closeout.INVENTORY_SQL_PATH.name
             path.write_bytes(
                 closeout.INVENTORY_SQL_PATH.read_bytes() + b"\nUPDATE fake\n"

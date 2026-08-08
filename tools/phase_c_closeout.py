@@ -104,6 +104,7 @@ RUNTIME_FIELDS = frozenset(
 
 def verify_inventory_artifact(path: Path = INVENTORY_SQL_PATH) -> None:
     raw = path.read_bytes()
+    canonical = raw.replace(b"\r\n", b"\n")
     checksum, separator, filename = (
         path.with_suffix(path.suffix + ".sha256")
         .read_text(encoding="ascii")
@@ -113,10 +114,10 @@ def verify_inventory_artifact(path: Path = INVENTORY_SQL_PATH) -> None:
     if (
         not separator
         or filename != path.name
-        or checksum != hashlib.sha256(raw).hexdigest()
+        or checksum != hashlib.sha256(canonical).hexdigest()
     ):
         raise CloseoutEvidenceError("inventory checksum is invalid")
-    sql = re.sub(r"--[^\n]*", "", raw.decode("utf-8")).lower()
+    sql = re.sub(r"--[^\n]*", "", canonical.decode("utf-8")).lower()
     statements = [part.strip() for part in sql.split(";") if part.strip()]
     if (
         not statements
