@@ -627,3 +627,11 @@
 - 修正必須保留 exact commit／candidate／digest／rollback／traffic fail-closed boundary；不執行 production build、deploy 或查詢。
 - 實作與 Work 驗收完成：submit 使用 `--suppress-logs` 並保留 JSON，resume describe 使用精確 region；26 項 deployment wrapper tests 通過。
 - `FAILURE`、`WORKING`、錯誤 service／image substitutions 均明確在 traffic mutation 前停止。本任務不需要重新部署既有服務。
+
+### TASK-084 Phase C 一次收尾（2026-08-08）
+
+- Owner要求不再拆分Phase C尾項；TASK-084以單一task涵蓋repository readiness、production唯讀inventory、identity maintenance啟用、唯一受控mutation／recovery、post-check與正式closeout。
+- Stage A已交棒Codex，只授權repository／local verifier、唯讀SQL contract、runbook與tests；尚未授權production讀取、flag／traffic mutation或production identity操作。
+- 首個smoke不得使用Owner登入、任一admin、已連Member、active team_player／guest_player或通知；優先使用可恢復且無Member／qualification的pending identity。找不到安全候選時在同一TASK交回Owner，不自行建立production假資料。
+- Stage A repository readiness已通過Work本機驗收：checksummed read-only inventory、strict CSV ingestion、五快照runtime／核心aggregate一致性、exact ignore→same-ID retry→same-target unignore audit sequence與logging stop boundary均已建立；23項targeted tests通過。
+- 下一個gate是唯一ready PR的hosted Python 3.10與PostgreSQL 15／16證據。通過並merge後才可提出Stage B production唯讀inventory精確工作包；目前仍未授權任何production access或mutation。

@@ -984,6 +984,38 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         self.notifier.notify_management_message.assert_not_called()
 
+    def test_authorized_ignore_replays_exact_same_post_through_all_route_gates(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.line_identity.return_value = SimpleNamespace(id=72)
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        payload = {
+            "csrf_token": token,
+            "line_user_id": "fake-line-user",
+            "request_id": "identity-ignore-fixed-retry",
+            "reason": "Bounded closeout retry",
+        }
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            first = self.client.post("/match-member/ignore", data=payload)
+            retry = self.client.post("/match-member/ignore", data=payload)
+        self.assertEqual((first.status_code, retry.status_code), (302, 302))
+        self.assertEqual(repository.set_ignored.call_count, 2)
+        repository.set_ignored.assert_has_calls(
+            [call(70, 72, True, "Bounded closeout retry", "identity-ignore-fixed-retry")] * 2
+        )
+
     def test_phase_c_person_can_update_only_own_display_name(self):
         token = self.get_csrf_token()
         repository = MagicMock()

@@ -239,6 +239,23 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         self.repository.set_ignored(
             self.admin_person_id,
             pending.identity.id,
+            True,
+            "Applicant requested later review",
+            "ignore-one",
+        )
+        with self.engine.begin() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.access_audit "
+                        "WHERE request_id='ignore-one' AND action='identity_ignored'"
+                    )
+                ),
+                1,
+            )
+        self.repository.set_ignored(
+            self.admin_person_id,
+            pending.identity.id,
             False,
             "Applicant returned for review",
             "unignore-one",
