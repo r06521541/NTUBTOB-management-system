@@ -8,12 +8,13 @@
 - Resume verification now passes the exact configured region to `gcloud builds
   describe`, matching the regional build submit contract.
 - Offline regressions assert the submit region, log suppression, JSON output,
-  and regional resume describe command. Existing successful promotion and all
-  failed/working/invalid/traffic-drift fail-closed cases remain covered.
+  and regional resume describe command. A table-driven resume regression
+  explicitly rejects `FAILURE`, `WORKING`, wrong service substitution and
+  wrong image-tag substitution before any traffic command.
 
 ## Verification
 
-- `python -m unittest tools.tests.test_deploy_scheduled_service -v`: 25
+- `python -m unittest tools.tests.test_deploy_scheduled_service -v`: 26
   passed.
 - `python -m compileall -q tools/deploy_scheduled_service.py
   tools/tests/test_deploy_scheduled_service.py`: passed.
