@@ -3,12 +3,12 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 9fa4401ab1c2b5011303a9c365b352c4f076da34
+head_commit: 6c91a027cea89e299f7591871f06797fd00254c2
 
 updated_by: codex
-updated_at: 2026-08-09T00:55:00+08:00
+updated_at: 2026-08-09T01:25:00+08:00
 
 note: >
-  Third-review correction is ready for Work review: a single five-snapshot post-check retains TASK-068 non-audit drift gates,
-  permits only the exact bounded audit pair, proves same-target recovery, enforces exact candidate deltas, and fails closed on
-  unverified statement logging. Repository/local tests passed; no production or external operation was performed.
+  Fourth-review correction is ready for Work review: five snapshots require exact runtime-vector equality and stable aggregate
+  Person/Member/identity/reliable-LINE/team-player/attendance counts; notification safety uses the no-caller boundary and a later
+  approved log/error classification, not deprecated token-table evidence. Repository/local tests passed; no external operation ran.
