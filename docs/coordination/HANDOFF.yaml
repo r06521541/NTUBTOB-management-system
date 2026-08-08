@@ -1,14 +1,14 @@
 active_task: TASK-084
-status: in_progress
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 36ba942eaca30cab1c412cf0d6c46f3c77cf3571
+head_commit: 117fe1ce455b5ee38aa4167335d522a2b5716b36
 
 updated_by: work
-updated_at: 2026-08-09T03:50:00+08:00
+updated_at: 2026-08-09T04:15:00+08:00
 
 note: >
-  Parameter-binding and pinned Docker operator boundary accepted locally; Work is creating the single ready PR. Targeted suites
-  passed. Docker Desktop daemon is currently stopped, so exact PostgreSQL 16 version preflight remains required after merge and
-  before any production DB connection. No production DB query or mutation ran.
+  Production boolean-only preflight found the documented safe SELECT combination: log_statement is none/ddl/mod, duration and
+  transaction sampling are off, pgAudit is off, and error bind-parameter logging is zero. The controlled SQL still requires only
+  log_statement=none and would false-fail. Update one shared predicate/checksum/runbook/tests; no sensitive prompts or inventory ran.
