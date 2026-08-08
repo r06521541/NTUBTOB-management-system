@@ -58,6 +58,12 @@ class DeploymentContractTests(unittest.TestCase):
                     f"Cloud Run deploy must bind {variable}",
                 )
 
+        self.assertRegex(
+            bindings,
+            r"(?:^|,)CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:2(?:,|$)",
+        )
+        self.assertNotIn("CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:1", bindings)
+
     def test_game_broadcast_service_remains_private(self):
         command = normalize_shell_command(self.cloudbuild)
         self.assertIn("--no-allow-unauthenticated", command)

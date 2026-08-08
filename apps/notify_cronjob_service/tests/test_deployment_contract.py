@@ -48,7 +48,7 @@ class DeploymentContractTests(unittest.TestCase):
 
         for binding in (
             "DSN_PASSWORD=supabase-database-password:latest",
-            "CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:1",
+            "CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:2",
         ):
             with self.subTest(binding=binding):
                 self.assertRegex(
@@ -56,6 +56,8 @@ class DeploymentContractTests(unittest.TestCase):
                     rf"(?:^|,){re.escape(binding)}(?:,|$)",
                     f"Cloud Run deploy must bind {binding}",
                 )
+
+        self.assertNotIn("CHANNEL_ACCESS_TOKEN=CHANNEL_ACCESS_TOKEN:1", bindings)
 
     def test_notify_cronjob_service_remains_private(self):
         command = normalize_shell_command(self.cloudbuild)
