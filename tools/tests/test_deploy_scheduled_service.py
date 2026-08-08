@@ -415,6 +415,25 @@ class DeploymentWrapperTests(unittest.TestCase):
             deploy.resume_verify_only(self.root, "game-broadcast-service", SHA, "build-12345678", NEW_REVISION, ROLLBACK_REVISION, runner, False)
         self.assertEqual(self.traffic_commands(runner), [])
 
+    def test_resume_cli_rejects_mixed_or_incomplete_execution_inputs(self):
+        combinations = (
+            ["game-broadcast-service", "--execute", "--resume-verify-only"],
+            ["game-broadcast-service", "--build-id", "build-12345678"],
+            ["game-broadcast-service", "--resume-verify-only", "--approved-commit", SHA],
+        )
+        for arguments in combinations:
+            with self.subTest(arguments=arguments), patch.object(
+                deploy, "repository_root", return_value=self.root
+            ):
+                self.assertEqual(deploy.main(arguments), 2)
+
+    def test_resume_contract_requires_exact_baseline_and_candidate_invariants(self):
+        source = Path(deploy.__file__).read_text(encoding="utf-8")
+        self.assertIn('traffic[0].get("revisionName") == rollback_revision', source)
+        self.assertIn('"latestCreatedRevisionName") != candidate_revision', source)
+        self.assertIn("Resume promotion failed and rollback also failed", source)
+        self.assertIn("Candidate revision did not receive exact 100% traffic", source)
+
 
 if __name__ == "__main__":
     unittest.main()
