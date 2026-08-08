@@ -257,7 +257,12 @@ def resume_verify_only(
         raise DeploymentError("Candidate revision is not the latest created revision")
     candidate_percent = next((item.get("percent") for item in traffic if item.get("revisionName") == candidate_revision), 0)
     promoted = candidate_percent == 100 and len(traffic) == 1
-    pending = candidate_percent == 0 and len(traffic) == 1 and traffic[0].get("percent") == 100
+    pending = (
+        candidate_percent == 0
+        and len(traffic) == 1
+        and traffic[0].get("percent") == 100
+        and traffic[0].get("revisionName") == rollback_revision
+    )
     if not promoted and not pending:
         raise DeploymentError("Cloud Run traffic state is ambiguous")
     if pending:
@@ -272,8 +277,13 @@ def resume_verify_only(
             verified_traffic = verified.get("status", {}).get("traffic", [])
             if verified.get("status", {}).get("latestReadyRevisionName") != candidate_revision or verified_traffic != [{"revisionName": candidate_revision, "percent": 100}]:
                 raise DeploymentError("Candidate revision did not receive exact 100% traffic")
-        except BaseException:
-            command_output(runner, rollback_command(service, rollback_revision), root)
+        except BaseException as error:
+            try:
+                command_output(runner, rollback_command(service, rollback_revision), root)
+            except DeploymentError as rollback_error:
+                raise DeploymentError(
+                    f"Resume promotion failed and rollback also failed: {rollback_error}"
+                ) from error
             raise
     return {"build_id": build_id, "revision": candidate_revision, "image_digest": digest, "already_promoted": promoted}
 

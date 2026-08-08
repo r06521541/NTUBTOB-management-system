@@ -400,7 +400,7 @@ class DeploymentWrapperTests(unittest.TestCase):
             elif arguments[:4] == ["gcloud", "run", "revisions", "describe"]:
                 output = json.dumps({"status": {"imageDigest": FULL_REVISION_DIGEST, "conditions": [{"type": "Ready", "status": "True"}]}})
             elif arguments[:4] == ["gcloud", "run", "services", "describe"]:
-                output = json.dumps({"status": {"latestCreatedRevisionName": NEW_REVISION, "latestReadyRevisionName": NEW_REVISION, "traffic": [{"revisionName": NEW_REVISION, "percent": 100}] if len([item for item in commands if "update-traffic" in item]) else [{"revisionName": BASELINE_REVISION, "percent": 100}]}})
+                output = json.dumps({"status": {"latestCreatedRevisionName": NEW_REVISION, "latestReadyRevisionName": NEW_REVISION, "traffic": [{"revisionName": NEW_REVISION, "percent": 100}] if len([item for item in commands if "update-traffic" in item]) else [{"revisionName": ROLLBACK_REVISION, "percent": 100}]}})
             else:
                 output = ""
             return subprocess.CompletedProcess(arguments, 0, stdout=output, stderr="")
