@@ -1,14 +1,16 @@
 active_task: TASK-082
-status: awaiting_owner_approval
+status: completed
 next_actor: owner
 
 base_commit: ae6a345879f864e9826a17e4a725f6177c8eb6dc
-head_commit: null
+head_commit: d6c2757
 
 updated_by: work
-updated_at: 2026-08-08T21:50:00+08:00
+updated_at: 2026-08-08T23:00:00+08:00
 
 note: >
-  PR #81 merged at ae6a345. Fresh read-only inventory, artifact preflight and the canonical nine-step controller plan passed.
-  TASK-082 now awaits Owner approval of the exact B1 feature-off deployment, B2 activation, no-side-effect GET checks, natural
-  Scheduler behavior and conditional rollback package in PHASE_C_ACTIVATION_AE6A345.md.
+  Owner-approved TASK-082 B1 and B2 production rollout completed from exact source ae6a345. Web Portal, LINE webhook and notify
+  cron are each Ready on exact 100% traffic with Phase C true and freeze false; identity maintenance remains false. Final
+  controller state is phase_c_unfrozen/complete, homepage is HTTP 200 and the queried final-revision ERROR logs were empty.
+  No artificial invoke, database operation, Secret/IAM/Scheduler mutation or notification was performed. Natural Scheduler
+  evidence and the regional scheduled-deploy resume bug remain follow-up work.

@@ -611,3 +611,12 @@
   repository prerequisite已補齊完整四項Secret contract及離線tests，Work本機驗收23項Webhook tests通過，待hosted CI／merge。
 - PR #81 required CI通過並squash merge為`ae6a345`；fresh inventory、artifact fingerprint、all-off preflight及canonical
   nine-step release manifest均通過。精確B1／B2／rollback工作包已完成，等待Owner批准；尚未部署或改變production。
+
+### TASK-082 Phase C production activation completion（2026-08-08）
+
+- Owner 核准的 B1 feature-off deployment 與 B2 九步 activation 已完成；精確來源為 `ae6a345879f864e9826a17e4a725f6177c8eb6dc`。
+- Web Portal `web-portal-00046-g8v`、LINE webhook `line-webhook-handler-00013-yab`、notify cron `notify-cronjob-service-00017-qms` 均 Ready 且承接 100% traffic。
+- 三服務 Phase C 均為 true、freeze 均為 false；identity maintenance 維持 false。離線 controller 結果為 `phase_c_unfrozen`／`complete`／無下一步。
+- Web Portal 首頁為 HTTP 200；最終三個 revisions 的查詢區間沒有 ERROR log。Web Portal 與 LINE 維持 public，notify 維持 private。
+- 未人工 invoke webhook、Scheduler、attendance、identity 或通知，未操作 production DB、Secret、IAM 或 Scheduler。下一次自然 Scheduler 執行後證據仍待後續觀察。
+- Scheduled-service deployment wrapper 對 regional Cloud Build response／resume 的處理有缺陷；本次以精確 build、candidate、digest、traffic 與 rollback metadata 人工核對後完成 promotion，應另立 repository 修正任務。
