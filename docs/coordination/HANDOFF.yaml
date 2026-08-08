@@ -1,15 +1,15 @@
-active_task: TASK-079
-status: accepted_pending_hosted_ci
-next_actor: work
+active_task: TASK-081
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 1838ec6fc77a74e23700f9cd29b8ea910c0a29fb
-head_commit: 9bc188649915c91e410609e85e140b2caa7a26aa
+base_commit: d9213acea1708f051fc457753b3b941dbad305f6
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T19:42:00+08:00
+updated_at: 2026-08-08T20:35:00+08:00
 
 note: >
-  Work accepted TASK-079 after independently verifying the exact config/test diff, 25 relevant offline tests, compileall,
-  active-config version-1 search and diff check. Create one ready PR for the hosted CI gate; no deployment, Cloud Build,
-  Secret operation/read, production mutation, Scheduler/IAM action, invoke or real notification is authorized. A later notify
-  feature-off source deployment remains a separate Owner-approved task.
+  TASK-081 is the Phase C release train. Codex is authorized only for repository/local readiness: interruption-safe deployment
+  tooling, activation manifest/controller, static deployment contracts and offline tests. Production feature activation, flags,
+  deployment, Scheduler/Secret/IAM/DB operations, endpoint invocation and notification remain blocked pending a later exact
+  Owner approval after hosted CI and execution-time inventory.
