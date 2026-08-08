@@ -1,13 +1,13 @@
-active_task: TASK-081
-status: in_progress
-next_actor: work
+active_task: TASK-082
+status: awaiting_owner_approval
+next_actor: owner
 
-base_commit: d9213acea1708f051fc457753b3b941dbad305f6
-head_commit: 406c991
+base_commit: 0e79763115ff5549a8fdf045eb48f48012ea5469
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-08T22:42:00+08:00
+updated_at: 2026-08-08T22:58:00+08:00
 
 note: >
-  TASK-081 A passed Work review with 46 targeted tests, compileall and diff check. Work is preparing the single ready PR and
-  hosted Python 3.10 final gate. Production activation remains outside this approval and requires a separate exact Owner grant.
+  TASK-081 merged as PR #80 at 0e79763. TASK-082 is prepared and awaits Owner approval for a non-secret, read-only production
+  inventory only. Deployment, runtime flag, traffic/source, Scheduler, IAM, Secret and database mutations remain unapproved.
