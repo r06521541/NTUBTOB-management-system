@@ -43,7 +43,7 @@ the following have been read or inferred:
 | Target | Current ready revision | 100% traffic revision | Rollback revision | Non-secret flag vector |
 | --- | --- | --- | --- | --- |
 | Cloud Run `web-portal` | unverified | unverified | unverified | unverified |
-| Gen2 function `line-webhook-handler` | unverified | unverified | unverified | unverified |
+| Gen2 function `line-webhook-handler` | unverified | n/a: Gen2 source recovery uses immutable GCS source | unverified immutable GCS bucket/object/generation | unverified |
 | Cloud Run `notify-cronjob-service` | unverified | unverified | unverified | unverified |
 
 Historical revision names in older deployment records are **not** valid rollback
@@ -65,8 +65,10 @@ gcloud config get-value project
 gcloud run services describe web-portal --project ntubtob-schedule-405614 --region asia-east1 --format="yaml(status.latestReadyRevisionName,status.traffic,spec.template.metadata.annotations,metadata.labels)"
 gcloud run services describe notify-cronjob-service --project ntubtob-schedule-405614 --region asia-east1 --format="yaml(status.latestReadyRevisionName,status.traffic,spec.template.metadata.annotations,metadata.labels)"
 
-# Gen2 function metadata only; do not invoke the function.
-gcloud functions describe line-webhook-handler --gen2 --project ntubtob-schedule-405614 --region asia-east1 --format="yaml(state,serviceConfig.service,serviceConfig.uri,serviceConfig.runtime,serviceConfig.availableMemory,serviceConfig.serviceAccountEmail,buildConfig.dockerRepository,labels)"
+# Gen2 function metadata only; do not invoke the function. Record the complete
+# immutable storage source identity (bucket, object and generation) separately
+# from the other non-secret metadata.
+gcloud functions describe line-webhook-handler --gen2 --project ntubtob-schedule-405614 --region asia-east1 --format="yaml(state,serviceConfig.service,serviceConfig.uri,serviceConfig.runtime,serviceConfig.availableMemory,serviceConfig.serviceAccountEmail,buildConfig.entryPoint,buildConfig.dockerRepository,buildConfig.source.storageSource,labels)"
 
 # Scheduler metadata only. Do not run, pause, resume or modify a job.
 gcloud scheduler jobs list --project ntubtob-schedule-405614 --location asia-east1 --format="table(name.basename(),schedule,timeZone,httpTarget.uri,httpTarget.oidcToken.serviceAccountEmail,state)"
@@ -93,7 +95,9 @@ invalid until Owner fills every field from the fresh read-only inventory.
 | Approval field | Required value |
 | --- | --- |
 | `WEB_PORTAL_ROLLBACK_REVISION` | Ready, 100%-traffic current revision from the inventory |
-| `LINE_WEBHOOK_ROLLBACK_REVISION` | Ready Gen2 revision/source rollback identity from the inventory |
+| `LINE_WEBHOOK_ROLLBACK_SOURCE_BUCKET` | Current function's approved immutable GCS source bucket |
+| `LINE_WEBHOOK_ROLLBACK_SOURCE_OBJECT` | Current function's approved immutable GCS source object |
+| `LINE_WEBHOOK_ROLLBACK_SOURCE_GENERATION` | Current function's approved immutable GCS source generation |
 | `NOTIFY_ROLLBACK_REVISION` | Ready, 100%-traffic current revision from the inventory |
 | `WEB_PORTAL_LINE_LOGIN_SECRET_REF` | Existing approved resource:version reference; never the value |
 | `WEB_PORTAL_SESSION_SECRET_REF` | Existing approved resource:version reference; never the value |
@@ -128,10 +132,12 @@ make deploy-line-webhook-handler
 ```
 
 The LINE target has no existing fail-closed execute wrapper that accepts an
-exact rollback revision. This package therefore blocks its execution until the
-Owner-approved operator records the Gen2 rollback identity and separately
-approves the existing `make deploy-line-webhook-handler` mutation. No attempt
-has been made to repair that boundary in TASK-078.
+exact rollback identity. Its recovery boundary is therefore the repository's
+existing [Gen2 immutable-source rollback runbook](../GEN2_FUNCTION_ROLLBACK.md):
+an approved Cloud Functions v2 `PATCH` changes only `buildConfig.source` to a
+freshly inventoried immutable GCS `bucket` / `object` / `generation`. This
+package blocks its execution until the Owner records that exact triple and
+separately approves both the existing deployment mutation and any rollback.
 
 After each approved deployment, run only fresh read-only configuration/revision
 commands from the inventory section. Confirm the new revision is Ready, traffic
@@ -150,11 +156,63 @@ Scheduler and production data. Do not use a guessed revision.
 # DO NOT EXECUTE: only after a new Owner rollback decision.
 gcloud run services update-traffic web-portal --project ntubtob-schedule-405614 --region asia-east1 --to-revisions <WEB_PORTAL_ROLLBACK_REVISION>=100
 gcloud run services update-traffic notify-cronjob-service --project ntubtob-schedule-405614 --region asia-east1 --to-revisions <NOTIFY_ROLLBACK_REVISION>=100
-
-# The Gen2 function rollback command must use the fresh, approved rollback
-# identity from inventory; no generic command is safe enough to pre-fill here.
-<APPROVED_GEN2_ROLLBACK_COMMAND>
 ```
+
+LINE webhook Gen2 rollback is an official Functions v2 PATCH, not a Cloud Run
+revision traffic update. First complete every Owner field below and the
+pre-checks; then an authorized operator may construct (but must not commit)
+this request body with the exact read-only-inventoried source identity:
+
+```text
+PATCH https://cloudfunctions.googleapis.com/v2/projects/ntubtob-schedule-405614/locations/asia-east1/functions/line-webhook-handler?updateMask=buildConfig.source
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "projects/ntubtob-schedule-405614/locations/asia-east1/functions/line-webhook-handler",
+  "buildConfig": {
+    "source": {
+      "storageSource": {
+        "bucket": "<LINE_WEBHOOK_ROLLBACK_SOURCE_BUCKET>",
+        "object": "<LINE_WEBHOOK_ROLLBACK_SOURCE_OBJECT>",
+        "generation": "<LINE_WEBHOOK_ROLLBACK_SOURCE_GENERATION>"
+      }
+    }
+  }
+}
+```
+
+### LINE webhook Gen2 rollback pre-check, PATCH boundary and post-check
+
+This is a prepared request shape only. It is **not** a command to execute and
+does not grant a bearer token, API permission or production-mutation approval.
+Use the official Functions v2 `functions.patch` endpoint and the exact field
+mask `updateMask=buildConfig.source`; do not add another field to the body or
+field mask. In particular, do not change runtime, entry point, service account,
+ingress, Secret bindings, labels, trigger or traffic-related configuration.
+
+Before a new explicit Owner rollback decision, the authorized operator must
+record all of the following without printing environment values or Secret
+references:
+
+- `LINE_WEBHOOK_ROLLBACK_SOURCE_BUCKET`,
+  `LINE_WEBHOOK_ROLLBACK_SOURCE_OBJECT` and
+  `LINE_WEBHOOK_ROLLBACK_SOURCE_GENERATION` from the fresh read-only
+  `buildConfig.source.storageSource` inventory;
+- function name, project and region matching this package;
+- current function state and service URI, runtime, entry point, service account
+  and ingress/auth classification; and
+- explicit Owner approval of the immutable source triple, the narrow PATCH
+  field mask, the observed failure and the no-invocation verification plan.
+
+After the long-running PATCH operation reports completion, repeat the same
+read-only `gcloud functions describe` command. Confirm `state=ACTIVE` and that
+the resolved `buildConfig.source.storageSource` bucket, object and generation
+match the approved triple exactly. Also confirm runtime, entry point, service
+account, ingress/auth classification, Secret bindings and the two named
+feature-off flags did not drift. Do not invoke the webhook or run Scheduler
+work as a rollback check.
 
 Stop immediately on a missing/changed flag, non-ready revision, traffic drift,
 unexpected public/private boundary, startup/import failure, error increase,

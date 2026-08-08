@@ -21,6 +21,12 @@
   artifact evidence, fail-closed missing-inventory status, read-only inventory
   commands, the exact feature-off vector, prepared deployment commands and
   rollback boundaries.
+- Work-requested correction: the LINE webhook is now explicitly modelled as a
+  Gen2 immutable-GCS-source rollback, following
+  `docs/operations/GEN2_FUNCTION_ROLLBACK.md`. The package inventories
+  `buildConfig.source.storageSource`, records bucket/object/generation as
+  Owner approval fields, and provides the narrow official Functions v2 PATCH
+  request shape with `updateMask=buildConfig.source` plus pre/post-checks.
 
 ## Production inventory result
 
@@ -32,6 +38,9 @@
 - Historical deployment records were not used as current state or rollback
   targets. The work package blocks execution until an authorized operator runs
   the listed read-only commands and Owner locks their results.
+- In particular, the LINE webhook source bucket, object and generation remain
+  unverified; the prepared PATCH request deliberately contains placeholders
+  rather than a guessed production source identity.
 
 ## Verification
 
@@ -44,6 +53,8 @@
 - Offline transition controller: passed, all-off/unfrozen to itself,
   `status=valid`, `step_count=0`, using the planning checkout commit lock.
 - `git diff --check`: passed.
+- After the Gen2 rollback documentation correction, the same 67 deployment
+  tooling tests and `git diff --check` were re-run and passed.
 - Black CLI was not run under bundled Windows Python. Black formatter API
   version `24.4.2` was used for a non-mutating comparison: the existing
   `tools/phase_c_rollout_preflight.py` and
