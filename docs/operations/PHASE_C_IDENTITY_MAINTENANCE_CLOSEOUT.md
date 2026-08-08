@@ -44,15 +44,18 @@ Use PostgreSQL 16 psql, not an earlier client. Before connecting, verify the
 isolated client image exactly as follows:
 
 ```sh
-docker run --rm postgres:16.4-alpine psql --version
+docker run --rm --pull never sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a psql --version
 ```
 
 Stop unless the result identifies PostgreSQL 16. Start the Owner-approved
-read-only PostgreSQL 16 interactive session with `-X -n`; this runbook never
-contains a DSN, password or environment value:
+read-only PostgreSQL 16 interactive session with `-X -n`. The command uses the
+pre-provisioned private environment file without opening it, mounts the exact
+repository root read-only so `\i` can load the checksummed artifact, and adds
+connection-level `default_transaction_read_only`. Do not add a DSN, password,
+host, port, database or user option/value to the Docker or `psql` argv:
 
-```sh
-docker run --rm -it postgres:16.4-alpine psql -X -n <owner-approved-read-only-connection>
+```powershell
+docker run --rm -it --pull never --env-file C:\Users\USER\.ntubtob-private\backup.env --env "PGOPTIONS=-c default_transaction_read_only=on" --mount "type=bind,source=C:\Users\USER\Repos\NTUBTOB-management-system,target=/workspace,readonly" --workdir /workspace sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a psql -X -n
 ```
 
 Only after the logging preflight in that same session, enter these psql

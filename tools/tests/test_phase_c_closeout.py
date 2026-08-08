@@ -439,6 +439,50 @@ class CloseoutEvidenceTests(unittest.TestCase):
             with self.assertRaises(closeout.CloseoutEvidenceError):
                 closeout.verify_execution_runbook(runbook_path)
 
+    def test_runbook_requires_pinned_psql_operator_command(self):
+        closeout.verify_execution_runbook()
+        runbook = closeout.RUNBOOK_PATH.read_text(encoding="utf-8")
+        self.assertIn(closeout.DOCKER_PSQL_VERSION_COMMAND, runbook)
+        self.assertIn(closeout.DOCKER_PSQL_COMMAND, runbook)
+
+        unsafe_commands = (
+            closeout.DOCKER_PSQL_VERSION_COMMAND.replace("--pull never ", "", 1),
+            closeout.DOCKER_PSQL_COMMAND.replace("--pull never ", "", 1),
+            closeout.DOCKER_PSQL_COMMAND.replace(
+                "--env-file C:\\Users\\USER\\.ntubtob-private\\backup.env ", ""
+            ),
+            closeout.DOCKER_PSQL_COMMAND.replace(
+                '--mount "type=bind,source=C:\\Users\\USER\\Repos\\NTUBTOB-management-system,target=/workspace,readonly" ',
+                "",
+            ),
+            closeout.DOCKER_PSQL_COMMAND.replace("--workdir /workspace ", ""),
+            closeout.DOCKER_PSQL_COMMAND.replace(
+                "psql -X -n", "psql -X -n -h unapproved-host"
+            ),
+            closeout.DOCKER_PSQL_COMMAND.replace(
+                "psql -X -n", "psql -X -n -U unapproved-user"
+            ),
+            closeout.DOCKER_PSQL_COMMAND.replace(
+                "psql -X -n", "psql -X -n postgresql://unapproved"
+            ),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "runbook.md"
+            for command in unsafe_commands:
+                source_command = (
+                    closeout.DOCKER_PSQL_VERSION_COMMAND
+                    if command.endswith("psql --version")
+                    else closeout.DOCKER_PSQL_COMMAND
+                )
+                path.write_text(
+                    runbook.replace(source_command, command),
+                    encoding="utf-8",
+                )
+                with self.subTest(command=command), self.assertRaises(
+                    closeout.CloseoutEvidenceError
+                ):
+                    closeout.verify_execution_runbook(path)
+
     def test_manifest_accepts_redacted_safe_evidence(self):
         manifest = closeout.build_manifest(DATABASE, RUNTIME)
         self.assertEqual(

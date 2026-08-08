@@ -49,6 +49,13 @@
   runbook requires an isolated Docker PostgreSQL 16 client check, `-X -n`
   interactive psql flow, preflight before prompts, and a separate provider
   parameter-payload logging stop condition.
+- Docker operator-command correction pins both the PostgreSQL 16 version
+  preflight and interactive client to the TASK-056 image ID with `--pull never`.
+  The interactive command receives its already-provisioned private env-file
+  without reading it, applies `PGOPTIONS=-c default_transaction_read_only=on`,
+  and mounts only the exact repository root read-only at `/workspace` before
+  loading the checksummed SQL. It contains no DSN or connection identity/value
+  in argv.
 
 ## Verification
 
@@ -81,6 +88,12 @@
   tools.tests.test_deploy_phase_c_transition_controller -v`: 23 passed;
   compileall, Black 24.4.2 formatter API comparison, checksum verification,
   and `git diff --check` passed.
+- Docker command correction targeted rerun: `python -m unittest
+  tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
+  tools.tests.test_deploy_phase_c_transition_controller -v`: 24 passed;
+  compileall, Black 24.4.2 formatter API comparison, and `git diff --check`
+  passed. The local `python` command was unavailable, so the repository's
+  bundled Python runtime was used.
 
 ## Not performed / remaining boundary
 

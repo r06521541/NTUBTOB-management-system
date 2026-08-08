@@ -25,6 +25,19 @@ INVENTORY_SQL_PATH = (
     ROOT / "docs" / "operations" / "sql" / "TASK-084-phase-c-closeout-inventory.sql"
 )
 RUNBOOK_PATH = ROOT / "docs" / "operations" / "PHASE_C_IDENTITY_MAINTENANCE_CLOSEOUT.md"
+POSTGRES16_IMAGE_ID = (
+    "sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a"
+)
+DOCKER_PSQL_VERSION_COMMAND = (
+    f"docker run --rm --pull never {POSTGRES16_IMAGE_ID} psql --version"
+)
+DOCKER_PSQL_COMMAND = (
+    "docker run --rm -it --pull never "
+    r"--env-file C:\Users\USER\.ntubtob-private\backup.env "
+    r'--env "PGOPTIONS=-c default_transaction_read_only=on" '
+    r'--mount "type=bind,source=C:\Users\USER\Repos\NTUBTOB-management-system,target=/workspace,readonly" '
+    f"--workdir /workspace {POSTGRES16_IMAGE_ID} psql -X -n"
+)
 BIND_COMMAND = re.compile(
     r"\\bind\s+:'admin_member_ids'\s+:'mutation_request_id'\s+:'recovery_request_id'\s+\\g",
     re.IGNORECASE,
@@ -177,9 +190,9 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
     """Require the reviewed PostgreSQL 16 bound-parameter operator flow."""
     text = path.read_text(encoding="utf-8")
     required = (
-        "docker run --rm postgres:16.4-alpine psql --version",
+        DOCKER_PSQL_VERSION_COMMAND,
         "PostgreSQL 16",
-        "docker run --rm -it postgres:16.4-alpine psql -X -n <owner-approved-read-only-connection>",
+        DOCKER_PSQL_COMMAND,
         "\\set ON_ERROR_STOP on",
         "\\pset format csv",
         "\\prompt",
@@ -189,6 +202,9 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
     )
     if any(item not in text for item in required):
         raise CloseoutEvidenceError("runbook binding contract is incomplete")
+    for command in (DOCKER_PSQL_VERSION_COMMAND, DOCKER_PSQL_COMMAND):
+        if len(re.findall(rf"(?m)^{re.escape(command)}\r?$", text)) != 1:
+            raise CloseoutEvidenceError("runbook Docker command is invalid")
     preflight_index = text.find("statement_logging_safe")
     prompt_index = text.find("\\prompt")
     if preflight_index < 0 or prompt_index < 0 or preflight_index > prompt_index:
