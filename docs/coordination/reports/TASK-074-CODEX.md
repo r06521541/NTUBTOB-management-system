@@ -57,7 +57,8 @@
 
 ## 未執行與剩餘風險
 
-- 尚未push或建立PR，因此GitHub hosted matrix jobs尚未執行；Work須以實際Actions結果確認workflow
+- Branch已push至origin。Draft PR建立因本次對話缺少Owner對該外部操作的明確文字授權而停止，
+  因此GitHub hosted matrix jobs尚未執行；取得授權並建立PR後，仍須以實際Actions結果確認workflow
   expression及兩個job名稱／logs。
 - 未執行PostgreSQL 14 container；14以下與17以上由exact SQL expression及防放寬測試證明會輸出
   required false，畸形／未知CSV evidence由strict validator負向測試證明fail closed。

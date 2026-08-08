@@ -11,5 +11,6 @@ updated_at: 2026-08-08T10:21:00+08:00
 note: >
   Codex updated the exact readiness gate to accept only PostgreSQL majors 15 and 16, retained all catalog and safety gates,
   and passed the same 157-test portal-data suite on local PostgreSQL 15.8 and 16.4. Checksums, runbook, TASK-073 references
-  and dual-version CI are updated. No production access, migration, deployment, runtime flags, notifications or cloud
-  mutation occurred; Work must review the implementation commit and hosted matrix CI before Owner approval.
+  and dual-version CI are updated; the branch is pushed, but Draft PR creation awaits explicit Owner authorization in the
+  current conversation, so hosted CI has not run. No production access, migration, deployment, runtime flags, notifications
+  or cloud mutation occurred; Work must review the implementation commit and hosted matrix CI before Owner approval.
