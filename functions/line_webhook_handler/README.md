@@ -32,3 +32,8 @@ principal resolution and transactional replies. Active `team_player` and
 time-bounded `guest_player` qualifications are evaluated at game start; pending,
 disabled, blocked, inactive, expired, and revoked principals fail closed. The
 default remains `false`, and enabling it in production is outside TASK-070.
+
+The Web Portal, webhook and notify cron flags must be activated as one
+coordinated rollout contract. The repository preflight rejects a normal-traffic
+single-service or two-service plan; see
+`docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md`.

@@ -226,6 +226,13 @@ mutations additionally require the existing maintenance flag and Member-ID
 allowlist. Do not enable either production flag until the Phase C migration and
 pre/post evidence have been separately approved and completed.
 
+The shared runtime state machine also makes the otherwise invalid
+`PORTAL_DATA_PHASE_C_ENABLED=false` plus
+`WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=true` combination effectively disable
+maintenance. Cross-service activation and rollback must follow
+`docs/operations/data/PORTAL_DATA_PHASE_C_APPLICATION_ROLLOUT.md`; a mixed flag
+vector is not an accepted normal-traffic state.
+
 The production game roster is team-private. `/game-roster/<game_id>` requires a
 valid LINE Login session linked to a positive integer Member ID; anonymous or
 malformed sessions are redirected to login before roster data is queried. This

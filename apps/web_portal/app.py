@@ -46,6 +46,7 @@ from performance_diagnostics import AttendanceTiming
 from role_policy import MANAGE_MEMBERS, ROLE_ADMIN, ROLE_MEMBER
 from role_policy import Principal as WebPrincipal
 from role_policy import has_capability
+from shared_module.portal_data.runtime import is_phase_c_enabled
 
 from envs import login_channel_id, login_channel_secret, secret_key
 
@@ -111,7 +112,7 @@ def attendance_for_game(game_id, name_style):
 
 
 def phase_c_repository():
-    if os.environ.get("PORTAL_DATA_PHASE_C_ENABLED") != "true" or DEMO_MODE_ENABLED:
+    if not is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return None
     try:
         from shared_module.portal_data.runtime import get_identity_lifecycle_repository
@@ -123,7 +124,7 @@ def phase_c_repository():
 
 
 def load_phase_c_web_principal(session_values):
-    if os.environ.get("PORTAL_DATA_PHASE_C_ENABLED") != "true":
+    if not is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return False
     repository = phase_c_repository()
     user_id = session_values.get("user_id")
@@ -411,7 +412,7 @@ def line_callback():
             )
         return render_template("not_authenticated.html"), 403
 
-    if os.environ.get("PORTAL_DATA_PHASE_C_ENABLED") == "true":
+    if is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return "Identity service is temporarily unavailable", 503
 
     # Legacy read boundary remains available only while Phase C is disabled.

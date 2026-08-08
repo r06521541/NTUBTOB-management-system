@@ -1454,16 +1454,32 @@ class IdentityLifecycleRepository:
                     PersonRecord,
                     LegacyMemberRecord,
                 )
+                .outerjoin(
+                    LegacyMemberRecord,
+                    LegacyMemberRecord.id == LegacyGameAttendanceReplyRecord.member_id,
+                )
                 .join(
                     PersonRecord,
-                    PersonRecord.id == LegacyGameAttendanceReplyRecord.person_id,
+                    PersonRecord.id
+                    == func.coalesce(
+                        LegacyGameAttendanceReplyRecord.person_id,
+                        LegacyMemberRecord.person_id,
+                    ),
                 )
-                .outerjoin(
-                    LegacyMemberRecord, LegacyMemberRecord.person_id == PersonRecord.id
+                .where(
+                    LegacyGameAttendanceReplyRecord.game_id == game_id,
+                    or_(
+                        LegacyGameAttendanceReplyRecord.member_id.is_(None),
+                        LegacyGameAttendanceReplyRecord.person_id.is_(None),
+                        LegacyMemberRecord.person_id
+                        == LegacyGameAttendanceReplyRecord.person_id,
+                    ),
                 )
-                .where(LegacyGameAttendanceReplyRecord.game_id == game_id)
                 .order_by(
-                    LegacyGameAttendanceReplyRecord.person_id,
+                    func.coalesce(
+                        LegacyGameAttendanceReplyRecord.person_id,
+                        LegacyMemberRecord.person_id,
+                    ),
                     LegacyGameAttendanceReplyRecord.updated_at.desc(),
                     LegacyGameAttendanceReplyRecord.id.desc(),
                 )

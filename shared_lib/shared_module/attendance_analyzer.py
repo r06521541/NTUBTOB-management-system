@@ -44,11 +44,17 @@ def _legacy_attendance(game_id: int) -> dict[int, list[object]]:
     for reply in replies:
         reply_type = reply.reply
         member_id = reply.member_id
+        # A Phase C guest intentionally has no legacy Member. Older readers must
+        # ignore that durable row instead of constructing an invalid Member.
+        if member_id is None:
+            continue
         if member_id in member_ids:
             continue
         if reply_type not in attendance:
             attendance[reply_type] = []
         member_ids.add(member_id)
         member = Member.search_by_id(member_id)
+        if member is None:
+            continue
         attendance[reply_type].append(member)
     return attendance
