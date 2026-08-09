@@ -22,7 +22,8 @@ codex: codex
 | 處理 pending identity | 否 | 是 | 是 |
 | 新增 Member | 否 | 是 | 是 |
 | 管理 qualification | 否 | 是 | 是 |
-| 變更 access/status、角色與高風險安全操作 | 否 | 待另定 | 是 |
+| 變更 access/status | 否 | 是（受限） | 是 |
+| 指派 admin、移除最後 admin、blocked recovery | 否 | 否／需 admin 或二次確認 | 是 |
 | 準備通知 | 否 | 是 | 是 |
 | 發送正式通知 | 待定 | 待定 | 待定 |
 
@@ -47,8 +48,17 @@ codex: codex
 - browser／LINE in-app smoke runbook、證據格式與停止條件。
 - 下一個 implementation TASK 的範圍、非目標、驗收條件與最小充分測試。
 
-## 下一步決策
+## 已確認的新增決策
 
-- Officer 是否可變更 Person access/status、角色與 blocked recovery。
-- Basic Person list 的可見欄位與是否顯示 Member／qualification 摘要。
-- 正式通知是否需要 admin、二次確認或雙人核可。
+- Officer 可變更 Person 的 access/status，但必須禁止自我升權、自我解鎖、自我恢復，以及任何 admin 指派或最後
+  active admin 移除；每次操作需 reason、request ID、audit 與 transaction-level guard。
+- Officer 不直接執行 blocked recovery；需要 admin 或明確二次確認，避免一般幹部成為高風險復原者。
+- Basic 的 Person 列表至少顯示低敏的 access/status 與「作為球員」相關資格摘要；目前缺少的欄位另列後續補強，不為
+  此任務臨時擴大 schema 或洩漏電話、醫療、私人備註等資料。
+- 比賽與未來 Event 的正式通知發送採二次確認；prepare 與 send 分離，第二次確認需可稽核且具 idempotency。
+
+## 尚待定義
+
+- Officer 的 access/status 可變更集合與每個狀態的精確 transition matrix。
+- Basic Person list 的 access/status 與球員資格摘要欄位清單、遮罩規則與缺漏欄位補強 task。
+- 正式通知二次確認者的角色條件、有效期限、重試與撤回語意。
