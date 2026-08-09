@@ -258,3 +258,43 @@ credential, or exception text may be printed or retained. Any guard failure or
 `other` classification stops for Owner/Work interpretation. This diagnostic is
 read-only evidence and does not authorize bootstrap retry, repair, or the
 56-Person activation.
+
+### Owner-approved exact-two allowlisted administrator activation
+
+The Owner confirmed the allowlist intentionally contains exactly two existing
+administrators and approved activating both as one all-or-nothing operation.
+After Work acceptance, one ready PR, hosted PostgreSQL 15/16 CI, and squash
+merge, set only the non-secret exact merged SHA as
+`TASK086_EXACT_TWO_APPROVED_MERGED_COMMIT` in a clean repository root and run
+the following launcher exactly once:
+
+```powershell
+& "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" tools/launch_production_activate_allowlisted_admins.py
+```
+
+The checksummed launcher reuses the reviewed exact runtime/dependency/git,
+account/project/service/region, strict in-memory container env parser, private
+PG parser, and unconditional cleanup boundaries. It places no database URL,
+allowlist, Member/Person/LINE identifier, request ID, or credential in argv or
+output. It executes only `preflight -> execute -> post-check`; only execute
+receives the fixed internal acknowledgement.
+
+The checksummed operator requires exactly two unique positive allowlisted
+Member IDs. Under the established advisory lock it locks both Person rows in
+deterministic order and revalidates two inactive Persons, two non-ignored legacy
+LINE links, two linked LINE identities pointing to their corresponding Person,
+two active team-player qualifications, and zero eligible pending LINE review.
+One transaction changes only both Persons from inactive to active, increments
+their versions, updates their timestamps, and creates two null-actor
+`status_changed` audits with internal opaque request IDs. The fixed reason and
+before/after states are audited; IDs are never emitted.
+
+Success requires inactive -2, active +2, audit +2, exactly two active linked
+allowlisted administrators, and unchanged Person/Member/identity/legacy-LINE/
+qualification/attendance cardinalities except the stated Person statuses. A
+completed exact pair with exactly two matching audits is a safe no-mutation
+retry. Mixed status, partial audit, relationship drift, logging drift,
+concurrency ambiguity, or any exception rolls back/stops without ad-hoc repair.
+Do not rerun after uncertain output or connection loss. This operation does not
+authorize identity, Member, LINE-link, qualification, attendance, schema,
+deployment, notification, or 56-Person activation changes.
