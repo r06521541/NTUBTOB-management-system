@@ -4,7 +4,7 @@
 
 維護角色：Work
 
-Repository 基準：`main` / `4903ddd0f7ee8abb2c621221dce395ccf81bb125`
+Repository 基準：`main` / `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`
 
 ## 目前摘要
 
@@ -17,8 +17,9 @@ Repository 基準：`main` / `4903ddd0f7ee8abb2c621221dce395ccf81bb125`
   `4903ddd0f7ee8abb2c621221dce395ccf81bb125`）。
 - TASK-089 `phase-d-identity-admin-operations` 已由 Work 驗收接受並 squash-merge 至 `main`（merge commit
   `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`）。
-- TASK-090 `phase-d-capability-and-smoke` 現為 planning，先收斂 Basic／Officer／Admin capability 與非 production
-  browser／LINE in-app smoke 契約，不直接修改程式或 production。
+- TASK-090 `phase-d-capability-and-smoke` 已完成 planning，決策已併入 TASK-091。
+- TASK-091 `phase-d-capability-and-smoke` 已 ready for Codex，將落實 capability policy、route mapping 與非 production
+  browser／LINE in-app smoke 準備；不授權 production cutover 或正式資料 mutation。
 
 ## 已確認的 production 狀態
 
