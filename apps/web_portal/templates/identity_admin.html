@@ -1,15 +1,7 @@
-<!doctype html>
-<html lang="zh-Hant">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>身分與資格管理</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='member_portal.css') }}">
-</head>
-<body>
-<main class="member-shell">
-    {% include '_member_nav.html' %}
+{% extends '_portal_base.html' %}
+{% block title %}身分與資格管理｜NTUBTOB{% endblock %}
+{% block content %}
+<section class="portal-title"><p class="portal-eyebrow">IDENTITY ADMIN</p><h1>{{ portal_copy.pending_identity }}</h1><p>管理 LINE identity、Person 連結與 qualification 狀態。</p></section>
     <h1>{{ portal_copy.pending_identity }}</h1>
     {% if not pending_only|default(false) %}<p><a href="{{ url_for('admin_people') }}">前往 Person 管理列表</a></p>{% endif %}
     {% if not identity_maintenance_enabled %}
@@ -146,6 +138,4 @@
         {% endfor %}
         </ol>
     </section>
-</main>
-</body>
-</html>
+{% endblock %}

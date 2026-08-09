@@ -26,9 +26,6 @@ class BrandUiContractTest(unittest.TestCase):
     def test_every_portal_entry_loads_shared_tokens_in_safe_order(self):
         entries = {
             "home.html": "auth.css",
-            "account.html": "member_portal.css",
-            "attendance.html": "member_portal.css",
-            "game_roster.html": "member_portal.css",
             "not_authenticated.html": "auth.css",
             "line_login_error.html": "auth.css",
             "redirect_page.html": "auth.css",
@@ -38,6 +35,11 @@ class BrandUiContractTest(unittest.TestCase):
                 template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
                 self.assertIn("filename='brand.css'", template)
                 self.assertLess(template.index("filename='brand.css'"), template.index(f"filename='{component_css}'"))
+
+        production_base = (TEMPLATES_DIR / "_portal_base.html").read_text(encoding="utf-8")
+        self.assertIn("filename='brand.css'", production_base)
+        self.assertIn("filename='production_portal.css'", production_base)
+        self.assertLess(production_base.index("filename='brand.css'"), production_base.index("filename='production_portal.css'"))
 
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
         self.assertGreater(demo_base.index("filename='brand.css'"), demo_base.index("filename='officer_nav.css'"))
@@ -54,7 +56,8 @@ class BrandUiContractTest(unittest.TestCase):
 
     def test_member_navigation_keeps_home_visible_with_core_links(self):
         navigation = (TEMPLATES_DIR / "_member_nav.html").read_text(encoding="utf-8")
-        self.assertIn("url_for('home')", navigation)
+        self.assertIn("url_for('member_dashboard')", navigation)
+        self.assertIn("url_for('future_games')", navigation)
         self.assertIn("url_for('attendance')", navigation)
         self.assertIn("url_for('account')", navigation)
         member_css = (STATIC_DIR / "member_portal.css").read_text(encoding="utf-8")
@@ -69,9 +72,8 @@ class BrandUiContractTest(unittest.TestCase):
         for template_name in shared_pages:
             with self.subTest(template=template_name):
                 template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
-                self.assertIn("filename='brand.css'", template)
-                self.assertIn("filename='member_portal.css'", template)
-                self.assertIn("_member_nav.html", template)
+                self.assertIn("extends '_portal_base.html'", template)
+                self.assertIn("portal-card", template)
         for template_name in (
             "dashboard.html",
             "games.html",
@@ -84,13 +86,22 @@ class BrandUiContractTest(unittest.TestCase):
                     encoding="utf-8"
                 )
                 self.assertIn("extends 'demo/base.html'", template)
-        css = (STATIC_DIR / "member_portal.css").read_text(encoding="utf-8")
+        css = (STATIC_DIR / "production_portal.css").read_text(encoding="utf-8")
         for contract in (
             "min-height: 44px",
             "focus-visible",
-            ".member-nav",
+            ".portal-bottom-nav",
         ):
             self.assertIn(contract, css)
+
+    def test_production_refresh_templates_do_not_use_external_cdn(self):
+        for template_path in TEMPLATES_DIR.glob("*.html"):
+            with self.subTest(template=template_path.name):
+                template = template_path.read_text(encoding="utf-8")
+                self.assertNotIn("cdn.jsdelivr.net", template)
+        for template_name in ("dashboard.html", "future_games.html", "game_detail.html"):
+            template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
+            self.assertIn("extends '_portal_base.html'", template)
 
     def test_theme_color_and_notice_semantics_follow_brand_roles(self):
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
