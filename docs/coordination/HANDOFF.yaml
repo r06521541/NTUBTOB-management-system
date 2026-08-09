@@ -1,14 +1,13 @@
 active_task: TASK-085
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
-head_commit: null
+head_commit: 77894b8a8e1d6e33f93e8e72288afb99c126bd16
 
-updated_by: work
-updated_at: 2026-08-09T06:30:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T07:30:00+08:00
 
 note: >
-  TASK-084 read-only inventory found zero active linked allowlisted admins and no safe ignore/unignore smoke candidate; the pager
-  then triggered idle-in-transaction disconnect and automatic rollback. TASK-085 prepares pager-safe evidence and a fail-closed,
-  audited, idempotent zero-admin bootstrap locally. No production access or mutation is authorized.
+  TASK-085 repository-only implementation is ready for review. It adds a fail-closed, advisory-lock protected zero-admin Member
+  bootstrap that retains the allowlist-only admin model and a bounded operator runbook. No production access or mutation occurred.

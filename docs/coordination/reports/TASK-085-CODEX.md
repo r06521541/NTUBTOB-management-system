@@ -4,6 +4,7 @@
 
 - Branch: `codex/phase-c-zero-admin-bootstrap`
 - Base: `f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a`
+- Implementation commit: `77894b8a8e1d6e33f93e8e72288afb99c126bd16`
 - Implemented a dedicated, fail-closed zero-admin Member bootstrap boundary in
   `IdentityLifecycleRepository.bootstrap_zero_admin_member`.
 - Extracted the post-admin Member-link transaction into
