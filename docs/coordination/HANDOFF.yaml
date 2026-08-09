@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: f236f75609e6ede95a5981c2423cdada895f8100
 head_commit: 8cbadb7e95b131d1c96ead9920dde3d34048c2a5
 
 updated_by: codex
-updated_at: 2026-08-10T00:06:48+08:00
+updated_at: 2026-08-10T00:20:00+08:00
 
 note: >
-  Runtime correction binds the production launcher to the verified bundled Python 3.12.13 executable and exact pinned dependencies.
-  A real subprocess smoke from the repository root safely stopped on a fake approved commit before gcloud, private environment, or
-  production access; 20 targeted tests, compileall, Black 24.4.2 formatter API, and diff check passed. Ready for Work review.
+  Work accepted repository readiness after independently running the exact bundled-runtime subprocess smoke and 20 targeted tests.
+  Work is creating the one ready PR; hosted Python 3.10, PostgreSQL 15/16 and final gate must pass before squash merge and the already
+  authorized production discovery/preflight/dry-run/single bootstrap/post-check sequence.

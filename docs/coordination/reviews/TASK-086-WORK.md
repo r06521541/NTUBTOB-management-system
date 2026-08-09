@@ -27,3 +27,12 @@ Runbook的exact production命令`py -3.10 tools/launch_production_zero_admin_boo
 請將launcher與runbook改為實際存在且可查證的exact runtime boundary：可鎖定目前bundled Python 3.12.13 executable/path/version與相依版本，並由hosted Python 3.10保留相容性證據；或提供另一個已實際啟動成功的pinned Python 3.10 runtime。必須新增real subprocess smoke，證明exact documented command能從repository root啟動launcher並在production access前因缺少／假approved commit安全停止；不得要求Owner安裝軟體、下載依賴或手動修復Windows alias。
 
 結論仍為：`changes_requested / codex`。只修operator runtime可執行性與契約測試；不得呼叫gcloud、讀private env、連production或執行DML。
+
+## 第三輪驗收（2026-08-10）
+
+- 驗收 runtime implementation `8cbadb7e95b131d1c96ead9920dde3d34048c2a5`；launcher與runbook已鎖定實際存在的bundled Python 3.12.13 executable及精確dependency版本，hosted Python 3.10仍作相容性證據。
+- Work依文件exact executable從repository root執行launcher，注入假approved commit；process只輸出固定`TASK-086 production launcher stopped`並以exit 1停止，未到達gcloud、private env或production access。
+- Work重跑launcher/operator suites 20/20 passed；compileall、`git diff --check`與工作樹檢查通過。先前PG15/16完整190項證據維持有效，因本輪只改launcher runtime/import boundary及其tests。
+- 本次複驗未讀private env／Secret、未呼叫gcloud、未連production、未執行DML／deployment／cloud mutation或56-Person activation。
+
+結論：`accepted`。建立唯一ready PR並以hosted Python 3.10、PostgreSQL 15／16與final gate補證；全部通過且branch不再變更後可squash merge，再依TASK-086已授權範圍執行production五階段launcher。
