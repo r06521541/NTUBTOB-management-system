@@ -1,14 +1,14 @@
-active_task: TASK-085
-status: completed
-next_actor: owner
+active_task: TASK-086
+status: in_progress
+next_actor: work
 
-base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
-head_commit: e018e8297a03644ea14734e9154aec582e611ce2
+base_commit: f236f75609e6ede95a5981c2423cdada895f8100
+head_commit: 8cbadb7e95b131d1c96ead9920dde3d34048c2a5
 
-updated_by: work
-updated_at: 2026-08-09T20:35:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T00:20:00+08:00
 
 note: >
-  TASK-085 repository readiness is accepted. GitHub Actions run 31308455551 passed PostgreSQL 15/16, all selected service jobs,
-  and the final gate. PR #89 may be squash merged under the standing Git authorization. Production bootstrap and the separate
-  56 linked-Person activation remain unauthorized and require subsequent exact tasks.
+  Work accepted repository readiness after independently running the exact bundled-runtime subprocess smoke and 20 targeted tests.
+  Work is creating the one ready PR; hosted Python 3.10, PostgreSQL 15/16 and final gate must pass before squash merge and the already
+  authorized production discovery/preflight/dry-run/single bootstrap/post-check sequence.
