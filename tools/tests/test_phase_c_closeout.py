@@ -604,6 +604,21 @@ SELECT $1::bigint, $2::uuid, $3::uuid
                     "42|11111111-1111-1111-1111-111111111111|22222222-2222-2222-2222-222222222222",
                 )
 
+                pager_off = run_docker(
+                    *client_args,
+                    script="""\\set ON_ERROR_STOP on
+\\pset pager off
+BEGIN TRANSACTION READ ONLY;
+SELECT generate_series(1, 200);
+ROLLBACK;
+\\echo rollback-complete
+""",
+                )
+                self.assertEqual(pager_off.returncode, 0)
+                self.assertIn("1", pager_off.stdout)
+                self.assertIn("200", pager_off.stdout)
+                self.assertIn("rollback-complete", pager_off.stdout)
+
                 quoted = run_docker(
                     *client_args,
                     script=correct_script.replace(

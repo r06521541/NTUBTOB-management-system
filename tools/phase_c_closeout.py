@@ -146,6 +146,9 @@ def verify_inventory_artifact(path: Path = INVENTORY_SQL_PATH) -> None:
     ):
         raise CloseoutEvidenceError("inventory checksum is invalid")
     sql = re.sub(r"--[^\n]*", "", canonical.decode("utf-8")).lower()
+    if "\\pset pager off" not in sql:
+        raise CloseoutEvidenceError("inventory pager boundary is invalid")
+    sql = sql.replace("\\pset pager off", "")
     binds = BIND_COMMAND.findall(sql)
     if len(binds) != 1:
         raise CloseoutEvidenceError("inventory bind contract is invalid")
@@ -208,6 +211,7 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
         DOCKER_PSQL_COMMAND,
         "\\set ON_ERROR_STOP on",
         "\\pset format csv",
+        "\\pset pager off",
         "\\prompt",
         "\\i docs/operations/sql/TASK-084-phase-c-closeout-inventory.sql",
         "extended query protocol",

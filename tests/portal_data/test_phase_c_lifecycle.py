@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -639,6 +640,41 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             self.repository.bootstrap_zero_admin_member(
                 second.identity.id, 7001, "One-time fictional bootstrap", "fake-second"
             )
+
+    def test_concurrent_zero_admin_bootstraps_allow_exactly_one_initial_link(self):
+        first = self._prepare_zero_admin_bootstrap()
+        second = self.repository.ensure_pending_line_identity(
+            "fake-concurrent-subject", "Fake Concurrent", "fake-concurrent-pending"
+        )
+        barrier = threading.Barrier(2)
+        outcomes = []
+        outcome_lock = threading.Lock()
+
+        def attempt(pending, request_id):
+            barrier.wait()
+            try:
+                self.repository.bootstrap_zero_admin_member(
+                    pending.identity.id,
+                    7001,
+                    "One-time fictional bootstrap",
+                    request_id,
+                )
+                result = "linked"
+            except ConflictError:
+                result = "rejected"
+            with outcome_lock:
+                outcomes.append(result)
+
+        threads = (
+            threading.Thread(target=attempt, args=(first, "fake-concurrent-one")),
+            threading.Thread(target=attempt, args=(second, "fake-concurrent-two")),
+        )
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+            self.assertFalse(thread.is_alive())
+        self.assertCountEqual(outcomes, ("linked", "rejected"))
 
 
 from alembic import command
