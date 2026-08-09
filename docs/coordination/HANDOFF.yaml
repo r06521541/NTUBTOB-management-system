@@ -1,14 +1,13 @@
 active_task: TASK-086
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 323bf95d1bf412b725ac99844c95a4724c96bdec
 head_commit: d145de047914b07bb3edf34882d8e48bfc467a2d
 
-updated_by: codex
+updated_by: work
 updated_at: 2026-08-10T16:10:00+08:00
 
 note: >
-  TASK-086 exact-two activation repository package is ready for Work review. Offline contracts passed 7 tests, related boundary suites
-  passed 25, and isolated PostgreSQL 15/16 transaction matrices passed 6 tests each, including rollback/retry/concurrency. No external
-  or production operation occurred. Review implementation d145de0 and the report before the one ready PR / hosted CI gate.
+  Work accepted the exact-two all-or-nothing activation after source review and a 29-test combined regression run.
+  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
