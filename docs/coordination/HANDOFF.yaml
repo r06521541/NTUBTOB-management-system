@@ -1,14 +1,15 @@
 active_task: TASK-086
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 72a015c53fea563843edead2ebbb862391638996
-head_commit: null
+head_commit: 41aee61ac9bdf10544e001b4965253bb969b783b
 
-updated_by: work
-updated_at: 2026-08-10T12:30:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T13:45:00+08:00
 
 note: >
-  Owner approved TASK-086 bootstrap recovery after the fixed diagnostic proved all guards pass and both admin/completed counts are zero.
-  Port the reviewed safe env metadata parser to the production launcher, preserve the exact five-stage transaction and no-disclosure
-  boundaries, and complete repository/local verification only before handing back to Work.
+  TASK-086 bootstrap recovery repository correction is complete. The production five-stage launcher now uses the reviewed strict
+  in-memory container env parser and cleanup boundary; related offline suites passed 43 tests and hosted-equivalent isolated PostgreSQL
+  15/16 full discoveries passed 190 tests each. No external or production operation occurred. Work should review implementation
+  41aee61 and the report before the single ready PR / hosted CI gate.

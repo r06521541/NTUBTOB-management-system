@@ -217,3 +217,42 @@ The diagnostic suite passed 14 tests and the combined related regressions
 passed 41 tests. Compileall, Black 24.4.2 formatter API, and `git diff --check`
 passed. No gcloud, private environment/Secret, production connection, DDL/DML,
 second bootstrap, or 56-Person activation was performed.
+
+## Production zero-admin bootstrap recovery
+
+- Branch: `codex/phase-c-bootstrap-recovery`
+- Base: `72a015c53fea563843edead2ebbb862391638996`
+- Implementation: `41aee61ac9bdf10544e001b4965253bb969b783b`
+
+The production five-stage launcher now uses the reviewed in-memory Cloud Run
+container-env parser. It requires the strict one-container envelope and one
+unique plain `WEB_PORTAL_ADMIN_MEMBER_IDS`, accepts unrelated Secret references
+only as exact nonempty `secretKeyRef.{key,name}`, and rejects missing,
+duplicate, empty, malformed, secret-backed, obsolete, or drifted metadata. It
+does not resolve Secret payloads. Captured stdout/stderr and the parsed metadata
+tree are mutable containers cleared in `finally`; failures expose only the
+fixed metadata-boundary error.
+
+The existing exact runtime/git/checksum/account/project/service/region guards,
+fresh internal request ID, and `discovery -> preflight -> dry-run -> execute ->
+post-check` sequence remain unchanged. Only `execute` receives the fixed
+acknowledgement, and the domain mutation remains one transaction.
+
+### Verification
+
+- Related offline launcher/operator suites: 43/43 passed.
+- Local isolated `postgres:15.8-alpine`, hosted-equivalent legacy setup,
+  Alembic upgrade, and full `tests/portal_data` discovery: 190/190 passed.
+- Local isolated `postgres:16.4-alpine`, the same sequence: 190/190 passed.
+- The PostgreSQL matrix covers success, same-request idempotency, ambiguity
+  rejection, injected atomic rollback, and two-session concurrency.
+- Compileall for the changed Python files: passed.
+- Black 24.4.2 formatter API: clean; the bundled Windows Black CLI was not used.
+- Launcher checksum and `git diff --check`: passed.
+- Both task-owned local PostgreSQL containers were stopped after validation.
+
+This was repository/local verification only. No gcloud command, private env,
+Secret payload, production connection, DDL/DML, deployment, runtime mutation,
+notification, or 56-Person activation was performed. Work review, the single
+ready PR, hosted CI, and squash merge remain required before the separately
+authorized production execution boundary.
