@@ -195,6 +195,10 @@ requires exactly one container and a unique plain-value
 secret-backed allowlist entries, extra schema fields, or unexpected container
 cardinality. Other ordinary env metadata and Secret references may exist in the
 captured list, but the diagnostic never requests or resolves Secret payloads.
+Unrelated Secret references must use the exact confirmed Cloud Run shape
+`valueFrom.secretKeyRef.{key,name}`. The obsolete `{secret,version}` assumption,
+mixed plain/secret entries, and any extra field fail closed; the allowlist itself
+must remain a unique plain `{name,value}` entry.
 The complete stdout/stderr byte buffers and parsed metadata tree are kept only
 in process memory and cleared immediately in `finally`; they are never printed,
 serialized, persisted, included in an exception, or copied to process env.

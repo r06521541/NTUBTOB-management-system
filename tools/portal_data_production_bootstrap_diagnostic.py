@@ -204,10 +204,10 @@ def _extract_plain_allowlist(metadata: object) -> set[int]:
             secret_ref = value_from["secretKeyRef"]
             if (
                 not isinstance(secret_ref, dict)
-                or set(secret_ref) != {"secret", "version"}
+                or set(secret_ref) != {"key", "name"}
                 or not all(
                     isinstance(secret_ref[field], str) and secret_ref[field]
-                    for field in ("secret", "version")
+                    for field in ("key", "name")
                 )
             ):
                 raise DiagnosticError("metadata boundary failed")
