@@ -95,6 +95,7 @@ app.register_blueprint(demo_events)
 def inject_portal_copy():
     return {"portal_copy": PORTAL_COPY}
 
+
 LEGACY_SESSION_COOKIE_NAME = "session"
 OAUTH_SESSION_KEYS = ("oauth_state_nonce", "next_url")
 LEGACY_IDENTITY_SESSION_KEYS = ("member", "display_name")
@@ -740,7 +741,11 @@ def admin_pending_identities():
     dashboard = repository.admin_dashboard(actor_person_id)
     return render_template(
         "identity_admin.html",
-        dashboard={"identities": dashboard["identities"], "people": dashboard["people"], "audit": ()},
+        dashboard={
+            "identities": dashboard["identities"],
+            "people": dashboard["people"],
+            "audit": (),
+        },
         csrf_token=get_or_create_csrf_token(),
         request_nonce=secrets.token_urlsafe(16),
         identity_maintenance_enabled=is_identity_maintenance_enabled(

@@ -968,7 +968,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 },
             ),
             "identities": (
-                {"identity_id": 81, "nickname": "pending", "identity_status": "pending"},
+                {
+                    "identity_id": 81,
+                    "nickname": "pending",
+                    "identity_status": "pending",
+                },
             ),
             "available_members": (),
             "audit": (),
@@ -1172,7 +1176,16 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual((first.status_code, retry.status_code), (302, 302))
         self.assertEqual(repository.set_ignored.call_count, 2)
         repository.set_ignored.assert_has_calls(
-            [call(70, 72, True, "Bounded closeout retry", "identity-ignore-fixed-retry")] * 2
+            [
+                call(
+                    70,
+                    72,
+                    True,
+                    "Bounded closeout retry",
+                    "identity-ignore-fixed-retry",
+                )
+            ]
+            * 2
         )
 
     def test_phase_c_person_can_update_only_own_display_name(self):

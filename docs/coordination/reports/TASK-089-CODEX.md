@@ -14,6 +14,7 @@
 - `C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m unittest discover -s apps/web_portal/tests -v`：128 tests passed，2 tests skipped（環境缺少 make/sh）。
 - `C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m py_compile apps/web_portal/app.py apps/web_portal/ui_text.py shared_lib/shared_module/portal_data/identity_lifecycle.py`：通過。
 - `git diff --check`：通過。
+- Hosted CI Black failure diagnosis：逐檔檢查定位為 `apps/web_portal/app.py` 與 `apps/web_portal/tests/test_admin_security.py`；`ui_text.py` 與 `identity_lifecycle.py` 已符合 Black。已採必要格式修正，未修改 CI workflow。
 
 ## Handoff
 
