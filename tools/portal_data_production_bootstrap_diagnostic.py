@@ -51,10 +51,8 @@ PROJECT = "ntubtob-schedule-405614"
 SERVICE = "web-portal"
 REGION = "asia-east1"
 APPROVED_COMMIT_ENV = "TASK086_DIAGNOSTIC_APPROVED_MERGED_COMMIT"
-ALLOWLIST_FORMAT = (
-    "value(spec.template.spec.containers[0].env"
-    "[?name=WEB_PORTAL_ADMIN_MEMBER_IDS].value)"
-)
+ALLOWLIST_NAME = "WEB_PORTAL_ADMIN_MEMBER_IDS"
+METADATA_FORMAT = "json(spec.template.spec.containers[0].env)"
 PG_KEYS = ("PGHOST", "PGPORT", "PGDATABASE", "PGUSER", "PGPASSWORD")
 SCHEMA_REVISION = "0004_phase_c_identity_lifecycle"
 BOOTSTRAP_REASON = (
@@ -144,17 +142,116 @@ def _verify_runtime_git(environ: Mapping[str, str]) -> None:
         raise DiagnosticError("git boundary failed")
 
 
-def _allowlist(value: str) -> frozenset[int]:
+def _allowlist(value: str) -> set[int]:
     parts = value.split(",")
     if not parts or any(not re.fullmatch(r"[1-9]\d*", part) for part in parts):
         raise DiagnosticError("metadata boundary failed")
-    values = frozenset(int(part) for part in parts)
+    values = {int(part) for part in parts}
     if len(values) != len(parts):
         raise DiagnosticError("metadata boundary failed")
     return values
 
 
-def _verify_gcloud_and_load_allowlist() -> frozenset[int]:
+def _clear_metadata(value: object) -> None:
+    if isinstance(value, dict):
+        for child in tuple(value.values()):
+            _clear_metadata(child)
+        value.clear()
+    elif isinstance(value, list):
+        for child in tuple(value):
+            _clear_metadata(child)
+        value.clear()
+    elif isinstance(value, bytearray):
+        value.clear()
+
+
+def _extract_plain_allowlist(metadata: object) -> set[int]:
+    if not isinstance(metadata, dict) or set(metadata) != {"spec"}:
+        raise DiagnosticError("metadata boundary failed")
+    template = metadata["spec"]
+    if not isinstance(template, dict) or set(template) != {"template"}:
+        raise DiagnosticError("metadata boundary failed")
+    spec = template["template"]
+    if not isinstance(spec, dict) or set(spec) != {"spec"}:
+        raise DiagnosticError("metadata boundary failed")
+    container_spec = spec["spec"]
+    if not isinstance(container_spec, dict) or set(container_spec) != {"containers"}:
+        raise DiagnosticError("metadata boundary failed")
+    containers = container_spec["containers"]
+    if not isinstance(containers, list) or len(containers) != 1:
+        raise DiagnosticError("metadata boundary failed")
+    container = containers[0]
+    if not isinstance(container, dict) or set(container) != {"env"}:
+        raise DiagnosticError("metadata boundary failed")
+    entries = container["env"]
+    if not isinstance(entries, list):
+        raise DiagnosticError("metadata boundary failed")
+    matches = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise DiagnosticError("metadata boundary failed")
+        keys = set(entry)
+        if keys not in ({"name", "value"}, {"name", "valueFrom"}):
+            raise DiagnosticError("metadata boundary failed")
+        if not isinstance(entry["name"], str) or not entry["name"]:
+            raise DiagnosticError("metadata boundary failed")
+        if keys == {"name", "value"} and not isinstance(entry["value"], str):
+            raise DiagnosticError("metadata boundary failed")
+        if keys == {"name", "valueFrom"}:
+            value_from = entry["valueFrom"]
+            if not isinstance(value_from, dict) or set(value_from) != {"secretKeyRef"}:
+                raise DiagnosticError("metadata boundary failed")
+            secret_ref = value_from["secretKeyRef"]
+            if (
+                not isinstance(secret_ref, dict)
+                or set(secret_ref) != {"secret", "version"}
+                or not all(
+                    isinstance(secret_ref[field], str) and secret_ref[field]
+                    for field in ("secret", "version")
+                )
+            ):
+                raise DiagnosticError("metadata boundary failed")
+        if entry["name"] == ALLOWLIST_NAME:
+            if keys != {"name", "value"} or not isinstance(entry["value"], str):
+                raise DiagnosticError("metadata boundary failed")
+            matches.append(entry["value"])
+    if len(matches) != 1:
+        raise DiagnosticError("metadata boundary failed")
+    return _allowlist(matches[0])
+
+
+def _load_env_metadata() -> tuple[bytearray, bytearray]:
+    result = subprocess.run(
+        [
+            str(GCLOUD),
+            "run",
+            "services",
+            "describe",
+            SERVICE,
+            "--account",
+            ACCOUNT,
+            "--project",
+            PROJECT,
+            "--region",
+            REGION,
+            f"--format={METADATA_FORMAT}",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=False,
+        timeout=30,
+    )
+    response = bytearray(result.stdout or b"")
+    error = bytearray(result.stderr or b"")
+    if result.returncode != 0:
+        response.clear()
+        error.clear()
+        raise DiagnosticError("metadata boundary failed")
+    return response, error
+
+
+def _verify_gcloud_and_load_allowlist() -> set[int]:
     if not GCLOUD.is_file():
         raise DiagnosticError("gcloud boundary failed")
     account = _run(
@@ -169,23 +266,19 @@ def _verify_gcloud_and_load_allowlist() -> frozenset[int]:
     project = _run([str(GCLOUD), "config", "get-value", "project", "--quiet"])
     if account != ACCOUNT or project != PROJECT:
         raise DiagnosticError("gcloud boundary failed")
-    value = _run(
-        [
-            str(GCLOUD),
-            "run",
-            "services",
-            "describe",
-            SERVICE,
-            "--account",
-            ACCOUNT,
-            "--project",
-            PROJECT,
-            "--region",
-            REGION,
-            f"--format={ALLOWLIST_FORMAT}",
-        ]
-    )
-    return _allowlist(value)
+    response = bytearray()
+    error = bytearray()
+    metadata: object = {}
+    try:
+        response, error = _load_env_metadata()
+        metadata = json.loads(response)
+        return _extract_plain_allowlist(metadata)
+    except Exception:
+        raise DiagnosticError("metadata boundary failed") from None
+    finally:
+        _clear_metadata(metadata)
+        response.clear()
+        error.clear()
 
 
 def _load_private_pg_environment(path: Path) -> dict[str, str]:
@@ -233,7 +326,7 @@ def _read_logging_safe(session: Session) -> bool:
     return all(value is True for value in row)
 
 
-def _active_admin_count(session: Session, allowlist: frozenset[int]) -> int:
+def _active_admin_count(session: Session, allowlist: set[int]) -> int:
     return int(
         session.scalar(
             select(func.count(func.distinct(PersonRecord.id)))
@@ -251,7 +344,7 @@ def _active_admin_count(session: Session, allowlist: frozenset[int]) -> int:
     )
 
 
-def _completed_relationship_count(session: Session, allowlist: frozenset[int]) -> int:
+def _completed_relationship_count(session: Session, allowlist: set[int]) -> int:
     return int(
         session.scalar(
             select(func.count(AccessAuditRecord.id))
@@ -318,7 +411,7 @@ def classify(environ: Mapping[str, str] | None = None) -> dict[str, str]:
     environment = os.environ if environ is None else environ
     result = _default_result()
     private_values: dict[str, str] = {}
-    allowlist: frozenset[int] = frozenset()
+    allowlist: set[int] = set()
     database_url = ""
     engine: Engine | None = None
     try:
@@ -380,7 +473,7 @@ def classify(environ: Mapping[str, str] | None = None) -> dict[str, str]:
         if engine is not None:
             engine.dispose()
         private_values.clear()
-        allowlist = frozenset()
+        allowlist.clear()
         database_url = ""
 
 

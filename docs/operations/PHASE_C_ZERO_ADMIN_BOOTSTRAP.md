@@ -183,10 +183,21 @@ exactly once:
 
 The independently checksummed diagnostic verifies its exact runtime,
 dependencies, git state, model checksum, gcloud account/project/service/region,
-single-field allowlist projection, and private PG file contract. It does not
+the approved container env metadata projection, and private PG file contract. It does not
 import or call either production launcher, the production operator, or the
 identity lifecycle repository. It has no mode argument, execution
 acknowledgement, UUID/request ID, DDL/DML, commit, or write transaction.
+
+The fixed gcloud projection is only
+`spec.template.spec.containers[0].env` in machine-readable JSON. The diagnostic
+requires exactly one container and a unique plain-value
+`WEB_PORTAL_ADMIN_MEMBER_IDS`; it rejects missing, duplicate, empty, malformed,
+secret-backed allowlist entries, extra schema fields, or unexpected container
+cardinality. Other ordinary env metadata and Secret references may exist in the
+captured list, but the diagnostic never requests or resolves Secret payloads.
+The complete stdout/stderr byte buffers and parsed metadata tree are kept only
+in process memory and cleared immediately in `finally`; they are never printed,
+serialized, persisted, included in an exception, or copied to process env.
 
 The database connection immediately starts an explicit read-only transaction
 and sets local statement, lock, and idle-in-transaction timeouts before fixed
@@ -198,8 +209,9 @@ SELECT queries. The only output is one JSON object with this exact schema:
 
 The values shown above describe the allowed classifications, not literal output
 from a run. No raw exception, identifier, credential, allowlist, cloud metadata,
-host, or SQL parameter may be retained or reported. All in-memory private values
-and the engine are cleaned in `finally`.
+host, or SQL parameter may be retained or reported. All response buffers,
+parsed metadata, allowlist/private PG values, and the engine are cleaned in
+`finally`.
 
 Interpret only the reviewed classifications: all six guards passing plus
 `active_admin=one` and `completed_relationship=one` proves the bootstrap

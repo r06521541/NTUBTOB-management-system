@@ -92,3 +92,19 @@ After local tests, one ready PR, hosted CI and squash merge, execute the diagnos
 - any `other` or guard failure: stop and return to Owner with the redacted classification only.
 
 The diagnostic authorization does not authorize a second bootstrap, 56-Person activation, deployment, schema, Secret/IAM/Scheduler, flags, traffic or notifications.
+
+## Owner-approved Cloud Run env metadata fallback（2026-08-10）
+
+The first diagnostic proved runtime/artifact/git but stopped at `gcloud_metadata`. A separate read-only classification proved the exact account, configured project, Web Portal service, and presence of the `WEB_PORTAL_ADMIN_MEMBER_IDS` field; gcloud could not server-side project one element from the repeated Cloud Run env list.
+
+The Owner selected and approved the following fallback: request only the Web Portal container env metadata list, capture it in memory, extract exactly the unique plain `WEB_PORTAL_ADMIN_MEMBER_IDS` entry, validate it, and immediately discard the complete response. The process may transiently see other ordinary env metadata and Secret Manager references, but it must never request or resolve Secret Manager payloads, print/log/serialize/persist the response, include it in exceptions, or write it to disk. Stdout remains only the fixed eight-field diagnostic JSON and stderr must remain empty.
+
+Implementation requirements:
+
+- Keep the exact account/project/service/region guards before metadata retrieval.
+- Use a fixed gcloud command and fixed machine-readable schema for only `spec.template.spec.containers[0].env`; reject additional top-level fields, duplicate allowlist entries, secret-backed allowlist entries, missing/empty/malformed allowlist values, or unexpected container cardinality.
+- Capture stdout/stderr in memory; never forward subprocess output or exception details. Clear response text, parsed metadata, allowlist and private PG values in `finally`.
+- Add adversarial tests with fake unrelated plain env values and secret references, proving none appear in stdout, stderr, exceptions, result JSON, files or subsequent environment.
+- Preserve the diagnostic's structural prohibition on DDL/DML, write transaction, prior launchers/operators, request IDs and execution acknowledgement.
+
+After repository review, one ready PR, hosted CI and squash merge, run the fixed diagnostic once more. This fallback does not authorize a second bootstrap or 56-Person activation.
