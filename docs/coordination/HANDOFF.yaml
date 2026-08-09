@@ -1,13 +1,14 @@
 active_task: TASK-086
-status: in_progress
-next_actor: work
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 93cbbe598d3e4031786f83653d54ca9e5a6bd551
-head_commit: ab6f1d52d53661ef011e55d2a29387cb9f5ea57d
+base_commit: 323bf95d1bf412b725ac99844c95a4724c96bdec
+head_commit: null
 
 updated_by: work
 updated_at: 2026-08-10T15:10:00+08:00
 
 note: >
-  Work accepted the fixed-schema candidate diagnostic after source review and a 20-test combined regression run.
-  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
+  Owner confirmed the allowlist intentionally contains two administrators and approved activating both. Aggregate production evidence
+  proves both are existing linked-same-Person inactive team players with no pending or wrong-Person relation. Implement the exact-two,
+  all-or-nothing audited activation repository/local only before returning to Work; no external or production operation is allowed.
