@@ -13,12 +13,19 @@ from typing import Mapping
 
 from sqlalchemy.engine import URL
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from tools import portal_data_production_zero_admin_bootstrap as operator
 
-ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "tools" / "launch_production_zero_admin_bootstrap.py"
 CHECKSUM = ARTIFACT.with_suffix(".py.sha256")
 MATERIAL_CHECKSUMS = ROOT / "tools" / "TASK-086-production-bootstrap.sha256"
+RUNTIME_EXECUTABLE = Path(
+    r"C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+)
+RUNTIME_VERSION = (3, 12, 13)
 PRIVATE_ENV_PATH = Path(r"C:\Users\USER\.ntubtob-private\backup.env")
 GCLOUD = Path(
     r"C:\Users\USER\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
@@ -101,8 +108,12 @@ def _run(command: list[str]) -> str:
 def _verify_runtime(environ: Mapping[str, str]) -> None:
     if Path.cwd().resolve() != ROOT.resolve():
         raise LauncherError("launcher must run from the repository root")
-    if sys.version_info[:2] != (3, 10):
-        raise LauncherError("Python 3.10 is required")
+    if (
+        Path(sys.executable).resolve() != RUNTIME_EXECUTABLE.resolve()
+        or sys.version_info[:3] != RUNTIME_VERSION
+        or not RUNTIME_EXECUTABLE.is_file()
+    ):
+        raise LauncherError("approved Python runtime is unavailable")
     if any(
         importlib.metadata.version(name) != version
         for name, version in REQUIRED_PACKAGES.items()

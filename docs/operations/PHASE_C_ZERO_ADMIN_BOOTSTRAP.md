@@ -104,14 +104,14 @@ People.
 
 After squash merge, start from the exact merged commit in a clean repository
 root. Set only the non-secret full SHA as `TASK086_APPROVED_MERGED_COMMIT`, then
-use Python 3.10 to invoke:
+invoke the exact verified bundled Python 3.12.13 runtime:
 
 ```powershell
-py -3.10 tools/launch_production_zero_admin_bootstrap.py
+& "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" tools/launch_production_zero_admin_bootstrap.py
 ```
 
 The launcher refuses any other working directory, dirty tree, commit, Python
-minor version, SQLAlchemy/Alembic/psycopg2 version, material source checksum,
+executable or exact version, SQLAlchemy/Alembic/psycopg2 version, material source checksum,
 gcloud account, project, service or region. Its fixed identity is
 `yces3108@gmail.com` / `ntubtob-schedule-405614` / `web-portal` /
 `asia-east1`; the gcloud executable is the reviewed absolute Windows path.

@@ -1,6 +1,7 @@
 import contextlib
 import io
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -17,6 +18,11 @@ class ProductionZeroAdminLauncherTests(unittest.TestCase):
         self.assertIn('PROJECT = "ntubtob-schedule-405614"', source)
         self.assertIn('SERVICE = "web-portal"', source)
         self.assertIn('REGION = "asia-east1"', source)
+        self.assertIn(
+            r"C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe",
+            source,
+        )
+        self.assertIn("RUNTIME_VERSION = (3, 12, 13)", source)
         self.assertIn(
             'PRIVATE_ENV_PATH = Path(r"C:\\Users\\USER\\.ntubtob-private\\backup.env")',
             source,
@@ -104,7 +110,11 @@ class ProductionZeroAdminLauncherTests(unittest.TestCase):
 
         with patch.object(
             launcher.Path, "cwd", return_value=launcher.ROOT
-        ), patch.object(launcher.sys, "version_info", (3, 10, 14)), patch.object(
+        ), patch.object(
+            launcher.sys, "executable", str(launcher.RUNTIME_EXECUTABLE)
+        ), patch.object(
+            launcher.sys, "version_info", (3, 12, 13)
+        ), patch.object(
             launcher.importlib.metadata,
             "version",
             side_effect=lambda name: launcher.REQUIRED_PACKAGES[name],
@@ -121,6 +131,27 @@ class ProductionZeroAdminLauncherTests(unittest.TestCase):
             commands[3],
             [str(launcher.GCLOUD), "config", "get-value", "project", "--quiet"],
         )
+
+    def test_documented_runtime_real_subprocess_stops_before_external_access(self):
+        environment = os.environ.copy()
+        environment[launcher.APPROVED_COMMIT_ENV] = "0" * 40
+        for key in (
+            launcher.operator.DATABASE_ENV,
+            launcher.operator.ALLOWLIST_ENV,
+            launcher.operator.EXECUTION_ENV,
+        ):
+            environment.pop(key, None)
+        result = subprocess.run(
+            [str(launcher.RUNTIME_EXECUTABLE), str(launcher.ARTIFACT)],
+            cwd=launcher.ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr.strip(), "TASK-086 production launcher stopped")
 
     def test_sequence_uses_process_only_values_and_finally_restores_environment(self):
         private = {

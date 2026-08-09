@@ -68,7 +68,7 @@ the isolated database default to `mod`, proves execute makes no audit change,
 and restores the setting in `finally`.
 
 A separate checksummed launcher now owns the exact production sequence. It
-requires Python 3.10, pinned SQLAlchemy/Alembic/psycopg2 versions, a clean exact
+requires the existing bundled Python 3.12.13 executable, pinned SQLAlchemy/Alembic/psycopg2 versions, a clean exact
 merged commit, checksummed operator/domain/model sources, and the fixed gcloud
 account/project/service/region. It consumes only the five approved PG keys from
 the fixed private file, requests only the single Web Portal allowlist metadata
@@ -78,10 +78,26 @@ process variable is itself a stop condition so gcloud subprocesses cannot
 inherit it.
 
 The launcher runs exactly discovery, preflight, dry-run, execute, and the new
-read-only post-check. Offline launcher/operator suites passed 19 tests. The
+read-only post-check. Offline launcher/operator suites passed 20 tests. The
 hosted-equivalent full portal-data suite passed 190 tests on each isolated
 PostgreSQL 15 and 16 container; both temporary containers were removed.
 
 This correction did not inspect the approved private file, invoke gcloud, or
 access production. The actual launcher remains gated on Work review, hosted CI,
 squash merge and the exact merged commit.
+
+## Runtime correction
+
+The documented command and launcher now require the verified bundled executable
+`C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe`
+at exact version 3.12.13. The existing pinned SQLAlchemy 2.0.23, Alembic 1.13.1
+and psycopg2-binary 2.9.9 dependency checks remain mandatory. Hosted Python 3.10
+compatibility remains a separate CI requirement; the unavailable local Windows
+Store alias is no longer an operator dependency.
+
+A real subprocess regression invoked the documented artifact from the repository
+root with this executable. With a syntactically valid but unapproved fake commit,
+it returned only the fixed safe stop message and exited before any gcloud command,
+private environment read or production access. This also exposed and corrected
+the direct-script repository import boundary. The offline launcher/operator
+suites now pass 20 tests; compile, formatter API and diff checks passed.
