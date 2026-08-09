@@ -8,6 +8,7 @@
 body { margin: 0; background: var(--color-canvas); }
 .member-shell { width: min(100% - 32px, 760px); margin: 0 auto; padding: 20px 0 48px; }
 .member-nav { display: flex; gap: 8px; overflow-x: auto; margin: 14px 0 20px; padding: 6px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-surface); }
+.member-nav { scrollbar-width: thin; }
 .member-nav a { flex: 0 0 auto; padding: 10px 14px; border-radius: 12px; color: var(--brand-primary); font-weight: 700; text-decoration: none; }
 .member-nav a:hover, .member-nav a:focus-visible { background: var(--brand-primary-soft); outline-color: var(--color-focus); }
 .account-card { padding: 28px; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); box-shadow: var(--shadow-card); }
@@ -24,6 +25,18 @@ dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
 .logout-button { border: 1px solid var(--color-border); background: transparent; color: var(--color-text); cursor: pointer; }
 .logout-button:hover, .logout-button:focus-visible { border-color: var(--brand-primary); background: var(--brand-primary-soft); outline-color: var(--color-focus); }
 .logout-note { margin: 12px 0 0; color: var(--color-muted); font-size: .88rem; text-align: center; }
+button, input, select, textarea { min-height: 44px; max-width: 100%; border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 10px 12px; font: inherit; }
+button { background: var(--brand-primary); color: var(--color-surface); font-weight: 800; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 2px; }
+form { display: grid; gap: 14px; }
+label { display: grid; gap: 6px; color: var(--color-muted); font-weight: 700; }
+
+@media (min-width: 640px) {
+    .member-shell { padding-top: 28px; }
+    .member-nav { justify-content: flex-start; }
+    form { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+    form > button, form > input[type="hidden"] { grid-column: 1 / -1; }
+}
 
 @media (max-width: 420px) {
     .member-shell { width: min(100% - 20px, 760px); padding-top: 10px; }
