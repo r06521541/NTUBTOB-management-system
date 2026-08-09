@@ -1,14 +1,13 @@
 active_task: TASK-086
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 5da0961532ad87414a49faafb5dc2299e941db9a
 head_commit: d00dead085ed0823fee50f6c9cf69427dc6c754c
 
-updated_by: codex
+updated_by: work
 updated_at: 2026-08-10T12:00:00+08:00
 
 note: >
-  Implemented the Owner-approved in-memory container env metadata fallback with strict schema/cardinality/plain allowlist validation,
-  mutable-buffer and parsed-tree cleanup, and adversarial no-disclosure coverage. Diagnostic 14/14 and combined 41/41 tests passed;
-  compileall, formatter API, and diff check passed. No external or production operation occurred; ready for Work review.
+  Work accepted the Cloud Run env metadata fallback after actual diff inspection and a 41-test combined regression run.
+  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
