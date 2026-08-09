@@ -9,17 +9,15 @@ codex: codex
 
 ## 目標
 
-重新設計正式比賽資訊體驗：盤點並取代既有 `/future-games`、`/game-roster/<game_id>`、`/attendance` 三個分散頁面，
-以單一正式比賽 dashboard 集中呈現該場比賽的完整資訊與互動流程。頁面可大幅參考 Demo layout，但資料必須來自正式
+重新設計正式比賽資訊體驗：盤點並重練既有 `/future-games`、`/game-roster/<game_id>`、`/attendance` 三個頁面，
+另建立一個全站比賽事項總覽 dashboard，集中呈現近期比賽、出席狀態、待回覆、roster 與比賽進度。頁面可大幅參考 Demo layout，但資料必須來自正式
 Game／Member／Attendance callers，不得使用 demo fixture。
 
 ## 正式資訊架構
 
-- 比賽列表：保留賽程入口，點選一場比賽後進入正式 dashboard。
-- 比賽 dashboard：暫定 route `/games/<game_id>`；呈現比賽摘要、日期／場地／對手、目前出席統計、已回覆名單、未回覆狀態、
-  roster 概覽、個人出席回覆入口與返回賽程導航。
-- 舊 `/game-roster/<game_id>` 與 `/attendance` 若保留，必須導向或以相容方式進入 dashboard，不得維持三套分散 UI。
-- `/future-games` 改為正式比賽列表入口，使用新版 dashboard 導航；不讀取 `/demo/*` 資料。
+- 比賽總覽 dashboard：獨立 route `/games/dashboard`；呈現近期比賽、出席狀態、待回覆、roster 概覽、比賽進度與各頁入口。
+- `/future-games`、`/game-roster/<game_id>`、`/attendance` 三頁各自重練，並提供返回或前往 `/games/dashboard` 的導航；不得用單一頁面冒充三頁功能。
+- `/future-games` 維持正式比賽列表入口；三頁與 dashboard 均不得讀取 `/demo/*` 資料。
 
 ## 介面要求
 
@@ -44,7 +42,8 @@ Game／Member／Attendance callers，不得使用 demo fixture。
 
 ## 驗收條件
 
-- 完整驗證列表→dashboard→attendance reply→PRG/readback 的正式 data flow。
+- 完整驗證 dashboard→三個正式頁面的導覽與資料流，以及正式 attendance reply→PRG/readback。
+- Owner 已批准新增正式 attendance POST 回覆流程；僅可沿用既有 attendance model／規則與正式資料 caller，不得自行新增資格規則。
 - Dashboard 成功、無賽事／無回覆、game not found、未登入、無權限與 malformed input 均有 contract tests。
 - 受影響 Web Portal unittest、import／py_compile、逐檔 Black/isort、`git diff --check` 通過。
 - report 列出 route → caller → repository/data source → template 的功能矩陣，以及明確未驗證項目。
