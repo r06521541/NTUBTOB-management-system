@@ -20,7 +20,8 @@
 
 ## Handoff
 
-- Implementation commit：`091baefedeef1fc441cf353889645ae51ddefb2e`。
+- Implementation / latest commit：`805a7bf0645e50823bc52d38eaeb533551990efc`。
+- Prior implementation commit：`091baefedeef1fc441cf353889645ae51ddefb2e`。
 - Branch：`codex/phase-d-identity-admin-transition`。
-- Push：尚未執行，待確認 branch remote 權限。
+- Push：已執行；`origin/codex/phase-d-identity-admin-transition` 指向 `805a7bf0645e50823bc52d38eaeb533551990efc`。
 - 最新 HANDOFF：已交回 `ready_for_review`，`next_actor=work`。
