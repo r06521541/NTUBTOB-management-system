@@ -11,8 +11,10 @@
 - `coordination/tasks/`：可執行任務規格。
 - `coordination/reports/`：Codex 實作報告。
 - `coordination/reviews/`：Work 驗收報告。
+- `coordination/archive/`：已完成階段的歷史 task／report／review；預設不讀，先看該階段 closeout。
 
-`tasks`、`reports` 與 `reviews` 是任務稽核歷史，不是 roadmap；判斷現在輪到誰一律以 `HANDOFF.yaml` 為準。
+`tasks`、`reports` 與 `reviews` 只放當前或尚未封存的工作；判斷現在輪到誰一律以 `HANDOFF.yaml` 為準。已完成
+Phase C 的歷史證據位於 `coordination/archive/phase-c/`，日常只需閱讀其 `PHASE_C_CLOSEOUT.md`。
 
 ## 產品規劃
 
@@ -41,7 +43,8 @@
 
 - 現況改變：更新 `PROJECT_STATE.md`。
 - Owner 核准重要方向：更新 `DECISIONS.md`。
-- 建立新工作：新增 `coordination/tasks/TASK-xxx.md` 並更新 `HANDOFF.yaml`。
+- 建立新工作：新增 `coordination/tasks/TASK-xxx.md`，標記task type／delivery group／獨立PR需求，並更新
+  `HANDOFF.yaml`。
 - Codex 完成：新增 report；Work 驗收：新增 review。
 - production deployment：新增 `operations/deployments/` 證據。
-- 不為單純交棒狀態建立多個無描述性的 commit；遵循 `COLLABORATION.md` 的精簡規則。
+- 不為單純交棒狀態建立多個無描述性的 commit；TASK、push與PR不必一對一，遵循 `COLLABORATION.md` 的精簡規則。

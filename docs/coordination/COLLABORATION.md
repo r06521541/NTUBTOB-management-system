@@ -1145,3 +1145,77 @@ Scheduler／cloud resource變更、真實LINE／Discord通知或重大架構／�
    較寬鬆的 task 降低目前的安全邊界。
 5. 衝突解決優先序為：Owner 最新明確指示 → active task 的明確安全例外 → `HANDOFF.yaml` 當前狀態 →
    `COLLABORATION.md`／`AGENTS.md` 現行全域規範 → 歷史 decision／task／report／review。
+
+---
+
+## 十九、TASK、Push、PR 與文件生命週期
+
+### 1. 三種不同單位
+
+- TASK 是工作、決策與驗收邊界，不必對應獨立 PR。
+- Push 是保存 checkpoint 與跨 session 交棒；只表示遠端 branch 有可查驗 commit，不表示已整合、CI 完成或可部署。
+- PR 是整合進 `main` 的 delivery unit；一個 delivery unit 原則上只有一個 ready PR 與一次 final hosted CI。
+
+TASK 應標記下列欄位；舊 task 不追溯補寫：
+
+```text
+task_type: planning | work_package | delivery
+delivery_group: <stable-name> | none
+requires_independent_pr: true | false
+```
+
+- `planning`：唯讀盤點、產品規則、設計與決策；通常不單獨 commit／PR。
+- `work_package`：同一大型成果的一段實作；可 commit／push 交棒，累積至共同 release branch。
+- `delivery`：可獨立整合、部署、rollback 或成為後續穩定基準；建立 final PR。
+- 同一 `delivery_group` 原則上只開一個 PR。小型獨立 bug／安全修正可以一個 TASK 對一個 PR。
+
+### 2. 文件唯一真實來源
+
+| 資訊 | 唯一來源 |
+| --- | --- |
+| 當前任務、狀態與下一位角色 | `HANDOFF.yaml` |
+| 系統目前能力、風險與優先序 | `PROJECT_STATE.md` |
+| Owner 核准且仍有效的長期決策 | `DECISIONS.md` |
+| 任務需求、範圍與驗收條件 | `tasks/TASK-xxx.md` |
+| Codex 最終實作與測試證據 | `reports/TASK-xxx-CODEX.md` |
+| Work 最終驗收結論 | `reviews/TASK-xxx-WORK.md` |
+| 已完成階段的歷史摘要與索引 | `archive/<phase>/PHASE_*_CLOSEOUT.md` |
+
+同一 TASK 只有一份 report 與一份 review；多輪修正直接更新原檔，不再建立 correction／recovery／closeout 等額外
+review 變體。只有不同 production operation 具有獨立安全邊界時，才可在同一 TASK 下保留明確命名的操作證據。
+
+### 3. 實作前五行 checkpoint
+
+高風險、跨模組或資料庫 work package 開始修改前，Codex 先向 Work 回報：
+
+1. 理解的目標。
+2. 預計修改的核心檔案。
+3. 必須維持的 invariant／安全邊界。
+4. 預計執行的最小充分測試。
+5. 已發現的歧義或阻塞。
+
+Work 應在這一刻攔截設計錯誤。若沒有需要 Owner 決策的歧義，Codex 可直接繼續，不必等待額外儀式性批准。
+
+### 4. Codex 自我驗收與 Work 風險式驗收
+
+Codex 交回前必須自行檢查完整 diff、逐條對照 task、覆蓋重要成功／失敗／重試／併發／rollback 路徑、執行最小
+充分測試、`git diff --check`，並確認未納入他人既有變更。Work 不機械重跑全部測試；以 diff、invariant、權限、
+資料一致性及最可能出錯的 targeted regression 為主。只有 schema、migration、受控 SQL、model 或高風險共用邊界
+才重跑完整 suite／PostgreSQL matrix。
+
+### 5. Production 與 repository integration 分離
+
+Merge 不等於部署或 production 資料操作。Production 流程固定分為：唯讀 discovery、Owner 看見精確目標後批准、
+單次 mutation／deployment、立即 post-check；輸出不確定時不得重跑 mutation，必須改用獨立唯讀 recovery diagnostic。
+
+### 6. 階段封存與日常讀取
+
+階段完成後，task／report／review 移入 `archive/<phase>/`，由單一 closeout 提供摘要與索引。封存資料預設不讀；只有
+調查歷史決策、事故或 rollback 證據時才查閱。新 session 日常只讀 `AGENTS.md`、本文件、`HANDOFF.yaml`、
+`PROJECT_STATE.md`、當前 task 與相關程式碼。
+
+### 7. Canonical checksum
+
+Checksum-locked 文字 artifact 的產生與驗證必須共用同一 repository helper，先將 CRLF 正規化成 LF；binary artifact
+才使用 raw bytes。CI 應證明 LF／CRLF checkout 得到相同文字 checksum。不得使用 `Get-FileHash` 等 raw-byte 工具
+產生 canonical text checksum，也不得在各 launcher 重複發明不一致的 checksum 規則。

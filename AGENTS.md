@@ -22,6 +22,11 @@
 - 一個可獨立交付單位原則上只建立一個 PR。純 coordination／task／report／review／handoff／closeout 文件不單獨
   開 PR，應併入同一實質任務的 final branch，或延至下一個實質規劃 commit；只有文件本身是必須立即生效的安全、
   授權或操作邊界時才例外。不得直接寫入 default branch。
+- TASK 是工作與決策單位，不等於 PR。planning task 可不 commit；work package 可 commit／push 到共同 release branch
+  作為交棒；只有 delivery unit 才建立 final PR。同一 `delivery_group` 原則上只建立一個 PR，push 本身不代表已整合、
+  已通過 hosted CI 或可部署。
+- 高風險或跨模組實作開始前，Codex 應先留下五行 execution checkpoint：目標、核心檔案、關鍵 invariant、最小充分
+  測試、歧義／阻塞。若沒有需要 Owner 決策的歧義，checkpoint 後可直接繼續，不增加儀式性等待。
 - Hosted CI 應依實際變更範圍選擇最小充分測試。只有 database schema／migration／受控 SQL／model／workflow 等
   相關變更才需要 PostgreSQL 多版本 matrix；一般純文件變更只需快速文件 gate。CI 尚未實作 change detection 前，
   不得假稱已跳過完整 suite，也不得為純狀態更新額外建立 PR。
@@ -81,6 +86,8 @@ python -m unittest discover -s apps/game_broadcast_service/tests -v
 在 Unix-like 環境可使用等價的 `make test-game-broadcast-service`。Makefiles 使用 `python3`、`cp`、`rm`、`grep` 等指令；Windows PowerShell 環境若沒有相容工具，直接執行上面的 Python 測試命令，不要為了跑測試而修改 Makefile。
 
 在 bundled Windows Python 下，若多檔或連續執行 Black CLI 時出現持續高 CPU 停滯，應終止該程序，改用逐檔 Black check 或同版本 formatter API 比對內容，並由 hosted CI 補足最終證據；不得因此跳過格式檢查或修改 Makefile。
+
+Checksum-locked 文字 artifact 必須以同一個 repository helper 產生與驗證，先將 CRLF 正規化為 LF 再計算 SHA-256；binary artifact 才雜湊 raw bytes。不得用 `Get-FileHash` 等 raw-byte 工具產生文字 artifact 的 canonical checksum。
 
 每次交付至少：
 

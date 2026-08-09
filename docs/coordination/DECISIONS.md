@@ -775,3 +775,28 @@
   merge metadata不使批准失效。受控artifact、validator、runbook順序或安全邊界變更仍須fail closed並重新批准。
 - 衝突處理：已完成task保留為歷史事實；active task在下一個外部操作前修正；未開始舊task重新啟動時先做規範
   相容性檢查。只有有理由、有範圍、有結束條件的較嚴格task例外可覆蓋全域流程，不得降低現行安全邊界。
+
+## DEC-074：Phase C production 功能與資料啟用完成
+
+- 狀態：`approved_and_executed`
+- 日期：2026-08-09
+- 結果：Phase C schema、三服務 runtime activation、exact-two allowlisted administrator bootstrap 及其餘54位既有
+  reliably linked team-player Person activation均完成；最終56位可靠LINE連結team players為active。
+- 驗證：TASK-087 read-only discovery為54、controls為2、drift為0；Owner精確批准54後，single-transaction execute
+  activation +54／audit +54，post-check與retry verification通過，其他核心aggregates不變。
+- 權限：production管理權限仍以runtime admin allowlist為準，不因Person access level自動授權admin。
+- 邊界：未因此授權新的deployment、identity maintenance flag、Secret／IAM／Scheduler、通知或其他production DML。
+
+## DEC-075：TASK 與 PR 分離並採階段封存
+
+- 狀態：`approved`
+- 日期：2026-08-09
+- 決策：TASK是工作與決策單位，push是checkpoint／交棒，PR是整合delivery unit；三者不再一對一。TASK分為
+  `planning`、`work_package`、`delivery`，同一`delivery_group`原則上只有一個ready PR與一次final hosted CI。
+- 驗收：高風險／跨模組實作先做五行checkpoint；Codex交回前自我驗收完整diff與關鍵路徑，Work採風險式
+  targeted review，不機械重跑全部suite。
+- 文件：每種狀態指定唯一真實來源；同一TASK只有一份report與一份review。階段完成後移入archive，由單一
+  closeout摘要；archive預設不讀。
+- Checksum：文字artifact統一CRLF→LF canonical SHA-256，產生與驗證共用repository helper；binary才hash raw bytes。
+- Production：維持discovery → Owner精確批准 → 單次mutation／deployment → post-check；不確定結果走唯讀
+  recovery diagnostic，不重跑mutation。
