@@ -7,7 +7,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 
-from shared_lib.shared_module.portal_data.domain import ConflictError, ValidationError
+from shared_lib.shared_module.portal_data.domain import (
+    AuthorizationError,
+    ConflictError,
+    ValidationError,
+)
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
@@ -520,6 +524,118 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                     )
                 ),
                 1,
+            )
+
+    def _prepare_zero_admin_bootstrap(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    TRUNCATE TABLE
+                      ntubtob.identity_review_messages,
+                      ntubtob.identity_review_threads,
+                      ntubtob.access_audit,
+                      ntubtob.person_qualifications,
+                      ntubtob.auth_identities,
+                      ntubtob.line_users,
+                      ntubtob.members,
+                      ntubtob.people
+                    RESTART IDENTITY CASCADE;
+                    """
+                )
+            )
+            person_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.people
+                      (display_name, portal_access_level, portal_status,
+                       version, created_at, updated_at)
+                    VALUES ('Fake Bootstrap', 'basic', 'inactive', 1, now(), now())
+                    RETURNING id
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.members (id, name, person_id) "
+                    "VALUES (7001, 'Fake Bootstrap Member', :person_id)"
+                ),
+                {"person_id": person_id},
+            )
+        self.repository = IdentityLifecycleRepository(self.engine, {7001})
+        return self.repository.ensure_pending_line_identity(
+            "fake-bootstrap-subject", "Fake Bootstrap", "fake-bootstrap-pending"
+        )
+
+    def test_zero_admin_bootstrap_links_only_allowlisted_pending_member(self):
+        pending = self._prepare_zero_admin_bootstrap()
+        principal = self.repository.bootstrap_zero_admin_member(
+            pending.identity.id,
+            7001,
+            "One-time fictional bootstrap",
+            "fake-bootstrap-link",
+        )
+        retry = self.repository.bootstrap_zero_admin_member(
+            pending.identity.id,
+            7001,
+            "One-time fictional bootstrap",
+            "fake-bootstrap-link",
+        )
+        self.assertEqual(retry.person.id, principal.person.id)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT actor_person_id, action, count(*) "
+                        "FROM ntubtob.access_audit WHERE request_id='fake-bootstrap-link' "
+                        "GROUP BY actor_person_id, action"
+                    )
+                ).one(),
+                (None, "identity_linked", 1),
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.person_qualifications "
+                        "WHERE person_id=:person_id AND qualification='team_player'"
+                    ),
+                    {"person_id": principal.person.id},
+                ),
+                1,
+            )
+
+    def test_zero_admin_bootstrap_rejects_non_allowlisted_target_and_existing_admin(
+        self,
+    ):
+        pending = self._prepare_zero_admin_bootstrap()
+        with self.assertRaises(AuthorizationError):
+            self.repository.bootstrap_zero_admin_member(
+                pending.identity.id, 7002, "One-time fictional bootstrap", "fake-wrong"
+            )
+        self.repository.bootstrap_zero_admin_member(
+            pending.identity.id, 7001, "One-time fictional bootstrap", "fake-first"
+        )
+        with self.engine.begin() as connection:
+            second_person = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name, portal_access_level, portal_status, version, created_at, updated_at) "
+                    "VALUES ('Fake Second', 'basic', 'inactive', 1, now(), now()) RETURNING id"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.members (id, name, person_id) "
+                    "VALUES (7003, 'Fake Second Member', :person_id)"
+                ),
+                {"person_id": second_person},
+            )
+        second = self.repository.ensure_pending_line_identity(
+            "fake-second-subject", "Fake Second", "fake-second-pending"
+        )
+        with self.assertRaises(ConflictError):
+            self.repository.bootstrap_zero_admin_member(
+                second.identity.id, 7001, "One-time fictional bootstrap", "fake-second"
             )
 
 

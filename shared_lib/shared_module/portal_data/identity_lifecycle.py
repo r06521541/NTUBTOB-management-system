@@ -436,103 +436,207 @@ class IdentityLifecycleRepository:
         try:
             with Session(self.engine) as session, session.begin():
                 self._require_admin(session, actor_person_id)
-                if self._audit_exists(session, request_id):
-                    identity = session.get(AuthIdentityRecord, identity_id)
-                    if identity is None or identity.status != "linked":
-                        raise ConflictError("idempotent approval state drift")
-                    subject = identity.provider_subject
-                else:
-                    identity = session.scalar(
-                        select(AuthIdentityRecord)
-                        .where(AuthIdentityRecord.id == identity_id)
-                        .with_for_update()
-                    )
-                    member = session.scalar(
-                        select(LegacyMemberRecord)
-                        .where(LegacyMemberRecord.id == member_id)
-                        .with_for_update()
-                    )
-                    if identity is None or identity.provider != "line":
-                        raise ConflictError("LINE identity not found")
-                    if identity.status != "pending" or identity.person_id is not None:
-                        raise ConflictError("pending identity required")
-                    if member is None or member.person_id is None:
-                        raise ConflictError("Member with Person link required")
-                    person = session.scalar(
-                        select(PersonRecord)
-                        .where(PersonRecord.id == member.person_id)
-                        .with_for_update()
-                    )
-                    if person is None or person.portal_status in {
-                        "disabled",
-                        "blocked",
-                    }:
-                        raise ConflictError("eligible target Person required")
-                    legacy = session.scalar(
-                        select(LegacyLineUserRecord)
-                        .where(
-                            LegacyLineUserRecord.line_user_id
-                            == identity.provider_subject
-                        )
-                        .with_for_update()
-                    )
-                    if legacy is None or legacy.member_id is not None:
-                        raise ConflictError("unlinked legacy identity required")
-                    person.portal_status = "active"
-                    person.version += 1
-                    person.updated_at = now
-                    identity.person_id = person.id
-                    identity.status = "linked"
-                    identity.updated_at = now
-                    legacy.member_id = member.id
-                    legacy.ignored = False
-                    qualification = session.scalar(
-                        select(PersonQualificationRecord)
-                        .where(
-                            PersonQualificationRecord.person_id == person.id,
-                            PersonQualificationRecord.qualification == "team_player",
-                        )
-                        .with_for_update()
-                    )
-                    if qualification is None:
-                        session.add(
-                            PersonQualificationRecord(
-                                person_id=person.id,
-                                qualification="team_player",
-                                status="active",
-                                valid_from=None,
-                                valid_until=None,
-                                granted_by_person_id=actor_person_id,
-                                reason=reason,
-                                created_at=now,
-                                updated_at=now,
-                            )
-                        )
-                    thread = self._thread(session, identity.id, now)
-                    thread.status = "closed"
-                    thread.closed_at = now
-                    thread.last_activity_at = now
-                    thread.updated_at = now
-                    session.add(
-                        AccessAuditRecord(
-                            action="identity_linked",
-                            actor_person_id=actor_person_id,
-                            target_person_id=person.id,
-                            auth_identity_id=identity.id,
-                            before_state={"status": "pending"},
-                            after_state={"status": "linked", "member_id": member.id},
-                            reason=reason,
-                            request_id=request_id,
-                            created_at=now,
-                        )
-                    )
-                    subject = identity.provider_subject
+                subject = self._approve_member_in_transaction(
+                    session,
+                    identity_id,
+                    member_id,
+                    reason,
+                    request_id,
+                    now,
+                    actor_person_id,
+                )
             principal = self.resolve_line_principal(subject, now)
             if principal is None:
                 raise ConflictError("approved principal did not resolve")
             return principal
         except IntegrityError as error:
             raise ConflictError("identity approval conflict") from error
+
+    def _approve_member_in_transaction(
+        self,
+        session: Session,
+        identity_id: int,
+        member_id: int,
+        reason: str,
+        request_id: str,
+        now: datetime,
+        actor_person_id: int | None,
+        *,
+        strict_bootstrap: bool = False,
+    ) -> str:
+        """Apply the shared Member-linking invariants inside an open transaction."""
+        if self._audit_exists(session, request_id):
+            identity = session.get(AuthIdentityRecord, identity_id)
+            audit = session.scalar(
+                select(AccessAuditRecord).where(
+                    AccessAuditRecord.request_id == request_id
+                )
+            )
+            if (
+                identity is None
+                or identity.status != "linked"
+                or audit is None
+                or audit.action != "identity_linked"
+                or audit.auth_identity_id != identity_id
+                or (audit.after_state or {}).get("member_id") != member_id
+            ):
+                raise ConflictError("idempotent approval state drift")
+            return identity.provider_subject
+        identity = session.scalar(
+            select(AuthIdentityRecord)
+            .where(AuthIdentityRecord.id == identity_id)
+            .with_for_update()
+        )
+        member = session.scalar(
+            select(LegacyMemberRecord)
+            .where(LegacyMemberRecord.id == member_id)
+            .with_for_update()
+        )
+        if identity is None or identity.provider != "line":
+            raise ConflictError("LINE identity not found")
+        if identity.status != "pending" or identity.person_id is not None:
+            raise ConflictError("pending identity required")
+        if member is None or member.person_id is None:
+            raise ConflictError("Member with Person link required")
+        person = session.scalar(
+            select(PersonRecord)
+            .where(PersonRecord.id == member.person_id)
+            .with_for_update()
+        )
+        if person is None or person.portal_status in {"disabled", "blocked"}:
+            raise ConflictError("eligible target Person required")
+        legacy = session.scalar(
+            select(LegacyLineUserRecord)
+            .where(LegacyLineUserRecord.line_user_id == identity.provider_subject)
+            .with_for_update()
+        )
+        if legacy is None or legacy.member_id is not None:
+            raise ConflictError("unlinked legacy identity required")
+        if strict_bootstrap and legacy.ignored:
+            raise ConflictError("unignored legacy identity required")
+        person.portal_status = "active"
+        person.version += 1
+        person.updated_at = now
+        identity.person_id = person.id
+        identity.status = "linked"
+        identity.updated_at = now
+        legacy.member_id = member.id
+        legacy.ignored = False
+        qualification = session.scalar(
+            select(PersonQualificationRecord)
+            .where(
+                PersonQualificationRecord.person_id == person.id,
+                PersonQualificationRecord.qualification == "team_player",
+            )
+            .with_for_update()
+        )
+        if qualification is None:
+            session.add(
+                PersonQualificationRecord(
+                    person_id=person.id,
+                    qualification="team_player",
+                    status="active",
+                    valid_from=None,
+                    valid_until=None,
+                    granted_by_person_id=actor_person_id,
+                    reason=reason,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        elif strict_bootstrap and qualification.status != "active":
+            raise ConflictError("active team player qualification required")
+        thread = self._thread(session, identity.id, now)
+        if strict_bootstrap and (
+            thread.status != "open"
+            or thread.closed_at is not None
+            or thread.redacted_at
+        ):
+            raise ConflictError("open review thread required")
+        thread.status = "closed"
+        thread.closed_at = now
+        thread.last_activity_at = now
+        thread.updated_at = now
+        session.add(
+            AccessAuditRecord(
+                action="identity_linked",
+                actor_person_id=actor_person_id,
+                target_person_id=person.id,
+                auth_identity_id=identity.id,
+                before_state={"status": "pending"},
+                after_state={"status": "linked", "member_id": member.id},
+                reason=reason,
+                request_id=request_id,
+                created_at=now,
+            )
+        )
+        return identity.provider_subject
+
+    def bootstrap_zero_admin_member(
+        self, identity_id: int, member_id: int, reason: str, request_id: str
+    ) -> Principal:
+        """Link the one allowlisted bootstrap principal when no admin exists."""
+        reason = require_reason(reason)
+        now = utc_now()
+        try:
+            with Session(self.engine) as session, session.begin():
+                session.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": ADMIN_LOCK_KEY},
+                )
+                if self._audit_exists(session, request_id):
+                    subject = self._approve_member_in_transaction(
+                        session,
+                        identity_id,
+                        member_id,
+                        reason,
+                        request_id,
+                        now,
+                        None,
+                        strict_bootstrap=True,
+                    )
+                else:
+                    if member_id not in self.admin_member_ids:
+                        raise AuthorizationError(
+                            "allowlisted bootstrap Member required"
+                        )
+                    active_admins = session.scalar(
+                        select(func.count(func.distinct(PersonRecord.id)))
+                        .select_from(PersonRecord)
+                        .join(
+                            LegacyMemberRecord,
+                            LegacyMemberRecord.person_id == PersonRecord.id,
+                        )
+                        .join(
+                            AuthIdentityRecord,
+                            AuthIdentityRecord.person_id == PersonRecord.id,
+                        )
+                        .where(
+                            PersonRecord.portal_status == "active",
+                            LegacyMemberRecord.id.in_(self.admin_member_ids or {-1}),
+                            AuthIdentityRecord.status == "linked",
+                        )
+                    )
+                    if active_admins != 0:
+                        raise ConflictError(
+                            "active allowlisted administrator already exists"
+                        )
+                    subject = self._approve_member_in_transaction(
+                        session,
+                        identity_id,
+                        member_id,
+                        reason,
+                        request_id,
+                        now,
+                        None,
+                        strict_bootstrap=True,
+                    )
+            principal = self.resolve_line_principal(subject, now)
+            if principal is None:
+                raise ConflictError("bootstrap principal did not resolve")
+            return principal
+        except IntegrityError as error:
+            raise ConflictError("zero-admin bootstrap conflict") from error
 
     def approve_non_member(
         self,
