@@ -1,14 +1,14 @@
 active_task: TASK-085
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
-head_commit: b5234e45b055cfcd48a10edd2da302ee1bfca434
+head_commit: 428d2099aae576bff73e3814b9ef68df581acfce
 
-updated_by: work
-updated_at: 2026-08-09T09:20:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T10:30:00+08:00
 
 note: >
-  Second review accepts strict retry, pager contract and reported PG15/16 concurrency, but executable operator artifact is absent;
-  psql test does not run the exact checksummed inventory; failure rollback coverage and report evidence remain incomplete. The newly
-  found 56 linked-Person inactive gap is recorded for a separate activation package, not silently folded into bootstrap.
+  TASK-085 second-review corrections are ready: checksummed interactive operator artifact, exact TASK-084 psql16 inventory
+  regression, PG15/16 failure/concurrency/operator matrices, atomic rollback coverage and consistent evidence report. The separate
+  56 linked-Person activation gap remains out of scope. No production access or mutation occurred.

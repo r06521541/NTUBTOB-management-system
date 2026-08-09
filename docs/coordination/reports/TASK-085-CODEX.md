@@ -1,56 +1,59 @@
 # TASK-085 Codex report
 
-## Scope and implementation
+## Delivery
 
 - Branch: `codex/phase-c-zero-admin-bootstrap`
 - Base: `f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a`
-- Implementation commit: `77894b8a8e1d6e33f93e8e72288afb99c126bd16`
-- Implemented a dedicated, fail-closed zero-admin Member bootstrap boundary in
-  `IdentityLifecycleRepository.bootstrap_zero_admin_member`.
-- Extracted the post-admin Member-link transaction into
-  `_approve_member_in_transaction`; ordinary approval keeps its existing admin
-  gate. Bootstrap instead holds the same transaction advisory lock, requires
-  its target Member to be in the configured allowlist, rejects any existing
-  active linked allowlisted administrator, and records one existing
-  `identity_linked` audit with a null actor.
-- Idempotent retries validate the original linked identity, audit action, and
-  Member before returning without another mutation.
-- Added PostgreSQL integration coverage for the success/retry audit invariant
-  and non-allowlisted/existing-admin rejection. These require the existing
-  isolated local PostgreSQL test URL.
-- Added the pager-safe operator boundary runbook. It explicitly preserves the
-  allowlist-only admin model and prohibits identifiers in argv, SQL text,
-  repository files, logs, and transcripts.
+- Original implementation: `77894b8a8e1d6e33f93e8e72288afb99c126bd16`
+- First corrections: `7a3f202c3fc15978fcc4b25571bbdd5f7af834fb` and
+  `b5234e45b055cfcd48a10edd2da302ee1bfca434`
+- Second-review implementation: `428d2099aae576bff73e3814b9ef68df581acfce`
 
-## Verification
+The repository now has a fail-closed zero-admin Member bootstrap that takes the
+existing admin advisory lock, requires zero active linked allowlisted admins,
+reuses the normal Member-link transaction and records one existing
+`identity_linked` null-actor audit. Retry validation requires the exact target,
+before/after state, Member, null actor and bootstrap-prefixed reason.
 
-- `python -m compileall shared_lib/shared_module/portal_data/identity_lifecycle.py tests/portal_data/test_phase_c_lifecycle.py` — passed.
-- `python -m unittest tests.portal_data.test_phase_c_lifecycle -v` — passed:
-  3 artifact tests passed; 11 PostgreSQL integration tests skipped because
-  `PORTAL_DATA_TEST_DATABASE_URL` / `PORTAL_DATA_DATABASE_URL` was not set.
-- Black 24.4.2 formatter API check for both changed Python files — passed.
-- `git diff --check` — passed.
+The checksummed executable `tools/portal_data_zero_admin_bootstrap.py` accepts
+only `--mode preflight|dry-run|execute` in argv. The full allowlist, identity,
+Member, reason, request ID and execute acknowledgement are interactive
+echo-disabled inputs. Output is a fixed aggregate-only JSON schema. The local
+operator path checks the target before mutation, requires the fixed execution
+acknowledgement and performs an exact aggregate/audit post-check.
 
-The bundled Windows Black CLI stalled during the two-file command and was
-terminated; per `AGENTS.md`, the same-version formatter API was used for the
-final per-file formatting evidence instead.
+The exact checksummed TASK-084 inventory owns `\pset pager off`, bound
+parameters, the fixed metric set and `ROLLBACK`; its verifier and true psql16
+regression cover that reviewed artifact rather than a generic query.
 
-## Limits
+Direct PostgreSQL tests cover blocked/disabled Person, ignored legacy row,
+closed/redacted thread, revoked qualification, wrong identity/Member, ordinary
+approval audit retry rejection, two-session concurrency and an injected audit
+failure with complete transaction rollback.
 
-No production database, private environment, Secret, gcloud, deployment, or
-external operation was used. PostgreSQL 15/16 execution, concurrent-session
-coverage, and real psql16 pager-off regression remain for the isolated hosted
-or explicitly configured local database environment.
+## Actual local verification
 
-## Review correction
+- PostgreSQL 15: `postgres:15.8-alpine`, local image ID
+  `sha256:0b42deb40e1694f2595be402b1c3d9f0ab132aef0912f0904d1f3efc94edc9e1`,
+  temporary container `task085-review2-pg15`. The selected six-test
+  failure/concurrency/operator dry-run+execute matrix ran with
+  `python -m unittest ... -v`: `Ran 6 tests ... OK`. Container removed.
+- PostgreSQL 16: `postgres:16.4-alpine`, pinned image ID
+  `sha256:89ec47deeeddac28eb60b5672a456c54213ff4528f8752fda7f7c2a0e4ead36a`,
+  temporary container `task085-review2-pg16`. The same selected matrix result:
+  `Ran 6 tests ... OK`. Container removed.
+- `RUN_PSQL16_BIND_INTEGRATION=1 python -m unittest tools.tests.test_phase_c_closeout.CloseoutEvidenceTests.test_psql16_bind_uses_unquoted_variable_payloads -v`:
+  passed. The test executed the exact checksummed TASK-084 inventory, its three
+  binds, fixed metric set, artifact-owned pager-off and `ROLLBACK`, then reached
+  `rollback-complete`; the task container was removed.
+- `python -m unittest tools.tests.test_zero_admin_bootstrap_operator tools.tests.test_phase_c_closeout tests.portal_data.test_phase_c_lifecycle.PhaseCArtifactTests -v`:
+  18 passed; the opt-in Docker test skipped in this non-opt-in invocation and
+  passed in the separately recorded opt-in invocation.
+- `python -m compileall` for all changed Python modules/tests: passed.
+- Black 24.4.2 formatter API: clean. The bundled Windows multi-file Black CLI
+  was not used, per `AGENTS.md`.
+- `git diff --check`: passed.
 
-- Reused `tools.setup_portal_data_legacy` to prepare the existing fictional
-  legacy baseline before local migration integration tests.
-- Ran the bootstrap success/retry/rejection and two-session concurrency
-  regression against isolated PostgreSQL 15.8 and 16.4 containers; both
-  versions passed and all temporary containers were removed.
-- The opt-in real PostgreSQL 16 psql test now emits 200 rows after `\pset pager
-  off`, executes `ROLLBACK`, and asserts its completion marker. It passed in
-  the isolated Docker run together with the bound-parameter regression.
-- The checksummed TASK-084 aggregate inventory now sets `\pset pager off` and
-  its verifier rejects an artifact without that fixed pager boundary.
+No production database, private environment, Secret, gcloud, deployment,
+runtime flag, traffic, IAM, Scheduler, notification or 56-Person activation
+operation was performed.
