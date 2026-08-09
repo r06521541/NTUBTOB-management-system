@@ -201,6 +201,10 @@ bootstrap, or 56-Person activation was performed.
 
 ## Cloud Run Secret reference schema correction
 
+- Branch: `codex/phase-c-bootstrap-secret-ref-schema`
+- Base: `d82ac7ee728303cae34d57fcca92e6ccf1f5eac6`
+- Implementation: `755e49028876aac6e4ad270bdb805b38ceb57449`
+
 The Owner-approved shape-only probe confirmed unrelated Cloud Run Secret
 references use the exact `valueFrom.secretKeyRef.{key,name}` schema. The strict
 parser now accepts only that shape while the allowlist remains a unique plain
@@ -208,3 +212,8 @@ parser now accepts only that shape while the allowlist remains a unique plain
 assumption, secret-backed allowlist, mixed value/valueFrom entries, and extra
 fields. Existing response cleanup, fixed output, no-disclosure, read-only, and
 no-launcher/operator/mutation boundaries are unchanged.
+
+The diagnostic suite passed 14 tests and the combined related regressions
+passed 41 tests. Compileall, Black 24.4.2 formatter API, and `git diff --check`
+passed. No gcloud, private environment/Secret, production connection, DDL/DML,
+second bootstrap, or 56-Person activation was performed.

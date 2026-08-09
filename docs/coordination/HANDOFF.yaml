@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: d82ac7ee728303cae34d57fcca92e6ccf1f5eac6
-head_commit: null
+head_commit: 755e49028876aac6e4ad270bdb805b38ceb57449
 
-updated_by: work
-updated_at: 2026-08-10T12:00:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T12:30:00+08:00
 
 note: >
-  Owner-approved shape-only production probe confirmed the outer envelope and found Cloud Run Secret references use
-  secretKeyRef key/name rather than secret/version. Implement the minimal strict parser correction and offline regressions;
-  do not access production, private env, Secret payloads or perform any mutation.
+  Corrected the strict Cloud Run Secret reference schema to exact secretKeyRef key/name while preserving a unique plain allowlist and
+  rejecting the obsolete schema, mixed/extra fields, and secret-backed allowlist. Diagnostic 14/14 and combined 41/41 tests passed;
+  compileall, formatter API, and diff check passed. No external or production operation occurred; ready for Work review.
