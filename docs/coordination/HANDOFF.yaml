@@ -1,15 +1,17 @@
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-088
+status: ready_for_review
+next_actor: work
 
-base_commit: ab1efa1579c688e71720b471ea1b3b5226447adc
-head_commit: ab1efa1579c688e71720b471ea1b3b5226447adc
+base_commit: d2888c440563b2d3beff95b0072f1a864e841889
+head_commit: 477a95a9ff6ff7c8812096e531a468af63037060
 
-updated_by: work
-updated_at: 2026-08-09T23:17:27+08:00
+updated_by: codex
+updated_at: 2026-08-10T00:00:00+08:00
 
 note: >
-  Phase C production activation is complete. Two allowlisted administrators and the remaining 54 existing reliably linked
-  team-player Persons are active; TASK-087 post-check verified zero drift and unchanged Member, identity, LINE,
-  qualification, and attendance cardinalities. No active task exists. Owner should select the next Phase D delivery group
-  with the new Work session before creating the next task.
+  TASK-088 is the Phase D delivery unit for identity/admin transition foundation and manual browser/LINE in-app login smoke
+  preparation. Production cutover, deployment, Secret/IAM/Scheduler changes, formal data mutation, and real notifications
+  remain outside authorization and require separate Owner approval.
+
+report: docs/coordination/reports/TASK-088-CODEX.md
+implementation_commit: 477a95a9ff6ff7c8812096e531a468af63037060

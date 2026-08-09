@@ -659,11 +659,11 @@ def match_line_user():
     repository = phase_c_repository()
     if repository is None:
         return "Identity service is temporarily unavailable", 503
-    line_user_id = request.form["line_user_id"]
-    member_id = request.form["member_id"]
+    line_user_id = _required_form_text("line_user_id")
+    member_id = _required_positive_form_int("member_id")
+    request_id = _required_request_id("identity-match-")
     identity = repository.line_identity(line_user_id)
     actor_person_id = session.get("person_id")
-    request_id = request.form.get("request_id", "")
     if (
         identity is None
         or not isinstance(actor_person_id, int)
@@ -673,7 +673,7 @@ def match_line_user():
     repository.approve_member(
         actor_person_id,
         identity.id,
-        int(member_id),
+        member_id,
         request.form.get("reason", ""),
         request_id,
     )
@@ -693,6 +693,35 @@ def _optional_form_datetime(name):
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=local_timezone)
     return parsed
+
+
+def _required_positive_form_int(name):
+    value = request.form.get(name)
+    if not isinstance(value, str) or not value.isascii() or not value.isdecimal():
+        abort(400)
+    parsed = int(value)
+    if parsed <= 0:
+        abort(400)
+    return parsed
+
+
+def _required_form_text(name):
+    value = request.form.get(name)
+    if not isinstance(value, str) or not value.strip() or len(value) > 255:
+        abort(400)
+    return value
+
+
+def _required_request_id(prefix):
+    value = request.form.get("request_id")
+    if (
+        not isinstance(value, str)
+        or not value.startswith(prefix)
+        or not value.isascii()
+        or not 1 <= len(value) <= 120
+    ):
+        abort(400)
+    return value
 
 
 @app.route("/identity-admin/action", methods=["POST"])
@@ -862,9 +891,10 @@ def ignore_line_user():
     repository = phase_c_repository()
     if repository is None:
         return "Identity service is temporarily unavailable", 503
-    identity = repository.line_identity(request.form["line_user_id"])
+    line_user_id = _required_form_text("line_user_id")
+    request_id = _required_request_id("identity-ignore-")
+    identity = repository.line_identity(line_user_id)
     actor_person_id = session.get("person_id")
-    request_id = request.form.get("request_id", "")
     if (
         identity is None
         or not isinstance(actor_person_id, int)
