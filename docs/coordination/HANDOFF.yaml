@@ -1,9 +1,9 @@
 active_task: TASK-093
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 72234fbe3c4b024716798c0cd603e9ea0912cffb
-head_commit: 72234fbe3c4b024716798c0cd603e9ea0912cffb
+head_commit: 0000000000000000000000000000000000000000
 
 updated_by: work
 updated_at: 2026-08-10T00:00:00+08:00
@@ -15,6 +15,6 @@ note: >
   existing qualification/Game contracts without code changes. TASK-093 is ready for Codex; Event/Activity and mobile clients
   remain out of scope.
 
-report: docs/coordination/reports/TASK-091-CODEX.md
-review: docs/coordination/reviews/TASK-091-WORK.md
-implementation_commit: cd896a565afed1dbd8688bb9c3e7af5b29d6d83e
+report: docs/coordination/reports/TASK-093-CODEX.md
+review: docs/coordination/reviews/TASK-093-WORK.md
+implementation_commit: 0000000000000000000000000000000000000000
