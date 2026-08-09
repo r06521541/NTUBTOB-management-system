@@ -19,7 +19,7 @@
 
 ## Handoff
 
-- Implementation commit：`477a95a9ff6ff7c8812096e531a468af63037060`。
+- Implementation commit：`091baefedeef1fc441cf353889645ae51ddefb2e`。
 - Branch：`codex/phase-d-identity-admin-transition`。
 - Push：尚未執行，待確認 branch remote 權限。
 - 最新 HANDOFF：已交回 `ready_for_review`，`next_actor=work`。
