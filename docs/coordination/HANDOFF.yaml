@@ -1,14 +1,14 @@
 active_task: TASK-085
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
 head_commit: 428d2099aae576bff73e3814b9ef68df581acfce
 
-updated_by: codex
-updated_at: 2026-08-09T10:30:00+08:00
+updated_by: work
+updated_at: 2026-08-09T10:50:00+08:00
 
 note: >
-  TASK-085 second-review corrections are ready: checksummed interactive operator artifact, exact TASK-084 psql16 inventory
-  regression, PG15/16 failure/concurrency/operator matrices, atomic rollback coverage and consistent evidence report. The separate
-  56 linked-Person activation gap remains out of scope. No production access or mutation occurred.
+  TASK-085 repository/local readiness accepted. Work reran 19 offline tests, 17 full PostgreSQL 16 lifecycle/bootstrap tests and
+  the exact psql16 inventory integration; all passed and containers were removed. Work is creating the single ready PR. Production
+  bootstrap and the separate 56 linked-Person activation remain unauthorized.

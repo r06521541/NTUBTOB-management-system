@@ -41,3 +41,14 @@
 - 這是Phase C linked-Person activation缺口，後續需獨立checksummed batch activation／audit／rollback package；不得在TASK-085 bootstrap中無聲批次修改其他55人。TASK-085只處理zero-admin bootstrap與其operator safety。
 
 結論維持：`changes_requested / codex`。完成executable operator artifact、exact inventory psql regression、完整failure rollback matrix與一致report後再交回。
+
+## 第三輪驗收（2026-08-09）
+
+- 實際驗收 implementation `428d2099aae576bff73e3814b9ef68df581acfce`；checksummed operator只接受mode於argv，allowlist／identity／Member／reason／request ID／execute acknowledgement均以echo-disabled互動輸入，stdout固定為aggregate-only JSON。
+- Operator具preflight／dry-run／execute、exact acknowledgement、zero-admin與target-ready pre-check、domain transaction及commit後admin/audit post-check；目前仍由`require_local_database_url`鎖定local-only，符合本task未授權production mutation的邊界。後續production execution package必須另行明確解除且由Owner批准。
+- Work重跑offline suite：19 tests passed、1 opt-in按設計skipped；compileall、operator/inventory checksum verifier與`git diff --check`通過。
+- Work以pinned PG16容器及repository local-only URL重跑完整`PhaseCLifecyclePostgresTests`：17/17 passed，涵蓋bootstrap、concurrency、operator、state drift、ordinary-audit拒絕與atomic rollback；容器已清除。
+- Work另跑opt-in real psql16 exact checksummed TASK-084 inventory：1/1 passed，完整bind／metrics／artifact-owned pager-off／ROLLBACK path通過，容器已清除。Codex report另記錄PG15相同selected matrix 6/6 passed。
+- 未連production、未讀private env／Secret、未執行gcloud／deploy／flags／traffic／IAM／Scheduler／通知，亦未處理56-Person activation。
+
+結論：`accepted`。建立唯一ready PR並以hosted PostgreSQL 15／16 final gate補證；通過後squash merge。Production bootstrap及linked-Person activation仍須後續exact task與Owner批准。
