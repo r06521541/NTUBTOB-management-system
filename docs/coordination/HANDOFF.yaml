@@ -1,15 +1,14 @@
 active_task: TASK-086
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: f236f75609e6ede95a5981c2423cdada895f8100
 head_commit: d931d286d6ed497e20d92ba0962d6146ea126ba7
 
-updated_by: codex
-updated_at: 2026-08-09T23:25:00+08:00
+updated_by: work
+updated_at: 2026-08-09T23:45:00+08:00
 
 note: >
-  Work-review blockers are corrected: execute has a distinct none/ddl-only logging gate with a real mod/no-mutation regression,
-  and a checksummed no-disclosure launcher locks the exact runtime/artifacts/account/project/service/region, private PG-file contract,
-  single allowlist metadata projection, five-stage sequence and finally cleanup. Offline tests passed 19; full PostgreSQL 15 and 16
-  suites passed 190 tests each. No production/private environment/gcloud/DML operation was performed.
+  Logging and no-disclosure launcher blockers are corrected, but the documented `py -3.10` runtime is a stale Windows Store alias and
+  cannot create a process on this host. Codex must bind the launcher to a real verified runtime (the available bundled Python 3.12.13
+  has the exact pinned dependencies) and add a real subprocess smoke before any gcloud/private env/production access.

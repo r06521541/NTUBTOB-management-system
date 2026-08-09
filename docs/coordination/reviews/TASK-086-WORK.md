@@ -13,3 +13,17 @@
 3. **Production command與cleanup證據不足。** Exact operator path需鎖定merged artifact/checksum、Python/shared dependencies、repository root、private env path、account/project/service/region guard，以及discovery→preflight→dry-run→execute→post-check順序。任何temporary file/process environment必須有finally cleanup與no-output contract；不得在PowerShell transcript、Docker argv、process list或GitHub log留下allowlist/DB credential。
 
 結論：`changes_requested / codex`。僅補write-safe logging與可重現private launcher；不得連production、讀private env/Secret、執行DML、處理56-Person activation或擴張至deployment/cloud mutation。
+
+## 第二輪驗收（2026-08-09）
+
+- 驗收 correction implementation `d931d286d6ed497e20d92ba0962d6146ea126ba7`；execute 已改用獨立 none/ddl-only write gate，且發生在request ID生成與domain DML前。真實PG regression涵蓋`mod`時audit零變化。
+- No-disclosure launcher已鎖定artifact、account/project/service/region、單一allowlist metadata projection、private PG env parser、五階段sequence與finally cleanup；敏感值不在child argv或固定錯誤輸出。
+- Work重跑launcher/operator suites 19/19 passed；compileall、`git diff --check`與工作樹檢查通過。
+
+### Remaining blocker
+
+Runbook的exact production命令`py -3.10 tools/launch_production_zero_admin_bootstrap.py`在本機不可執行。`py -0p`雖列出Microsoft Store Python 3.10 alias，但實際`py -3.10 -c ...`回傳`Unable to create process`，因此目前launcher無法到達任何自身guard。可用的bundled runtime為Python 3.12.13，且SQLAlchemy 2.0.23、alembic 1.13.1、psycopg2-binary 2.9.9均精確符合launcher鎖定版本。
+
+請將launcher與runbook改為實際存在且可查證的exact runtime boundary：可鎖定目前bundled Python 3.12.13 executable/path/version與相依版本，並由hosted Python 3.10保留相容性證據；或提供另一個已實際啟動成功的pinned Python 3.10 runtime。必須新增real subprocess smoke，證明exact documented command能從repository root啟動launcher並在production access前因缺少／假approved commit安全停止；不得要求Owner安裝軟體、下載依賴或手動修復Windows alias。
+
+結論仍為：`changes_requested / codex`。只修operator runtime可執行性與契約測試；不得呼叫gcloud、讀private env、連production或執行DML。
