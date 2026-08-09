@@ -3,7 +3,7 @@ status: ready_for_codex
 next_actor: codex
 
 base_commit: 5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f
-head_commit: bcafadc1fbde7385db15d8f734eba4d2b77ee79c
+head_commit: 936354b149ffa5d1187416abe750d33ca2fdf16e
 
 updated_by: work
 updated_at: 2026-08-10T00:00:00+08:00
