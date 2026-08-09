@@ -10,7 +10,7 @@
 <body>
 <main class="member-shell">
     {% include '_member_nav.html' %}
-    <h1>待配對／待核可身分</h1>
+    <h1>{{ portal_copy.pending_identity }}</h1>
     {% if not pending_only|default(false) %}<p><a href="{{ url_for('admin_people') }}">前往 Person 管理列表</a></p>{% endif %}
     {% if not identity_maintenance_enabled %}
         <p role="status">目前為唯讀模式；所有變更按鈕均停用。</p>
@@ -37,7 +37,7 @@
                 <input type="hidden" name="request_id" value="identity-action-{{ item.identity_id }}-{{ request_nonce }}">
                 <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
                 {% if not item.person_id %}
-                    <label>顯示名稱 <input name="display_name" maxlength="120"></label>
+                    <label>{{ portal_copy.display_name }} <input name="display_name" maxlength="120"></label>
                     <label>正式名稱 <input name="formal_name" maxlength="120"></label>
                     <label><input type="checkbox" name="qualification" value="affiliate"> affiliate</label>
                     <label><input type="checkbox" name="qualification" value="guest_player"> guest player</label>
@@ -109,7 +109,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="person_id" value="{{ person.person_id }}">
                 <input type="hidden" name="request_id" value="person-profile-{{ person.person_id }}-{{ request_nonce }}">
-                <label>顯示名稱 <input name="display_name" value="{{ person.display_name }}" maxlength="120" required></label>
+                <label>{{ portal_copy.display_name }} <input name="display_name" value="{{ person.display_name }}" maxlength="120" required></label>
                 <label>正式名稱 <input name="formal_name" value="{{ person.formal_name or '' }}" maxlength="120"></label>
                 <label>管理備註 <textarea name="admin_note" maxlength="1000">{{ person.admin_note or '' }}</textarea></label>
                 <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>

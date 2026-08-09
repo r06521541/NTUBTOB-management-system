@@ -988,9 +988,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(people.status_code, 200)
         self.assertIn("Person 管理".encode(), people.data)
         self.assertIn("暱稱".encode(), people.data)
+        self.assertNotIn("顯示名稱".encode(), people.data)
         self.assertEqual(pending.status_code, 200)
         self.assertIn("待配對／待核可身分".encode(), pending.data)
         self.assertNotIn("Person 管理列表".encode(), pending.data)
+        self.assertIn("暱稱".encode(), pending.data)
+        self.assertNotIn("顯示名稱".encode(), pending.data)
         repository.admin_dashboard.assert_called()
 
     def test_match_rejects_malformed_transport_before_repository_lookup(self):
