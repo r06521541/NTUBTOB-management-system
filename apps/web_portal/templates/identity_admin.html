@@ -10,7 +10,8 @@
 <body>
 <main class="member-shell">
     {% include '_member_nav.html' %}
-    <h1>身分與資格管理</h1>
+    <h1>待配對／待核可身分</h1>
+    {% if not pending_only|default(false) %}<p><a href="{{ url_for('admin_people') }}">前往 Person 管理列表</a></p>{% endif %}
     {% if not identity_maintenance_enabled %}
         <p role="status">目前為唯讀模式；所有變更按鈕均停用。</p>
     {% endif %}
@@ -97,7 +98,7 @@
         {% else %}<p>目前沒有 LINE 身分。</p>{% endfor %}
     </section>
 
-    <section aria-labelledby="people-heading">
+    {% if not pending_only|default(false) %}<section aria-labelledby="people-heading">
         <h2 id="people-heading">People</h2>
         {% for person in dashboard.people %}
         <article class="account-card">
@@ -135,7 +136,7 @@
             </form>
         </article>
         {% endfor %}
-    </section>
+    </section>{% endif %}
 
     <section aria-labelledby="audit-heading">
         <h2 id="audit-heading">近期稽核</h2>

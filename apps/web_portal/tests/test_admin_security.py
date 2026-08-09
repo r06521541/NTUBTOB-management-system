@@ -950,6 +950,49 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         self.notifier.notify_management_message.assert_called_once()
 
+    def test_admin_operations_have_separate_people_and_pending_routes(self):
+        self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "people": (
+                {
+                    "person_id": 80,
+                    "display_name": "暱稱",
+                    "formal_name": "正式姓名",
+                    "member_id": 8,
+                    "status": "active",
+                },
+            ),
+            "identities": (
+                {"identity_id": 81, "nickname": "pending", "identity_status": "pending"},
+            ),
+            "available_members": (),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            people = self.client.get("/admin/people?q=正式")
+            pending = self.client.get("/admin/pending-identities")
+        self.assertEqual(people.status_code, 200)
+        self.assertIn("Person 管理".encode(), people.data)
+        self.assertIn("暱稱".encode(), people.data)
+        self.assertEqual(pending.status_code, 200)
+        self.assertIn("待配對／待核可身分".encode(), pending.data)
+        self.assertNotIn("Person 管理列表".encode(), pending.data)
+        repository.admin_dashboard.assert_called()
+
     def test_match_rejects_malformed_transport_before_repository_lookup(self):
         token = self.get_csrf_token()
         repository = MagicMock()

@@ -24,7 +24,7 @@
                 姓名顯示：
                 <a href="{{ url_for('attendance', name_style='formal') }}"{% if name_style == 'formal' %} aria-current="page"{% endif %}>正式姓名</a>
                 ／
-                <a href="{{ url_for('attendance', name_style='display') }}"{% if name_style == 'display' %} aria-current="page"{% endif %}>顯示名稱</a>
+                <a href="{{ url_for('attendance', name_style='display') }}"{% if name_style == 'display' %} aria-current="page"{% endif %}>{{ portal_copy.display_name }}</a>
             </nav>
         </div>
         {% for game in games_with_attendance %}

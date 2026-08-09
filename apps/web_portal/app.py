@@ -47,6 +47,7 @@ from line_login import (
     safe_return_path,
 )
 from performance_diagnostics import AttendanceTiming
+from ui_text import PORTAL_COPY
 from role_policy import MANAGE_MEMBERS, ROLE_ADMIN, ROLE_MEMBER
 from role_policy import Principal as WebPrincipal
 from role_policy import has_capability
@@ -88,6 +89,11 @@ else:
     app.secret_key = secret_key  # 用於保持安全的session
 app.register_blueprint(demo_portal)
 app.register_blueprint(demo_events)
+
+
+@app.context_processor
+def inject_portal_copy():
+    return {"portal_copy": PORTAL_COPY}
 
 LEGACY_SESSION_COOKIE_NAME = "session"
 OAUTH_SESSION_KEYS = ("oauth_state_nonce", "next_url")
@@ -648,6 +654,103 @@ def index():
     )
 
 
+def _admin_repository_or_unavailable():
+    repository = phase_c_repository()
+    actor_person_id = session.get("person_id")
+    if repository is None or not isinstance(actor_person_id, int):
+        return None, None
+    return repository, actor_person_id
+
+
+@app.route("/admin/people")
+@admin_required
+def admin_people():
+    repository, actor_person_id = _admin_repository_or_unavailable()
+    if repository is None:
+        return "Identity service is temporarily unavailable", 503
+    dashboard = repository.admin_dashboard(actor_person_id)
+    query = request.args.get("q", "").strip()
+    page = request.args.get("page", default=1, type=int)
+    if page < 1:
+        abort(400)
+    people = dashboard["people"]
+    if query:
+        people = tuple(
+            person
+            for person in people
+            if query.casefold()
+            in " ".join(
+                str(person.get(key) or "")
+                for key in ("display_name", "formal_name", "member_id")
+            ).casefold()
+        )
+    page_size = 25
+    total_pages = max(1, (len(people) + page_size - 1) // page_size)
+    if page > total_pages:
+        abort(404)
+    start = (page - 1) * page_size
+    return render_template(
+        "person_list.html",
+        people=people[start : start + page_size],
+        available_members=dashboard.get("available_members", ()),
+        query=query,
+        page=page,
+        total_pages=total_pages,
+        request_nonce=secrets.token_urlsafe(16),
+        csrf_token=get_or_create_csrf_token(),
+        identity_maintenance_enabled=is_identity_maintenance_enabled(
+            demo_mode=DEMO_MODE_ENABLED
+        ),
+    )
+
+
+@app.route("/admin/people/<int:person_id>")
+@admin_required
+def admin_person_detail(person_id):
+    repository, actor_person_id = _admin_repository_or_unavailable()
+    if repository is None:
+        return "Identity service is temporarily unavailable", 503
+    person = next(
+        (
+            item
+            for item in repository.admin_dashboard(actor_person_id)["people"]
+            if item["person_id"] == person_id
+        ),
+        None,
+    )
+    if person is None:
+        abort(404)
+    return render_template(
+        "person_detail.html",
+        person=person,
+        csrf_token=get_or_create_csrf_token(),
+        request_nonce=secrets.token_urlsafe(16),
+        identity_maintenance_enabled=is_identity_maintenance_enabled(
+            demo_mode=DEMO_MODE_ENABLED
+        ),
+    )
+
+
+@app.route("/admin/pending-identities")
+@admin_required
+def admin_pending_identities():
+    repository, actor_person_id = _admin_repository_or_unavailable()
+    if repository is None:
+        return "Identity service is temporarily unavailable", 503
+    dashboard = repository.admin_dashboard(actor_person_id)
+    return render_template(
+        "identity_admin.html",
+        dashboard={"identities": dashboard["identities"], "people": dashboard["people"], "audit": ()},
+        csrf_token=get_or_create_csrf_token(),
+        request_nonce=secrets.token_urlsafe(16),
+        identity_maintenance_enabled=is_identity_maintenance_enabled(
+            demo_mode=DEMO_MODE_ENABLED
+        ),
+        current_identity_id=session.get("auth_identity_id"),
+        pending_only=True,
+    )
+
+
 @app.route("/match-member/match", methods=["POST"])
 @admin_required
 def match_line_user():
@@ -744,6 +847,8 @@ def identity_admin_action():
     action = request.form.get("action", "")
     reason = request.form.get("reason", "")
     request_id = request.form.get("request_id", "")
+    if action == "create_member":
+        request_id = _required_request_id("member-create-")
     identity_id = request.form.get("identity_id", type=int)
     person_id = request.form.get("person_id", type=int)
     remap_member_id = None
@@ -871,6 +976,15 @@ def identity_admin_action():
                 request.form.get("message", ""),
                 request_id,
                 actor_person_id=actor_person_id,
+            )
+        elif action == "create_member":
+            repository.create_member_person(
+                actor_person_id,
+                _required_positive_form_int("member_id"),
+                request.form.get("display_name", ""),
+                reason,
+                request_id,
+                qualifications=request.form.getlist("qualification"),
             )
         else:
             abort(400)
