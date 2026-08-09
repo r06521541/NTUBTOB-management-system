@@ -6,13 +6,17 @@
 
 - `coordination/HANDOFF.yaml`：目前任務、狀態與下一位角色的唯一真實來源。
 - `coordination/PROJECT_STATE.md`：跨任務的系統現況、優先佇列、風險與已完成工作。
-- `coordination/DECISIONS.md`：Owner 已核准的重要產品與技術決策。
+- `coordination/DECISIONS.md`：目前仍有效的產品、技術、授權與安全決策。
 - `coordination/COLLABORATION.md`：Work、Codex 與 Owner 的交棒、PR 及 commit 規則。
+- `coordination/CODEX_SESSION_ANCHOR.md`：建立新 Codex 實作 session 時可直接貼上的固定啟動提示。
 - `coordination/tasks/`：可執行任務規格。
 - `coordination/reports/`：Codex 實作報告。
 - `coordination/reviews/`：Work 驗收報告。
+- `coordination/archive/`：已完成階段與舊 governance 歷史；預設不讀，先看 closeout／archive index。
 
-`tasks`、`reports` 與 `reviews` 是任務稽核歷史，不是 roadmap；判斷現在輪到誰一律以 `HANDOFF.yaml` 為準。
+`tasks`、`reports` 與 `reviews` 只放當前或尚未封存的工作；判斷現在輪到誰一律以 `HANDOFF.yaml` 為準。已完成
+TASK-001～047 位於 `coordination/archive/pre-phase-c/`；Phase C 歷史證據位於 `coordination/archive/phase-c/`，
+日常只需閱讀 Phase C 的 `PHASE_C_CLOSEOUT.md`。
 
 ## 產品規劃
 
@@ -35,13 +39,18 @@
 
 ## 本機開發
 
+- `development/AGENT_ENVIRONMENT.md`：Windows／Codex runtime、Git、Black、gcloud、Docker、psql、checksum 與
+  中斷重試的已知陷阱；本機作業必讀。
 - `development/LOCAL_PORTAL_DATA.md`：TASK-048 專用的隔離 PostgreSQL、Alembic migration rehearsal、contract tests 與 named-volume 清理方式；不授權或連接 production。
 
 ## 維護規則
 
 - 現況改變：更新 `PROJECT_STATE.md`。
 - Owner 核准重要方向：更新 `DECISIONS.md`。
-- 建立新工作：新增 `coordination/tasks/TASK-xxx.md` 並更新 `HANDOFF.yaml`。
-- Codex 完成：新增 report；Work 驗收：新增 review。
+- 建立新工作：新增 `coordination/tasks/TASK-xxx.md`，標記task type／delivery group／獨立PR需求，並更新
+  `HANDOFF.yaml`。
+- Codex 完成：更新該 TASK 唯一 report；Work 驗收：更新該 TASK 唯一 review。
 - production deployment：新增 `operations/deployments/` 證據。
-- 不為單純交棒狀態建立多個無描述性的 commit；遵循 `COLLABORATION.md` 的精簡規則。
+- 不為單純交棒狀態建立多個無描述性的 commit；TASK、push與PR不必一對一，遵循 `COLLABORATION.md` 的精簡規則。
+- `COLLABORATION.md`、`PROJECT_STATE.md` 或未封存 tasks 超過文件預算時，先整理再建立 final PR；active decisions
+  不設數量上限，但出現重複、衝突或閱讀困難時由 Work 整併與封存。

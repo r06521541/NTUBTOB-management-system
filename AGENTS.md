@@ -10,6 +10,8 @@
 - 先理解需求與現況，再修改。不要順手重構無關程式碼。
 - 優先自行從 repository 找答案；只有會顯著改變行為、資料或部署結果的歧義才詢問使用者。
 - 修改前執行 `git status --short`。既有變更均視為使用者所有，不覆寫、不回復、不納入無關修改。
+- Commit 前同時確認目前 branch；不得在 `main`／default branch 直接建立工作 commit。完整 commit SHA 必須由
+  `git rev-parse` 取得，不得手動延伸短 SHA。
 - 搜尋檔案與文字優先使用 `rg --files` 與 `rg`。
 - 修改檔案使用 patch，保持 diff 小而聚焦，並沿用附近程式碼的風格。
 - 不得自行 commit、push、建立 PR、部署、變更雲端資源或寫入正式資料；除非使用者明確要求。由 Owner 寫入
@@ -22,6 +24,13 @@
 - 一個可獨立交付單位原則上只建立一個 PR。純 coordination／task／report／review／handoff／closeout 文件不單獨
   開 PR，應併入同一實質任務的 final branch，或延至下一個實質規劃 commit；只有文件本身是必須立即生效的安全、
   授權或操作邊界時才例外。不得直接寫入 default branch。
+- TASK 是工作與決策單位，不等於 PR。planning task 可不 commit；work package 可 commit／push 到共同 release branch
+  作為交棒；只有 delivery unit 才建立 final PR。同一 `delivery_group` 原則上只建立一個 PR，push 本身不代表已整合、
+  已通過 hosted CI 或可部署。
+- 高風險或跨模組實作開始前，Codex 應先留下五行 execution checkpoint：目標、核心檔案、關鍵 invariant、最小充分
+  測試、歧義／阻塞。若沒有需要 Owner 決策的歧義，checkpoint 後可直接繼續，不增加儀式性等待。
+- `AGENTS.md`、`docs/coordination/COLLABORATION.md`、`DECISIONS.md` 與文件預算由 Work 主責維護；Codex 只有
+  active task 明確要求時才修改。文件預算不足以容納必要資訊時，必須向 Owner 回報，不得自行省略安全邊界。
 - Hosted CI 應依實際變更範圍選擇最小充分測試。只有 database schema／migration／受控 SQL／model／workflow 等
   相關變更才需要 PostgreSQL 多版本 matrix；一般純文件變更只需快速文件 gate。CI 尚未實作 change detection 前，
   不得假稱已跳過完整 suite，也不得為純狀態更新額外建立 PR。
@@ -35,7 +44,8 @@
 1. 本文件與目標子目錄中的說明文件。
 2. `README.md`、相關 service/function 的 `README.md`。
 3. `docs/README.md`、`docs/coordination/PROJECT_STATE.md`，以及 `docs/coordination/tasks/` 中對應的任務文件（若存在）。
-4. 目標程式碼、相鄰模組、既有測試及部署設定。
+4. Windows／本機操作時的 `docs/development/AGENT_ENVIRONMENT.md`。
+5. 目標程式碼、相鄰模組、既有測試及部署設定。
 
 文件可能落後於程式碼；有衝突時，以可執行程式碼、測試與目前使用者指示為準，並在必要時同步文件。不要因 roadmap 提到某項工作，就擴張當前任務範圍。
 
@@ -82,6 +92,10 @@ python -m unittest discover -s apps/game_broadcast_service/tests -v
 
 在 bundled Windows Python 下，若多檔或連續執行 Black CLI 時出現持續高 CPU 停滯，應終止該程序，改用逐檔 Black check 或同版本 formatter API 比對內容，並由 hosted CI 補足最終證據；不得因此跳過格式檢查或修改 Makefile。
 
+Checksum-locked 文字 artifact 必須先將 CRLF 正規化為 LF 再計算 SHA-256；binary artifact 才雜湊 raw bytes。新的
+workflow 必須共用 repository helper；在 helper 尚未統一前，只能沿用該 artifact 已有且受測試保護的 generator／
+verifier，不得用 `Get-FileHash` 等 raw-byte 工具重產文字 checksum。
+
 每次交付至少：
 
 ```sh
@@ -114,7 +128,9 @@ git status --short
 ## 資料庫與跨服務變更
 
 - 資料庫為 PostgreSQL，models 位於 `shared_lib/shared_module/models/`，主要 schema 為 `ntubtob`。
-- repository 目前沒有正式 migration framework。未經明確要求，不直接變更正式 schema、執行 DDL 或假設 model 修改已部署。
+- Portal-data 已使用 Alembic migrations，production revision 目前為 `0004_phase_c_identity_lifecycle`；legacy schema 與
+  受控 SQL 仍須依 task／runbook 的 exact artifact boundary 處理。未經明確要求，不變更正式 schema、執行 DDL 或
+  假設 model 修改已部署。
 - 必須改 schema 時，先提出 migration、相容性、回填與 rollback 方法；應讓舊版與新版服務在 rollout 期間能安全共存。
 - 修改共用 model、訊息格式或函式介面時，搜尋所有 callers，檢查 apps、functions 與測試，不只修改第一個使用點。
 - 對通知、webhook、排程工作考慮重試與重複投遞；新增副作用時要有 idempotency 或清楚的防重策略。
@@ -128,6 +144,8 @@ git status --short
 - 保持現有公開邊界：只有真正需要外部流量的 endpoint 可 unauthenticated；公開的 LINE webhook 仍必須驗證 signature。
 - 不降低 authentication、authorization、session、webhook signature 或 Cloud Run/Functions IAM 設定來讓測試「先通過」。
 - 不對真實 LINE/Discord 使用者發訊息，不呼叫 production crawler/weather endpoint，不連線 production DB，除非使用者明確授權且確認目標環境。
+- 已棄用的是 LINE Notify API 與 legacy `line_notify_tokens`；LINE Official Account／Messaging API、LINE Login、
+  webhook 與 Discord 是不同能力，仍依實際 caller 使用及查證，不得混為一談。
 
 ## 部署相關規則
 
