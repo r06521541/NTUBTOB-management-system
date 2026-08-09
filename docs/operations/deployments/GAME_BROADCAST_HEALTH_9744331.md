@@ -12,7 +12,7 @@ Current rollback digest：`sha256:7301a529d18506f5f46832090421924cd7c40e2726233d
 
 Preflight：current revision ready／active、100% traffic；private IAM與runtime contract未退化；required Secret versions Enabled；三個Scheduler jobs維持既有target與Asia/Taipei schedule。
 
-Owner已批准`docs/coordination/tasks/TASK-014.md`第10節的精確範圍。
+Owner已批准`docs/coordination/archive/pre-phase-c/tasks/TASK-014.md`第10節的精確範圍。
 
 ## Execution result
 
