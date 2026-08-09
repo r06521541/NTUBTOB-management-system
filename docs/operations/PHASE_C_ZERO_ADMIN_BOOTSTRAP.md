@@ -168,3 +168,42 @@ read-logging guards. Success emits the existing fixed redacted JSON; failure
 emits only `TASK-086 production post-check stopped`. Zero completed relationship,
 multiple/drifted state, or any unknown result is a terminal Owner stop without
 mutation.
+
+### Owner-approved fixed-schema read-only diagnostic
+
+If the post-check-only recovery returns its fixed stop classification, do not
+rerun either earlier launcher. After this diagnostic artifact passes Work
+review, hosted CI, and squash merge, set only the non-secret exact merged SHA as
+`TASK086_DIAGNOSTIC_APPROVED_MERGED_COMMIT` in a clean repository root and run
+exactly once:
+
+```powershell
+& "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" tools/portal_data_production_bootstrap_diagnostic.py
+```
+
+The independently checksummed diagnostic verifies its exact runtime,
+dependencies, git state, model checksum, gcloud account/project/service/region,
+single-field allowlist projection, and private PG file contract. It does not
+import or call either production launcher, the production operator, or the
+identity lifecycle repository. It has no mode argument, execution
+acknowledgement, UUID/request ID, DDL/DML, commit, or write transaction.
+
+The database connection immediately starts an explicit read-only transaction
+and sets local statement, lock, and idle-in-transaction timeouts before fixed
+SELECT queries. The only output is one JSON object with this exact schema:
+
+```json
+{"runtime_artifact_git":"pass|fail","gcloud_metadata":"pass|fail","private_pg":"pass|fail","connection":"pass|fail","schema":"pass|fail","read_logging":"pass|fail","active_admin":"zero|one|other","completed_relationship":"zero|one|other"}
+```
+
+The values shown above describe the allowed classifications, not literal output
+from a run. No raw exception, identifier, credential, allowlist, cloud metadata,
+host, or SQL parameter may be retained or reported. All in-memory private values
+and the engine are cleaned in `finally`.
+
+Interpret only the reviewed classifications: all six guards passing plus
+`active_admin=one` and `completed_relationship=one` proves the bootstrap
+succeeded; all six guards passing plus both counts `zero` proves no bootstrap
+was applied and requires a new Owner-approved write package. Any `other` or
+guard failure is a terminal Owner stop. This diagnostic does not authorize a
+second bootstrap or the 56-Person activation.

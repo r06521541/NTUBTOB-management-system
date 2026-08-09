@@ -135,3 +135,35 @@ Verification for this correction:
 - `python -m compileall -q` for the new launcher and test: passed.
 - Black 24.4.2 formatter API check for the new Python files: clean.
 - `git diff --check`: passed.
+
+## Owner-approved read-only diagnostic
+
+- Branch: `codex/phase-c-bootstrap-readonly-diagnostic`
+- Base: `75cccd878285ed4a13cdf9c62048ab875e5abf1f`
+- Implementation: `f04c3a4b5dbb273c11f2ca27ce0d5519d76398c4`
+
+The recovery post-check returned only its intended fixed stop classification,
+so this repository stage adds a separate, independently checksummed diagnostic.
+It does not import or call either prior launcher, `operator.run`, or the identity
+lifecycle repository. It contains no execution acknowledgement, UUID/request
+ID, write transaction, DDL, or DML.
+
+The classifier verifies runtime/artifact/git, exact gcloud guards and one-field
+projection, and the exact private PG-file contract in order. Its database stage
+uses an explicit read-only transaction with local statement, lock, and idle
+timeouts. Schema, safe read-logging, active allowlisted administrator count, and
+the completed TASK-086 relationship count are reduced to only the Owner-approved
+fixed classifications. Every exception becomes a fixed classification; output
+cannot contain raw values or exception text, and resources/private local values
+are cleared in `finally`.
+
+Repository-only verification:
+
+- `python -m unittest tools.tests.test_production_bootstrap_readonly_diagnostic
+  -v`: 11 passed, including checksum mutation, AST mutation-boundary rejection,
+  exact gcloud projection, explicit read-only/timeouts, stage failure redaction,
+  fixed schema/count classifications, cleanup, and a real bundled-runtime
+  subprocess that stops at a fake merged SHA before gcloud/private access.
+- No gcloud command, private environment/Secret read, production connection,
+  DDL/DML, request-ID generation, second bootstrap, or 56-Person activation was
+  performed.

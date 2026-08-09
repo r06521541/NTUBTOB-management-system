@@ -2,13 +2,13 @@ active_task: TASK-086
 status: in_progress
 next_actor: work
 
-base_commit: f7c53cd4cace5179f6f1a7f1b0b57d759570fbce
-head_commit: ffaeff4e2c2659d5eecdcf68a30a8a6473c12c67
+base_commit: 75cccd878285ed4a13cdf9c62048ab875e5abf1f
+head_commit: f04c3a4b5dbb273c11f2ca27ce0d5519d76398c4
 
 updated_by: work
-updated_at: 2026-08-10T01:30:00+08:00
+updated_at: 2026-08-10T10:45:00+08:00
 
 note: >
-  Work accepted the structurally read-only post-check launcher after source/AST review, exact subprocess smoke and 27 targeted tests.
-  Work is creating the one ready PR. After hosted CI and squash merge, exactly one production read-only recovery post-check is authorized;
-  a second bootstrap mutation remains prohibited.
+  Work accepted the fixed-schema diagnostic after source/AST review, exact runtime smoke and 38 regressions. Work is creating the one
+  ready PR. After hosted CI and squash merge, one production read-only diagnostic is authorized; no bootstrap mutation or 56-Person
+  activation may occur until its fixed classification is evaluated.
