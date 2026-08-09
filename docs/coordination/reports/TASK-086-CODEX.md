@@ -56,3 +56,31 @@ PR, hosted PostgreSQL 15/16 CI and squash merge remain mandatory before any
 production discovery or mutation. No production database, private environment,
 Secret, gcloud, deployment, schema, IAM, Scheduler, runtime flag, traffic,
 notification, or 56-Person activation operation was performed.
+
+## Work-review corrections
+
+The read-only logging predicate is no longer reused as proof for DML. Execute
+performs a second read-only gate immediately before request-ID generation and
+accepts only `log_statement=none|ddl`; `mod`, `all`, unavailable and unknown
+values stop before the domain transaction. A real PostgreSQL regression sets
+the isolated database default to `mod`, proves execute makes no audit change,
+and restores the setting in `finally`.
+
+A separate checksummed launcher now owns the exact production sequence. It
+requires Python 3.10, pinned SQLAlchemy/Alembic/psycopg2 versions, a clean exact
+merged commit, checksummed operator/domain/model sources, and the fixed gcloud
+account/project/service/region. It consumes only the five approved PG keys from
+the fixed private file, requests only the single Web Portal allowlist metadata
+projection, keeps both values out of argv/output/errors, and clears the
+temporary operator process environment in `finally`. A pre-existing sensitive
+process variable is itself a stop condition so gcloud subprocesses cannot
+inherit it.
+
+The launcher runs exactly discovery, preflight, dry-run, execute, and the new
+read-only post-check. Offline launcher/operator suites passed 19 tests. The
+hosted-equivalent full portal-data suite passed 190 tests on each isolated
+PostgreSQL 15 and 16 container; both temporary containers were removed.
+
+This correction did not inspect the approved private file, invoke gcloud, or
+access production. The actual launcher remains gated on Work review, hosted CI,
+squash merge and the exact merged commit.

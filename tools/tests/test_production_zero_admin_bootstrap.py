@@ -4,7 +4,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tools import portal_data_production_zero_admin_bootstrap as operator
 
@@ -14,7 +14,8 @@ class ProductionZeroAdminBootstrapTests(unittest.TestCase):
         operator.verify_artifact()
         source = operator.ARTIFACT.read_text(encoding="utf-8")
         self.assertIn(
-            'choices=("discovery", "preflight", "dry-run", "execute")', source
+            'choices=("discovery", "preflight", "dry-run", "execute", "post-check")',
+            source,
         )
         for option in (
             "--database",
@@ -34,7 +35,7 @@ class ProductionZeroAdminBootstrapTests(unittest.TestCase):
         self.assertIn("TASK-085 commands above remain local-only", runbook)
         self.assertIn("hosted PostgreSQL 15/16 CI", runbook)
         self.assertIn("exactly one eligible allowlisted Member", runbook)
-        self.assertIn("Do not inspect, echo, serialize", runbook)
+        self.assertIn("never prints the file or values", runbook)
         self.assertIn("does not authorize deployment", runbook)
 
     def test_checksum_mutation_fails_closed(self):
@@ -114,6 +115,18 @@ class ProductionZeroAdminBootstrapTests(unittest.TestCase):
                 operator.ProductionBootstrapError
             ):
                 operator._allowlist(value)
+
+    def test_write_logging_rejects_mod_and_unknown_modes(self):
+        session = MagicMock()
+        with patch.object(operator, "_read_logging_safe", return_value=True):
+            for mode in ("mod", "all", None, ""):
+                with self.subTest(mode=mode):
+                    session.scalar.return_value = mode
+                    self.assertFalse(operator._write_logging_safe(session))
+            for mode in ("none", "ddl"):
+                with self.subTest(mode=mode):
+                    session.scalar.return_value = mode
+                    self.assertTrue(operator._write_logging_safe(session))
 
 
 if __name__ == "__main__":

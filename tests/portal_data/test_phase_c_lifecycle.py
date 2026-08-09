@@ -882,6 +882,10 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         self.assertTrue(execute["applied"])
         self.assertTrue(execute["retry_verified"])
         self.assertNotIn("request_id", execute)
+        post_check = invoke("post-check")
+        self.assertEqual(post_check["status"], "verified")
+        self.assertEqual(post_check["active_admin_count"], 1)
+        self.assertTrue(post_check["retry_verified"])
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
@@ -899,7 +903,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             production_bootstrap.DATABASE_ENV: DATABASE_URL,
             production_bootstrap.ALLOWLIST_ENV: "7001",
         }
-        for gate in ("_schema_ready", "_logging_safe"):
+        for gate in ("_schema_ready", "_read_logging_safe"):
             with self.subTest(gate=gate), patch.object(
                 production_bootstrap, gate, return_value=False
             ), self.assertRaises(production_bootstrap.ProductionBootstrapError):
@@ -909,6 +913,41 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 connection.scalar(text("SELECT count(*) FROM ntubtob.access_audit")),
                 1,
             )
+
+    def test_production_bootstrap_mod_logging_stops_before_mutation(self):
+        self._prepare_zero_admin_bootstrap()
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001",
+            production_bootstrap.EXECUTION_ENV: production_bootstrap.EXECUTION_ACKNOWLEDGEMENT,
+        }
+        with self.engine.connect().execution_options(
+            isolation_level="AUTOCOMMIT"
+        ) as connection:
+            connection.execute(
+                text(
+                    "ALTER DATABASE ntubtob_portal_local " "SET log_statement TO 'mod'"
+                )
+            )
+        try:
+            with self.engine.connect() as connection:
+                before = connection.scalar(
+                    text("SELECT count(*) FROM ntubtob.access_audit")
+                )
+            with self.assertRaises(production_bootstrap.ProductionBootstrapError):
+                production_bootstrap.run("execute", environ=environment)
+            with self.engine.connect() as connection:
+                after = connection.scalar(
+                    text("SELECT count(*) FROM ntubtob.access_audit")
+                )
+            self.assertEqual(after, before)
+        finally:
+            with self.engine.connect().execution_options(
+                isolation_level="AUTOCOMMIT"
+            ) as connection:
+                connection.execute(
+                    text("ALTER DATABASE ntubtob_portal_local " "RESET log_statement")
+                )
 
     def test_production_bootstrap_ambiguity_stops_before_mutation(self):
         self._prepare_zero_admin_bootstrap()

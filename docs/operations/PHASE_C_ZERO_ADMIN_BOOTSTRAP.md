@@ -59,15 +59,16 @@ after its implementation commit has passed Work review, the one ready PR,
 hosted PostgreSQL 15/16 CI, and squash merge. The artifact verifies its own
 canonical-LF SHA-256 before it opens a database connection.
 
-The approved private process environment supplies `PORTAL_DATA_DATABASE_URL`
-and the complete `WEB_PORTAL_ADMIN_MEMBER_IDS`. Do not inspect, echo, serialize,
-or pass either value in argv. The CLI accepts only a fixed mode:
+Do not manually prepare `PORTAL_DATA_DATABASE_URL` or copy the allowlist into a
+shell variable. The reviewed production path is the checksummed launcher below;
+the mode commands are its internal sequence and must not be run separately:
 
 ```powershell
 python tools/portal_data_production_zero_admin_bootstrap.py --mode discovery
 python tools/portal_data_production_zero_admin_bootstrap.py --mode preflight
 python tools/portal_data_production_zero_admin_bootstrap.py --mode dry-run
 python tools/portal_data_production_zero_admin_bootstrap.py --mode execute
+python tools/portal_data_production_zero_admin_bootstrap.py --mode post-check
 ```
 
 Discovery, preflight, and dry-run use an explicit read-only transaction. They
@@ -98,3 +99,44 @@ TASK-086 authorizes at most the single bootstrap transaction after all review
 gates pass. It does not authorize deployment, schema changes, Secret/IAM/
 Scheduler/flag/traffic changes, notifications, or activation of the other 56
 People.
+
+### Exact no-disclosure launcher
+
+After squash merge, start from the exact merged commit in a clean repository
+root. Set only the non-secret full SHA as `TASK086_APPROVED_MERGED_COMMIT`, then
+use Python 3.10 to invoke:
+
+```powershell
+py -3.10 tools/launch_production_zero_admin_bootstrap.py
+```
+
+The launcher refuses any other working directory, dirty tree, commit, Python
+minor version, SQLAlchemy/Alembic/psycopg2 version, material source checksum,
+gcloud account, project, service or region. Its fixed identity is
+`yces3108@gmail.com` / `ntubtob-schedule-405614` / `web-portal` /
+`asia-east1`; the gcloud executable is the reviewed absolute Windows path.
+
+The only private file path is
+`C:\Users\USER\.ntubtob-private\backup.env`. The launcher alone consumes the
+exact five `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, and `PGPASSWORD` entries
+in memory; it rejects missing, duplicate, unknown or malformed entries and
+never prints the file or values. It constructs the SQLAlchemy URL in memory.
+
+The allowlist is obtained with one Cloud Run `services describe` projection of
+only
+`spec.template.spec.containers[0].env[?name=WEB_PORTAL_ADMIN_MEMBER_IDS].value`.
+The launcher captures that one field, validates it, and never requests the full
+runtime configuration. The value is not present in argv, subprocess command
+text, stdout or errors.
+
+After all guards pass, the launcher injects the URL and allowlist only into its
+own process, performs exactly `discovery` -> `preflight` -> `dry-run` ->
+`execute` -> `post-check`, and clears all three temporary operator environment
+variables in `finally`, including on failure. Only the execute step receives
+the fixed acknowledgement. Do not enable PowerShell command tracing, Python
+debug logging, SQLAlchemy echo or external process-environment capture.
+
+If the private file cannot be consumed under this contract, the single-field
+metadata projection is unsupported, or any exact guard fails, the launcher
+prints only `TASK-086 production launcher stopped` and returns control to the
+Owner. Do not substitute an ad-hoc environment loader or broader gcloud query.

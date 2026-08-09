@@ -112,7 +112,7 @@ def _private_inputs(environ: Mapping[str, str]) -> tuple[str, frozenset[int]]:
     return database_url, _allowlist(environ.get(ALLOWLIST_ENV))
 
 
-def _logging_safe(session: Session) -> bool:
+def _read_logging_safe(session: Session) -> bool:
     row = session.execute(
         text(
             "SELECT "
@@ -126,6 +126,13 @@ def _logging_safe(session: Session) -> bool:
         )
     ).one()
     return all(value is True for value in row)
+
+
+def _write_logging_safe(session: Session) -> bool:
+    mode = session.scalar(
+        text("SELECT coalesce(current_setting('log_statement',true),'all')")
+    )
+    return mode in ("none", "ddl") and _read_logging_safe(session)
 
 
 def _schema_ready(session: Session) -> bool:
@@ -329,6 +336,49 @@ def _relationship_ready_after(
     )
 
 
+def _completed_relationship_count(session: Session, allowlist: frozenset[int]) -> int:
+    return int(
+        session.scalar(
+            select(func.count(AccessAuditRecord.id))
+            .select_from(AccessAuditRecord)
+            .join(
+                AuthIdentityRecord,
+                AuthIdentityRecord.id == AccessAuditRecord.auth_identity_id,
+            )
+            .join(PersonRecord, PersonRecord.id == AccessAuditRecord.target_person_id)
+            .join(LegacyMemberRecord, LegacyMemberRecord.person_id == PersonRecord.id)
+            .join(
+                LegacyLineUserRecord,
+                (LegacyLineUserRecord.member_id == LegacyMemberRecord.id)
+                & (
+                    LegacyLineUserRecord.line_user_id
+                    == AuthIdentityRecord.provider_subject
+                ),
+            )
+            .join(
+                IdentityReviewThreadRecord,
+                IdentityReviewThreadRecord.auth_identity_id == AuthIdentityRecord.id,
+            )
+            .where(
+                AccessAuditRecord.action == "identity_linked",
+                AccessAuditRecord.actor_person_id.is_(None),
+                AccessAuditRecord.reason
+                == f"{BOOTSTRAP_REASON_PREFIX}{BOOTSTRAP_REASON}",
+                LegacyMemberRecord.id.in_(allowlist),
+                AuthIdentityRecord.provider == "line",
+                AuthIdentityRecord.status == "linked",
+                AuthIdentityRecord.person_id == PersonRecord.id,
+                PersonRecord.portal_status == "active",
+                LegacyLineUserRecord.ignored.is_(False),
+                IdentityReviewThreadRecord.status == "closed",
+                IdentityReviewThreadRecord.closed_at.is_not(None),
+                IdentityReviewThreadRecord.redacted_at.is_(None),
+            )
+        )
+        or 0
+    )
+
+
 def _emit(**values: object) -> None:
     if tuple(values) != OUTPUT_FIELDS:
         raise ProductionBootstrapError("production output schema is invalid")
@@ -349,10 +399,32 @@ def run(mode: str, *, environ: Mapping[str, str] | None = None) -> None:
                 text("SET LOCAL idle_in_transaction_session_timeout = '30s'")
             )
             schema_ready = _schema_ready(session)
-            logging_safe = _logging_safe(session)
+            logging_safe = _read_logging_safe(session)
             admin_count = _active_admin_count(session, allowlist)
             candidate, member_count, identity_count = _discover(session, allowlist)
             before = _snapshot(session)
+            completed_count = _completed_relationship_count(session, allowlist)
+        if mode == "post-check":
+            if (
+                not schema_ready
+                or not logging_safe
+                or admin_count != 1
+                or completed_count != 1
+            ):
+                raise ProductionBootstrapError("production post-check failed")
+            _emit(
+                mode=mode,
+                status="verified",
+                schema_ready=True,
+                logging_safe=True,
+                active_admin_count=1,
+                eligible_member_count=member_count,
+                eligible_identity_count=identity_count,
+                audit_delta=0,
+                applied=True,
+                retry_verified=True,
+            )
+            return
         if (
             not schema_ready
             or not logging_safe
@@ -376,6 +448,10 @@ def run(mode: str, *, environ: Mapping[str, str] | None = None) -> None:
             return
         if environment.get(EXECUTION_ENV) != EXECUTION_ACKNOWLEDGEMENT:
             raise ProductionBootstrapError("production execution is not acknowledged")
+        with Session(engine) as session, session.begin():
+            session.execute(text("SET TRANSACTION READ ONLY"))
+            if not _write_logging_safe(session):
+                raise ProductionBootstrapError("production write logging is unsafe")
         request_id = f"task086-{uuid.uuid4()}"
         repository = IdentityLifecycleRepository(engine, allowlist)
         repository.bootstrap_zero_admin_member(
@@ -423,7 +499,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--mode",
-        choices=("discovery", "preflight", "dry-run", "execute"),
+        choices=("discovery", "preflight", "dry-run", "execute", "post-check"),
         required=True,
     )
     args = parser.parse_args()
