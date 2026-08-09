@@ -31,6 +31,10 @@
 - Black 24.4.2 formatter API check for both changed Python files — passed.
 - `git diff --check` — passed.
 
+The bundled Windows Black CLI stalled during the two-file command and was
+terminated; per `AGENTS.md`, the same-version formatter API was used for the
+final per-file formatting evidence instead.
+
 ## Limits
 
 No production database, private environment, Secret, gcloud, deployment, or
