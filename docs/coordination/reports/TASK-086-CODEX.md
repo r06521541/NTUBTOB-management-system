@@ -272,3 +272,43 @@ The combined launcher/operator/diagnostic suite passed 43/43 tests. Compileall,
 the direct canonical `verify_artifacts()` check, and `git diff --check` passed.
 No external command, gcloud, private environment/Secret, production connection,
 DDL/DML, deployment, notification, or 56-Person activation was performed.
+
+## Zero-admin candidate-state diagnostic
+
+- Branch: `codex/phase-c-bootstrap-candidate-diagnostic`
+- Base: `93cbbe598d3e4031786f83653d54ca9e5a6bd551`
+- Implementation: `ab6f1d52d53661ef011e55d2a29387cb9f5ea57d`
+
+Added an independently checksummed, fixed-schema read-only classifier for the
+state that stopped the bootstrap. It reuses the reviewed runtime/git, exact
+Cloud Run env metadata, private PG, logging, and cleanup boundaries as a
+checksum-locked dependency. Its own source imports no launcher, bootstrap
+operator, lifecycle repository, UUID/request-ID generator, or mutation path.
+
+After all six guards pass, one explicit read-only transaction with local
+statement, lock, and idle timeouts classifies only fixed enums/counts for the
+allowlisted Member, corresponding Person, reliable LINE identity relationship,
+eligible pending review thread, non-ignored legacy LINE link, active
+team-player qualification, and exact actorless bootstrap audit. Output cannot
+contain IDs, names, values, metadata, SQL parameters, credentials, or raw
+exceptions. Unknown, ambiguous, malformed, or failed states remain fixed
+`other`/`fail` classifications.
+
+### Verification
+
+- Candidate diagnostic unit/adversarial suite: 6/6 passed.
+- Candidate plus existing read-only diagnostic suites: 20/20 passed.
+- Local isolated `postgres:15.8-alpine`: 5/5 relationship-state tests passed.
+- Local isolated `postgres:16.4-alpine`: the same 5/5 passed.
+- PostgreSQL tests cover inactive/absent/blocked/active Person, no/pending/same
+  Person/other Person identity relationships, pending thread, legacy link,
+  qualification, exact audit, and allowlist ambiguity.
+- Compileall, Black 24.4.2 formatter API, artifact/material checksums,
+  structural no-write scan, real safe-stop subprocess, and `git diff --check`:
+  passed.
+- Both task-owned local PostgreSQL containers were stopped.
+
+This stage was repository/local only. No gcloud command, private env/Secret,
+production connection, DDL/DML, bootstrap retry, deployment, cloud mutation,
+notification, or 56-Person activation was performed. Production execution
+still requires Work acceptance, one ready PR, hosted CI, and squash merge.

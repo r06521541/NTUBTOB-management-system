@@ -227,3 +227,34 @@ succeeded; all six guards passing plus both counts `zero` proves no bootstrap
 was applied and requires a new Owner-approved write package. Any `other` or
 guard failure is a terminal Owner stop. This diagnostic does not authorize a
 second bootstrap or the 56-Person activation.
+
+### Owner-approved candidate-state read-only diagnostic
+
+When the outcome diagnostic proves both counts are zero, do not rerun either
+launcher. After this independently checksummed artifact passes Work review,
+hosted CI, and squash merge, set only the non-secret exact merged SHA as
+`TASK086_CANDIDATE_DIAGNOSTIC_APPROVED_MERGED_COMMIT` in a clean repository root
+and run exactly once:
+
+```powershell
+& "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" tools/portal_data_production_bootstrap_candidate_diagnostic.py
+```
+
+The artifact reuses the reviewed runtime/git, exact gcloud metadata, private PG,
+read-logging, no-disclosure, and cleanup boundaries. It imports no launcher,
+bootstrap operator, lifecycle repository, request-ID generator, or write path.
+The database transaction is explicitly read-only, applies local statement,
+lock, and idle timeouts, and executes only fixed SELECT classifications.
+
+Its only output is the following fixed JSON schema. Values shown are the
+complete allowed enums, not results from production:
+
+```json
+{"runtime_artifact_git":"pass|fail","gcloud_metadata":"pass|fail","private_pg":"pass|fail","connection":"pass|fail","schema":"pass|fail","read_logging":"pass|fail","allowlisted_member":"zero|one|other","person_state":"absent|inactive|active|blocked|other","reliable_line_identity":"none|pending_unlinked|linked_same_person|linked_other_person|other","pending_review_thread":"zero|one|other","legacy_line_link":"zero|one|other","active_team_player":"zero|one|other","bootstrap_audit":"zero|one|other"}
+```
+
+No identifier, name, allowlist value, database value, metadata, SQL parameter,
+credential, or exception text may be printed or retained. Any guard failure or
+`other` classification stops for Owner/Work interpretation. This diagnostic is
+read-only evidence and does not authorize bootstrap retry, repair, or the
+56-Person activation.

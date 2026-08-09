@@ -2,12 +2,12 @@ active_task: TASK-086
 status: in_progress
 next_actor: work
 
-base_commit: 72a015c53fea563843edead2ebbb862391638996
-head_commit: 2bebcb43494c93d6e1a84e83fe49f4d161175b03
+base_commit: 93cbbe598d3e4031786f83653d54ca9e5a6bd551
+head_commit: ab6f1d52d53661ef011e55d2a29387cb9f5ea57d
 
 updated_by: work
-updated_at: 2026-08-10T14:15:00+08:00
+updated_at: 2026-08-10T15:10:00+08:00
 
 note: >
-  Work accepted the canonical launcher checksum after direct Windows verify_artifacts and a 43-test combined regression run.
+  Work accepted the fixed-schema candidate diagnostic after source review and a 20-test combined regression run.
   Preparing the single ready PR and hosted CI; no external or production operation has occurred.
