@@ -192,6 +192,31 @@ class DemoPortalTest(unittest.TestCase):
         self.assertIn(b'<option value="late" selected>', detail.data)
         self.assertIn(b'<option value="08:40" selected>', detail.data)
 
+    def test_game_flow_connects_schedule_detail_reply_readback_and_game_day(self):
+        self.login()
+        schedule = self.client.get("/demo/games")
+        self.assertEqual(schedule.status_code, 200)
+        self.assertIn(b"demo-game-01", schedule.data)
+        detail = self.client.get("/demo/games/demo-game-01")
+        self.assertEqual(detail.status_code, 200)
+        response = self.client.post(
+            "/demo/games/demo-game-01/reply",
+            data={
+                "csrf_token": self.csrf_token(),
+                "status": "attending",
+                "arrival": "on_time",
+                "position": "infield",
+                "eta": "08:20",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        refreshed = self.client.get(response.headers["Location"])
+        self.assertIn(b"selected", refreshed.data)
+        game_day = self.client.get("/demo/game-day/demo-game-01")
+        self.assertEqual(game_day.status_code, 200)
+        self.assertIn(b"GAME DAY", game_day.data)
+
     def test_invalid_game_and_reply_fail_safely(self):
         self.login()
         self.assertEqual(self.client.get("/demo/games/unknown").status_code, 404)
