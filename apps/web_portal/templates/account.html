@@ -17,7 +17,7 @@
             <dl>
                 <div><dt>Member</dt><dd>{{ member.name }}</dd></div>
                 <div><dt>登入方式</dt><dd>LINE</dd></div>
-                <div><dt>Portal 角色</dt><dd><span class="role-badge">{{ role_label }}</span></dd></div>
+                <div><dt>{{ portal_copy.portal }}角色</dt><dd><span class="role-badge">{{ role_label }}</span></dd></div>
             </dl>
             {% if can_manage_members %}
                 <a class="management-link" href="{{ url_for('index') }}">前往 Member 配對</a>
@@ -26,8 +26,8 @@
             <form method="post" action="{{ url_for('update_own_profile') }}">
                 <input type="hidden" name="csrf_token" value="{{ profile_csrf_token }}">
                 <input type="hidden" name="request_id" value="{{ profile_request_id }}">
-                <label>顯示名稱 <input name="display_name" value="{{ member.display_name }}" maxlength="120" required></label>
-                <button type="submit">更新顯示名稱</button>
+                <label>{{ portal_copy.display_name }} <input name="display_name" value="{{ member.display_name }}" maxlength="120" required></label>
+                <button type="submit">更新{{ portal_copy.display_name }}</button>
             </form>
             {% endif %}
             <form method="post" action="{{ url_for('logout') }}">

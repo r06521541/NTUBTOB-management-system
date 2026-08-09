@@ -422,7 +422,90 @@ class IdentityLifecycleRepository:
                     .limit(100)
                 )
             )
-            return {"identities": tuple(identities), "people": people, "audit": audit}
+            available_members = tuple(
+                {"member_id": member.id, "name": member.name}
+                for member in session.scalars(
+                    select(LegacyMemberRecord)
+                    .where(LegacyMemberRecord.person_id.is_(None))
+                    .order_by(LegacyMemberRecord.id)
+                    .limit(250)
+                )
+            )
+            return {
+                "identities": tuple(identities),
+                "people": people,
+                "available_members": available_members,
+                "audit": audit,
+            }
+
+    def create_member_person(
+        self,
+        actor_person_id: int,
+        member_id: int,
+        display_name: str,
+        reason: str,
+        request_id: str,
+        qualifications: Iterable[str] = (),
+    ) -> Person:
+        """Create the Person link for an existing unlinked Member atomically."""
+        display_name = _clean_name(display_name)
+        reason = require_reason(reason)
+        requested = frozenset(qualifications)
+        if not requested <= QUALIFICATIONS:
+            raise ValidationError("unknown qualification")
+        now = utc_now()
+        with Session(self.engine) as session, session.begin():
+            self._require_admin(session, actor_person_id)
+            if self._audit_exists(session, request_id):
+                raise ConflictError("request already applied")
+            member = session.scalar(
+                select(LegacyMemberRecord)
+                .where(LegacyMemberRecord.id == member_id)
+                .with_for_update()
+            )
+            if member is None or member.person_id is not None:
+                raise ConflictError("unlinked Member required")
+            person = PersonRecord(
+                display_name=display_name,
+                formal_name=member.name,
+                admin_note=None,
+                portal_access_level="basic",
+                portal_status="active",
+                version=1,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(person)
+            session.flush()
+            member.person_id = person.id
+            for qualification in sorted(requested | {"team_player"}):
+                session.add(
+                    PersonQualificationRecord(
+                        person_id=person.id,
+                        qualification=qualification,
+                        status="active",
+                        valid_from=None,
+                        valid_until=None,
+                        granted_by_person_id=actor_person_id,
+                        reason=reason,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+            session.add(
+                AccessAuditRecord(
+                    action="member_person_created",
+                    actor_person_id=actor_person_id,
+                    target_person_id=person.id,
+                    auth_identity_id=None,
+                    before_state={"member_id": member.id, "person_id": None},
+                    after_state={"member_id": member.id, "person_id": person.id},
+                    reason=reason,
+                    request_id=request_id,
+                    created_at=now,
+                )
+            )
+            return self._person(person, member)
 
     def approve_member(
         self,

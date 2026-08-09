@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Person 詳情</title><link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}"><link rel="stylesheet" href="{{ url_for('static', filename='member_portal.css') }}"></head>
+<body><main class="member-shell">{% include '_member_nav.html' %}
+<p><a href="{{ url_for('admin_people') }}">← 返回 {{ portal_copy.person }} 列表</a></p><h1>{{ portal_copy.person }} 詳情與編輯</h1>
+<section class="account-card"><h2>{{ person.formal_name or person.display_name }}</h2><p>{{ portal_copy.person }} #{{ person.person_id }}{% if person.member_id %} · {{ portal_copy.member }} #{{ person.member_id }}{% endif %}</p><p>狀態：{{ person.status }}</p><p>{{ portal_copy.display_name }}：{{ person.display_name }}</p><form method="post" action="{{ url_for('identity_admin_action') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="person_id" value="{{ person.person_id }}"><input type="hidden" name="request_id" value="person-profile-{{ person.person_id }}-{{ request_nonce }}"><label>{{ portal_copy.display_name }} <input name="display_name" value="{{ person.display_name }}" maxlength="120" required></label><label>原因 <input name="reason" minlength="3" maxlength="300" required></label><button name="action" value="profile" {% if not identity_maintenance_enabled %}disabled{% endif %}>更新資料</button></form></section>
+</main></body></html>
