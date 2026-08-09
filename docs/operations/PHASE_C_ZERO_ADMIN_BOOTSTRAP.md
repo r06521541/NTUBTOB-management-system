@@ -50,3 +50,51 @@ one active linked allowlisted administrator, the expected linked principal,
 one `identity_linked` audit for the request, and no unrelated count changes.
 Do not attempt SQL repair or a second bootstrap if any check fails; preserve
 the evidence and escalate to the Owner.
+
+## TASK-086 production boundary
+
+The TASK-085 commands above remain local-only. Production uses the separate
+checksummed artifact `tools/portal_data_production_zero_admin_bootstrap.py` only
+after its implementation commit has passed Work review, the one ready PR,
+hosted PostgreSQL 15/16 CI, and squash merge. The artifact verifies its own
+canonical-LF SHA-256 before it opens a database connection.
+
+The approved private process environment supplies `PORTAL_DATA_DATABASE_URL`
+and the complete `WEB_PORTAL_ADMIN_MEMBER_IDS`. Do not inspect, echo, serialize,
+or pass either value in argv. The CLI accepts only a fixed mode:
+
+```powershell
+python tools/portal_data_production_zero_admin_bootstrap.py --mode discovery
+python tools/portal_data_production_zero_admin_bootstrap.py --mode preflight
+python tools/portal_data_production_zero_admin_bootstrap.py --mode dry-run
+python tools/portal_data_production_zero_admin_bootstrap.py --mode execute
+```
+
+Discovery, preflight, and dry-run use an explicit read-only transaction. They
+stop unless revision 0004 and the approved statement-logging predicate are
+true, there are zero active linked allowlisted administrators, and discovery
+finds exactly one eligible allowlisted Member and exactly one eligible pending
+LINE identity. This uniqueness is the only automatic association rule; zero or
+multiple candidates require Owner review and no identifier is printed.
+
+Execute additionally requires the private process environment value
+`TASK086_PRODUCTION_EXECUTION=EXECUTE TASK-086`. The operator generates a fresh
+opaque request ID internally, calls the existing advisory-lock transaction,
+checks the exact aggregate transitions and audit relationships, then performs
+one same-request idempotency verification. The request ID and all identity,
+Member, Person, LINE, connection, and allowlist values remain absent from
+stdout and ordinary errors.
+
+Successful stdout is exactly one fixed redacted JSON object containing only
+mode/status classifications, Boolean gates, candidate counts, administrator
+count, audit delta, applied state, and retry verification. Any logging/schema
+drift, candidate ambiguity, concurrent winner, database error, uncertain
+connection result, unexpected aggregate delta, or relationship mismatch is a
+terminal stop. Do not run ad-hoc SQL, generate a replacement request, or retry
+after an uncertain result; preserve the fixed classification and return to the
+Owner.
+
+TASK-086 authorizes at most the single bootstrap transaction after all review
+gates pass. It does not authorize deployment, schema changes, Secret/IAM/
+Scheduler/flag/traffic changes, notifications, or activation of the other 56
+People.

@@ -6,6 +6,7 @@ import io
 import json
 import threading
 import unittest
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import create_engine, inspect, text
@@ -37,6 +38,7 @@ from tools.portal_data_phase_c_migration import (
 )
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 from tools import portal_data_zero_admin_bootstrap as bootstrap_operator
+from tools import portal_data_production_zero_admin_bootstrap as production_bootstrap
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -844,6 +846,207 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         self.assertEqual(tuple(execute), bootstrap_operator.OUTPUT_FIELDS)
         self.assertEqual(execute["status"], "applied")
         self.assertTrue(execute["applied"])
+
+    def test_production_bootstrap_discovers_executes_and_retries_without_identifiers(
+        self,
+    ):
+        self._prepare_zero_admin_bootstrap()
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001",
+        }
+
+        def invoke(mode, extra=None):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                production_bootstrap.run(mode, environ={**environment, **(extra or {})})
+            return json.loads(output.getvalue())
+
+        discovery = invoke("discovery")
+        self.assertEqual(tuple(discovery), production_bootstrap.OUTPUT_FIELDS)
+        self.assertEqual(discovery["eligible_member_count"], 1)
+        self.assertEqual(discovery["eligible_identity_count"], 1)
+        self.assertFalse(discovery["applied"])
+
+        generated = uuid.UUID("00000000-0000-4000-8000-000000000086")
+        with patch.object(production_bootstrap.uuid, "uuid4", return_value=generated):
+            execute = invoke(
+                "execute",
+                {
+                    production_bootstrap.EXECUTION_ENV: production_bootstrap.EXECUTION_ACKNOWLEDGEMENT
+                },
+            )
+        self.assertEqual(tuple(execute), production_bootstrap.OUTPUT_FIELDS)
+        self.assertEqual(execute["status"], "applied")
+        self.assertEqual(execute["audit_delta"], 1)
+        self.assertTrue(execute["applied"])
+        self.assertTrue(execute["retry_verified"])
+        self.assertNotIn("request_id", execute)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.access_audit "
+                        "WHERE request_id='task086-00000000-0000-4000-8000-000000000086'"
+                    )
+                ),
+                1,
+            )
+
+    def test_production_bootstrap_schema_and_logging_gates_stop_before_mutation(self):
+        self._prepare_zero_admin_bootstrap()
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001",
+        }
+        for gate in ("_schema_ready", "_logging_safe"):
+            with self.subTest(gate=gate), patch.object(
+                production_bootstrap, gate, return_value=False
+            ), self.assertRaises(production_bootstrap.ProductionBootstrapError):
+                production_bootstrap.run("dry-run", environ=environment)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ntubtob.access_audit")),
+                1,
+            )
+
+    def test_production_bootstrap_ambiguity_stops_before_mutation(self):
+        self._prepare_zero_admin_bootstrap()
+        self.repository.ensure_pending_line_identity(
+            "fake-ambiguous-subject", "Fake Ambiguous", "fake-ambiguous-pending"
+        )
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001",
+        }
+        with self.engine.connect() as connection:
+            before = connection.scalar(
+                text("SELECT count(*) FROM ntubtob.access_audit")
+            )
+        with self.assertRaises(production_bootstrap.ProductionBootstrapError):
+            production_bootstrap.run("dry-run", environ=environment)
+        with self.engine.connect() as connection:
+            after = connection.scalar(text("SELECT count(*) FROM ntubtob.access_audit"))
+        self.assertEqual(after, before)
+
+    def test_production_bootstrap_member_ambiguity_stops_before_mutation(self):
+        self._prepare_zero_admin_bootstrap()
+        with self.engine.begin() as connection:
+            second_person = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name,portal_access_level,portal_status,version,created_at,updated_at) "
+                    "VALUES ('Fake Other','basic','inactive',1,now(),now()) RETURNING id"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.members (id,name,person_id) "
+                    "VALUES (7002,'Fake Other Member',:person_id)"
+                ),
+                {"person_id": second_person},
+            )
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001,7002",
+        }
+        with self.assertRaises(production_bootstrap.ProductionBootstrapError):
+            production_bootstrap.run("preflight", environ=environment)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ntubtob.access_audit")),
+                1,
+            )
+
+    def test_concurrent_production_bootstrap_allows_one_execution(self):
+        self._prepare_zero_admin_bootstrap()
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001",
+            production_bootstrap.EXECUTION_ENV: production_bootstrap.EXECUTION_ACKNOWLEDGEMENT,
+        }
+        barrier = threading.Barrier(2)
+        outcomes = []
+        outcome_lock = threading.Lock()
+
+        def attempt():
+            barrier.wait()
+            try:
+                production_bootstrap.run("execute", environ=environment)
+                result = "applied"
+            except (ConflictError, production_bootstrap.ProductionBootstrapError):
+                result = "stopped"
+            with outcome_lock:
+                outcomes.append(result)
+
+        with patch.object(production_bootstrap, "_emit"):
+            threads = (
+                threading.Thread(target=attempt),
+                threading.Thread(target=attempt),
+            )
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(timeout=15)
+                self.assertFalse(thread.is_alive())
+        self.assertCountEqual(outcomes, ("applied", "stopped"))
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.access_audit "
+                        "WHERE action='identity_linked' AND actor_person_id IS NULL"
+                    )
+                ),
+                1,
+            )
+
+    def test_production_bootstrap_domain_failure_rolls_back(self):
+        self._prepare_zero_admin_bootstrap()
+        environment = {
+            production_bootstrap.DATABASE_ENV: DATABASE_URL,
+            production_bootstrap.ALLOWLIST_ENV: "7001",
+            production_bootstrap.EXECUTION_ENV: production_bootstrap.EXECUTION_ACKNOWLEDGEMENT,
+        }
+        with self.engine.begin() as connection:
+            before = connection.execute(
+                text(
+                    "SELECT "
+                    "(SELECT count(*) FROM ntubtob.access_audit),"
+                    "(SELECT count(*) FROM ntubtob.auth_identities WHERE status='linked'),"
+                    "(SELECT count(*) FROM ntubtob.line_users WHERE member_id IS NOT NULL)"
+                )
+            ).one()
+            connection.execute(
+                text(
+                    "CREATE FUNCTION ntubtob.fail_task086_audit() RETURNS trigger "
+                    "LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fake task086 failure'; END $$; "
+                    "CREATE TRIGGER fail_task086_audit BEFORE INSERT ON ntubtob.access_audit "
+                    "FOR EACH ROW WHEN (NEW.action='identity_linked' AND NEW.actor_person_id IS NULL) "
+                    "EXECUTE FUNCTION ntubtob.fail_task086_audit()"
+                )
+            )
+        try:
+            with self.assertRaises(ConflictError):
+                production_bootstrap.run("execute", environ=environment)
+            with self.engine.connect() as connection:
+                after = connection.execute(
+                    text(
+                        "SELECT "
+                        "(SELECT count(*) FROM ntubtob.access_audit),"
+                        "(SELECT count(*) FROM ntubtob.auth_identities WHERE status='linked'),"
+                        "(SELECT count(*) FROM ntubtob.line_users WHERE member_id IS NOT NULL)"
+                    )
+                ).one()
+            self.assertEqual(after, before)
+        finally:
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "DROP TRIGGER fail_task086_audit ON ntubtob.access_audit; "
+                        "DROP FUNCTION ntubtob.fail_task086_audit()"
+                    )
+                )
 
 
 from alembic import command
