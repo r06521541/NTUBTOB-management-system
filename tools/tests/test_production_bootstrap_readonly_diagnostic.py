@@ -118,8 +118,8 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
                                         "name": "SECRET_REF",
                                         "valueFrom": {
                                             "secretKeyRef": {
-                                                "secret": "fake-secret-name",
-                                                "version": "latest",
+                                                "key": "latest",
+                                                "name": "fake-secret-name",
                                             }
                                         },
                                     },
@@ -223,8 +223,57 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
                 [
                     {
                         "name": diagnostic.ALLOWLIST_NAME,
-                        "valueFrom": {"secretKeyRef": {"secret": "fake-secret"}},
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "key": "latest",
+                                "name": "fake-secret",
+                            }
+                        },
                     }
+                ]
+            ),
+            document(
+                [
+                    plain,
+                    {
+                        "name": "OBSOLETE_SECRET_REF",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "secret": "fake-secret",
+                                "version": "latest",
+                            }
+                        },
+                    },
+                ]
+            ),
+            document(
+                [
+                    plain,
+                    {
+                        "name": "MIXED",
+                        "value": "plain",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "key": "latest",
+                                "name": "fake-secret",
+                            }
+                        },
+                    },
+                ]
+            ),
+            document(
+                [
+                    plain,
+                    {
+                        "name": "EXTRA_REF_FIELD",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "key": "latest",
+                                "name": "fake-secret",
+                                "extra": "rejected",
+                            }
+                        },
+                    },
                 ]
             ),
             document([plain], containers=[]),
@@ -258,8 +307,8 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
                                         "name": "SECRET_REF",
                                         "valueFrom": {
                                             "secretKeyRef": {
-                                                "secret": secret_reference,
-                                                "version": "latest",
+                                                "key": "latest",
+                                                "name": secret_reference,
                                             }
                                         },
                                     },
