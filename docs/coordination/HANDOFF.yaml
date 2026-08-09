@@ -1,9 +1,9 @@
-active_task: TASK-089
-status: ready_for_review
-next_actor: work
+active_task: null
+status: completed
+next_actor: owner
 
 base_commit: 4903ddd0f7ee8abb2c621221dce395ccf81bb125
-head_commit: c8759c19618e09e63b3ce9815029b108cb05715e
+head_commit: 5d7f84e70f15c96c061dcc09f04d3c8669fe470a
 
 updated_by: codex
 updated_at: 2026-08-10T00:00:00+08:00
@@ -15,5 +15,5 @@ note: >
   TASK-088 PR #101 was squash-merged into main.
 
 report: docs/coordination/reports/TASK-089-CODEX.md
-review: docs/coordination/reviews/TASK-088-WORK.md
+review: docs/coordination/reviews/TASK-089-WORK.md
 implementation_commit: c8759c19618e09e63b3ce9815029b108cb05715e
