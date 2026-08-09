@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: f7c53cd4cace5179f6f1a7f1b0b57d759570fbce
 head_commit: ffaeff4e2c2659d5eecdcf68a30a8a6473c12c67
 
-updated_by: codex
-updated_at: 2026-08-10T01:15:00+08:00
+updated_by: work
+updated_at: 2026-08-10T01:30:00+08:00
 
 note: >
-  Added an independently checksummed post-check-only recovery launcher with one literal operator post-check call, no sequence,
-  execution acknowledgement, request-ID, domain mutation, or write path. Twenty-seven offline tests, real bundled-runtime safe-stop,
-  compileall, formatter API, and diff check passed. No external or production operation occurred; ready for Work review.
+  Work accepted the structurally read-only post-check launcher after source/AST review, exact subprocess smoke and 27 targeted tests.
+  Work is creating the one ready PR. After hosted CI and squash merge, exactly one production read-only recovery post-check is authorized;
+  a second bootstrap mutation remains prohibited.
