@@ -1,14 +1,14 @@
 active_task: TASK-087
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 92592c08ae874370fee4be8e2e073636965383f9
-head_commit: null
+head_commit: 0aa2adf34f0753ac720477c51861e8acef9eaa73
 
-updated_by: work
-updated_at: 2026-08-10T16:10:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T16:45:00+08:00
 
 note: >
-  TASK-086 completed successfully in production with exact +2 active administrators and +2 status audits. Owner instructed Work to
-  continue with the remaining existing reliably linked players. Implement TASK-087 repository/local-only with exact aggregate discovery,
-  all-or-nothing audited activation, idempotent completion and PG15/16 evidence; no external or production operation is allowed yet.
+  TASK-087 repository/local implementation is ready for Work review. Commit 0aa2adf adds checksummed dynamic cohort discovery,
+  all-or-nothing audited activation, exact retry/rollback/post-check boundaries, and offline plus isolated PostgreSQL 15/16 evidence.
+  No gcloud, private environment, production connection or mutation, deployment, notification, or production activation was performed.
