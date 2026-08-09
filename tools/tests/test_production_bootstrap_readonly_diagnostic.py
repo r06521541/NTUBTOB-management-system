@@ -95,26 +95,83 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
         self.assertNotIn("launch_production_zero_admin_post_check.py", section)
         self.assertNotIn("--mode", section)
 
-    def test_gcloud_uses_exact_guards_and_single_projection(self):
+    def test_gcloud_uses_exact_guards_and_env_metadata_projection(self):
         commands = []
 
         def fake_run(command):
             commands.append(command)
             if "auth" in command:
                 return diagnostic.ACCOUNT
-            if "config" in command:
-                return diagnostic.PROJECT
-            return "7001,7002"
+            return diagnostic.PROJECT
 
+        response = bytearray(b"fake-response")
+        error = bytearray(b"fake-stderr")
+        metadata = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {"name": "ORDINARY", "value": "ordinary-value"},
+                                    {
+                                        "name": "SECRET_REF",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "secret": "fake-secret-name",
+                                                "version": "latest",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": diagnostic.ALLOWLIST_NAME,
+                                        "value": "7001,7002",
+                                    },
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
         with patch.object(diagnostic.Path, "is_file", return_value=True), patch.object(
             diagnostic, "_run", side_effect=fake_run
+        ), patch.object(
+            diagnostic, "_load_env_metadata", return_value=(response, error)
+        ), patch.object(
+            diagnostic.json, "loads", return_value=metadata
         ):
             self.assertEqual(
-                diagnostic._verify_gcloud_and_load_allowlist(), frozenset({7001, 7002})
+                diagnostic._verify_gcloud_and_load_allowlist(), {7001, 7002}
             )
-        self.assertEqual(len(commands), 3)
+        self.assertEqual(len(commands), 2)
         self.assertEqual(
-            commands[2],
+            commands,
+            [
+                [
+                    str(diagnostic.GCLOUD),
+                    "auth",
+                    "list",
+                    "--filter=status:ACTIVE",
+                    "--format=value(account)",
+                ],
+                [str(diagnostic.GCLOUD), "config", "get-value", "project", "--quiet"],
+            ],
+        )
+        self.assertEqual(response, bytearray())
+        self.assertEqual(error, bytearray())
+        self.assertEqual(metadata, {})
+
+    def test_metadata_command_is_fixed_machine_readable_and_captures_output(self):
+        completed = MagicMock(
+            returncode=0,
+            stdout=b'{"spec":{"template":{"spec":{"containers":[]}}}}',
+            stderr=b"fake-stderr",
+        )
+        with patch.object(diagnostic, "subprocess") as subprocess_module:
+            subprocess_module.run.return_value = completed
+            response, error = diagnostic._load_env_metadata()
+        subprocess_module.run.assert_called_once_with(
             [
                 str(diagnostic.GCLOUD),
                 "run",
@@ -127,10 +184,131 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
                 diagnostic.PROJECT,
                 "--region",
                 diagnostic.REGION,
-                f"--format={diagnostic.ALLOWLIST_FORMAT}",
+                f"--format={diagnostic.METADATA_FORMAT}",
             ],
+            cwd=diagnostic.ROOT,
+            check=False,
+            capture_output=True,
+            text=False,
+            timeout=30,
         )
-        self.assertNotIn("7001,7002", commands[2])
+        self.assertIsInstance(response, bytearray)
+        self.assertIsInstance(error, bytearray)
+
+    def test_metadata_rejects_ambiguous_or_secret_backed_allowlist(self):
+        plain = {"name": diagnostic.ALLOWLIST_NAME, "value": "7001"}
+
+        def document(entries, *, containers=None, extra=None):
+            value = {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": (
+                                [{"env": entries}] if containers is None else containers
+                            )
+                        }
+                    }
+                }
+            }
+            if extra is not None:
+                value["unexpected"] = extra
+            return value
+
+        cases = (
+            document([]),
+            document([plain, plain.copy()]),
+            document([{"name": diagnostic.ALLOWLIST_NAME, "value": ""}]),
+            document([{"name": diagnostic.ALLOWLIST_NAME, "value": "7, 8"}]),
+            document(
+                [
+                    {
+                        "name": diagnostic.ALLOWLIST_NAME,
+                        "valueFrom": {"secretKeyRef": {"secret": "fake-secret"}},
+                    }
+                ]
+            ),
+            document([plain], containers=[]),
+            document([plain], containers=[{"env": [plain]}, {"env": []}]),
+            document([plain], extra="unexpected"),
+            {"wrong": {}},
+        )
+        for metadata in cases:
+            with self.subTest(metadata=metadata), self.assertRaises(
+                diagnostic.DiagnosticError
+            ) as caught:
+                diagnostic._extract_plain_allowlist(metadata)
+            message = str(caught.exception)
+            self.assertEqual(message, "metadata boundary failed")
+            self.assertNotIn("fake-secret", message)
+            self.assertNotIn("7001", message)
+
+    def test_adversarial_metadata_never_escapes_and_is_cleared(self):
+        ordinary_value = "ordinary-sensitive-metadata"
+        secret_reference = "projects/fake/secrets/fake-secret"
+        allowlist_value = "7001,7002"
+        metadata = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {"name": "ORDINARY", "value": ordinary_value},
+                                    {
+                                        "name": "SECRET_REF",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "secret": secret_reference,
+                                                "version": "latest",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": diagnostic.ALLOWLIST_NAME,
+                                        "value": allowlist_value,
+                                    },
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        response = bytearray(b"adversarial-response")
+        error = bytearray(b"adversarial-stderr")
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        before_files = set(diagnostic.ROOT.rglob("*"))
+        with patch.object(diagnostic.Path, "is_file", return_value=True), patch.object(
+            diagnostic,
+            "_run",
+            side_effect=(diagnostic.ACCOUNT, diagnostic.PROJECT),
+        ), patch.object(
+            diagnostic, "_load_env_metadata", return_value=(response, error)
+        ), patch.object(
+            diagnostic.json, "loads", return_value=metadata
+        ), contextlib.redirect_stdout(
+            stdout
+        ), contextlib.redirect_stderr(
+            stderr
+        ):
+            result = diagnostic._verify_gcloud_and_load_allowlist()
+        after_files = set(diagnostic.ROOT.rglob("*"))
+        self.assertEqual(result, {7001, 7002})
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertEqual(response, bytearray())
+        self.assertEqual(error, bytearray())
+        self.assertEqual(metadata, {})
+        self.assertEqual(before_files, after_files)
+        for value in (ordinary_value, secret_reference, allowlist_value):
+            self.assertNotIn(value, stdout.getvalue())
+            self.assertNotIn(value, stderr.getvalue())
+            self.assertNotIn(value, repr(result))
+            self.assertNotIn(value, repr(metadata))
+            self.assertNotIn(value, repr(response))
+            self.assertNotIn(value, repr(error))
+            self.assertNotIn(value, repr(os.environ))
 
     def test_success_returns_only_fixed_classifications(self):
         private = {
@@ -148,10 +326,11 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
         transaction_context.__enter__.return_value = None
         session.begin.return_value = transaction_context
         engine = MagicMock()
+        allowlist = {7001}
         with patch.object(diagnostic, "_verify_runtime_git"), patch.object(
             diagnostic,
             "_verify_gcloud_and_load_allowlist",
-            return_value=frozenset({7001}),
+            return_value=allowlist,
         ), patch.object(
             diagnostic, "_load_private_pg_environment", return_value=private
         ), patch.object(
@@ -188,6 +367,7 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
         )
         engine.dispose.assert_called_once_with()
         self.assertEqual(private, {})
+        self.assertEqual(allowlist, set())
 
     def test_counts_are_reduced_to_zero_one_other(self):
         self.assertEqual(diagnostic._count_classification(0), "zero")
@@ -237,7 +417,7 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
                 with patch.object(diagnostic, "_verify_runtime_git"), patch.object(
                     diagnostic,
                     "_verify_gcloud_and_load_allowlist",
-                    return_value=frozenset({7001}),
+                    return_value={7001},
                 ), patch.object(
                     diagnostic,
                     "_load_private_pg_environment",
@@ -295,7 +475,7 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
         with patch.object(diagnostic, "_verify_runtime_git"), patch.object(
             diagnostic,
             "_verify_gcloud_and_load_allowlist",
-            return_value=frozenset({7001}),
+            return_value={7001},
         ), patch.object(
             diagnostic,
             "_load_private_pg_environment",
@@ -322,7 +502,7 @@ class ProductionBootstrapReadonlyDiagnosticTests(unittest.TestCase):
             ), patch.object(
                 diagnostic,
                 "_verify_gcloud_and_load_allowlist",
-                return_value=frozenset({7001}),
+                return_value={7001},
             ), patch.object(
                 diagnostic,
                 "_load_private_pg_environment",

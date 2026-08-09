@@ -167,3 +167,29 @@ Repository-only verification:
 - No gcloud command, private environment/Secret read, production connection,
   DDL/DML, request-ID generation, second bootstrap, or 56-Person activation was
   performed.
+
+## Cloud Run env metadata fallback
+
+The unavailable repeated-element server projection is replaced with the
+Owner-approved fixed machine-readable projection of only
+`spec.template.spec.containers[0].env`. Account/project guards still run first.
+The parser accepts exactly one container, strict nested schema, and one unique
+plain-value `WEB_PORTAL_ADMIN_MEMBER_IDS`; it rejects missing, duplicate, empty,
+malformed, secret-backed allowlist entries, additional schema fields, and wrong
+container cardinality. It never invokes Secret Manager or resolves a reference.
+
+Metadata subprocess stdout/stderr are captured as mutable byte buffers. The
+complete response, parsed tree, allowlist, private PG mapping, database URL, and
+engine are cleared or disposed in `finally`. No metadata is forwarded,
+serialized, persisted, placed in process env, or included in exception text.
+Adversarial tests include unrelated plain values and Secret references and
+prove they are absent from stdout, stderr, fixed result/exception data, files,
+and subsequent process environment.
+
+Repository-only verification for this correction uses fake metadata only. No
+gcloud command, private file/Secret, production connection, mutation, second
+bootstrap, or 56-Person activation was performed.
+
+- Updated diagnostic suite: 14 passed.
+- Existing recovery/launcher/operator regressions remain included in the final
+  combined run.
