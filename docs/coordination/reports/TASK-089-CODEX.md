@@ -2,8 +2,8 @@
 
 ## Result
 
-- 新增獨立 Person 管理 route：`/admin/people` 支援搜尋／分頁，`/admin/people/<person_id>` 提供第二層詳情／編輯；既有 `/match-member` legacy route 保持相容。
-- 新增獨立 pending identity route：`/admin/pending-identities`，不與 Person 列表混用。
+- 新增獨立 Person 管理 route：`/manage/people` 支援搜尋／分頁，`/manage/people/<person_id>` 提供第二層詳情／編輯；既有 `/match-member` legacy route 保持相容。
+- 新增獨立 pending identity route：`/manage/pending-identities`，不與 Person 列表混用；URL 不綁定角色名稱，權限仍由 capability policy 控制。
 - 新增既有 Member 名冊建立 Person 的 transactional repository contract，含 active/basic 初始狀態、team_player 初始資格、重複衝突拒絕與 audit request-id。
 - 新增集中式 portal 文案 `ui_text.py`，account／attendance 使用「平台」與「暱稱」標籤。
 - 新增 route/template 與 repository 變更；未執行 production、部署、Secret、正式資料或真實通知操作。
@@ -16,4 +16,5 @@
 
 ## Handoff
 
-完成 implementation commit、push 與 HANDOFF 更新後補記完整 SHA、驗證結果與未驗證事項。
+Implementation commit：`c8759c19618e09e63b3ce9815029b108cb05715e`；已 push `origin/codex/phase-d-identity-admin-operations`。
+HANDOFF 已交回 `ready_for_review/work`。未驗證：非 production browser/LINE in-app manual smoke 尚未實際執行。

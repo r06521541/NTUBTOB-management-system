@@ -983,8 +983,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with patch.dict(os.environ, environment), patch.object(
             self.app_module, "phase_c_repository", return_value=repository
         ):
-            people = self.client.get("/admin/people?q=正式")
-            pending = self.client.get("/admin/pending-identities")
+            people = self.client.get("/manage/people?q=正式")
+            pending = self.client.get("/manage/pending-identities")
         self.assertEqual(people.status_code, 200)
         self.assertIn("Person 管理".encode(), people.data)
         self.assertIn("暱稱".encode(), people.data)

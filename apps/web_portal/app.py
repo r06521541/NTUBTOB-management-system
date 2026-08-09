@@ -662,7 +662,7 @@ def _admin_repository_or_unavailable():
     return repository, actor_person_id
 
 
-@app.route("/admin/people")
+@app.route("/manage/people")
 @admin_required
 def admin_people():
     repository, actor_person_id = _admin_repository_or_unavailable()
@@ -704,7 +704,7 @@ def admin_people():
     )
 
 
-@app.route("/admin/people/<int:person_id>")
+@app.route("/manage/people/<int:person_id>")
 @admin_required
 def admin_person_detail(person_id):
     repository, actor_person_id = _admin_repository_or_unavailable()
@@ -731,7 +731,7 @@ def admin_person_detail(person_id):
     )
 
 
-@app.route("/admin/pending-identities")
+@app.route("/manage/pending-identities")
 @admin_required
 def admin_pending_identities():
     repository, actor_person_id = _admin_repository_or_unavailable()

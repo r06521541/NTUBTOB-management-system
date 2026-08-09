@@ -1,11 +1,11 @@
 active_task: TASK-089
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 4903ddd0f7ee8abb2c621221dce395ccf81bb125
-head_commit: 73ec4956dad164f7ae1c679e1735fdac62ac0f6e
+head_commit: c8759c19618e09e63b3ce9815029b108cb05715e
 
-updated_by: work
+updated_by: codex
 updated_at: 2026-08-10T00:00:00+08:00
 
 note: >
@@ -14,6 +14,6 @@ note: >
   remain outside authorization and require separate Owner approval. TASK-089 is now ready for Codex implementation after
   TASK-088 PR #101 was squash-merged into main.
 
-report: docs/coordination/reports/TASK-088-CODEX.md
+report: docs/coordination/reports/TASK-089-CODEX.md
 review: docs/coordination/reviews/TASK-088-WORK.md
-implementation_commit: 805a7bf0645e50823bc52d38eaeb533551990efc
+implementation_commit: c8759c19618e09e63b3ce9815029b108cb05715e
