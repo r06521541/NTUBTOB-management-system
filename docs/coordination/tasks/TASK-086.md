@@ -63,3 +63,9 @@ Stop and return to Owner if candidate uniqueness is not proven, the allowlist co
 ## Follow-up
 
 After successful closeout, Work must create TASK-087 for the separate audited activation of the 56 existing linked Persons.
+
+## Production execution recovery note（2026-08-10）
+
+PR #90 was squash merged as `f7c53cd4cace5179f6f1a7f1b0b57d759570fbce`, with hosted PostgreSQL 15/16 and final gate passing. Work invoked the exact merged launcher once under the approved production authorization. The command runner completed, but the orchestration layer failed to forward the launcher's stdout and exit code to Work. The database outcome is therefore classified as uncertain even though no process error was surfaced.
+
+Do not rerun the five-stage launcher and do not generate another request ID. Add a repository-reviewed, checksum-locked `post-check-only` launcher path that reuses all exact runtime, artifact, gcloud metadata, private environment, schema and read-logging guards, injects no execution acknowledgement, invokes only the existing read-only operator `post-check`, and emits only the existing redacted fixed output. It must be impossible for this recovery path to call discovery, execute, the domain mutation or any write transaction. After local tests, one ready PR, hosted CI and squash merge, run this path once against production. If it proves exactly one completed relationship/admin, close the bootstrap as successful; if it proves zero or drift, stop and return to Owner without mutation.
