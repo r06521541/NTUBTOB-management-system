@@ -40,7 +40,7 @@ DOCKER_PSQL_COMMAND = (
     f"--workdir /workspace {POSTGRES16_IMAGE_ID} psql -X -n"
 )
 BIND_COMMAND = re.compile(
-    r"\\bind\s+:'admin_member_ids'\s+:'mutation_request_id'\s+:'recovery_request_id'\s+\\g",
+    r"\\bind\s+:admin_member_ids\s+:mutation_request_id\s+:recovery_request_id\s+\\g",
     re.IGNORECASE,
 )
 LOGGING_BOUNDARY_TERMS = (
@@ -215,6 +215,8 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
     )
     if any(item not in text for item in required):
         raise CloseoutEvidenceError("runbook binding contract is incomplete")
+    if not BIND_COMMAND.search(text):
+        raise CloseoutEvidenceError("runbook bind command is invalid")
     compact = re.sub(r"\s+", "", text.lower())
     if not all(term in compact for term in LOGGING_BOUNDARY_TERMS):
         raise CloseoutEvidenceError("runbook logging boundary is invalid")
@@ -225,7 +227,14 @@ def verify_execution_runbook(path: Path = RUNBOOK_PATH) -> None:
     prompt_index = text.find("\\prompt")
     if preflight_index < 0 or prompt_index < 0 or preflight_index > prompt_index:
         raise CloseoutEvidenceError("runbook logging preflight is too late")
-    if ":'admin_member_ids'" in text or ":'mutation_request_id'" in text:
+    if any(
+        quoted in text
+        for quoted in (
+            ":'admin_member_ids'",
+            ":'mutation_request_id'",
+            ":'recovery_request_id'",
+        )
+    ):
         raise CloseoutEvidenceError("runbook contains literal SQL interpolation")
 
 

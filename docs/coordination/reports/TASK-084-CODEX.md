@@ -61,6 +61,12 @@
   `log_statement` `none`/`ddl`/`mod` together with disabled duration and
   sampling logging, no pgAudit logging, and zero on-error parameter logging;
   missing, unknown, or unsafe settings (including `all`) stop the flow.
+- PostgreSQL 16 bind-execution correction changes the fixed psql meta-command
+  to bare `:variable` payloads. SQL-literal `:'variable'` quoting is rejected
+  because psql passes those quote characters to the bound value. The artifact,
+  runbook and verifier enforce the exact unquoted order; an opt-in isolated
+  PostgreSQL 16 Docker regression executes both the successful numeric/UUID
+  bind and the expected quoted bigint-cast failure with fake values only.
 
 ## Verification
 
@@ -103,6 +109,13 @@
   tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
   tools.tests.test_deploy_phase_c_transition_controller -v`: 26 passed;
   compileall and `git diff --check` passed.
+- Bind-execution correction targeted rerun: `python -m unittest
+  tools.tests.test_phase_c_closeout tools.tests.test_deploy_phase_c_rollout
+  tools.tests.test_deploy_phase_c_transition_controller -v`: 27 passed,
+  1 opt-in Docker integration skipped. With
+  `RUN_PSQL16_BIND_INTEGRATION=1`, the isolated PostgreSQL 16 server plus
+  separate psql 16 client regression passed: bare numeric/UUID payloads bind
+  correctly and the prior SQL-literal quoting fails before any result row.
 
 ## Not performed / remaining boundary
 

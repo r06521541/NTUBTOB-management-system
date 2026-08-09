@@ -50,5 +50,5 @@ WITH reliable_line AS (
   UNION ALL SELECT '05_attendance','game_attendance_reply_count','required',NULL,count(*),NULL FROM ntubtob.game_attendance_replies
 )
 SELECT section,metric,status,boolean_value,integer_value,text_value FROM evidence ORDER BY section,metric
-\bind :'admin_member_ids' :'mutation_request_id' :'recovery_request_id' \g
+\bind :admin_member_ids :mutation_request_id :recovery_request_id \g
 ROLLBACK;

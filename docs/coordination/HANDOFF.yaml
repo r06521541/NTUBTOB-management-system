@@ -3,11 +3,12 @@ status: in_progress
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: d4657f031d71328a02e5bec57c996206aeb0a8ed
+head_commit: 6896ee67aa05320b46537d95bc28da7514e52e27
 
 updated_by: work
-updated_at: 2026-08-09T04:40:00+08:00
+updated_at: 2026-08-09T06:00:00+08:00
 
 note: >
-  Logging-preflight correction accepted locally: 26 targeted tests, compileall, artifact/runbook verification and diff check pass.
-  Work is creating the single ready PR for hosted CI. No sensitive prompts, production inventory or external operation ran.
+  PostgreSQL 16 bind correction accepted locally: 27 targeted tests pass, and Work independently reran the opt-in real PostgreSQL
+  16 server plus psql 16 client integration successfully. Work is creating the single ready PR. No production or private
+  environment operation ran.
