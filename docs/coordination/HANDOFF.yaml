@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 93cbbe598d3e4031786f83653d54ca9e5a6bd551
-head_commit: null
+head_commit: ab6f1d52d53661ef011e55d2a29387cb9f5ea57d
 
-updated_by: work
-updated_at: 2026-08-10T14:15:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T15:10:00+08:00
 
 note: >
-  Owner approved a fixed-schema read-only candidate diagnostic after the recovery launcher stopped and the existing diagnostic proved
-  all guards pass with admin/completed counts zero. Implement repository/local-only classification of the allowlisted Member, Person,
-  LINE identity, review-thread, legacy link, qualification and audit relationships without identifiers or any write path.
+  TASK-086 candidate-state diagnostic is ready for Work review. The independently checksummed fixed-schema read-only classifier and
+  adversarial tests passed; isolated PostgreSQL 15/16 relationship matrices each passed 5 tests. No external or production operation
+  occurred. Review implementation ab6f1d5 and the Codex report before the single ready PR / hosted CI gate.
