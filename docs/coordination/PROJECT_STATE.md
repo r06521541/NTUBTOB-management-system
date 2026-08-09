@@ -4,7 +4,7 @@
 
 維護角色：Work
 
-Repository 基準：`main` / `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`
+Repository 基準：`main` / `72234fbe3c4b024716798c0cd603e9ea0912cffb`
 
 ## 目前摘要
 
@@ -18,9 +18,10 @@ Repository 基準：`main` / `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`
 - TASK-089 `phase-d-identity-admin-operations` 已由 Work 驗收接受並 squash-merge 至 `main`（merge commit
   `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`）。
 - TASK-090 `phase-d-capability-and-smoke` 已完成 planning，決策已併入 TASK-091。
-- TASK-091 `phase-d-capability-and-smoke` 已由 Work 驗收接受：完成 capability policy、route mapping、低敏 Person
-  directory projection 與非 production browser／LINE in-app smoke 準備；通知維持 dry-run，尚未授權 production cutover
-  或正式資料 mutation。下一波應分開規劃 non-production observation 與 production capability rollout。
+- TASK-091 `phase-d-capability-and-smoke` 已由 Work 驗收接受並 squash-merge 至 `main`（merge commit
+  `72234fbe3c4b024716798c0cd603e9ea0912cffb`）。
+- TASK-092 `phase-d-qualification-and-game-operations` 已 ready for Codex，沿用既有資格／Game 規則；Event/Activity
+  延後，完整 Web UI refresh 將於後續 delivery group 處理。
 
 ## 已確認的 production 狀態
 

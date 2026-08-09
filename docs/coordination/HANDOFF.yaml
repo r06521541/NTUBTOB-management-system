@@ -1,18 +1,18 @@
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-092
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f
-head_commit: 80057ab471e57af49737a5f4a2b14a559b5368d0
+base_commit: 72234fbe3c4b024716798c0cd603e9ea0912cffb
+head_commit: 72234fbe3c4b024716798c0cd603e9ea0912cffb
 
-updated_by: codex
+updated_by: work
 updated_at: 2026-08-10T00:00:00+08:00
 
 note: >
   TASK-088 is the Phase D delivery unit for identity/admin transition foundation and manual browser/LINE in-app login smoke
   preparation. Production cutover, deployment, Secret/IAM/Scheduler changes, formal data mutation, and real notifications
-  remain outside authorization and require separate Owner approval. TASK-091 is ready for Codex implementation after
-  TASK-089 PR #102 was squash-merged into main; TASK-090 planning decisions are included in TASK-091.
+  remain outside authorization and require separate Owner approval. TASK-091 PR #103 was squash-merged into main. TASK-092
+  is ready for Codex; Event/Activity and full Web UI refresh remain out of scope.
 
 report: docs/coordination/reports/TASK-091-CODEX.md
 review: docs/coordination/reviews/TASK-091-WORK.md
