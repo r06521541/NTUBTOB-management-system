@@ -9,6 +9,20 @@
 
 ## Verification
 
+## Functional flow matrix
+
+| Flow | Route / caller | Read + mutation | Test evidence |
+| --- | --- | --- | --- |
+| 賽程列表／篩選 | `demo_portal.games` → `games_with_session_replies` | 讀取 game catalog，status/venue/view 篩選 | `test_filters_calendar_and_unknown_game`；空分類安全 |
+| Game detail／回覆 | `demo_portal.game_detail`、`demo_portal.reply` | 讀取 state；CSRF POST 更新 Demo session，PRG 回讀 | `test_reply_uses_prg_and_is_reflected_across_pages`、`test_reply_validation_and_csrf_fail_closed`、`test_invalid_game_and_reply_fail_safely` |
+| roster | `app.game_roster` → `Game.search_by_id`／`attendance_for_game` | 讀取 roster，name style allowlist | `test_roster_rejects_missing_or_invalid_member_session_before_queries`、`test_valid_member_session_hides_unanswered_names_on_roster`、`test_missing_game_returns_404_without_attendance_query` |
+| attendance | `app.attendance` → fresh Member/Game callers | 讀取 games/replies，提交後回讀 | `test_attendance_reloads_games_and_replies_on_every_request`、`test_protected_attendance_round_trip_preserves_destination`、`test_attendance_malformed_identity_fails_before_member_lookup` |
+| Game Day／裝備 | `demo_portal.game_day`／`update_operations` | 讀取 checklist/gear；CSRF POST 更新 Demo session | `test_game_day_operations_are_session_only_and_resettable` |
+| 交通 | `demo_portal.update_transport` | 驗證 mode/meeting point/seats，session 保存並回讀 | `test_transport_validation_and_csrf`；不保存私人位置 |
+| 導航／錯誤 | demo base bottom nav、既有 login gates | return path、unauthenticated、missing/invalid fail closed | `test_unauthenticated_routes_redirect_before_queries`、`test_demo_entry_and_protected_redirect`、`test_demo_routes_fail_closed_when_gate_is_disabled` |
+
+矩陣使用現有 route 與 caller；未新增 Event/Activity、schema、production 或通知發送。未宣稱 browser-pixel QA。
+
 - Web Portal unittest：129 passed、2 skipped；py_compile、git diff --check 通過。
 - Changes-requested correction 後：Web Portal unittest 130 passed、2 skipped；新增 1 組頁面／樣式 contract assertions。未宣稱實際瀏覽器像素視覺效果。
 - 未執行 production、部署、正式資料或通知發送。
