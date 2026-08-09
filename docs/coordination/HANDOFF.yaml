@@ -1,15 +1,14 @@
 active_task: TASK-085
-status: ready_for_review
-next_actor: work
+status: completed
+next_actor: owner
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
 head_commit: e018e8297a03644ea14734e9154aec582e611ce2
 
-updated_by: codex
-updated_at: 2026-08-09T20:20:00+08:00
+updated_by: work
+updated_at: 2026-08-09T20:35:00+08:00
 
 note: >
-  Hosted PostgreSQL isolation is repaired by clearing newer audit fixtures at 0004 before the readiness fixture downgrades to 0003.
-  An explicit bootstrap-residue regression and hosted-equivalent full portal-data discovery passed on local PostgreSQL 15 and 16
-  (183 tests each). No migration constraint was weakened; production bootstrap and the separate 56 linked-Person activation remain
-  unauthorized and out of scope.
+  TASK-085 repository readiness is accepted. GitHub Actions run 31308455551 passed PostgreSQL 15/16, all selected service jobs,
+  and the final gate. PR #89 may be squash merged under the standing Git authorization. Production bootstrap and the separate
+  56 linked-Person activation remain unauthorized and require subsequent exact tasks.

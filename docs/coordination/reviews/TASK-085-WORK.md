@@ -61,3 +61,12 @@
 - 本機 selected suites 通過不足以證明完整 discovery 的跨 test isolation；必須補 regression／cleanup，使 bootstrap tests 與 readiness downgrade tests 可在同一 hosted suite 安全接續。
 
 結論：`changes_requested`。PR #89 不得合併；Codex 僅修正 test isolation／fixture cleanup，不能放寬 migration constraints、跳過 readiness tests，亦不得納入另案的 56-Person activation。
+
+## Hosted CI 補正複驗（2026-08-09）
+
+- 實際查驗 implementation `e018e8297a03644ea14734e9154aec582e611ce2`；變更只清理 readiness test database 的 `access_audit` fixture residue，未修改 migration 或正式 constraint。
+- 新增 regression 明確建立不相容的 Phase C audit residue，再證明 reset 可安全回到 0003 且 audit fixture 為空。
+- Work 本機重跑 readiness module：15 tests，8 passed、7 個 PostgreSQL tests 因未設定隔離 URL 按設計 skipped；compileall、`git diff --check` 與工作樹檢查通過。
+- GitHub Actions run `31308455551` 全部通過：PostgreSQL 15、PostgreSQL 16、所有服務 jobs 與 CI final gate 均為 success。
+
+最終結論：`accepted`。PR #89 可 squash merge。Production bootstrap 與 56 linked-Person activation仍未授權，必須由後續 exact tasks 分開處理。
