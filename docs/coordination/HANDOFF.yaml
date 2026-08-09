@@ -1,15 +1,14 @@
 active_task: TASK-084
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
 head_commit: 6896ee67aa05320b46537d95bc28da7514e52e27
 
-updated_by: codex
-updated_at: 2026-08-09T05:45:00+08:00
+updated_by: work
+updated_at: 2026-08-09T06:00:00+08:00
 
 note: >
-  PostgreSQL 16 bind-execution correction is ready for Work review: the checksummed artifact, runbook and verifier require bare
-  psql variable payloads in the exact bind order and reject SQL-literal quoting. Offline contracts and an opt-in isolated local
-  PostgreSQL 16 server plus separate psql 16 client regression cover correct numeric/UUID binding and the quoted bigint-cast
-  failure. No production, private environment or other external operation ran.
+  PostgreSQL 16 bind correction accepted locally: 27 targeted tests pass, and Work independently reran the opt-in real PostgreSQL
+  16 server plus psql 16 client integration successfully. Work is creating the single ready PR. No production or private
+  environment operation ran.

@@ -174,3 +174,12 @@ Runbook Docker command尚不可安全／可重現執行：`<owner-approved-read-
 - 現有 offline tests 只驗證固定字串形狀，沒有以真正 PostgreSQL 16 psql client執行 `\prompt`／variable expansion／`\bind`，因此未攔截此缺陷。
 
 結論：`changes_requested / codex`。修正 psql bind variable expansion，但不得改用 SQL literal interpolation、argv 或 query echo；更新 canonical checksum、runbook及verifier。新增由本機隔離 PostgreSQL 16實際執行的 regression，證明純數字 allowlist與兩個 UUID經完整 meta-command path 可綁定、結果正確，且值不進入 SQL statement text。不得連 production、讀 private env/Secret或執行外部 mutation。
+
+## PostgreSQL 16 bind correction review（2026-08-09）
+
+- 實際驗收 implementation commit `6896ee67aa05320b46537d95bc28da7514e52e27`；controlled SQL、runbook與verifier均要求 exact bare `:admin_member_ids :mutation_request_id :recovery_request_id`，並拒絕舊 `:'variable'` quoting。
+- Work 重跑 targeted closeout/rollout/transition suite：27 passed、1 opt-in integration skipped；compileall、artifact/runbook verifier與`git diff --check`通過。
+- Work 另以授權的本機 Docker 執行 opt-in integration：真正 PostgreSQL 16 server與獨立psql 16 client 1/1 passed；fake numeric/UUID bind值正確，舊quoted payload依預期於bigint cast失敗，task-owned container完整清除。
+- 未讀private env/Secret、未連production DB、未執行gcloud/build/deploy或任何外部mutation。
+
+結論：`accepted`。建立本 prerequisite 的唯一 ready PR；hosted gate通過並merge後，再依既有Stage B唯讀授權恢復production inventory。
