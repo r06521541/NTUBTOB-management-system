@@ -2,12 +2,12 @@ active_task: TASK-086
 status: in_progress
 next_actor: work
 
-base_commit: 93cbbe598d3e4031786f83653d54ca9e5a6bd551
-head_commit: ab6f1d52d53661ef011e55d2a29387cb9f5ea57d
+base_commit: 323bf95d1bf412b725ac99844c95a4724c96bdec
+head_commit: d145de047914b07bb3edf34882d8e48bfc467a2d
 
 updated_by: work
-updated_at: 2026-08-10T15:10:00+08:00
+updated_at: 2026-08-10T16:10:00+08:00
 
 note: >
-  Work accepted the fixed-schema candidate diagnostic after source review and a 20-test combined regression run.
+  Work accepted the exact-two all-or-nothing activation after source review and a 29-test combined regression run.
   Preparing the single ready PR and hosted CI; no external or production operation has occurred.
