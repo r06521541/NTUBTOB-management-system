@@ -950,6 +950,119 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         self.notifier.notify_management_message.assert_called_once()
 
+    def test_match_rejects_malformed_transport_before_repository_lookup(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        values = (
+            {},
+            {"member_id": ""},
+            {"member_id": "８"},
+            {"member_id": "eight"},
+            {"member_id": "0"},
+            {"member_id": "-1"},
+        )
+        request_ids = (
+            "wrong-prefix-1",
+            "identity-match-非ascii",
+            "identity-match-" + ("x" * 121),
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            for extra in values:
+                with self.subTest(payload=extra):
+                    response = self.client.post(
+                        "/match-member/match",
+                        data={
+                            "csrf_token": token,
+                            "line_user_id": "fake-line-user",
+                            "request_id": "identity-match-valid",
+                            "reason": "Verified team membership",
+                            **extra,
+                        },
+                    )
+                    self.assertEqual(response.status_code, 400)
+            for request_id in request_ids:
+                with self.subTest(request_id=request_id):
+                    response = self.client.post(
+                        "/match-member/match",
+                        data={
+                            "csrf_token": token,
+                            "line_user_id": "fake-line-user",
+                            "member_id": "8",
+                            "request_id": request_id,
+                            "reason": "Verified team membership",
+                        },
+                    )
+                    self.assertEqual(response.status_code, 400)
+        repository.line_identity.assert_not_called()
+        repository.approve_member.assert_not_called()
+
+    def test_ignore_rejects_malformed_transport_before_repository_lookup(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        payloads = (
+            {"line_user_id": ""},
+            {"line_user_id": "使用者"},
+            {"line_user_id": "x" * 256},
+        )
+        request_ids = (
+            "wrong-prefix-1",
+            "identity-ignore-非ascii",
+            "identity-ignore-" + ("x" * 121),
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            for extra in payloads:
+                with self.subTest(payload=extra):
+                    response = self.client.post(
+                        "/match-member/ignore",
+                        data={
+                            "csrf_token": token,
+                            "request_id": "identity-ignore-valid",
+                            "reason": "Duplicate identity request",
+                            **extra,
+                        },
+                    )
+                    self.assertEqual(response.status_code, 400)
+            for request_id in request_ids:
+                with self.subTest(request_id=request_id):
+                    response = self.client.post(
+                        "/match-member/ignore",
+                        data={
+                            "csrf_token": token,
+                            "line_user_id": "fake-line-user",
+                            "request_id": request_id,
+                            "reason": "Duplicate identity request",
+                        },
+                    )
+                    self.assertEqual(response.status_code, 400)
+        repository.line_identity.assert_not_called()
+        repository.set_ignored.assert_not_called()
+
     def test_authorized_ignore_preserves_update_and_redirect(self):
         token = self.get_csrf_token()
         repository = MagicMock()

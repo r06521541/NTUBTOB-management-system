@@ -4,7 +4,7 @@
 
 維護角色：Work
 
-Repository 基準：`main` / `ab1efa1579c688e71720b471ea1b3b5226447adc`
+Repository 基準：`main` / `d2888c440563b2d3beff95b0072f1a864e841889`
 
 ## 目前摘要
 
@@ -13,7 +13,9 @@ Repository 基準：`main` / `ab1efa1579c688e71720b471ea1b3b5226447adc`
 - 2 位 allowlist 管理者與其餘 54 位既有可靠連結隊員的 Person 均已由 `inactive` 啟用為 `active`。
 - TASK-087 production post-check 已驗證：2 位管理控制組不變、54 位 cohort 全部啟用、54 筆新 audit、drift 0，
   Member／identity／legacy LINE／qualification／attendance cardinality 不變。
-- 目前沒有 active task。下一個 Work session 應先和 Owner 選定 Phase D 的 delivery group，再建立新 task。
+- TASK-088 delivery group `phase-d-identity-admin-transition` 已由 Work 驗收接受；完成 identity/admin route transport
+  hardening、regression tests 與人工瀏覽器／LINE in-app browser smoke 準備，尚未授權 production cutover 或正式資料
+  mutation。Remote head 為 `2f20d9db8e8379145c2b53b94dd4f9ce65db013b`，尚待 delivery group final PR／整合。
 
 ## 已確認的 production 狀態
 
