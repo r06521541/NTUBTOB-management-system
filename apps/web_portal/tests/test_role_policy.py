@@ -9,13 +9,20 @@ if str(WEB_PORTAL_DIR) not in sys.path:
 
 from role_policy import (  # noqa: E402
     ASSIGN_ROLES,
+    CONFIRM_NOTIFICATIONS,
+    EDIT_PERSON_PROFILE,
     MANAGE_EVENTS,
     MANAGE_MEMBERS,
+    MANAGE_PENDING_IDENTITIES,
+    MANAGE_PERSON_ACCESS,
+    MANAGE_QUALIFICATIONS,
     REPLY_OWN_ATTENDANCE,
     ROLE_ADMIN,
     ROLE_MEMBER,
     ROLE_OFFICER,
     ROLE_CAPABILITIES,
+    SEND_NOTIFICATIONS,
+    VIEW_PERSON_DIRECTORY,
     Principal,
     has_capability,
     resolve_demo_principal,
@@ -37,6 +44,27 @@ class RolePolicyTest(unittest.TestCase):
         self.assertFalse(has_capability(Principal("unknown", 4), MANAGE_EVENTS))
         self.assertFalse(has_capability(admin, "unknown_capability"))
         self.assertFalse(has_capability(None, REPLY_OWN_ATTENDANCE))
+
+    def test_person_and_notification_capabilities_follow_role_boundaries(self):
+        member = Principal(ROLE_MEMBER, 1)
+        officer = Principal(ROLE_OFFICER, 2)
+        admin = Principal(ROLE_ADMIN, 3)
+        self.assertTrue(has_capability(member, VIEW_PERSON_DIRECTORY))
+        for capability in (
+            EDIT_PERSON_PROFILE,
+            MANAGE_PENDING_IDENTITIES,
+            MANAGE_QUALIFICATIONS,
+            MANAGE_PERSON_ACCESS,
+            CONFIRM_NOTIFICATIONS,
+        ):
+            with self.subTest(role="member", capability=capability):
+                self.assertFalse(has_capability(member, capability))
+            with self.subTest(role="officer", capability=capability):
+                self.assertTrue(has_capability(officer, capability))
+        self.assertFalse(has_capability(officer, ASSIGN_ROLES))
+        self.assertFalse(has_capability(officer, SEND_NOTIFICATIONS))
+        self.assertTrue(has_capability(admin, ASSIGN_ROLES))
+        self.assertTrue(has_capability(admin, SEND_NOTIFICATIONS))
 
     def test_policy_mapping_and_capability_sets_are_read_only(self):
         with self.assertRaises(TypeError):

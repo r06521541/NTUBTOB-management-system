@@ -9,6 +9,7 @@ import messages
 import requests
 from admin_security import (
     admin_required,
+    capability_required,
     configure_phase_c_principal_loader,
     get_current_principal,
     get_or_create_csrf_token,
@@ -48,7 +49,13 @@ from line_login import (
 )
 from performance_diagnostics import AttendanceTiming
 from ui_text import PORTAL_COPY
-from role_policy import MANAGE_MEMBERS, ROLE_ADMIN, ROLE_MEMBER
+from role_policy import (
+    MANAGE_MEMBERS,
+    MANAGE_PENDING_IDENTITIES,
+    ROLE_ADMIN,
+    ROLE_MEMBER,
+    VIEW_PERSON_DIRECTORY,
+)
 from role_policy import Principal as WebPrincipal
 from role_policy import has_capability
 
@@ -664,7 +671,7 @@ def _admin_repository_or_unavailable():
 
 
 @app.route("/manage/people")
-@admin_required
+@capability_required(VIEW_PERSON_DIRECTORY)
 def admin_people():
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
@@ -706,7 +713,7 @@ def admin_people():
 
 
 @app.route("/manage/people/<int:person_id>")
-@admin_required
+@capability_required(VIEW_PERSON_DIRECTORY)
 def admin_person_detail(person_id):
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
@@ -733,7 +740,7 @@ def admin_person_detail(person_id):
 
 
 @app.route("/manage/pending-identities")
-@admin_required
+@capability_required(MANAGE_PENDING_IDENTITIES)
 def admin_pending_identities():
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
