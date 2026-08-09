@@ -41,3 +41,16 @@ No production database, private environment, Secret, gcloud, deployment, or
 external operation was used. PostgreSQL 15/16 execution, concurrent-session
 coverage, and real psql16 pager-off regression remain for the isolated hosted
 or explicitly configured local database environment.
+
+## Review correction
+
+- Reused `tools.setup_portal_data_legacy` to prepare the existing fictional
+  legacy baseline before local migration integration tests.
+- Ran the bootstrap success/retry/rejection and two-session concurrency
+  regression against isolated PostgreSQL 15.8 and 16.4 containers; both
+  versions passed and all temporary containers were removed.
+- The opt-in real PostgreSQL 16 psql test now emits 200 rows after `\pset pager
+  off`, executes `ROLLBACK`, and asserts its completion marker. It passed in
+  the isolated Docker run together with the bound-parameter regression.
+- The checksummed TASK-084 aggregate inventory now sets `\pset pager off` and
+  its verifier rejects an artifact without that fixed pager boundary.

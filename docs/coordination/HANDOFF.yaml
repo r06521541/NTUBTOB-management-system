@@ -1,14 +1,13 @@
 active_task: TASK-085
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
-head_commit: 77894b8a8e1d6e33f93e8e72288afb99c126bd16
+head_commit: b5234e45b055cfcd48a10edd2da302ee1bfca434
 
-updated_by: work
-updated_at: 2026-08-09T07:45:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T09:00:00+08:00
 
 note: >
-  First review requests executable completion: pager-off is not wired or tested, concurrent PostgreSQL execution is absent, no
-  checksummed interactive operator CLI exists, and bootstrap retry does not distinguish its null-actor audit from ordinary approval.
-  Complete PostgreSQL 15/16 and real psql16 regressions locally; no production or private environment access.
+  TASK-085 review corrections are ready: strict bootstrap retry audit shape, checksummed pager-off inventory, real psql16
+  pager-off to ROLLBACK regression, and isolated PostgreSQL 15/16 concurrency evidence. No production access or mutation occurred.
