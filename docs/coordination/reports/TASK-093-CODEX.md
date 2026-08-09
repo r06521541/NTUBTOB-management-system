@@ -23,6 +23,13 @@
 
 矩陣使用現有 route 與 caller；未新增 Event/Activity、schema、production 或通知發送。未宣稱 browser-pixel QA。
 
+## Rule source and boundary review
+
+本次 flow 盤點以 `docs/planning/PHASE_D_QUALIFICATION_GAME_DECISIONS.md` 為唯一產品規則來源，逐項核對
+`team_player`、`guest_player`、`affiliate`、`staff`、eligibility、roster/attendance、Game cancel/reschedule
+與 crawler/manual ownership、notification boundary。現有 callers 的測試行為與文件規則一致；未自行新增 jersey number、
+roster snapshot/override 或通知發送規則。若未來發現 caller 與決策文件衝突，應先停止該衝突範圍並交 Work review，未在本次改寫。
+
 - Web Portal unittest：129 passed、2 skipped；py_compile、git diff --check 通過。
 - Changes-requested correction 後：Web Portal unittest 130 passed、2 skipped；新增 1 組頁面／樣式 contract assertions。未宣稱實際瀏覽器像素視覺效果。
 - 未執行 production、部署、正式資料或通知發送。
