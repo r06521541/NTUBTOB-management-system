@@ -6,6 +6,7 @@
 - Base: `f236f75609e6ede95a5981c2423cdada895f8100`
 - Planning head: `004cba1c8feb1911ba70f7b949db343d1e3fdee9`
 - Implementation: `74ce7b632a35fed7a105655e025d602fa3b165b1`
+- Work-review correction: `d931d286d6ed497e20d92ba0962d6146ea126ba7`
 
 The existing TASK-085 operator remains local-only. TASK-086 adds a separate
 checksummed production boundary that receives the database URL and complete

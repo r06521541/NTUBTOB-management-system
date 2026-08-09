@@ -1,14 +1,15 @@
 active_task: TASK-086
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f236f75609e6ede95a5981c2423cdada895f8100
-head_commit: 74ce7b632a35fed7a105655e025d602fa3b165b1
+head_commit: d931d286d6ed497e20d92ba0962d6146ea126ba7
 
-updated_by: work
-updated_at: 2026-08-09T22:35:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T23:25:00+08:00
 
 note: >
-  Work found two production blockers: the write path accepts log_statement=mod without proving normal bind parameters are not logged,
-  and the runbook has no executable no-disclosure channel combining the approved PG-variable backup.env with the Web Portal allowlist
-  metadata. Codex must add write-safe logging regressions and an exact private launcher/cleanup boundary. No production access or mutation.
+  Work-review blockers are corrected: execute has a distinct none/ddl-only logging gate with a real mod/no-mutation regression,
+  and a checksummed no-disclosure launcher locks the exact runtime/artifacts/account/project/service/region, private PG-file contract,
+  single allowlist metadata projection, five-stage sequence and finally cleanup. Offline tests passed 19; full PostgreSQL 15 and 16
+  suites passed 190 tests each. No production/private environment/gcloud/DML operation was performed.
