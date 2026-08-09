@@ -1,6 +1,6 @@
-active_task: TASK-094
-status: ready_for_review
-next_actor: work
+active_task: null
+status: completed
+next_actor: owner
 
 base_commit: 4ad8e6ef022cb05fbf2a15502e07e20d01031119
 head_commit: b3247bca389037901fa613d201cbbc20a394928c
