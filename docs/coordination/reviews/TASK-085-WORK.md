@@ -52,3 +52,12 @@
 - 未連production、未讀private env／Secret、未執行gcloud／deploy／flags／traffic／IAM／Scheduler／通知，亦未處理56-Person activation。
 
 結論：`accepted`。建立唯一ready PR並以hosted PostgreSQL 15／16 final gate補證；通過後squash merge。Production bootstrap及linked-Person activation仍須後續exact task與Owner批准。
+
+## Hosted CI 驗收（2026-08-09）
+
+- PR #89 的 PostgreSQL 15 與 16 jobs 均失敗；其他 required service jobs 通過。
+- 兩個 PostgreSQL jobs 的共同失敗不是資料庫版本差異。完整 discovery 在新 bootstrap tests 後執行 `PhaseCReadinessPostgresTests.setUp()`，嘗試 downgrade 至 `0003_legacy_bigint_activity_game` 時，資料庫仍留有不符合舊版 `ck_access_audit_action` 的 Phase C audit rows。
+- PostgreSQL 16 hosted log 顯示 182 tests、6 errors；第一個 traceback 為 `psycopg2.errors.CheckViolation: check constraint "ck_access_audit_action" ... is violated by some row`，發生於 `command.downgrade(..., "0003_legacy_bigint_activity_game")`。
+- 本機 selected suites 通過不足以證明完整 discovery 的跨 test isolation；必須補 regression／cleanup，使 bootstrap tests 與 readiness downgrade tests 可在同一 hosted suite 安全接續。
+
+結論：`changes_requested`。PR #89 不得合併；Codex 僅修正 test isolation／fixture cleanup，不能放寬 migration constraints、跳過 readiness tests，亦不得納入另案的 56-Person activation。

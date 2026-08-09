@@ -1,14 +1,15 @@
 active_task: TASK-085
-status: in_progress
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
 head_commit: 428d2099aae576bff73e3814b9ef68df581acfce
 
 updated_by: work
-updated_at: 2026-08-09T10:50:00+08:00
+updated_at: 2026-08-09T19:05:00+08:00
 
 note: >
-  TASK-085 repository/local readiness accepted. Work reran 19 offline tests, 17 full PostgreSQL 16 lifecycle/bootstrap tests and
-  the exact psql16 inventory integration; all passed and containers were removed. Work is creating the single ready PR. Production
-  bootstrap and the separate 56 linked-Person activation remain unauthorized.
+  PR #89 hosted PostgreSQL 15/16 jobs both failed because bootstrap test residue violates the older
+  ck_access_audit_action while the later readiness fixture downgrades to 0003. Codex must repair full-suite test isolation/cleanup
+  without weakening constraints or skipping readiness coverage. Production bootstrap and the separate 56 linked-Person activation
+  remain unauthorized and out of scope.
