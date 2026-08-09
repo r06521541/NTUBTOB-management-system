@@ -1,13 +1,14 @@
 active_task: TASK-084
-status: in_progress
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: d4657f031d71328a02e5bec57c996206aeb0a8ed
+head_commit: a6e531611021e13fec694085c554477803c48ba2
 
 updated_by: work
-updated_at: 2026-08-09T04:40:00+08:00
+updated_at: 2026-08-09T05:20:00+08:00
 
 note: >
-  Logging-preflight correction accepted locally: 26 targeted tests, compileall, artifact/runbook verification and diff check pass.
-  Work is creating the single ready PR for hosted CI. No sensitive prompts, production inventory or external operation ran.
+  Production PostgreSQL 16 execution proved that the checksummed `\bind :'var'` command sends SQL-literal quotes as payload and
+  fails the bigint cast even for a numeric Member ID. Owner rolled back; no inventory rows or mutation occurred. Correct the psql
+  binding semantics and add a real isolated PostgreSQL 16 psql execution regression; no production or private environment access.

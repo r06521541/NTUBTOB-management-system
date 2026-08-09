@@ -165,3 +165,12 @@ Runbook Docker command尚不可安全／可重現執行：`<owner-approved-read-
 - 未讀 env/Secret、未連 production DB、未執行 gcloud/build/deploy 或任何外部操作。
 
 結論：`accepted`。建立本 prerequisite 的唯一 ready PR，待 hosted CI 通過並 squash merge 後，依既有 Stage B 授權恢復 production read-only inventory。
+
+## Stage B PostgreSQL 16 bind execution finding（2026-08-09）
+
+- PR #87 已通過 hosted CI 並 merge 為 `a6e5316`；Owner 依 runbook 在同一個 PostgreSQL 16 read-only session 重跑完整 logging preflight並得到唯一 `true`。
+- Owner 僅輸入純數字 Member ID，但 checksummed SQL 的 `\bind :'admin_member_ids' ...` 將 psql 變數的 SQL-literal quoting 一併作為 bind payload，server 實際收到含單引號的值，於 `$1` bigint array cast 失敗：`invalid input syntax for type bigint`。
+- `ON_ERROR_STOP` 在任何 inventory row 輸出前停止；Owner 已執行 `ROLLBACK` 並回到正常 prompt。沒有 production 資料變更，兩個 request ID 均作廢。
+- 現有 offline tests 只驗證固定字串形狀，沒有以真正 PostgreSQL 16 psql client執行 `\prompt`／variable expansion／`\bind`，因此未攔截此缺陷。
+
+結論：`changes_requested / codex`。修正 psql bind variable expansion，但不得改用 SQL literal interpolation、argv 或 query echo；更新 canonical checksum、runbook及verifier。新增由本機隔離 PostgreSQL 16實際執行的 regression，證明純數字 allowlist與兩個 UUID經完整 meta-command path 可綁定、結果正確，且值不進入 SQL statement text。不得連 production、讀 private env/Secret或執行外部 mutation。
