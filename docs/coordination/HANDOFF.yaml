@@ -1,14 +1,13 @@
 active_task: TASK-086
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: 72a015c53fea563843edead2ebbb862391638996
 head_commit: 2bebcb43494c93d6e1a84e83fe49f4d161175b03
 
-updated_by: codex
+updated_by: work
 updated_at: 2026-08-10T14:15:00+08:00
 
 note: >
-  The launcher checksum now uses the runtime's canonical LF algorithm, and the documented Windows checkout artifact gate passes.
-  The combined 43-test suite, compileall, direct verify_artifacts check, and diff check passed. No launcher behavior or external /
-  production operation changed. Work should review fix 2bebcb4.
+  Work accepted the canonical launcher checksum after direct Windows verify_artifacts and a 43-test combined regression run.
+  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
