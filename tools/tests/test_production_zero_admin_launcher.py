@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tools import launch_production_zero_admin_bootstrap as launcher
 
@@ -63,19 +63,119 @@ class ProductionZeroAdminLauncherTests(unittest.TestCase):
             ):
                 launcher._load_private_pg_environment(path)
 
-    def test_allowlist_uses_one_exact_metadata_projection_and_never_argv_value(self):
-        commands = []
-
-        def fake_run(command):
-            commands.append(command)
-            return "7001,7002"
-
-        with patch.object(launcher, "_run", side_effect=fake_run):
+    def test_allowlist_uses_exact_env_metadata_and_clears_unrelated_values(self):
+        response = bytearray(b"fake-response")
+        error = bytearray(b"fake-error")
+        metadata = {
+            "spec": {
+                "template": {
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {"name": "ORDINARY", "value": "private-ordinary"},
+                                    {
+                                        "name": "SECRET_REF",
+                                        "valueFrom": {
+                                            "secretKeyRef": {
+                                                "key": "latest",
+                                                "name": "private-secret-reference",
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "name": launcher.ALLOWLIST_NAME,
+                                        "value": "7001,7002",
+                                    },
+                                ]
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        output = io.StringIO()
+        with patch.object(
+            launcher, "_load_env_metadata", return_value=(response, error)
+        ), patch.object(
+            launcher.json, "loads", return_value=metadata
+        ), contextlib.redirect_stdout(
+            output
+        ):
             self.assertEqual(launcher._load_allowlist(), "7001,7002")
-        self.assertEqual(len(commands), 1)
-        command = commands[0]
-        self.assertEqual(
-            command,
+        self.assertEqual(output.getvalue(), "")
+        self.assertEqual(response, bytearray())
+        self.assertEqual(error, bytearray())
+        self.assertEqual(metadata, {})
+
+    def test_metadata_rejects_ambiguity_obsolete_schema_and_secret_allowlist(self):
+        plain = {"name": launcher.ALLOWLIST_NAME, "value": "7001"}
+
+        def document(entries, *, containers=None, extra=None):
+            value = {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": (
+                                [{"env": entries}] if containers is None else containers
+                            )
+                        }
+                    }
+                }
+            }
+            if extra is not None:
+                value["unexpected"] = extra
+            return value
+
+        cases = (
+            document([]),
+            document([plain, plain.copy()]),
+            document([{"name": launcher.ALLOWLIST_NAME, "value": ""}]),
+            document(
+                [
+                    {
+                        "name": launcher.ALLOWLIST_NAME,
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "key": "latest",
+                                "name": "fake-secret",
+                            }
+                        },
+                    }
+                ]
+            ),
+            document(
+                [
+                    plain,
+                    {
+                        "name": "OBSOLETE",
+                        "valueFrom": {
+                            "secretKeyRef": {
+                                "secret": "fake-secret",
+                                "version": "latest",
+                            }
+                        },
+                    },
+                ]
+            ),
+            document([plain], containers=[]),
+            document([plain], containers=[{"env": [plain]}, {"env": []}]),
+            document([plain], extra="unexpected"),
+        )
+        for metadata in cases:
+            with self.subTest(metadata=metadata), self.assertRaises(
+                launcher.LauncherError
+            ) as caught:
+                launcher._extract_plain_allowlist(metadata)
+            self.assertEqual(str(caught.exception), "metadata boundary failed")
+            self.assertNotIn("fake-secret", str(caught.exception))
+
+    def test_metadata_command_is_fixed_and_captures_both_streams(self):
+        completed = MagicMock(returncode=0, stdout=b"{}", stderr=b"fake-error")
+        with patch.object(launcher, "subprocess") as subprocess_module:
+            subprocess_module.run.return_value = completed
+            response, error = launcher._load_env_metadata()
+        subprocess_module.run.assert_called_once_with(
             [
                 str(launcher.GCLOUD),
                 "run",
@@ -88,11 +188,16 @@ class ProductionZeroAdminLauncherTests(unittest.TestCase):
                 launcher.PROJECT,
                 "--region",
                 launcher.REGION,
-                f"--format={launcher.ALLOWLIST_FORMAT}",
+                f"--format={launcher.METADATA_FORMAT}",
             ],
+            cwd=launcher.ROOT,
+            check=False,
+            capture_output=True,
+            text=False,
+            timeout=30,
         )
-        self.assertNotIn("7001,7002", command)
-        self.assertNotIn("json", " ".join(command).lower())
+        self.assertEqual(response, bytearray(b"{}"))
+        self.assertEqual(error, bytearray(b"fake-error"))
 
     def test_runtime_guards_exact_commit_account_project_python_and_dependencies(self):
         approved = "a" * 40

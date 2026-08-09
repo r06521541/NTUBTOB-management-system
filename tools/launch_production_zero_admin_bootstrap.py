@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
+import json
 import os
 import re
 import subprocess
@@ -36,10 +37,8 @@ PROJECT = "ntubtob-schedule-405614"
 SERVICE = "web-portal"
 REGION = "asia-east1"
 APPROVED_COMMIT_ENV = "TASK086_APPROVED_MERGED_COMMIT"
-ALLOWLIST_FORMAT = (
-    "value(spec.template.spec.containers[0].env"
-    "[?name=WEB_PORTAL_ADMIN_MEMBER_IDS].value)"
-)
+ALLOWLIST_NAME = "WEB_PORTAL_ADMIN_MEMBER_IDS"
+METADATA_FORMAT = "json(spec.template.spec.containers[0].env)"
 REQUIRED_PACKAGES = {
     "SQLAlchemy": "2.0.23",
     "alembic": "1.13.1",
@@ -171,8 +170,80 @@ def _database_url(values: Mapping[str, str]) -> str:
     ).render_as_string(hide_password=False)
 
 
-def _load_allowlist() -> str:
-    value = _run(
+def _clear_metadata(value: object) -> None:
+    if isinstance(value, dict):
+        for child in tuple(value.values()):
+            _clear_metadata(child)
+        value.clear()
+    elif isinstance(value, list):
+        for child in tuple(value):
+            _clear_metadata(child)
+        value.clear()
+    elif isinstance(value, bytearray):
+        value.clear()
+
+
+def _extract_plain_allowlist(metadata: object) -> str:
+    if not isinstance(metadata, dict) or set(metadata) != {"spec"}:
+        raise LauncherError("metadata boundary failed")
+    template = metadata["spec"]
+    if not isinstance(template, dict) or set(template) != {"template"}:
+        raise LauncherError("metadata boundary failed")
+    spec = template["template"]
+    if not isinstance(spec, dict) or set(spec) != {"spec"}:
+        raise LauncherError("metadata boundary failed")
+    container_spec = spec["spec"]
+    if not isinstance(container_spec, dict) or set(container_spec) != {"containers"}:
+        raise LauncherError("metadata boundary failed")
+    containers = container_spec["containers"]
+    if not isinstance(containers, list) or len(containers) != 1:
+        raise LauncherError("metadata boundary failed")
+    container = containers[0]
+    if not isinstance(container, dict) or set(container) != {"env"}:
+        raise LauncherError("metadata boundary failed")
+    entries = container["env"]
+    if not isinstance(entries, list):
+        raise LauncherError("metadata boundary failed")
+    matches = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise LauncherError("metadata boundary failed")
+        keys = set(entry)
+        if keys not in ({"name", "value"}, {"name", "valueFrom"}):
+            raise LauncherError("metadata boundary failed")
+        if not isinstance(entry["name"], str) or not entry["name"]:
+            raise LauncherError("metadata boundary failed")
+        if keys == {"name", "value"} and not isinstance(entry["value"], str):
+            raise LauncherError("metadata boundary failed")
+        if keys == {"name", "valueFrom"}:
+            value_from = entry["valueFrom"]
+            if not isinstance(value_from, dict) or set(value_from) != {"secretKeyRef"}:
+                raise LauncherError("metadata boundary failed")
+            secret_ref = value_from["secretKeyRef"]
+            if (
+                not isinstance(secret_ref, dict)
+                or set(secret_ref) != {"key", "name"}
+                or not all(
+                    isinstance(secret_ref[field], str) and secret_ref[field]
+                    for field in ("key", "name")
+                )
+            ):
+                raise LauncherError("metadata boundary failed")
+        if entry["name"] == ALLOWLIST_NAME:
+            if keys != {"name", "value"} or not isinstance(entry["value"], str):
+                raise LauncherError("metadata boundary failed")
+            matches.append(entry["value"])
+    if len(matches) != 1:
+        raise LauncherError("metadata boundary failed")
+    try:
+        operator._allowlist(matches[0])
+    except Exception:
+        raise LauncherError("metadata boundary failed") from None
+    return matches[0]
+
+
+def _load_env_metadata() -> tuple[bytearray, bytearray]:
+    result = subprocess.run(
         [
             str(GCLOUD),
             "run",
@@ -185,11 +256,37 @@ def _load_allowlist() -> str:
             PROJECT,
             "--region",
             REGION,
-            f"--format={ALLOWLIST_FORMAT}",
-        ]
+            f"--format={METADATA_FORMAT}",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=False,
+        timeout=30,
     )
-    operator._allowlist(value)
-    return value
+    response = bytearray(result.stdout or b"")
+    error = bytearray(result.stderr or b"")
+    if result.returncode != 0:
+        response.clear()
+        error.clear()
+        raise LauncherError("metadata boundary failed")
+    return response, error
+
+
+def _load_allowlist() -> str:
+    response = bytearray()
+    error = bytearray()
+    metadata: object = {}
+    try:
+        response, error = _load_env_metadata()
+        metadata = json.loads(response)
+        return _extract_plain_allowlist(metadata)
+    except Exception:
+        raise LauncherError("metadata boundary failed") from None
+    finally:
+        _clear_metadata(metadata)
+        response.clear()
+        error.clear()
 
 
 def _require_clean_process_environment() -> None:
