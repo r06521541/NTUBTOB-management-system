@@ -9,6 +9,21 @@
   `b5234e45b055cfcd48a10edd2da302ee1bfca434`
 - Second-review implementation: `428d2099aae576bff73e3814b9ef68df581acfce`
 
+## Hosted CI isolation correction
+
+The PostgreSQL 15/16 hosted jobs exposed an order-dependent fixture leak: Phase C
+bootstrap tests may leave newer audit actions such as `identity_pending`, while
+the later readiness fixture downgraded directly from 0004 to 0003. Recreating
+the older `ck_access_audit_action` constraint then correctly rejected those
+rows. The readiness fixture now upgrades to head, truncates only the test
+database's `access_audit` fixture rows, and only then downgrades to 0003. No
+migration or constraint behavior changed.
+
+`test_readiness_reset_accepts_bootstrap_suite_audit_residue` explicitly leaves
+an incompatible Phase C audit row and proves the shared reset reaches 0003 with
+an empty audit fixture, preventing the bootstrap-suite-to-readiness ordering
+regression.
+
 The repository now has a fail-closed zero-admin Member bootstrap that takes the
 existing admin advisory lock, requires zero active linked allowlisted admins,
 reuses the normal Member-link transaction and records one existing
@@ -53,6 +68,14 @@ failure with complete transaction rollback.
 - Black 24.4.2 formatter API: clean. The bundled Windows multi-file Black CLI
   was not used, per `AGENTS.md`.
 - `git diff --check`: passed.
+- Hosted-equivalent full discovery on local `postgres:15.8-alpine`, temporary
+  container `task085-ci-pg15`: `python -m unittest discover -s
+  tests/portal_data -v` ran 183 tests and passed. Container removed.
+- Hosted-equivalent full discovery on local `postgres:16.4-alpine`, temporary
+  container `task085-ci-pg16`: the same command ran 183 tests and passed.
+  Container removed.
+- `python -m compileall -q tests/portal_data/test_phase_c_readiness.py`: passed.
+- Black 24.4.2 formatter API for the changed readiness test: no changes needed.
 
 No production database, private environment, Secret, gcloud, deployment,
 runtime flag, traffic, IAM, Scheduler, notification or 56-Person activation
