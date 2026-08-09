@@ -69,3 +69,26 @@ After successful closeout, Work must create TASK-087 for the separate audited ac
 PR #90 was squash merged as `f7c53cd4cace5179f6f1a7f1b0b57d759570fbce`, with hosted PostgreSQL 15/16 and final gate passing. Work invoked the exact merged launcher once under the approved production authorization. The command runner completed, but the orchestration layer failed to forward the launcher's stdout and exit code to Work. The database outcome is therefore classified as uncertain even though no process error was surfaced.
 
 Do not rerun the five-stage launcher and do not generate another request ID. Add a repository-reviewed, checksum-locked `post-check-only` launcher path that reuses all exact runtime, artifact, gcloud metadata, private environment, schema and read-logging guards, injects no execution acknowledgement, invokes only the existing read-only operator `post-check`, and emits only the existing redacted fixed output. It must be impossible for this recovery path to call discovery, execute, the domain mutation or any write transaction. After local tests, one ready PR, hosted CI and squash merge, run this path once against production. If it proves exactly one completed relationship/admin, close the bootstrap as successful; if it proves zero or drift, stop and return to Owner without mutation.
+
+## Owner-approved read-only diagnostic（2026-08-10）
+
+The merged post-check-only recovery returned its fixed stop classification, which intentionally did not identify the failing guard. The Owner approved one additional repository-reviewed production read-only diagnostic. It may report only the following fixed classifications, never raw values:
+
+- runtime/artifact/git guard: `pass|fail`
+- gcloud account/project/service/region and single-field metadata projection: `pass|fail`
+- private PG environment contract: `pass|fail`
+- production connection: `pass|fail`
+- schema revision guard: `pass|fail`
+- read-logging guard: `pass|fail`
+- active linked allowlisted administrator count: `zero|one|other`
+- completed TASK-086 relationship count: `zero|one|other`
+
+The diagnostic must be independently checksummed and structurally unable to call the five-stage launcher, `operator.run`, `IdentityLifecycleRepository`, UUID/request-ID generation, execution acknowledgement, or any DDL/DML/write transaction. Database queries must run inside an explicit read-only transaction with local timeouts. Each stage must fail closed without printing exception text, identifiers, credentials, allowlist values, host/project metadata values or SQL parameters. Cleanup must run on every path.
+
+After local tests, one ready PR, hosted CI and squash merge, execute the diagnostic once. Classification determines the next action:
+
+- `admin=one` and `completed_relationship=one`, with all other guards passing: TASK-086 bootstrap succeeded; close it without further mutation.
+- `admin=zero` and `completed_relationship=zero`, with all other guards passing: the original bootstrap did not apply; a new exact Owner-approved mutation recovery package is required before any write.
+- any `other` or guard failure: stop and return to Owner with the redacted classification only.
+
+The diagnostic authorization does not authorize a second bootstrap, 56-Person activation, deployment, schema, Secret/IAM/Scheduler, flags, traffic or notifications.

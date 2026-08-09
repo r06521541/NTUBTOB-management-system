@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: in_progress
-next_actor: work
+status: ready_for_codex
+next_actor: codex
 
-base_commit: f7c53cd4cace5179f6f1a7f1b0b57d759570fbce
-head_commit: ffaeff4e2c2659d5eecdcf68a30a8a6473c12c67
+base_commit: 75cccd878285ed4a13cdf9c62048ab875e5abf1f
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-10T01:30:00+08:00
+updated_at: 2026-08-10T09:30:00+08:00
 
 note: >
-  Work accepted the structurally read-only post-check launcher after source/AST review, exact subprocess smoke and 27 targeted tests.
-  Work is creating the one ready PR. After hosted CI and squash merge, exactly one production read-only recovery post-check is authorized;
-  a second bootstrap mutation remains prohibited.
+  Owner approved one additional fixed-schema, read-only production diagnostic after the recovery post-check returned a redacted stop.
+  Codex must build an independently checksummed classifier that cannot reach any mutation path. After review/CI/merge it may run once;
+  a second bootstrap and 56-Person activation remain prohibited until the classification is known.
