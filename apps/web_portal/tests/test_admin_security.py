@@ -1017,6 +1017,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertNotIn("audit", item)
             self.assertNotIn("available_members", item)
 
+    def test_future_games_uses_game_repository_and_renders_empty_state(self):
+        self.game_model.search_between.return_value = []
+        self.game_model.get_games_in_this_week_and_month.return_value = ([], [])
+        response = self.client.get("/future-games")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("目前沒有未來賽程".encode(), response.data)
+        self.game_model.search_between.assert_called_once()
+
     def test_match_rejects_malformed_transport_before_repository_lookup(self):
         token = self.get_csrf_token()
         repository = MagicMock()
