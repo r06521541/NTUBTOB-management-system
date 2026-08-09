@@ -1,15 +1,15 @@
 active_task: TASK-085
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
-head_commit: 428d2099aae576bff73e3814b9ef68df581acfce
+head_commit: e018e8297a03644ea14734e9154aec582e611ce2
 
-updated_by: work
-updated_at: 2026-08-09T19:05:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T20:20:00+08:00
 
 note: >
-  PR #89 hosted PostgreSQL 15/16 jobs both failed because bootstrap test residue violates the older
-  ck_access_audit_action while the later readiness fixture downgrades to 0003. Codex must repair full-suite test isolation/cleanup
-  without weakening constraints or skipping readiness coverage. Production bootstrap and the separate 56 linked-Person activation
-  remain unauthorized and out of scope.
+  Hosted PostgreSQL isolation is repaired by clearing newer audit fixtures at 0004 before the readiness fixture downgrades to 0003.
+  An explicit bootstrap-residue regression and hosted-equivalent full portal-data discovery passed on local PostgreSQL 15 and 16
+  (183 tests each). No migration constraint was weakened; production bootstrap and the separate 56 linked-Person activation remain
+  unauthorized and out of scope.

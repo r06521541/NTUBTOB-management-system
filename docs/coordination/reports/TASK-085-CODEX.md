@@ -8,6 +8,7 @@
 - First corrections: `7a3f202c3fc15978fcc4b25571bbdd5f7af834fb` and
   `b5234e45b055cfcd48a10edd2da302ee1bfca434`
 - Second-review implementation: `428d2099aae576bff73e3814b9ef68df581acfce`
+- Hosted CI isolation correction: `e018e8297a03644ea14734e9154aec582e611ce2`
 
 ## Hosted CI isolation correction
 
