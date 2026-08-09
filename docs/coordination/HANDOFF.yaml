@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: in_progress
-next_actor: work
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 75cccd878285ed4a13cdf9c62048ab875e5abf1f
-head_commit: f04c3a4b5dbb273c11f2ca27ce0d5519d76398c4
+base_commit: 5da0961532ad87414a49faafb5dc2299e941db9a
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-10T10:45:00+08:00
+updated_at: 2026-08-10T11:15:00+08:00
 
 note: >
-  Work accepted the fixed-schema diagnostic after source/AST review, exact runtime smoke and 38 regressions. Work is creating the one
-  ready PR. After hosted CI and squash merge, one production read-only diagnostic is authorized; no bootstrap mutation or 56-Person
-  activation may occur until its fixed classification is evaluated.
+  The diagnostic proved runtime but gcloud cannot project one repeated env element. Owner approved an in-memory Web Portal container
+  env metadata-list fallback that extracts only the unique plain allowlist and never outputs, persists or resolves other metadata or
+  Secret payloads. Codex must add adversarial no-disclosure tests; no production DB or mutation is authorized in this repository stage.
