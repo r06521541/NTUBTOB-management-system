@@ -24,6 +24,8 @@
 
 矩陣使用現有 route 與 caller；未新增 Event/Activity、transport/equipment assignment、schema、production 或通知發送。未宣稱 browser-pixel QA。
 
+Qualification UI 已實作於 `/manage/people/<person_id>/qualifications`：GET 顯示 summary／validity／empty state，POST 以 capability、CSRF、reason、request-id 驗證後呼叫 transactional grant/revoke，PRG 回到頁面讀取 repository state。UI 僅提供 `guest_player`、`affiliate`、`staff`；`team_player` 僅顯示 Member-derived 狀態，不可由表單任意授予。
+
 ## Rule source and boundary review
 
 本次 flow 盤點以 `docs/planning/PHASE_D_QUALIFICATION_GAME_DECISIONS.md` 為唯一產品規則來源，逐項核對
