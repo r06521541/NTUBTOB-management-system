@@ -312,3 +312,48 @@ This stage was repository/local only. No gcloud command, private env/Secret,
 production connection, DDL/DML, bootstrap retry, deployment, cloud mutation,
 notification, or 56-Person activation was performed. Production execution
 still requires Work acceptance, one ready PR, hosted CI, and squash merge.
+
+## Exact-two allowlisted administrator activation
+
+- Branch: `codex/phase-c-activate-allowlisted-admins`
+- Base: `323bf95d1bf412b725ac99844c95a4724c96bdec`
+- Implementation: `d145de047914b07bb3edf34882d8e48bfc467a2d`
+
+Added independently checksummed operator and launcher artifacts for the
+Owner-approved exact-two activation. The launcher reuses the reviewed
+runtime/git/account/project/service/region, strict in-memory env metadata,
+private PG, dependency, logging, and unconditional cleanup boundaries. Its
+fixed sequence is `preflight -> execute -> post-check`; sensitive inputs and
+internal request IDs never enter argv or output.
+
+The operator rejects any allowlist other than exactly two unique positive
+Member IDs. Under the established advisory lock it deterministically locks both
+Person rows and revalidates the exact Member/Person, non-ignored legacy LINE,
+linked-same-Person identity, active team-player, and zero-pending relationships.
+One transaction changes only both Person statuses, versions, and timestamps and
+adds exactly two null-actor `status_changed` audits with distinct internal UUID
+request IDs. Exact aggregate deltas protect Member, identity, legacy LINE,
+qualification, and attendance cardinalities. A complete exact audit pair is an
+idempotent no-mutation retry; mixed state, partial audit, drift, unsafe logging,
+or injected failure stops/rolls back both Persons and audits.
+
+### Verification
+
+- Offline activation/launcher contracts: 7/7 passed.
+- Activation plus directly reused bootstrap boundary suites: 25/25 passed.
+- Local isolated `postgres:15.8-alpine`: 6/6 transaction tests passed.
+- Local isolated `postgres:16.4-alpine`: the same 6/6 passed.
+- PostgreSQL coverage includes exact success/deltas/audit shape, safe retry,
+  relationship drift, partial failure rollback, partial completed-audit
+  rejection, unsafe write logging before mutation, and two-session concurrency
+  with one apply plus one verified retry.
+- Compileall, Black 24.4.2 formatter API, canonical artifact/material
+  checksums, real safe-stop subprocess, structural contract checks, and
+  `git diff --check`: passed.
+- Both task-owned local PostgreSQL containers were stopped.
+
+This was repository/local only. No gcloud command, private env/Secret,
+production connection or DML, deployment, schema/cloud mutation, notification,
+or 56-Person activation was performed. Work review, one ready PR, hosted CI,
+and squash merge remain mandatory before the separately authorized exact
+production transaction.

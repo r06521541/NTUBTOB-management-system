@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 323bf95d1bf412b725ac99844c95a4724c96bdec
-head_commit: null
+head_commit: d145de047914b07bb3edf34882d8e48bfc467a2d
 
-updated_by: work
-updated_at: 2026-08-10T15:10:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T16:10:00+08:00
 
 note: >
-  Owner confirmed the allowlist intentionally contains two administrators and approved activating both. Aggregate production evidence
-  proves both are existing linked-same-Person inactive team players with no pending or wrong-Person relation. Implement the exact-two,
-  all-or-nothing audited activation repository/local only before returning to Work; no external or production operation is allowed.
+  TASK-086 exact-two activation repository package is ready for Work review. Offline contracts passed 7 tests, related boundary suites
+  passed 25, and isolated PostgreSQL 15/16 transaction matrices passed 6 tests each, including rollback/retry/concurrency. No external
+  or production operation occurred. Review implementation d145de0 and the report before the one ready PR / hosted CI gate.
