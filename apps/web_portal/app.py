@@ -52,6 +52,7 @@ from ui_text import PORTAL_COPY
 from role_policy import (
     MANAGE_MEMBERS,
     MANAGE_PENDING_IDENTITIES,
+    MANAGE_QUALIFICATIONS,
     ROLE_ADMIN,
     ROLE_MEMBER,
     VIEW_PERSON_DIRECTORY,
@@ -759,6 +760,58 @@ def admin_pending_identities():
         ),
         current_identity_id=session.get("auth_identity_id"),
         pending_only=True,
+    )
+
+
+@app.route("/manage/people/<int:person_id>/qualifications", methods=["GET", "POST"])
+@capability_required(MANAGE_QUALIFICATIONS)
+def manage_person_qualifications(person_id):
+    require_valid_csrf() if request.method == "POST" else None
+    repository, actor_person_id = _admin_repository_or_unavailable()
+    if repository is None:
+        return "Identity service is temporarily unavailable", 503
+    dashboard = repository.admin_dashboard(actor_person_id)
+    person = next(
+        (item for item in dashboard["people"] if item["person_id"] == person_id),
+        None,
+    )
+    if person is None:
+        abort(404)
+    if request.method == "POST":
+        qualification = request.form.get("qualification", "")
+        request_id = _required_request_id("qualification-")
+        reason = request.form.get("reason", "").strip()
+        if qualification not in {"guest_player", "affiliate", "staff"}:
+            abort(400)
+        if not 3 <= len(reason) <= 300:
+            abort(400)
+        action = request.form.get("action", "")
+        try:
+            if action == "grant":
+                repository.grant_qualification(
+                    actor_person_id,
+                    person_id,
+                    qualification,
+                    reason,
+                    request_id,
+                    valid_from=_optional_form_datetime("valid_from"),
+                    valid_until=_optional_form_datetime("valid_until"),
+                )
+            elif action == "revoke":
+                repository.revoke_qualification(
+                    actor_person_id, person_id, qualification, reason, request_id
+                )
+            else:
+                abort(400)
+        except (ValueError, TypeError):
+            abort(400)
+        return redirect(url_for("manage_person_qualifications", person_id=person_id))
+    return render_template(
+        "qualifications.html",
+        person=person,
+        qualifications=person.get("qualifications", ()),
+        csrf_token=get_or_create_csrf_token(),
+        request_nonce=secrets.token_urlsafe(16),
     )
 
 

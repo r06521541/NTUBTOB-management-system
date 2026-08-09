@@ -16,6 +16,7 @@ if str(WEB_PORTAL_DIR) not in sys.path:
 
 from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
+from role_policy import Principal, ROLE_ADMIN  # noqa: E402
 
 from shared_lib.shared_module.portal_data import (
     runtime as phase_c_runtime,
@@ -1383,6 +1384,76 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "staff",
             "Assign event support",
             "qualification-fake-request",
+            valid_from=None,
+            valid_until=None,
+        )
+
+    def test_qualification_management_page_posts_and_reads_back(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.admin_dashboard.side_effect = [
+            {
+                "people": (
+                    {
+                        "person_id": 80,
+                        "display_name": "Demo Person",
+                        "formal_name": "Demo Formal",
+                        "member_id": 8,
+                        "qualifications": ({"name": "affiliate", "status": "active"},),
+                    },
+                )
+            },
+            {
+                "people": (
+                    {
+                        "person_id": 80,
+                        "display_name": "Demo Person",
+                        "formal_name": "Demo Formal",
+                        "member_id": 8,
+                        "qualifications": ({"name": "staff", "status": "active"},),
+                    },
+                )
+            },
+        ]
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                user_id="line-user",
+                member_id=7,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch(
+            "admin_security.get_current_principal",
+            return_value=Principal(ROLE_ADMIN, 7),
+        ):
+            page = self.client.get("/manage/people/80/qualifications")
+            response = self.client.post(
+                "/manage/people/80/qualifications",
+                data={
+                    "csrf_token": token,
+                    "action": "grant",
+                    "qualification": "staff",
+                    "reason": "Assign staff role",
+                    "request_id": "qualification-80-test",
+                },
+            )
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"affiliate", page.data)
+        self.assertNotIn(b'team_player"', page.data)
+        self.assertEqual(response.status_code, 302)
+        repository.grant_qualification.assert_called_once_with(
+            70,
+            80,
+            "staff",
+            "Assign staff role",
+            "qualification-80-test",
             valid_from=None,
             valid_until=None,
         )

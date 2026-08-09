@@ -60,6 +60,38 @@ class BrandUiContractTest(unittest.TestCase):
         member_css = (STATIC_DIR / "member_portal.css").read_text(encoding="utf-8")
         self.assertIn("overflow-x: auto", member_css)
 
+    def test_game_and_account_pages_share_mobile_contract(self):
+        shared_pages = (
+            "attendance.html",
+            "game_roster.html",
+            "account.html",
+        )
+        for template_name in shared_pages:
+            with self.subTest(template=template_name):
+                template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
+                self.assertIn("filename='brand.css'", template)
+                self.assertIn("filename='member_portal.css'", template)
+                self.assertIn("_member_nav.html", template)
+        for template_name in (
+            "dashboard.html",
+            "games.html",
+            "game_detail.html",
+            "game_day.html",
+            "profile.html",
+        ):
+            with self.subTest(template=template_name):
+                template = (TEMPLATES_DIR / "demo" / template_name).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("extends 'demo/base.html'", template)
+        css = (STATIC_DIR / "member_portal.css").read_text(encoding="utf-8")
+        for contract in (
+            "min-height: 44px",
+            "focus-visible",
+            ".member-nav",
+        ):
+            self.assertIn(contract, css)
+
     def test_theme_color_and_notice_semantics_follow_brand_roles(self):
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
         brand_css = (STATIC_DIR / "brand.css").read_text(encoding="utf-8")
