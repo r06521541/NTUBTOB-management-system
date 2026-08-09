@@ -64,3 +64,25 @@
 - Game roster 快照的 schema／read model 及歷史資格顯示細節。
 - 球衣背號的「目前有效 team_player」唯一性範圍。
 - Staff／Affiliate 的完整資料可見欄位清單。
+
+## Game 管理與異動
+
+- Officer／Admin 都可建立、編輯、取消 Game。
+- 聯盟匯入 Game 可由 Officer／Admin 人工覆寫；覆寫需 reason／audit，且 crawler 不得覆蓋人工值。
+- 提供「還原匯入值」操作；Officer／Admin 可執行，但需確認、reason／audit。
+- Game 日期不可直接修改；改期採系統化流程：原 Game 標記 cancelled、建立新 Game、保留新舊關聯與歷史。
+- 球場可直接修改，保留原 Game／roster／出席，並通知出席／待確認者。
+- 對手可直接修改，保留原 Game／roster／出席，但不自動通知。
+- 取消 Game 保留邀請、roster、出席與統計歷史，並通知所有原邀請者。
+- 日期改期建立新 Game 時，通知原 Game 的所有邀請者。
+- Game 時間／球場必要異動的自動通知目前採 LINE＋Discord 雙渠道。
+- LINE／Discord 分開處理；一渠道失敗不阻塞另一渠道，失敗留下紀錄。
+- 自動通知至少具備基本發送紀錄與重複防護；不要求每次人工二次確認。
+- 自動通知目前只針對時間與球場異動；日期改由改期流程通知，對手變更不通知。
+
+## Game 顯示與資料原則
+
+- Game roster／統計中的球員資料顯示目前最新值，不保存球員欄位歷史快照。
+- Game roster／統計中的資格顯示目前最新資格。
+- 已過期 guest_player 只在 Officer／Admin 畫面標示資格已到期，Basic 不特別顯示。
+- `affiliate`／`staff` 不得參加 Game。
