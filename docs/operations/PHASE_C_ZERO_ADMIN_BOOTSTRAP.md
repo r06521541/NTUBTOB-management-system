@@ -10,6 +10,25 @@ reason, and opaque request ID through the approved private operator channel.
 Do not place those values in shell arguments, repository files, SQL text, logs,
 or a transcript.
 
+Use the checksummed executable artifact from the repository root. The only
+command-line input is the fixed mode; all identifiers, the full allowlist,
+reason, request ID, and execution acknowledgement are read interactively with
+echo disabled:
+
+```powershell
+python tools/portal_data_zero_admin_bootstrap.py --mode preflight
+python tools/portal_data_zero_admin_bootstrap.py --mode dry-run
+python tools/portal_data_zero_admin_bootstrap.py --mode execute
+```
+
+Run preflight and dry-run before execute. Stop unless each produces exactly the
+documented redacted JSON fields (`mode`, `status`, `target_ready`, the before
+and after admin counts, `audit_delta`, and `applied`) without an identifier.
+Execute additionally requires the fixed `EXECUTE TASK-085` acknowledgement.
+The artifact accepts only the repository's local-only PostgreSQL database
+boundary; production execution remains separately gated by an Owner-approved
+package and is not authorized by this runbook alone.
+
 Before any execution, obtain a pager-off, read-only aggregate inventory and
 stop unless it proves exactly zero active linked allowlisted administrators.
 The target must be an allowlisted Member with a pending LINE identity, an

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from sqlalchemy import Engine, func, or_, select, text
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .domain import (
@@ -647,7 +647,7 @@ class IdentityLifecycleRepository:
             if principal is None:
                 raise ConflictError("bootstrap principal did not resolve")
             return principal
-        except IntegrityError as error:
+        except SQLAlchemyError as error:
             raise ConflictError("zero-admin bootstrap conflict") from error
 
     def approve_non_member(
