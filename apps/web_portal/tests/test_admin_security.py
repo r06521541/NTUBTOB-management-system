@@ -957,6 +957,17 @@ class MemberMatchingRouteTest(unittest.TestCase):
             person=SimpleNamespace(id=70, member_id=7),
             identity=SimpleNamespace(id=71),
         )
+        repository.person_directory.return_value = (
+            {
+                "person_id": 80,
+                "display_name": "?梁迂",
+                "formal_name": "甇??憪?",
+                "portal_access_level": "basic",
+                "portal_status": "active",
+                "member_id": 8,
+                "qualifications": (),
+            },
+        )
         repository.admin_dashboard.return_value = {
             "people": (
                 {
@@ -998,7 +1009,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertNotIn("Person 管理列表".encode(), pending.data)
         self.assertIn("暱稱".encode(), pending.data)
         self.assertNotIn("顯示名稱".encode(), pending.data)
-        repository.admin_dashboard.assert_called()
+        repository.person_directory.assert_called_once_with(70)
+        for item in repository.person_directory.return_value:
+            self.assertNotIn("admin_note", item)
+            self.assertNotIn("identity_id", item)
+            self.assertNotIn("audit", item)
+            self.assertNotIn("available_members", item)
 
     def test_match_rejects_malformed_transport_before_repository_lookup(self):
         token = self.get_csrf_token()

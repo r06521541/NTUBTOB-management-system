@@ -438,6 +438,69 @@ class IdentityLifecycleRepository:
                 "audit": audit,
             }
 
+    def person_directory(self, actor_person_id: int) -> tuple[dict, ...]:
+        """Return only the low-sensitivity Person directory projection."""
+        with Session(self.engine) as session:
+            person = session.scalar(
+                select(PersonRecord).where(
+                    PersonRecord.id == actor_person_id,
+                    PersonRecord.portal_status == "active",
+                )
+            )
+            if person is None:
+                raise AuthorizationError("active person required")
+            rows = session.execute(
+                select(
+                    PersonRecord.id,
+                    PersonRecord.display_name,
+                    PersonRecord.formal_name,
+                    PersonRecord.portal_access_level,
+                    PersonRecord.portal_status,
+                    LegacyMemberRecord.id,
+                )
+                .outerjoin(
+                    LegacyMemberRecord,
+                    LegacyMemberRecord.person_id == PersonRecord.id,
+                )
+                .order_by(PersonRecord.id)
+                .limit(500)
+            ).all()
+            qualifications = session.execute(
+                select(
+                    PersonQualificationRecord.person_id,
+                    PersonQualificationRecord.qualification,
+                    PersonQualificationRecord.status,
+                ).order_by(
+                    PersonQualificationRecord.person_id,
+                    PersonQualificationRecord.qualification,
+                )
+            ).all()
+            by_person: dict[int, list[dict]] = {}
+            for person_id, qualification, status in qualifications:
+                by_person.setdefault(person_id, []).append(
+                    {"name": qualification, "status": status}
+                )
+            return tuple(
+                {
+                    "person_id": person_id,
+                    "display_name": display_name,
+                    "formal_name": formal_name,
+                    "portal_access_level": access_level,
+                    "portal_status": status,
+                    "status": status,
+                    "member_id": member_id,
+                    "qualifications": tuple(by_person.get(person_id, ())),
+                }
+                for (
+                    person_id,
+                    display_name,
+                    formal_name,
+                    access_level,
+                    status,
+                    member_id,
+                ) in rows
+            )
+
     def create_member_person(
         self,
         actor_person_id: int,

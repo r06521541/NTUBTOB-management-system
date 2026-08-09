@@ -4,7 +4,7 @@
 
 維護角色：Work
 
-Repository 基準：`main` / `4903ddd0f7ee8abb2c621221dce395ccf81bb125`
+Repository 基準：`main` / `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`
 
 ## 目前摘要
 
@@ -15,9 +15,12 @@ Repository 基準：`main` / `4903ddd0f7ee8abb2c621221dce395ccf81bb125`
   Member／identity／legacy LINE／qualification／attendance cardinality 不變。
 - TASK-088 delivery group `phase-d-identity-admin-transition` 已由 Work 驗收接受並 squash-merge 至 `main`（merge commit
   `4903ddd0f7ee8abb2c621221dce395ccf81bb125`）。
-- TASK-089 `phase-d-identity-admin-operations` 已由 Work 驗收接受：完成 Person 列表／詳情管理、獨立 pending identity
-  頁面、admin 新增 Member、capability-neutral `/manage/...` URL 與集中式跨頁中文措辭；尚未授權 production cutover
-  或正式資料 mutation。Remote head 為 `5d7f84e70f15c96c061dcc09f04d3c8669fe470a`，待建立 final PR／整合。
+- TASK-089 `phase-d-identity-admin-operations` 已由 Work 驗收接受並 squash-merge 至 `main`（merge commit
+  `5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f`）。
+- TASK-090 `phase-d-capability-and-smoke` 已完成 planning，決策已併入 TASK-091。
+- TASK-091 `phase-d-capability-and-smoke` 已由 Work 驗收接受：完成 capability policy、route mapping、低敏 Person
+  directory projection 與非 production browser／LINE in-app smoke 準備；通知維持 dry-run，尚未授權 production cutover
+  或正式資料 mutation。下一波應分開規劃 non-production observation 與 production capability rollout。
 
 ## 已確認的 production 狀態
 
