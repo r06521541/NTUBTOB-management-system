@@ -1,14 +1,14 @@
-active_task: TASK-084
-status: in_progress
-next_actor: work
+active_task: TASK-085
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 6896ee67aa05320b46537d95bc28da7514e52e27
+base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-09T06:00:00+08:00
+updated_at: 2026-08-09T06:30:00+08:00
 
 note: >
-  PostgreSQL 16 bind correction accepted locally: 27 targeted tests pass, and Work independently reran the opt-in real PostgreSQL
-  16 server plus psql 16 client integration successfully. Work is creating the single ready PR. No production or private
-  environment operation ran.
+  TASK-084 read-only inventory found zero active linked allowlisted admins and no safe ignore/unignore smoke candidate; the pager
+  then triggered idle-in-transaction disconnect and automatic rollback. TASK-085 prepares pager-safe evidence and a fail-closed,
+  audited, idempotent zero-admin bootstrap locally. No production access or mutation is authorized.
