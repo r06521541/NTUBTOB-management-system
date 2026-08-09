@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import os
+import contextlib
+import io
+import json
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
+from unittest.mock import patch
 
-from shared_lib.shared_module.portal_data.domain import ConflictError, ValidationError
+from shared_lib.shared_module.portal_data.domain import (
+    AuthorizationError,
+    ConflictError,
+    ValidationError,
+)
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
@@ -26,6 +35,8 @@ from tools.portal_data_phase_c_migration import (
     verify_artifact,
     verify_sql,
 )
+from tools.setup_portal_data_legacy import main as setup_legacy_fixture
+from tools import portal_data_zero_admin_bootstrap as bootstrap_operator
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -62,6 +73,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        setup_legacy_fixture()
         command.upgrade(Config("alembic.ini"), "head")
         with self.engine.begin() as connection:
             connection.execute(
@@ -521,6 +533,317 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 ),
                 1,
             )
+
+    def _prepare_zero_admin_bootstrap(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    TRUNCATE TABLE
+                      ntubtob.identity_review_messages,
+                      ntubtob.identity_review_threads,
+                      ntubtob.access_audit,
+                      ntubtob.person_qualifications,
+                      ntubtob.auth_identities,
+                      ntubtob.line_users,
+                      ntubtob.members,
+                      ntubtob.people
+                    RESTART IDENTITY CASCADE;
+                    """
+                )
+            )
+            person_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.people
+                      (display_name, portal_access_level, portal_status,
+                       version, created_at, updated_at)
+                    VALUES ('Fake Bootstrap', 'basic', 'inactive', 1, now(), now())
+                    RETURNING id
+                    """
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.members (id, name, person_id) "
+                    "VALUES (7001, 'Fake Bootstrap Member', :person_id)"
+                ),
+                {"person_id": person_id},
+            )
+        self.repository = IdentityLifecycleRepository(self.engine, {7001})
+        return self.repository.ensure_pending_line_identity(
+            "fake-bootstrap-subject", "Fake Bootstrap", "fake-bootstrap-pending"
+        )
+
+    def test_zero_admin_bootstrap_links_only_allowlisted_pending_member(self):
+        pending = self._prepare_zero_admin_bootstrap()
+        principal = self.repository.bootstrap_zero_admin_member(
+            pending.identity.id,
+            7001,
+            "One-time fictional bootstrap",
+            "fake-bootstrap-link",
+        )
+        retry = self.repository.bootstrap_zero_admin_member(
+            pending.identity.id,
+            7001,
+            "One-time fictional bootstrap",
+            "fake-bootstrap-link",
+        )
+        self.assertEqual(retry.person.id, principal.person.id)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT actor_person_id, action, count(*) "
+                        "FROM ntubtob.access_audit WHERE request_id='fake-bootstrap-link' "
+                        "GROUP BY actor_person_id, action"
+                    )
+                ).one(),
+                (None, "identity_linked", 1),
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.person_qualifications "
+                        "WHERE person_id=:person_id AND qualification='team_player'"
+                    ),
+                    {"person_id": principal.person.id},
+                ),
+                1,
+            )
+
+    def test_zero_admin_bootstrap_rejects_non_allowlisted_target_and_existing_admin(
+        self,
+    ):
+        pending = self._prepare_zero_admin_bootstrap()
+        with self.assertRaises(AuthorizationError):
+            self.repository.bootstrap_zero_admin_member(
+                pending.identity.id, 7002, "One-time fictional bootstrap", "fake-wrong"
+            )
+        self.repository.bootstrap_zero_admin_member(
+            pending.identity.id, 7001, "One-time fictional bootstrap", "fake-first"
+        )
+        with self.engine.begin() as connection:
+            second_person = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name, portal_access_level, portal_status, version, created_at, updated_at) "
+                    "VALUES ('Fake Second', 'basic', 'inactive', 1, now(), now()) RETURNING id"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.members (id, name, person_id) "
+                    "VALUES (7003, 'Fake Second Member', :person_id)"
+                ),
+                {"person_id": second_person},
+            )
+        second = self.repository.ensure_pending_line_identity(
+            "fake-second-subject", "Fake Second", "fake-second-pending"
+        )
+        with self.assertRaises(ConflictError):
+            self.repository.bootstrap_zero_admin_member(
+                second.identity.id, 7001, "One-time fictional bootstrap", "fake-second"
+            )
+
+    def test_concurrent_zero_admin_bootstraps_allow_exactly_one_initial_link(self):
+        first = self._prepare_zero_admin_bootstrap()
+        second = self.repository.ensure_pending_line_identity(
+            "fake-concurrent-subject", "Fake Concurrent", "fake-concurrent-pending"
+        )
+        barrier = threading.Barrier(2)
+        outcomes = []
+        outcome_lock = threading.Lock()
+
+        def attempt(pending, request_id):
+            barrier.wait()
+            try:
+                self.repository.bootstrap_zero_admin_member(
+                    pending.identity.id,
+                    7001,
+                    "One-time fictional bootstrap",
+                    request_id,
+                )
+                result = "linked"
+            except ConflictError:
+                result = "rejected"
+            with outcome_lock:
+                outcomes.append(result)
+
+        threads = (
+            threading.Thread(target=attempt, args=(first, "fake-concurrent-one")),
+            threading.Thread(target=attempt, args=(second, "fake-concurrent-two")),
+        )
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=10)
+            self.assertFalse(thread.is_alive())
+        self.assertCountEqual(outcomes, ("linked", "rejected"))
+
+    def _assert_bootstrap_failure_is_atomic(self, identity_id, request_id):
+        query = text(
+            "SELECT i.status,i.person_id,l.member_id,p.portal_status,"
+            "(SELECT count(*) FROM ntubtob.access_audit WHERE request_id=:request_id),"
+            "(SELECT count(*) FROM ntubtob.person_qualifications q WHERE q.person_id=p.id) "
+            "FROM ntubtob.auth_identities i "
+            "JOIN ntubtob.line_users l ON l.line_user_id=i.provider_subject "
+            "JOIN ntubtob.members m ON m.id=7001 "
+            "JOIN ntubtob.people p ON p.id=m.person_id WHERE i.id=:identity_id"
+        )
+        parameters = {"identity_id": identity_id, "request_id": request_id}
+        with self.engine.connect() as connection:
+            before = connection.execute(query, parameters).one()
+        with self.assertRaises(ConflictError):
+            self.repository.bootstrap_zero_admin_member(
+                identity_id, 7001, "One-time fictional bootstrap", request_id
+            )
+        with self.engine.connect() as connection:
+            after = connection.execute(query, parameters).one()
+        self.assertEqual(after, before)
+
+    def test_zero_admin_bootstrap_rejects_target_state_drift_atomically(self):
+        cases = (
+            ("blocked-person", "UPDATE ntubtob.people SET portal_status='blocked'"),
+            ("disabled-person", "UPDATE ntubtob.people SET portal_status='disabled'"),
+            ("ignored-legacy", "UPDATE ntubtob.line_users SET ignored=true"),
+            (
+                "closed-thread",
+                "UPDATE ntubtob.identity_review_threads SET status='closed',closed_at=now()",
+            ),
+            (
+                "redacted-thread",
+                "UPDATE ntubtob.identity_review_threads SET redacted_at=now()",
+            ),
+        )
+        for suffix, mutation in cases:
+            with self.subTest(suffix=suffix):
+                pending = self._prepare_zero_admin_bootstrap()
+                with self.engine.begin() as connection:
+                    connection.execute(text(mutation))
+                self._assert_bootstrap_failure_is_atomic(
+                    pending.identity.id, f"fake-{suffix}"
+                )
+
+        pending = self._prepare_zero_admin_bootstrap()
+        with self.engine.begin() as connection:
+            person_id = connection.scalar(
+                text("SELECT person_id FROM ntubtob.members WHERE id=7001")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.person_qualifications "
+                    "(person_id,qualification,status,reason,created_at,updated_at) "
+                    "VALUES (:person_id,'team_player','revoked','fictional drift',now(),now())"
+                ),
+                {"person_id": person_id},
+            )
+        self._assert_bootstrap_failure_is_atomic(
+            pending.identity.id, "fake-revoked-qualification"
+        )
+
+    def test_zero_admin_bootstrap_rejects_ordinary_approval_audit_retry(self):
+        pending = self._prepare_zero_admin_bootstrap()
+        with self.engine.begin() as connection:
+            person_id = connection.scalar(
+                text("SELECT person_id FROM ntubtob.members WHERE id=7001")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.access_audit "
+                    "(action,actor_person_id,target_person_id,auth_identity_id,before_state,after_state,reason,request_id,created_at) "
+                    "VALUES ('identity_linked',:person_id,:person_id,:identity_id,CAST(:before_state AS json),"
+                    "CAST(:after_state AS json),'ordinary approval',"
+                    "'fake-ordinary-retry',now())"
+                ),
+                {
+                    "person_id": person_id,
+                    "identity_id": pending.identity.id,
+                    "before_state": '{"status":"pending"}',
+                    "after_state": '{"status":"linked","member_id":7001}',
+                },
+            )
+        self._assert_bootstrap_failure_is_atomic(
+            pending.identity.id, "fake-ordinary-retry"
+        )
+
+    def test_zero_admin_bootstrap_rolls_back_on_audit_insert_failure(self):
+        pending = self._prepare_zero_admin_bootstrap()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE FUNCTION ntubtob.fail_fake_bootstrap_audit() RETURNS trigger "
+                    "LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fake audit failure'; END $$; "
+                    "CREATE TRIGGER fail_fake_bootstrap_audit BEFORE INSERT ON ntubtob.access_audit "
+                    "FOR EACH ROW WHEN (NEW.request_id='fake-injected-failure') "
+                    "EXECUTE FUNCTION ntubtob.fail_fake_bootstrap_audit()"
+                )
+            )
+        try:
+            self._assert_bootstrap_failure_is_atomic(
+                pending.identity.id, "fake-injected-failure"
+            )
+        finally:
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "DROP TRIGGER fail_fake_bootstrap_audit ON ntubtob.access_audit; "
+                        "DROP FUNCTION ntubtob.fail_fake_bootstrap_audit()"
+                    )
+                )
+
+    def test_zero_admin_bootstrap_rejects_wrong_identity_and_member(self):
+        pending = self._prepare_zero_admin_bootstrap()
+        for identity_id, member_id, request_id in (
+            (pending.identity.id + 9999, 7001, "fake-wrong-identity"),
+            (pending.identity.id, 7999, "fake-wrong-member"),
+        ):
+            with self.subTest(request_id=request_id), self.assertRaises(
+                (AuthorizationError, ConflictError)
+            ):
+                self.repository.bootstrap_zero_admin_member(
+                    identity_id,
+                    member_id,
+                    "One-time fictional bootstrap",
+                    request_id,
+                )
+
+    def test_zero_admin_operator_dry_run_and_execute_use_redacted_schema(self):
+        pending = self._prepare_zero_admin_bootstrap()
+
+        def invoke(mode, values):
+            output = io.StringIO()
+            with patch.dict(
+                os.environ, {"PORTAL_DATA_DATABASE_URL": DATABASE_URL}
+            ), patch.object(
+                bootstrap_operator.getpass, "getpass", side_effect=values
+            ), contextlib.redirect_stdout(
+                output
+            ):
+                bootstrap_operator.run(mode)
+            return json.loads(output.getvalue())
+
+        dry_run = invoke(
+            "dry-run",
+            ("7001", str(pending.identity.id), "7001", "Fake reason", "fake-op-dry"),
+        )
+        self.assertEqual(tuple(dry_run), bootstrap_operator.OUTPUT_FIELDS)
+        self.assertEqual(dry_run["status"], "ready")
+        self.assertFalse(dry_run["applied"])
+        execute = invoke(
+            "execute",
+            (
+                "7001",
+                str(pending.identity.id),
+                "7001",
+                "Fake reason",
+                "fake-op-execute",
+                "EXECUTE TASK-085",
+            ),
+        )
+        self.assertEqual(tuple(execute), bootstrap_operator.OUTPUT_FIELDS)
+        self.assertEqual(execute["status"], "applied")
+        self.assertTrue(execute["applied"])
 
 
 from alembic import command

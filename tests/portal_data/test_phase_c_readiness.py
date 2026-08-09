@@ -39,6 +39,14 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 )
 
 
+def reset_phase_c_readiness_database(engine, config) -> None:
+    """Remove newer audit fixtures before exercising the 0004 downgrade."""
+    command.upgrade(config, "head")
+    with engine.begin() as connection:
+        connection.execute(text("TRUNCATE TABLE ntubtob.access_audit"))
+    command.downgrade(config, "0003_legacy_bigint_activity_game")
+
+
 def valid_rows(schema):
     rows = []
     for section, metric in sorted(schema):
@@ -210,8 +218,7 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
-        command.upgrade(self.config, "head")
-        command.downgrade(self.config, "0003_legacy_bigint_activity_game")
+        reset_phase_c_readiness_database(self.engine, self.config)
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -251,6 +258,38 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
             """
                 ),
                 {"person_id": person_id},
+            )
+
+    def test_readiness_reset_accepts_bootstrap_suite_audit_residue(self):
+        command.upgrade(self.config, "head")
+        with self.engine.begin() as connection:
+            identity_id = connection.scalar(
+                text("SELECT id FROM ntubtob.auth_identities LIMIT 1")
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.access_audit "
+                    "(action,actor_person_id,target_person_id,auth_identity_id,"
+                    "before_state,after_state,reason,request_id,created_at) "
+                    "VALUES ('identity_pending',NULL,NULL,:identity_id,NULL,"
+                    "'{\"status\":\"pending\"}','Fake bootstrap residue',"
+                    "'fake-bootstrap-residue',now())"
+                ),
+                {"identity_id": identity_id},
+            )
+
+        reset_phase_c_readiness_database(self.engine, self.config)
+
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT version_num FROM ntubtob.alembic_version")
+                ),
+                "0003_legacy_bigint_activity_game",
+            )
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ntubtob.access_audit")),
+                0,
             )
 
     def _evidence_rows(self, path: Path):

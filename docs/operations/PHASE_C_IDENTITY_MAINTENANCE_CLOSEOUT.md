@@ -68,6 +68,7 @@ meta-commands exactly, supplying values only at the three interactive prompts:
 ```text
 \set ON_ERROR_STOP on
 \pset format csv
+\pset pager off
 \prompt 'Approved admin Member-ID allowlist:' admin_member_ids
 \prompt 'Opaque mutation request ID:' mutation_request_id
 \prompt 'Opaque recovery request ID:' recovery_request_id

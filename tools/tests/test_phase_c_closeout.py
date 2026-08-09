@@ -536,6 +536,8 @@ class CloseoutEvidenceTests(unittest.TestCase):
                     "-e",
                     "POSTGRES_HOST_AUTH_METHOD=trust",
                     closeout.POSTGRES16_IMAGE_ID,
+                    "-c",
+                    "log_parameter_max_length_on_error=0",
                 )
                 self.assertEqual(
                     server.returncode, 0, "local PostgreSQL 16 did not start"
@@ -603,6 +605,43 @@ SELECT $1::bigint, $2::uuid, $3::uuid
                     correct.stdout.strip(),
                     "42|11111111-1111-1111-1111-111111111111|22222222-2222-2222-2222-222222222222",
                 )
+
+                schema = run_docker(
+                    *client_args,
+                    script="""CREATE SCHEMA ntubtob;
+CREATE TABLE ntubtob.alembic_version(version_num text);
+INSERT INTO ntubtob.alembic_version VALUES ('0004_phase_c_identity_lifecycle');
+CREATE TABLE ntubtob.people(id bigint PRIMARY KEY, portal_status text);
+CREATE TABLE ntubtob.members(id bigint PRIMARY KEY, person_id bigint);
+CREATE TABLE ntubtob.line_users(id bigint, line_user_id text, member_id bigint, ignored boolean);
+CREATE TABLE ntubtob.auth_identities(id bigint, provider text, provider_subject text, person_id bigint, status text);
+CREATE TABLE ntubtob.person_qualifications(person_id bigint, qualification text, status text);
+CREATE TABLE ntubtob.access_audit(id bigint, request_id uuid, action text, auth_identity_id bigint);
+CREATE TABLE ntubtob.game_attendance_replies(id bigint);
+""",
+                )
+                self.assertEqual(schema.returncode, 0, schema.stderr)
+                inventory_script = (
+                    """\\set admin_member_ids 42
+\\set mutation_request_id 11111111-1111-1111-1111-111111111111
+\\set recovery_request_id 22222222-2222-2222-2222-222222222222
+"""
+                    + closeout.INVENTORY_SQL_PATH.read_text(encoding="utf-8")
+                    + "\n\\echo rollback-complete\n"
+                )
+                exact_inventory = run_docker(
+                    *client_args,
+                    script=inventory_script,
+                )
+                self.assertEqual(exact_inventory.returncode, 0, exact_inventory.stderr)
+                self.assertIn(
+                    "00_session|transaction_read_only", exact_inventory.stdout
+                )
+                self.assertIn(
+                    "05_attendance|game_attendance_reply_count",
+                    exact_inventory.stdout,
+                )
+                self.assertIn("rollback-complete", exact_inventory.stdout)
 
                 quoted = run_docker(
                     *client_args,

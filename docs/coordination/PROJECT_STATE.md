@@ -635,3 +635,9 @@
 - 首個smoke不得使用Owner登入、任一admin、已連Member、active team_player／guest_player或通知；優先使用可恢復且無Member／qualification的pending identity。找不到安全候選時在同一TASK交回Owner，不自行建立production假資料。
 - Stage A repository readiness已通過Work本機驗收：checksummed read-only inventory、strict CSV ingestion、五快照runtime／核心aggregate一致性、exact ignore→same-ID retry→same-target unignore audit sequence與logging stop boundary均已建立；23項targeted tests通過。
 - 下一個gate是唯一ready PR的hosted Python 3.10與PostgreSQL 15／16證據。通過並merge後才可提出Stage B production唯讀inventory精確工作包；目前仍未授權任何production access或mutation。
+
+### TASK-085 Phase C 零管理員安全 bootstrap（2026-08-09）
+
+- TASK-084 production read-only inventory確認schema與主要identity／Member／qualification aggregates一致，但active linked allowlisted admin為0；Owner的LINE Login identity被導向pending review，原定ignore／unignore smoke亦無安全候選。
+- psql pager在read-only transaction中等待超過30秒，server終止連線並自動rollback；沒有production mutation，但該次transcript不能作strict final evidence。
+- TASK-085只在repository／local建立pager-safe inventory與zero-admin bootstrap transaction、audit、idempotency、concurrency及隔離PostgreSQL execution package；正式bootstrap仍需Owner另行批准exact target與mutation boundary。

@@ -1,14 +1,14 @@
-active_task: TASK-084
-status: in_progress
-next_actor: work
+active_task: TASK-085
+status: completed
+next_actor: owner
 
-base_commit: 611fb38e13f45c68acdf7a14ce9064bd36d931eb
-head_commit: 6896ee67aa05320b46537d95bc28da7514e52e27
+base_commit: f09c13eadc1d88c49aaf83a3362ab2a563ad8e7a
+head_commit: e018e8297a03644ea14734e9154aec582e611ce2
 
 updated_by: work
-updated_at: 2026-08-09T06:00:00+08:00
+updated_at: 2026-08-09T20:35:00+08:00
 
 note: >
-  PostgreSQL 16 bind correction accepted locally: 27 targeted tests pass, and Work independently reran the opt-in real PostgreSQL
-  16 server plus psql 16 client integration successfully. Work is creating the single ready PR. No production or private
-  environment operation ran.
+  TASK-085 repository readiness is accepted. GitHub Actions run 31308455551 passed PostgreSQL 15/16, all selected service jobs,
+  and the final gate. PR #89 may be squash merged under the standing Git authorization. Production bootstrap and the separate
+  56 linked-Person activation remain unauthorized and require subsequent exact tasks.
