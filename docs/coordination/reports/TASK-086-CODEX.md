@@ -170,6 +170,10 @@ Repository-only verification:
 
 ## Cloud Run env metadata fallback
 
+- Branch: `codex/phase-c-bootstrap-env-metadata-fix`
+- Base: `5da0961532ad87414a49faafb5dc2299e941db9a`
+- Implementation: `d00dead085ed0823fee50f6c9cf69427dc6c754c`
+
 The unavailable repeated-element server projection is replaced with the
 Owner-approved fixed machine-readable projection of only
 `spec.template.spec.containers[0].env`. Account/project guards still run first.
@@ -191,5 +195,6 @@ gcloud command, private file/Secret, production connection, mutation, second
 bootstrap, or 56-Person activation was performed.
 
 - Updated diagnostic suite: 14 passed.
-- Existing recovery/launcher/operator regressions remain included in the final
-  combined run.
+- Diagnostic plus existing recovery/launcher/operator regressions: 41 passed.
+- Compileall for the affected Python files, Black 24.4.2 formatter API, and
+  `git diff --check`: passed.

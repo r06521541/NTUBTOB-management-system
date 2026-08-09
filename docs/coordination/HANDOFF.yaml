@@ -1,14 +1,14 @@
 active_task: TASK-086
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 5da0961532ad87414a49faafb5dc2299e941db9a
-head_commit: null
+head_commit: d00dead085ed0823fee50f6c9cf69427dc6c754c
 
-updated_by: work
-updated_at: 2026-08-10T11:15:00+08:00
+updated_by: codex
+updated_at: 2026-08-10T12:00:00+08:00
 
 note: >
-  The diagnostic proved runtime but gcloud cannot project one repeated env element. Owner approved an in-memory Web Portal container
-  env metadata-list fallback that extracts only the unique plain allowlist and never outputs, persists or resolves other metadata or
-  Secret payloads. Codex must add adversarial no-disclosure tests; no production DB or mutation is authorized in this repository stage.
+  Implemented the Owner-approved in-memory container env metadata fallback with strict schema/cardinality/plain allowlist validation,
+  mutable-buffer and parsed-tree cleanup, and adversarial no-disclosure coverage. Diagnostic 14/14 and combined 41/41 tests passed;
+  compileall, formatter API, and diff check passed. No external or production operation occurred; ready for Work review.
