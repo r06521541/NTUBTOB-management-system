@@ -1,14 +1,13 @@
 active_task: TASK-086
-status: ready_for_review
+status: in_progress
 next_actor: work
 
 base_commit: d82ac7ee728303cae34d57fcca92e6ccf1f5eac6
 head_commit: 755e49028876aac6e4ad270bdb805b38ceb57449
 
-updated_by: codex
+updated_by: work
 updated_at: 2026-08-10T12:30:00+08:00
 
 note: >
-  Corrected the strict Cloud Run Secret reference schema to exact secretKeyRef key/name while preserving a unique plain allowlist and
-  rejecting the obsolete schema, mixed/extra fields, and secret-backed allowlist. Diagnostic 14/14 and combined 41/41 tests passed;
-  compileall, formatter API, and diff check passed. No external or production operation occurred; ready for Work review.
+  Work accepted the exact key/name Secret reference schema correction after diff inspection and a 41-test combined regression run.
+  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
