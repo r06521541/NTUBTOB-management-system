@@ -3,7 +3,7 @@ status: ready_for_review
 next_actor: work
 
 base_commit: c26fa37e2f363be590810b3c0e25f1c65a264e04
-head_commit: c26fa37e2f363be590810b3c0e25f1c65a264e04
+head_commit: 57fd29c0315e5559ad75294294a07574b8549013
 
 updated_by: codex
 updated_at: 2026-08-10T00:00:00+08:00
@@ -16,4 +16,4 @@ note: >
 
 report: docs/coordination/reports/TASK-096-CODEX.md
 review: null
-implementation_commit: null
+implementation_commit: 57fd29c0315e5559ad75294294a07574b8549013
