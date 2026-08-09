@@ -116,7 +116,7 @@ class LinkedPlayerActivationPostgresTests(unittest.TestCase):
         before = self._counts()
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            operator.run("execute", environ=self.environ)
+            operator.run("execute", environ=self.environ, approved_cohort_count=4)
         payload = json.loads(output.getvalue())
         self.assertEqual(payload["activation_delta"], 4)
         self.assertEqual(payload["audit_delta"], 4)
@@ -125,11 +125,25 @@ class LinkedPlayerActivationPostgresTests(unittest.TestCase):
         self.assertEqual(after, (0, 6, 10, 4, 6, 6, 6, 6, 0))
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            operator.run("execute", environ=self.environ)
+            operator.run("execute", environ=self.environ, approved_cohort_count=4)
         retry = json.loads(output.getvalue())
         self.assertTrue(retry["retry_verified"])
         self.assertEqual(retry["audit_delta"], 0)
         self.assertEqual(self._counts(), after)
+
+    def test_missing_or_wrong_approved_count_stops_before_mutation(self):
+        before = self._counts()
+        for approved_count in (None, 3, 5, 0, True):
+            with (
+                self.subTest(approved_count=approved_count),
+                self.assertRaises(operator.LinkedPlayerActivationError),
+            ):
+                operator.run(
+                    "execute",
+                    environ=self.environ,
+                    approved_cohort_count=approved_count,
+                )
+            self.assertEqual(self._counts(), before)
 
     def test_relationship_drift_rejects_without_repair(self):
         with self.engine.begin() as connection:
@@ -140,7 +154,7 @@ class LinkedPlayerActivationPostgresTests(unittest.TestCase):
             )
         before = self._counts()
         with self.assertRaises(operator.LinkedPlayerActivationError):
-            operator.run("execute", environ=self.environ)
+            operator.run("execute", environ=self.environ, approved_cohort_count=4)
         self.assertEqual(self._counts(), before)
 
     def test_partial_completion_audit_rejects_without_repair(self):
@@ -168,19 +182,24 @@ class LinkedPlayerActivationPostgresTests(unittest.TestCase):
             )
         before = self._counts()
         with self.assertRaises(operator.LinkedPlayerActivationError):
-            operator.run("execute", environ=self.environ)
+            operator.run("execute", environ=self.environ, approved_cohort_count=4)
         self.assertEqual(self._counts(), before)
 
     def test_partial_failure_and_unsafe_logging_roll_back_all(self):
         before = self._counts()
         with self.assertRaises(operator.LinkedPlayerActivationError):
-            operator.run("execute", environ=self.environ, fail_after=2)
+            operator.run(
+                "execute",
+                environ=self.environ,
+                approved_cohort_count=4,
+                fail_after=2,
+            )
         self.assertEqual(self._counts(), before)
         with (
             patch.object(operator.boundary, "_write_logging_safe", return_value=False),
             self.assertRaises(operator.LinkedPlayerActivationError),
         ):
-            operator.run("execute", environ=self.environ)
+            operator.run("execute", environ=self.environ, approved_cohort_count=4)
         self.assertEqual(self._counts(), before)
 
     def test_concurrency_has_one_apply_and_one_verified_retry(self):
@@ -194,7 +213,7 @@ class LinkedPlayerActivationPostgresTests(unittest.TestCase):
 
         def execute():
             try:
-                operator.run("execute", environ=self.environ)
+                operator.run("execute", environ=self.environ, approved_cohort_count=4)
             except Exception as error:
                 errors.append(error)
 

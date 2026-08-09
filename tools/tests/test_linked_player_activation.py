@@ -10,15 +10,15 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools import launch_production_activate_linked_players as launcher
+from tools import launch_production_discover_linked_players as discovery_launcher
 from tools import portal_data_production_activate_linked_players as operator
 
 
 class LinkedPlayerActivationContractTests(unittest.TestCase):
     def test_artifacts_sequence_and_dynamic_cohort_are_locked(self):
         launcher.verify_artifacts()
-        self.assertEqual(
-            launcher.SEQUENCE, ("discovery", "preflight", "execute", "post-check")
-        )
+        self.assertEqual(launcher.SEQUENCE, ("preflight", "execute", "post-check"))
+        discovery_launcher.verify_artifacts()
         source = operator.ARTIFACT.read_text(encoding="utf-8")
         self.assertNotIn("54", source)
         self.assertIn("pg_advisory_xact_lock", source)
@@ -69,10 +69,11 @@ class LinkedPlayerActivationContractTests(unittest.TestCase):
             "PGPASSWORD": "fake-password",
         }
 
-        def fake_run(mode):
+        def fake_run(mode, *, approved_cohort_count):
             observed.append(
                 (
                     mode,
+                    approved_cohort_count,
                     os.environ.get(operator.boundary.DATABASE_ENV),
                     os.environ.get(operator.boundary.ALLOWLIST_ENV),
                     os.environ.get(operator.EXECUTION_ENV),
@@ -107,14 +108,76 @@ class LinkedPlayerActivationContractTests(unittest.TestCase):
                 ),
                 patch.object(operator, "run", side_effect=fake_run),
             ):
-                launcher.run({})
+                launcher.run(4, {})
             self.assertTrue(all(os.environ.get(key) is None for key in keys))
         self.assertEqual([row[0] for row in observed], list(launcher.SEQUENCE))
-        self.assertIsNone(observed[0][3])
-        self.assertIsNone(observed[1][3])
-        self.assertEqual(observed[2][3], operator.EXECUTION_ACKNOWLEDGEMENT)
-        self.assertIsNone(observed[3][3])
+        self.assertTrue(all(row[1] == 4 for row in observed))
+        self.assertIsNone(observed[0][4])
+        self.assertEqual(observed[1][4], operator.EXECUTION_ACKNOWLEDGEMENT)
+        self.assertIsNone(observed[2][4])
         self.assertEqual(private, {})
+
+    def test_discovery_launcher_cannot_acknowledge_or_execute(self):
+        observed = []
+        private = {
+            "PGHOST": "fake.invalid",
+            "PGPORT": "5432",
+            "PGDATABASE": "fake-db",
+            "PGUSER": "fake-user",
+            "PGPASSWORD": "fake-password",
+        }
+
+        def fake_run(mode):
+            observed.append((mode, os.environ.get(operator.EXECUTION_ENV)))
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(operator.EXECUTION_ENV, None)
+            with (
+                patch.object(discovery_launcher, "verify_artifacts"),
+                patch.object(discovery_launcher.execution_boundary, "_verify_runtime"),
+                patch.object(
+                    discovery_launcher.execution_boundary.boundary.boundary,
+                    "_load_private_pg_environment",
+                    return_value=private,
+                ),
+                patch.object(
+                    discovery_launcher.execution_boundary.boundary.boundary,
+                    "_load_allowlist",
+                    return_value="7001,7002",
+                ),
+                patch.object(
+                    discovery_launcher.execution_boundary.boundary.boundary,
+                    "_database_url",
+                    return_value="postgresql+psycopg2://fake.invalid/fake-db",
+                ),
+                patch.object(operator, "run", side_effect=fake_run),
+            ):
+                discovery_launcher.run({})
+        self.assertEqual(observed, [("discovery", None)])
+        self.assertEqual(private, {})
+        source = discovery_launcher.ARTIFACT.read_text(encoding="utf-8")
+        self.assertNotIn("EXECUTION_ACKNOWLEDGEMENT", source)
+        self.assertNotIn('operator.run("execute"', source)
+
+    def test_execution_cli_requires_one_explicit_positive_count(self):
+        self.assertEqual(
+            launcher._approved_count_from_argv(["--approved-cohort-count", "4"]),
+            4,
+        )
+        for arguments in (
+            [],
+            ["4"],
+            ["--approved-cohort-count"],
+            ["--approved-cohort-count", "0"],
+            ["--approved-cohort-count", "-1"],
+            ["--approved-cohort-count", "not-a-count"],
+            ["--approved-cohort-count", "4", "extra"],
+        ):
+            with (
+                self.subTest(arguments=arguments),
+                self.assertRaises(launcher.LinkedPlayerLauncherError),
+            ):
+                launcher._approved_count_from_argv(arguments)
 
     def test_failure_cleanup_and_real_runtime_safe_stop(self):
         environment = os.environ.copy()
@@ -134,6 +197,25 @@ class LinkedPlayerActivationContractTests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertEqual(
             result.stderr.strip(), "TASK-087 linked-player activation stopped"
+        )
+        discovery_result = subprocess.run(
+            [
+                str(
+                    discovery_launcher.execution_boundary.boundary.boundary.RUNTIME_EXECUTABLE
+                ),
+                str(discovery_launcher.ARTIFACT),
+            ],
+            cwd=discovery_launcher.ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        self.assertNotEqual(discovery_result.returncode, 0)
+        self.assertEqual(discovery_result.stdout, "")
+        self.assertEqual(
+            discovery_result.stderr.strip(),
+            "TASK-087 linked-player discovery stopped",
         )
 
     def test_metadata_failure_clears_private_values(self):
@@ -160,7 +242,7 @@ class LinkedPlayerActivationContractTests(unittest.TestCase):
             patch.object(operator, "run") as operator_run,
             self.assertRaises(RuntimeError),
         ):
-            launcher.run({})
+            launcher.run(4, {})
         self.assertEqual(private, {})
         operator_run.assert_not_called()
 

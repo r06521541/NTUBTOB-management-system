@@ -79,26 +79,28 @@ def _activation_audits(session: Session, person_ids: tuple[int, ...]) -> int:
 
 
 def _lock_and_discover(
-    session: Session, allowlist: frozenset[int]
+    session: Session, allowlist: frozenset[int], *, lock_rows: bool = True
 ) -> tuple[tuple[PersonRecord, ...], bool]:
-    session.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"), {"key": boundary.ADMIN_LOCK_KEY}
+    if lock_rows:
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"),
+            {"key": boundary.ADMIN_LOCK_KEY},
+        )
+    people_query = (
+        select(PersonRecord)
+        .join(
+            PersonQualificationRecord,
+            PersonQualificationRecord.person_id == PersonRecord.id,
+        )
+        .where(
+            PersonQualificationRecord.qualification == "team_player",
+            PersonQualificationRecord.status == "active",
+        )
+        .order_by(PersonRecord.id)
     )
-    people = tuple(
-        session.scalars(
-            select(PersonRecord)
-            .join(
-                PersonQualificationRecord,
-                PersonQualificationRecord.person_id == PersonRecord.id,
-            )
-            .where(
-                PersonQualificationRecord.qualification == "team_player",
-                PersonQualificationRecord.status == "active",
-            )
-            .order_by(PersonRecord.id)
-            .with_for_update(of=PersonRecord)
-        ).all()
-    )
+    if lock_rows:
+        people_query = people_query.with_for_update(of=PersonRecord)
+    people = tuple(session.scalars(people_query).all())
     if len(people) <= 2 or len({person.id for person in people}) != len(people):
         raise LinkedPlayerActivationError("team-player cohort is unavailable")
 
@@ -222,6 +224,7 @@ def run(
     mode: str,
     *,
     environ: Mapping[str, str] | None = None,
+    approved_cohort_count: int | None = None,
     fail_after: int | None = None,
 ) -> None:
     verify_artifact()
@@ -246,7 +249,29 @@ def run(
 
         if mode in ("discovery", "preflight", "post-check"):
             with Session(engine) as session, session.begin():
-                cohort, completed = _lock_and_discover(session, allowlist)
+                session.execute(
+                    text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+                )
+                session.execute(text("SET LOCAL statement_timeout = '15s'"))
+                session.execute(text("SET LOCAL lock_timeout = '5s'"))
+                session.execute(
+                    text("SET LOCAL idle_in_transaction_session_timeout = '30s'")
+                )
+                cohort, completed = _lock_and_discover(
+                    session, allowlist, lock_rows=False
+                )
+            if mode == "discovery":
+                if approved_cohort_count is not None:
+                    raise LinkedPlayerActivationError(
+                        "discovery cannot accept an approved cohort count"
+                    )
+            elif (
+                not isinstance(approved_cohort_count, int)
+                or isinstance(approved_cohort_count, bool)
+                or approved_cohort_count <= 0
+                or len(cohort) != approved_cohort_count
+            ):
+                raise LinkedPlayerActivationError("approved cohort count drifted")
             if mode == "post-check" and not completed:
                 raise LinkedPlayerActivationError("batch post-check failed")
             _emit(
@@ -272,6 +297,13 @@ def run(
                 raise LinkedPlayerActivationError("batch write logging is unsafe")
             before = boundary._snapshot(session)
             cohort, completed = _lock_and_discover(session, allowlist)
+            if (
+                not isinstance(approved_cohort_count, int)
+                or isinstance(approved_cohort_count, bool)
+                or approved_cohort_count <= 0
+                or len(cohort) != approved_cohort_count
+            ):
+                raise LinkedPlayerActivationError("approved cohort count drifted")
             if completed:
                 _emit(
                     mode=mode,

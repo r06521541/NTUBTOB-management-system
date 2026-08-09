@@ -21,7 +21,7 @@ ARTIFACT = ROOT / "tools" / "launch_production_activate_linked_players.py"
 CHECKSUM = ARTIFACT.with_suffix(".py.sha256")
 MATERIAL_CHECKSUMS = ROOT / "tools" / "TASK-087-linked-player-activation.sha256"
 APPROVED_COMMIT_ENV = "TASK087_APPROVED_MERGED_COMMIT"
-SEQUENCE = ("discovery", "preflight", "execute", "post-check")
+SEQUENCE = ("preflight", "execute", "post-check")
 
 
 class LinkedPlayerLauncherError(RuntimeError):
@@ -125,7 +125,13 @@ def _require_clean_environment() -> None:
         raise LinkedPlayerLauncherError("temporary operator environment is not clean")
 
 
-def run(environ: Mapping[str, str] | None = None) -> None:
+def run(approved_cohort_count: int, environ: Mapping[str, str] | None = None) -> None:
+    if (
+        not isinstance(approved_cohort_count, int)
+        or isinstance(approved_cohort_count, bool)
+        or approved_cohort_count <= 0
+    ):
+        raise LinkedPlayerLauncherError("approved cohort count is invalid")
     environment = os.environ if environ is None else environ
     verify_artifacts()
     _require_clean_environment()
@@ -153,7 +159,7 @@ def run(environ: Mapping[str, str] | None = None) -> None:
                 os.environ[operator.EXECUTION_ENV] = operator.EXECUTION_ACKNOWLEDGEMENT
             else:
                 os.environ.pop(operator.EXECUTION_ENV, None)
-            operator.run(mode)
+            operator.run(mode, approved_cohort_count=approved_cohort_count)
     finally:
         for key in keys:
             os.environ.pop(key, None)
@@ -162,9 +168,23 @@ def run(environ: Mapping[str, str] | None = None) -> None:
         database_url = ""
 
 
+def _approved_count_from_argv(argv: list[str]) -> int:
+    if len(argv) != 2 or argv[0] != "--approved-cohort-count":
+        raise LinkedPlayerLauncherError("approved cohort count arguments are invalid")
+    try:
+        count = int(argv[1])
+    except ValueError as error:
+        raise LinkedPlayerLauncherError(
+            "approved cohort count arguments are invalid"
+        ) from error
+    if count <= 0:
+        raise LinkedPlayerLauncherError("approved cohort count arguments are invalid")
+    return count
+
+
 def main() -> None:
     try:
-        run()
+        run(_approved_count_from_argv(sys.argv[1:]))
     except Exception:
         raise SystemExit("TASK-087 linked-player activation stopped") from None
 
