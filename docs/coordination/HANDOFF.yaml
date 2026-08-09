@@ -1,14 +1,15 @@
 active_task: TASK-086
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: f236f75609e6ede95a5981c2423cdada895f8100
-head_commit: null
+head_commit: 74ce7b632a35fed7a105655e025d602fa3b165b1
 
-updated_by: work
-updated_at: 2026-08-09T21:00:00+08:00
+updated_by: codex
+updated_at: 2026-08-09T22:05:00+08:00
 
 note: >
-  Owner authorized continuous execution through production administrative-entry bootstrap, verification, and the later separate
-  56-Person activation. TASK-086 first adds and verifies a fail-closed production operator, then permits one exact transactional
-  bootstrap plus redacted pre/post checks after hosted CI. No deployment, schema, Secret/IAM/Scheduler, flags, traffic or notification changes.
+  Repository readiness is complete: the checksummed production operator provides unique-candidate read-only discovery,
+  private-environment inputs, logging/schema gates, redacted exact post-check, generated request ID, idempotent retry and concurrency/rollback
+  coverage. Local PostgreSQL 15 and 16 full discovery passed 189 tests each. Work review, the one ready PR, hosted CI and squash merge
+  remain mandatory before the authorized production discovery or single bootstrap transaction.
