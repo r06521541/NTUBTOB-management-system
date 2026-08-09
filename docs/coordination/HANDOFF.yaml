@@ -1,13 +1,14 @@
-active_task: TASK-086
-status: in_progress
-next_actor: work
+active_task: TASK-087
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 323bf95d1bf412b725ac99844c95a4724c96bdec
-head_commit: d145de047914b07bb3edf34882d8e48bfc467a2d
+base_commit: 92592c08ae874370fee4be8e2e073636965383f9
+head_commit: null
 
 updated_by: work
 updated_at: 2026-08-10T16:10:00+08:00
 
 note: >
-  Work accepted the exact-two all-or-nothing activation after source review and a 29-test combined regression run.
-  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
+  TASK-086 completed successfully in production with exact +2 active administrators and +2 status audits. Owner instructed Work to
+  continue with the remaining existing reliably linked players. Implement TASK-087 repository/local-only with exact aggregate discovery,
+  all-or-nothing audited activation, idempotent completion and PG15/16 evidence; no external or production operation is allowed yet.
