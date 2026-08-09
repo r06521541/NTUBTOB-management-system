@@ -256,3 +256,19 @@ Secret payload, production connection, DDL/DML, deployment, runtime mutation,
 notification, or 56-Person activation was performed. Work review, the single
 ready PR, hosted CI, and squash merge remain required before the separately
 authorized production execution boundary.
+
+### Windows canonical-checksum correction
+
+- Fix: `2bebcb43494c93d6e1a84e83fe49f4d161175b03`
+
+Work found the checksum initially recorded the working-tree CRLF byte hash,
+while the launcher's artifact verifier deliberately canonicalizes CRLF to LF.
+The checksum is now regenerated with that exact runtime algorithm. No launcher
+code or production behavior changed. The existing
+`test_artifacts_and_exact_runtime_contract_are_locked` test executed
+`verify_artifacts()` against the documented Windows checkout and passed.
+
+The combined launcher/operator/diagnostic suite passed 43/43 tests. Compileall,
+the direct canonical `verify_artifacts()` check, and `git diff --check` passed.
+No external command, gcloud, private environment/Secret, production connection,
+DDL/DML, deployment, notification, or 56-Person activation was performed.

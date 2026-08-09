@@ -3,13 +3,12 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 72a015c53fea563843edead2ebbb862391638996
-head_commit: 41aee61ac9bdf10544e001b4965253bb969b783b
+head_commit: 2bebcb43494c93d6e1a84e83fe49f4d161175b03
 
 updated_by: codex
-updated_at: 2026-08-10T13:45:00+08:00
+updated_at: 2026-08-10T14:15:00+08:00
 
 note: >
-  TASK-086 bootstrap recovery repository correction is complete. The production five-stage launcher now uses the reviewed strict
-  in-memory container env parser and cleanup boundary; related offline suites passed 43 tests and hosted-equivalent isolated PostgreSQL
-  15/16 full discoveries passed 190 tests each. No external or production operation occurred. Work should review implementation
-  41aee61 and the report before the single ready PR / hosted CI gate.
+  The launcher checksum now uses the runtime's canonical LF algorithm, and the documented Windows checkout artifact gate passes.
+  The combined 43-test suite, compileall, direct verify_artifacts check, and diff check passed. No launcher behavior or external /
+  production operation changed. Work should review fix 2bebcb4.
