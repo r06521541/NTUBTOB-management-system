@@ -101,3 +101,37 @@ it returned only the fixed safe stop message and exited before any gcloud comman
 private environment read or production access. This also exposed and corrected
 the direct-script repository import boundary. The offline launcher/operator
 suites now pass 20 tests; compile, formatter API and diff checks passed.
+
+## Uncertain-outcome recovery check
+
+After PR #90 merged, the single approved production invocation lost its stdout
+and exit evidence in orchestration. This repository-only correction therefore
+does not infer the database outcome and does not permit the five-stage launcher
+to run again.
+
+The new independently checksummed recovery launcher reuses the exact reviewed
+runtime, dependency, source checksum, git, account/project/service/region,
+private PG parser, allowlist metadata projection, and clean-process guards. Its
+only operator call is the literal `post-check` mode. It never sets the execution
+acknowledgement and contains no sequence, request-ID generation, lifecycle
+repository, or write-transaction path. Temporary process values are cleared in
+`finally`, and ordinary failure remains a fixed redacted message.
+
+Offline structural and behavioral tests prove one `post-check` call, no other
+mode or mutation boundary, no execution acknowledgement, checksum failure,
+fixed errors, and unconditional cleanup. This stage did not invoke gcloud, read
+the private environment or Secret values, connect to production, generate a
+request ID, or execute DML. One reviewed/merged recovery invocation remains the
+next gate.
+
+Verification for this correction:
+
+- `python -m unittest tools.tests.test_production_zero_admin_post_check_launcher
+  tools.tests.test_production_zero_admin_launcher
+  tools.tests.test_production_zero_admin_bootstrap
+  tools.tests.test_zero_admin_bootstrap_operator -v`: 27 passed, including a
+  real bundled-runtime subprocess that stops on a fake approved commit before
+  external access.
+- `python -m compileall -q` for the new launcher and test: passed.
+- Black 24.4.2 formatter API check for the new Python files: clean.
+- `git diff --check`: passed.

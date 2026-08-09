@@ -2,13 +2,13 @@ active_task: TASK-086
 status: in_progress
 next_actor: work
 
-base_commit: f236f75609e6ede95a5981c2423cdada895f8100
-head_commit: 8cbadb7e95b131d1c96ead9920dde3d34048c2a5
+base_commit: f7c53cd4cace5179f6f1a7f1b0b57d759570fbce
+head_commit: ffaeff4e2c2659d5eecdcf68a30a8a6473c12c67
 
-updated_by: codex
-updated_at: 2026-08-10T00:20:00+08:00
+updated_by: work
+updated_at: 2026-08-10T01:30:00+08:00
 
 note: >
-  Work accepted repository readiness after independently running the exact bundled-runtime subprocess smoke and 20 targeted tests.
-  Work is creating the one ready PR; hosted Python 3.10, PostgreSQL 15/16 and final gate must pass before squash merge and the already
-  authorized production discovery/preflight/dry-run/single bootstrap/post-check sequence.
+  Work accepted the structurally read-only post-check launcher after source/AST review, exact subprocess smoke and 27 targeted tests.
+  Work is creating the one ready PR. After hosted CI and squash merge, exactly one production read-only recovery post-check is authorized;
+  a second bootstrap mutation remains prohibited.

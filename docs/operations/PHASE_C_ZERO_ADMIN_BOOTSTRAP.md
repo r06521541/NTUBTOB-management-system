@@ -140,3 +140,31 @@ If the private file cannot be consumed under this contract, the single-field
 metadata projection is unsupported, or any exact guard fails, the launcher
 prints only `TASK-086 production launcher stopped` and returns control to the
 Owner. Do not substitute an ad-hoc environment loader or broader gcloud query.
+
+### Uncertain-outcome recovery: post-check only
+
+If the five-stage launcher's stdout or exit evidence is lost, never run that
+launcher again and never generate another request ID. After the recovery
+artifact passes Work review, hosted CI, and squash merge, set
+`TASK086_APPROVED_MERGED_COMMIT` to that exact non-secret merged SHA in a clean
+repository root and invoke only:
+
+```powershell
+& "C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe" tools/launch_production_zero_admin_post_check.py
+```
+
+`launch_production_zero_admin_post_check.py` is independently checksum-locked
+and reuses the exact runtime, dependency, material checksum, account, project,
+service, region, private PG-file parser, single-field allowlist projection, and
+clean-process guards above. It sets only the database URL and allowlist in its
+own process, explicitly removes the execution acknowledgement, calls the
+existing operator once with literal mode `post-check`, and clears all temporary
+values in `finally`.
+
+This recovery command has no sequence, execute acknowledgement, request-ID
+generation, domain repository, or write-transaction entry point. Its only
+database behavior is the existing read-only `post-check`, including schema and
+read-logging guards. Success emits the existing fixed redacted JSON; failure
+emits only `TASK-086 production post-check stopped`. Zero completed relationship,
+multiple/drifted state, or any unknown result is a terminal Owner stop without
+mutation.
