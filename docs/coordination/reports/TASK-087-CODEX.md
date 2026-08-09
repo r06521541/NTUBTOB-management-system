@@ -53,3 +53,32 @@ was performed. Production discovery/execution remains blocked until Work
 acceptance, one ready PR, hosted PostgreSQL 15/16 CI, and squash merge. The
 untracked Work-owned `docs/planning/ENGINEERING_HARDENING_NOTES.md` was preserved
 and excluded from this task's implementation commit.
+
+## Changes-requested correction: approved dynamic cohort boundary
+
+- Correction commit: `6b7449a9d4a15b373b92b8ba796963f03faaab04`
+
+Split the production boundary into two invocations. The independently
+checksummed discovery launcher has one read-only, repeatable-read database path,
+never sets the execution acknowledgement, and can only call `discovery`. The
+separate execution launcher accepts one explicit positive, non-secret
+`--approved-cohort-count`; its `preflight -> execute -> post-check` sequence
+passes that count to every phase. Execute revalidates the exact count under the
+same advisory lock and deterministic Person row locks before any Person or audit
+write. Missing, invalid, stale, or mismatched counts stop with zero mutation.
+
+Correction verification:
+
+- TASK-087 plus adjacent exact-two offline contracts: 16/16 passed, including
+  real-runtime safe-stop subprocesses for both launchers, discovery no-ack/no-
+  execute behavior, CLI argument rejection, and fixed cleanup/output.
+- Local isolated PostgreSQL 15.8 and 16.4: TASK-087 7/7 on each version,
+  including explicit read-only discovery and missing/wrong/drifted approved
+  count with unchanged Person/audit/relationship aggregates.
+- Before the final read-only transaction adjustment, both versions also passed
+  the combined TASK-087 plus adjacent exact-two matrix 13/13; the final TASK-087
+  7/7 rerun is the authoritative evidence for the corrected code.
+- Compileall, Black 24.4.2 formatter API, canonical checksums, fixed safe-stop
+  subprocesses, and `git diff --check`: passed.
+
+No external or production operation was performed during this correction.

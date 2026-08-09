@@ -3,12 +3,12 @@ status: ready_for_review
 next_actor: work
 
 base_commit: 92592c08ae874370fee4be8e2e073636965383f9
-head_commit: 0aa2adf34f0753ac720477c51861e8acef9eaa73
+head_commit: 6b7449a9d4a15b373b92b8ba796963f03faaab04
 
 updated_by: codex
-updated_at: 2026-08-10T16:45:00+08:00
+updated_at: 2026-08-10T17:30:00+08:00
 
 note: >
-  TASK-087 repository/local implementation is ready for Work review. Commit 0aa2adf adds checksummed dynamic cohort discovery,
-  all-or-nothing audited activation, exact retry/rollback/post-check boundaries, and offline plus isolated PostgreSQL 15/16 evidence.
-  No gcloud, private environment, production connection or mutation, deployment, notification, or production activation was performed.
+  TASK-087 changes-requested correction is ready for Work review. Commit 6b7449a splits an explicit read-only discovery invocation from
+  count-approved execution and revalidates the exact positive cohort count under lock before DML. Offline contracts and isolated
+  PostgreSQL 15/16 tests passed; no external or production operation was performed.
