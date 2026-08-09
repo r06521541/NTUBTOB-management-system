@@ -45,6 +45,7 @@ QUALIFICATIONS = frozenset({"team_player", "guest_player", "affiliate", "staff"}
 APPLICANT_MESSAGE_INTERVAL = timedelta(hours=24)
 REVIEW_RETENTION = timedelta(days=365)
 ADMIN_LOCK_KEY = 70070
+BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
 
 
 @dataclass(frozen=True)
@@ -479,6 +480,16 @@ class IdentityLifecycleRepository:
                 or audit.action != "identity_linked"
                 or audit.auth_identity_id != identity_id
                 or (audit.after_state or {}).get("member_id") != member_id
+                or audit.after_state != {"status": "linked", "member_id": member_id}
+                or (
+                    strict_bootstrap
+                    and (
+                        audit.actor_person_id is not None
+                        or audit.target_person_id != identity.person_id
+                        or audit.before_state != {"status": "pending"}
+                        or audit.reason != reason
+                    )
+                )
             ):
                 raise ConflictError("idempotent approval state drift")
             return identity.provider_subject
@@ -577,6 +588,7 @@ class IdentityLifecycleRepository:
     ) -> Principal:
         """Link the one allowlisted bootstrap principal when no admin exists."""
         reason = require_reason(reason)
+        reason = require_reason(f"{BOOTSTRAP_REASON_PREFIX}{reason}")
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():

@@ -30,6 +30,7 @@ from tools.portal_data_phase_c_migration import (
     verify_artifact,
     verify_sql,
 )
+from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -66,6 +67,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        setup_legacy_fixture()
         command.upgrade(Config("alembic.ini"), "head")
         with self.engine.begin() as connection:
             connection.execute(
