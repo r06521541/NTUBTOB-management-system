@@ -138,6 +138,10 @@ Verification for this correction:
 
 ## Owner-approved read-only diagnostic
 
+- Branch: `codex/phase-c-bootstrap-readonly-diagnostic`
+- Base: `75cccd878285ed4a13cdf9c62048ab875e5abf1f`
+- Implementation: `f04c3a4b5dbb273c11f2ca27ce0d5519d76398c4`
+
 The recovery post-check returned only its intended fixed stop classification,
 so this repository stage adds a separate, independently checksummed diagnostic.
 It does not import or call either prior launcher, `operator.run`, or the identity
