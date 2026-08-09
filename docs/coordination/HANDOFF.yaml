@@ -1,11 +1,11 @@
 active_task: TASK-091
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 5afa79c0c4ff3a79eeae2c7bd74d87eb55afbe5f
-head_commit: 936354b149ffa5d1187416abe750d33ca2fdf16e
+head_commit: cd896a565afed1dbd8688bb9c3e7af5b29d6d83e
 
-updated_by: work
+updated_by: codex
 updated_at: 2026-08-10T00:00:00+08:00
 
 note: >
@@ -14,6 +14,6 @@ note: >
   remain outside authorization and require separate Owner approval. TASK-091 is ready for Codex implementation after
   TASK-089 PR #102 was squash-merged into main; TASK-090 planning decisions are included in TASK-091.
 
-report: docs/coordination/reports/TASK-089-CODEX.md
-review: docs/coordination/reviews/TASK-089-WORK.md
-implementation_commit: c8759c19618e09e63b3ce9815029b108cb05715e
+report: docs/coordination/reports/TASK-091-CODEX.md
+review: docs/coordination/reviews/TASK-091-WORK.md
+implementation_commit: cd896a565afed1dbd8688bb9c3e7af5b29d6d83e
