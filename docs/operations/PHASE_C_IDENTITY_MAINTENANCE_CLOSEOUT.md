@@ -79,9 +79,17 @@ timeouts, and `ROLLBACK`. Its final query uses `$1`, `$2` and `$3`; its one
 fixed `\bind … \g` meta-command binds the three prompted values in that order
 and executes the query via PostgreSQL 16's extended query protocol. The values
 therefore do not enter the server-bound SQL statement text or the representative
-statement. Do not use SQL colon interpolation, command-line arguments, a
-different bind count/order, `\g` before binding, `\p`, query echo, or a
-noninteractive transcript.
+statement. Its fixed form is:
+
+```text
+\bind :admin_member_ids :mutation_request_id :recovery_request_id \g
+```
+
+Use the bare psql variables exactly as shown. Do not write `:'variable'` there;
+that SQL-literal quoting becomes part of the bound payload and makes the numeric
+allowlist fail its bigint cast. Do not use SQL colon interpolation, command-line
+arguments, a different bind count/order, `\g` before binding, `\p`, query echo,
+or a noninteractive transcript.
 
 Extended parameters still do not prove that a client, provider, proxy or audit
 product never captures parameter payloads. Stop if the approved channel cannot

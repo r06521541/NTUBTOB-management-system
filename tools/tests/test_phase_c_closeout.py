@@ -2,8 +2,13 @@ import csv
 import hashlib
 import io
 import json
+import os
+import shutil
+import subprocess
 import tempfile
+import time
 import unittest
+import uuid
 from pathlib import Path
 
 from tools import phase_c_closeout as closeout
@@ -397,11 +402,15 @@ class CloseoutEvidenceTests(unittest.TestCase):
             for suffix, replacement in (
                 (
                     "wrong-bind-order",
-                    "\\bind :'mutation_request_id' :'admin_member_ids' :'recovery_request_id' \\g",
+                    "\\bind :mutation_request_id :admin_member_ids :recovery_request_id \\g",
                 ),
                 (
                     "wrong-bind-count",
-                    "\\bind :'admin_member_ids' :'mutation_request_id' \\g",
+                    "\\bind :admin_member_ids :mutation_request_id \\g",
+                ),
+                (
+                    "quoted-bind-payload",
+                    "\\bind :'admin_member_ids' :'mutation_request_id' :'recovery_request_id' \\g",
                 ),
                 (
                     "old-sql-interpolation",
@@ -410,7 +419,7 @@ class CloseoutEvidenceTests(unittest.TestCase):
             ):
                 candidate = Path(directory) / f"{suffix}.sql"
                 source = sql.replace(
-                    "\\bind :'admin_member_ids' :'mutation_request_id' :'recovery_request_id' \\g",
+                    "\\bind :admin_member_ids :mutation_request_id :recovery_request_id \\g",
                     replacement,
                 )
                 if suffix == "old-sql-interpolation":
@@ -482,6 +491,134 @@ class CloseoutEvidenceTests(unittest.TestCase):
                     closeout.CloseoutEvidenceError
                 ):
                     closeout.verify_execution_runbook(path)
+
+    @unittest.skipUnless(
+        os.environ.get("RUN_PSQL16_BIND_INTEGRATION") == "1",
+        "set RUN_PSQL16_BIND_INTEGRATION=1 to run the isolated Docker test",
+    )
+    def test_psql16_bind_uses_unquoted_variable_payloads(self):
+        docker = shutil.which("docker")
+        if not docker:
+            self.skipTest("Docker is unavailable")
+
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                key: value
+                for key, value in os.environ.items()
+                if key in {"ComSpec", "Path", "SystemRoot", "TEMP", "TMP"}
+            }
+            environment["DOCKER_CONFIG"] = directory
+
+            def run_docker(*args, script=None):
+                return subprocess.run(
+                    [docker, "--config", directory, *args],
+                    input=script,
+                    capture_output=True,
+                    env=environment,
+                    text=True,
+                    timeout=30,
+                )
+
+            version = run_docker("version", "--format", "{{.Server.Version}}")
+            if version.returncode:
+                self.skipTest("isolated Docker daemon is unavailable")
+            container = f"task084-psql-bind-{uuid.uuid4().hex[:12]}"
+            started = False
+            try:
+                server = run_docker(
+                    "run",
+                    "--rm",
+                    "-d",
+                    "--pull",
+                    "never",
+                    "--name",
+                    container,
+                    "-e",
+                    "POSTGRES_HOST_AUTH_METHOD=trust",
+                    closeout.POSTGRES16_IMAGE_ID,
+                )
+                self.assertEqual(
+                    server.returncode, 0, "local PostgreSQL 16 did not start"
+                )
+                started = True
+                for _ in range(30):
+                    ready = run_docker(
+                        "exec",
+                        container,
+                        "pg_isready",
+                        "-U",
+                        "postgres",
+                        "-d",
+                        "postgres",
+                    )
+                    if not ready.returncode:
+                        break
+                    time.sleep(0.25)
+                else:
+                    self.fail("local PostgreSQL 16 did not become ready")
+
+                client_version = run_docker(
+                    "run",
+                    "--rm",
+                    "--pull",
+                    "never",
+                    closeout.POSTGRES16_IMAGE_ID,
+                    "psql",
+                    "--version",
+                )
+                self.assertEqual(client_version.returncode, 0)
+                self.assertIn("psql (PostgreSQL) 16.", client_version.stdout)
+
+                correct_script = """\\set ON_ERROR_STOP on
+\\set admin_member_ids 42
+\\set mutation_request_id 11111111-1111-1111-1111-111111111111
+\\set recovery_request_id 22222222-2222-2222-2222-222222222222
+SELECT $1::bigint, $2::uuid, $3::uuid
+\\bind :admin_member_ids :mutation_request_id :recovery_request_id \\g
+"""
+                client_args = (
+                    "run",
+                    "--rm",
+                    "-i",
+                    "--pull",
+                    "never",
+                    "--network",
+                    f"container:{container}",
+                    closeout.POSTGRES16_IMAGE_ID,
+                    "psql",
+                    "-X",
+                    "-v",
+                    "ON_ERROR_STOP=1",
+                    "-h",
+                    "localhost",
+                    "-U",
+                    "postgres",
+                    "-d",
+                    "postgres",
+                    "-At",
+                )
+                correct = run_docker(*client_args, script=correct_script)
+                self.assertEqual(correct.returncode, 0)
+                self.assertEqual(
+                    correct.stdout.strip(),
+                    "42|11111111-1111-1111-1111-111111111111|22222222-2222-2222-2222-222222222222",
+                )
+
+                quoted = run_docker(
+                    *client_args,
+                    script=correct_script.replace(
+                        "\\bind :admin_member_ids :mutation_request_id :recovery_request_id \\g",
+                        "\\bind :'admin_member_ids' :'mutation_request_id' :'recovery_request_id' \\g",
+                    ),
+                )
+                self.assertNotEqual(quoted.returncode, 0)
+                self.assertIn(
+                    "invalid input syntax for type bigint",
+                    quoted.stdout + quoted.stderr,
+                )
+            finally:
+                if started:
+                    run_docker("rm", "-f", container)
 
     def test_logging_preflight_accepts_only_the_documented_safe_boundary(self):
         production_safe = {
