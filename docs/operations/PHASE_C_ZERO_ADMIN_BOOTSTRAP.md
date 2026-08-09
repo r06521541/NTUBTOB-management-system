@@ -123,11 +123,15 @@ in memory; it rejects missing, duplicate, unknown or malformed entries and
 never prints the file or values. It constructs the SQLAlchemy URL in memory.
 
 The allowlist is obtained with one Cloud Run `services describe` projection of
-only
-`spec.template.spec.containers[0].env[?name=WEB_PORTAL_ADMIN_MEMBER_IDS].value`.
-The launcher captures that one field, validates it, and never requests the full
-runtime configuration. The value is not present in argv, subprocess command
-text, stdout or errors.
+only `spec.template.spec.containers[0].env` in machine-readable JSON. The
+launcher uses the same reviewed in-memory parser as the fixed diagnostic: it
+requires exactly one container and one unique plain
+`WEB_PORTAL_ADMIN_MEMBER_IDS`, accepts unrelated Secret references only in the
+exact `secretKeyRef.{key,name}` shape, and rejects schema/cardinality drift,
+duplicates, malformed values, or a secret-backed allowlist. It never requests
+or resolves Secret payloads. The complete response/error buffers and parsed
+metadata are cleared immediately and never enter argv, stdout, stderr, files,
+exceptions, or process env.
 
 After all guards pass, the launcher injects the URL and allowlist only into its
 own process, performs exactly `discovery` -> `preflight` -> `dry-run` ->
@@ -136,8 +140,8 @@ variables in `finally`, including on failure. Only the execute step receives
 the fixed acknowledgement. Do not enable PowerShell command tracing, Python
 debug logging, SQLAlchemy echo or external process-environment capture.
 
-If the private file cannot be consumed under this contract, the single-field
-metadata projection is unsupported, or any exact guard fails, the launcher
+If the private file or env metadata cannot be consumed under this contract, or
+any exact guard fails, the launcher
 prints only `TASK-086 production launcher stopped` and returns control to the
 Owner. Do not substitute an ad-hoc environment loader or broader gcloud query.
 
@@ -155,7 +159,7 @@ repository root and invoke only:
 
 `launch_production_zero_admin_post_check.py` is independently checksum-locked
 and reuses the exact runtime, dependency, material checksum, account, project,
-service, region, private PG-file parser, single-field allowlist projection, and
+service, region, private PG-file parser, reviewed env metadata parser, and
 clean-process guards above. It sets only the database URL and allowlist in its
 own process, explicitly removes the execution acknowledgement, calls the
 existing operator once with literal mode `post-check`, and clears all temporary
