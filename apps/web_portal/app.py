@@ -676,12 +676,11 @@ def admin_people():
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
         return "Identity service is temporarily unavailable", 503
-    dashboard = repository.admin_dashboard(actor_person_id)
+    people = repository.person_directory(actor_person_id)
     query = request.args.get("q", "").strip()
     page = request.args.get("page", default=1, type=int)
     if page < 1:
         abort(400)
-    people = dashboard["people"]
     if query:
         people = tuple(
             person
@@ -700,7 +699,7 @@ def admin_people():
     return render_template(
         "person_list.html",
         people=people[start : start + page_size],
-        available_members=dashboard.get("available_members", ()),
+        available_members=(),
         query=query,
         page=page,
         total_pages=total_pages,
