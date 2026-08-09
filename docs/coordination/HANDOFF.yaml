@@ -1,13 +1,14 @@
 active_task: TASK-086
-status: in_progress
-next_actor: work
+status: ready_for_codex
+next_actor: codex
 
-base_commit: d82ac7ee728303cae34d57fcca92e6ccf1f5eac6
-head_commit: 755e49028876aac6e4ad270bdb805b38ceb57449
+base_commit: 72a015c53fea563843edead2ebbb862391638996
+head_commit: null
 
 updated_by: work
 updated_at: 2026-08-10T12:30:00+08:00
 
 note: >
-  Work accepted the exact key/name Secret reference schema correction after diff inspection and a 41-test combined regression run.
-  Preparing the single ready PR and hosted CI; no external or production operation has occurred.
+  Owner approved TASK-086 bootstrap recovery after the fixed diagnostic proved all guards pass and both admin/completed counts are zero.
+  Port the reviewed safe env metadata parser to the production launcher, preserve the exact five-stage transaction and no-disclosure
+  boundaries, and complete repository/local verification only before handing back to Work.
