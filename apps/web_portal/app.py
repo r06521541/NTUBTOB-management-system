@@ -707,7 +707,12 @@ def _required_positive_form_int(name):
 
 def _required_form_text(name):
     value = request.form.get(name)
-    if not isinstance(value, str) or not value.strip() or len(value) > 255:
+    if (
+        not isinstance(value, str)
+        or not value.strip()
+        or not value.isascii()
+        or len(value) > 255
+    ):
         abort(400)
     return value
 
