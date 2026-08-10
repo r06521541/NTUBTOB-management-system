@@ -1,5 +1,9 @@
 # Local Person and Event persistence
 
+For the separately approved, production-shaped and pseudonymized read-only
+preview workflow, see `LOCAL_PRODUCTION_SHAPED_PORTAL_PREVIEW.md`. The workflow
+below remains the repository-local fake fixture rehearsal.
+
 This environment exists only to rehearse the portal-data expand schema and
 domain contracts. Its fake legacy fixture follows the ten-table, deidentified
 TASK-049 catalog. It does not read `envs/**/.env.yaml`, does not connect to

@@ -16,11 +16,14 @@ if str(WEB_PORTAL_DIR) not in sys.path:
 
 from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
-from role_policy import Principal, ROLE_ADMIN  # noqa: E402
+from role_policy import ROLE_ADMIN, Principal  # noqa: E402
 
-from shared_lib.shared_module.portal_data import (
+from shared_lib.shared_module.portal_data import (  # noqa: E402
+    local_database as portal_local_database,
+)
+from shared_lib.shared_module.portal_data import (  # noqa: E402
     runtime as phase_c_runtime,
-)  # noqa: E402
+)
 
 
 class AdminAllowlistTest(unittest.TestCase):
@@ -85,6 +88,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 reply_text_mapping={}
             ),
             "shared_module.portal_data": types.ModuleType("shared_module.portal_data"),
+            "shared_module.portal_data.local_database": portal_local_database,
             "shared_module.portal_data.runtime": phase_c_runtime,
         }
         cls.modules = patch.dict(sys.modules, fake_modules)
@@ -2167,12 +2171,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository = MagicMock()
         self.login()
         with self.client.session_transaction() as current_session:
-            current_session.update(person_id=70, member_matching_csrf_token="reply-csrf")
-
-        with patch.object(self.app_module, "phase_c_repository", return_value=repository):
-            missing_csrf = self.client.post(
-                "/games/23/attendance", data={"reply": "1"}
+            current_session.update(
+                person_id=70, member_matching_csrf_token="reply-csrf"
             )
+
+        with patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            missing_csrf = self.client.post("/games/23/attendance", data={"reply": "1"})
             saved = self.client.post(
                 "/games/23/attendance",
                 data={"reply": "1", "csrf_token": "reply-csrf"},
@@ -2182,6 +2188,84 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(saved.status_code, 302)
         self.assertEqual(saved.headers["Location"], "/games/23")
         repository.reply_to_game.assert_called_once_with(70, 23, 1)
+
+    def preview_repository(self):
+        repository = MagicMock()
+        repository.local_preview_identities.return_value = (
+            {
+                "identity_id": 40,
+                "person_id": 10,
+                "display_name": "預覽成員 abc123",
+                "formal_name": "預覽姓名 abc123",
+                "access_level": "officer",
+                "member_id": 20,
+            },
+        )
+        repository.local_preview_principal.return_value = SimpleNamespace(
+            identity=SimpleNamespace(
+                id=40,
+                provider_subject="local-preview-identity",
+            ),
+            person=SimpleNamespace(id=10, member_id=20),
+        )
+        return repository
+
+    def test_local_preview_identity_login_uses_pseudonymous_projection(self):
+        repository = self.preview_repository()
+        with (
+            patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
+            chooser = self.client.get(
+                "/local-preview/login", base_url="http://localhost:8080"
+            )
+            self.assertEqual(chooser.status_code, 200)
+            self.assertIn("預覽姓名 abc123".encode(), chooser.data)
+            self.assertNotIn(b"local-preview-identity", chooser.data)
+            with self.client.session_transaction() as current_session:
+                token = current_session["member_matching_csrf_token"]
+            response = self.client.post(
+                "/local-preview/login",
+                data={"identity_id": "40", "csrf_token": token},
+                base_url="http://localhost:8080",
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/dashboard")
+        repository.local_preview_principal.assert_called_once_with(40)
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["person_id"], 10)
+            self.assertEqual(current_session["auth_identity_id"], 40)
+            self.assertEqual(current_session["member_id"], 20)
+            self.assertEqual(current_session["user_id"], "local-preview-identity")
+
+    def test_preview_rejects_external_routes_and_portal_mutations(self):
+        repository = self.preview_repository()
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session["person_id"] = 10
+            current_session["member_matching_csrf_token"] = "valid-csrf"
+        with (
+            patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
+            non_loopback = self.client.get(
+                "/future-games", base_url="http://preview.example:8080"
+            )
+            line = self.client.get("/line/login", base_url="http://127.0.0.1:8080")
+            mutation = self.client.post(
+                "/games/23/attendance",
+                data={"reply": "1", "csrf_token": "valid-csrf"},
+                base_url="http://127.0.0.1:8080",
+            )
+        self.assertEqual(non_loopback.status_code, 404)
+        self.assertEqual(line.status_code, 404)
+        self.assertEqual(mutation.status_code, 403)
+        repository.reply_to_game.assert_not_called()
+        self.notifier.notify_management_message.assert_not_called()
 
 
 if __name__ == "__main__":

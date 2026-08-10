@@ -125,6 +125,10 @@ celerybeat.pid
 # Environments
 .env
 .env.yaml
+.local/portal-preview/
+portal-preview-bundles/
+*.portal-preview.jsonl
+*.portal-preview.seed
 .venv
 env/
 venv/
