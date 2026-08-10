@@ -47,22 +47,25 @@ from line_login import (
     return_path_category,
     safe_return_path,
 )
+from local_preview import require_local_preview_startup, require_loopback_request
 from performance_diagnostics import AttendanceTiming
-from ui_text import PORTAL_COPY
 from role_policy import (
     MANAGE_MEMBERS,
     MANAGE_PENDING_IDENTITIES,
     MANAGE_QUALIFICATIONS,
     ROLE_ADMIN,
     ROLE_MEMBER,
+    ROLE_OFFICER,
     VIEW_PERSON_DIRECTORY,
 )
 from role_policy import Principal as WebPrincipal
 from role_policy import has_capability
+from ui_text import PORTAL_COPY
 
 from envs import login_channel_id, login_channel_secret, secret_key
 
 DEMO_MODE_ENABLED = is_demo_mode_enabled()
+LOCAL_PREVIEW_MODE_ENABLED = require_local_preview_startup(os.environ)
 
 if not DEMO_MODE_ENABLED:
     import shared_module.attendance_analyzer as attendance_analyzer
@@ -87,12 +90,14 @@ app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_PATH="/",
-    SESSION_COOKIE_SECURE=not DEMO_MODE_ENABLED,
+    SESSION_COOKIE_SECURE=not (DEMO_MODE_ENABLED or LOCAL_PREVIEW_MODE_ENABLED),
     SESSION_COOKIE_DOMAIN=None,
 )
 if DEMO_MODE_ENABLED and not secret_key:
-    # Non-sensitive fallback is deliberately limited to the double-gated local demo.
     app.secret_key = "development-demo-session-key-not-for-production"
+elif LOCAL_PREVIEW_MODE_ENABLED and not secret_key:
+    # Non-sensitive fallback is deliberately limited to the localhost preview.
+    app.secret_key = "development-local-session-key-not-for-production"
 else:
     app.secret_key = secret_key  # 用於保持安全的session
 app.register_blueprint(demo_portal)
@@ -161,7 +166,16 @@ def load_phase_c_web_principal(session_values):
             session.pop(key, None)
         return None
     allowlist = parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS"))
-    role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_MEMBER
+    if LOCAL_PREVIEW_MODE_ENABLED:
+        role = {
+            "admin": ROLE_ADMIN,
+            "officer": ROLE_OFFICER,
+            "basic": ROLE_MEMBER,
+        }.get(principal.person.access_level)
+        if role is None:
+            return None
+    else:
+        role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_MEMBER
     return WebPrincipal(role=role, member_id=principal.person.member_id)
 
 
@@ -184,7 +198,9 @@ LINE_TOKEN_URL = "https://api.line.me/oauth2/v2.1/token"
 LINE_USER_INFO_URL = "https://api.line.me/v2/profile"
 
 
-discord_notify_helper = None if DEMO_MODE_ENABLED else DiscordNotifyHelper()
+discord_notify_helper = (
+    None if DEMO_MODE_ENABLED or LOCAL_PREVIEW_MODE_ENABLED else DiscordNotifyHelper()
+)
 
 
 @app.before_request
@@ -218,6 +234,61 @@ def isolate_demo_from_production_data_routes():
     if request.endpoint in blocked_endpoints:
         return "Not available in offline demo mode", 404
     return None
+
+
+@app.before_request
+def enforce_local_preview_boundary():
+    if not LOCAL_PREVIEW_MODE_ENABLED:
+        return None
+    try:
+        require_loopback_request(request.host)
+    except RuntimeError:
+        abort(404)
+    if request.endpoint == "redirect_to_login":
+        return redirect(url_for("local_preview_login"))
+    if request.endpoint in {"line_login", "line_callback", "add_line_friend"}:
+        abort(404)
+    if request.method not in {"GET", "HEAD", "OPTIONS"} and request.endpoint not in {
+        "local_preview_login",
+        "logout",
+    }:
+        return "Local preview is read-only", 403
+    return None
+
+
+@app.route("/local-preview/login", methods=["GET", "POST"])
+def local_preview_login():
+    if not LOCAL_PREVIEW_MODE_ENABLED:
+        abort(404)
+    repository = phase_c_repository()
+    if repository is None:
+        return "Local preview identity service is unavailable", 503
+    if request.method == "POST":
+        require_valid_csrf()
+        raw_identity_id = request.form.get("identity_id", "")
+        if (
+            not raw_identity_id.isascii()
+            or not raw_identity_id.isdecimal()
+            or int(raw_identity_id) <= 0
+        ):
+            abort(400)
+        principal = repository.local_preview_principal(int(raw_identity_id))
+        if principal is None:
+            abort(404)
+        for key in PHASE_C_SESSION_KEYS:
+            session.pop(key, None)
+        session.update(
+            user_id=principal.identity.provider_subject,
+            person_id=principal.person.id,
+            auth_identity_id=principal.identity.id,
+            member_id=principal.person.member_id,
+        )
+        return redirect(url_for("member_dashboard"))
+    return render_template(
+        "local_preview_login.html",
+        identities=repository.local_preview_identities(),
+        csrf_token=get_or_create_csrf_token(),
+    )
 
 
 @app.after_request
@@ -1260,4 +1331,11 @@ def process_replies(attendance_mapping: dict[int, list[Member]]) -> list[str]:
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    app.run(
+        host=(
+            os.environ.get("WEB_PORTAL_BIND_HOST", "127.0.0.1")
+            if LOCAL_PREVIEW_MODE_ENABLED
+            else "0.0.0.0"
+        ),
+        port=8080,
+    )

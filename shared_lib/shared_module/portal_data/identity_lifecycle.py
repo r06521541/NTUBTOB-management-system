@@ -279,6 +279,48 @@ class IdentityLifecycleRepository:
                 frozenset(item.qualification for item in qualifications),
             )
 
+    def local_preview_identities(self) -> tuple[dict, ...]:
+        """Return a safe chooser projection without provider subjects."""
+        with Session(self.engine) as session:
+            rows = session.execute(
+                select(AuthIdentityRecord, PersonRecord, LegacyMemberRecord)
+                .join(PersonRecord, PersonRecord.id == AuthIdentityRecord.person_id)
+                .outerjoin(
+                    LegacyMemberRecord,
+                    LegacyMemberRecord.person_id == PersonRecord.id,
+                )
+                .where(
+                    AuthIdentityRecord.provider == "line",
+                    AuthIdentityRecord.status == "linked",
+                    PersonRecord.portal_status == "active",
+                )
+                .order_by(PersonRecord.id)
+                .limit(100)
+            ).all()
+            return tuple(
+                {
+                    "identity_id": identity.id,
+                    "person_id": person.id,
+                    "display_name": person.display_name,
+                    "formal_name": person.formal_name,
+                    "access_level": person.portal_access_level,
+                    "member_id": member.id if member is not None else None,
+                }
+                for identity, person, member in rows
+            )
+
+    def local_preview_principal(self, identity_id: int) -> Principal | None:
+        """Resolve one imported pseudonymous identity for localhost login."""
+        with Session(self.engine) as session:
+            subject = session.scalar(
+                select(AuthIdentityRecord.provider_subject).where(
+                    AuthIdentityRecord.id == identity_id,
+                    AuthIdentityRecord.provider == "line",
+                    AuthIdentityRecord.status == "linked",
+                )
+            )
+        return self.resolve_line_principal(subject) if subject is not None else None
+
     def identity_status(self, subject: str) -> str | None:
         with Session(self.engine) as session:
             return session.scalar(

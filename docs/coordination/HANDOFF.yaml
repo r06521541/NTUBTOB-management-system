@@ -1,20 +1,19 @@
-active_task: TASK-096
+active_task: TASK-097
 status: completed
 next_actor: work
 
-base_commit: c26fa37e2f363be590810b3c0e25f1c65a264e04
-head_commit: 57fd29c0315e5559ad75294294a07574b8549013
+base_commit: 1f06a18a95f3e86c24825f1eb7ab6282034972da
+head_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
 
-updated_by: codex
-updated_at: 2026-08-10T00:00:00+08:00
+updated_by: work
+updated_at: 2026-08-10T09:59:08+08:00
 
 note: >
-  TASK-096 is the Phase D delivery unit for the production Web Portal UI refresh across Game, Attendance, Person, and
-  Account, including the Game dashboard scope previously described by TASK-095. TASK-096 is the only delivery task and
-  PR unit for this result. It uses existing schema and Phase C contracts. Event/Activity production routes, officer workspace expansion,
-  schema or migration changes, production data mutation, deployment, Secret/IAM/Scheduler changes, and real notifications
-  remain outside authorization.
+  TASK-097 delivers a localhost-only preview of the production Portal using a validated, pseudonymized,
+  production-shaped export imported into ntubtob_portal_local. It does not authorize Supabase access or export execution.
+  Direct production DSNs, production writes, deployment, Secret/IAM/Scheduler changes, real notifications, and committed
+  source or derived production rows remain outside authorization.
 
-report: docs/coordination/reports/TASK-096-CODEX.md
-review: docs/coordination/reviews/TASK-096-WORK.md
-implementation_commit: 57fd29c0315e5559ad75294294a07574b8549013
+report: docs/coordination/reports/TASK-097-CODEX.md
+review: docs/coordination/reviews/TASK-097-WORK.md
+implementation_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
