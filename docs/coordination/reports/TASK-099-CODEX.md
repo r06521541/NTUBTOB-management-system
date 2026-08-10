@@ -14,6 +14,9 @@ Initial implementation commit: `a9bf9878f9ce1d2e896aac15f95eee01453f73e4`
 Changes-requested implementation commit:
 `64ea3075cf60ec68676ec2cc1708074546430183`
 
+Final cumulative-diff correction commit:
+`f790589efa855060cc05e1ceed3eb5fb17edacb1`
+
 ## Delivered
 
 - Added a deterministic fictional fixture operator with explicit confirmation,
@@ -50,8 +53,9 @@ Changes-requested implementation commit:
   cleanup reject unknown or duplicate `person-access-*` audit drift instead of
   treating a merely in-range row as repository-owned state.
 - Added a focused <=420px density layer for narrower shell/card spacing and
-  48px bottom-navigation targets. `games.py` retains only the already-reviewed
-  Windows date behavior from the task branch; no formatting rewrite remains.
+  48px bottom-navigation targets. The final correction restores `games.py`
+  from base `44925dad` and reapplies only the Windows-safe month/day rendering;
+  cumulative base-to-HEAD diff is `2 additions, 4 deletions` in that method.
 
 ## Verification
 
@@ -73,6 +77,10 @@ Changes-requested implementation commit:
 - Affected modules `py_compile`: passed.
 - Black and isort with `profile=black`: passed for every affected Python file.
 - `git diff --check`: passed.
+- Final `games.py` correction: direct `get_formatted_date()` assertion returned
+  `8/10（一）`; targeted `py_compile` passed; cumulative
+  `git diff 44925dad --check` passed. PostgreSQL and browser QA were not rerun,
+  as Work explicitly waived them for this formatting-only correction.
 - Local fictional browser QA used the actual repository/caller/database paths.
   Desktop and 390x844 both covered Basic, Officer, and Admin navigation and
   direct authorization: Basic `/manage` and Person are 403; Officer `/manage`
