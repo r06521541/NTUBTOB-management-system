@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from datetime import datetime, timezone
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
@@ -23,6 +24,7 @@ DEMO_MAX_ID = 7118
 DEMO_GAME_MIN_ID = 9710
 DEMO_GAME_MAX_ID = 9713
 DEMO_SUBJECT_PREFIX = "task099-fictional-"
+DEMO_ACCESS_REASON = "TASK-099 fictional access rehearsal"
 
 SEED_SQL = """
 DELETE FROM ntubtob.attendance_reply_types;
@@ -75,10 +77,10 @@ INSERT INTO ntubtob.games
   (id, year, season, start_datetime, duration, location, home_team, away_team,
    invitation_time, cancellation_time, cancellation_announcement_time)
 VALUES
-  (9710, 126, 1, now() + interval '3 days', 180, '虛構球場', 'NTUBTOB', '虛構未來隊', now() - interval '2 days', NULL, NULL),
-  (9711, 126, 1, now() + interval '21 days', 180, '虛構球場', '虛構主隊', 'NTUBTOB', now() - interval '1 day', NULL, NULL),
-  (9712, 126, 1, now() - interval '14 days', 180, '虛構球場', 'NTUBTOB', '虛構過去隊', now() - interval '30 days', NULL, NULL),
-  (9713, 126, 1, now() + interval '35 days', 180, '虛構球場', 'NTUBTOB', '虛構取消隊', now() - interval '3 days', now() - interval '1 day', now() - interval '1 day');
+  (9710, 126, 1, :anchor + interval '3 days', 180, '虛構球場', 'NTUBTOB', '虛構未來隊', :anchor - interval '2 days', NULL, NULL),
+  (9711, 126, 1, :anchor + interval '21 days', 180, '虛構球場', '虛構主隊', 'NTUBTOB', :anchor - interval '1 day', NULL, NULL),
+  (9712, 126, 1, :anchor - interval '14 days', 180, '虛構球場', 'NTUBTOB', '虛構過去隊', :anchor - interval '30 days', NULL, NULL),
+  (9713, 126, 1, :anchor + interval '35 days', 180, '虛構球場', 'NTUBTOB', '虛構取消隊', :anchor - interval '3 days', :anchor - interval '1 day', :anchor - interval '1 day');
 
 INSERT INTO ntubtob.line_users
   (id, nickname, line_user_id, member_id, has_replied, ignored)
@@ -107,6 +109,91 @@ def _count(session: Session, table: str, where: str = "TRUE") -> int:
     return int(
         session.scalar(text(f"SELECT count(*) FROM ntubtob.{table} WHERE {where}"))
     )
+
+
+def _required_anchor(value: str | datetime | None) -> datetime:
+    if isinstance(value, str):
+        if not value.isascii() or not 1 <= len(value) <= 40:
+            raise RuntimeError("fictional demo anchor must be bounded ISO-8601")
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise RuntimeError(
+                "fictional demo anchor must be valid ISO-8601"
+            ) from error
+    if not isinstance(value, datetime) or value.tzinfo is None:
+        raise RuntimeError("fictional demo anchor must include a timezone")
+    return value.astimezone(timezone.utc).replace(microsecond=0)
+
+
+def _has_exact_demo_audit(session: Session) -> bool:
+    invalid = _count(
+        session,
+        "access_audit",
+        f"""
+        (request_id = 'task099-demo-seed' AND NOT (
+          action = 'access_changed' AND actor_person_id = 7101
+          AND target_person_id = 7102 AND auth_identity_id IS NULL
+          AND before_state::jsonb = '{{"access_level":"officer"}}'::jsonb
+          AND after_state::jsonb = '{{"access_level":"officer","fixture":"TASK-099"}}'::jsonb
+          AND reason = 'TASK-099 fictional fixture'
+        )) OR
+        (request_id <> 'task099-demo-seed' AND NOT (
+          action = 'access_changed' AND actor_person_id = 7101
+          AND target_person_id BETWEEN 7102 AND 7118 AND auth_identity_id IS NULL
+          AND reason = '{DEMO_ACCESS_REASON}'
+          AND request_id = 'person-access-' || target_person_id::text || '-'
+            || ((after_state::jsonb)->>'access_level')
+          AND (
+            (target_person_id = 7102
+             AND before_state::jsonb = '{{"access_level":"officer"}}'::jsonb
+             AND after_state::jsonb = '{{"access_level":"basic"}}'::jsonb)
+            OR
+            (target_person_id BETWEEN 7103 AND 7118
+             AND before_state::jsonb = '{{"access_level":"basic"}}'::jsonb
+             AND after_state::jsonb = '{{"access_level":"officer"}}'::jsonb)
+          )
+        ))
+        """,
+    )
+    duplicate_target = session.scalar(
+        text(
+            """
+            SELECT count(*) FROM (
+              SELECT target_person_id FROM ntubtob.access_audit
+              WHERE request_id <> 'task099-demo-seed'
+              GROUP BY target_person_id HAVING count(*) <> 1
+            ) AS duplicate
+            """
+        )
+    )
+    inconsistent_person = session.scalar(
+        text(
+            """
+            SELECT count(*) FROM ntubtob.people p
+            WHERE p.id BETWEEN 7101 AND 7118 AND (
+              (p.id = 7101 AND (p.portal_access_level <> 'admin' OR p.version <> 1))
+              OR (p.id = 7102 AND (
+                p.portal_access_level <> CASE WHEN EXISTS (
+                  SELECT 1 FROM ntubtob.access_audit a
+                  WHERE a.target_person_id = p.id AND a.request_id <> 'task099-demo-seed'
+                ) THEN 'basic' ELSE 'officer' END
+                OR p.version <> 1 + (SELECT count(*) FROM ntubtob.access_audit a
+                  WHERE a.target_person_id = p.id AND a.request_id <> 'task099-demo-seed')
+              ))
+              OR (p.id BETWEEN 7103 AND 7118 AND (
+                p.portal_access_level <> CASE WHEN EXISTS (
+                  SELECT 1 FROM ntubtob.access_audit a
+                  WHERE a.target_person_id = p.id AND a.request_id <> 'task099-demo-seed'
+                ) THEN 'officer' ELSE 'basic' END
+                OR p.version <> 1 + (SELECT count(*) FROM ntubtob.access_audit a
+                  WHERE a.target_person_id = p.id AND a.request_id <> 'task099-demo-seed')
+              ))
+            )
+            """
+        )
+    )
+    return invalid == 0 and duplicate_target == 0 and inconsistent_person == 0
 
 
 def _is_demo_fixture(session: Session) -> bool:
@@ -153,7 +240,8 @@ def _is_demo_fixture(session: Session) -> bool:
     ):
         return False
     return (
-        _count(
+        _has_exact_demo_audit(session)
+        and _count(
             session,
             "access_audit",
             "actor_person_id IS NOT NULL AND actor_person_id NOT BETWEEN 7101 AND 7118",
@@ -174,7 +262,13 @@ def _is_demo_fixture(session: Session) -> bool:
     )
 
 
-def operate(command: str, database_url: str, engine_factory=create_engine) -> None:
+def operate(
+    command: str,
+    database_url: str,
+    anchor: str | datetime | None = None,
+    engine_factory=create_engine,
+) -> None:
+    anchor_value = _required_anchor(anchor) if command in {"seed", "reset"} else None
     safe_url = require_local_database_url(database_url)
     engine = engine_factory(safe_url)
     try:
@@ -193,7 +287,7 @@ def operate(command: str, database_url: str, engine_factory=create_engine) -> No
             _replace_repository_fixture(session)
             session.execute(text("DELETE FROM ntubtob.attendance_reply_types"))
             if command in {"seed", "reset"}:
-                session.execute(text(SEED_SQL))
+                session.execute(text(SEED_SQL), {"anchor": anchor_value})
     finally:
         engine.dispose()
 
@@ -204,10 +298,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("command", choices=("seed", "reset", "cleanup"))
     parser.add_argument("--confirm-fictional-demo", action="store_true")
+    parser.add_argument("--anchor")
     args = parser.parse_args(argv)
     if not args.confirm_fictional_demo:
         raise RuntimeError("--confirm-fictional-demo is required")
-    operate(args.command, os.environ.get("PORTAL_DATA_DATABASE_URL", ""))
+    if args.command == "cleanup" and args.anchor is not None:
+        raise RuntimeError("cleanup does not accept --anchor")
+    operate(
+        args.command,
+        os.environ.get("PORTAL_DATA_DATABASE_URL", ""),
+        anchor=args.anchor,
+    )
     print(f"fictional demo {args.command} complete")
     return 0
 

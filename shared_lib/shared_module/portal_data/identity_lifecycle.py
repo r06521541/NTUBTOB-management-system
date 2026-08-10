@@ -397,10 +397,66 @@ class IdentityLifecycleRepository:
                       AND NOT EXISTS (SELECT 1 FROM ntubtob.event_audit)
                       AND NOT EXISTS (
                         SELECT 1 FROM ntubtob.access_audit
-                        WHERE (actor_person_id IS NOT NULL AND actor_person_id NOT BETWEEN 7101 AND 7118)
-                           OR (target_person_id IS NOT NULL AND target_person_id NOT BETWEEN 7101 AND 7118)
-                           OR (request_id <> 'task099-demo-seed'
-                               AND request_id NOT LIKE 'person-access-%')
+                        WHERE
+                          (request_id = 'task099-demo-seed' AND NOT (
+                            action = 'access_changed' AND actor_person_id = 7101
+                            AND target_person_id = 7102 AND auth_identity_id IS NULL
+                            AND before_state::jsonb = '{"access_level":"officer"}'::jsonb
+                            AND after_state::jsonb = '{"access_level":"officer","fixture":"TASK-099"}'::jsonb
+                            AND reason = 'TASK-099 fictional fixture'
+                          ))
+                          OR
+                          (request_id <> 'task099-demo-seed' AND NOT (
+                            action = 'access_changed' AND actor_person_id = 7101
+                            AND target_person_id BETWEEN 7102 AND 7118
+                            AND auth_identity_id IS NULL
+                            AND reason = 'TASK-099 fictional access rehearsal'
+                            AND request_id = 'person-access-' || target_person_id::text
+                              || '-' || ((after_state::jsonb)->>'access_level')
+                            AND (
+                              (target_person_id = 7102
+                               AND before_state::jsonb = '{"access_level":"officer"}'::jsonb
+                               AND after_state::jsonb = '{"access_level":"basic"}'::jsonb)
+                              OR
+                              (target_person_id BETWEEN 7103 AND 7118
+                               AND before_state::jsonb = '{"access_level":"basic"}'::jsonb
+                               AND after_state::jsonb = '{"access_level":"officer"}'::jsonb)
+                            )
+                          ))
+                      )
+                      AND NOT EXISTS (
+                        SELECT target_person_id FROM ntubtob.access_audit
+                        WHERE request_id <> 'task099-demo-seed'
+                        GROUP BY target_person_id HAVING count(*) <> 1
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ntubtob.people p
+                        WHERE p.id BETWEEN 7101 AND 7118 AND (
+                          (p.id = 7101 AND
+                           (p.portal_access_level <> 'admin' OR p.version <> 1))
+                          OR (p.id = 7102 AND (
+                            p.portal_access_level <> CASE WHEN EXISTS (
+                              SELECT 1 FROM ntubtob.access_audit a
+                              WHERE a.target_person_id = p.id
+                                AND a.request_id <> 'task099-demo-seed'
+                            ) THEN 'basic' ELSE 'officer' END
+                            OR p.version <> 1 + (SELECT count(*)
+                              FROM ntubtob.access_audit a
+                              WHERE a.target_person_id = p.id
+                                AND a.request_id <> 'task099-demo-seed')
+                          ))
+                          OR (p.id BETWEEN 7103 AND 7118 AND (
+                            p.portal_access_level <> CASE WHEN EXISTS (
+                              SELECT 1 FROM ntubtob.access_audit a
+                              WHERE a.target_person_id = p.id
+                                AND a.request_id <> 'task099-demo-seed'
+                            ) THEN 'officer' ELSE 'basic' END
+                            OR p.version <> 1 + (SELECT count(*)
+                              FROM ntubtob.access_audit a
+                              WHERE a.target_person_id = p.id
+                                AND a.request_id <> 'task099-demo-seed')
+                          ))
+                        )
                       )
                       AND (SELECT count(*) FROM ntubtob.attendance_reply_types) = 5
                     """

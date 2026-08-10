@@ -2635,6 +2635,39 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(denied.status_code, 403)
         repository.change_access.assert_not_called()
 
+    def test_access_route_rejects_malformed_request_id_before_repository(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        cases = (
+            None,
+            "",
+            "access-80",
+            "person-access-測試",
+            "person-access-" + "x" * 108,
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            for request_id in cases:
+                with self.subTest(request_id=request_id):
+                    data = {
+                        "csrf_token": token,
+                        "action": "promote_officer",
+                        "reason": "Assign game operations",
+                    }
+                    if request_id is not None:
+                        data["request_id"] = request_id
+                    response = self.client.post("/manage/people/80/access", data=data)
+                    self.assertEqual(response.status_code, 400)
+        repository.change_access.assert_not_called()
+
     def test_management_hub_and_schedule_navigation_are_role_aware(self):
         repository = MagicMock()
         repository.attendance_summary.return_value = self.command_summary()
@@ -2714,8 +2747,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 data={
                     "csrf_token": token,
                     "action": "promote_officer",
-                    "reason": "Fictional role rehearsal",
-                    "request_id": "person-access-fictional-80",
+                    "reason": "TASK-099 fictional access rehearsal",
+                    "request_id": "person-access-80-officer",
                 },
             )
             blocked = self.client.post(

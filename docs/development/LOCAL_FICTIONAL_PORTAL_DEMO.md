@@ -15,8 +15,14 @@ host and do not provide a credential other than the fixed local Compose value.
 ```powershell
 $TaskPython = 'C:\Users\USER\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
 $env:PORTAL_DATA_DATABASE_URL = 'postgresql+psycopg2://portal_local:local-only-password@127.0.0.1:55432/ntubtob_portal_local'
-& $TaskPython -m tools.seed_portal_ui_demo seed --confirm-fictional-demo
+& $TaskPython -m tools.seed_portal_ui_demo seed --confirm-fictional-demo `
+  --anchor '2026-08-11T00:00:00+08:00'
 ```
+
+The required timezone-aware `--anchor` fixes every Game and invitation/
+cancellation timestamp. Reusing the same anchor for `reset` reproduces the same
+values; choose a reviewed date near the QA session so future/recent/past views
+remain useful. The tool validates the anchor before creating the engine.
 
 The tool validates the loopback URL, exact database name, revision, and either
 the exact repository setup fixture or complete TASK-099 fixture before opening
@@ -50,7 +56,8 @@ Portal mutation is enabled and no external caller is used.
 Stop the Portal before reset or cleanup.
 
 ```powershell
-& $TaskPython -m tools.seed_portal_ui_demo reset --confirm-fictional-demo
+& $TaskPython -m tools.seed_portal_ui_demo reset --confirm-fictional-demo `
+  --anchor '2026-08-11T00:00:00+08:00'
 & $TaskPython -m tools.seed_portal_ui_demo cleanup --confirm-fictional-demo
 ```
 

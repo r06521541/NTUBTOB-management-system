@@ -170,6 +170,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     .portal-card { box-shadow: none; }
 }
 
+@media (max-width: 420px) {
+    .portal-shell { width: calc(100% - 20px); padding-top: 20px; }
+    .portal-hero { gap: 12px; padding: 4px 0 18px; }
+    .portal-hero h1, .portal-title h1 { font-size: 2rem; line-height: 1.15; }
+    .portal-section-heading { margin-top: 24px; }
+    .portal-roster-card, .portal-command-card, .portal-game-card, .portal-reply-card { padding: 16px; }
+    .portal-bottom-nav a { min-height: 48px; }
+}
+
 @media (max-width: 380px) {
     .portal-stat { display: none; }
     .portal-detail-hero { display: block; }

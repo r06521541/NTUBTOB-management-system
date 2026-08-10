@@ -83,6 +83,7 @@ LOCAL_PREVIEW_MODE_ENABLED = require_local_preview_startup(os.environ)
 FICTIONAL_DEMO_MODE_ENABLED = (
     LOCAL_PREVIEW_MODE_ENABLED and os.environ.get(FICTIONAL_DEMO_FLAG) == "true"
 )
+FICTIONAL_ACCESS_REASON = "TASK-099 fictional access rehearsal"
 
 if not DEMO_MODE_ENABLED:
     import shared_module.attendance_analyzer as attendance_analyzer
@@ -1048,6 +1049,9 @@ def admin_person_detail(person_id):
         can_change_access=(
             not LOCAL_PREVIEW_MODE_ENABLED or FICTIONAL_DEMO_MODE_ENABLED
         ),
+        fictional_access_reason=(
+            FICTIONAL_ACCESS_REASON if FICTIONAL_DEMO_MODE_ENABLED else None
+        ),
     )
 
 
@@ -1062,8 +1066,13 @@ def change_person_access(person_id):
         "promote_officer": "officer",
         "demote_basic": "basic",
     }.get(request.form.get("action", ""))
-    request_id = request.form.get("request_id", "")
-    if access_level is None or not request_id.startswith("person-access-"):
+    if access_level is None:
+        abort(400)
+    request_id = _required_request_id("person-access-")
+    if FICTIONAL_DEMO_MODE_ENABLED and (
+        request_id != f"person-access-{person_id}-{access_level}"
+        or request.form.get("reason") != FICTIONAL_ACCESS_REASON
+    ):
         abort(400)
     try:
         repository.change_access(
