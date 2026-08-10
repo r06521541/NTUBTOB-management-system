@@ -1,15 +1,16 @@
 # TASK-097 Work Review
 
-status: changes_requested
+status: accepted
 reviewer: work
-reviewed_at: 2026-08-10T09:23:30+08:00
+reviewed_at: 2026-08-10T09:47:05+08:00
 branch: codex/phase-d-local-cloud-data-preview
-implementation_commit: 3ccd2f49e900b1b2ca07fe478a160cdad0566a26
+implementation_commit: 71e6e0dd4ef70fe7f99d566570d8c9307a3ea281
 
 ## Review result
 
-Changes requested. The security gates, private-bundle validation, pseudonymization and isolated PostgreSQL evidence are
-otherwise well scoped, but the documented Owner workflow cannot currently reach a successful import.
+Accepted for the delivery group's single final PR after correction. The security gates, private-bundle validation,
+pseudonymization, exact local-fixture replacement and isolated PostgreSQL evidence satisfy TASK-097 without authorizing
+or performing a source export.
 
 ## Blocking finding
 
@@ -31,6 +32,19 @@ creates, while an Owner following the documented commands will fail.
 - Update PostgreSQL integration to begin from the actual setup/migration state rather than calling the test-only `_clear`
   before the successful import. Keep late-failure rollback and corrected retry evidence on PostgreSQL 15 and 16.
 - Correct the runbook and Codex report to match the verified workflow.
+
+## Correction verification
+
+Resolved by implementation commit `71e6e0dd4ef70fe7f99d566570d8c9307a3ea281`:
+
+- The importer fingerprints only the exact repository-owned setup＋0004 fixture and replaces it in the same transaction
+  as the derived bundle import; truly empty databases remain accepted and every other non-empty／drifted state is denied.
+- PostgreSQL tests now create the real legacy fixture, stamp `0001_legacy_baseline`, and upgrade to
+  `0004_phase_c_identity_lifecycle`; the successful path no longer calls a test-only pre-import truncate.
+- PostgreSQL 15.8 and 16.4 each passed success/readback, arbitrary drift denial, late-failure fixture restoration and
+  corrected retry (`3/3` per version).
+- Work re-ran the five offline bundle/security tests plus `py_compile` and `git diff --check`; all passed. PostgreSQL
+  integration was reviewed from the actual test diff and Codex's isolated-version evidence rather than rerun by Work.
 
 ## Work targeted verification
 

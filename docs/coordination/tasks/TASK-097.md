@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: phase-d-local-cloud-data-preview
 requires_independent_pr: true
-status: changes_requested
+status: completed
 owner: work
 codex: codex
 
