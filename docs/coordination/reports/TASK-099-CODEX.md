@@ -9,7 +9,10 @@ local-preview persisted-Admin read parity.
 
 Planning commit: `0c047f6b7395bd885287e68780b7ccf6ded635b4`
 
-Implementation commit: `a9bf9878f9ce1d2e896aac15f95eee01453f73e4`
+Initial implementation commit: `a9bf9878f9ce1d2e896aac15f95eee01453f73e4`
+
+Changes-requested implementation commit:
+`64ea3075cf60ec68676ec2cc1708074546430183`
 
 ## Delivered
 
@@ -37,10 +40,22 @@ Implementation commit: `a9bf9878f9ce1d2e896aac15f95eee01453f73e4`
   safe partial-load state; unexpected programming exceptions still surface.
 - Added the fictional demo runbook and explicit separation warning in the
   production-shaped preview runbook.
+- The access route now uses the shared bounded request-ID parser. Fictional
+  access rehearsals additionally require the exact target/transition request
+  ID and canonical reason, so repository state and audit rows have one exact
+  fingerprint; malformed, oversized, and non-ASCII IDs fail before repository
+  access.
+- Seed and reset now require an explicitly validated, timezone-aware anchor and
+  derive every Game/invitation/cancellation timestamp from it. Reset and
+  cleanup reject unknown or duplicate `person-access-*` audit drift instead of
+  treating a merely in-range row as repository-owned state.
+- Added a focused <=420px density layer for narrower shell/card spacing and
+  48px bottom-navigation targets. `games.py` retains only the already-reviewed
+  Windows date behavior from the task branch; no formatting rewrite remains.
 
 ## Verification
 
-- Bundled Python full Web Portal suite: `163 tests`, `OK`, `2 skipped`.
+- Bundled Python full Web Portal suite: `164 tests`, `OK`, `2 skipped`.
 - Bundled Python affected portal-data offline modules: `41 tests`, `OK`,
   `31 skipped` because no database URL was set for that run.
 - PostgreSQL 15: affected integration modules `10 + 29 tests`, all `OK`.
@@ -48,12 +63,15 @@ Implementation commit: `a9bf9878f9ce1d2e896aac15f95eee01453f73e4`
   These prove repository-fixture seed, deterministic reset, cleanup, arbitrary
   drift denial, late-failure rollback, preview-Admin parity, production
   allowlist denial, and audited access readback/replay denial.
+- Changes-requested PG15 and PG16 runs each executed the focused fictional
+  bundle module from repository setup/migration state: `14 tests`, all `OK`.
+  They cover anchor validation and complete timestamp equality after reset,
+  exact access-audit acceptance, unknown-audit drift rejection, cleanup, and
+  late-failure rollback/retry.
 - Packaged shared library: local wheel built and imported through its installed
   `shared_module` path with a fake loopback DSN; no connection was opened.
 - Affected modules `py_compile`: passed.
-- Black 24.4.2 formatter API and isort 5.13.2 with `profile=black`: passed for
-  every affected Python file. The Windows Black CLI stalled and was terminated
-  per the environment guidance.
+- Black and isort with `profile=black`: passed for every affected Python file.
 - `git diff --check`: passed.
 - Local fictional browser QA used the actual repository/caller/database paths.
   Desktop and 390x844 both covered Basic, Officer, and Admin navigation and
@@ -63,6 +81,12 @@ Implementation commit: `a9bf9878f9ce1d2e896aac15f95eee01453f73e4`
   `/future-games` versus Officer/Admin `/manage/games`. Desktop Admin also
   exercised basic-to-officer POST, PRG, and readback; Attendance rendered the
   Windows-safe timestamp and fictional reply groups.
+- Changes-requested 390x844 QA used the packaged shared library and PG16 fixture
+  to recheck Admin dashboard, Person detail, exact access POST -> PRG -> basic
+  readback, and Attendance. The pages had `innerWidth=390`,
+  `scrollWidth=375`, a 355px shell, and 46px Person action controls; screenshot
+  inspection confirmed the denser cards and fixed bottom navigation remained
+  readable without horizontal overflow.
 
 ## Known environment-only failure
 
