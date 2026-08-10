@@ -9,11 +9,11 @@ private localhost preview pipeline:
 
 Planning commit: `0114ca8c9ca64ea5cc5d34f1a9fe84c78f92bc32`
 
-Latest implementation commit: `71e6e0dd4ef70fe7f99d566570d8c9307a3ea281`
+Latest implementation commit: `f4c0aa7c5cc552f02df288132e774024dabc4220`
 
-Prior implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
+Prior fixture-replacement commit: `71e6e0dd4ef70fe7f99d566570d8c9307a3ea281`
 
-Hosted CI import-path correction: pending implementation commit.
+Initial implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
 
 ## Delivered
 

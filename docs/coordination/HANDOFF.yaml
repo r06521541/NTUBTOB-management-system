@@ -1,12 +1,12 @@
 active_task: TASK-097
-status: completed
+status: ready_for_review
 next_actor: work
 
 base_commit: 1f06a18a95f3e86c24825f1eb7ab6282034972da
-head_commit: 71e6e0dd4ef70fe7f99d566570d8c9307a3ea281
+head_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
 
-updated_by: work
-updated_at: 2026-08-10T09:47:05+08:00
+updated_by: codex
+updated_at: 2026-08-10T09:56:41+08:00
 
 note: >
   TASK-097 delivers a localhost-only preview of the production Portal using a validated, pseudonymized,
@@ -16,4 +16,4 @@ note: >
 
 report: docs/coordination/reports/TASK-097-CODEX.md
 review: docs/coordination/reviews/TASK-097-WORK.md
-implementation_commit: 71e6e0dd4ef70fe7f99d566570d8c9307a3ea281
+implementation_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
