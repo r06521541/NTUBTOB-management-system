@@ -1,5 +1,5 @@
 active_task: TASK-096
-status: ready_for_review
+status: completed
 next_actor: work
 
 base_commit: c26fa37e2f363be590810b3c0e25f1c65a264e04
@@ -10,10 +10,11 @@ updated_at: 2026-08-10T00:00:00+08:00
 
 note: >
   TASK-096 is the Phase D delivery unit for the production Web Portal UI refresh across Game, Attendance, Person, and
-  Account. It uses existing schema and Phase C contracts. Event/Activity production routes, officer workspace expansion,
+  Account, including the Game dashboard scope previously described by TASK-095. TASK-096 is the only delivery task and
+  PR unit for this result. It uses existing schema and Phase C contracts. Event/Activity production routes, officer workspace expansion,
   schema or migration changes, production data mutation, deployment, Secret/IAM/Scheduler changes, and real notifications
   remain outside authorization.
 
 report: docs/coordination/reports/TASK-096-CODEX.md
-review: null
+review: docs/coordination/reviews/TASK-096-WORK.md
 implementation_commit: 57fd29c0315e5559ad75294294a07574b8549013

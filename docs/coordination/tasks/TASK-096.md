@@ -3,9 +3,12 @@
 task_type: delivery
 delivery_group: phase-d-web-ui-refresh
 requires_independent_pr: true
-status: ready_for_review
+status: completed
 owner: work
 codex: codex
+
+整併說明：本 task 吸收原 TASK-095 的 Game dashboard／正式賽程頁面範圍；TASK-095 不再作為獨立
+delivery group 或 PR 單位。TASK-096 是本成果唯一的 delivery task。
 
 ## 目標
 
@@ -38,4 +41,4 @@ contracts 能以一致、可操作、可驗收的正式頁面提供使用者使�
 
 ## Execution checkpoint
 
-已於 2026-08-10 由 Codex 回報；`HANDOFF.yaml` 的舊 TASK-095 狀態需在交付文件中同步修正。
+已於 2026-08-10 由 Codex 回報；原 TASK-095 的 Game dashboard 範圍已併入本 delivery，文件入口已統一。
