@@ -50,3 +50,19 @@ Windows date path, PostgreSQL integration and browser personas. Four contract ga
   and are not treated as TASK-099 regressions.
 
 The original dirty repository and excluded owner export helper remain untouched.
+
+## Second correction review
+
+reviewed_at: 2026-08-11T01:21:20+08:00
+correction_commit: 64ea3075cf60ec68676ec2cc1708074546430183
+
+Bounded request-ID validation, exact fictional audit drift rejection, anchored deterministic Game timestamps and the
+minimal <=420px density layer are accepted. The `games.py` correction is still incomplete: commit `64ea3075` did not
+touch that file, but the original implementation's repository-wide Black rewrite remains in the cumulative branch diff.
+Relative to base `44925dad`, `games.py` still shows 141 additions and 111 deletions (91/61 even ignoring EOL whitespace)
+instead of the intended four-line date change.
+
+Required final correction: restore the exact base `games.py` blob and reapply only the Windows-safe
+`get_formatted_date()` return change. Do not run Black/isort on that legacy file. Verify the cumulative base-to-HEAD diff,
+not only the latest commit diff; update the report claim and rerun its targeted compile/date tests plus `git diff --check`.
+No PostgreSQL or browser rerun is needed for this formatting-only correction.

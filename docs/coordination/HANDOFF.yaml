@@ -1,18 +1,17 @@
 active_task: TASK-099
-status: ready_for_review
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: 44925dad735e8ee3d28ac0f9dae0cb2535762496
 head_commit: 64ea3075cf60ec68676ec2cc1708074546430183
 
-updated_by: codex
-updated_at: 2026-08-11T01:19:27+08:00
+updated_by: work
+updated_at: 2026-08-11T01:21:20+08:00
 
 note: >
-  Codex completed the four focused review corrections: bounded access request IDs, exact audit fingerprint and drift
-  rejection, explicit deterministic timestamp anchors, and <=420px mobile density. games.py has no correction diff.
-  PG15/16 focused integration, full Web Portal, compile/format/diff checks, and 390px fictional browser QA passed;
-  schema 0004, preview POST, production, external-service, and source-worktree boundaries remain unchanged.
+  Work accepts the three behavioral corrections and mobile density, but the cumulative games.py diff still contains the
+  initial full-file Black rewrite. Codex must restore the base blob and reapply only the Windows-safe date change, then
+  return targeted compile/date/diff evidence. No PG/browser rerun is required; all safety boundaries remain fixed.
 
 worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task099-worktree
 source_dirty_worktree: C:/Users/USER/Repos/NTUBTOB-management-system
