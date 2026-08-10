@@ -1,17 +1,16 @@
 active_task: TASK-098
-status: ready_for_review
+status: accepted
 next_actor: work
 
 base_commit: 6b43ab1c39639117ec0c0e555eca3668199bb321
 head_commit: ef34bbc967f6ce386201688e2b3bfeaad967eb0a
 
-updated_by: codex
-updated_at: 2026-08-10T11:36:45+08:00
+updated_by: work
+updated_at: 2026-08-10T11:52:13+08:00
 
 note: >
-  TASK-098 authorization correction restores TASK-097 local-preview role parity and binds every bounded Game request to
-  the fresh principal's signed-session Person/Identity IDs before reads. Production Officer remains limited to Game routes;
-  schema, mutation, preview POST and external-operation boundaries remain fixed.
+  Work accepted TASK-098 after authorization correction and targeted verification. Final PR/hosted Python 3.10 evidence
+  remains before merge; no deployment or production operation is authorized.
 
 report: docs/coordination/reports/TASK-098-CODEX.md
 review: docs/coordination/reviews/TASK-098-WORK.md

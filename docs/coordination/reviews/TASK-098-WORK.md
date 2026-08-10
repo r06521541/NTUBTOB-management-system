@@ -1,6 +1,6 @@
 # TASK-098 Work Review
 
-status: changes_requested
+status: accepted
 reviewer: work
 reviewed_at: 2026-08-10T11:30:19+08:00
 branch: codex/phase-d-schema-neutral-game-command-center
@@ -44,3 +44,19 @@ does not preserve the established Phase C session-to-principal binding.
   passing. These do not cover the two regressions above.
 
 No deployment, production data, Secret, IAM, Scheduler, notification or external service operation was performed.
+
+## Correction verification
+
+Resolved by implementation commit `ef34bbc967f6ce386201688e2b3bfeaad967eb0a`:
+
+- Restored the pre-task local-preview Basic／Officer／Admin portal-role mapping without changing production allowlist
+  semantics or opening non-Game management routes to production Person Officers.
+- The bounded Game context now compares the freshly resolved principal's Person and Identity IDs with the signed session,
+  clears Phase C session keys on mismatch, and rejects the request before Game or attendance reads.
+- Added regressions for preview Admin's existing read-only management surface and both Person/Identity mismatch cases.
+
+Work re-ran 80 route/security tests and 6 Game helper/static tests; all passed. Affected `py_compile`, Node syntax,
+`git diff --check`, branch/origin equality and clean status also passed. Codex's full Web Portal evidence is 156 passed with
+2 skipped. Desktop localhost browser QA was completed by Codex; actual 390px browser QA remains unclaimed because the
+temporary preview environment and private bundle were cleaned up. Mobile/touch/focus/print behavior is covered by local
+static contracts and this residual visual risk is accepted for final PR review.
