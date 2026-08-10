@@ -1,12 +1,12 @@
 active_task: TASK-097
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 1f06a18a95f3e86c24825f1eb7ab6282034972da
-head_commit: 1f06a18a95f3e86c24825f1eb7ab6282034972da
+head_commit: 3ccd2f49e900b1b2ca07fe478a160cdad0566a26
 
-updated_by: work
-updated_at: 2026-08-10T08:38:21+08:00
+updated_by: codex
+updated_at: 2026-08-10T09:18:40+08:00
 
 note: >
   TASK-097 delivers a localhost-only preview of the production Portal using a validated, pseudonymized,
@@ -14,6 +14,6 @@ note: >
   Direct production DSNs, production writes, deployment, Secret/IAM/Scheduler changes, real notifications, and committed
   source or derived production rows remain outside authorization.
 
-report: null
+report: docs/coordination/reports/TASK-097-CODEX.md
 review: null
-implementation_commit: null
+implementation_commit: 3ccd2f49e900b1b2ca07fe478a160cdad0566a26
