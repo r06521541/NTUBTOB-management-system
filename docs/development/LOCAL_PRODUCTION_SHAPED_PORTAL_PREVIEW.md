@@ -1,5 +1,9 @@
 # Local production-shaped Portal preview
 
+This cloud-derived workflow is always read-only. For repository-owned fictional
+UI/role QA, use `LOCAL_FICTIONAL_PORTAL_DEMO.md`; never combine the two fixture
+states or enable `WEB_PORTAL_FICTIONAL_DEMO_MODE` here.
+
 This runbook prepares a localhost-only, read-only Portal preview from an
 Owner-operated export. It does not authorize connecting to Supabase, handling a
 credential, exporting rows, or changing production. The source and derived

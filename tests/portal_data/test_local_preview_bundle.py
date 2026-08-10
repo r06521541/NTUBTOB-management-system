@@ -9,6 +9,7 @@ from unittest.mock import patch
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
@@ -17,6 +18,7 @@ from shared_lib.shared_module.portal_data.identity_lifecycle import (
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tools import seed_portal_ui_demo
 from tools.portal_data_local_preview import (
     MODEL_BY_TABLE,
     TABLE_ORDER,
@@ -236,6 +238,27 @@ class LocalPreviewBundleTest(unittest.TestCase):
         with self.assertRaisesRegex(PreviewBundleError, "outside the repository"):
             validate_bundle(Path("portal-preview-bundles/private"), "raw")
 
+    def test_fictional_demo_validates_local_database_before_engine_creation(self):
+        called = False
+
+        def factory(_url):
+            nonlocal called
+            called = True
+            raise AssertionError("engine must not be created")
+
+        for url in (
+            "postgresql://fake:fake@example.com/ntubtob_portal_local",
+            "postgresql://fake:fake@localhost/production",
+            "postgresql://fake:fake@db.fake.supabase.co/ntubtob_portal_local",
+        ):
+            with self.subTest(url=url), self.assertRaises(RuntimeError):
+                seed_portal_ui_demo.operate("seed", url, engine_factory=factory)
+        self.assertFalse(called)
+
+    def test_fictional_demo_cli_requires_explicit_confirmation(self):
+        with self.assertRaisesRegex(RuntimeError, "confirm-fictional-demo"):
+            seed_portal_ui_demo.main(["seed"])
+
 
 @unittest.skipUnless(
     os.environ.get("PORTAL_DATA_TEST_DATABASE_URL"),
@@ -371,6 +394,62 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
                 "unexpected local data",
             )
             self.assertIsNone(session.get(MODEL_BY_TABLE["people"], 1_000_010))
+
+    def test_fictional_demo_seed_reset_and_cleanup_from_repository_fixture(self):
+        seed_portal_ui_demo.operate("seed", self.url)
+        repository = IdentityLifecycleRepository(
+            self.engine, (), allow_persisted_admins=True
+        )
+        self.assertTrue(repository.is_fictional_demo_fixture())
+        identities = repository.local_preview_identities()
+        self.assertEqual(
+            [item["access_level"] for item in identities],
+            ["admin", "officer", "basic"],
+        )
+
+        repository.change_access(
+            7101, 7103, "officer", "Fictional demo rehearsal", "person-access-test"
+        )
+        seed_portal_ui_demo.operate("reset", self.url)
+        self.assertTrue(repository.is_fictional_demo_fixture())
+        self.assertEqual(
+            repository.resolve_line_principal(
+                "task099-fictional-basic"
+            ).person.access_level,
+            "basic",
+        )
+
+        seed_portal_ui_demo.operate("cleanup", self.url)
+        with Session(self.engine) as session:
+            self.assertEqual(
+                session.scalar(
+                    select(func.count()).select_from(MODEL_BY_TABLE["people"])
+                ),
+                0,
+            )
+
+    def test_fictional_demo_rejects_drift_and_rolls_back_late_failure(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("UPDATE ntubtob.members SET name = 'unexpected local data'")
+            )
+        with self.assertRaisesRegex(RuntimeError, "not the repository"):
+            seed_portal_ui_demo.operate("seed", self.url)
+        with Session(self.engine) as session:
+            self.assertEqual(
+                session.get(MODEL_BY_TABLE["members"], 9201).name,
+                "unexpected local data",
+            )
+
+        self._prepare_repository_fixture()
+        invalid_sql = (
+            seed_portal_ui_demo.SEED_SQL
+            + "\nINSERT INTO ntubtob.people (id) VALUES (7101);"
+        )
+        with patch.object(seed_portal_ui_demo, "SEED_SQL", invalid_sql):
+            with self.assertRaises(IntegrityError):
+                seed_portal_ui_demo.operate("seed", self.url)
+        self._assert_repository_fixture()
 
 
 if __name__ == "__main__":

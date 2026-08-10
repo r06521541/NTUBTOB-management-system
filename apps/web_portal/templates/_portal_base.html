@@ -18,24 +18,21 @@
         </a>
         <nav class="portal-desktop-nav" aria-label="主要導覽">
             <a href="{{ url_for('member_dashboard') }}">首頁</a>
-            <a href="{{ url_for('future_games') }}">賽程</a>
+            <a href="{{ url_for(portal_schedule_endpoint) }}">賽程</a>
             <a href="{{ url_for('attendance') }}">出席</a>
             <a href="{{ url_for('account') }}">我的</a>
-            {% if can_manage_members|default(false) %}
-                <a href="{{ url_for('admin_people') }}">People</a>
-            {% endif %}
             {% if can_manage_games|default(false) %}
-                <a href="{{ url_for('game_command_center') }}">比賽管理</a>
+                <a href="{{ url_for('management_hub') }}">管理</a>
             {% endif %}
         </nav>
     </header>
     <main class="portal-shell">{% block content %}{% endblock %}</main>
     <nav class="portal-bottom-nav{% if can_manage_games|default(false) %} portal-bottom-nav-management{% endif %}" aria-label="手機主要導覽">
         <a href="{{ url_for('member_dashboard') }}"><span aria-hidden="true">⌂</span>首頁</a>
-        <a href="{{ url_for('future_games') }}"><span aria-hidden="true">◇</span>賽程</a>
+        <a href="{{ url_for(portal_schedule_endpoint) }}"><span aria-hidden="true">◇</span>賽程</a>
         <a href="{{ url_for('attendance') }}"><span aria-hidden="true">✓</span>出席</a>
         <a href="{{ url_for('account') }}"><span aria-hidden="true">○</span>我的</a>
-        {% if can_manage_games|default(false) %}<a href="{{ url_for('game_command_center') }}"><span aria-hidden="true">◆</span>管理</a>{% endif %}
+        {% if can_manage_games|default(false) %}<a href="{{ url_for('management_hub') }}"><span aria-hidden="true">◆</span>管理</a>{% endif %}
     </nav>
 </body>
 </html>

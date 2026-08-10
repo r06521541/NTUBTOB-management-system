@@ -57,7 +57,11 @@ from line_login import (
     return_path_category,
     safe_return_path,
 )
-from local_preview import require_local_preview_startup, require_loopback_request
+from local_preview import (
+    FICTIONAL_DEMO_FLAG,
+    require_local_preview_startup,
+    require_loopback_request,
+)
 from performance_diagnostics import AttendanceTiming
 from role_policy import (
     MANAGE_MEMBERS,
@@ -66,16 +70,19 @@ from role_policy import (
     ROLE_ADMIN,
     ROLE_MEMBER,
     ROLE_OFFICER,
-    VIEW_PERSON_DIRECTORY,
 )
 from role_policy import Principal as WebPrincipal
 from role_policy import has_capability
+from sqlalchemy.exc import SQLAlchemyError
 from ui_text import PORTAL_COPY
 
 from envs import login_channel_id, login_channel_secret, secret_key
 
 DEMO_MODE_ENABLED = is_demo_mode_enabled()
 LOCAL_PREVIEW_MODE_ENABLED = require_local_preview_startup(os.environ)
+FICTIONAL_DEMO_MODE_ENABLED = (
+    LOCAL_PREVIEW_MODE_ENABLED and os.environ.get(FICTIONAL_DEMO_FLAG) == "true"
+)
 
 if not DEMO_MODE_ENABLED:
     import shared_module.attendance_analyzer as attendance_analyzer
@@ -123,9 +130,26 @@ def inject_portal_copy():
         if isinstance(person_id, int) and isinstance(identity_id, int)
         else ""
     )
+    principal = getattr(g, "portal_principal", None)
+    can_manage_people = has_capability(principal, MANAGE_MEMBERS)
+    can_manage_games = getattr(principal, "role", None) in {
+        ROLE_ADMIN,
+        ROLE_OFFICER,
+    }
+    if (
+        not can_manage_games
+        and principal is not None
+        and isinstance(session.get("user_id"), str)
+    ):
+        can_manage_games = _game_management_context() is not None
     return {
         "portal_copy": PORTAL_COPY,
         "lineup_identity_key": lineup_identity_key,
+        "can_manage_games": can_manage_games,
+        "can_manage_people": can_manage_people,
+        "portal_schedule_endpoint": (
+            "game_command_center" if can_manage_games else "future_games"
+        ),
     }
 
 
@@ -164,6 +188,7 @@ def phase_c_repository():
         return None
     return get_identity_lifecycle_repository(
         parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
+        allow_persisted_admins=LOCAL_PREVIEW_MODE_ENABLED,
     )
 
 
@@ -185,6 +210,7 @@ def load_phase_c_web_principal(session_values):
         for key in PHASE_C_SESSION_KEYS:
             session.pop(key, None)
         return None
+    g.portal_lifecycle_context = (repository, principal)
     allowlist = parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS"))
     if LOCAL_PREVIEW_MODE_ENABLED:
         role = {
@@ -203,13 +229,19 @@ configure_phase_c_principal_loader(load_phase_c_web_principal)
 
 
 def _game_management_context():
-    repository = phase_c_repository()
     user_id = session.get("user_id")
     person_id = session.get("person_id")
     identity_id = session.get("auth_identity_id")
-    if repository is None or not isinstance(user_id, str) or not user_id:
+    cached = getattr(g, "portal_lifecycle_context", None)
+    if cached is None:
+        repository = phase_c_repository()
+        if repository is None or not isinstance(user_id, str) or not user_id:
+            return None
+        lifecycle_principal = repository.resolve_line_principal(user_id)
+    else:
+        repository, lifecycle_principal = cached
+    if not isinstance(user_id, str) or not user_id:
         return None
-    lifecycle_principal = repository.resolve_line_principal(user_id)
     if (
         lifecycle_principal is None
         or lifecycle_principal.person.id != person_id
@@ -237,6 +269,10 @@ def game_management_required(view):
         if context is None:
             abort(403)
         g.game_management_context = context
+        g.portal_principal = WebPrincipal(
+            role=ROLE_ADMIN if context[2] == "admin" else ROLE_OFFICER,
+            member_id=context[1].person.member_id,
+        )
         return view(*args, **kwargs)
 
     return protected_view
@@ -326,11 +362,13 @@ def enforce_local_preview_boundary():
         return redirect(url_for("local_preview_login"))
     if request.endpoint in {"line_login", "line_callback", "add_line_friend"}:
         abort(404)
-    if request.method not in {"GET", "HEAD", "OPTIONS"} and request.endpoint not in {
-        "local_preview_login",
-        "logout",
-    }:
-        return "Local preview is read-only", 403
+    if request.method not in {"GET", "HEAD", "OPTIONS"}:
+        allowed = request.endpoint in {"local_preview_login", "logout"}
+        if request.endpoint == "change_person_access" and FICTIONAL_DEMO_MODE_ENABLED:
+            repository = phase_c_repository()
+            allowed = repository is not None and repository.is_fictional_demo_fixture()
+        if not allowed:
+            return "Local preview is read-only", 403
     return None
 
 
@@ -741,12 +779,22 @@ def attendance():
     timing.finish("member_lookup")
 
     # 查詢未來的比賽
-    upcoming_games = Game.search_for_invited()
+    try:
+        upcoming_games = Game.search_for_invited()
+    except SQLAlchemyError:
+        upcoming_games = ()
+        load_error = True
+    else:
+        load_error = False
     timing.finish("games_query")
 
     games_with_attendance = []
     for game in upcoming_games:
-        mapping = attendance_for_game(game.id, name_style)
+        try:
+            mapping = attendance_for_game(game.id, name_style)
+        except SQLAlchemyError:
+            load_error = True
+            continue
         games_with_attendance.append(
             {
                 "id": game.id,
@@ -756,7 +804,7 @@ def attendance():
         )
     timing.finish("attendance_analysis")
 
-    now = datetime.now(local_timezone).strftime("%Y年%-m月%-d日 %H:%M:%S")
+    now = datetime.now(local_timezone).strftime("%Y年%m月%d日 %H:%M:%S")
     response = render_template(
         "attendance.html",
         update_time=now,
@@ -765,6 +813,7 @@ def attendance():
         reply_text_mapping=reply_text_mapping,
         name_style=name_style,
         my_replies=latest_member_replies(session.get("member_id")),
+        load_error=load_error,
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
         can_manage_games=_can_manage_games(lifecycle_principal),
     )
@@ -921,8 +970,18 @@ def _admin_repository_or_unavailable():
     return repository, actor_person_id
 
 
+def _is_portal_data_domain_error(error):
+    return error.__class__.__module__.startswith(
+        "shared_module.portal_data"
+    ) and error.__class__.__name__ in {
+        "AuthorizationError",
+        "ConflictError",
+        "ValidationError",
+    }
+
+
 @app.route("/manage/people")
-@capability_required(VIEW_PERSON_DIRECTORY)
+@admin_required
 def admin_people():
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
@@ -963,7 +1022,7 @@ def admin_people():
 
 
 @app.route("/manage/people/<int:person_id>")
-@capability_required(VIEW_PERSON_DIRECTORY)
+@admin_required
 def admin_person_detail(person_id):
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
@@ -986,7 +1045,39 @@ def admin_person_detail(person_id):
         identity_maintenance_enabled=is_identity_maintenance_enabled(
             demo_mode=DEMO_MODE_ENABLED
         ),
+        can_change_access=(
+            not LOCAL_PREVIEW_MODE_ENABLED or FICTIONAL_DEMO_MODE_ENABLED
+        ),
     )
+
+
+@app.post("/manage/people/<int:person_id>/access")
+@admin_required
+def change_person_access(person_id):
+    require_valid_csrf()
+    repository, actor_person_id = _admin_repository_or_unavailable()
+    if repository is None:
+        return "Identity service is temporarily unavailable", 503
+    access_level = {
+        "promote_officer": "officer",
+        "demote_basic": "basic",
+    }.get(request.form.get("action", ""))
+    request_id = request.form.get("request_id", "")
+    if access_level is None or not request_id.startswith("person-access-"):
+        abort(400)
+    try:
+        repository.change_access(
+            actor_person_id,
+            person_id,
+            access_level,
+            request.form.get("reason", ""),
+            request_id,
+        )
+    except Exception as error:
+        if _is_portal_data_domain_error(error):
+            return "Access could not be changed", 409
+        raise
+    return redirect(url_for("admin_person_detail", person_id=person_id))
 
 
 @app.route("/manage/pending-identities")
@@ -1348,11 +1439,8 @@ def ignore_line_user():
     return redirect(url_for("index"))
 
 
-key_prefix_future_games = "future_games"
-
-
 @app.route("/future-games")
-@cache.cached(timeout=3600, key_prefix=key_prefix_future_games)
+@member_required
 def future_games():
     now = datetime.now(local_timezone)
     today_begin = datetime.combine(now, time.min, tzinfo=local_timezone)
@@ -1374,6 +1462,16 @@ def future_games():
         this_week_games=this_week_games,
         this_month_games=this_month_games,
         has_offseason=has_offseason,
+    )
+
+
+@app.get("/manage")
+@game_management_required
+def management_hub():
+    return render_template(
+        "management_hub.html",
+        can_manage_games=True,
+        can_manage_people=has_capability(get_current_principal(), MANAGE_MEMBERS),
     )
 
 

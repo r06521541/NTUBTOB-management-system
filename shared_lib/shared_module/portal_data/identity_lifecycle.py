@@ -86,9 +86,16 @@ def _clean_note(value: str | None) -> str | None:
 class IdentityLifecycleRepository:
     """Transactional Phase C bridge for portal and legacy identity data."""
 
-    def __init__(self, engine: Engine, admin_member_ids: Iterable[int] = ()):
+    def __init__(
+        self,
+        engine: Engine,
+        admin_member_ids: Iterable[int] = (),
+        *,
+        allow_persisted_admins: bool = False,
+    ):
         self.engine = engine
         self.admin_member_ids = frozenset(int(value) for value in admin_member_ids)
+        self.allow_persisted_admins = allow_persisted_admins is True
 
     @staticmethod
     def _identity(row: AuthIdentityRecord) -> AuthIdentity:
@@ -156,7 +163,6 @@ class IdentityLifecycleRepository:
         member = session.scalar(
             select(LegacyMemberRecord).where(
                 LegacyMemberRecord.person_id == actor_person_id,
-                LegacyMemberRecord.id.in_(self.admin_member_ids or {-1}),
             )
         )
         linked = session.scalar(
@@ -169,6 +175,13 @@ class IdentityLifecycleRepository:
             person is None
             or person.portal_status != "active"
             or member is None
+            or (
+                member.id not in self.admin_member_ids
+                and not (
+                    self.allow_persisted_admins
+                    and person.portal_access_level == "admin"
+                )
+            )
             or not linked
         ):
             raise AuthorizationError("active allowlisted administrator required")
@@ -321,6 +334,88 @@ class IdentityLifecycleRepository:
             )
         return self.resolve_line_principal(subject) if subject is not None else None
 
+    def is_fictional_demo_fixture(self) -> bool:
+        """Recognize only the complete TASK-099 reserved fictional fixture."""
+        with Session(self.engine) as session:
+            counts = {
+                "people": (PersonRecord, 18),
+                "members": (LegacyMemberRecord, 17),
+                "auth_identities": (AuthIdentityRecord, 3),
+                "person_qualifications": (PersonQualificationRecord, 17),
+                "games": (LegacyGameRecord, 4),
+                "line_users": (LegacyLineUserRecord, 15),
+                "game_attendance_replies": (LegacyGameAttendanceReplyRecord, 12),
+            }
+            if any(
+                session.scalar(select(func.count()).select_from(model)) != expected
+                for model, expected in counts.values()
+            ):
+                return False
+            marker = session.scalar(
+                select(func.count(AccessAuditRecord.id)).where(
+                    AccessAuditRecord.request_id == "task099-demo-seed"
+                )
+            )
+            subjects = session.scalars(
+                select(AuthIdentityRecord.provider_subject)
+            ).all()
+            exact_shape = session.scalar(
+                text(
+                    """
+                    SELECT
+                      NOT EXISTS (SELECT 1 FROM ntubtob.people WHERE id NOT BETWEEN 7101 AND 7118)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.members WHERE id NOT BETWEEN 7101 AND 7117)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.games WHERE id NOT BETWEEN 9710 AND 9713)
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ntubtob.person_qualifications
+                        WHERE person_id NOT BETWEEN 7101 AND 7118
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ntubtob.line_users
+                        WHERE line_user_id NOT LIKE 'task099-fictional-line-%'
+                      )
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ntubtob.game_attendance_replies
+                        WHERE game_id NOT BETWEEN 9710 AND 9713
+                           OR person_id NOT BETWEEN 7101 AND 7118
+                      )
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.identity_review_threads)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.identity_review_messages)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.ballparks)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.cancellations)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.discord_webhooks)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.line_groups)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.line_notify_tokens)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.events)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.activities)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.event_eligibility_rules)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.event_invitee_overrides)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.event_invitees)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.event_attendance_replies)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.activity_attendance_replies)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.event_managers)
+                      AND NOT EXISTS (SELECT 1 FROM ntubtob.event_audit)
+                      AND NOT EXISTS (
+                        SELECT 1 FROM ntubtob.access_audit
+                        WHERE (actor_person_id IS NOT NULL AND actor_person_id NOT BETWEEN 7101 AND 7118)
+                           OR (target_person_id IS NOT NULL AND target_person_id NOT BETWEEN 7101 AND 7118)
+                           OR (request_id <> 'task099-demo-seed'
+                               AND request_id NOT LIKE 'person-access-%')
+                      )
+                      AND (SELECT count(*) FROM ntubtob.attendance_reply_types) = 5
+                    """
+                )
+            )
+            return (
+                marker == 1
+                and exact_shape is True
+                and all(
+                    isinstance(subject, str)
+                    and subject.startswith("task099-fictional-")
+                    for subject in subjects
+                )
+            )
+
     def identity_status(self, subject: str) -> str | None:
         with Session(self.engine) as session:
             return session.scalar(
@@ -433,6 +528,7 @@ class IdentityLifecycleRepository:
                     "formal_name": person.formal_name,
                     "admin_note": person.admin_note,
                     "status": person.portal_status,
+                    "access_level": person.portal_access_level,
                     "member_id": member.id if member else None,
                     "qualifications": tuple(by_person.get(person.id, ())),
                 }
@@ -479,6 +575,64 @@ class IdentityLifecycleRepository:
                 "available_members": available_members,
                 "audit": audit,
             }
+
+    def change_access(
+        self,
+        actor_person_id: int,
+        target_person_id: int,
+        access_level: str,
+        reason: str,
+        request_id: str,
+    ) -> Person:
+        """Apply only the audited basic/officer transition used by Portal admin."""
+        if access_level not in {"basic", "officer"}:
+            raise ValidationError("access level must be basic or officer")
+        reason = require_reason(reason)
+        now = utc_now()
+        with Session(self.engine) as session, session.begin():
+            self._require_admin(session, actor_person_id)
+            target = session.scalar(
+                select(PersonRecord)
+                .where(PersonRecord.id == target_person_id)
+                .with_for_update()
+            )
+            if target is None:
+                raise ConflictError("person not found")
+            if actor_person_id == target_person_id:
+                raise AuthorizationError(
+                    "administrators cannot change their own access"
+                )
+            transition = (target.portal_access_level, access_level)
+            if transition not in {("basic", "officer"), ("officer", "basic")}:
+                raise ConflictError("only basic and officer may be exchanged")
+            if access_level == "officer" and target.portal_status != "active":
+                raise ConflictError("only active people may become officers")
+            if self._audit_exists(session, request_id):
+                raise ConflictError("request already applied")
+            before = target.portal_access_level
+            target.portal_access_level = access_level
+            target.version += 1
+            target.updated_at = now
+            session.add(
+                AccessAuditRecord(
+                    action="access_changed",
+                    actor_person_id=actor_person_id,
+                    target_person_id=target_person_id,
+                    auth_identity_id=None,
+                    before_state={"access_level": before},
+                    after_state={"access_level": access_level},
+                    reason=reason,
+                    request_id=request_id,
+                    created_at=now,
+                )
+            )
+            member = session.scalar(
+                select(LegacyMemberRecord).where(
+                    LegacyMemberRecord.person_id == target_person_id
+                )
+            )
+            session.flush()
+            return self._person(target, member)
 
     def person_directory(self, actor_person_id: int) -> tuple[dict, ...]:
         """Return only the low-sensitivity Person directory projection."""

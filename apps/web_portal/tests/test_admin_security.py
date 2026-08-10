@@ -2534,6 +2534,211 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(blocked.status_code, 403)
         repository.reply_to_game.assert_not_called()
 
+    def test_allowlisted_admin_can_assign_and_remove_officer(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            promoted = self.client.post(
+                "/manage/people/80/access",
+                data={
+                    "csrf_token": token,
+                    "action": "promote_officer",
+                    "reason": "Assign game operations",
+                    "request_id": "person-access-promote-80",
+                },
+            )
+            demoted = self.client.post(
+                "/manage/people/80/access",
+                data={
+                    "csrf_token": token,
+                    "action": "demote_basic",
+                    "reason": "Close game operations",
+                    "request_id": "person-access-demote-80",
+                },
+            )
+        self.assertEqual(promoted.status_code, 302)
+        self.assertEqual(demoted.status_code, 302)
+        self.assertEqual(
+            repository.change_access.call_args_list,
+            [
+                call(
+                    70,
+                    80,
+                    "officer",
+                    "Assign game operations",
+                    "person-access-promote-80",
+                ),
+                call(
+                    70, 80, "basic", "Close game operations", "person-access-demote-80"
+                ),
+            ],
+        )
+
+    def test_access_route_rejects_officer_bad_action_and_csrf(self):
+        repository = MagicMock()
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        environment = {
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            bad_csrf = self.client.post(
+                "/manage/people/80/access",
+                data={"action": "promote_officer"},
+            )
+            bad_action = self.client.post(
+                "/manage/people/80/access",
+                data={
+                    "csrf_token": token,
+                    "action": "admin",
+                    "reason": "Invalid role request",
+                    "request_id": "person-access-invalid-80",
+                },
+            )
+        self.assertEqual(bad_csrf.status_code, 400)
+        self.assertEqual(bad_action.status_code, 400)
+        repository.change_access.assert_not_called()
+
+        repository.resolve_line_principal.return_value = self.command_principal(
+            "officer"
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            denied = self.client.post(
+                "/manage/people/80/access",
+                data={
+                    "csrf_token": token,
+                    "action": "promote_officer",
+                    "reason": "Officer may not assign roles",
+                    "request_id": "person-access-officer-80",
+                },
+            )
+        self.assertEqual(denied.status_code, 403)
+        repository.change_access.assert_not_called()
+
+    def test_management_hub_and_schedule_navigation_are_role_aware(self):
+        repository = MagicMock()
+        repository.attendance_summary.return_value = self.command_summary()
+        self.game_model.search_games.return_value = [self.command_game()]
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        cases = (
+            ("basic", "", 403, False),
+            ("officer", "", 200, False),
+            ("basic", "7", 200, True),
+        )
+        for access, allowlist, expected, people_visible in cases:
+            with self.subTest(access=access, allowlist=allowlist):
+                repository.resolve_line_principal.return_value = self.command_principal(
+                    access
+                )
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                    },
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get("/manage")
+                self.assertEqual(response.status_code, expected)
+                if expected == 200:
+                    self.assertIn("賽務管理".encode(), response.data)
+                    self.assertEqual(
+                        "人員管理".encode() in response.data, people_visible
+                    )
+                    self.assertIn('href="/manage/games"'.encode(), response.data)
+
+    def test_role_aware_template_context_reuses_request_principal_resolution(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal(
+            "officer"
+        )
+        repository.attendance_summary.return_value = self.command_summary()
+        self.game_model.search_games.return_value = [self.command_game()]
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/manage")
+        self.assertEqual(response.status_code, 200)
+        repository.resolve_line_principal.assert_called_once_with(
+            "fake-authenticated-user"
+        )
+
+    def test_fictional_demo_allows_only_access_post_on_exact_fixture(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        repository.is_fictional_demo_fixture.return_value = True
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(
+            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+        ), patch.object(
+            self.app_module, "FICTIONAL_DEMO_MODE_ENABLED", True
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            allowed = self.client.post(
+                "/manage/people/80/access",
+                data={
+                    "csrf_token": token,
+                    "action": "promote_officer",
+                    "reason": "Fictional role rehearsal",
+                    "request_id": "person-access-fictional-80",
+                },
+            )
+            blocked = self.client.post(
+                "/games/23/attendance",
+                data={"csrf_token": token, "reply": "1"},
+            )
+        self.assertEqual(allowed.status_code, 302)
+        self.assertEqual(blocked.status_code, 403)
+        repository.change_access.assert_called_once()
+        repository.reply_to_game.assert_not_called()
+
+    def test_attendance_windows_safe_timestamp_uses_real_strftime(self):
+        self.login()
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            id=7, name="Demo Member"
+        )
+        self.game_model.search_for_invited.return_value = []
+        response = self.client.get("/attendance")
+        self.assertEqual(response.status_code, 200)
+        self.assertRegex(
+            response.get_data(as_text=True), r"更新於 \d{4}年\d{2}月\d{2}日"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

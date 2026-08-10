@@ -168,10 +168,16 @@ def is_rollout_freeze_enabled(
     ).rollout_freeze_enabled
 
 
-def get_identity_lifecycle_repository(admin_member_ids: Iterable[int] = ()):
+def get_identity_lifecycle_repository(
+    admin_member_ids: Iterable[int] = (), *, allow_persisted_admins: bool = False
+):
     """Construct the repository lazily so imports do not connect to the database."""
     from shared_module.models.db import engine
 
     from .identity_lifecycle import IdentityLifecycleRepository
 
-    return IdentityLifecycleRepository(engine, admin_member_ids)
+    return IdentityLifecycleRepository(
+        engine,
+        admin_member_ids,
+        allow_persisted_admins=allow_persisted_admins,
+    )
