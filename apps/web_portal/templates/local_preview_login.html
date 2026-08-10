@@ -16,7 +16,7 @@
       <section class="card section-stack">
         {% if identities %}
           {% for identity in identities %}
-            <form method="post" action="{{ url_for('local_preview_login') }}">
+            <form method="post" action="{{ url_for('local_preview_login') }}" data-clear-lineup-storage>
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
               <input type="hidden" name="identity_id" value="{{ identity.identity_id }}">
               <button class="button button-secondary" type="submit">
@@ -29,5 +29,6 @@
         {% endif %}
       </section>
     </main>
+    <script src="{{ url_for('static', filename='game_lineup.js') }}" defer></script>
   </body>
 </html>

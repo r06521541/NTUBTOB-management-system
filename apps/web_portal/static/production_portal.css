@@ -104,6 +104,37 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-form > .portal-button { justify-self: start; }
 .portal-name-list span[title] { cursor: pointer; }
 .portal-bottom-nav { display: none; }
+.portal-command-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
+.portal-command-nav a, .portal-command-nav button { min-height: 44px; padding: 9px 14px; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); color: var(--brand-primary); font: inherit; font-weight: 800; text-decoration: none; cursor: pointer; }
+.portal-command-nav [aria-current="page"], .portal-command-nav [aria-pressed="true"] { border-color: var(--brand-primary); background: var(--brand-primary); color: white; }
+.portal-command-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.portal-command-card { display: grid; gap: 12px; padding: 22px; }
+.portal-command-card h2, .portal-command-card p { margin: 0; }
+.portal-command-card h2 span { color: var(--color-muted); font-weight: 400; }
+.portal-mini-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.portal-mini-metrics span { display: grid; padding: 10px; border-radius: 10px; background: var(--brand-primary-soft); color: var(--color-muted); font-size: .78rem; }
+.portal-mini-metrics strong { color: var(--color-text); font-size: 1.2rem; }
+.portal-insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.portal-metric-card { display: grid; gap: 4px; padding: 20px; }
+.portal-metric-card span, .portal-metric-card small { color: var(--color-muted); }
+.portal-metric-card strong { font-size: 2rem; }
+.portal-insight-list { display: grid; }
+.portal-insight-list a { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; min-height: 48px; padding: 12px 0; border-top: 1px solid var(--color-border); text-decoration: none; }
+.portal-lineup-lab { display: grid; gap: 16px; margin-top: 16px; }
+.portal-lineup-table { display: grid; gap: 8px; }
+.portal-lineup-table > div { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--color-border); }
+.portal-lineup-table label, .portal-position-list label { display: grid; gap: 4px; color: var(--color-muted); font-weight: 750; }
+.portal-lineup-table select, .portal-position-list select { min-height: 44px; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: white; font: inherit; }
+.portal-field-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 20px; align-items: start; }
+.portal-baseball-field { width: 100%; min-height: 360px; border-radius: 22px; background: #edf5ef; }
+.portal-baseball-field .field-grass { fill: #dcebdd; stroke: var(--brand-primary); stroke-width: 4; }
+.portal-baseball-field .field-dirt { fill: #eadbc2; stroke: #c8aa7a; stroke-width: 3; }
+.portal-baseball-field circle, .portal-baseball-field rect { fill: white; stroke: var(--brand-primary); stroke-width: 3; }
+.portal-baseball-field text { fill: var(--brand-primary); font-weight: 900; text-anchor: middle; }
+.portal-baseball-field .is-filled circle, .portal-baseball-field .is-filled rect { fill: var(--brand-accent-soft); stroke: var(--brand-accent); }
+.portal-position-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.portal-position-list fieldset { grid-column: 1 / -1; display: grid; gap: 8px; border: 1px solid var(--color-border); border-radius: 12px; }
+.portal-summary { min-height: 100px; padding: 14px; overflow: auto; border-radius: 12px; background: #f5f7fa; color: var(--color-text); white-space: pre-wrap; }
 
 @media (max-width: 700px) {
     .portal-header { min-height: 64px; padding: 0 16px; }
@@ -111,6 +142,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     .portal-desktop-nav { display: none; }
     .portal-shell { width: min(100% - 28px, 1120px); padding: 28px 0 106px; }
     .portal-bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border); background: rgb(255 255 255 / 96%); }
+    .portal-bottom-nav-management { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .portal-bottom-nav a { display: grid; place-content: center; min-height: 52px; color: var(--brand-primary); font-size: .75rem; font-weight: 750; text-align: center; text-decoration: none; }
     .portal-bottom-nav span { font-size: 1.2rem; line-height: 1; }
     .portal-hero { align-items: center; }
@@ -121,10 +153,21 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     .portal-date-tile strong { font-size: 2rem; }
     .portal-actions { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
     .portal-card-grid, .portal-roster-grid { grid-template-columns: 1fr; }
+    .portal-command-grid, .portal-insight-grid, .portal-field-layout { grid-template-columns: 1fr; }
+    .portal-lineup-table > div { grid-template-columns: 1fr; }
+    .portal-mini-metrics { grid-template-columns: 1fr 1fr 1fr; }
+    .portal-insight-list a { grid-template-columns: 1fr auto; }
+    .portal-insight-list small { grid-column: 1 / -1; }
     .portal-detail-hero { padding: 22px; }
     .portal-reply-actions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .portal-reply-button { min-width: 0; padding: 6px 3px; font-size: .82rem; }
     .portal-account-list div { grid-template-columns: 1fr; gap: 4px; }
+}
+
+@media print {
+    .portal-header, .portal-bottom-nav, .portal-command-nav, .portal-actions, .portal-notice { display: none !important; }
+    .portal-shell { width: 100%; padding: 0; }
+    .portal-card { box-shadow: none; }
 }
 
 @media (max-width: 380px) {
