@@ -1,6 +1,6 @@
 # TASK-099 Work Review
 
-status: changes_requested
+status: accepted
 reviewer: work
 reviewed_at: 2026-08-11T01:01:14+08:00
 branch: codex/phase-d-portal-management-closure
@@ -66,3 +66,14 @@ Required final correction: restore the exact base `games.py` blob and reapply on
 `get_formatted_date()` return change. Do not run Black/isort on that legacy file. Verify the cumulative base-to-HEAD diff,
 not only the latest commit diff; update the report claim and rerun its targeted compile/date tests plus `git diff --check`.
 No PostgreSQL or browser rerun is needed for this formatting-only correction.
+
+## Final correction acceptance
+
+reviewed_at: 2026-08-11T01:24:56+08:00
+correction_commit: f790589efa855060cc05e1ceed3eb5fb17edacb1
+
+Accepted for the delivery group's single final PR. The cumulative base-to-HEAD `games.py` diff is now exactly the
+Windows-safe `get_formatted_date()` change (2 additions, 4 deletions); branch and origin are synchronized at handoff
+commit `838cc8ab450a248c909b2e5a167bc58073b2357f`, the worktree is clean, the targeted date assertion and `py_compile`
+passed, and cumulative `git diff --check` is clean. Previously accepted behavioral, PostgreSQL and browser evidence is
+unchanged. No production, deployment, Secret, external service or original dirty-worktree operation occurred.
