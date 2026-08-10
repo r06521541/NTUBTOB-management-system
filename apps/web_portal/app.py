@@ -207,6 +207,9 @@ def isolate_demo_from_production_data_routes():
         "match_line_user",
         "ignore_line_user",
         "future_games",
+        "member_dashboard",
+        "game_detail",
+        "reply_to_game",
         "game_roster",
         "clear_attendance_cache",
         "account",
@@ -515,11 +518,8 @@ def query_attendance():
     return redirect(url_for("attendance"))
 
 
-@app.route("/attendance")
-@member_required
-def attendance():
-    timing = AttendanceTiming()
-    name_style = requested_attendance_name_style()
+def current_portal_member():
+    """Load the current Member/Person projection without trusting the session copy."""
     repository = phase_c_repository()
     lifecycle_principal = (
         repository.resolve_line_principal(session.get("user_id", ""))
@@ -531,6 +531,59 @@ def attendance():
         if lifecycle_principal is not None
         else Member.search_by_id(session.get("member_id"))
     )
+    return member, lifecycle_principal
+
+
+def latest_member_replies(member_id):
+    if not isinstance(member_id, int) or isinstance(member_id, bool):
+        return {}
+    replies = {}
+    for reply in GameAttendanceReply.search_by_member_id(member_id):
+        current = replies.get(reply.game_id)
+        if current is None or (
+            reply.updated_at,
+            reply.id,
+        ) > (current.updated_at, current.id):
+            replies[reply.game_id] = reply
+    return replies
+
+
+@app.route("/dashboard")
+@member_required
+def member_dashboard():
+    member, _ = current_portal_member()
+    if member is None:
+        for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
+            session.pop(key, None)
+        return render_template("not_authenticated.html"), 403
+
+    games = Game.search_for_invited()
+    replies = latest_member_replies(session.get("member_id"))
+    game_cards = [
+        {
+            "game": game,
+            "reply": replies.get(game.id).reply if game.id in replies else None,
+        }
+        for game in games
+    ]
+    unanswered_count = sum(item["reply"] is None for item in game_cards)
+    return render_template(
+        "dashboard.html",
+        member=member,
+        next_game=game_cards[0] if game_cards else None,
+        games=game_cards[1:4],
+        unanswered_count=unanswered_count,
+        reply_text_mapping=reply_text_mapping,
+        can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+    )
+
+
+@app.route("/attendance")
+@member_required
+def attendance():
+    timing = AttendanceTiming()
+    name_style = requested_attendance_name_style()
+    member, _ = current_portal_member()
     if member is None:
         for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
             session.pop(key, None)
@@ -561,11 +614,55 @@ def attendance():
         games_with_attendance=games_with_attendance,
         reply_text_mapping=reply_text_mapping,
         name_style=name_style,
+        my_replies=latest_member_replies(session.get("member_id")),
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
     )
     timing.finish("render")
     timing.emit(app.logger)
     return response
+
+
+@app.route("/games/<int:game_id>")
+@member_required
+def game_detail(game_id):
+    game = Game.search_by_id(game_id)
+    if game is None:
+        abort(404)
+    member, _ = current_portal_member()
+    if member is None:
+        return render_template("not_authenticated.html"), 403
+    name_style = requested_attendance_name_style()
+    return render_template(
+        "game_detail.html",
+        game=game,
+        my_reply=latest_member_replies(session.get("member_id")).get(game_id),
+        attendance_mapping=attendance_for_game(game.id, name_style),
+        reply_text_mapping=reply_text_mapping,
+        name_style=name_style,
+        csrf_token=get_or_create_csrf_token(),
+        can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+    )
+
+
+@app.route("/games/<int:game_id>/attendance", methods=["POST"])
+@member_required
+def reply_to_game(game_id):
+    require_valid_csrf()
+    reply = request.form.get("reply", type=int)
+    if reply not in {1, 2, 3, 4, 5}:
+        abort(400)
+    game = Game.search_by_id(game_id)
+    repository = phase_c_repository()
+    person_id = session.get("person_id")
+    if game is None:
+        abort(404)
+    if repository is None or not isinstance(person_id, int):
+        return "Identity service is temporarily unavailable", 503
+    try:
+        repository.reply_to_game(person_id, game_id, reply)
+    except Exception:
+        return "Attendance reply could not be saved", 409
+    return redirect(url_for("game_detail", game_id=game_id))
 
 
 @app.route("/account")
@@ -812,6 +909,9 @@ def manage_person_qualifications(person_id):
         qualifications=person.get("qualifications", ()),
         csrf_token=get_or_create_csrf_token(),
         request_nonce=secrets.token_urlsafe(16),
+        identity_maintenance_enabled=is_identity_maintenance_enabled(
+            demo_mode=DEMO_MODE_ENABLED
+        ),
     )
 
 

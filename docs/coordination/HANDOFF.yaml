@@ -1,20 +1,20 @@
-active_task: null
+active_task: TASK-096
 status: completed
-next_actor: owner
+next_actor: work
 
-base_commit: 72234fbe3c4b024716798c0cd603e9ea0912cffb
-head_commit: acd395fff07b0af1e02dd60566fa52ec1a71e817
+base_commit: c26fa37e2f363be590810b3c0e25f1c65a264e04
+head_commit: 57fd29c0315e5559ad75294294a07574b8549013
 
-updated_by: work
+updated_by: codex
 updated_at: 2026-08-10T00:00:00+08:00
 
 note: >
-  TASK-088 is the Phase D delivery unit for identity/admin transition foundation and manual browser/LINE in-app login smoke
-  preparation. Production cutover, deployment, Secret/IAM/Scheduler changes, formal data mutation, and real notifications
-  remain outside authorization and require separate Owner approval. TASK-091 PR #103 is squash-merged. TASK-092 confirmed
-  existing qualification/Game contracts without code changes. TASK-093 is ready for Codex; Event/Activity and mobile clients
-  remain out of scope.
+  TASK-096 is the Phase D delivery unit for the production Web Portal UI refresh across Game, Attendance, Person, and
+  Account, including the Game dashboard scope previously described by TASK-095. TASK-096 is the only delivery task and
+  PR unit for this result. It uses existing schema and Phase C contracts. Event/Activity production routes, officer workspace expansion,
+  schema or migration changes, production data mutation, deployment, Secret/IAM/Scheduler changes, and real notifications
+  remain outside authorization.
 
-report: docs/coordination/reports/TASK-093-CODEX.md
-review: docs/coordination/reviews/TASK-093-WORK.md
-implementation_commit: 2715bc3d4de3a5e03240c49882ffaa16a7cc5127
+report: docs/coordination/reports/TASK-096-CODEX.md
+review: docs/coordination/reviews/TASK-096-WORK.md
+implementation_commit: 57fd29c0315e5559ad75294294a07574b8549013

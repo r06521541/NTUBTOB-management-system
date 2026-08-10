@@ -1662,7 +1662,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("Demo Player".encode(), response.data)
         self.assertNotIn("Waiting Player".encode(), response.data)
         self.assertIn("1 人".encode(), response.data)
-        self.assertIn('href="/"'.encode(), response.data)
+        self.assertIn('href="/dashboard"'.encode(), response.data)
+        self.assertIn('href="/future-games"'.encode(), response.data)
         self.assertIn('href="/attendance"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
         self.game_model.search_by_id.assert_called_once_with(23)
@@ -1817,7 +1818,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("Display Attendee".encode(), response.data)
         self.assertNotIn("Private Unanswered Name".encode(), response.data)
         self.assertIn("1 人".encode(), response.data)
-        self.assertIn(b'href="/game-roster/23?name_style=display"', response.data)
+        self.assertIn(b'href="/games/23?name_style=display"', response.data)
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(
             23, use_display_name=True
         )
@@ -1952,7 +1953,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Fresh Member".encode(), response.data)
-        self.assertIn('href="/"'.encode(), response.data)
+        self.assertIn('href="/dashboard"'.encode(), response.data)
+        self.assertIn('href="/future-games"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
         self.assertIn("一般隊員".encode(), response.data)
         self.assertIn("LINE".encode(), response.data)
@@ -1970,8 +1972,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("系統管理者".encode(), response.data)
-        self.assertIn("前往 Member 配對".encode(), response.data)
-        self.assertIn('href="/match-member"'.encode(), response.data)
+        self.assertIn("前往 Person 管理".encode(), response.data)
+        self.assertIn('href="/manage/people"'.encode(), response.data)
 
     def test_account_missing_member_clears_identity_without_other_queries(self):
         self.member_model.search_by_id.return_value = None
@@ -2104,6 +2106,82 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.game_model.search_by_id.assert_called_once_with(404)
         self.attendance_analyzer.get_attendance_of_game.assert_not_called()
+
+    @staticmethod
+    def portal_game(game_id=23):
+        return SimpleNamespace(
+            id=game_id,
+            start_datetime=SimpleNamespace(day=10, month=8),
+            home_team="NTUBTOB",
+            away_team="示範隊",
+            location="示範球場",
+            cancellation_time=None,
+            get_game_sign=lambda: "⚾",
+            get_formatted_date=lambda: "8/10（一）",
+            get_formatted_start_time_with_colon=lambda: "19:00",
+            get_formatted_end_time=lambda: "21:00",
+            get_is_home_team=lambda: True,
+            get_opponent=lambda: "示範隊",
+            generate_short_summary_for_team=lambda: "8/10（一） 19:00 vs 示範隊 @示範球場",
+            generate_summary_for_team=lambda: "示範賽事摘要",
+        )
+
+    def test_dashboard_renders_existing_game_contract(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            name="Fresh Member"
+        )
+        self.game_model.search_for_invited.return_value = [self.portal_game()]
+        self.reply_model.search_by_member_id.return_value = []
+        self.login()
+
+        response = self.client.get("/dashboard")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("準備好下一場了嗎".encode(), response.data)
+        self.assertIn("示範隊".encode(), response.data)
+        self.assertIn('href="/games/23"'.encode(), response.data)
+
+    def test_game_detail_renders_attendance_and_csrf_form(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            name="Fresh Member"
+        )
+        self.game_model.search_by_id.return_value = self.portal_game()
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [SimpleNamespace(name="出席隊員")],
+            5: [SimpleNamespace(name="未回覆隊員")],
+        }
+        self.reply_model.search_by_member_id.return_value = []
+        self.login()
+
+        response = self.client.get("/games/23")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("示範球場".encode(), response.data)
+        self.assertIn('action="/games/23/attendance"'.encode(), response.data)
+        self.assertIn("出席隊員".encode(), response.data)
+        with self.client.session_transaction() as current_session:
+            self.assertTrue(current_session.get("member_matching_csrf_token"))
+
+    def test_game_reply_requires_csrf_and_uses_phase_c_repository(self):
+        self.game_model.search_by_id.return_value = self.portal_game()
+        repository = MagicMock()
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, member_matching_csrf_token="reply-csrf")
+
+        with patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            missing_csrf = self.client.post(
+                "/games/23/attendance", data={"reply": "1"}
+            )
+            saved = self.client.post(
+                "/games/23/attendance",
+                data={"reply": "1", "csrf_token": "reply-csrf"},
+            )
+
+        self.assertEqual(missing_csrf.status_code, 400)
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(saved.headers["Location"], "/games/23")
+        repository.reply_to_game.assert_called_once_with(70, 23, 1)
 
 
 if __name__ == "__main__":

@@ -22,8 +22,9 @@ Repository 基準：`main` / `72234fbe3c4b024716798c0cd603e9ea0912cffb`
   `72234fbe3c4b024716798c0cd603e9ea0912cffb`）。
 - TASK-092 `phase-d-qualification-and-game-operations` 已由 Work 驗收接受；確認既有 qualification／Game contract 已
   覆蓋規則，未重複新增程式碼。Event/Activity 延後。
-- TASK-093 `phase-d-web-ui-refresh` 已 ready for Codex，將以 Demo 風格、mobile-first 與一致資訊架構整理 Game、
-  Attendance、Person 管理與 Account；Flutter／Mobile app／多重登入另後續處理。
+- TASK-096 `phase-d-web-ui-refresh` 已由 Work 驗收接受，吸收原 TASK-095 的 Game dashboard／正式賽程頁面範圍；
+  以 Demo 風格、mobile-first 與一致資訊架構整理 Game、Attendance、Person 管理與 Account，正進入唯一 final PR
+  整合。Flutter／Mobile app／多重登入另後續處理。
 
 ## 已確認的 production 狀態
 

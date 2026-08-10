@@ -140,9 +140,20 @@
 - 新的 checksum workflow 必須共用 repository helper；在 helper 尚未統一前，只能沿用該 artifact 已存在且有測試的
   generator／verifier，不得用 `Get-FileHash` 等 raw-byte 工具重產文字 checksum。
 
+## DEC-088：「下一個task」授權前一任務收尾
+
+- 狀態：`active`
+- 生效：2026-08-10
+- 來源：Owner 明確長期授權
+- Supersedes：無
+- Owner 說「下一個task」時，同時授權 Work 完成前一 task 範圍內尚未完成的驗收、文件收斂、commit、push、PR、
+  hosted CI 查驗、必要修正與 squash merge，再開始界定下一個 task。
+- 此語句不授權部署、production DB DDL／DML、Secret／IAM／Scheduler／cloud resource 變更、真實通知或其他原本需
+  Owner 個別批准的操作；若前一 task 出現 blocker、範圍擴張或 required CI 失敗，仍須依既有流程停止或補正。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～087`，下一個新決策從 `DEC-088` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～088`，下一個新決策從 `DEC-089` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

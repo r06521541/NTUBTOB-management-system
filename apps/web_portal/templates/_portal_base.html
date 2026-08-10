@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#29415d">
+    <title>{% block title %}NTUBTOB 球隊入口{% endblock %}</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='production_portal.css') }}">
+</head>
+<body>
+    <header class="portal-header">
+        <a class="portal-brand" href="{{ url_for('member_dashboard') }}">
+            <img src="{{ url_for('static', filename='images/logo_square.png') }}" alt="NTUBTOB 隊徽">
+            <span><strong>NTUBTOB</strong><small>球隊入口</small></span>
+        </a>
+        <nav class="portal-desktop-nav" aria-label="主要導覽">
+            <a href="{{ url_for('member_dashboard') }}">首頁</a>
+            <a href="{{ url_for('future_games') }}">賽程</a>
+            <a href="{{ url_for('attendance') }}">出席</a>
+            <a href="{{ url_for('account') }}">我的</a>
+            {% if can_manage_members|default(false) %}
+                <a href="{{ url_for('admin_people') }}">People</a>
+            {% endif %}
+        </nav>
+    </header>
+    <main class="portal-shell">{% block content %}{% endblock %}</main>
+    <nav class="portal-bottom-nav" aria-label="手機主要導覽">
+        <a href="{{ url_for('member_dashboard') }}"><span aria-hidden="true">⌂</span>首頁</a>
+        <a href="{{ url_for('future_games') }}"><span aria-hidden="true">◇</span>賽程</a>
+        <a href="{{ url_for('attendance') }}"><span aria-hidden="true">✓</span>出席</a>
+        <a href="{{ url_for('account') }}"><span aria-hidden="true">○</span>我的</a>
+    </nav>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{% extends '_portal_base.html' %}
+{% block title %}首頁｜NTUBTOB{% endblock %}
+{% block content %}
+<section class="portal-hero">
+    <div>
+        <p class="portal-eyebrow">TEAM PORTAL</p>
+        <h1>準備好下一場了嗎？</h1>
+        <p>重要的賽程與出席資訊，都整理在這裡。</p>
+    </div>
+    <div class="portal-stat" aria-label="待回覆賽事數量"><strong>{{ unanswered_count }}</strong><span>場待回覆</span></div>
+</section>
+{% if unanswered_count %}
+<aside class="portal-notice" role="status"><strong>你有尚未回覆的賽事</strong><span>及早回覆，讓球隊更容易安排陣容。</span></aside>
+{% endif %}
+<section class="portal-section-heading"><div><p class="portal-eyebrow">NEXT GAME</p><h2>下一場賽事</h2></div><a href="{{ url_for('future_games') }}">全部賽程</a></section>
+{% if next_game %}
+{% set game = next_game.game %}
+<article class="portal-card portal-featured-game">
+    <div class="portal-date-tile"><strong>{{ game.start_datetime.day }}</strong><span>{{ game.start_datetime.month }} 月</span></div>
+    <div>
+        <p class="portal-eyebrow">{{ game.get_game_sign() }} {{ game.get_formatted_date() }}</p>
+        <h2>{{ game.home_team }} <span>vs</span> {{ game.away_team }}</h2>
+        <p>{{ game.get_formatted_start_time_with_colon() }} · {{ game.location }}</p>
+        <p>{% if next_game.reply %}<span class="portal-badge portal-badge-pending">{{ reply_text_mapping[next_game.reply] }}</span>{% else %}<span class="portal-badge portal-badge-tentative">尚未回覆</span>{% endif %}</p>
+    </div>
+    <div class="portal-actions"><a class="portal-button portal-button-primary" href="{{ url_for('game_detail', game_id=game.id) }}">查看賽事</a><a class="portal-button portal-button-secondary" href="{{ url_for('attendance') }}">出席總覽</a></div>
+</article>
+{% else %}
+<section class="portal-card portal-empty"><h2>目前沒有已開放的未來賽事</h2><p>有新的賽程後，會顯示在這裡。</p></section>
+{% endif %}
+<section class="portal-section-heading"><div><p class="portal-eyebrow">UPCOMING</p><h2>近期賽程</h2></div></section>
+{% if games %}
+<div class="portal-card-grid">
+{% for item in games %}{% set game = item.game %}
+<a class="portal-card portal-card-link portal-game-card" href="{{ url_for('game_detail', game_id=game.id) }}">
+    <div class="portal-card-top"><span class="portal-eyebrow">{{ game.get_game_sign() }} {{ game.get_formatted_date() }}</span>{% if item.reply %}<span class="portal-badge portal-badge-pending">{{ reply_text_mapping[item.reply] }}</span>{% else %}<span class="portal-badge portal-badge-tentative">待回覆</span>{% endif %}</div>
+    <h3>{{ game.get_opponent() }} <span> · {{ '主場' if game.get_is_home_team() else '客場' }}</span></h3>
+    <p>{{ game.get_formatted_start_time_with_colon() }} · {{ game.location }}</p>
+</a>
+{% endfor %}
+</div>
+{% else %}<section class="portal-card portal-empty"><h2>沒有其他近期賽程</h2><p>前往完整賽程查看所有已開放比賽。</p></section>{% endif %}
+{% endblock %}
