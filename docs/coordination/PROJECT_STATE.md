@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-10T09:47:05+08:00
+更新時間：2026-08-10T09:59:08+08:00
 
 維護角色：Work
 
@@ -24,9 +24,9 @@ Repository 基準：`main` / `1f06a18a95f3e86c24825f1eb7ab6282034972da`
   覆蓋規則，未重複新增程式碼。Event/Activity 延後。
 - TASK-096 `phase-d-web-ui-refresh` 已由 Work 驗收、通過 hosted Python 3.10 CI，並由 PR #106 squash-merge 至
   `main`（merge commit `1f06a18a95f3e86c24825f1eb7ab6282034972da`）；未部署。
-- TASK-097 `phase-d-local-cloud-data-preview` 已由 Work 驗收接受，交付固定唯讀匯出契約、去識別化、exact local
-  fixture transactional replacement、localhost-only importer／preview identity 與 PG15／16 證據，正進入唯一 final
-  PR 整合。實際 Supabase 匯出仍需另行精確批准。
+- TASK-097 `phase-d-local-cloud-data-preview` 已由 Work 驗收接受；PR #107 的 hosted Python 3.10 Web Portal、
+  PostgreSQL 15／16 與 final gate 均通過，待 squash merge。交付固定唯讀匯出契約、去識別化、exact local fixture
+  transactional replacement 與 localhost-only importer／preview identity；實際 Supabase 匯出仍需另行精確批准。
 
 ## 已確認的 production 狀態
 

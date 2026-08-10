@@ -2,9 +2,9 @@
 
 status: accepted
 reviewer: work
-reviewed_at: 2026-08-10T09:47:05+08:00
+reviewed_at: 2026-08-10T09:59:08+08:00
 branch: codex/phase-d-local-cloud-data-preview
-implementation_commit: 71e6e0dd4ef70fe7f99d566570d8c9307a3ea281
+implementation_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
 
 ## Review result
 
@@ -55,3 +55,17 @@ Resolved by implementation commit `71e6e0dd4ef70fe7f99d566570d8c9307a3ea281`:
 - `git diff --check`: passed.
 
 No source export, Supabase connection, production operation, Secret access, deployment or notification was performed.
+
+## Hosted CI correction and final evidence
+
+PR #107 initially exposed one packaging defect across the Web Portal and both PostgreSQL jobs: repository-checkout tests
+could not resolve the packaged `shared_module` namespace. Commit `f4c0aa7c5cc552f02df288132e774024dabc4220`
+corrected the context-specific import contract without copying or weakening `require_local_database_url`:
+
+- repository tooling imports through `shared_lib.shared_module`;
+- Web Portal runtime code remains on its deployed `shared_module` namespace, while checkout tests add the repository
+  package root only to their own `sys.path`／subprocess `PYTHONPATH`;
+- the deployed Web Portal shared-library archive contains `shared_module/portal_data/local_database.py`.
+
+Hosted Python 3.10 run `31348466658` then passed Web Portal, PostgreSQL 15.8, PostgreSQL 16.4, formatting／artifact
+checks and the CI final gate. Work inspected the correction diff and accepts TASK-097 for squash merge.
