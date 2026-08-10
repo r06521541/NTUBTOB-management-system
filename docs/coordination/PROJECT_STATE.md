@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-10T10:42:43+08:00
+更新時間：2026-08-11T00:21:37+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `1f06a18a95f3e86c24825f1eb7ab6282034972da`
+Repository 基準：`main` / `44925dad735e8ee3d28ac0f9dae0cb2535762496`
 
 ## 目前摘要
 
@@ -26,8 +26,10 @@ Repository 基準：`main` / `1f06a18a95f3e86c24825f1eb7ab6282034972da`
   `main`（merge commit `1f06a18a95f3e86c24825f1eb7ab6282034972da`）；未部署。
 - TASK-097 `phase-d-local-cloud-data-preview` 已由 PR #107 squash-merge 至 `main`（merge commit
   `6b43ab1c39639117ec0c0e555eca3668199bb321`）；實際 Supabase 匯出仍需另行精確批准。
-- TASK-098 `phase-d-schema-neutral-game-command-center` 已完成規格收斂，下一步由 Codex 實作 schema-neutral、
-  Game-read-only 的 Officer／Admin command center、attendance insights 與 browser-session-only 粗／細守位試排。
+- TASK-098 已由 PR #108 squash-merge 至 `main`（merge commit `44925dad735e8ee3d28ac0f9dae0cb2535762496`）；
+  Officer／Admin Game command center、attendance insights 與 session-only 粗／細守位試排尚未部署。
+- TASK-099 `phase-d-portal-management-closure` 已完成 planning，下一步修正 localhost 驗收發現的 role assignment、
+  navigation、Windows Attendance、preview Admin parity，並正式化 repeatable fictional local UI demo。
 
 ## 已確認的 production 狀態
 

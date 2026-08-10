@@ -166,9 +166,23 @@
 - Production admin authority仍由 runtime allowlist決定。Person `officer` 在正式全站 cutover 前，只能透過明確的
   bounded Game route bridge取得本批 Game command center／insight／lineup權限，不得因此取得其他管理能力。
 
+## DEC-090：Fictional local demo 與 cloud-derived preview 分離
+
+- 狀態：`active`
+- 生效：2026-08-11
+- 來源：Owner 對 TASK-098 localhost 驗收與後續 UI 作業模式的明確決定
+- Supersedes：無
+- Owner 日常 UI／角色／導覽驗收以 deterministic fictional local demo 為主要工作模式；該模式必須可安全 seed、reset、
+  cleanup，固定 revision／local database／fixture state，且不得連 Supabase、外部服務或 production。
+- Fictional demo 與 cloud-derived production-shaped preview 是兩條互斥 workflow。前者可在 exact local fictional DB
+  演練受控管理 mutation；後者只讀且所有 Portal mutation POST 持續 fail closed。不得混合兩者資料或用 demo gate
+  放寬 production／cloud-derived preview authorization。
+- Production Admin 仍由 runtime allowlist 決定。Allowlist Admin 可透過受稽核 UI 指派 `basic ↔ officer`，但 UI
+  不得建立／解除 Admin；Officer 仍只取得明確 bounded capabilities。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～089`，下一個新決策從 `DEC-090` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～090`，下一個新決策從 `DEC-091` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。
