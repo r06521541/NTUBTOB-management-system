@@ -9,7 +9,9 @@ only in the current browser tab's `sessionStorage`.
 
 Planning commit: `3cc81408ac822b04b8aa590a3f96ad9acdb8848f`
 
-Implementation commit: `3bb2b6b69ad2bd33dfaa5a258dc5ee38bb6c7d53`
+Latest implementation commit: `ef34bbc967f6ce386201688e2b3bfeaad967eb0a`
+
+Initial implementation commit: `3bb2b6b69ad2bd33dfaa5a258dc5ee38bb6c7d53`
 
 ## Delivered
 
@@ -23,10 +25,13 @@ Implementation commit: `3bb2b6b69ad2bd33dfaa5a258dc5ee38bb6c7d53`
   or a runtime-allowlisted admin; Person admin alone remains denied. The bridge
   does not grant the existing identity, qualification, Person access, member,
   notification, or audit management capabilities.
-- Corrected local-preview principal mapping so Person officer/admin access is not
-  promoted into the portal's global Officer/Admin roles. Preview officer/admin
-  parity is limited to the new Game routes, while Basic and all preview mutation
-  POSTs remain denied.
+- Preserved TASK-097 local-preview role parity: pseudonymous Basic, Officer, and
+  Admin identities retain their existing read-only portal capabilities. In
+  production, Person Officer remains bounded to only the new Game routes and
+  Person Admin cannot replace the runtime admin allowlist.
+- Bound the Game-route bridge to the same freshly resolved lifecycle principal's
+  `user_id`, Person ID, and Identity ID. Any signed-session mismatch clears the
+  Phase C session keys and returns 403 before Game or attendance callers run.
 - Limited Game reads to invited Games within one year before/after request time,
   de-duplicated and capped at 250 rows. The UI reports current recorded reply
   counts, current effective `team_player`/`guest_player` summaries, unresolved
@@ -47,8 +52,8 @@ Implementation commit: `3bb2b6b69ad2bd33dfaa5a258dc5ee38bb6c7d53`
 ## Verification
 
 - Bundled Python targeted helper/static suite: `6 tests`, `OK`.
-- Bundled Python targeted route/security suite: `78 tests`, `OK`.
-- Bundled Python full Web Portal suite: `154 tests`, `OK`, `2 skipped`.
+- Bundled Python targeted route/security suite: `80 tests`, `OK`.
+- Bundled Python full Web Portal suite: `156 tests`, `OK`, `2 skipped`.
 - Bundled Python `py_compile` for the affected app/helper/tests: passed.
 - Black 24.4.2 formatter API and isort 5.13.2 with `profile=black`, per affected
   Python file: passed. The bundled Windows Black CLI stalled without output and

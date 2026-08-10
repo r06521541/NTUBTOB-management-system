@@ -1,18 +1,18 @@
 active_task: TASK-098
-status: changes_requested
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 6b43ab1c39639117ec0c0e555eca3668199bb321
-head_commit: 21c3173ed34b273b670aef3a0090e462c8e1c2f4
+head_commit: ef34bbc967f6ce386201688e2b3bfeaad967eb0a
 
-updated_by: work
-updated_at: 2026-08-10T11:30:19+08:00
+updated_by: codex
+updated_at: 2026-08-10T11:36:45+08:00
 
 note: >
-  Work requests a minimal authorization correction: restore the pre-task local-preview global role mapping, and require
-  the new bounded Game context to match fresh principal Person/Identity IDs to the signed session before any read.
-  Production Officer remains bounded to Game routes; schema, mutation, preview POST and external-operation boundaries stay fixed.
+  TASK-098 authorization correction restores TASK-097 local-preview role parity and binds every bounded Game request to
+  the fresh principal's signed-session Person/Identity IDs before reads. Production Officer remains limited to Game routes;
+  schema, mutation, preview POST and external-operation boundaries remain fixed.
 
 report: docs/coordination/reports/TASK-098-CODEX.md
 review: docs/coordination/reviews/TASK-098-WORK.md
-implementation_commit: 3bb2b6b69ad2bd33dfaa5a258dc5ee38bb6c7d53
+implementation_commit: ef34bbc967f6ce386201688e2b3bfeaad967eb0a
