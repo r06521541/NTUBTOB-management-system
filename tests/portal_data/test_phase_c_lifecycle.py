@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import os
 import contextlib
 import io
 import json
+import os
 import threading
 import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
-from unittest.mock import patch
 
 from shared_lib.shared_module.portal_data.domain import (
     AuthorizationError,
@@ -24,6 +24,8 @@ from shared_lib.shared_module.portal_data.identity_lifecycle import (
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tools import portal_data_production_zero_admin_bootstrap as production_bootstrap
+from tools import portal_data_zero_admin_bootstrap as bootstrap_operator
 from tools.portal_data_phase_c_evidence import ARTIFACTS as EVIDENCE_ARTIFACTS
 from tools.portal_data_phase_c_evidence import PhaseCEvidenceError
 from tools.portal_data_phase_c_evidence import (
@@ -37,8 +39,6 @@ from tools.portal_data_phase_c_migration import (
     verify_sql,
 )
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
-from tools import portal_data_zero_admin_bootstrap as bootstrap_operator
-from tools import portal_data_production_zero_admin_bootstrap as production_bootstrap
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -1086,6 +1086,75 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                         "DROP FUNCTION ntubtob.fail_task086_audit()"
                     )
                 )
+
+    def test_preview_persisted_admin_does_not_change_production_allowlist(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET portal_access_level='admin' "
+                    "WHERE id=:person_id"
+                ),
+                {"person_id": self.admin_person_id},
+            )
+        production_repository = IdentityLifecycleRepository(self.engine, ())
+        with self.assertRaises(AuthorizationError):
+            production_repository.admin_dashboard(self.admin_person_id)
+
+        preview_repository = IdentityLifecycleRepository(
+            self.engine, (), allow_persisted_admins=True
+        )
+        self.assertIn(
+            "people", preview_repository.admin_dashboard(self.admin_person_id)
+        )
+
+    def test_admin_changes_only_basic_and_officer_with_audited_readback(self):
+        with self.engine.begin() as connection:
+            target_person_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name, formal_name, portal_access_level, portal_status, "
+                    "version, created_at, updated_at) VALUES "
+                    "('Fake Target', 'Fake Target', 'basic', 'active', 1, now(), now()) "
+                    "RETURNING id"
+                )
+            )
+        promoted = self.repository.change_access(
+            self.admin_person_id,
+            target_person_id,
+            "officer",
+            "Assign game operations",
+            "person-access-promote",
+        )
+        self.assertEqual(promoted.access_level, "officer")
+        with self.engine.connect() as connection:
+            audit = connection.execute(
+                text(
+                    "SELECT action, before_state->>'access_level', "
+                    "after_state->>'access_level', reason "
+                    "FROM ntubtob.access_audit WHERE request_id=:request_id"
+                ),
+                {"request_id": "person-access-promote"},
+            ).one()
+        self.assertEqual(
+            tuple(audit),
+            ("access_changed", "basic", "officer", "Assign game operations"),
+        )
+        with self.assertRaises(ConflictError):
+            self.repository.change_access(
+                self.admin_person_id,
+                target_person_id,
+                "basic",
+                "Replay must fail",
+                "person-access-promote",
+            )
+        with self.assertRaises(AuthorizationError):
+            self.repository.change_access(
+                self.admin_person_id,
+                self.admin_person_id,
+                "officer",
+                "Self change denied",
+                "person-access-self",
+            )
 
 
 from alembic import command

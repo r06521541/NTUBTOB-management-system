@@ -9,6 +9,7 @@ from unittest.mock import patch
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, func, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
@@ -17,6 +18,7 @@ from shared_lib.shared_module.portal_data.identity_lifecycle import (
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tools import seed_portal_ui_demo
 from tools.portal_data_local_preview import (
     MODEL_BY_TABLE,
     TABLE_ORDER,
@@ -29,6 +31,7 @@ from tools.portal_data_local_preview import (
 from tools.setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 NOW = "2026-08-01T10:00:00+00:00"
+DEMO_ANCHOR = "2026-08-11T00:00:00+00:00"
 
 
 def raw_rows():
@@ -236,6 +239,47 @@ class LocalPreviewBundleTest(unittest.TestCase):
         with self.assertRaisesRegex(PreviewBundleError, "outside the repository"):
             validate_bundle(Path("portal-preview-bundles/private"), "raw")
 
+    def test_fictional_demo_validates_local_database_before_engine_creation(self):
+        called = False
+
+        def factory(_url):
+            nonlocal called
+            called = True
+            raise AssertionError("engine must not be created")
+
+        for url in (
+            "postgresql://fake:fake@example.com/ntubtob_portal_local",
+            "postgresql://fake:fake@localhost/production",
+            "postgresql://fake:fake@db.fake.supabase.co/ntubtob_portal_local",
+        ):
+            with self.subTest(url=url), self.assertRaises(RuntimeError):
+                seed_portal_ui_demo.operate(
+                    "seed", url, anchor=DEMO_ANCHOR, engine_factory=factory
+                )
+        self.assertFalse(called)
+
+    def test_fictional_demo_cli_requires_explicit_confirmation(self):
+        with self.assertRaisesRegex(RuntimeError, "confirm-fictional-demo"):
+            seed_portal_ui_demo.main(["seed"])
+
+    def test_fictional_demo_requires_bounded_timezone_anchor_before_engine(self):
+        called = False
+
+        def factory(_url):
+            nonlocal called
+            called = True
+            raise AssertionError("engine must not be created")
+
+        for anchor in (None, "2026-08-11T00:00:00", "非ASCII", "x" * 41):
+            with self.subTest(anchor=anchor), self.assertRaises(RuntimeError):
+                seed_portal_ui_demo.operate(
+                    "seed",
+                    "postgresql://fake:fake@127.0.0.1/ntubtob_portal_local",
+                    anchor=anchor,
+                    engine_factory=factory,
+                )
+        self.assertFalse(called)
+
 
 @unittest.skipUnless(
     os.environ.get("PORTAL_DATA_TEST_DATABASE_URL"),
@@ -371,6 +415,118 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
                 "unexpected local data",
             )
             self.assertIsNone(session.get(MODEL_BY_TABLE["people"], 1_000_010))
+
+    def test_fictional_demo_seed_reset_and_cleanup_from_repository_fixture(self):
+        seed_portal_ui_demo.operate("seed", self.url, anchor=DEMO_ANCHOR)
+        repository = IdentityLifecycleRepository(
+            self.engine, (), allow_persisted_admins=True
+        )
+        self.assertTrue(repository.is_fictional_demo_fixture())
+        identities = repository.local_preview_identities()
+        self.assertEqual(
+            [item["access_level"] for item in identities],
+            ["admin", "officer", "basic"],
+        )
+
+        with Session(self.engine) as session:
+            before_reset = tuple(
+                session.execute(
+                    text(
+                        "SELECT id, year, season, start_datetime, duration, location, "
+                        "home_team, away_team, invitation_time, cancellation_time, "
+                        "cancellation_announcement_time FROM ntubtob.games ORDER BY id"
+                    )
+                ).all()
+            )
+
+        repository.change_access(
+            7101,
+            7103,
+            "officer",
+            seed_portal_ui_demo.DEMO_ACCESS_REASON,
+            "person-access-7103-officer",
+        )
+        self.assertTrue(repository.is_fictional_demo_fixture())
+        seed_portal_ui_demo.operate("reset", self.url, anchor=DEMO_ANCHOR)
+        self.assertTrue(repository.is_fictional_demo_fixture())
+        self.assertEqual(
+            repository.resolve_line_principal(
+                "task099-fictional-basic"
+            ).person.access_level,
+            "basic",
+        )
+        with Session(self.engine) as session:
+            after_reset = tuple(
+                session.execute(
+                    text(
+                        "SELECT id, year, season, start_datetime, duration, location, "
+                        "home_team, away_team, invitation_time, cancellation_time, "
+                        "cancellation_announcement_time FROM ntubtob.games ORDER BY id"
+                    )
+                ).all()
+            )
+        self.assertEqual(after_reset, before_reset)
+
+        seed_portal_ui_demo.operate("cleanup", self.url)
+        with Session(self.engine) as session:
+            self.assertEqual(
+                session.scalar(
+                    select(func.count()).select_from(MODEL_BY_TABLE["people"])
+                ),
+                0,
+            )
+
+    def test_fictional_demo_rejects_drift_and_rolls_back_late_failure(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("UPDATE ntubtob.members SET name = 'unexpected local data'")
+            )
+        with self.assertRaisesRegex(RuntimeError, "not the repository"):
+            seed_portal_ui_demo.operate("seed", self.url, anchor=DEMO_ANCHOR)
+        with Session(self.engine) as session:
+            self.assertEqual(
+                session.get(MODEL_BY_TABLE["members"], 9201).name,
+                "unexpected local data",
+            )
+
+        self._prepare_repository_fixture()
+        invalid_sql = (
+            seed_portal_ui_demo.SEED_SQL
+            + "\nINSERT INTO ntubtob.people (id) VALUES (7101);"
+        )
+        with patch.object(seed_portal_ui_demo, "SEED_SQL", invalid_sql):
+            with self.assertRaises(IntegrityError):
+                seed_portal_ui_demo.operate("seed", self.url, anchor=DEMO_ANCHOR)
+        self._assert_repository_fixture()
+
+    def test_fictional_demo_rejects_unknown_access_audit_without_cleanup(self):
+        seed_portal_ui_demo.operate("seed", self.url, anchor=DEMO_ANCHOR)
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.access_audit
+                      (action, actor_person_id, target_person_id, auth_identity_id,
+                       before_state, after_state, reason, request_id, created_at)
+                    VALUES
+                      ('access_changed', 7101, 7103, NULL,
+                       '{"access_level":"basic"}', '{"access_level":"officer"}',
+                       'unknown fictional drift', 'person-access-unknown', now())
+                    """
+                )
+            )
+        with self.assertRaisesRegex(RuntimeError, "not the repository"):
+            seed_portal_ui_demo.operate("reset", self.url, anchor=DEMO_ANCHOR)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT reason FROM ntubtob.access_audit "
+                        "WHERE request_id='person-access-unknown'"
+                    )
+                ),
+                "unknown fictional drift",
+            )
 
 
 if __name__ == "__main__":

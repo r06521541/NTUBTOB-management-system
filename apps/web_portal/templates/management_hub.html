@@ -1,0 +1,9 @@
+{% extends '_portal_base.html' %}
+{% block title %}管理｜NTUBTOB{% endblock %}
+{% block content %}
+<section class="portal-title"><p class="portal-eyebrow">MANAGEMENT</p><h1>管理中心</h1><p>依目前登入者的即時權限顯示可使用的管理入口。</p></section>
+<div class="portal-card-grid">
+  <a class="portal-card portal-card-link portal-game-card" href="{{ url_for('game_command_center') }}"><h2>賽務管理</h2><p>查看比賽、出席洞察與 session-only 守位試排。</p></a>
+  {% if can_manage_people %}<a class="portal-card portal-card-link portal-game-card" href="{{ url_for('admin_people') }}"><h2>人員管理</h2><p>管理 Person、身分、資格與 Officer 指派。</p></a>{% endif %}
+</div>
+{% endblock %}

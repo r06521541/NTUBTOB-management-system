@@ -70,10 +70,8 @@ class Game(Base):
         # 獲取星期的中文表示
         chinese_weekday = weekday_mapping[start_datetime.strftime("%A")]
 
-        # 格式化日期和時間
-        return start_datetime.strftime("%-m/%-d（%a）").replace(
-            start_datetime.strftime("%a"), chinese_weekday
-        )
+        # Avoid POSIX-only %-m/%-d directives; Windows strftime rejects them.
+        return f"{start_datetime.month}/{start_datetime.day}（{chinese_weekday}）"
 
     def get_formatted_start_time(self) -> str:
         start_datetime = self.start_datetime.astimezone(local_timezone)

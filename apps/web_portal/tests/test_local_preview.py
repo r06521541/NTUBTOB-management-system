@@ -42,6 +42,22 @@ class LocalPreviewGateTest(unittest.TestCase):
         self.assertTrue(require_local_preview_startup(values))
         self.assertFalse(is_local_preview_enabled({}))
         self.assertFalse(require_local_preview_startup({}))
+        self.assertTrue(
+            require_local_preview_startup(
+                preview_environment(WEB_PORTAL_FICTIONAL_DEMO_MODE="true")
+            )
+        )
+
+    def test_fictional_demo_requires_exact_preview_gate(self):
+        for changes in (
+            {"WEB_PORTAL_FICTIONAL_DEMO_MODE": "TRUE"},
+            {
+                "WEB_PORTAL_FICTIONAL_DEMO_MODE": "true",
+                "WEB_PORTAL_LOCAL_PREVIEW_MODE": "false",
+            },
+        ):
+            with self.subTest(changes=changes), self.assertRaises(RuntimeError):
+                require_local_preview_startup(preview_environment(**changes))
 
     def test_production_remote_database_wrong_name_and_non_loopback_fail_closed(self):
         cases = (

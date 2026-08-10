@@ -5,6 +5,7 @@ from __future__ import annotations
 from urllib.parse import urlparse
 
 PREVIEW_FLAG = "WEB_PORTAL_LOCAL_PREVIEW_MODE"
+FICTIONAL_DEMO_FLAG = "WEB_PORTAL_FICTIONAL_DEMO_MODE"
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
@@ -17,6 +18,9 @@ def is_local_preview_enabled(environ) -> bool:
 
 def require_local_preview_startup(environ) -> bool:
     requested = environ.get(PREVIEW_FLAG)
+    fictional_demo = environ.get(FICTIONAL_DEMO_FLAG)
+    if fictional_demo is not None and (fictional_demo != "true" or requested != "true"):
+        raise RuntimeError("fictional demo requires the exact local preview gates")
     if requested is None:
         return False
     if requested != "true" or environ.get("WEB_PORTAL_ENV") != "development":

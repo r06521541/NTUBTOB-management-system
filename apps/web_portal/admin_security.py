@@ -2,7 +2,7 @@ import os
 import secrets
 from functools import wraps
 
-from flask import abort, redirect, request, session, url_for
+from flask import abort, g, redirect, request, session, url_for
 from role_policy import (
     MANAGE_MEMBERS,
     VIEW_MEMBER_PORTAL,
@@ -54,6 +54,7 @@ def capability_required(capability):
                 return redirect(url_for("redirect_to_login", next=request.path))
             if not has_capability(principal, capability):
                 abort(403)
+            g.portal_principal = principal
             return view(*args, **kwargs)
 
         return protected_view
@@ -63,14 +64,22 @@ def capability_required(capability):
 
 def get_current_principal():
     """Resolve the current production principal without persisting its role."""
+    cached = getattr(g, "portal_principal", None)
+    if cached is not None:
+        return cached
     if _phase_c_principal_loader is not None:
         principal = _phase_c_principal_loader(session)
         # False means Phase C is deliberately disabled. Once enabled, a None
         # result is fail-closed and must not fall back to legacy authorization.
         if principal is not False:
+            if principal is not None:
+                g.portal_principal = principal
             return principal
     allowlist = parse_admin_member_ids(os.environ.get(ADMIN_MEMBER_IDS_ENV))
-    return resolve_production_principal(session, allowlist)
+    principal = resolve_production_principal(session, allowlist)
+    if principal is not None:
+        g.portal_principal = principal
+    return principal
 
 
 def admin_required(view):
