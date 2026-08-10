@@ -1,25 +1,27 @@
-from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from sqlalchemy import Integer, String, DateTime
+from sqlalchemy import update, and_
+from sqlalchemy.orm import Session, DeclarativeBase, mapped_column, Mapped, relationship
+from datetime import datetime, timezone, timedelta
 from typing import Optional
+from dataclasses import dataclass, asdict
 
-from sqlalchemy import DateTime, Integer, String, and_, update
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
-
-from ..message_templates.general_message import (
-    normal_game_sign,
-    offseason_game_sign,
-    season_mapping,
-    weekday_mapping,
-)
-from ..settings import current_team, local_timezone
-from .base import Base
 from .db import engine
-
+from ..settings import (
+    local_timezone,
+    current_team
+)
+from ..message_templates.general_message import (
+    weekday_mapping,
+    offseason_game_sign,
+    normal_game_sign,
+    season_mapping
+)
+from .base import Base
 
 @dataclass
 class Game(Base):
-    __tablename__ = "games"
-    __table_args__ = {"schema": "ntubtob"}
+    __tablename__ = 'games'
+    __table_args__ = {'schema': 'ntubtob'}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     year: Mapped[int] = mapped_column(Integer)
@@ -32,41 +34,36 @@ class Game(Base):
     invitation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     cancellation_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
     cancellation_announcement_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
-
+    
     attendance_replies = relationship("GameAttendanceReply", back_populates="game")
 
     def as_dict(self):
         result = asdict(self)
         # Convert datetime to ISO 8601 format
-        for key in [
-            "start_datetime",
-            "invitation_time",
-            "cancellation_time",
-            "cancellation_announcement_time",
-        ]:
+        for key in ['start_datetime', 'invitation_time', 'cancellation_time', 'cancellation_announcement_time']:
             if key in result and isinstance(result[key], datetime):
                 result[key] = result[key].isoformat()
         return result
-
+    
     def __eq__(self, other):
         if isinstance(other, Game):
-            if self.year != other.year:
+            if self.year != other.year: 
                 return False
-            if self.season != other.season:
+            if self.season != other.season: 
                 return False
-            if self.start_datetime != other.start_datetime:
+            if self.start_datetime != other.start_datetime: 
                 return False
-            if self.duration != other.duration:
+            if self.duration != other.duration: 
                 return False
-            if self.location != other.location:
+            if self.location != other.location: 
                 return False
-            if self.home_team != other.home_team:
+            if self.home_team != other.home_team: 
                 return False
-            if self.away_team != other.away_team:
+            if self.away_team != other.away_team: 
                 return False
             return True
         return False
-
+    
     def get_formatted_date(self) -> str:
         start_datetime = self.start_datetime.astimezone(local_timezone)
 
@@ -79,11 +76,11 @@ class Game(Base):
     def get_formatted_start_time(self) -> str:
         start_datetime = self.start_datetime.astimezone(local_timezone)
         return start_datetime.strftime("%H%M")
-
+    
     def get_formatted_start_time_with_colon(self) -> str:
         start_datetime = self.start_datetime.astimezone(local_timezone)
         return start_datetime.strftime("%H:%M")
-
+    
     def get_formatted_end_time(self) -> str:
         start_datetime = self.start_datetime.astimezone(local_timezone)
         # 格式化日期和時間
@@ -94,153 +91,131 @@ class Game(Base):
 
     def get_opponent(self) -> str:
         return self.away_team if self.get_is_home_team() else self.home_team
-
+    
     def get_game_sign(self):
         return offseason_game_sign if self.is_offseason() else normal_game_sign
-
+    
     def is_offseason(self):
         return self.season == 3
 
     def generate_summary(self):
         return f"{self.year}{season_mapping[self.season]} {self.get_formatted_date()} {self.get_formatted_start_time()} - {self.get_formatted_end_time()} {self.home_team} vs {self.away_team} @{self.location}"
-
+        
     def generate_summary_for_team(self) -> str:
         if current_team != self.home_team and current_team != self.away_team:
             return self.generate_summary()
         # 生成格式化字串
         return f"{self.get_game_sign()} {self.get_formatted_date()} {self.get_formatted_start_time()} - {self.get_formatted_end_time()} vs {self.get_opponent()} {'先守' if self.get_is_home_team() else '先攻'} @{self.location}"
-
+    
     def generate_short_summary_for_team(self) -> str:
         return f"{self.get_formatted_date()} {self.get_formatted_start_time_with_colon()} vs {self.get_opponent()} @{self.location}"
 
-    def generate_verbal_summary_for_team(self) -> str:
+    def generate_verbal_summary_for_team(self) -> str:        
         return f"{self.get_formatted_date()}打{self.get_opponent()}"
-
+    
     @classmethod
-    def get_datetime(cls, datetime_str: str):
+    def get_datetime(cls, datetime_str: str):               
         time = datetime.fromisoformat(datetime_str)
         if time.tzinfo is None:
             # 如果沒有時區資訊，添加預設時區
             time = time.replace(tzinfo=local_timezone)
         return time
 
-    @classmethod
+    @classmethod 
     def from_dict(cls, data_dict: dict):
         # Convert ISO 8601 format strings back to datetime objects
-        for key in [
-            "start_datetime",
-            "invitation_time",
-            "cancellation_time",
-            "cancellation_announcement_time",
-        ]:
+        for key in ['start_datetime', 'invitation_time', 'cancellation_time', 'cancellation_announcement_time']:
             if key in data_dict and isinstance(data_dict[key], str):
                 data_dict[key] = Game.get_datetime(data_dict[key])
         return cls(**data_dict)
 
-    @classmethod
+    @classmethod 
     def is_game_json_valid(cls, game_json: dict[str, str]):
-        required_fields = [
-            "year",
-            "season",
-            "start_datetime",
-            "duration",
-            "location",
-            "home_team",
-            "away_team",
-        ]
+        required_fields = ['year', 'season', 'start_datetime', 'duration', 'location', 'home_team', 'away_team']
         return all(field in game_json for field in required_fields)
 
-    @classmethod
+    @classmethod 
     def add_game_by_dict(cls, game_json: dict[str, str]):
         # 建立新比賽物件
-        game = Game(
-            year=game_json["year"],
-            season=game_json["season"],
-            start_datetime=game_json["start_datetime"],
-            duration=game_json["duration"],
-            location=game_json["location"],
-            home_team=game_json["home_team"],
-            away_team=game_json["away_team"],
-        )
-
+        game = Game(year = game_json['year'], 
+                        season = game_json['season'],
+                        start_datetime = game_json['start_datetime'],
+                        duration = game_json['duration'],
+                        location = game_json['location'],
+                        home_team = game_json['home_team'],
+                        away_team = game_json['away_team'])
+        
+        with Session(engine) as session:
+            # 加入資料庫
+            session.add(game)
+            session.commit()
+            
+    @classmethod 
+    def add_game(cls, game: 'Game'):        
         with Session(engine) as session:
             # 加入資料庫
             session.add(game)
             session.commit()
 
-    @classmethod
-    def add_game(cls, game: "Game"):
-        with Session(engine) as session:
-            # 加入資料庫
-            session.add(game)
-            session.commit()
-
-    @classmethod
+    @classmethod 
     def is_game_id_valid(cls, json):
-        required_fields = ["game_id"]
+        required_fields = ['game_id']
         return all(field in json for field in required_fields)
 
-    @classmethod
-    def search_by_id(cls, game_id: str) -> "Game":
+    @classmethod 
+    def search_by_id(cls, game_id: str) -> 'Game':
         with Session(engine) as session:
-            games = session.query(Game).filter(and_(Game.id == game_id)).all()
+            games = session.query(Game).filter(
+                and_(
+                    Game.id == game_id
+                )
+            ).all()
 
         return games[0] if games else None
 
-    @classmethod
+    @classmethod 
     def is_start_end_time_json_valid(cls, json):
-        required_fields = ["start_time", "end_time"]
+        required_fields = ['start_time', 'end_time']
         if not all(field in json for field in required_fields):
             return False
-
-        start_time = datetime.fromisoformat(json["start_time"])
-        end_time = datetime.fromisoformat(json["end_time"])
-        if not start_time.tzinfo or not end_time.tzinfo:
+            
+        start_time = datetime.fromisoformat(json['start_time'])
+        end_time = datetime.fromisoformat(json['end_time'])    
+        if not start_time.tzinfo or not end_time.tzinfo:  
             raise ValueError("Both start_time and end_time must be timezone aware")
         return True
 
-    @classmethod
+    @classmethod 
     def search_between(cls, start_time: datetime, end_time: datetime):
         with Session(engine) as session:
-            games = (
-                session.query(Game)
-                .filter(
-                    and_(
-                        Game.start_datetime.between(start_time, end_time),
-                        Game.cancellation_time == None,
-                    )
+            games = session.query(Game).filter(
+                and_(
+                    Game.start_datetime.between(start_time, end_time),
+                    Game.cancellation_time == None
                 )
-                .all()
-            )
+            ).all()
 
         return games
 
-    @classmethod
-    def search_for_invitation(cls, start_time: datetime, end_time: datetime):
+    @classmethod 
+    def search_for_invitation(cls, start_time: datetime, end_time: datetime):    
         return Game.search_games(start_time, end_time)
 
-    @classmethod
-    def search_for_invited(cls):
-        return Game.search_games(
-            datetime.now(timezone.utc), datetime.max, has_invited=True
-        )
+    @classmethod 
+    def search_for_invited(cls):    
+        return Game.search_games(datetime.now(timezone.utc), datetime.max, has_invited=True)
+    
+    @classmethod 
+    def search_cancelled_to_announce(cls, start_time: datetime, end_time: datetime):    
+        return Game.search_games(start_time, end_time, has_invited=True, has_cancelled=True)
 
-    @classmethod
-    def search_cancelled_to_announce(cls, start_time: datetime, end_time: datetime):
-        return Game.search_games(
-            start_time, end_time, has_invited=True, has_cancelled=True
-        )
-
-    @classmethod
-    def search_games(
-        cls,
-        start_time: datetime,
-        end_time: datetime,
-        has_invited: bool = False,
-        has_cancelled: bool = False,
-        has_cancellation_announced: bool = False,
-    ):
-
+    @classmethod 
+    def search_games(cls, 
+            start_time: datetime, end_time: datetime,
+            has_invited: bool = False, 
+            has_cancelled: bool = False, 
+            has_cancellation_announced: bool = False):   
+        
         filters = [
             Game.start_datetime.between(start_time, end_time),
         ]
@@ -261,45 +236,37 @@ class Game(Base):
             filters.append(Game.cancellation_announcement_time == None)
 
         with Session(engine) as session:
-            games = (
-                session.query(Game)
-                .filter(and_(*filters))
-                .order_by(Game.start_datetime)
-                .all()
-            )
+            games = session.query(Game).filter(and_(*filters)).order_by(Game.start_datetime).all()
         return games
 
-    @classmethod
+    @classmethod 
     def is_update_game_time_valid(cls, json):
-        required_fields = ["game_id", "time"]
+        required_fields = ['game_id', 'time']
         return all(field in json for field in required_fields)
 
-    @classmethod
+    @classmethod 
     def update_invitation_time(cls, game_id: int, time: datetime):
-        Game.update_time_field(game_id, time, "invitation_time")
+        Game.update_time_field(game_id, time, 'invitation_time')
+        
+    @classmethod 
+    def update_cancellation_time(cls, game_id: int, time: datetime):    
+        Game.update_time_field(game_id, time, 'cancellation_time')
 
-    @classmethod
-    def update_cancellation_time(cls, game_id: int, time: datetime):
-        Game.update_time_field(game_id, time, "cancellation_time")
-
-    @classmethod
-    def update_cancellation_announcement_time(cls, game_id: int, time: datetime):
-        Game.update_time_field(game_id, time, "cancellation_announcement_time")
+    @classmethod 
+    def update_cancellation_announcement_time(cls, game_id: int, time: datetime):    
+        Game.update_time_field(game_id, time, 'cancellation_announcement_time')
 
     @classmethod
     def update_time_field(cls, game_id: int, time: datetime, field_name: str):
         update_data = {field_name: time}
-
+        
         with Session(engine) as session:
-            session.execute(
-                update(Game).where(Game.id == game_id).values(**update_data)
-            )
+            session.execute(update(Game).where(Game.id == game_id).values(**update_data))
             session.commit()
-
+        
+        
     @classmethod
-    def get_games_in_this_week_and_month(
-        cls, total_games: list["Game"]
-    ) -> tuple[list["Game"], list["Game"]]:
+    def get_games_in_this_week_and_month(cls, total_games: list['Game']) -> tuple[list['Game'], list['Game']]:
         this_week_games = []
         this_month_games = []
         aware_now = datetime.now().astimezone()
@@ -323,3 +290,4 @@ class Game(Base):
         this_month_games.sort(key=lambda x: x.start_datetime)
 
         return this_week_games, this_month_games
+
