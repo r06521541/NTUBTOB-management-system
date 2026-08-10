@@ -1,19 +1,18 @@
-active_task: TASK-097
-status: completed
-next_actor: work
+active_task: TASK-098
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 1f06a18a95f3e86c24825f1eb7ab6282034972da
-head_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
+base_commit: 6b43ab1c39639117ec0c0e555eca3668199bb321
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-10T09:59:08+08:00
+updated_at: 2026-08-10T10:42:43+08:00
 
 note: >
-  TASK-097 delivers a localhost-only preview of the production Portal using a validated, pseudonymized,
-  production-shaped export imported into ntubtob_portal_local. It does not authorize Supabase access or export execution.
-  Direct production DSNs, production writes, deployment, Secret/IAM/Scheduler changes, real notifications, and committed
-  source or derived production rows remain outside authorization.
+  TASK-098 delivers a schema-neutral, Game-read-only Officer/Admin command center, attendance insights and a
+  browser-session-only coarse/detailed lineup lab. Database revision stays at 0004; Game/Roster/Attendance mutation,
+  persistent lineup, notification, production, deployment, Secret/IAM/Scheduler and external side effects are excluded.
 
-report: docs/coordination/reports/TASK-097-CODEX.md
-review: docs/coordination/reviews/TASK-097-WORK.md
-implementation_commit: f4c0aa7c5cc552f02df288132e774024dabc4220
+report: docs/coordination/reports/TASK-098-CODEX.md
+review: docs/coordination/reviews/TASK-098-WORK.md
+implementation_commit: null
