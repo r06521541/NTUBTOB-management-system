@@ -151,9 +151,24 @@
 - 此語句不授權部署、production DB DDL／DML、Secret／IAM／Scheduler／cloud resource 變更、真實通知或其他原本需
   Owner 個別批准的操作；若前一 task 出現 blocker、範圍擴張或 required CI 失敗，仍須依既有流程停止或補正。
 
+## DEC-089：Game 資訊唯讀與 session-only 守位試排
+
+- 狀態：`active`
+- 生效：2026-08-10
+- 來源：Owner 對下一波 Officer／Admin Game command center 的明確決定
+- Supersedes：無
+- 下一波 Game command center 在 schema 完全不動的前提下，正式 Game、Roster 與 Attendance 管理資訊全面唯讀；
+  不建立、編輯、取消、改期或代改出席，也不發送通知。
+- 幹部試排守位是核心能力，但只存在 browser session，不寫入 database、server session、cache、audit、log 或
+  notification。未來需要長期保存與維護的陣容資料只有正式出賽名單；試排本身永不持久化。
+- 粗排提供教練、投手、捕手、內野、外野；教練也是 Roster 中的 Member，可 player-coach。細排提供 P、C、
+  1B、2B、3B、SS、LF、CF、RF、DH，並使用具 accessible fallback 的棒球場視覺。
+- Production admin authority仍由 runtime allowlist決定。Person `officer` 在正式全站 cutover 前，只能透過明確的
+  bounded Game route bridge取得本批 Game command center／insight／lineup權限，不得因此取得其他管理能力。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～088`，下一個新決策從 `DEC-089` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～089`，下一個新決策從 `DEC-090` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

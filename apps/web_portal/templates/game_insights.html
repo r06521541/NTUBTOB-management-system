@@ -1,0 +1,9 @@
+{% extends '_portal_base.html' %}
+{% block title %}比賽洞察｜NTUBTOB{% endblock %}
+{% block content %}
+<section class="portal-title"><p class="portal-eyebrow">ATTENDANCE INSIGHTS · READ ONLY</p><h1>目前可證明的比賽洞察</h1><p>只呈現既有 Game 與目前有效資格／回覆 read model，不推算勝率、能力或歷史邀請率。</p></section>
+<nav class="portal-command-nav" aria-label="比賽管理導覽"><a href="{{ url_for('game_command_center') }}">比賽總覽</a><a aria-current="page" href="{{ url_for('game_insights') }}">出席洞察</a></nav>
+<section class="portal-insight-grid"><article class="portal-card portal-metric-card"><span>未來 7 天</span><strong>{{ insight.future_7 }}</strong><small>場未取消比賽</small></article><article class="portal-card portal-metric-card"><span>未來 30 天</span><strong>{{ insight.future_30 }}</strong><small>場未取消比賽</small></article><article class="portal-card portal-metric-card"><span>前後一年內</span><strong>{{ insight.cancelled }}</strong><small>場已取消比賽</small></article></section>
+<p class="portal-muted">資料讀取時間：{{ data_time.strftime('%Y-%m-%d %H:%M') }}{% if incomplete_count %} · {{ incomplete_count }} 場出席資料無法讀取，以下趨勢不包含它們。{% endif %}</p>
+{% if insight.recorded %}<section class="portal-card portal-roster-card"><h2>最近比賽的已記錄回覆量</h2><p class="portal-muted">這是目前資料列分類，不是歷史邀請回覆率。</p><div class="portal-insight-list">{% for item in insight.recorded %}<a href="{{ url_for('game_command_detail', game_id=item.game.id, name_style=name_style) }}"><span>{{ item.game.get_formatted_date() }} · {{ item.game.get_opponent() }}</span><strong>{{ item.recorded_replies }} 筆</strong><small>team_player 未解析 {{ item.team_player_unresolved }}</small></a>{% endfor %}</div></section>{% else %}<section class="portal-card portal-empty"><h2>沒有可呈現的已記錄回覆</h2><p>目前資料不足，不會產生推估值。</p></section>{% endif %}
+{% endblock %}

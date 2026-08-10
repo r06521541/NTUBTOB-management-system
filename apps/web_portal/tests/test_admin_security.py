@@ -5,6 +5,7 @@ import os
 import sys
 import types
 import unittest
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -2266,6 +2267,272 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(mutation.status_code, 403)
         repository.reply_to_game.assert_not_called()
         self.notifier.notify_management_message.assert_not_called()
+
+    @staticmethod
+    def command_summary():
+        return SimpleNamespace(
+            participants=(
+                {
+                    "person_id": 70,
+                    "member_id": 7,
+                    "name": "虛構隊員",
+                    "reply": 1,
+                    "qualification": "team_player",
+                },
+                {
+                    "person_id": 80,
+                    "member_id": None,
+                    "name": "虛構來賓",
+                    "reply": 3,
+                    "qualification": "guest_player",
+                },
+            ),
+            team_player_total=2,
+            team_player_replied=1,
+        )
+
+    def command_principal(self, access_level="officer", status="active", member_id=7):
+        return SimpleNamespace(
+            person=SimpleNamespace(
+                id=70,
+                member_id=member_id,
+                access_level=access_level,
+                status=status,
+            ),
+            identity=SimpleNamespace(id=71),
+        )
+
+    def command_game(self, cancelled=False):
+        game = self.portal_game()
+        game.start_datetime = datetime.now() + timedelta(days=2)
+        game.cancellation_time = datetime.now() if cancelled else None
+        return game
+
+    def test_bounded_game_routes_allow_officer_and_allowlisted_admin_only(self):
+        repository = MagicMock()
+        repository.attendance_summary.return_value = self.command_summary()
+        self.game_model.search_games.return_value = [self.command_game()]
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        cases = (
+            ("officer", "active", "", 200),
+            ("basic", "active", "7", 200),
+            ("basic", "active", "", 403),
+            ("admin", "active", "", 403),
+            ("officer", "disabled", "", 403),
+        )
+        for access, status, allowlist, expected in cases:
+            with self.subTest(access=access, status=status, allowlist=allowlist):
+                repository.resolve_line_principal.return_value = self.command_principal(
+                    access, status
+                )
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                    },
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get("/manage/games")
+                self.assertEqual(response.status_code, expected)
+        self.assertGreaterEqual(repository.resolve_line_principal.call_count, 5)
+
+    def test_unauthenticated_command_routes_redirect_before_read_callers(self):
+        for path in (
+            "/manage/games",
+            "/manage/games/23",
+            "/manage/game-insights",
+            "/manage/games/23/lineup-lab",
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(
+                    urlsplit(response.headers["Location"]).path,
+                    "/redirect-to-login",
+                )
+        self.game_model.search_games.assert_not_called()
+
+    def test_person_officer_bridge_does_not_open_non_game_management(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal()
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            game_page = self.client.get("/manage/games")
+            pending = self.client.get("/manage/pending-identities")
+            qualifications = self.client.get("/manage/people/70/qualifications")
+        self.assertIn(game_page.status_code, {200, 503})
+        self.assertEqual(pending.status_code, 403)
+        self.assertEqual(qualifications.status_code, 403)
+        repository.admin_dashboard.assert_not_called()
+
+    def test_preview_admin_keeps_existing_read_only_management_surface(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        repository.admin_dashboard.return_value = {
+            "identities": (),
+            "people": (),
+            "available_members": (),
+            "audit": (),
+        }
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+        ), patch.object(
+            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.get(
+                "/manage/pending-identities", base_url="http://localhost:8080"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("待配對／待核可身分".encode(), response.data)
+        repository.admin_dashboard.assert_called_once_with(70)
+
+    def test_game_bridge_rejects_session_principal_mismatch_before_reads(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal()
+        mismatch_cases = (
+            {"person_id": 999, "auth_identity_id": 71},
+            {"person_id": 70, "auth_identity_id": 999},
+        )
+        for session_values in mismatch_cases:
+            with self.subTest(session_values=session_values):
+                self.game_model.search_games.reset_mock()
+                repository.attendance_summary.reset_mock()
+                with self.client.session_transaction() as current_session:
+                    current_session.clear()
+                    current_session.update(
+                        user_id="fake-authenticated-user",
+                        member_id=7,
+                        **session_values,
+                    )
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                    },
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get("/manage/games")
+                self.assertEqual(response.status_code, 403)
+                self.game_model.search_games.assert_not_called()
+                repository.attendance_summary.assert_not_called()
+                with self.client.session_transaction() as current_session:
+                    for key in self.app_module.PHASE_C_SESSION_KEYS:
+                        self.assertNotIn(key, current_session)
+
+    def test_command_center_detail_insights_and_lineup_are_read_only(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal()
+        repository.attendance_summary.return_value = self.command_summary()
+        game = self.command_game()
+        self.game_model.search_games.return_value = [game]
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            pages = (
+                self.client.get("/manage/games"),
+                self.client.get("/manage/games/23"),
+                self.client.get("/manage/game-insights"),
+                self.client.get("/manage/games/23/lineup-lab"),
+            )
+        self.assertTrue(all(response.status_code == 200 for response in pages))
+        self.assertIn("GAME COMMAND CENTER".encode(), pages[0].data)
+        self.assertIn("不是歷史 Roster snapshot".encode(), pages[1].data)
+        self.assertIn("不是歷史邀請回覆率".encode(), pages[2].data)
+        self.assertIn("sessionStorage".encode(), pages[3].data)
+        self.assertIn("虛構隊員".encode(), pages[3].data)
+        for mutation in (
+            "reply_to_game",
+            "update_profile",
+            "set_access",
+            "grant_qualification",
+        ):
+            getattr(repository, mutation).assert_not_called()
+        self.notifier.notify_management_message.assert_not_called()
+
+    def test_command_routes_fail_closed_for_bad_scope_missing_and_cancelled(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal()
+        repository.attendance_summary.return_value = self.command_summary()
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {"PORTAL_DATA_PHASE_C_ENABLED": "true"},
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            self.game_model.search_games.return_value = []
+            missing = self.client.get("/manage/games/404")
+            malformed = self.client.get("/manage/games/not-a-number")
+            bad_scope = self.client.get("/manage/games?scope=future&scope=past")
+            self.game_model.search_games.return_value = [
+                self.command_game(cancelled=True)
+            ]
+            cancelled = self.client.get("/manage/games/23/lineup-lab")
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(malformed.status_code, 404)
+        self.assertEqual(bad_scope.status_code, 400)
+        self.assertEqual(cancelled.status_code, 409)
+        repository.reply_to_game.assert_not_called()
+
+    def test_local_preview_game_routes_match_roles_and_keep_posts_blocked(self):
+        repository = MagicMock()
+        repository.attendance_summary.return_value = self.command_summary()
+        self.game_model.search_games.return_value = [self.command_game()]
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        for access, expected in (("basic", 403), ("officer", 200), ("admin", 200)):
+            with self.subTest(access=access):
+                repository.resolve_line_principal.return_value = self.command_principal(
+                    access
+                )
+                with patch.object(
+                    self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get(
+                        "/manage/games", base_url="http://localhost:8080"
+                    )
+                self.assertEqual(response.status_code, expected)
+        with patch.object(
+            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            blocked = self.client.post(
+                "/manage/games", base_url="http://localhost:8080"
+            )
+        self.assertEqual(blocked.status_code, 403)
+        repository.reply_to_game.assert_not_called()
 
 
 if __name__ == "__main__":

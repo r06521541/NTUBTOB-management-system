@@ -3,6 +3,7 @@ import hmac
 import os
 import secrets
 from datetime import datetime, time, timedelta, timezone
+from functools import wraps
 from urllib.parse import urlencode
 
 import messages
@@ -25,6 +26,7 @@ from flask import (
     Flask,
     Response,
     abort,
+    g,
     redirect,
     render_template,
     request,
@@ -33,6 +35,14 @@ from flask import (
     url_for,
 )
 from flask_caching import Cache
+from game_command_center import (
+    GAME_SCOPES,
+    attendance_projection,
+    bounded_game_role,
+    game_scope,
+    insight_projection,
+    load_bounded_games,
+)
 from identity_maintenance import (
     is_identity_maintenance_enabled,
     is_phase_c_enabled,
@@ -106,7 +116,17 @@ app.register_blueprint(demo_events)
 
 @app.context_processor
 def inject_portal_copy():
-    return {"portal_copy": PORTAL_COPY}
+    person_id = session.get("person_id")
+    identity_id = session.get("auth_identity_id")
+    lineup_identity_key = (
+        f"person-{person_id}-identity-{identity_id}"
+        if isinstance(person_id, int) and isinstance(identity_id, int)
+        else ""
+    )
+    return {
+        "portal_copy": PORTAL_COPY,
+        "lineup_identity_key": lineup_identity_key,
+    }
 
 
 LEGACY_SESSION_COOKIE_NAME = "session"
@@ -181,6 +201,60 @@ def load_phase_c_web_principal(session_values):
 
 configure_phase_c_principal_loader(load_phase_c_web_principal)
 
+
+def _game_management_context():
+    repository = phase_c_repository()
+    user_id = session.get("user_id")
+    person_id = session.get("person_id")
+    identity_id = session.get("auth_identity_id")
+    if repository is None or not isinstance(user_id, str) or not user_id:
+        return None
+    lifecycle_principal = repository.resolve_line_principal(user_id)
+    if (
+        lifecycle_principal is None
+        or lifecycle_principal.person.id != person_id
+        or lifecycle_principal.identity.id != identity_id
+    ):
+        for key in PHASE_C_SESSION_KEYS:
+            session.pop(key, None)
+        return None
+    role = bounded_game_role(
+        lifecycle_principal.person,
+        parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
+        local_preview=LOCAL_PREVIEW_MODE_ENABLED,
+    )
+    if role is None:
+        return None
+    return repository, lifecycle_principal, role
+
+
+def game_management_required(view):
+    @wraps(view)
+    def protected_view(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect(url_for("redirect_to_login", next=request.path))
+        context = _game_management_context()
+        if context is None:
+            abort(403)
+        g.game_management_context = context
+        return view(*args, **kwargs)
+
+    return protected_view
+
+
+def _can_manage_games(lifecycle_principal):
+    if lifecycle_principal is None:
+        return False
+    return (
+        bounded_game_role(
+            lifecycle_principal.person,
+            parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
+            local_preview=LOCAL_PREVIEW_MODE_ENABLED,
+        )
+        is not None
+    )
+
+
 # 設定 Cache 配置
 cache_config = {
     "CACHE_TYPE": "SimpleCache",  # 使用本地內存
@@ -227,6 +301,10 @@ def isolate_demo_from_production_data_routes():
         "game_detail",
         "reply_to_game",
         "game_roster",
+        "game_command_center",
+        "game_command_detail",
+        "game_insights",
+        "lineup_lab",
         "clear_attendance_cache",
         "account",
         "logout",
@@ -622,7 +700,7 @@ def latest_member_replies(member_id):
 @app.route("/dashboard")
 @member_required
 def member_dashboard():
-    member, _ = current_portal_member()
+    member, lifecycle_principal = current_portal_member()
     if member is None:
         for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
             session.pop(key, None)
@@ -646,6 +724,7 @@ def member_dashboard():
         unanswered_count=unanswered_count,
         reply_text_mapping=reply_text_mapping,
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+        can_manage_games=_can_manage_games(lifecycle_principal),
     )
 
 
@@ -654,7 +733,7 @@ def member_dashboard():
 def attendance():
     timing = AttendanceTiming()
     name_style = requested_attendance_name_style()
-    member, _ = current_portal_member()
+    member, lifecycle_principal = current_portal_member()
     if member is None:
         for key in AUTHENTICATED_IDENTITY_SESSION_KEYS:
             session.pop(key, None)
@@ -687,6 +766,7 @@ def attendance():
         name_style=name_style,
         my_replies=latest_member_replies(session.get("member_id")),
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+        can_manage_games=_can_manage_games(lifecycle_principal),
     )
     timing.finish("render")
     timing.emit(app.logger)
@@ -699,7 +779,7 @@ def game_detail(game_id):
     game = Game.search_by_id(game_id)
     if game is None:
         abort(404)
-    member, _ = current_portal_member()
+    member, lifecycle_principal = current_portal_member()
     if member is None:
         return render_template("not_authenticated.html"), 403
     name_style = requested_attendance_name_style()
@@ -712,6 +792,7 @@ def game_detail(game_id):
         name_style=name_style,
         csrf_token=get_or_create_csrf_token(),
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+        can_manage_games=_can_manage_games(lifecycle_principal),
     )
 
 
@@ -765,6 +846,7 @@ def account():
         logout_csrf_token=get_or_create_logout_csrf_token(),
         profile_csrf_token=get_or_create_csrf_token(),
         profile_request_id=f"profile-{secrets.token_urlsafe(24)}",
+        can_manage_games=_can_manage_games(lifecycle_principal),
     )
 
 
@@ -1310,6 +1392,166 @@ def game_roster(game_id: int):
         unanswered_count=len(attendance_mapping.get(5, ())),
         name_style=name_style,
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+    )
+
+
+def _command_game_rows(repository, games, name_style):
+    rows = []
+    for game in games:
+        try:
+            snapshot = attendance_projection(
+                repository.attendance_summary(
+                    game.id,
+                    use_display_name=name_style == "display",
+                )
+            )
+        except Exception:
+            snapshot = None
+        rows.append({"game": game, "attendance": snapshot})
+    return tuple(rows)
+
+
+def _bounded_game(game_id, now):
+    return next(
+        (game for game in load_bounded_games(Game, now) if game.id == game_id),
+        None,
+    )
+
+
+@app.get("/manage/games")
+@game_management_required
+def game_command_center():
+    scopes = request.args.getlist("scope")
+    scope = scopes[0] if scopes else "future"
+    if len(scopes) > 1 or scope not in GAME_SCOPES:
+        abort(400)
+    name_style = requested_attendance_name_style()
+    repository, _, role = g.game_management_context
+    now = datetime.now(local_timezone)
+    try:
+        games = tuple(
+            game
+            for game in load_bounded_games(Game, now)
+            if game_scope(game, now) == scope
+        )
+        rows = _command_game_rows(repository, games, name_style)
+    except Exception:
+        return (
+            render_template(
+                "game_command_center.html",
+                rows=(),
+                scope=scope,
+                name_style=name_style,
+                role=role,
+                data_time=now,
+                load_error=True,
+                can_manage_games=True,
+            ),
+            503,
+        )
+    return render_template(
+        "game_command_center.html",
+        rows=rows,
+        scope=scope,
+        name_style=name_style,
+        role=role,
+        data_time=now,
+        load_error=False,
+        can_manage_games=True,
+    )
+
+
+@app.get("/manage/games/<int:game_id>")
+@game_management_required
+def game_command_detail(game_id):
+    name_style = requested_attendance_name_style()
+    repository, _, role = g.game_management_context
+    now = datetime.now(local_timezone)
+    try:
+        game = _bounded_game(game_id, now)
+    except Exception:
+        return "Game information is temporarily unavailable", 503
+    if game is None:
+        abort(404)
+    try:
+        snapshot = attendance_projection(
+            repository.attendance_summary(
+                game.id,
+                use_display_name=name_style == "display",
+            )
+        )
+    except Exception:
+        snapshot = None
+    return render_template(
+        "game_command_detail.html",
+        game=game,
+        snapshot=snapshot,
+        name_style=name_style,
+        role=role,
+        data_time=now,
+        can_manage_games=True,
+    )
+
+
+@app.get("/manage/game-insights")
+@game_management_required
+def game_insights():
+    name_style = requested_attendance_name_style()
+    repository, _, role = g.game_management_context
+    now = datetime.now(local_timezone)
+    try:
+        games = load_bounded_games(Game, now)
+        rows = _command_game_rows(repository, games, name_style)
+    except Exception:
+        return "Game insights are temporarily unavailable", 503
+    snapshots = {
+        row["game"].id: row["attendance"]
+        for row in rows
+        if row["attendance"] is not None
+    }
+    return render_template(
+        "game_insights.html",
+        insight=insight_projection(games, snapshots, now),
+        name_style=name_style,
+        role=role,
+        data_time=now,
+        incomplete_count=len(games) - len(snapshots),
+        can_manage_games=True,
+    )
+
+
+@app.get("/manage/games/<int:game_id>/lineup-lab")
+@game_management_required
+def lineup_lab(game_id):
+    name_style = requested_attendance_name_style()
+    repository, lifecycle_principal, role = g.game_management_context
+    now = datetime.now(local_timezone)
+    try:
+        game = _bounded_game(game_id, now)
+    except Exception:
+        return "Game lineup information is temporarily unavailable", 503
+    if game is None:
+        abort(404)
+    if game.cancellation_time is not None:
+        return "Cancelled games cannot start a new lineup draft", 409
+    try:
+        snapshot = attendance_projection(
+            repository.attendance_summary(
+                game.id,
+                use_display_name=name_style == "display",
+            )
+        )
+    except Exception:
+        return "Game lineup information is temporarily unavailable", 503
+    return render_template(
+        "lineup_lab.html",
+        game=game,
+        candidates=snapshot["candidates"],
+        name_style=name_style,
+        role=role,
+        actor_person_id=lifecycle_principal.person.id,
+        data_time=now,
+        can_manage_games=True,
     )
 
 

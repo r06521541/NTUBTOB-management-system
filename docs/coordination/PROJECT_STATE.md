@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-10T09:59:08+08:00
+更新時間：2026-08-10T10:42:43+08:00
 
 維護角色：Work
 
@@ -24,9 +24,10 @@ Repository 基準：`main` / `1f06a18a95f3e86c24825f1eb7ab6282034972da`
   覆蓋規則，未重複新增程式碼。Event/Activity 延後。
 - TASK-096 `phase-d-web-ui-refresh` 已由 Work 驗收、通過 hosted Python 3.10 CI，並由 PR #106 squash-merge 至
   `main`（merge commit `1f06a18a95f3e86c24825f1eb7ab6282034972da`）；未部署。
-- TASK-097 `phase-d-local-cloud-data-preview` 已由 Work 驗收接受；PR #107 的 hosted Python 3.10 Web Portal、
-  PostgreSQL 15／16 與 final gate 均通過，待 squash merge。交付固定唯讀匯出契約、去識別化、exact local fixture
-  transactional replacement 與 localhost-only importer／preview identity；實際 Supabase 匯出仍需另行精確批准。
+- TASK-097 `phase-d-local-cloud-data-preview` 已由 PR #107 squash-merge 至 `main`（merge commit
+  `6b43ab1c39639117ec0c0e555eca3668199bb321`）；實際 Supabase 匯出仍需另行精確批准。
+- TASK-098 `phase-d-schema-neutral-game-command-center` 已完成規格收斂，下一步由 Codex 實作 schema-neutral、
+  Game-read-only 的 Officer／Admin command center、attendance insights 與 browser-session-only 粗／細守位試排。
 
 ## 已確認的 production 狀態
 
@@ -82,6 +83,8 @@ Repository 基準：`main` / `1f06a18a95f3e86c24825f1eb7ab6282034972da`
 - 規劃 runtime allowlist 至持久化角色／capability 的安全 cutover；保留 last-admin、self-lockout、audit atomicity。
 - 為管理者建立可用且可稽核的 Person／identity／qualification 管理介面。
 - 完成人工登入 smoke，確認 active Member 不再落入「尚待核可」。
+- 交付 bounded Officer／Admin Game command center、既有 Attendance／Roster 洞察與不持久化守位試排；Game
+  資訊本批維持唯讀，schema固定 `0004`。
 
 ### P2：Event 與多元活動
 
