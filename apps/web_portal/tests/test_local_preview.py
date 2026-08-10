@@ -5,8 +5,11 @@ import unittest
 from pathlib import Path
 
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
+SHARED_LIB_DIR = WEB_PORTAL_DIR.parents[1] / "shared_lib"
 if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
+if str(SHARED_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(SHARED_LIB_DIR))
 
 from local_preview import is_local_preview_enabled  # noqa: E402
 from local_preview import require_local_preview_startup, require_loopback_request
@@ -85,6 +88,7 @@ assert app.app.secret_key == "development-local-session-key-not-for-production"
         environment.update(
             {
                 "WEB_PORTAL_TEST_ROOT": str(WEB_PORTAL_DIR),
+                "PYTHONPATH": str(SHARED_LIB_DIR),
                 "DSN_UID": "portal_local",
                 "DSN_PASSWORD": "local-only-password",
             }

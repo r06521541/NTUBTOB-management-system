@@ -16,8 +16,13 @@ from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Callable, Iterable, Mapping
 
-from shared_module.portal_data.local_database import require_local_database_url
-from shared_module.portal_data.models import (
+from sqlalchemy import delete, func, insert, select, text
+from sqlalchemy.orm import Session
+
+from shared_lib.shared_module.portal_data.local_database import (
+    require_local_database_url,
+)
+from shared_lib.shared_module.portal_data.models import (
     AuthIdentityRecord,
     LegacyAttendanceReplyTypeRecord,
     LegacyGameAttendanceReplyRecord,
@@ -27,8 +32,6 @@ from shared_module.portal_data.models import (
     PersonQualificationRecord,
     PersonRecord,
 )
-from sqlalchemy import delete, func, insert, select, text
-from sqlalchemy.orm import Session
 
 BUNDLE_SCHEMA = "ntubtob-portal-preview-v1"
 REQUIRED_REVISION = "0004_phase_c_identity_lifecycle"

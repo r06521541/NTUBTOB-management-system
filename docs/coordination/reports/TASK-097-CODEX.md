@@ -13,6 +13,8 @@ Latest implementation commit: `71e6e0dd4ef70fe7f99d566570d8c9307a3ea281`
 
 Prior implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
 
+Hosted CI import-path correction: pending implementation commit.
+
 ## Delivered
 
 - Six fixed `BEGIN TRANSACTION READ ONLY` SQL contracts cover only the required
@@ -42,6 +44,11 @@ Prior implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
 - The PowerShell runbook pins the bundled Python, separates Owner-only export from
   Codex operations, uses the existing local Compose database, and defines exact
   private-artifact and named-volume cleanup boundaries.
+- Repository tools import the shared helper through the checkout namespace
+  `shared_lib.shared_module`; Web Portal tests expose the source package root as
+  `PYTHONPATH`, so runtime code continues to use only its packaged
+  `shared_module` namespace. The URL gate remains a single implementation and no
+  production fallback package was added.
 
 ## Verification
 
@@ -49,6 +56,9 @@ Prior implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
 - Web Portal offline suite: `142 tests`, `OK`, `2 skipped`.
 - Portal-data offline suite: `216 tests`, `OK`, `98 skipped` because no shared
   database URL was set for that offline run.
+- Hosted-CI import failure reproduction: Web preview `4 tests`, `OK`; private
+  bundle/security `5 tests`, `OK`; the preview app subprocess import also passed
+  with only the source package root supplied as its packaged namespace.
 - PostgreSQL 15.8 isolated importer integration: `3 tests`, `OK`; each starts from
   the real repository setup/migration fixture and covers success/readback,
   arbitrary nonempty drift denial, late constraint rollback, fixture restoration,
@@ -73,3 +83,6 @@ Prior implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
   against any source environment. Actual export remains blocked until the Owner
   separately approves the exact commit, SQL, operator, target, and cleanup plan.
 - Browser/LINE in-app visual smoke and any hosted deployment are not claimed.
+- PostgreSQL 15/16 were not rerun for the import-path-only correction; the prior
+  local 3/3-per-version transaction evidence remains unchanged, and PR #107 CI
+  must provide final hosted Python 3.10 collection/integration evidence.
