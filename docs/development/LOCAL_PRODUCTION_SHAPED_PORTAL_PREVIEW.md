@@ -83,13 +83,16 @@ $env:PORTAL_DATA_DATABASE_URL = 'postgresql+psycopg2://portal_local:local-only-p
 
 The importer reuses `require_local_database_url`; remote/Supabase hosts and any
 database name other than `ntubtob_portal_local` are rejected before engine
-creation. It also requires revision `0004_phase_c_identity_lifecycle`, an empty
-target, the exact derived manifest, checksums, types, limits, and foreign keys.
-All six tables are inserted in one transaction; an error rolls everything back,
-and a corrected bundle can be retried against the still-empty target. In that
-same transaction, the importer replaces only the known `setup_portal_data_legacy`
-fake attendance lookup IDs with the fixed 1–5 local preview semantics; any other
-lookup set fails closed.
+creation. It also requires revision `0004_phase_c_identity_lifecycle`, the exact
+derived manifest, checksums, types, limits, and foreign keys. The target must be
+empty or exactly match the repository-owned state produced by
+`setup_portal_data_legacy` followed by migration `0004`; do not manually clear
+the fixture. The importer fingerprints that complete state and replaces it in
+the same transaction as all six bundle inserts. An error restores the original
+fixture, so a corrected bundle can be retried. Any other nonempty or drifted
+database fails closed without modification. The same transaction replaces only
+the known fake attendance lookup IDs with the fixed 1–5 local preview semantics;
+any other lookup set fails closed.
 
 ## 4. Start the loopback-only, read-only Portal
 

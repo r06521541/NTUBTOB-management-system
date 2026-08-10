@@ -22,6 +22,7 @@ from shared_module.portal_data.models import (
     LegacyAttendanceReplyTypeRecord,
     LegacyGameAttendanceReplyRecord,
     LegacyGameRecord,
+    LegacyLineUserRecord,
     LegacyMemberRecord,
     PersonQualificationRecord,
     PersonRecord,
@@ -619,6 +620,221 @@ ATTENDANCE_REPLY_TYPES = {
     5: "unanswered",
 }
 LOCAL_FIXTURE_REPLY_IDS = {9101, 9102, 9103}
+REPOSITORY_OTHER_TABLES = (
+    "identity_review_threads",
+    "identity_review_messages",
+    "cancellations",
+    "discord_webhooks",
+    "line_groups",
+    "line_notify_tokens",
+    "events",
+    "activities",
+    "event_eligibility_rules",
+    "event_invitee_overrides",
+    "event_invitees",
+    "event_attendance_replies",
+    "activity_attendance_replies",
+    "event_managers",
+    "event_audit",
+)
+
+
+def _tuples(session: Session, sql: str) -> list[tuple]:
+    return [tuple(row) for row in session.execute(text(sql)).all()]
+
+
+def _is_repository_fixture(session: Session) -> bool:
+    """Match only the exact setup_portal_data_legacy + 0004 post-state."""
+    members = _tuples(
+        session,
+        "SELECT id, name, enroll_year, major, number, positions, person_id "
+        "FROM ntubtob.members ORDER BY id",
+    )
+    if len(members) != 2:
+        return False
+    linked_person_id = members[0][6]
+    if linked_person_id is None or members != [
+        (9201, "虛構校友甲", 100, "虛構系所", 1, "虛構守位", linked_person_id),
+        (9202, "虛構校友乙", 101, "虛構系所", 2, "虛構守位", None),
+    ]:
+        return False
+    exact_queries = {
+        "people": (
+            "SELECT id, display_name, formal_name, admin_note, portal_access_level, "
+            "portal_status, version FROM ntubtob.people ORDER BY id",
+            [
+                (
+                    linked_person_id,
+                    "虛構校友甲",
+                    "虛構校友甲",
+                    None,
+                    "basic",
+                    "inactive",
+                    1,
+                )
+            ],
+        ),
+        "games": (
+            "SELECT id, year, season, start_datetime::text, duration, location, "
+            "home_team, away_team, invitation_time::text, "
+            "cancellation_time::text, cancellation_announcement_time::text "
+            "FROM ntubtob.games ORDER BY id",
+            [
+                (
+                    9401,
+                    126,
+                    1,
+                    "2037-01-01 01:00:00+00",
+                    180,
+                    "虛構球場",
+                    "虛構主隊",
+                    "虛構客隊",
+                    None,
+                    None,
+                    None,
+                ),
+                (
+                    9402,
+                    126,
+                    1,
+                    "2037-01-08 01:00:00+00",
+                    180,
+                    "虛構球場",
+                    "虛構主隊",
+                    "虛構客隊",
+                    "2037-01-01 01:00:00+00",
+                    "2037-01-02 01:00:00+00",
+                    None,
+                ),
+            ],
+        ),
+        "line_users": (
+            "SELECT id, nickname, line_user_id, member_id, has_replied, ignored "
+            "FROM ntubtob.line_users ORDER BY id",
+            [
+                (9501, "虛構已連結", "fake-line-linked", 9201, True, False),
+                (9502, "虛構待配對", "fake-line-pending", None, False, False),
+                (9503, "虛構已忽略", "fake-line-ignored", None, False, True),
+            ],
+        ),
+        "attendance": (
+            "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at::text "
+            "FROM ntubtob.game_attendance_replies ORDER BY id",
+            [
+                (
+                    9601,
+                    9401,
+                    9501,
+                    9201,
+                    linked_person_id,
+                    9103,
+                    "2037-01-01 00:00:00+00",
+                ),
+                (
+                    9602,
+                    9401,
+                    9501,
+                    9201,
+                    linked_person_id,
+                    9101,
+                    "2037-01-01 00:01:00+00",
+                ),
+                (
+                    9603,
+                    9402,
+                    9501,
+                    9201,
+                    linked_person_id,
+                    9102,
+                    "2037-01-02 00:00:00+00",
+                ),
+                (
+                    9604,
+                    9402,
+                    9501,
+                    9201,
+                    linked_person_id,
+                    9102,
+                    "2037-01-02 00:01:00+00",
+                ),
+            ],
+        ),
+        "qualifications": (
+            "SELECT person_id, qualification, status, valid_from, valid_until, "
+            "granted_by_person_id, reason FROM ntubtob.person_qualifications",
+            [
+                (
+                    linked_person_id,
+                    "team_player",
+                    "active",
+                    None,
+                    None,
+                    None,
+                    "Phase C attendance compatibility backfill",
+                )
+            ],
+        ),
+        "audit": (
+            "SELECT action, actor_person_id, target_person_id, auth_identity_id, "
+            "before_state, after_state, reason, request_id FROM ntubtob.access_audit",
+            [
+                (
+                    "member_backfilled",
+                    None,
+                    linked_person_id,
+                    None,
+                    {"member_id": 9201, "person_id": None},
+                    {"member_id": 9201, "person_id": linked_person_id},
+                    "Phase C attendance compatibility backfill",
+                    "phase-c-attendance-member-9201",
+                )
+            ],
+        ),
+        "reply_types": (
+            "SELECT id, description FROM ntubtob.attendance_reply_types ORDER BY id",
+            [
+                (9101, "fictional attending"),
+                (9102, "fictional not attending"),
+                (9103, "fictional maybe"),
+            ],
+        ),
+        "ballparks": (
+            "SELECT id, name, city_name, city_weather_code, district_name "
+            "FROM ntubtob.ballparks ORDER BY id",
+            [(9301, "虛構球場", "虛構城市", "fictional-code", "虛構行政區")],
+        ),
+    }
+    if any(
+        _tuples(session, sql) != expected for sql, expected in exact_queries.values()
+    ):
+        return False
+    return all(
+        session.scalar(text(f"SELECT count(*) FROM ntubtob.{table}")) == 0
+        for table in ("auth_identities", *REPOSITORY_OTHER_TABLES)
+    )
+
+
+def _empty_target_has_no_other_data(session: Session) -> bool:
+    tables = ("line_users", "access_audit", "ballparks", *REPOSITORY_OTHER_TABLES)
+    return all(
+        session.scalar(text(f"SELECT count(*) FROM ntubtob.{table}")) == 0
+        for table in tables
+    )
+
+
+def _replace_repository_fixture(session: Session) -> None:
+    # The repository migration deliberately makes audit rows append-only. The
+    # exact local fixture is the sole exception: transactional TRUNCATE bypasses
+    # its DELETE trigger and rolls back together with a failed bundle import.
+    session.execute(text("TRUNCATE TABLE ntubtob.access_audit"))
+    session.execute(delete(PersonQualificationRecord))
+    session.execute(delete(AuthIdentityRecord))
+    session.execute(delete(LegacyGameAttendanceReplyRecord))
+    session.execute(delete(LegacyLineUserRecord))
+    session.execute(delete(LegacyMemberRecord))
+    session.execute(delete(LegacyGameRecord))
+    session.execute(delete(PersonRecord))
+    session.execute(text("DELETE FROM ntubtob.ballparks"))
 
 
 def _database_rows(table: str, rows: Iterable[dict]) -> list[dict]:
@@ -665,12 +881,24 @@ def import_bundle(
                 )
                 if revision != REQUIRED_REVISION:
                     _fail("local database revision does not match the bundle")
-                for table in reversed(TABLE_ORDER):
-                    count = session.scalar(
+                target_counts = [
+                    session.scalar(
                         select(func.count()).select_from(MODEL_BY_TABLE[table])
                     )
-                    if count:
-                        _fail("local preview target tables must be empty")
+                    for table in TABLE_ORDER
+                ]
+                if any(target_counts):
+                    if not _is_repository_fixture(session):
+                        _fail(
+                            "local preview database must be empty or match the "
+                            "repository fixture"
+                        )
+                    _replace_repository_fixture(session)
+                elif not _empty_target_has_no_other_data(session):
+                    _fail(
+                        "local preview database must be empty or match the "
+                        "repository fixture"
+                    )
                 for table in TABLE_ORDER:
                     values = _database_rows(table, rows[table])
                     if table == "game_attendance_replies":

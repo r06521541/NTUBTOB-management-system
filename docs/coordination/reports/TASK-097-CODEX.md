@@ -26,10 +26,11 @@ Implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
   keys, cardinality, linked Person/Member names, jersey numbers, positions,
   qualification validity, attendance replies, and relative timing.
 - The importer reuses `require_local_database_url`, accepts only the named isolated
-  local database at revision `0004_phase_c_identity_lifecycle`, requires empty
-  target data, validates the known local attendance lookup, and inserts all rows in
-  one transaction. A late constraint failure rolls back and a corrected retry
-  succeeds.
+  local database at revision `0004_phase_c_identity_lifecycle`, and accepts only
+  an empty target or the exact repository-owned `setup_portal_data_legacy` plus
+  `0004` fixture. It fingerprints and replaces that fixture together with the
+  bundle insert in one transaction; arbitrary nonempty/drifted data fails closed.
+  A late constraint failure restores the fixture and a corrected retry succeeds.
 - `/local-preview/login` uses only safe pseudonymous projections. Startup requires
   exact development/preview flags, loopback bind, and matching local URL/DSN.
   Non-loopback Hosts and LINE login/callback fail closed; all Portal POST mutations
@@ -44,18 +45,20 @@ Implementation commit: `3ccd2f49e900b1b2ca07fe478a160cdad0566a26`
 
 - Bundled Python `py_compile` for all affected Python modules: passed.
 - Web Portal offline suite: `142 tests`, `OK`, `2 skipped`.
-- Portal-data offline suite: `215 tests`, `OK`, `97 skipped` because no shared
+- Portal-data offline suite: `216 tests`, `OK`, `98 skipped` because no shared
   database URL was set for that offline run.
-- PostgreSQL 15.8 isolated integration: `7 tests`, `OK`; includes successful
-  import/readback, safe identity projection, late constraint rollback, and retry.
-- PostgreSQL 16.4 isolated integration: `7 tests`, `OK`; same contract.
+- PostgreSQL 15.8 isolated importer integration: `3 tests`, `OK`; each starts from
+  the real repository setup/migration fixture and covers success/readback,
+  arbitrary nonempty drift denial, late constraint rollback, fixture restoration,
+  and retry without test-only clearing.
+- PostgreSQL 16.4 isolated importer integration: `3 tests`, `OK`; same contract.
 - Black 24.4.2 and isort 5.13.2 (`profile=black`) formatter API, per affected
   Python file: passed. The bundled Windows Black CLI stalled without output as
   documented in `AGENT_ENVIRONMENT.md`, so it was terminated and replaced by the
   same-version formatter API/check.
 - `git diff --check`: passed.
-- Dedicated Compose projects `task097-pg15` and `task097-pg16`, including their
-  named volumes and networks, were removed after verification.
+- Dedicated containers `task097-fix-pg15` and `task097-fix-pg16` were removed
+  after verification.
 
 ## Boundaries and review notes
 

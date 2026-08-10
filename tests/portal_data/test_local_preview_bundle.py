@@ -4,12 +4,18 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest.mock import patch
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.orm import Session
 
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
+)
+from shared_lib.shared_module.portal_data.local_database import (
+    require_local_database_url,
 )
 from tools.portal_data_local_preview import (
     MODEL_BY_TABLE,
@@ -20,6 +26,7 @@ from tools.portal_data_local_preview import (
     seal_raw_bundle,
     validate_bundle,
 )
+from tools.setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 NOW = "2026-08-01T10:00:00+00:00"
 
@@ -238,7 +245,7 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.url = os.environ["PORTAL_DATA_TEST_DATABASE_URL"]
-        cls.engine = create_engine(cls.url)
+        cls.engine = create_engine(require_local_database_url(cls.url))
 
     @classmethod
     def tearDownClass(cls):
@@ -249,23 +256,45 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
         self.root = Path(self.temporary.name)
         self.raw = self.root / "raw"
         self.derived = self.root / "derived"
-        self._clear()
+        self._prepare_repository_fixture()
 
     def tearDown(self):
-        self._clear()
         self.temporary.cleanup()
 
-    def _clear(self):
-        with Session(self.engine) as session, session.begin():
-            session.execute(
-                text(
-                    "TRUNCATE TABLE "
-                    "ntubtob.game_attendance_replies, "
-                    "ntubtob.person_qualifications, "
-                    "ntubtob.auth_identities, ntubtob.games, "
-                    "ntubtob.members, ntubtob.people "
-                    "RESTART IDENTITY CASCADE"
-                )
+    def _prepare_repository_fixture(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+            connection.execute(text(LEGACY_FIXTURE_SQL))
+        with patch.dict(os.environ, {"PORTAL_DATA_DATABASE_URL": self.url}):
+            config = Config("alembic.ini")
+            command.stamp(config, "0001_legacy_baseline")
+            command.upgrade(config, "0004_phase_c_identity_lifecycle")
+
+    def _assert_repository_fixture(self):
+        with Session(self.engine) as session:
+            self.assertEqual(
+                session.scalars(
+                    select(MODEL_BY_TABLE["members"].id).order_by(
+                        MODEL_BY_TABLE["members"].id
+                    )
+                ).all(),
+                [9201, 9202],
+            )
+            self.assertEqual(
+                session.scalar(
+                    select(func.count()).select_from(MODEL_BY_TABLE["people"])
+                ),
+                1,
+            )
+            self.assertEqual(
+                session.scalar(text("SELECT count(*) FROM ntubtob.access_audit")),
+                1,
+            )
+            self.assertEqual(
+                session.scalars(
+                    text("SELECT id FROM ntubtob.attendance_reply_types ORDER BY id")
+                ).all(),
+                [9101, 9102, 9103],
             )
 
     def _derive(self, rows=None):
@@ -278,6 +307,7 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
         )
 
     def test_transactional_import_and_relational_readback(self):
+        self._assert_repository_fixture()
         self._derive()
         import_bundle(self.derived, self.url)
         with Session(self.engine) as session:
@@ -309,14 +339,7 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
         self._derive(rows)
         with self.assertRaisesRegex(PreviewBundleError, "rolled back"):
             import_bundle(self.derived, self.url)
-        with Session(self.engine) as session:
-            for table in TABLE_ORDER:
-                self.assertEqual(
-                    session.scalar(
-                        select(func.count()).select_from(MODEL_BY_TABLE[table])
-                    ),
-                    0,
-                )
+        self._assert_repository_fixture()
         retry_raw = self.root / "retry-raw"
         retry_derived = self.root / "retry-derived"
         write_raw_bundle(retry_raw)
@@ -334,6 +357,20 @@ class LocalPreviewPostgresIntegrationTest(unittest.TestCase):
                 ),
                 1,
             )
+
+    def test_nonempty_drift_is_rejected_without_changes(self):
+        self._derive()
+        with Session(self.engine) as session, session.begin():
+            member = session.get(MODEL_BY_TABLE["members"], 9201)
+            member.name = "unexpected local data"
+        with self.assertRaisesRegex(PreviewBundleError, "must be empty"):
+            import_bundle(self.derived, self.url)
+        with Session(self.engine) as session:
+            self.assertEqual(
+                session.get(MODEL_BY_TABLE["members"], 9201).name,
+                "unexpected local data",
+            )
+            self.assertIsNone(session.get(MODEL_BY_TABLE["people"], 1_000_010))
 
 
 if __name__ == "__main__":
