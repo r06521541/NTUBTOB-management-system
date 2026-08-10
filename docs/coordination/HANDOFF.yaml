@@ -1,17 +1,19 @@
 active_task: TASK-099
-status: ready_for_codex
-next_actor: codex
+status: ready_for_review
+next_actor: work
 
 base_commit: 44925dad735e8ee3d28ac0f9dae0cb2535762496
-head_commit: 0c047f6b7395bd885287e68780b7ccf6ded635b4
+head_commit: a9bf9878f9ce1d2e896aac15f95eee01453f73e4
 
-updated_by: work
-updated_at: 2026-08-11T00:21:37+08:00
+updated_by: codex
+updated_at: 2026-08-11T00:58:44+08:00
 
 note: >
-  TASK-099 closes the localhost acceptance gaps before the next deployment: repeatable fictional UI demo, allowlist-Admin
-  basic/officer assignment, role-aware nav and /manage hub, Windows-safe Attendance/Game dates, and real preview-Admin
-  repository parity. Schema stays 0004; production-shaped preview POST, production, deployment and external operations stay denied.
+  TASK-099 implementation is ready for Work review at a9bf9878f9ce1d2e896aac15f95eee01453f73e4: deterministic
+  fictional seed/reset/cleanup, audited allowlist-Admin basic/officer assignment, role-aware /manage navigation,
+  Windows-safe dates, and preview-Admin repository parity. Schema remains 0004; cloud-derived preview POST,
+  production, deployment, Secret and external operations remain denied. See the report for PG15/16, browser QA,
+  cleanup, and the pre-existing Windows CRLF checksum limitation.
 
 worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task099-worktree
 source_dirty_worktree: C:/Users/USER/Repos/NTUBTOB-management-system
