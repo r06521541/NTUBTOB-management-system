@@ -65,6 +65,7 @@ from role_policy import (
     MANAGE_QUALIFICATIONS,
     ROLE_ADMIN,
     ROLE_MEMBER,
+    ROLE_OFFICER,
     VIEW_PERSON_DIRECTORY,
 )
 from role_policy import Principal as WebPrincipal
@@ -185,7 +186,16 @@ def load_phase_c_web_principal(session_values):
             session.pop(key, None)
         return None
     allowlist = parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS"))
-    role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_MEMBER
+    if LOCAL_PREVIEW_MODE_ENABLED:
+        role = {
+            "admin": ROLE_ADMIN,
+            "officer": ROLE_OFFICER,
+            "basic": ROLE_MEMBER,
+        }.get(principal.person.access_level)
+        if role is None:
+            return None
+    else:
+        role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_MEMBER
     return WebPrincipal(role=role, member_id=principal.person.member_id)
 
 
@@ -195,10 +205,18 @@ configure_phase_c_principal_loader(load_phase_c_web_principal)
 def _game_management_context():
     repository = phase_c_repository()
     user_id = session.get("user_id")
+    person_id = session.get("person_id")
+    identity_id = session.get("auth_identity_id")
     if repository is None or not isinstance(user_id, str) or not user_id:
         return None
     lifecycle_principal = repository.resolve_line_principal(user_id)
-    if lifecycle_principal is None:
+    if (
+        lifecycle_principal is None
+        or lifecycle_principal.person.id != person_id
+        or lifecycle_principal.identity.id != identity_id
+    ):
+        for key in PHASE_C_SESSION_KEYS:
+            session.pop(key, None)
         return None
     role = bounded_game_role(
         lifecycle_principal.person,

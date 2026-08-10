@@ -2377,6 +2377,71 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(qualifications.status_code, 403)
         repository.admin_dashboard.assert_not_called()
 
+    def test_preview_admin_keeps_existing_read_only_management_surface(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        repository.admin_dashboard.return_value = {
+            "identities": (),
+            "people": (),
+            "available_members": (),
+            "audit": (),
+        }
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+        ), patch.object(
+            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.get(
+                "/manage/pending-identities", base_url="http://localhost:8080"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("待配對／待核可身分".encode(), response.data)
+        repository.admin_dashboard.assert_called_once_with(70)
+
+    def test_game_bridge_rejects_session_principal_mismatch_before_reads(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal()
+        mismatch_cases = (
+            {"person_id": 999, "auth_identity_id": 71},
+            {"person_id": 70, "auth_identity_id": 999},
+        )
+        for session_values in mismatch_cases:
+            with self.subTest(session_values=session_values):
+                self.game_model.search_games.reset_mock()
+                repository.attendance_summary.reset_mock()
+                with self.client.session_transaction() as current_session:
+                    current_session.clear()
+                    current_session.update(
+                        user_id="fake-authenticated-user",
+                        member_id=7,
+                        **session_values,
+                    )
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                    },
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ):
+                    response = self.client.get("/manage/games")
+                self.assertEqual(response.status_code, 403)
+                self.game_model.search_games.assert_not_called()
+                repository.attendance_summary.assert_not_called()
+                with self.client.session_transaction() as current_session:
+                    for key in self.app_module.PHASE_C_SESSION_KEYS:
+                        self.assertNotIn(key, current_session)
+
     def test_command_center_detail_insights_and_lineup_are_read_only(self):
         repository = MagicMock()
         repository.resolve_line_principal.return_value = self.command_principal()
