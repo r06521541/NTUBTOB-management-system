@@ -46,6 +46,21 @@ $env:DSN_PASSWORD = 'local-only-password'
 & $TaskPython apps/web_portal/app.py
 ```
 
+For Owner UI live editing, use the repository launcher instead of the final
+command above:
+
+```powershell
+& $TaskPython tools/run_portal_ui_live.py
+```
+
+The launcher fixes the same localhost-only fictional-demo environment and
+enables Werkzeug's file reloader. Saved Python changes restart the server;
+saved templates, CSS, and JavaScript are visible after a browser refresh. Do
+not use Flask CLI app discovery (`python -m flask --app ...`) here:
+`apps/web_portal/app.py` coexists with the legacy `apps/web_portal/__init__.py`
+package, and discovery can import the legacy package initializer instead of the
+current Portal entry point.
+
 Open only `http://127.0.0.1:8080/local-preview/login`. The three chooser
 identities are fictional Admin, Officer, and Basic. Only this exact mode and
 complete fixture may exercise the audited `basic <-> officer` action. No other
@@ -66,3 +81,9 @@ only the complete TASK-099 fixture and transactionally removes its rows. For a
 complete database removal, use the exact Compose `down -v` command from the
 production-shaped preview runbook. Never substitute a wildcard, repository
 root, home directory, remote DSN, or cloud-derived bundle path.
+
+If seeding reports that revision `0004` is missing while foundation tables
+already exist, treat the local named volume as an interrupted or stale fixture;
+do not stamp over it or manually repair individual tables. Stop the Portal,
+verify the exact Compose project, run the documented `down -v`, then recreate,
+setup, migrate, and seed the isolated database.
