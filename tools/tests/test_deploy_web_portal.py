@@ -436,6 +436,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             'PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: "false"\n'
             'WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED: "false"\n',
         )
+        self.assertNotIn(b"\r\n", self.temporary_env.read_bytes())
 
     def test_success_uses_fixed_context_single_substitution_argument_and_http_once(self):
         runner = FakeRunner(self.root)

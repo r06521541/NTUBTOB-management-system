@@ -168,7 +168,8 @@ def write_filtered_env(
             f'{key}: "{validate_boolean_flag(rollout_values[key], key)}"\n'
             for key in ROLLOUT_ENV_KEYS
         )
-    destination.write_text("".join(filtered), encoding="utf-8")
+    with destination.open("w", encoding="utf-8", newline="\n") as output:
+        output.write("".join(filtered))
 
 
 def parse_json(output: str, context: str) -> dict:
