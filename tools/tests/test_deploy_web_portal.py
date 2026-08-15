@@ -19,6 +19,7 @@ REVISION = "web-portal-00028-new"
 IDENTITY = "123456-compute@developer.gserviceaccount.com"
 LINE_REF = "fixture-line-login-secret:1"
 SESSION_REF = "fixture-session-secret:2"
+WEATHER_REF = "fixture-weather-secret:3"
 
 
 class FakeClock:
@@ -127,6 +128,7 @@ class FakeRunner:
             "DSN_PASSWORD": "supabase-database-password:latest",
             "LINE_LOGIN_CHANNEL_SECRET": LINE_REF,
             "SECRET_KEY": SESSION_REF,
+            "WEATHER_API_KEY": WEATHER_REF,
         }
         if self.secret_override:
             references.update(self.secret_override)
@@ -261,7 +263,8 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: false\n"
             "DSN_PASSWORD: fixture-password\n"
             "LINE_LOGIN_CHANNEL_SECRET: fixture-line-value\n"
-            "SECRET_KEY: fixture-session-value\n",
+            "SECRET_KEY: fixture-session-value\n"
+            "WEATHER_API_KEY: fixture-weather-value\n",
             encoding="utf-8",
         )
 
@@ -279,6 +282,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             ROLLBACK,
             LINE_REF,
             SESSION_REF,
+            WEATHER_REF,
             runner=runner,
             http_get=http_get or (lambda url, timeout: 404 if url.endswith("/demo/") else 200),
             clock=kwargs.pop("clock", FakeClock([0, 1, 2, 3])),
@@ -312,16 +316,17 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
     def test_invalid_inputs_and_dirty_source_fail_closed(self):
         cases = (
-            ("abc", ROLLBACK, LINE_REF, SESSION_REF, "40-character"),
-            (SHA, "other-service-00001-bad", LINE_REF, SESSION_REF, "web-portal"),
-            (SHA, ROLLBACK, "bad value", SESSION_REF, "resource:version"),
-            (SHA, ROLLBACK, LINE_REF, "secret:", "resource:version"),
+            ("abc", ROLLBACK, LINE_REF, SESSION_REF, WEATHER_REF, "40-character"),
+            (SHA, "other-service-00001-bad", LINE_REF, SESSION_REF, WEATHER_REF, "web-portal"),
+            (SHA, ROLLBACK, "bad value", SESSION_REF, WEATHER_REF, "resource:version"),
+            (SHA, ROLLBACK, LINE_REF, "secret:", WEATHER_REF, "resource:version"),
+            (SHA, ROLLBACK, LINE_REF, SESSION_REF, "weather value", "resource:version"),
         )
-        for commit, revision, line_ref, session_ref, message in cases:
+        for commit, revision, line_ref, session_ref, weather_ref, message in cases:
             with self.subTest(message=message):
                 with self.assertRaisesRegex(deploy.DeploymentError, message):
                     deploy.preflight(
-                        self.root, commit, revision, line_ref, session_ref,
+                        self.root, commit, revision, line_ref, session_ref, weather_ref,
                         FakeRunner(self.root), False,
                     )
         with self.assertRaisesRegex(deploy.DeploymentError, "clean"):
@@ -376,6 +381,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         self.assertEqual(build.count(substitutions), 1)
         self.assertIn(f"_IMAGE_TAG={SHA}", substitutions)
         self.assertIn(f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={LINE_REF}", substitutions)
+        self.assertIn(f"_WEB_PORTAL_WEATHER_SECRET_REF={WEATHER_REF}", substitutions)
         self.assertEqual(len(http_calls), 2)
         self.assertEqual(result["http_status"], {"/": 200, "/demo/": 404})
         self.assertNotIn("fixture-password", json.dumps(result))
@@ -522,6 +528,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             (dict(revision_digest="sha256:" + "c" * 64), "digest"),
             (dict(identity="different@example.com"), "identity"),
             (dict(secret_override={"SECRET_KEY": "wrong:1"}), "SECRET_KEY"),
+            (dict(secret_override={"WEATHER_API_KEY": "wrong:1"}), "WEATHER_API_KEY"),
         )
         for options, message in scenarios:
             with self.subTest(message=message):
@@ -611,6 +618,22 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         self.assertIn("stage iam", message)
         self.assertNotIn("fixture", message)
         self.assertNotIn("secret", message.lower())
+
+
+class WebPortalCloudBuildContractTests(unittest.TestCase):
+    def test_weather_key_is_secret_backed_by_an_exact_substitution(self):
+        cloudbuild = (
+            deploy.repository_root() / "apps" / "web_portal" / "cloudbuild.yaml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "validate_secret_ref '${_WEB_PORTAL_WEATHER_SECRET_REF}' WEATHER_API_KEY",
+            cloudbuild,
+        )
+        self.assertIn(
+            "WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF}", cloudbuild
+        )
+        self.assertNotIn("WEATHER_API_KEY: ", cloudbuild)
 
 
 if __name__ == "__main__":

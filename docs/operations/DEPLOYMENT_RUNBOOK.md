@@ -57,7 +57,7 @@ Owner 於 2026-08-04 接受本文件作為標準流程。此接受僅採納文�
 
 TASK-022 已建立 repository-only 防護：temporary runtime env 會過濾三項 Secret、Docker 排除該檔案、Cloud Run 設定三項 runtime Secret bindings，且 image tag 使用 exact Git commit。這些檢查不代表已批准或驗證 production deployment。
 
-部署 `web-portal` 前仍必須提供 LINE Login 與 session Secret 的 exact resource references、在不讀取 Secret value 下確認 resource 與 runtime IAM、盤點目前 production revision 與 public boundary，並由 Owner 批准 exact rollback revision。此服務因產品需求維持 public。
+部署 `web-portal` 前仍必須提供 LINE Login、session 與 weather Secret 的 exact resource references、在不讀取 Secret value 下確認 resource 與 runtime IAM、盤點目前 production revision 與 public boundary，並由 Owner 批准 exact rollback revision。此服務因產品需求維持 public。
 
 ## 4. 部署請求摘要
 
@@ -241,7 +241,8 @@ python tools/deploy_web_portal.py --execute \
   --approved-commit <FULL_40_CHARACTER_SHA> \
   --rollback-revision <EXACT_WEB_PORTAL_REVISION> \
   --line-login-secret-ref <RESOURCE:VERSION> \
-  --session-secret-ref <RESOURCE:VERSION>
+  --session-secret-ref <RESOURCE:VERSION> \
+  --weather-secret-ref <RESOURCE:VERSION>
 ```
 
 Wrapper 固定 project `ntubtob-schedule-405614`、region `asia-east1`、service
@@ -250,7 +251,7 @@ submission 取得 build ID，再做有 timeout 的 bounded polling；substitutio
 以單一 subprocess argument 傳遞，不依賴 PowerShell 或 shell 的逗號解析。
 
 Build `SUCCESS` 後仍須驗證 immutable digest、new revision Ready、100% traffic、
-public invoker、沿用的 runtime identity、三個 runtime Secret references、plain
+public invoker、沿用的 runtime identity、四個 runtime Secret references（包含 database password）、plain
 runtime key classifications 與 production demo gate 缺席。最後只做一次不跟隨
 redirect、也不讀 response body 的 `GET /`（200）與 `GET /demo/`（404）。部署後
 驗證失敗時，只能把 traffic 切回 CLI 已核准且通過 prefix 驗證的 exact revision；
@@ -266,7 +267,7 @@ Legacy Make 入口仍存在，但不提供上述跨平台 async polling 與完�
 make deploy-web-portal
 ```
 
-必要參數為 40 字元 `IMAGE_TAG`、`WEB_PORTAL_LINE_LOGIN_SECRET_REF` 與 `WEB_PORTAL_SESSION_SECRET_REF`。後兩者只能是 Secret resource/version references，不得是 Secret values。正式工作包還必須確認 callback URL、public boundary、Secret IAM、目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、Cloud Build、Secret lookup 或 Cloud Run deployment。
+必要參數為 40 字元 `IMAGE_TAG`、`WEB_PORTAL_LINE_LOGIN_SECRET_REF`、`WEB_PORTAL_SESSION_SECRET_REF` 與 `WEB_PORTAL_WEATHER_SECRET_REF`。後三者只能是 Secret resource/version references，不得是 Secret values。正式工作包還必須確認 callback URL、public boundary、Secret IAM、目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、Cloud Build、Secret lookup 或 Cloud Run deployment。
 
 ### 7.4 Update game schedule function
 
