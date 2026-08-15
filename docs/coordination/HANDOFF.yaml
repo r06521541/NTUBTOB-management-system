@@ -1,20 +1,20 @@
-active_task: TASK-101
+active_task: TASK-102
 status: in_progress
 next_actor: work
 
-base_commit: dc295774e58cb550a75f84148f6a033fff031015
+base_commit: d42057e27cd0352e5a44b77078ff2f9068b9194b
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-15T16:46:00+08:00
+updated_at: 2026-08-15T17:20:00+08:00
 
 note: >
-  TASK-100 merged as dc295774e58cb550a75f84148f6a033fff031015. Owner asked Work to close the newly identified
-  Weather API Secret deployment gap before production. TASK-101 may implement, test, push, create one PR and merge under
-  standing Git authorization. Production deployment, Secret, IAM, traffic and formal data remain unauthorized until a
-  corrected exact deployment package is approved.
+  TASK-101 merged and was deployed as web-portal-00047-wdb, but live checks exposed Phase C disabled behavior. Work used
+  the already approved exact rollback revision web-portal-00046-g8v and restored 100% traffic. TASK-102 may implement,
+  test, push, create one PR and merge under standing Git authorization. A second production deployment remains
+  unauthorized until Owner approves a new exact package including the rollout vector.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-101.md
-report: docs/coordination/reports/TASK-101-CODEX.md
-review: docs/coordination/reviews/TASK-101-WORK.md
+task: docs/coordination/tasks/TASK-102.md
+report: docs/coordination/reports/TASK-102-CODEX.md
+review: docs/coordination/reviews/TASK-102-WORK.md

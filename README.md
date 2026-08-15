@@ -67,7 +67,8 @@ py -3.10 tools/deploy_web_portal.py
 The production execution path is fail closed and requires all of the following:
 an exact approved 40-character commit, an exact `web-portal-*` rollback
 revision, and the three approved LINE Login, session, and weather Secret
-`resource:version` references. Its
+`resource:version` references, plus the exact approved Phase C, rollout-freeze,
+and identity-maintenance boolean vector. Its
 existence does not authorize a deployment. Do not use `--execute` without the
 Owner's exact deployment work package and the checks in
 `docs/operations/DEPLOYMENT_RUNBOOK.md`.

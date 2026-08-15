@@ -19,6 +19,18 @@ steps:
       validate_secret_ref '${_WEB_PORTAL_LINE_LOGIN_SECRET_REF}' LINE_LOGIN_CHANNEL_SECRET
       validate_secret_ref '${_WEB_PORTAL_SESSION_SECRET_REF}' SECRET_KEY
       validate_secret_ref '${_WEB_PORTAL_WEATHER_SECRET_REF}' WEATHER_API_KEY
+      validate_boolean() {
+        case "$$1" in
+          true|false) ;;
+          *) echo "invalid or missing boolean deployment input for $$2" >&2; exit 2 ;;
+        esac
+      }
+      validate_boolean '${_PORTAL_DATA_PHASE_C_ENABLED}' PORTAL_DATA_PHASE_C_ENABLED
+      validate_boolean '${_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED}' PORTAL_DATA_ROLLOUT_FREEZE_ENABLED
+      validate_boolean '${_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED}' WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED
+      grep -Fqx "PORTAL_DATA_PHASE_C_ENABLED: \"${_PORTAL_DATA_PHASE_C_ENABLED}\"" .env.yaml
+      grep -Fqx "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: \"${_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED}\"" .env.yaml
+      grep -Fqx "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED: \"${_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED}\"" .env.yaml
 
   - name: 'gcr.io/cloud-builders/docker'
     args: [

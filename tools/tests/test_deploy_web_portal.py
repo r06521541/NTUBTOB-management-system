@@ -20,6 +20,9 @@ IDENTITY = "123456-compute@developer.gserviceaccount.com"
 LINE_REF = "fixture-line-login-secret:1"
 SESSION_REF = "fixture-session-secret:2"
 WEATHER_REF = "fixture-weather-secret:3"
+PHASE_C_ENABLED = "true"
+ROLLOUT_FREEZE_ENABLED = "false"
+IDENTITY_MAINTENANCE_ENABLED = "false"
 
 
 class FakeClock:
@@ -96,6 +99,7 @@ class FakeRunner:
         public=True,
         identity=IDENTITY,
         secret_override=None,
+        rollout_override=None,
         promotion_failure=False,
         rollback_failure=False,
         rollout_states=None,
@@ -112,6 +116,7 @@ class FakeRunner:
         self.public = public
         self.identity = identity
         self.secret_override = secret_override
+        self.rollout_override = rollout_override
         self.promotion_failure = promotion_failure
         self.rollback_failure = rollback_failure
         self.rollout_states = list(rollout_states or [])
@@ -142,6 +147,17 @@ class FakeRunner:
                     },
                 }
             )
+        rollout_values = {
+            "PORTAL_DATA_PHASE_C_ENABLED": PHASE_C_ENABLED,
+            "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": ROLLOUT_FREEZE_ENABLED,
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": IDENTITY_MAINTENANCE_ENABLED,
+        }
+        if self.rollout_override:
+            rollout_values.update(self.rollout_override)
+        entries.extend(
+            {"name": name, "value": value}
+            for name, value in rollout_values.items()
+        )
         return entries
 
     def __call__(self, arguments, cwd):
@@ -283,6 +299,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             LINE_REF,
             SESSION_REF,
             WEATHER_REF,
+            PHASE_C_ENABLED,
+            ROLLOUT_FREEZE_ENABLED,
+            IDENTITY_MAINTENANCE_ENABLED,
             runner=runner,
             http_get=http_get or (lambda url, timeout: 404 if url.endswith("/demo/") else 200),
             clock=kwargs.pop("clock", FakeClock([0, 1, 2, 3])),
@@ -316,18 +335,62 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
     def test_invalid_inputs_and_dirty_source_fail_closed(self):
         cases = (
-            ("abc", ROLLBACK, LINE_REF, SESSION_REF, WEATHER_REF, "40-character"),
-            (SHA, "other-service-00001-bad", LINE_REF, SESSION_REF, WEATHER_REF, "web-portal"),
-            (SHA, ROLLBACK, "bad value", SESSION_REF, WEATHER_REF, "resource:version"),
-            (SHA, ROLLBACK, LINE_REF, "secret:", WEATHER_REF, "resource:version"),
-            (SHA, ROLLBACK, LINE_REF, SESSION_REF, "weather value", "resource:version"),
+            (
+                "abc", ROLLBACK, LINE_REF, SESSION_REF, WEATHER_REF,
+                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED, "40-character",
+            ),
+            (
+                SHA, "other-service-00001-bad", LINE_REF, SESSION_REF,
+                WEATHER_REF, PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED, "web-portal",
+            ),
+            (
+                SHA, ROLLBACK, "bad value", SESSION_REF, WEATHER_REF,
+                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED, "resource:version",
+            ),
+            (
+                SHA, ROLLBACK, LINE_REF, "secret:", WEATHER_REF,
+                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED, "resource:version",
+            ),
+            (
+                SHA, ROLLBACK, LINE_REF, SESSION_REF, "weather value",
+                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED, "resource:version",
+            ),
+            (
+                SHA, ROLLBACK, LINE_REF, SESSION_REF, WEATHER_REF, "yes",
+                ROLLOUT_FREEZE_ENABLED, IDENTITY_MAINTENANCE_ENABLED,
+                "true or false",
+            ),
         )
-        for commit, revision, line_ref, session_ref, weather_ref, message in cases:
+        for (
+            commit,
+            revision,
+            line_ref,
+            session_ref,
+            weather_ref,
+            phase_c,
+            freeze,
+            maintenance,
+            message,
+        ) in cases:
             with self.subTest(message=message):
                 with self.assertRaisesRegex(deploy.DeploymentError, message):
                     deploy.preflight(
-                        self.root, commit, revision, line_ref, session_ref, weather_ref,
-                        FakeRunner(self.root), False,
+                        self.root,
+                        commit,
+                        revision,
+                        line_ref,
+                        session_ref,
+                        weather_ref,
+                        phase_c,
+                        freeze,
+                        maintenance,
+                        runner=FakeRunner(self.root),
+                        check_tools=False,
                     )
         with self.assertRaisesRegex(deploy.DeploymentError, "clean"):
             deploy.preflight(
@@ -357,12 +420,21 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
     def test_filtered_env_keeps_safe_key_without_disclosing_fixture_secrets(self):
         source = self.root / "envs" / "web_portal" / ".env.yaml"
-        deploy.write_filtered_env(source, self.temporary_env)
+        deploy.write_filtered_env(
+            source,
+            self.temporary_env,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": PHASE_C_ENABLED,
+                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": ROLLOUT_FREEZE_ENABLED,
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": IDENTITY_MAINTENANCE_ENABLED,
+            },
+        )
         self.assertEqual(
             self.temporary_env.read_text(),
             "SAFE_SETTING: kept\n"
-            "PORTAL_DATA_PHASE_C_ENABLED: false\n"
-            "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: false\n",
+            'PORTAL_DATA_PHASE_C_ENABLED: "true"\n'
+            'PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: "false"\n'
+            'WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED: "false"\n',
         )
 
     def test_success_uses_fixed_context_single_substitution_argument_and_http_once(self):
@@ -382,6 +454,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         self.assertIn(f"_IMAGE_TAG={SHA}", substitutions)
         self.assertIn(f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={LINE_REF}", substitutions)
         self.assertIn(f"_WEB_PORTAL_WEATHER_SECRET_REF={WEATHER_REF}", substitutions)
+        self.assertIn("_PORTAL_DATA_PHASE_C_ENABLED=true", substitutions)
+        self.assertIn("_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false", substitutions)
+        self.assertIn("_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=false", substitutions)
         self.assertEqual(len(http_calls), 2)
         self.assertEqual(result["http_status"], {"/": 200, "/demo/": 404})
         self.assertNotIn("fixture-password", json.dumps(result))
@@ -529,6 +604,10 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             (dict(identity="different@example.com"), "identity"),
             (dict(secret_override={"SECRET_KEY": "wrong:1"}), "SECRET_KEY"),
             (dict(secret_override={"WEATHER_API_KEY": "wrong:1"}), "WEATHER_API_KEY"),
+            (
+                dict(rollout_override={"PORTAL_DATA_PHASE_C_ENABLED": "false"}),
+                "PORTAL_DATA_PHASE_C_ENABLED",
+            ),
         )
         for options, message in scenarios:
             with self.subTest(message=message):
@@ -634,6 +713,9 @@ class WebPortalCloudBuildContractTests(unittest.TestCase):
             "WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF}", cloudbuild
         )
         self.assertNotIn("WEATHER_API_KEY: ", cloudbuild)
+        self.assertIn("_PORTAL_DATA_PHASE_C_ENABLED", cloudbuild)
+        self.assertIn("_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED", cloudbuild)
+        self.assertIn("_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED", cloudbuild)
 
 
 if __name__ == "__main__":
