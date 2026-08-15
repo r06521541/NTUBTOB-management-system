@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from itsdangerous import TimestampSigner
 
-
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
@@ -69,6 +68,7 @@ class OAuthStateTest(unittest.TestCase):
             "/attendance?sentinel-query=secret": "attendance",
             "/account": "account",
             "/game-roster/23?sentinel-query=secret": "roster",
+            "/games/23/lineup-lab?sentinel-query=secret": "roster",
             "/game-roster/0": "default",
             "/future-games": "default",
             "https://sentinel.example/private": "default",

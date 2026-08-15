@@ -6,7 +6,6 @@ from copy import deepcopy
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
@@ -60,7 +59,7 @@ class DemoEventsTest(unittest.TestCase):
         self.client.get("/demo/officer/events")
         with self.client.session_transaction() as values:
             member = dict(values["demo_member"])
-            member["demo_role"] = "member"
+            member["demo_role"] = "basic"
             values["demo_member"] = member
             before = deepcopy(values["demo_events"])
         self.assertEqual(self.client.get("/demo/officer/events").status_code, 403)
@@ -79,7 +78,7 @@ class DemoEventsTest(unittest.TestCase):
 
         with self.client.session_transaction() as values:
             member = dict(values["demo_member"])
-            member["demo_role"] = "member"
+            member["demo_role"] = "basic"
             values["demo_member"] = member
         member_page = self.client.get("/demo/dashboard")
         self.assertNotIn(b'data-role="officer"', member_page.data)
@@ -98,7 +97,7 @@ class DemoEventsTest(unittest.TestCase):
 
     def test_demo_login_can_preview_all_roles_with_capability_guards(self):
         for role, can_manage in (
-            ("member", False),
+            ("basic", False),
             ("officer", True),
             ("admin", True),
         ):

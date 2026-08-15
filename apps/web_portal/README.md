@@ -42,7 +42,7 @@ and administrator approval are visual prototypes only. Existing LINE routes
 remain present, but selecting LINE requires the real application configuration
 and is not part of the offline demo.
 
-The local login offers member, officer, and administrator previews. Their
+The local login offers basic, officer, and administrator previews. Their
 navigation and protected demo routes use the same capability policy described
 in `docs/planning/WEB_PORTAL_ACCESS_MATRIX.md`; all demo identities and changes
 remain fictional and session-only.
@@ -154,12 +154,13 @@ OAuth state remains the authority for the actual redirect destination.
 
 ## Role and capability policy
 
-Role-to-capability mapping is centralized in `role_policy.py`. Production can
-currently resolve only a linked `member` or an allowlisted `admin`; it cannot
-produce an `officer`. Unknown roles, malformed identities, unknown
-capabilities, and an invalid admin allowlist fail closed. This is an
-authorization foundation, not role persistence: no schema, model, migration,
-or production role assignment is included. See
+Role-to-capability mapping is centralized in `role_policy.py`; its canonical
+platform roles are `basic`, `officer`, and `admin`. A linked active Person is
+shown as a general user for `basic`, while the request-time Person lifecycle
+bridge can grant bounded Game-management access to `officer`. Production
+administrator authority still comes only from the existing Member-ID
+allowlist. Unknown roles, malformed identities, unknown capabilities, and an
+invalid admin allowlist fail closed. See
 `docs/planning/WEB_PORTAL_ACCESS_MATRIX.md` for the current route matrix.
 
 ## Production member account and logout

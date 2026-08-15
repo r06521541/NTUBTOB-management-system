@@ -1,21 +1,30 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登入狀態已過期</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
-</head>
-<body class="auth-page">
-    <main class="auth-shell">
-      <section class="auth-panel" aria-labelledby="error-title">
-        <img class="auth-logo" src="{{ url_for('static', filename='images/logo_square.png') }}" alt="NTUBTOB 球隊隊徽">
-        <p class="auth-eyebrow">LOGIN RECOVERY</p>
-        <h1 id="error-title">登入狀態已過期</h1>
-        <p>為了保護你的帳號，這次登入無法繼續。若你使用手機，請回到 LINE，從 LINE 內重新開啟 Portal 連結；若使用電腦，請返回登入說明選擇瀏覽器登入。</p>
-        <div class="auth-actions"><a class="auth-button auth-button-secondary" data-login-action="options" href="{{ login_options_url }}">返回登入說明</a></div>
-      </section>
-    </main>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>登入狀態已過期</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}" />
+    </head>
+    <body class="auth-page">
+        <main class="auth-shell">
+            <section class="auth-panel" aria-labelledby="error-title">
+                <img class="auth-logo"
+                     src="{{ url_for('static', filename='images/logo_square.png') }}"
+                     alt="NTUBTOB 球隊隊徽" />
+                <p class="auth-eyebrow">LOGIN RECOVERY</p>
+                <h1 id="error-title">登入狀態已過期</h1>
+                <p>
+                    為了保護你的帳號，這次登入無法繼續。若你使用手機，請回到 LINE，從 LINE
+                    內重新開啟 Portal 連結；若使用電腦，請返回登入說明選擇瀏覽器登入。
+                </p>
+                <div class="auth-actions">
+                    <a class="auth-button auth-button-secondary"
+                       data-login-action="options"
+                       href="{{ login_options_url }}">返回登入說明</a>
+                </div>
+            </section>
+        </main>
+    </body>
 </html>

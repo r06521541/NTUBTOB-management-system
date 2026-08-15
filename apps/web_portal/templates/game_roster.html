@@ -1,31 +1,65 @@
-{% extends '_portal_base.html' %}
-{% block title %}守位工具｜NTUBTOB{% endblock %}
-{% block content %}
-<a class="portal-back-link" href="{{ url_for('game_detail', game_id=game.id, name_style=name_style) }}">← 返回賽事詳情</a>
-<section class="portal-title"><p class="portal-eyebrow">GAME DAY DRAFT</p><h1>指派守備位置</h1><p>{{ game.generate_summary_for_team() }}</p></section>
-<section class="portal-card portal-roster-card"><p class="portal-muted">這是本機瀏覽器中的暫存排位工具，不會寫入正式資料。尚未回覆：{{ unanswered_count }} 人。</p><nav class="portal-filter-row" aria-label="姓名顯示方式"><a href="{{ url_for('game_roster', game_id=game.id, name_style='formal') }}"{% if name_style == 'formal' %} aria-current="page"{% endif %}>正式姓名</a><a href="{{ url_for('game_roster', game_id=game.id, name_style='display') }}"{% if name_style == 'display' %} aria-current="page"{% endif %}>顯示名稱</a></nav><div id="result" class="portal-notice" aria-live="polite">尚未產生列表。</div><form id="position-form" class="portal-form"><button class="portal-button portal-button-primary" type="submit">產生列表</button>{% for position, label in [('coach','教練'),('pitcher','投手'),('catcher','捕手'),('infield','內野手'),('outfield','外野手')] %}<label>{{ label }}<select id="{{ position }}-select"><option value="" selected disabled>選擇隊員</option></select><span id="{{ position }}-list" class="portal-name-list"></span></label>{% endfor %}</form></section>
+{% extends '_portal_base.html' %} {% block title %}守位工具｜NTUBTOB{% endblock
+    %} {% block content %}
+<a class="portal-back-link"
+   href="{{ url_for('game_detail', game_id=game.id, name_style=name_style) }}">← 返回賽事詳情</a>
+<section class="portal-title">
+    <p class="portal-eyebrow">GAME DAY DRAFT</p>
+    <h1>指派守備位置</h1>
+</section>
+<section class="portal-card portal-detail-hero">
+    <div>
+        <p class="portal-eyebrow">MATCH SUMMARY</p>
+        <h2>{{ game.home_team }} <span>vs</span> {{ game.away_team }}</h2>
+        <p>
+            {{ game.get_formatted_date() }} {{ game.get_formatted_start_time_with_colon() }}–{{ game.get_formatted_end_time() }} · {{ game.location }}
+        </p>
+        <p class="portal-muted">{{ game.generate_summary_for_team() }}</p>
+    </div>
+    <span class="portal-badge portal-badge-pending">比賽摘要</span>
+</section>
+<section class="portal-card portal-roster-card">
+    <p class="portal-muted">
+        這是本機瀏覽器中的暫存排位工具，不會寫入正式資料。尚未回覆：{{
+            unanswered_count }} 人。
+    </p>
+    <nav class="portal-filter-row" aria-label="姓名顯示方式">
+        <a href="{{ url_for('game_roster', game_id=game.id, name_style='formal') }}"
+           {% if name_style == 'formal' %} aria-current="page" {% endif %}>正式姓名</a><a href="{{ url_for('game_roster', game_id=game.id, name_style='display') }}"
+   {% if name_style == 'display' %} aria-current="page" {% endif %}>顯示名稱</a>
+    </nav>
+    <div id="result" class="portal-notice" aria-live="polite">尚未產生列表。</div>
+    <form id="position-form" class="portal-form">
+        <button class="portal-button portal-button-primary" type="submit">產生列表</button>
+        {% for position, label in
+            [('coach','教練'),('pitcher','投手'),('catcher','捕手'),('infield','內野手'),('outfield','外野手')]
+            %}
+            <label>
+                {{ label }}<select id="{{ position }}-select">
+                <option value="" selected disabled>選擇隊員</option></select><span id="{{ position }}-list" class="portal-name-list"></span></label>{% endfor %}
+    </form>
+</section>
 <script>
-const players = {{ players | tojson }};
-const assigned = {coach: [], pitcher: [], catcher: [], infield: [], outfield: []};
-const positions = Object.keys(assigned);
-function refresh() {
-    const selected = Object.values(assigned).flat();
-    positions.forEach((position) => {
-        const select = document.getElementById(`${position}-select`);
-        select.replaceChildren(new Option('選擇隊員', '', true, true));
-        players.filter((player) => !selected.includes(player)).forEach((player) => select.add(new Option(player, player)));
-        const list = document.getElementById(`${position}-list`);
-        list.replaceChildren(...assigned[position].map((player) => {
-            const item = document.createElement('span');
-            item.textContent = player;
-            item.title = '點擊移除';
-            item.addEventListener('click', () => { assigned[position] = assigned[position].filter((value) => value !== player); refresh(); });
-            return item;
-        }));
-    });
-}
-positions.forEach((position) => document.getElementById(`${position}-select`).addEventListener('change', (event) => { if (event.target.value) assigned[position].push(event.target.value); refresh(); }));
-document.getElementById('position-form').addEventListener('submit', (event) => { event.preventDefault(); document.getElementById('result').textContent = positions.map((position) => `${position}: ${assigned[position].join('、') || '—'}`).join('；'); });
-refresh();
+  const players = {{ players | tojson }};
+  const assigned = {coach: [], pitcher: [], catcher: [], infield: [], outfield: []};
+  const positions = Object.keys(assigned);
+  function refresh() {
+      const selected = Object.values(assigned).flat();
+      positions.forEach((position) => {
+          const select = document.getElementById(`${position}-select`);
+          select.replaceChildren(new Option('選擇隊員', '', true, true));
+          players.filter((player) => !selected.includes(player)).forEach((player) => select.add(new Option(player, player)));
+          const list = document.getElementById(`${position}-list`);
+          list.replaceChildren(...assigned[position].map((player) => {
+              const item = document.createElement('span');
+              item.textContent = player;
+              item.title = '點擊移除';
+              item.addEventListener('click', () => { assigned[position] = assigned[position].filter((value) => value !== player); refresh(); });
+              return item;
+          }));
+      });
+  }
+  positions.forEach((position) => document.getElementById(`${position}-select`).addEventListener('change', (event) => { if (event.target.value) assigned[position].push(event.target.value); refresh(); }));
+  document.getElementById('position-form').addEventListener('submit', (event) => { event.preventDefault(); document.getElementById('result').textContent = positions.map((position) => `${position}: ${assigned[position].join('、') || '—'}`).join('；'); });
+  refresh();
 </script>
 {% endblock %}

@@ -1,22 +1,20 @@
-from sqlalchemy import Integer, String, DateTime
-from sqlalchemy import update, and_
-from sqlalchemy.orm import Session, DeclarativeBase, mapped_column, Mapped, relationship
-from datetime import datetime, timezone, timedelta
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Optional
-from dataclasses import dataclass, asdict
 
-from .db import engine
-from ..settings import (
-    local_timezone,
-    current_team
-)
+from sqlalchemy import DateTime, Integer, String, and_, update
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship
+
 from ..message_templates.general_message import (
-    weekday_mapping,
-    offseason_game_sign,
     normal_game_sign,
-    season_mapping
+    offseason_game_sign,
+    season_mapping,
+    weekday_mapping,
 )
+from ..settings import current_team, is_current_team, local_timezone
 from .base import Base
+from .db import engine
+
 
 @dataclass
 class Game(Base):
@@ -73,6 +71,21 @@ class Game(Base):
         # Avoid POSIX-only %-m/%-d directives; Windows strftime rejects them.
         return f"{start_datetime.month}/{start_datetime.day}（{chinese_weekday}）"
 
+    def get_formatted_short_date(self) -> str:
+        start_datetime = self.start_datetime.astimezone(local_timezone)
+        return f"{start_datetime.month}/{start_datetime.day}"
+
+    def get_status_label(self, now: Optional[datetime] = None) -> str:
+        now = now or datetime.now(local_timezone)
+        if self.cancellation_time is not None:
+            return "已結束"
+        end_datetime = self.start_datetime.astimezone(local_timezone) + timedelta(minutes=self.duration)
+        if now < self.start_datetime.astimezone(local_timezone):
+            return "即將開打"
+        if now <= end_datetime:
+            return "進行中"
+        return "已結束"
+
     def get_formatted_start_time(self) -> str:
         start_datetime = self.start_datetime.astimezone(local_timezone)
         return start_datetime.strftime("%H%M")
@@ -87,7 +100,7 @@ class Game(Base):
         return (start_datetime + timedelta(minutes=self.duration)).strftime("%H%M")
 
     def get_is_home_team(self) -> bool:
-        return current_team == self.home_team
+        return is_current_team(self.home_team)
 
     def get_opponent(self) -> str:
         return self.away_team if self.get_is_home_team() else self.home_team
@@ -102,7 +115,9 @@ class Game(Base):
         return f"{self.year}{season_mapping[self.season]} {self.get_formatted_date()} {self.get_formatted_start_time()} - {self.get_formatted_end_time()} {self.home_team} vs {self.away_team} @{self.location}"
         
     def generate_summary_for_team(self) -> str:
-        if current_team != self.home_team and current_team != self.away_team:
+        if not is_current_team(self.home_team) and not is_current_team(
+            self.away_team
+        ):
             return self.generate_summary()
         # 生成格式化字串
         return f"{self.get_game_sign()} {self.get_formatted_date()} {self.get_formatted_start_time()} - {self.get_formatted_end_time()} vs {self.get_opponent()} {'先守' if self.get_is_home_team() else '先攻'} @{self.location}"

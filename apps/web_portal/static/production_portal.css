@@ -36,6 +36,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-hero p, .portal-title p, .portal-muted { color: var(--color-muted); }
 .portal-eyebrow { margin: 0; color: var(--brand-accent); font-size: .76rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
 .portal-stat { display: grid; flex: 0 0 112px; place-content: center; width: 112px; height: 112px; border-radius: 50%; background: var(--brand-primary); color: white; text-align: center; }
+.portal-stat-complete { background: var(--brand-accent); color: white; box-shadow: 0 8px 24px rgb(214 164 51 / 24%); }
 .portal-stat strong { font-size: 2.2rem; line-height: 1; }
 .portal-stat span { font-size: .8rem; }
 .portal-section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 34px 0 14px; }
@@ -51,13 +52,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-card-link:hover { box-shadow: var(--shadow-card-raised); }
 .portal-notice { display: grid; gap: 2px; padding: 16px 18px; border: 1px solid #e5d2a7; border-radius: 14px; background: var(--color-warning-soft); color: var(--color-warning); }
 .portal-notice strong { color: var(--color-text); }
-.portal-featured-game { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 24px; padding: 26px; }
-.portal-date-tile { display: grid; place-content: center; width: 82px; height: 94px; border-radius: 16px; background: var(--brand-primary); color: white; text-align: center; }
+.portal-featured-game { position: relative; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 24px; padding: 26px; box-shadow: 0 12px 30px rgb(24 44 66 / 14%); transition: box-shadow .2s, transform .2s; }
+.portal-featured-game:hover { transform: translateY(-4px); box-shadow: 0 18px 42px rgb(24 44 66 / 20%); }
+.portal-featured-game:active { transform: translateY(-1px); box-shadow: 0 9px 22px rgb(24 44 66 / 16%); }
+.portal-featured-game-hit-area { position: absolute; inset: 0; z-index: 1; border-radius: inherit; cursor: pointer; }
+.portal-featured-game-hit-area:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 3px; }
+.portal-featured-game-info { min-width: 0; padding-right: 46px; }
+.portal-featured-game-arrow { position: absolute; top: 24px; right: 24px; z-index: 1; display: grid; place-content: center; width: 38px; height: 38px; border: 1px solid #c9d5df; border-radius: 50%; background: #f4f7f9; color: var(--brand-primary); font-size: 1.25rem; font-weight: 900; line-height: 1; pointer-events: none; transition: color .2s, background .2s, transform .2s; }
+.portal-featured-game:hover .portal-featured-game-arrow { transform: translateX(3px); background: var(--brand-primary); color: white; }
+.portal-featured-game .portal-reply-form-row { position: relative; z-index: 2; grid-column: 1 / -1; }
+.portal-game-weather { position: relative; z-index: 2; grid-column: 1 / -1; min-width: 0; padding: 18px; border: 1px solid #c9dbe8; border-radius: 18px; background: linear-gradient(135deg, #f2f8fc, #fff); }
+.portal-game-weather-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.portal-game-weather-heading h3 { margin: 3px 0 0; }
+.portal-weather-demo-label { display: block; margin-top: 2px; color: var(--color-muted); font-size: .72rem; font-weight: 750; }
+.portal-weather-warning { padding: 5px 9px; border-radius: 999px; background: var(--color-warning-soft); color: var(--color-warning); font-size: .78rem; font-weight: 800; white-space: nowrap; }
+.portal-weather-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.portal-weather-point { display: grid; gap: 2px; min-width: 0; padding: 10px 6px; border-radius: 12px; background: rgb(255 255 255 / 78%); text-align: center; }
+.portal-weather-point time { color: var(--color-muted); font-size: .78rem; font-weight: 800; }
+.portal-weather-point strong { font-size: 1.5rem; line-height: 1.3; }
+.portal-weather-point span { font-size: .78rem; white-space: nowrap; }
+.portal-weather-note { margin: 10px 0 0 !important; color: var(--color-warning) !important; font-size: .82rem; font-weight: 750; }
+.portal-date-tile { display: grid; place-content: center; width: 82px; height: 132px; border-radius: 16px; background: var(--brand-primary); color: white; text-align: center; }
 .portal-date-tile strong { font-size: 2.4rem; line-height: 1; }
-.portal-date-tile span { font-size: .8rem; }
+.portal-date-tile span { font-size: .8rem; font-weight: 500; }
+.portal-date-tile p { font-size: .9rem; color: white; font-weight: 800; }
 .portal-featured-game h2 { margin: 10px 0 4px; font-size: clamp(1.25rem, 3vw, 1.7rem); }
 .portal-featured-game h2 span, .portal-game-card h3 span { color: var(--color-muted); font-weight: 400; }
 .portal-featured-game p, .portal-game-card p { margin: 2px 0; color: var(--color-muted); }
+.portal-featured-game .portal-date-time { color: white; }
 .portal-actions { display: grid; gap: 8px; min-width: 132px; }
 .portal-button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 10px 16px; border: 0; border-radius: var(--radius-control); font: inherit; font-weight: 800; text-decoration: none; cursor: pointer; }
 .portal-button-primary { background: var(--brand-primary); color: white; }
@@ -65,8 +87,10 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-button-secondary { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); }
 .portal-button-secondary:hover { border-color: var(--brand-primary); background: var(--brand-primary-soft); }
 .portal-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.portal-game-card { padding: 20px; transition: box-shadow .2s, transform .2s; }
+.portal-game-card { display: grid; gap: 12px; padding: 20px; transition: box-shadow .2s, transform .2s; }
 .portal-game-card:hover { transform: translateY(-2px); }
+.portal-game-card-link { display: grid; gap: 8px; text-decoration: none; }
+.portal-inline-reply-form { margin-top: 2px; }
 .portal-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .portal-game-card h3 { margin: 14px 0 4px; font-size: 1.25rem; }
 .portal-badge { display: inline-flex; align-items: center; padding: 5px 10px; border-radius: 999px; font-size: .76rem; font-weight: 800; white-space: nowrap; }
@@ -83,8 +107,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-detail-hero h1 span { color: var(--color-muted); font-weight: 400; }
 .portal-reply-card { display: grid; gap: 18px; padding: 24px; margin-top: 16px; }
 .portal-reply-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-.portal-reply-button { min-height: 64px; padding: 8px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text); font: inherit; font-weight: 800; cursor: pointer; }
-.portal-reply-button:hover, .portal-reply-button[aria-pressed="true"] { border-color: var(--brand-primary); background: var(--brand-primary-soft); }
+.portal-reply-button { min-height: 64px; padding: 8px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text); font: inherit; font-weight: 800; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+.portal-reply-button:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgb(0 0 0 / 8%); }
+.portal-reply-button[aria-pressed="true"] { border-color: var(--brand-primary); background: var(--brand-primary); color: white; box-shadow: 0 8px 18px rgb(54 101 210 / 22%); }
 .portal-roster-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px; }
 .portal-roster-card { padding: 24px; }
 .portal-roster-card h2 { margin-top: 0; }
@@ -98,6 +123,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-account-list div { display: grid; grid-template-columns: 140px 1fr; gap: 16px; padding: 13px 0; border-top: 1px solid var(--color-border); }
 .portal-account-list dt { color: var(--color-muted); }
 .portal-account-list dd { margin: 0; font-weight: 750; }
+.portal-admin-note { white-space: pre-wrap; overflow-wrap: anywhere; }
 .portal-form { display: grid; gap: 14px; }
 .portal-form label { display: grid; gap: 6px; color: var(--color-muted); font-weight: 750; }
 .portal-form input, .portal-form select, .portal-form textarea { min-height: 44px; max-width: 100%; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); font: inherit; }
@@ -114,54 +140,214 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-mini-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .portal-mini-metrics span { display: grid; padding: 10px; border-radius: 10px; background: var(--brand-primary-soft); color: var(--color-muted); font-size: .78rem; }
 .portal-mini-metrics strong { color: var(--color-text); font-size: 1.2rem; }
-.portal-insight-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 18px 0; }
+.portal-insight-grid { display: grid; gap: 14px; margin: 18px 0; }
+.portal-reply-status-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .portal-metric-card { display: grid; gap: 4px; padding: 20px; }
 .portal-metric-card span, .portal-metric-card small { color: var(--color-muted); }
 .portal-metric-card strong { font-size: 2rem; }
 .portal-insight-list { display: grid; }
 .portal-insight-list a { display: grid; grid-template-columns: 1fr auto auto; gap: 16px; min-height: 48px; padding: 12px 0; border-top: 1px solid var(--color-border); text-decoration: none; }
 .portal-lineup-lab { display: grid; gap: 16px; margin-top: 16px; }
-.portal-lineup-table { display: grid; gap: 8px; }
-.portal-lineup-table > div { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(180px, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--color-border); }
+.portal-lineup-table { display: grid; gap: 2px; }
+.portal-lineup-table > div {
+    display: grid;
+    gap: 4px;
+    padding: 4px 0;
+    border-top: 1px solid var(--color-border);
+}
+.portal-lineup-row {
+    display: grid;
+    grid-template-columns: minmax(80px, 140px) minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+.portal-lineup-name {
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.portal-lineup-buttons {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 3px 2px;
+    min-width: 0;
+    scrollbar-width: none;
+}
+.portal-attendance-icon { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 5px; border-radius: 50%; font-size: .72rem; font-weight: 950; vertical-align: middle; }
+.portal-attendance-late { background: #fff0d4; color: #a75f15; }
+.portal-attendance-early { background: #e6f2fb; color: #33759b; }
+.portal-lineup-buttons::-webkit-scrollbar { display: none; }
+.portal-lineup-button {
+    flex: 0 0 auto;
+    min-width: 62px;
+    min-height: 36px;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: 800;
+    font-size: .84rem;
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease, transform .15s ease;
+}
+.portal-lineup-button:hover:not(:disabled) {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary-soft);
+}
+.portal-lineup-button[aria-pressed="true"] {
+    border-color: var(--brand-primary);
+    background: var(--brand-primary);
+    color: white;
+}
+.portal-lineup-button[data-coarse-role="pitcher"] { border-color: #e8bec6; background: white; color: #873f50; }
+.portal-lineup-button[data-coarse-role="catcher"] { border-color: #b8d8ea; background: white; color: #295f7a; }
+.portal-lineup-button[data-coarse-role="infield"] { border-color: #e7d17d; background: white; color: #75601f; }
+.portal-lineup-button[data-coarse-role="outfield"] { border-color: #bad9b7; background: white; color: #356b38; }
+.portal-lineup-button[data-coarse-role="pitcher"][aria-pressed="true"] { border-color: #b95f74; background: #d98295; color: white; }
+.portal-lineup-button[data-coarse-role="catcher"][aria-pressed="true"] { border-color: #4386a8; background: #64a7c8; color: white; }
+.portal-lineup-button[data-coarse-role="infield"][aria-pressed="true"] { border-color: #d7b31f; background: #f5d84f; color: #3d3105; }
+.portal-lineup-button[data-coarse-role="outfield"][aria-pressed="true"] { border-color: #609764; background: #78ad71; color: white; }
+.portal-lineup-button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
 .portal-lineup-table label, .portal-position-list label { display: grid; gap: 4px; color: var(--color-muted); font-weight: 750; }
 .portal-lineup-table select, .portal-position-list select { min-height: 44px; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: white; font: inherit; }
-.portal-field-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 20px; align-items: start; }
-.portal-baseball-field { width: 100%; min-height: 360px; border-radius: 22px; background: #edf5ef; }
-.portal-baseball-field .field-grass { fill: #dcebdd; stroke: var(--brand-primary); stroke-width: 4; }
-.portal-baseball-field .field-dirt { fill: #eadbc2; stroke: #c8aa7a; stroke-width: 3; }
-.portal-baseball-field circle, .portal-baseball-field rect { fill: white; stroke: var(--brand-primary); stroke-width: 3; }
+.portal-lineup-stage { display: grid; gap: 20px; }
+.portal-lineup-stage[hidden] { display: none; }
+.portal-field-card { position: relative; z-index: 2; overflow: visible; border: 1px solid #d8e5dd; border-radius: var(--radius-card); background: linear-gradient(145deg, #fbfdfb 0%, #f0f6f2 100%); box-shadow: inset 0 4px 0 #184f3e; }
+.portal-field-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.portal-field-heading h2 { margin: 2px 0 0; font-size: clamp(1.4rem, 2.4vw, 2rem); }
+.portal-field-rule { padding: 7px 11px; border-radius: 999px; background: #e1eee6; color: #184f3e; font-size: .78rem; font-weight: 850; }
+.portal-field-layout { position: relative; width: min(100%, 820px); margin: 18px auto 8px; }
+.portal-baseball-field { display: block; width: 100%; height: auto; min-height: 0; aspect-ratio: 600 / 520; border-radius: 30px; background: #082e2b; box-shadow: 0 22px 48px rgb(7 31 40 / 20%); }
+.portal-baseball-field .field-backdrop { fill: url(#field-sky); stroke: rgb(255 255 255 / 12%); stroke-width: 2; }
+.portal-baseball-field .field-grass { fill: #247153; stroke: #91c6a1; stroke-width: 3; }
+.portal-baseball-field .field-mow-pattern { fill: url(#field-stripes); pointer-events: none; }
+.portal-baseball-field .field-foul-line { fill: none; stroke: rgb(255 255 255 / 72%); stroke-width: 2; stroke-dasharray: 6 5; }
+.portal-baseball-field .field-dirt { fill: #c98e5b; stroke: #efc795; stroke-width: 3; }
+.portal-baseball-field .field-landmark { fill: #fffdf5; stroke: #0b4036; stroke-width: 2.5; filter: drop-shadow(0 2px 2px rgb(0 0 0 / 20%)); }
+.portal-baseball-field .field-mound { fill: #d7a16f; stroke: #efc795; stroke-width: 3; }
+.portal-baseball-field .field-position-card { fill: rgb(255 255 255 / 94%); stroke: rgb(255 255 255 / 65%); stroke-width: 2; filter: url(#field-card-shadow); transition: fill .18s ease, stroke .18s ease, transform .18s ease; }
+.portal-baseball-field .field-position-badge { fill: #0b4036; stroke: #9ed2ae; stroke-width: 2; }
+.portal-baseball-field [data-field-position] { cursor: pointer; }
+.portal-baseball-field [data-field-position]:hover .field-position-card, .portal-baseball-field [data-field-position]:focus .field-position-card { fill: white; stroke: #f3c864; stroke-width: 4; }
 .portal-baseball-field text { fill: var(--brand-primary); font-weight: 900; text-anchor: middle; }
-.portal-baseball-field .is-filled circle, .portal-baseball-field .is-filled rect { fill: var(--brand-accent-soft); stroke: var(--brand-accent); }
+.portal-baseball-field .field-position-label { fill: white; font-size: 12px; letter-spacing: -.02em; text-anchor: middle; }
+.portal-baseball-field .field-player-name { fill: #0a342f; font-size: 16px; font-weight: 950; text-anchor: middle; }
+.portal-baseball-field .field-player-number { fill: #c36a2d; font-size: 18px; font-weight: 950; text-anchor: middle; }
+.portal-baseball-field .field-player-status { fill: #b85f24; font-size: 11px; font-weight: 950; }
+.portal-baseball-field .is-filled .field-position-card { fill: #fff8e8; stroke: #f3c864; stroke-width: 3; }
+.portal-baseball-field .is-filled .field-position-badge { fill: #d97836; stroke: #fff2c6; }
+.portal-dropdown-menu { position: absolute; z-index: 40; min-width: 240px; max-width: 320px; border: 1px solid var(--color-border); border-radius: 18px; background: white; box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12); padding: 8px 0; }
+.portal-dropdown-menu[hidden] { display: none; }
+.portal-dropdown-item { display: block; width: 100%; text-align: left; padding: 10px 14px; border: none; background: transparent; color: var(--color-text); font: inherit; cursor: pointer; }
+.portal-dropdown-item:hover, .portal-dropdown-item:focus { background: rgba(44, 115, 255, 0.08); }
+.portal-dropdown-item.is-selected { background: rgba(44, 115, 255, 0.14); font-weight: 700; }
+.portal-dropdown-separator { height: 1px; margin: 7px 12px; background: var(--color-border); }
 .portal-position-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .portal-position-list fieldset { grid-column: 1 / -1; display: grid; gap: 8px; border: 1px solid var(--color-border); border-radius: 12px; }
 .portal-summary { min-height: 100px; padding: 14px; overflow: auto; border-radius: 12px; background: #f5f7fa; color: var(--color-text); white-space: pre-wrap; }
+.portal-batting-card { position: relative; z-index: 1; overflow: hidden; border: 1px solid #d8e5dd; background: linear-gradient(145deg, #fbfdfb 0%, #f0f6f2 100%); box-shadow: inset 0 4px 0 #184f3e; }
+.portal-batting-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.portal-batting-heading h3 { margin: 2px 0 0; font-size: clamp(1.4rem, 2.4vw, 2rem); }
+.portal-batting-rule { padding: 7px 11px; border-radius: 999px; background: #e1eee6; color: #184f3e; font-size: .78rem; font-weight: 850; }
+.portal-batting-order-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 18px; }
+.portal-batting-slot { position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 48px; padding: 8px 38px 8px 12px; overflow: hidden; border: 1px solid #d7e2db; border-radius: 15px; background: rgb(255 255 255 / 88%); box-shadow: 0 6px 14px rgb(12 54 43 / 6%); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.portal-batting-slot::after { position: absolute; right: -16px; bottom: -24px; width: 72px; height: 72px; border: 12px solid rgb(24 79 62 / 4%); border-radius: 50%; content: ""; pointer-events: none; }
+.portal-batting-slot:focus-within { border-color: #d97836; box-shadow: 0 10px 24px rgb(217 120 54 / 15%); transform: translateY(-2px); }
+.portal-batting-label { z-index: 1; flex: 0 0 auto; color: #8a9691; font-size: .76rem; font-weight: 850; white-space: nowrap; }
+.portal-batting-player { z-index: 1; min-width: 0; overflow: hidden; color: #176044; font-size: .92rem; font-weight: 900; text-overflow: ellipsis; white-space: nowrap; }
+.portal-batting-slot select { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; border: 0; opacity: 0; cursor: pointer; }
+.portal-batting-slot select option { color: #0a342f; }
+.portal-batting-slot select:focus { outline: 0; }
+.portal-batting-slot.is-unassigned .portal-batting-label { color: #929b97; }
+.portal-batting-slot.is-unassigned .portal-batting-player { color: #8b9490; font-weight: 800; }
+.portal-non-batting-pitcher { display: flex; align-items: center; justify-content: flex-start; gap: 14px; margin-top: 12px; padding: 11px 15px; border: 1px solid #c8d6e5; border-radius: 15px; background: linear-gradient(135deg, #edf3f9, #dfeaf4); color: #294c68; text-align: left; }
+.portal-non-batting-pitcher[hidden] { display: none; }
+.portal-non-batting-label { color: #60798d; font-size: .74rem; font-weight: 900; letter-spacing: .08em; }
+.portal-non-batting-pitcher strong { color: #183f5e; font-size: .94rem; }
+.portal-action-dialog { width: min(92vw, 560px); max-height: 86vh; overflow: auto; padding: 22px; border: 0; border-radius: 20px; box-shadow: 0 24px 64px rgb(0 0 0 / 24%); }
+.portal-action-dialog::backdrop { background: rgb(8 22 43 / 58%); backdrop-filter: blur(2px); }
+.portal-action-dialog form { display: grid; gap: 12px; margin: 14px 0; }
+.portal-dialog-trigger { margin: 4px 6px 4px 0; }
+.portal-audit-entry { display: grid; grid-template-columns: minmax(150px, auto) minmax(130px, auto) 1fr; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+.portal-audit-entry time { color: var(--color-muted); font-size: .84rem; }
 
 @media (max-width: 700px) {
     .portal-header { min-height: 64px; padding: 0 16px; }
     .portal-brand img { width: 38px; height: 38px; }
     .portal-desktop-nav { display: none; }
     .portal-shell { width: min(100% - 28px, 1120px); padding: 28px 0 106px; }
-    .portal-bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border); background: rgb(255 255 255 / 96%); }
-    .portal-bottom-nav-management { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .portal-bottom-nav { position: fixed; right: 0; bottom: 0; left: 0; z-index: 20; display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--color-border); background: rgb(255 255 255 / 96%); }
+    .portal-bottom-nav-management { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .portal-bottom-nav a { display: grid; place-content: center; min-height: 52px; color: var(--brand-primary); font-size: .75rem; font-weight: 750; text-align: center; text-decoration: none; }
     .portal-bottom-nav span { font-size: 1.2rem; line-height: 1; }
     .portal-hero { align-items: center; }
     .portal-stat { flex-basis: 84px; width: 84px; height: 84px; }
     .portal-stat strong { font-size: 1.7rem; }
     .portal-featured-game { grid-template-columns: 70px 1fr; gap: 16px; padding: 18px; }
-    .portal-date-tile { width: 70px; height: 80px; }
+    .portal-featured-game-arrow { top: 14px; right: 14px; width: 34px; height: 34px; }
+    .portal-featured-game-info { padding-right: 36px; }
+    .portal-game-weather { padding: 14px 10px; }
+    .portal-weather-grid { gap: 4px; }
+    .portal-weather-point { padding: 8px 2px; }
+    .portal-weather-point strong { font-size: 1.25rem; }
+    .portal-weather-point span { font-size: .68rem; }
+    .portal-date-tile { width: 70px; height: 120px; }
     .portal-date-tile strong { font-size: 2rem; }
-    .portal-actions { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+    .portal-date-time { font-size: .9rem; color: white; font-weight: 800; }
+    .portal-actions { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; margin-top: 8px; }
     .portal-card-grid, .portal-roster-grid { grid-template-columns: 1fr; }
-    .portal-command-grid, .portal-insight-grid, .portal-field-layout { grid-template-columns: 1fr; }
+    .portal-command-grid, .portal-field-layout { grid-template-columns: 1fr; }
+    .portal-reply-status-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .portal-reply-status-grid .portal-metric-card:nth-child(1) { grid-column: span 2; }
+    .portal-reply-status-grid .portal-metric-card:nth-child(2) { grid-column: span 1; }
     .portal-lineup-table > div { grid-template-columns: 1fr; }
+    .portal-lineup-row { grid-template-columns: minmax(60px, 92px) minmax(0, 1fr); gap: 8px; }
+    .portal-lineup-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .portal-lineup-buttons { display: flex; flex-wrap: nowrap; gap: 5px; }
+    .portal-lineup-button { min-width: 38px; min-height: 34px; padding: 6px 8px; font-size: .78rem; }
     .portal-mini-metrics { grid-template-columns: 1fr 1fr 1fr; }
     .portal-insight-list a { grid-template-columns: 1fr auto; }
     .portal-insight-list small { grid-column: 1 / -1; }
     .portal-detail-hero { padding: 22px; }
+    .portal-detail-hero > div { min-width: 0; width: 100%; }
+    .portal-detail-hero > .portal-badge { display: none; }
+    .portal-metric-card strong { font-size: clamp(1.2rem, 4vw, 2rem); }
     .portal-reply-actions { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     .portal-reply-button { min-width: 0; padding: 6px 3px; font-size: .82rem; }
     .portal-account-list div { grid-template-columns: 1fr; gap: 4px; }
+    .portal-batting-order-grid { grid-template-columns: 1fr; }
+    .portal-field-heading, .portal-batting-heading { align-items: start; flex-direction: column; gap: 8px; }
+    .portal-field-rule, .portal-batting-rule { padding: 6px 9px; }
+    .portal-audit-entry { grid-template-columns: 1fr; gap: 3px; }
+    .portal-dropdown-menu {
+        position: fixed;
+        top: auto !important;
+        right: 10px;
+        bottom: calc(78px + env(safe-area-inset-bottom));
+        left: 10px !important;
+        width: auto;
+        min-width: 0;
+        max-width: none;
+        max-height: min(58vh, 440px);
+        overflow-y: auto;
+        z-index: 40;
+    }
 }
 
 @media print {

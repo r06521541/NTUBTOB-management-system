@@ -1,13 +1,14 @@
-{% macro badge(status) -%}
-  {% set labels = {'attending': '出席', 'declined': '不出席', 'tentative': '待確認', 'pending': '尚未回覆'} %}
-  <span class="badge badge-{{ status }}">{{ labels[status] }}</span>
+{% macro badge(status) -%} {% set labels = {"attending": "出席", "declined": "不出席", "tentative": "待確認", "pending": "尚未回覆"} %}
+    <span class="badge badge-{{ status }}">{{ labels[status] }}</span>
 {%- endmacro %}
-
 {% macro game_card(game) -%}
-<a class="card game-card" href="{{ url_for('demo_portal.game_detail', game_id=game.id) }}">
-  <div class="card-top"><span class="eyebrow">{{ game.date }}</span>{{ badge(game.status) }}</div>
-  <h3>vs {{ game.opponent }}</h3>
-  <p>{{ game.time }} · {{ game.location }}</p>
-  <span class="text-link">查看賽事 →</span>
-</a>
+    <a class="card game-card"
+       href="{{ url_for('demo_portal.game_detail', game_id=game.id) }}">
+        <div class="card-top">
+            <span class="eyebrow">{{ game.date }}</span>{{ badge(game.status) }}
+        </div>
+        <h3>vs {{ game.opponent }}</h3>
+        <p>{{ game.time }} · {{ game.location }}</p>
+        <span class="text-link">查看賽事 →</span>
+    </a>
 {%- endmacro %}

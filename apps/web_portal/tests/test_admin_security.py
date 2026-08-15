@@ -2,10 +2,11 @@ import html
 import importlib
 import logging
 import os
+import re
 import sys
 import types
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -61,6 +62,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         cls.line_user_model = MagicMock()
         cls.member_model = MagicMock()
         cls.game_model = MagicMock()
+        cls.ballpark_model = MagicMock()
         cls.reply_model = MagicMock()
         cls.notifier = MagicMock()
 
@@ -69,6 +71,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "shared_module": types.ModuleType("shared_module"),
             "shared_module.models": types.ModuleType("shared_module.models"),
             "shared_module.models.games": cls._module(Game=cls.game_model),
+            "shared_module.models.ballparks": cls._module(
+                Ballpark=cls.ballpark_model
+            ),
             "shared_module.models.members": cls._module(Member=cls.member_model),
             "shared_module.models.line_users": cls._module(
                 LineUser=cls.line_user_model
@@ -81,7 +86,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 DiscordNotifyHelper=lambda: cls.notifier
             ),
             "shared_module.attendance_analyzer": cls.attendance_analyzer,
-            "shared_module.settings": cls._module(local_timezone=None),
+            "shared_module.settings": cls._module(
+                local_timezone=timezone(timedelta(hours=8))
+            ),
             "shared_module.message_templates": types.ModuleType(
                 "shared_module.message_templates"
             ),
@@ -117,6 +124,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.line_user_model.reset_mock()
         self.member_model.reset_mock()
         self.game_model.reset_mock()
+        self.ballpark_model.reset_mock()
         self.attendance_analyzer.reset_mock(return_value=True, side_effect=True)
         self.notifier.reset_mock()
         self.line_user_model.search_all_unknowns.return_value = [
@@ -136,6 +144,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             current_session["user_id"] = "fake-authenticated-user"
             current_session["member_id"] = member_id
+
+    def login_link(self, page, attribute, value):
+        match = re.search(
+            rf'<a\s+[^>]*{re.escape(attribute)}="{re.escape(value)}"[^>]*'
+            r'href="([^"]+)"',
+            page,
+        )
+        self.assertIsNotNone(match)
+        return html.unescape(match.group(1))
 
     def assert_no_management_side_effects(self):
         self.line_user_model.search_all_unknowns.assert_not_called()
@@ -295,9 +312,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         choice = self.client.get(choice_url)
         choice_page = html.unescape(choice.data.decode())
-        normal_href = choice_page.split('data-login-mode="normal" href="', 1)[1].split(
-            '"', 1
-        )[0]
+        normal_href = self.login_link(choice_page, "data-login-mode", "normal")
         self.assertEqual(normal_href, "/line/login?next=/attendance")
 
         authorization = self.client.get(normal_href)
@@ -333,9 +348,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 protected = client.get(path)
                 choice = client.get(protected.headers["Location"])
                 page = html.unescape(choice.data.decode())
-                normal_href = page.split('data-login-mode="normal" href="', 1)[1].split(
-                    '"', 1
-                )[0]
+                normal_href = self.login_link(page, "data-login-mode", "normal")
                 authorization = client.get(normal_href)
                 state = parse_qs(urlsplit(authorization.headers["Location"]).query)[
                     "state"
@@ -645,12 +658,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_login_choices_preserve_safe_return_path_in_fresh_transactions(self):
         choice_page = self.client.get("/redirect-to-login?next=/future-games")
         page = html.unescape(choice_page.data.decode())
-        normal_href = page.split('data-login-mode="normal" href="', 1)[1].split('"', 1)[
-            0
-        ]
-        browser_href = page.split('data-login-mode="browser" href="', 1)[1].split(
-            '"', 1
-        )[0]
+        normal_href = self.login_link(page, "data-login-mode", "normal")
+        browser_href = self.login_link(page, "data-login-mode", "browser")
 
         normal = self.client.get(normal_href)
         normal_query = parse_qs(urlsplit(normal.headers["Location"]).query)
@@ -825,7 +834,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         token_request.assert_not_called()
         page = html.unescape(response.data.decode())
         options_href = urlsplit(
-            page.split('data-login-action="options" href="', 1)[1].split('"', 1)[0]
+            self.login_link(page, "data-login-action", "options")
         )
         self.assertEqual(options_href.path, "/redirect-to-login")
         self.assertEqual(parse_qs(options_href.query), {"next": ["/future-games"]})
@@ -846,7 +855,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         response = self.client.get("/line/callback?code=old-code&state=tampered-state")
         page = html.unescape(response.data.decode())
         options_href = urlsplit(
-            page.split('data-login-action="options" href="', 1)[1].split('"', 1)[0]
+            self.login_link(page, "data-login-action", "options")
         )
         self.assertEqual(options_href.path, "/redirect-to-login")
         self.assertEqual(parse_qs(options_href.query), {"next": ["/attendance"]})
@@ -1463,6 +1472,121 @@ class MemberMatchingRouteTest(unittest.TestCase):
             valid_until=None,
         )
 
+    def test_qualification_management_page_hides_maintenance_when_team_player_present(self):
+        repository = MagicMock()
+        repository.admin_dashboard.return_value = {
+            "people": (
+                {
+                    "person_id": 80,
+                    "display_name": "Demo Person",
+                    "formal_name": "Demo Formal",
+                    "member_id": 8,
+                    "qualifications": (
+                        {"name": "team_player", "status": "active"},
+                    ),
+                },
+            )
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                user_id="line-user",
+                member_id=7,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch(
+            "admin_security.get_current_principal",
+            return_value=Principal(ROLE_ADMIN, 7),
+        ):
+            page = self.client.get("/manage/people/80/qualifications")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"team_player", page.data)
+        self.assertNotIn("資格異動".encode(), page.data)
+
+    def test_person_detail_hides_manage_button_when_team_player_present(self):
+        repository = MagicMock()
+        repository.admin_dashboard.return_value = {
+            "people": (
+                {
+                    "person_id": 80,
+                    "display_name": "Demo Person",
+                    "formal_name": "Demo Formal",
+                    "member_id": 8,
+                    "status": "active",
+                    "qualifications": (
+                        {"name": "team_player", "status": "active"},
+                    ),
+                },
+            )
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                user_id="line-user",
+                member_id=7,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch(
+            "admin_security.get_current_principal",
+            return_value=Principal(ROLE_ADMIN, 7),
+        ):
+            page = self.client.get("/manage/people/80")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("參與資格".encode(), page.data)
+        self.assertNotIn("查看與管理".encode(), page.data)
+
+    def test_person_detail_displays_localized_access_level(self):
+        repository = MagicMock()
+        repository.admin_dashboard.return_value = {
+            "people": (
+                {
+                    "person_id": 80,
+                    "display_name": "Demo Person",
+                    "formal_name": "Demo Formal",
+                    "member_id": 8,
+                    "status": "active",
+                    "access_level": "admin",
+                    "qualifications": (),
+                },
+            )
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                user_id="line-user",
+                member_id=7,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch(
+            "admin_security.get_current_principal",
+            return_value=Principal(ROLE_ADMIN, 7),
+        ):
+            page = self.client.get("/manage/people/80")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("管理員".encode(), page.data)
+        self.assertNotIn(b">admin<", page.data)
+
     def test_phase_c_admin_ui_and_route_require_confirmed_identity_remap(self):
         token = self.get_csrf_token()
         repository = MagicMock()
@@ -1550,7 +1674,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn(b'name="confirm_remap"', page.data)
         self.assertIn(b'value="8"', page.data)
-        self.assertIn("inactive 目標會轉為 active".encode(), page.data)
+        self.assertRegex(
+            page.get_data(as_text=True),
+            r"inactive\s+目標會轉為 active",
+        )
         self.assertEqual(missing_confirmation.status_code, 400)
         self.assertEqual(remapped.status_code, 302)
         repository.remap_member_identity.assert_called_once_with(
@@ -1648,31 +1775,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 http_post.assert_not_called()
 
     def test_valid_member_session_hides_unanswered_names_on_roster(self):
-        game = SimpleNamespace(
-            id=23,
-            generate_summary_for_team=lambda: "Fictional game summary",
-        )
-        attending = SimpleNamespace(name="Demo Player")
-        waiting = SimpleNamespace(name="Waiting Player")
-        self.game_model.search_by_id.return_value = game
-        self.attendance_analyzer.get_attendance_of_game.return_value = {
-            1: [attending],
-            5: [waiting],
-        }
         self.login()
 
         response = self.client.get("/game-roster/23")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("Demo Player".encode(), response.data)
-        self.assertNotIn("Waiting Player".encode(), response.data)
-        self.assertIn("1 人".encode(), response.data)
-        self.assertIn('href="/dashboard"'.encode(), response.data)
-        self.assertIn('href="/future-games"'.encode(), response.data)
-        self.assertIn('href="/attendance"'.encode(), response.data)
-        self.assertIn('href="/account"'.encode(), response.data)
-        self.game_model.search_by_id.assert_called_once_with(23)
-        self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/games/23/lineup-lab")
+        self.game_model.search_by_id.assert_not_called()
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
 
     def test_phase_c_roster_hides_unanswered_names_for_all_active_people(self):
         game = SimpleNamespace(
@@ -1720,12 +1830,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 ):
                     response = self.client.get("/game-roster/23")
 
-                self.assertEqual(response.status_code, 200)
-                self.assertIn("Confirmed Player".encode(), response.data)
-                self.assertIn("3 人".encode(), response.data)
-                self.assertNotIn("Unanswered Team Player".encode(), response.data)
-                self.assertNotIn("Unanswered Guest Player".encode(), response.data)
-                self.assertNotIn("Unanswered Viewer".encode(), response.data)
+                self.assertEqual(response.status_code, 302)
+                self.assertEqual(
+                    response.headers["Location"], "/games/23/lineup-lab"
+                )
+                repository.attendance_summary.assert_not_called()
 
     def test_roster_name_style_is_allowlisted_and_not_stored_in_session(self):
         game = SimpleNamespace(
@@ -1763,28 +1872,23 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 "/game-roster/23?name_style=formal&name_style=display"
             )
 
-        self.assertEqual(formal.status_code, 200)
-        self.assertIn("Formal Player".encode(), formal.data)
-        self.assertNotIn("Display Player".encode(), formal.data)
-        self.assertEqual(display.status_code, 200)
-        self.assertIn("Display Player".encode(), display.data)
-        self.assertNotIn("Formal Player".encode(), display.data)
-        self.assertEqual(invalid.status_code, 400)
-        self.assertEqual(duplicate.status_code, 400)
+        self.assertEqual(formal.status_code, 302)
+        self.assertEqual(formal.headers["Location"], "/games/23/lineup-lab")
+        self.assertEqual(display.status_code, 302)
         self.assertEqual(
-            self.attendance_analyzer.get_attendance_of_game.call_args_list,
-            [call(23), call(23, use_display_name=True)],
+            display.headers["Location"],
+            "/games/23/lineup-lab?name_style=display",
         )
+        self.assertEqual(invalid.status_code, 302)
+        self.assertEqual(duplicate.status_code, 302)
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
         with self.client.session_transaction() as current_session:
             self.assertNotIn("name_style", current_session)
 
     def test_attendance_loads_fresh_member_from_member_id(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")
         self.member_model.search_by_id.return_value = fresh_member
-        game = SimpleNamespace(
-            id=23,
-            generate_short_summary_for_team=lambda: "Fictional game summary",
-        )
+        game = self.portal_game()
         self.game_model.search_for_invited.return_value = [game]
         self.attendance_analyzer.get_attendance_of_game.return_value = {
             1: [fresh_member]
@@ -1801,17 +1905,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.game_model.search_for_invited.assert_called_once_with()
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(23)
 
-    def test_attendance_hides_unanswered_names_and_uses_display_name_style(self):
+    def test_attendance_shows_uncertain_names_and_uses_display_name_style(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")
         self.member_model.search_by_id.return_value = fresh_member
-        game = SimpleNamespace(
-            id=23,
-            generate_short_summary_for_team=lambda: "Fictional game summary",
-        )
+        game = self.portal_game()
         self.game_model.search_for_invited.return_value = [game]
         self.attendance_analyzer.get_attendance_of_game.return_value = {
             1: [SimpleNamespace(name="Display Attendee")],
-            5: [SimpleNamespace(name="Private Unanswered Name")],
+            5: [SimpleNamespace(name="Uncertain Player")],
         }
         self.login()
 
@@ -1821,20 +1922,49 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("Display Attendee".encode(), response.data)
-        self.assertNotIn("Private Unanswered Name".encode(), response.data)
+        self.assertIn("Uncertain Player".encode(), response.data)
         self.assertIn("1 人".encode(), response.data)
         self.assertIn(b'href="/games/23?name_style=display"', response.data)
         self.attendance_analyzer.get_attendance_of_game.assert_called_once_with(
             23, use_display_name=True
         )
 
-    def test_attendance_reloads_games_and_replies_on_every_request(self):
+    def test_attendance_renders_future_games_style_card_summary(self):
         fresh_member = SimpleNamespace(id=7, name="Fresh Member")
         self.member_model.search_by_id.return_value = fresh_member
         game = SimpleNamespace(
             id=23,
-            generate_short_summary_for_team=lambda: "Fictional game summary",
+            home_team="NTUBTOB",
+            away_team="Opponent",
+            location="A球場",
+            get_game_sign=lambda: "⚾",
+            get_formatted_date=lambda: "8/10（六）",
+            get_is_home_team=lambda: True,
+            get_opponent=lambda: "Opponent",
+            get_formatted_start_time_with_colon=lambda: "17:00",
+            generate_short_summary_for_team=lambda: "legacy summary",
         )
+        self.game_model.search_for_invited.return_value = [game]
+        self.attendance_analyzer.get_attendance_of_game.return_value = {1: [fresh_member]}
+        self.login()
+
+        with patch.object(self.app_module, "datetime") as fake_datetime:
+            fake_datetime.now.return_value.strftime.return_value = "fake update time"
+            response = self.client.get("/attendance")
+
+        self.assertEqual(response.status_code, 200)
+        html = response.get_data(as_text=True)
+        self.assertIn("⚾", html)
+        self.assertIn("8/10（六）", html)
+        self.assertIn("NTUBTOB", html)
+        self.assertIn("17:00", html)
+        self.assertIn("A球場", html)
+        self.assertNotIn("legacy summary", html)
+
+    def test_attendance_reloads_games_and_replies_on_every_request(self):
+        fresh_member = SimpleNamespace(id=7, name="Fresh Member")
+        self.member_model.search_by_id.return_value = fresh_member
+        game = self.portal_game()
         self.game_model.search_for_invited.return_value = [game]
         self.attendance_analyzer.get_attendance_of_game.return_value = {
             1: [fresh_member]
@@ -1858,10 +1988,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_successful_attendance_logs_one_bounded_timing_event(self):
         fresh_member = SimpleNamespace(id=7, name="member-name-sentinel")
         self.member_model.search_by_id.return_value = fresh_member
-        game = SimpleNamespace(
-            id=23,
-            generate_short_summary_for_team=lambda: "game-summary-sentinel",
-        )
+        game = self.portal_game()
         self.game_model.search_for_invited.return_value = [game]
         self.attendance_analyzer.get_attendance_of_game.return_value = {
             1: [fresh_member]
@@ -1959,9 +2086,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Fresh Member".encode(), response.data)
         self.assertIn('href="/dashboard"'.encode(), response.data)
-        self.assertIn('href="/future-games"'.encode(), response.data)
+        self.assertIn('href="/attendance"'.encode(), response.data)
         self.assertIn('href="/account"'.encode(), response.data)
-        self.assertIn("一般隊員".encode(), response.data)
+        self.assertIn("一般使用者".encode(), response.data)
         self.assertIn("LINE".encode(), response.data)
         self.assertNotIn("前往 Member 配對".encode(), response.data)
         self.member_model.search_by_id.assert_called_once_with(7)
@@ -1977,7 +2104,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("系統管理者".encode(), response.data)
-        self.assertIn("前往 Person 管理".encode(), response.data)
+        self.assertIn("前往人員管理".encode(), response.data)
         self.assertIn('href="/manage/people"'.encode(), response.data)
 
     def test_account_missing_member_clears_identity_without_other_queries(self):
@@ -2108,23 +2235,29 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         response = self.client.get("/game-roster/404")
 
-        self.assertEqual(response.status_code, 404)
-        self.game_model.search_by_id.assert_called_once_with(404)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/games/404/lineup-lab")
+        self.game_model.search_by_id.assert_not_called()
         self.attendance_analyzer.get_attendance_of_game.assert_not_called()
 
     @staticmethod
     def portal_game(game_id=23):
         return SimpleNamespace(
             id=game_id,
-            start_datetime=SimpleNamespace(day=10, month=8),
+            start_datetime=datetime(
+                2026, 8, 10, 19, tzinfo=timezone(timedelta(hours=8))
+            ),
+            duration=120,
             home_team="NTUBTOB",
             away_team="示範隊",
             location="示範球場",
             cancellation_time=None,
             get_game_sign=lambda: "⚾",
             get_formatted_date=lambda: "8/10（一）",
+            get_formatted_short_date=lambda: "8/10",
             get_formatted_start_time_with_colon=lambda: "19:00",
             get_formatted_end_time=lambda: "21:00",
+            get_status_label=lambda now=None: "即將開打",
             get_is_home_team=lambda: True,
             get_opponent=lambda: "示範隊",
             generate_short_summary_for_team=lambda: "8/10（一） 19:00 vs 示範隊 @示範球場",
@@ -2142,9 +2275,41 @@ class MemberMatchingRouteTest(unittest.TestCase):
         response = self.client.get("/dashboard")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("準備好下一場了嗎".encode(), response.data)
+        self.assertIn("下一場準備好了嗎".encode(), response.data)
         self.assertIn("示範隊".encode(), response.data)
         self.assertIn('href="/games/23"'.encode(), response.data)
+
+    def test_dashboard_renders_weather_inside_calendar_day_window(self):
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            name="Fresh Member"
+        )
+        game = self.portal_game()
+        game.start_datetime = datetime.now(timezone(timedelta(hours=8))) + timedelta(
+            days=1
+        )
+        self.game_model.search_for_invited.return_value = [game]
+        self.reply_model.search_by_member_id.return_value = []
+        self.ballpark_model.search_by_name.return_value = SimpleNamespace()
+        forecast = SimpleNamespace(
+            location_label="臺北中正",
+            rain_warning=False,
+            points=(
+                SimpleNamespace(
+                    hour=6, weather="☀️", rainfall=10, temperature=25
+                ),
+            ),
+        )
+        self.login()
+
+        with patch.object(
+            self.app_module, "load_dashboard_forecast", return_value=forecast
+        ):
+            response = self.client.get("/dashboard")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("臺北中正天氣預報".encode(), response.data)
+        self.assertIn("降雨 10%".encode(), response.data)
+        self.ballpark_model.search_by_name.assert_called_once_with("示範球場")
 
     def test_game_detail_renders_attendance_and_csrf_form(self):
         self.member_model.search_by_id.return_value = SimpleNamespace(
@@ -2304,8 +2469,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     def command_game(self, cancelled=False):
         game = self.portal_game()
-        game.start_datetime = datetime.now() + timedelta(days=2)
-        game.cancellation_time = datetime.now() if cancelled else None
+        now = datetime.now(timezone(timedelta(hours=8)))
+        game.start_datetime = now + timedelta(days=2)
+        game.cancellation_time = now if cancelled else None
         return game
 
     def test_bounded_game_routes_allow_officer_and_allowlisted_admin_only(self):
@@ -2462,13 +2628,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 self.client.get("/manage/games"),
                 self.client.get("/manage/games/23"),
                 self.client.get("/manage/game-insights"),
-                self.client.get("/manage/games/23/lineup-lab"),
+                self.client.get("/games/23/lineup-lab"),
             )
         self.assertTrue(all(response.status_code == 200 for response in pages))
         self.assertIn("GAME COMMAND CENTER".encode(), pages[0].data)
-        self.assertIn("不是歷史 Roster snapshot".encode(), pages[1].data)
+        self.assertIn("人數摘要".encode(), pages[1].data)
         self.assertIn("不是歷史邀請回覆率".encode(), pages[2].data)
-        self.assertIn("sessionStorage".encode(), pages[3].data)
+        self.assertIn(b'id="lineup-lab"', pages[3].data)
         self.assertIn("虛構隊員".encode(), pages[3].data)
         for mutation in (
             "reply_to_game",
@@ -2497,7 +2663,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.game_model.search_games.return_value = [
                 self.command_game(cancelled=True)
             ]
-            cancelled = self.client.get("/manage/games/23/lineup-lab")
+            cancelled = self.client.get("/games/23/lineup-lab")
         self.assertEqual(missing.status_code, 404)
         self.assertEqual(malformed.status_code, 404)
         self.assertEqual(bad_scope.status_code, 400)
@@ -2582,6 +2748,71 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_admin_member_create_uses_formal_name_as_initial_display_name(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        repository.create_member.return_value = SimpleNamespace(id=80)
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.post(
+                "/manage/people/new",
+                data={
+                    "csrf_token": token,
+                    "name": "林柏安",
+                    "display_name": "Admin must not set this",
+                    "reason": "Create a fictional member",
+                    "request_id": "member-create-test-80",
+                    "number": "18",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        repository.create_member.assert_called_once_with(
+            70,
+            "林柏安",
+            "林柏安",
+            "Create a fictional member",
+            "member-create-test-80",
+            enroll_year=None,
+            major=None,
+            number=18,
+            positions=None,
+        )
+
+    def test_admin_member_create_rejects_malformed_request_id(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.post(
+                "/manage/people/new",
+                data={
+                    "csrf_token": token,
+                    "name": "林柏安",
+                    "reason": "Create a fictional member",
+                    "request_id": "bad-request-id",
+                },
+            )
+        self.assertEqual(response.status_code, 400)
+        repository.create_member.assert_not_called()
 
     def test_access_route_rejects_officer_bad_action_and_csrf(self):
         repository = MagicMock()

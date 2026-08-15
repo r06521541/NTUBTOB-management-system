@@ -1,0 +1,27 @@
+{% extends '_portal_base.html' %} {% block title %}新增 Member｜NTUBTOB{% endblock %}
+{% block content %}
+<a class="portal-back-link" href="{{ url_for('admin_people') }}">← 返回人員管理</a>
+<section class="portal-title">
+    <p class="portal-eyebrow">NEW MEMBER</p>
+    <h1>新增校友會成員</h1>
+    <p>新增校友會成員，並同步建立平台內人員，授與參賽資格。</p>
+</section>
+<section class="portal-card portal-roster-card">
+    {% if fictional_demo_mode %}
+        <p class="portal-notice">這是本機 fictional demo 寫入。新增後若要恢復固定假資料，請重建專用 demo volume。</p>
+    {% endif %}
+    <form class="portal-form" method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+        <input type="hidden" name="request_id" value="{{ request_id }}" />
+        <label>正式姓名<input name="name" maxlength="120" required /></label>
+        <p class="portal-muted">平台顯示名稱會先使用正式姓名；本人登入後可在個人頁面自行修改。</p>
+        <label>入學年度<input name="enroll_year" type="number" min="1" max="999" inputmode="numeric" /></label>
+        <label>系所<input name="major" maxlength="120" /></label>
+        <label>背號<input name="number" type="number" min="0" max="999" inputmode="numeric" /></label>
+        <label>守位<input name="positions" maxlength="120" placeholder="例如：P / IF" /></label>
+        <label>新增原因<textarea name="reason" minlength="3" maxlength="300" required>由管理員新增應屆畢業隊員</textarea></label>
+        <button class="portal-button portal-button-primary" type="submit" {% if not mutation_enabled %}disabled{% endif %}>建立 Member</button>
+    </form>
+    {% if not mutation_enabled %}<p class="portal-muted">目前維護開關未啟用，僅能預覽表單。</p>{% endif %}
+</section>
+{% endblock %}

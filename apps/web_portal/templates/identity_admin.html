@@ -1,141 +1,283 @@
-{% extends '_portal_base.html' %}
-{% block title %}身分與資格管理｜NTUBTOB{% endblock %}
-{% block content %}
-<section class="portal-title"><p class="portal-eyebrow">IDENTITY ADMIN</p><h1>{{ portal_copy.pending_identity }}</h1><p>管理 LINE identity、Person 連結與 qualification 狀態。</p></section>
-    <h1>{{ portal_copy.pending_identity }}</h1>
-    {% if not pending_only|default(false) %}<p><a href="{{ url_for('admin_people') }}">前往 Person 管理列表</a></p>{% endif %}
+{% extends '_portal_base.html' %} {% block title %}身分與資格管理｜NTUBTOB{%
+    endblock %} {% block content %}
+    <section class="portal-title">
+        <p class="portal-eyebrow">IDENTITY ADMIN</p>
+        <h1>{{ portal_copy.pending_identity }}</h1>
+        <p>管理 LINE 身分、人員連結與資格狀態。</p>
+    </section>
+    {% if not pending_only|default(false) %}
+        <p><a href="{{ url_for('admin_people') }}">前往人員管理列表</a></p>
+    {% endif %}
     {% if not identity_maintenance_enabled %}
         <p role="status">目前為唯讀模式；所有變更按鈕均停用。</p>
     {% endif %}
-
+    <div id="identity-admin-root">
+    {% if fictional_demo_mode|default(false) %}
+        <p><a class="portal-button portal-button-secondary" href="{{ url_for('local_preview_identity_review') }}">預覽申請者的核可對話</a></p>
+    {% endif %}
     <section aria-labelledby="identity-heading">
         <h2 id="identity-heading">LINE 身分</h2>
         {% for item in dashboard.identities %}
-        <article class="account-card">
-            <h3>{{ item.nickname }}</h3>
-            <p>
-                <span>{{ item.identity_status }}</span>
-                {% if item.ignored %}<span>ignored</span>{% endif %}
-                {% if item.stale %}<span>超過 30 天未處理</span>{% endif %}
+            <article class="account-card">
+                <h3>{{ item.nickname }}</h3>
+                {% if item.fictional_sample|default(false) %}<span class="portal-badge portal-badge-tentative">FICTIONAL DEMO</span>{% endif %}
+                <p>
+                    <span>{{ item.identity_status }}</span>
+                    {% if item.ignored %}<span>ignored</span>{% endif %} {% if item.stale
+                    %}<span>超過 30 天未處理</span>{% endif %}
             </p>
             {% if item.person_id %}
-                <p>{{ item.person_name }} · Person #{{ item.person_id }} · {{ item.person_status }}</p>
+                <p>
+                    {{ item.person_name }} · Person #{{ item.person_id }} · {{
+                        item.person_status }}
+                </p>
             {% else %}
-                <p>尚未連結 Person</p>
+                <p>尚未連結人員</p>
             {% endif %}
+            {% if item.fictional_sample|default(false) %}
+                <p class="portal-muted">這筆只用來預覽 pending 工作流程，不存在於資料庫，也不能執行管理操作。</p>
+                <a class="portal-button portal-button-secondary" href="{{ url_for('local_preview_identity_review') }}">查看核可對話效果</a>
+            {% else %}
             <form method="post" action="{{ url_for('identity_admin_action') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="identity_id" value="{{ item.identity_id }}">
-                <input type="hidden" name="request_id" value="identity-action-{{ item.identity_id }}-{{ request_nonce }}">
-                <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
+                <input type="hidden"
+                       name="request_id"
+                       value="identity-action-{{ item.identity_id }}-{{ request_nonce }}" />
+                <label>
+                    原因
+                    <input name="reason" minlength="3" maxlength="300" required />
+                </label>
                 {% if not item.person_id %}
-                    <label>{{ portal_copy.display_name }} <input name="display_name" maxlength="120"></label>
-                    <label>正式名稱 <input name="formal_name" maxlength="120"></label>
-                    <label><input type="checkbox" name="qualification" value="affiliate"> affiliate</label>
-                    <label><input type="checkbox" name="qualification" value="guest_player"> guest player</label>
-                    <label>Guest 起日 <input type="datetime-local" name="guest_valid_from"></label>
-                    <label>Guest 迄日 <input type="datetime-local" name="guest_valid_until"></label>
-                    <button name="action" value="approve_non_member" {% if not identity_maintenance_enabled %}disabled{% endif %}>核可為非會員</button>
-                    <label>或配對會員
+                    <label>
+                        {{ portal_copy.display_name }}
+                        <input name="display_name" maxlength="120" />
+                    </label>
+                    <label>
+                        正式名稱
+                        <input name="formal_name" maxlength="120" />
+                    </label>
+                    <label>
+                        <input type="checkbox" name="qualification" value="affiliate" />
+                        affiliate
+                    </label>
+                    <label>
+                        <input type="checkbox" name="qualification" value="guest_player" />
+                        guest player
+                    </label>
+                    <label>
+                        Guest 起日
+                        <input type="datetime-local" name="guest_valid_from" />
+                    </label>
+                    <label>
+                        Guest 迄日
+                        <input type="datetime-local" name="guest_valid_until" />
+                    </label>
+                    <button name="action"
+                            value="approve_non_member"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>核可為非會員</button>
+                    <label>
+                        或配對會員
                         <select name="member_id">
-                        {% for person in dashboard.people if person.member_id %}
-                            <option value="{{ person.member_id }}">{{ person.formal_name or person.display_name }}</option>
-                        {% endfor %}
+                            {% for person in dashboard.people if person.member_id %}
+                                <option value="{{ person.member_id }}">{{ person.formal_name or person.display_name }}</option>
+                            {% endfor %}
                         </select>
                     </label>
-                    <button name="action" value="approve_member" {% if not identity_maintenance_enabled %}disabled{% endif %}>核可會員</button>
-                    <button name="action" value="{{ 'unignore' if item.ignored else 'ignore' }}" {% if not identity_maintenance_enabled %}disabled{% endif %}>{{ '取消忽略' if item.ignored else '暫時忽略' }}</button>
-                    <button name="action" value="{{ 'unblock' if item.identity_status == 'blocked' else 'reject' }}" {% if not identity_maintenance_enabled %}disabled{% endif %}>{{ '解除拒絕' if item.identity_status == 'blocked' else '拒絕' }}</button>
+                    <button name="action"
+                            value="approve_member"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>核可會員</button>
+                    <button name="action"
+                            value="{{ 'unignore' if item.ignored else 'ignore' }}"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>
+                        {{ '取消忽略' if item.ignored else '暫時忽略' }}
+                    </button>
+                    <button name="action"
+                            value="{{ 'unblock' if item.identity_status == 'blocked' else 'reject' }}"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>
+                        {{ '解除拒絕' if item.identity_status == 'blocked' else '拒絕' }}
+                    </button>
                 {% else %}
-                    <button name="action" value="unlink" {% if not identity_maintenance_enabled %}disabled{% endif %}>解除連結</button>
-                    <button name="action" value="{{ 'unblock_linked' if item.identity_status == 'blocked' else 'enable_identity' if item.identity_status == 'disabled' else 'disable_identity' }}" {% if not identity_maintenance_enabled %}disabled{% endif %}>{{ '解除封鎖' if item.identity_status == 'blocked' else '啟用身分' if item.identity_status == 'disabled' else '停用身分' }}</button>
+                    <button name="action"
+                            value="unlink"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>解除連結</button>
+                    <button name="action"
+                            value="{{ 'unblock_linked' if item.identity_status == 'blocked' else 'enable_identity' if item.identity_status == 'disabled' else 'disable_identity' }}"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>
+                        {{ '解除封鎖' if item.identity_status == 'blocked' else '啟用身分' if
+                            item.identity_status == 'disabled' else '停用身分' }}
+                    </button>
                 {% endif %}
             </form>
             {% if item.person_id and item.identity_id != current_identity_id %}
-            <form method="post" action="{{ url_for('identity_admin_action') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="identity_id" value="{{ item.identity_id }}">
-                <input type="hidden" name="request_id" value="identity-remap-{{ item.identity_id }}-{{ request_nonce }}">
-                <label>重新配對至 Member
-                    <select name="member_id" required>
-                        <option value="" selected disabled>請選擇目標 Member</option>
-                        {% for person in dashboard.people if person.member_id and person.person_id != item.person_id %}
-                            <option value="{{ person.member_id }}">
-                                {{ person.formal_name or person.display_name }} · {{ person.status }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
-                <label>
-                    <input type="checkbox" name="confirm_remap" value="yes" required>
-                    我確認此操作會同步變更 LINE identity 與 legacy Member 連結；inactive 目標會轉為 active，既有撤銷資格與登入安全狀態不會恢復。
-                </label>
-                <button name="action" value="remap" {% if not identity_maintenance_enabled %}disabled{% endif %}>確認重新配對</button>
-            </form>
+                <form method="post" action="{{ url_for('identity_admin_action') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
+                    <input type="hidden"
+                           name="request_id"
+                           value="identity-remap-{{ item.identity_id }}-{{ request_nonce }}" />
+                    <label>
+                        重新配對至現有成員
+                        <select name="member_id" required>
+                            <option value="" selected disabled>請選擇目標成員</option>
+                            {% for person in dashboard.people if person.member_id and
+                                person.person_id != item.person_id %}
+                                <option value="{{ person.member_id }}">
+                                    {{ person.formal_name or person.display_name }} · {{ person.status
+                                    }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label>
+                        原因
+                        <input name="reason" minlength="3" maxlength="300" required />
+                    </label>
+                    <label>
+                        <input type="checkbox" name="confirm_remap" value="yes" required />
+                        我確認此操作會同步變更 LINE identity 與 legacy Member 連結；inactive
+                        目標會轉為 active，既有撤銷資格與登入安全狀態不會恢復。
+                    </label>
+                    <button name="action"
+                            value="remap"
+                            {% if not identity_maintenance_enabled %}disabled{% endif %}>確認重新配對</button>
+                </form>
             {% elif item.identity_id == current_identity_id %}
                 <p>目前登入使用的 LINE 身分不可重新配對。</p>
             {% endif %}
             {% if item.review_status == 'open' %}
-            <form method="post" action="{{ url_for('identity_admin_action') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="identity_id" value="{{ item.identity_id }}">
-                <input type="hidden" name="request_id" value="review-admin-{{ item.identity_id }}-{{ request_nonce }}">
-                <input type="hidden" name="action" value="review_message">
-                <label>回覆申請者 <textarea name="message" minlength="1" maxlength="1000" required></textarea></label>
-                <button {% if not identity_maintenance_enabled %}disabled{% endif %}>送出</button>
-            </form>
+                <form method="post" action="{{ url_for('identity_admin_action') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                    <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
+                    <input type="hidden"
+                           name="request_id"
+                           value="review-admin-{{ item.identity_id }}-{{ request_nonce }}" />
+                    <input type="hidden" name="action" value="review_message" />
+                    <label>
+                        回覆申請者
+                        <textarea name="message" minlength="1" maxlength="1000" required></textarea>
+                    </label>
+                    <button {% if not identity_maintenance_enabled %}disabled{% endif %}>送出</button>
+                </form>
+            {% endif %}
             {% endif %}
         </article>
-        {% else %}<p>目前沒有 LINE 身分。</p>{% endfor %}
-    </section>
-
-    {% if not pending_only|default(false) %}<section aria-labelledby="people-heading">
+{% else %}
+    <p>目前沒有 LINE 身分。</p>
+{% endfor %}
+</section>
+{% if not pending_only|default(false) %}
+    <section aria-labelledby="people-heading">
         <h2 id="people-heading">People</h2>
         {% for person in dashboard.people %}
-        <article class="account-card">
-            <h3>{{ person.formal_name or person.display_name }}</h3>
-            <p>Person #{{ person.person_id }} · {{ person.status }}{% if person.member_id %} · Member #{{ person.member_id }}{% endif %}</p>
-            <p>{% for qualification in person.qualifications %}{{ qualification.name }} ({{ qualification.status }}){% if not loop.last %}、{% endif %}{% endfor %}</p>
-            <form method="post" action="{{ url_for('identity_admin_action') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="person_id" value="{{ person.person_id }}">
-                <input type="hidden" name="request_id" value="person-profile-{{ person.person_id }}-{{ request_nonce }}">
-                <label>{{ portal_copy.display_name }} <input name="display_name" value="{{ person.display_name }}" maxlength="120" required></label>
-                <label>正式名稱 <input name="formal_name" value="{{ person.formal_name or '' }}" maxlength="120"></label>
-                <label>管理備註 <textarea name="admin_note" maxlength="1000">{{ person.admin_note or '' }}</textarea></label>
-                <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
-                <button name="action" value="profile" {% if not identity_maintenance_enabled %}disabled{% endif %}>更新資料</button>
-            </form>
-            <form method="post" action="{{ url_for('identity_admin_action') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="person_id" value="{{ person.person_id }}">
-                <input type="hidden" name="request_id" value="person-status-{{ person.person_id }}-{{ request_nonce }}">
-                <select name="status"><option>active</option><option>disabled</option><option>blocked</option></select>
-                <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
-                <button name="action" value="person_status" {% if not identity_maintenance_enabled %}disabled{% endif %}>更新 Person 狀態</button>
-            </form>
-            <form method="post" action="{{ url_for('identity_admin_action') }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="person_id" value="{{ person.person_id }}">
-                <input type="hidden" name="request_id" value="qualification-{{ person.person_id }}-{{ request_nonce }}">
-                <select name="qualification"><option>affiliate</option><option>guest_player</option><option>staff</option><option>team_player</option></select>
-                <label>起日 <input type="datetime-local" name="valid_from"></label>
-                <label>迄日 <input type="datetime-local" name="valid_until"></label>
-                <label>原因 <input name="reason" minlength="3" maxlength="300" required></label>
-                <button name="action" value="grant_qualification" {% if not identity_maintenance_enabled %}disabled{% endif %}>授予／恢復</button>
-                <button name="action" value="revoke_qualification" {% if not identity_maintenance_enabled %}disabled{% endif %}>撤銷</button>
-            </form>
-        </article>
-        {% endfor %}
-    </section>{% endif %}
-
-    <section aria-labelledby="audit-heading">
-        <h2 id="audit-heading">近期稽核</h2>
-        <ol>
+            <article class="account-card">
+                <h3>{{ person.formal_name or person.display_name }}</h3>
+                <p>
+                    Person #{{ person.person_id }} · {{ person.status }}
+                    {% if person.member_id
+                        %} · Member #{{ person.member_id }}{% endif %}
+                        </p>
+                        <p>
+                            {% for qualification in person.qualifications %}{{ qualification.name }}
+                                ({{ qualification.status }}){% if not loop.last %}、{% endif %}{% endfor
+                            %}
+                        </p>
+                        <form method="post" action="{{ url_for('identity_admin_action') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                            <input type="hidden" name="person_id" value="{{ person.person_id }}" />
+                            <input type="hidden"
+                                   name="request_id"
+                                   value="person-profile-{{ person.person_id }}-{{ request_nonce }}" />
+                            <label>
+                                {{ portal_copy.display_name }}
+                                <input name="display_name"
+                                       value="{{ person.display_name }}"
+                                       maxlength="120"
+                                       required />
+                            </label>
+                            <label>
+                                正式名稱
+                                <input name="formal_name"
+                                       value="{{ person.formal_name or '' }}"
+                                       maxlength="120" />
+                            </label>
+                            <label>
+                                管理備註
+                                <textarea name="admin_note" maxlength="1000">
+{{ person.admin_note or '' }}</textarea>
+                            </label>
+                            <label>
+                                原因
+                                <input name="reason" minlength="3" maxlength="300" required />
+                            </label>
+                            <button name="action"
+                                    value="profile"
+                                    {% if not identity_maintenance_enabled %}disabled{% endif %}>更新資料</button>
+                        </form>
+                        <form method="post" action="{{ url_for('identity_admin_action') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                            <input type="hidden" name="person_id" value="{{ person.person_id }}" />
+                            <input type="hidden"
+                                   name="request_id"
+                                   value="person-status-{{ person.person_id }}-{{ request_nonce }}" />
+                            <select name="status">
+                                <option>active</option>
+                                <option>disabled</option>
+                                <option>blocked</option>
+                            </select>
+                            <label>
+                                原因
+                                <input name="reason" minlength="3" maxlength="300" required />
+                            </label>
+                            <button name="action"
+                                    value="person_status"
+                                    {% if not identity_maintenance_enabled %}disabled{% endif %}>更新 Person 狀態</button>
+                        </form>
+                        <form method="post" action="{{ url_for('identity_admin_action') }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                            <input type="hidden" name="person_id" value="{{ person.person_id }}" />
+                            <input type="hidden"
+                                   name="request_id"
+                                   value="qualification-{{ person.person_id }}-{{ request_nonce }}" />
+                            <select name="qualification">
+                                <option>affiliate</option>
+                                <option>guest_player</option>
+                                <option>staff</option>
+                                <option>team_player</option>
+                            </select>
+                            <label>
+                                起日
+                                <input type="datetime-local" name="valid_from" />
+                            </label>
+                            <label>
+                                迄日
+                                <input type="datetime-local" name="valid_until" />
+                            </label>
+                            <label>
+                                原因
+                                <input name="reason" minlength="3" maxlength="300" required />
+                            </label>
+                            <button name="action"
+                                    value="grant_qualification"
+                                    {% if not identity_maintenance_enabled %}disabled{% endif %}>授予／恢復</button>
+                            <button name="action"
+                                    value="revoke_qualification"
+                                    {% if not identity_maintenance_enabled %}disabled{% endif %}>撤銷</button>
+                        </form>
+                        </article>
+                    {% endfor %}
+                </section>
+{% endif %}
+<section aria-labelledby="audit-heading">
+    <h2 id="audit-heading">近期稽核</h2>
+    <ol>
         {% for entry in dashboard.audit %}
-            <li>{{ entry.created_at }} · {{ entry.action }} · {{ entry.reason }}</li>
+            <li class="portal-audit-entry"><time>{{ entry.created_at }}</time><strong>{{ entry.action }}</strong><span>{{ entry.reason }}{% if entry.fictional_sample|default(false) %} · 展示資料{% endif %}</span></li>
+        {% else %}
+            <li class="portal-muted">目前沒有近期稽核紀錄。</li>
         {% endfor %}
-        </ol>
-    </section>
+    </ol>
+</section>
+</div>
+<script src="{{ url_for('static', filename='identity_admin.js') }}" defer></script>
 {% endblock %}

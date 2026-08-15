@@ -1,5 +1,6 @@
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 from datetime import datetime, time, timedelta, timezone
@@ -19,6 +20,12 @@ from admin_security import (
     parse_admin_member_ids,
     require_valid_csrf,
     require_valid_logout_csrf,
+)
+from dashboard_weather import (
+    DashboardWeatherError,
+    fictional_dashboard_forecast,
+    is_weather_window,
+    load_dashboard_forecast,
 )
 from demo_events import demo_events
 from demo_portal import demo_portal, is_demo_mode_enabled
@@ -68,11 +75,11 @@ from role_policy import (
     MANAGE_PENDING_IDENTITIES,
     MANAGE_QUALIFICATIONS,
     ROLE_ADMIN,
-    ROLE_MEMBER,
+    ROLE_BASIC,
     ROLE_OFFICER,
 )
 from role_policy import Principal as WebPrincipal
-from role_policy import has_capability
+from role_policy import has_capability, role_label
 from sqlalchemy.exc import SQLAlchemyError
 from ui_text import PORTAL_COPY
 
@@ -84,10 +91,12 @@ FICTIONAL_DEMO_MODE_ENABLED = (
     LOCAL_PREVIEW_MODE_ENABLED and os.environ.get(FICTIONAL_DEMO_FLAG) == "true"
 )
 FICTIONAL_ACCESS_REASON = "TASK-099 fictional access rehearsal"
+logger = logging.getLogger(__name__)
 
 if not DEMO_MODE_ENABLED:
     import shared_module.attendance_analyzer as attendance_analyzer
     from shared_module.message_templates.general_message import reply_text_mapping
+    from shared_module.models.ballparks import Ballpark
     from shared_module.models.game_attendance_replies import GameAttendanceReply
     from shared_module.models.games import Game
     from shared_module.models.line_users import LineUser
@@ -97,7 +106,7 @@ if not DEMO_MODE_ENABLED:
 else:
     # Keep production-only ORM and notifier imports out of the offline demo process.
     # Existing production routes are explicitly unavailable below while demo is on.
-    Game = Member = LineUser = GameAttendanceReply = object
+    Game = Member = LineUser = GameAttendanceReply = Ballpark = object
     attendance_analyzer = None
     local_timezone = timezone(timedelta(hours=8))
     reply_text_mapping = {}
@@ -111,6 +120,9 @@ app.config.update(
     SESSION_COOKIE_SECURE=not (DEMO_MODE_ENABLED or LOCAL_PREVIEW_MODE_ENABLED),
     SESSION_COOKIE_DOMAIN=None,
 )
+if LOCAL_PREVIEW_MODE_ENABLED:
+    # Live UI editing must not keep serving a stale JavaScript or stylesheet.
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 if DEMO_MODE_ENABLED and not secret_key:
     app.secret_key = "development-demo-session-key-not-for-production"
 elif LOCAL_PREVIEW_MODE_ENABLED and not secret_key:
@@ -151,6 +163,7 @@ def inject_portal_copy():
         "portal_schedule_endpoint": (
             "game_command_center" if can_manage_games else "future_games"
         ),
+        "fictional_demo_mode": FICTIONAL_DEMO_MODE_ENABLED,
     }
 
 
@@ -217,12 +230,12 @@ def load_phase_c_web_principal(session_values):
         role = {
             "admin": ROLE_ADMIN,
             "officer": ROLE_OFFICER,
-            "basic": ROLE_MEMBER,
+            "basic": ROLE_BASIC,
         }.get(principal.person.access_level)
         if role is None:
             return None
     else:
-        role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_MEMBER
+        role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_BASIC
     return WebPrincipal(role=role, member_id=principal.person.member_id)
 
 
@@ -366,6 +379,9 @@ def enforce_local_preview_boundary():
     if request.method not in {"GET", "HEAD", "OPTIONS"}:
         allowed = request.endpoint in {"local_preview_login", "logout"}
         if request.endpoint == "change_person_access" and FICTIONAL_DEMO_MODE_ENABLED:
+            repository = phase_c_repository()
+            allowed = repository is not None and repository.is_fictional_demo_fixture()
+        if request.endpoint == "admin_create_member" and FICTIONAL_DEMO_MODE_ENABLED:
             repository = phase_c_repository()
             allowed = repository is not None and repository.is_fictional_demo_fixture()
         if not allowed:
@@ -755,10 +771,29 @@ def member_dashboard():
         for game in games
     ]
     unanswered_count = sum(item["reply"] is None for item in game_cards)
+    weather = None
+    next_game = game_cards[0] if game_cards else None
+    if next_game and FICTIONAL_DEMO_MODE_ENABLED:
+        weather = fictional_dashboard_forecast()
+    elif next_game and is_weather_window(
+        next_game["game"], datetime.now(local_timezone), local_timezone
+    ):
+        try:
+            ballpark = Ballpark.search_by_name(next_game["game"].location)
+            if ballpark is None:
+                raise DashboardWeatherError(
+                    "Weather location configuration is unavailable"
+                )
+            weather = load_dashboard_forecast(
+                next_game["game"], ballpark, local_timezone
+            )
+        except DashboardWeatherError:
+            logger.warning("Dashboard weather data is unavailable")
     return render_template(
         "dashboard.html",
         member=member,
-        next_game=game_cards[0] if game_cards else None,
+        next_game=next_game,
+        weather=weather,
         games=game_cards[1:4],
         unanswered_count=unanswered_count,
         reply_text_mapping=reply_text_mapping,
@@ -799,7 +834,12 @@ def attendance():
         games_with_attendance.append(
             {
                 "id": game.id,
-                "game_summary": game.generate_short_summary_for_team(),
+                "game_sign": game.get_game_sign(),
+                "game_date": game.get_formatted_date(),
+                "game_time": game.get_formatted_start_time_with_colon(),
+                "home_team": game.home_team,
+                "away_team": game.away_team,
+                "location": game.location,
                 "attendance_mapping": mapping,
             }
         )
@@ -891,7 +931,7 @@ def account():
     return render_template(
         "account.html",
         member=member,
-        role_label=("系統管理者" if principal.role == ROLE_ADMIN else "一般隊員"),
+        role_label=role_label(principal),
         can_manage_members=can_manage_members,
         logout_csrf_token=get_or_create_logout_csrf_token(),
         profile_csrf_token=get_or_create_csrf_token(),
@@ -941,7 +981,9 @@ def index():
     if repository is not None and isinstance(actor_person_id, int):
         return render_template(
             "identity_admin.html",
-            dashboard=repository.admin_dashboard(actor_person_id),
+            dashboard=_fictional_identity_dashboard(
+                repository.admin_dashboard(actor_person_id)
+            ),
             csrf_token=get_or_create_csrf_token(),
             request_nonce=secrets.token_urlsafe(16),
             identity_maintenance_enabled=is_identity_maintenance_enabled(
@@ -969,6 +1011,52 @@ def _admin_repository_or_unavailable():
     if repository is None or not isinstance(actor_person_id, int):
         return None, None
     return repository, actor_person_id
+
+
+def _fictional_identity_dashboard(dashboard):
+    if not FICTIONAL_DEMO_MODE_ENABLED:
+        return dashboard
+    now = datetime.now(local_timezone)
+    sample_identity = {
+        "identity_id": -7100,
+        "nickname": "虛構待核可申請者",
+        "identity_status": "pending",
+        "ignored": False,
+        "person_id": None,
+        "person_name": None,
+        "person_status": None,
+        "member_id": None,
+        "qualifications": (),
+        "review_status": "open",
+        "last_activity_at": now - timedelta(hours=2),
+        "stale": False,
+        "fictional_sample": True,
+    }
+    sample_audit = (
+        {
+            "action": "identity_pending",
+            "actor_person_id": None,
+            "target_person_id": None,
+            "auth_identity_id": -7100,
+            "reason": "Fictional demo：收到新的 LINE 身分核可申請",
+            "created_at": now - timedelta(hours=2),
+            "fictional_sample": True,
+        },
+        {
+            "action": "review_message_sent",
+            "actor_person_id": 7101,
+            "target_person_id": None,
+            "auth_identity_id": -7100,
+            "reason": "Fictional demo：管理員回覆申請者",
+            "created_at": now - timedelta(hours=1),
+            "fictional_sample": True,
+        },
+    )
+    return {
+        **dashboard,
+        "identities": (sample_identity, *dashboard["identities"]),
+        "audit": (*sample_audit, *dashboard["audit"]),
+    }
 
 
 def _is_portal_data_domain_error(error):
@@ -1095,13 +1183,20 @@ def admin_pending_identities():
     repository, actor_person_id = _admin_repository_or_unavailable()
     if repository is None:
         return "Identity service is temporarily unavailable", 503
-    dashboard = repository.admin_dashboard(actor_person_id)
+    dashboard = _fictional_identity_dashboard(
+        repository.admin_dashboard(actor_person_id)
+    )
+    pending_identities = tuple(
+        item
+        for item in dashboard["identities"]
+        if item["identity_status"] == "pending" or item["review_status"] == "open"
+    )
     return render_template(
         "identity_admin.html",
         dashboard={
-            "identities": dashboard["identities"],
+            "identities": pending_identities,
             "people": dashboard["people"],
-            "audit": (),
+            "audit": dashboard["audit"] if FICTIONAL_DEMO_MODE_ENABLED else (),
         },
         csrf_token=get_or_create_csrf_token(),
         request_nonce=secrets.token_urlsafe(16),
@@ -1110,6 +1205,34 @@ def admin_pending_identities():
         ),
         current_identity_id=session.get("auth_identity_id"),
         pending_only=True,
+    )
+
+
+@app.get("/local-preview/identity-review")
+def local_preview_identity_review():
+    require_loopback_request(request.host)
+    if not FICTIONAL_DEMO_MODE_ENABLED:
+        abort(404)
+    sample_time = datetime.now(local_timezone)
+    sample_messages = (
+        {
+            "sender_role": "applicant",
+            "body": "您好，我是今年加入球隊的學長，想申請隊員帳號。",
+            "created_at": sample_time - timedelta(hours=2),
+        },
+        {
+            "sender_role": "admin",
+            "body": "收到，請再告訴我畢業系級，確認後會協助完成配對。",
+            "created_at": sample_time - timedelta(hours=1),
+        },
+    )
+    return render_template(
+        "identity_review.html",
+        messages=sample_messages,
+        csrf_token="local-preview-read-only",
+        request_id="local-preview-read-only",
+        read_only=True,
+        fictional_preview=True,
     )
 
 
@@ -1165,6 +1288,56 @@ def manage_person_qualifications(person_id):
         identity_maintenance_enabled=is_identity_maintenance_enabled(
             demo_mode=DEMO_MODE_ENABLED
         ),
+    )
+
+
+def _optional_form_int(name):
+    value = request.form.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        abort(400)
+
+
+@app.route("/manage/people/new", methods=["GET", "POST"])
+@admin_required
+def admin_create_member():
+    repository, actor_person_id = _admin_repository_or_unavailable()
+    if repository is None:
+        return "Identity service is temporarily unavailable", 503
+    mutation_enabled = FICTIONAL_DEMO_MODE_ENABLED or is_identity_maintenance_enabled(
+        demo_mode=DEMO_MODE_ENABLED
+    )
+    if request.method == "POST":
+        require_valid_csrf()
+        if not mutation_enabled:
+            return "Identity maintenance is temporarily unavailable", 503
+        formal_name = request.form.get("name", "")
+        request_id = _required_request_id("member-create-")
+        try:
+            person = repository.create_member(
+                actor_person_id,
+                formal_name,
+                formal_name,
+                request.form.get("reason", ""),
+                request_id,
+                enroll_year=_optional_form_int("enroll_year"),
+                major=request.form.get("major"),
+                number=_optional_form_int("number"),
+                positions=request.form.get("positions"),
+            )
+        except Exception as error:
+            if _is_portal_data_domain_error(error):
+                return "Member could not be created", 409
+            raise
+        return redirect(url_for("admin_person_detail", person_id=person.id))
+    return render_template(
+        "member_create.html",
+        csrf_token=get_or_create_csrf_token(),
+        request_id=f"member-create-{secrets.token_urlsafe(24)}",
+        mutation_enabled=mutation_enabled,
     )
 
 
@@ -1487,18 +1660,12 @@ def management_hub():
 @app.route("/game-roster/<int:game_id>")
 @member_required
 def game_roster(game_id: int):
-    name_style = requested_attendance_name_style()
-    game = Game.search_by_id(game_id)
-    if game is None:
-        abort(404)
-    attendance_mapping = attendance_for_game(game.id, name_style)
-    return render_template(
-        "game_roster.html",
-        game=game,
-        players=process_replies(attendance_mapping),
-        unanswered_count=len(attendance_mapping.get(5, ())),
-        name_style=name_style,
-        can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
+    return redirect(
+        url_for(
+            "lineup_lab",
+            game_id=game_id,
+            name_style=request.args.get("name_style"),
+        )
     )
 
 
@@ -1597,6 +1764,7 @@ def game_command_detail(game_id):
         role=role,
         data_time=now,
         can_manage_games=True,
+        reply_text_mapping=reply_text_mapping,
     )
 
 
@@ -1627,11 +1795,22 @@ def game_insights():
     )
 
 
-@app.get("/manage/games/<int:game_id>/lineup-lab")
-@game_management_required
+@app.get("/games/<int:game_id>/lineup-lab")
+@member_required
 def lineup_lab(game_id):
     name_style = requested_attendance_name_style()
-    repository, lifecycle_principal, role = g.game_management_context
+    repository = phase_c_repository()
+    lifecycle_principal = (
+        repository.resolve_line_principal(session.get("user_id", ""))
+        if repository is not None
+        else None
+    )
+    if (
+        lifecycle_principal is None
+        or lifecycle_principal.person.id != session.get("person_id")
+        or lifecycle_principal.identity.id != session.get("auth_identity_id")
+    ):
+        abort(403)
     now = datetime.now(local_timezone)
     try:
         game = _bounded_game(game_id, now)
@@ -1655,10 +1834,22 @@ def lineup_lab(game_id):
         game=game,
         candidates=snapshot["candidates"],
         name_style=name_style,
-        role=role,
+        role=lifecycle_principal.person.access_level,
         actor_person_id=lifecycle_principal.person.id,
         data_time=now,
-        can_manage_games=True,
+        can_manage_games=_can_manage_games(lifecycle_principal),
+    )
+
+
+@app.get("/manage/games/<int:game_id>/lineup-lab")
+@game_management_required
+def managed_lineup_lab_redirect(game_id):
+    return redirect(
+        url_for(
+            "lineup_lab",
+            game_id=game_id,
+            name_style=request.args.get("name_style"),
+        )
     )
 
 

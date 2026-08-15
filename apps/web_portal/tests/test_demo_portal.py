@@ -134,7 +134,7 @@ class DemoPortalTest(unittest.TestCase):
                 self.assertIn(expected.encode(), response.data)
 
     def test_phase_c_identity_demo_is_admin_only_and_session_backed(self):
-        self.client.post("/demo/login", data={"role": "member"})
+        self.client.post("/demo/login", data={"role": "basic"})
         self.assertEqual(self.client.get("/demo/identity-lifecycle").status_code, 403)
 
         self.client.post("/demo/login", data={"role": "admin"})
@@ -189,8 +189,14 @@ class DemoPortalTest(unittest.TestCase):
             self.assertEqual(
                 demo_session["demo_replies"]["demo-game-01"]["eta"], "08:40"
             )
-        self.assertIn(b'<option value="late" selected>', detail.data)
-        self.assertIn(b'<option value="08:40" selected>', detail.data)
+        self.assertRegex(
+            detail.get_data(as_text=True),
+            r'<option value="late"\s+selected>',
+        )
+        self.assertRegex(
+            detail.get_data(as_text=True),
+            r'<option value="08:40"\s+selected>',
+        )
 
     def test_game_flow_connects_schedule_detail_reply_readback_and_game_day(self):
         self.login()

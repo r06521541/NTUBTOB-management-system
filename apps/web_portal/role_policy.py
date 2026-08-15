@@ -3,11 +3,17 @@
 from dataclasses import dataclass
 from types import MappingProxyType
 
-
-ROLE_MEMBER = "member"
+ROLE_BASIC = "basic"
 ROLE_OFFICER = "officer"
 ROLE_ADMIN = "admin"
-ROLES = frozenset({ROLE_MEMBER, ROLE_OFFICER, ROLE_ADMIN})
+ROLES = frozenset({ROLE_BASIC, ROLE_OFFICER, ROLE_ADMIN})
+ROLE_LABELS = MappingProxyType(
+    {
+        ROLE_BASIC: "一般使用者",
+        ROLE_OFFICER: "幹部",
+        ROLE_ADMIN: "系統管理者",
+    }
+)
 
 VIEW_MEMBER_PORTAL = "view_member_portal"
 REPLY_OWN_ATTENDANCE = "reply_own_attendance"
@@ -27,10 +33,10 @@ MANAGE_QUALIFICATIONS = "manage_qualifications"
 MANAGE_PERSON_ACCESS = "manage_person_access"
 CONFIRM_NOTIFICATIONS = "confirm_notifications"
 
-MEMBER_CAPABILITIES = frozenset(
+BASIC_CAPABILITIES = frozenset(
     {VIEW_MEMBER_PORTAL, REPLY_OWN_ATTENDANCE, VIEW_PERSON_DIRECTORY}
 )
-OFFICER_CAPABILITIES = MEMBER_CAPABILITIES | frozenset(
+OFFICER_CAPABILITIES = BASIC_CAPABILITIES | frozenset(
     {
         MANAGE_EVENTS,
         VIEW_TEAM_ATTENDANCE,
@@ -54,7 +60,7 @@ ADMIN_CAPABILITIES = OFFICER_CAPABILITIES | frozenset(
 )
 ROLE_CAPABILITIES = MappingProxyType(
     {
-        ROLE_MEMBER: MEMBER_CAPABILITIES,
+        ROLE_BASIC: BASIC_CAPABILITIES,
         ROLE_OFFICER: OFFICER_CAPABILITIES,
         ROLE_ADMIN: ADMIN_CAPABILITIES,
     }
@@ -77,8 +83,14 @@ def has_capability(principal, capability):
     return capabilities is not None and capability in capabilities
 
 
+def role_label(principal):
+    if not isinstance(principal, Principal):
+        return "未知角色"
+    return ROLE_LABELS.get(principal.role, "未知角色")
+
+
 def resolve_production_principal(session_values, admin_member_ids):
-    """Resolve only member/admin in production; officer has no source yet."""
+    """Resolve only basic/admin in production; officer has no source yet."""
     user_id = session_values.get("user_id")
     member_id = session_values.get("member_id")
     if not isinstance(user_id, str) or not user_id.strip():
@@ -89,7 +101,7 @@ def resolve_production_principal(session_values, admin_member_ids):
         or member_id <= 0
     ):
         return None
-    role = ROLE_ADMIN if member_id in admin_member_ids else ROLE_MEMBER
+    role = ROLE_ADMIN if member_id in admin_member_ids else ROLE_BASIC
     return Principal(role=role, member_id=member_id)
 
 

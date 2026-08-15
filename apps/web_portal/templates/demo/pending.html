@@ -1,3 +1,19 @@
-{% extends 'demo/base.html' %}
-{% block title %}等待核可｜NTUBTOB{% endblock %}
-{% block content %}<section class="state-card card"><div class="state-icon">✓</div><span class="eyebrow">APPLICATION RECEIVED</span><h1>資料已送出，等待管理員確認</h1><p>球隊管理員核對身分後，你就能查看賽程與回覆出席。這個 Demo 畫面不會送出任何資料。</p><div class="timeline"><div class="done"><strong>1</strong><span>完成登入</span></div><div class="active"><strong>2</strong><span>管理員確認</span></div><div><strong>3</strong><span>開通入口</span></div></div><a class="button button-primary" href="{{ url_for('demo_portal.login') }}">返回登入</a></section>{% endblock %}
+{% extends 'demo/base.html' %} {% block title %}等待核可｜NTUBTOB{% endblock %}
+{% block content %}
+    <section class="state-card card">
+        <div class="state-icon">✓</div>
+        <span class="eyebrow">APPLICATION RECEIVED</span>
+        <h1>資料已送出，等待管理員確認</h1>
+        <p>
+            球隊管理員核對身分後，你就能查看賽程與回覆出席。這個 Demo
+            畫面不會送出任何資料。
+        </p>
+        <div class="timeline">
+            <div class="done"><strong>1</strong><span>完成登入</span></div>
+            <div class="active"><strong>2</strong><span>管理員確認</span></div>
+            <div><strong>3</strong><span>開通入口</span></div>
+        </div>
+        <a class="button button-primary"
+           href="{{ url_for('demo_portal.login') }}">返回登入</a>
+    </section>
+{% endblock %}
