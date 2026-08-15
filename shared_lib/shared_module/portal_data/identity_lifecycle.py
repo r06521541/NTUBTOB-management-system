@@ -341,10 +341,10 @@ class IdentityLifecycleRepository:
                 "people": (PersonRecord, 18),
                 "members": (LegacyMemberRecord, 17),
                 "auth_identities": (AuthIdentityRecord, 3),
-                "person_qualifications": (PersonQualificationRecord, 17),
+                "person_qualifications": (PersonQualificationRecord, 20),
                 "games": (LegacyGameRecord, 4),
                 "line_users": (LegacyLineUserRecord, 15),
-                "game_attendance_replies": (LegacyGameAttendanceReplyRecord, 12),
+                "game_attendance_replies": (LegacyGameAttendanceReplyRecord, 15),
             }
             if any(
                 session.scalar(select(func.count()).select_from(model)) != expected

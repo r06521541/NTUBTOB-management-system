@@ -14,11 +14,16 @@ artifact、hosted CI 與 final release review。
   `git diff --check` passed。
 - localhost fictional Admin smoke：Dashboard、Attendance、Account、lineup lab、management hub、People、pending
   identities 均回應 200。
+- PR #110 首輪 hosted Python 3.10 quick gate、Web Portal、broadcast、notify、webhook、deployment tool 與 update
+  schedule tests passed；PG15/16 同時揭露 fictional seed 已增至 20 筆資格、15 筆回覆，但 repository exact fixture
+  fingerprint 仍期待舊值 17/12。修正只同步這兩個 repository-owned 合法計數，任意其他 drift 仍 fail closed。
+- 修正後本機重跑 Portal-data offline 224 passed（103 skipped）、Web Portal 180 passed（2 skipped）與受影響模組
+  `py_compile` passed；本機 PostgreSQL 已停止，修正後 PG15/16 證據由同一 PR hosted matrix 補驗。
 - 無 schema/migration/SQL、production、Secret、deployment、IAM、Scheduler、正式資料或真實通知操作。
 
 ## 待完成
 
 - Web Portal deployment artifact 已由目前 source 重建；tarball 59 entries，包含 Games、identity lifecycle 與 settings。
-- Ready PR 與 hosted Python 3.10/Black evidence。
+- PR #110 修正 push 後的 hosted PG15/16 與 final gate evidence。
 - Owner 已透過本機 live editing workflow 反覆檢視 desktop/mobile UI；本輪 agent browser runtime 無法建立本機資產，
   因此沒有額外自動截圖證據。
