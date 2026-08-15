@@ -30,6 +30,11 @@ SECRET_REF_PATTERN = re.compile(
 EXCLUDED_ENV_KEYS = frozenset(
     {"DSN_PASSWORD", "LINE_LOGIN_CHANNEL_SECRET", "SECRET_KEY", "WEATHER_API_KEY"}
 )
+ROLLOUT_ENV_KEYS = (
+    "PORTAL_DATA_PHASE_C_ENABLED",
+    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED",
+    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED",
+)
 REQUIRED_PLAIN_KEYS = frozenset(
     {
         "DSN_DATABASE",
@@ -134,6 +139,12 @@ def validate_secret_ref(value: str, label: str) -> str:
     return value
 
 
+def validate_boolean_flag(value: str, label: str) -> str:
+    if value not in {"true", "false"}:
+        raise DeploymentError(f"{label} must be exactly true or false")
+    return value
+
+
 def parse_env_key(line: str) -> Optional[str]:
     stripped = line.lstrip()
     if not stripped or stripped.startswith("#") or ":" not in stripped:
@@ -142,11 +153,21 @@ def parse_env_key(line: str) -> Optional[str]:
     return key if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key) else None
 
 
-def write_filtered_env(source: Path, destination: Path) -> None:
+def write_filtered_env(
+    source: Path, destination: Path, rollout_values: Optional[Dict[str, str]] = None
+) -> None:
     if destination.exists():
         raise DeploymentError("Refusing to overwrite an existing service .env.yaml")
     lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
-    filtered = [line for line in lines if parse_env_key(line) not in EXCLUDED_ENV_KEYS]
+    excluded = EXCLUDED_ENV_KEYS | frozenset(ROLLOUT_ENV_KEYS if rollout_values else ())
+    filtered = [line for line in lines if parse_env_key(line) not in excluded]
+    if rollout_values is not None:
+        if set(rollout_values) != set(ROLLOUT_ENV_KEYS):
+            raise DeploymentError("Approved rollout vector is incomplete")
+        filtered.extend(
+            f'{key}: "{validate_boolean_flag(rollout_values[key], key)}"\n'
+            for key in ROLLOUT_ENV_KEYS
+        )
     destination.write_text("".join(filtered), encoding="utf-8")
 
 
@@ -176,6 +197,9 @@ def preflight(
     line_secret_ref: Optional[str] = None,
     session_secret_ref: Optional[str] = None,
     weather_secret_ref: Optional[str] = None,
+    phase_c_enabled: Optional[str] = None,
+    rollout_freeze_enabled: Optional[str] = None,
+    identity_maintenance_enabled: Optional[str] = None,
     runner: Runner = run_command,
     check_tools: bool = True,
 ) -> str:
@@ -196,6 +220,13 @@ def preflight(
         validate_secret_ref(session_secret_ref, "Session Secret reference")
     if weather_secret_ref is not None:
         validate_secret_ref(weather_secret_ref, "Weather Secret reference")
+    for value, label in (
+        (phase_c_enabled, "Phase C flag"),
+        (rollout_freeze_enabled, "Rollout freeze flag"),
+        (identity_maintenance_enabled, "Identity maintenance flag"),
+    ):
+        if value is not None:
+            validate_boolean_flag(value, label)
 
     service_root = root / "apps" / SERVICE_DIRECTORY
     required_files = (
@@ -276,6 +307,7 @@ def validate_revision_contract(
     line_secret_ref: str,
     session_secret_ref: str,
     weather_secret_ref: str,
+    rollout_values: Dict[str, str],
 ) -> None:
     if not revision_ready(revision):
         raise DeploymentError("New revision is not ready")
@@ -302,6 +334,10 @@ def validate_revision_contract(
         entry = by_name.get(name, {})
         if "value" not in entry or secret_reference(entry) is not None:
             raise DeploymentError(f"Runtime plain configuration is missing: {name}")
+    for name, expected_value in rollout_values.items():
+        entry = by_name.get(name, {})
+        if entry.get("value") != expected_value or secret_reference(entry) is not None:
+            raise DeploymentError(f"Runtime rollout configuration is invalid for {name}")
     for forbidden in ("WEB_PORTAL_DEMO_MODE", "WEB_PORTAL_ENV"):
         if forbidden in by_name:
             raise DeploymentError("Production demo configuration must remain absent")
@@ -315,6 +351,7 @@ def revision_converged(
     line_secret_ref: str,
     session_secret_ref: str,
     weather_secret_ref: str,
+    rollout_values: Dict[str, str],
     runner: Runner,
 ) -> Optional[tuple[dict, str]]:
     """Return a distinct Ready revision with an approved runtime contract."""
@@ -365,6 +402,7 @@ def revision_converged(
         line_secret_ref,
         session_secret_ref,
         weather_secret_ref,
+        rollout_values,
     )
     return service, revision_name
 
@@ -377,6 +415,7 @@ def poll_revision(
     line_secret_ref: str,
     session_secret_ref: str,
     weather_secret_ref: str,
+    rollout_values: Dict[str, str],
     runner: Runner,
     timeout: float,
     interval: float,
@@ -393,6 +432,7 @@ def poll_revision(
             line_secret_ref,
             session_secret_ref,
             weather_secret_ref,
+            rollout_values,
             runner,
         )
         if result is not None:
@@ -477,6 +517,9 @@ def execute_deployment(
     line_secret_ref: str,
     session_secret_ref: str,
     weather_secret_ref: str,
+    phase_c_enabled: str,
+    rollout_freeze_enabled: str,
+    identity_maintenance_enabled: str,
     runner: Runner = run_command,
     http_get: HttpGet = http_status,
     clock: Clock = time.monotonic,
@@ -493,14 +536,32 @@ def execute_deployment(
         line_secret_ref,
         session_secret_ref,
         weather_secret_ref,
+        phase_c_enabled,
+        rollout_freeze_enabled,
+        identity_maintenance_enabled,
         runner,
         check_tools,
     )
     approved_commit = validate_sha(approved_commit)
     rollback_revision = validate_revision(rollback_revision)
     line_secret_ref = validate_secret_ref(line_secret_ref, "LINE Login Secret reference")
-    session_secret_ref = validate_secret_ref(session_secret_ref, "Session Secret reference")
-    weather_secret_ref = validate_secret_ref(weather_secret_ref, "Weather Secret reference")
+    session_secret_ref = validate_secret_ref(
+        session_secret_ref, "Session Secret reference"
+    )
+    weather_secret_ref = validate_secret_ref(
+        weather_secret_ref, "Weather Secret reference"
+    )
+    rollout_values = {
+        "PORTAL_DATA_PHASE_C_ENABLED": validate_boolean_flag(
+            phase_c_enabled, "Phase C flag"
+        ),
+        "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": validate_boolean_flag(
+            rollout_freeze_enabled, "Rollout freeze flag"
+        ),
+        "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": validate_boolean_flag(
+            identity_maintenance_enabled, "Identity maintenance flag"
+        ),
+    }
     if check_tools:
         require_tool("gcloud")
 
@@ -530,7 +591,7 @@ def execute_deployment(
             raise DeploymentError("Shared library build did not produce the expected artifact")
         artifact_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(artifact_source, artifact_target)
-        write_filtered_env(env_source, temporary_env)
+        write_filtered_env(env_source, temporary_env, rollout_values)
 
         substitutions = ",".join(
             (
@@ -540,6 +601,9 @@ def execute_deployment(
                 f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={line_secret_ref}",
                 f"_WEB_PORTAL_SESSION_SECRET_REF={session_secret_ref}",
                 f"_WEB_PORTAL_WEATHER_SECRET_REF={weather_secret_ref}",
+                f"_PORTAL_DATA_PHASE_C_ENABLED={phase_c_enabled}",
+                f"_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED={rollout_freeze_enabled}",
+                f"_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED={identity_maintenance_enabled}",
             )
         )
         build_id = command_output(
@@ -564,6 +628,7 @@ def execute_deployment(
             line_secret_ref,
             session_secret_ref,
             weather_secret_ref,
+            rollout_values,
             runner,
             poll_timeout,
             poll_interval,
@@ -643,6 +708,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--line-login-secret-ref")
     parser.add_argument("--session-secret-ref")
     parser.add_argument("--weather-secret-ref")
+    parser.add_argument("--phase-c-enabled")
+    parser.add_argument("--rollout-freeze-enabled")
+    parser.add_argument("--identity-maintenance-enabled")
     return parser
 
 
@@ -654,6 +722,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.line_login_secret_ref,
         args.session_secret_ref,
         args.weather_secret_ref,
+        args.phase_c_enabled,
+        args.rollout_freeze_enabled,
+        args.identity_maintenance_enabled,
     )
     try:
         if args.execute:
@@ -666,6 +737,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.line_login_secret_ref,
                 args.session_secret_ref,
                 args.weather_secret_ref,
+                args.phase_c_enabled,
+                args.rollout_freeze_enabled,
+                args.identity_maintenance_enabled,
             )
             print(json.dumps(result, sort_keys=True))
         else:

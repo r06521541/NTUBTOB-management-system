@@ -242,7 +242,10 @@ python tools/deploy_web_portal.py --execute \
   --rollback-revision <EXACT_WEB_PORTAL_REVISION> \
   --line-login-secret-ref <RESOURCE:VERSION> \
   --session-secret-ref <RESOURCE:VERSION> \
-  --weather-secret-ref <RESOURCE:VERSION>
+  --weather-secret-ref <RESOURCE:VERSION> \
+  --phase-c-enabled <true|false> \
+  --rollout-freeze-enabled <true|false> \
+  --identity-maintenance-enabled <true|false>
 ```
 
 Wrapper 固定 project `ntubtob-schedule-405614`、region `asia-east1`、service
@@ -252,7 +255,7 @@ submission 取得 build ID，再做有 timeout 的 bounded polling；substitutio
 
 Build `SUCCESS` 後仍須驗證 immutable digest、new revision Ready、100% traffic、
 public invoker、沿用的 runtime identity、四個 runtime Secret references（包含 database password）、plain
-runtime key classifications 與 production demo gate 缺席。最後只做一次不跟隨
+runtime key classifications、exact rollout flag vector 與 production demo gate 缺席。最後只做一次不跟隨
 redirect、也不讀 response body 的 `GET /`（200）與 `GET /demo/`（404）。部署後
 驗證失敗時，只能把 traffic 切回 CLI 已核准且通過 prefix 驗證的 exact revision；
 rollback 成功與失敗必須分開回報。Temporary `.env.yaml` 在所有成功與失敗路徑
@@ -267,7 +270,7 @@ Legacy Make 入口仍存在，但不提供上述跨平台 async polling 與完�
 make deploy-web-portal
 ```
 
-必要參數為 40 字元 `IMAGE_TAG`、`WEB_PORTAL_LINE_LOGIN_SECRET_REF`、`WEB_PORTAL_SESSION_SECRET_REF` 與 `WEB_PORTAL_WEATHER_SECRET_REF`。後三者只能是 Secret resource/version references，不得是 Secret values。正式工作包還必須確認 callback URL、public boundary、Secret IAM、目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、Cloud Build、Secret lookup 或 Cloud Run deployment。
+必要參數為 40 字元 `IMAGE_TAG`、`WEB_PORTAL_LINE_LOGIN_SECRET_REF`、`WEB_PORTAL_SESSION_SECRET_REF`、`WEB_PORTAL_WEATHER_SECRET_REF` 與三個 exact boolean rollout flags。三個 Secret 輸入只能是 resource/version references，不得是 Secret values；flags 只能是小寫 `true`／`false`，並須與 temporary env 及新 revision 完全一致。正式工作包還必須確認 callback URL、public boundary、Secret IAM、目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、Cloud Build、Secret lookup 或 Cloud Run deployment。
 
 ### 7.4 Update game schedule function
 
