@@ -18,6 +18,7 @@ steps:
       esac
       validate_secret_ref '${_WEB_PORTAL_LINE_LOGIN_SECRET_REF}' LINE_LOGIN_CHANNEL_SECRET
       validate_secret_ref '${_WEB_PORTAL_SESSION_SECRET_REF}' SECRET_KEY
+      validate_secret_ref '${_WEB_PORTAL_WEATHER_SECRET_REF}' WEATHER_API_KEY
 
   - name: 'gcr.io/cloud-builders/docker'
     args: [
@@ -41,7 +42,7 @@ steps:
     - |
       gcloud run deploy ${_SERVICE_NAME} \
         --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/management-system-docker-repo/${_SERVICE_NAME}-image:${_IMAGE_TAG} \
-        --update-secrets=DSN_PASSWORD=supabase-database-password:latest,LINE_LOGIN_CHANNEL_SECRET=${_WEB_PORTAL_LINE_LOGIN_SECRET_REF},SECRET_KEY=${_WEB_PORTAL_SESSION_SECRET_REF} \
+        --update-secrets=DSN_PASSWORD=supabase-database-password:latest,LINE_LOGIN_CHANNEL_SECRET=${_WEB_PORTAL_LINE_LOGIN_SECRET_REF},SECRET_KEY=${_WEB_PORTAL_SESSION_SECRET_REF},WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF} \
         --region ${_REGION} \
         --platform managed \
         --allow-unauthenticated \

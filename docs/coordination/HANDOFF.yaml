@@ -1,21 +1,20 @@
-active_task: TASK-100
+active_task: TASK-101
 status: in_progress
 next_actor: work
 
-base_commit: e362660fdd5ec5362f762120e7f4857b33831fb7
+base_commit: dc295774e58cb550a75f84148f6a033fff031015
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-15T02:00:00+08:00
+updated_at: 2026-08-15T16:46:00+08:00
 
 note: >
-  Owner authorized release preparation for the completed localhost UI refresh. Work may create the final commit, ready
-  PR, follow hosted CI and merge under standing Git authorization. PR #110 first hosted run exposed an exact fictional
-  fixture count mismatch; Work aligned only the repository-owned expected counts and is waiting for PG15/16 rerun.
-  Production deployment, Secret, IAM, Scheduler, traffic, formal data and real notifications remain unauthorized until
-  an exact deployment package is approved.
+  TASK-100 merged as dc295774e58cb550a75f84148f6a033fff031015. Owner asked Work to close the newly identified
+  Weather API Secret deployment gap before production. TASK-101 may implement, test, push, create one PR and merge under
+  standing Git authorization. Production deployment, Secret, IAM, traffic and formal data remain unauthorized until a
+  corrected exact deployment package is approved.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-100.md
-report: docs/coordination/reports/TASK-100-CODEX.md
-review: docs/coordination/reviews/TASK-100-WORK.md
+task: docs/coordination/tasks/TASK-101.md
+report: docs/coordination/reports/TASK-101-CODEX.md
+review: docs/coordination/reviews/TASK-101-WORK.md

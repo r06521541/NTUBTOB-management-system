@@ -28,7 +28,7 @@ SECRET_REF_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$"
 )
 EXCLUDED_ENV_KEYS = frozenset(
-    {"DSN_PASSWORD", "LINE_LOGIN_CHANNEL_SECRET", "SECRET_KEY"}
+    {"DSN_PASSWORD", "LINE_LOGIN_CHANNEL_SECRET", "SECRET_KEY", "WEATHER_API_KEY"}
 )
 REQUIRED_PLAIN_KEYS = frozenset(
     {
@@ -175,6 +175,7 @@ def preflight(
     rollback_revision: Optional[str] = None,
     line_secret_ref: Optional[str] = None,
     session_secret_ref: Optional[str] = None,
+    weather_secret_ref: Optional[str] = None,
     runner: Runner = run_command,
     check_tools: bool = True,
 ) -> str:
@@ -193,6 +194,8 @@ def preflight(
         validate_secret_ref(line_secret_ref, "LINE Login Secret reference")
     if session_secret_ref is not None:
         validate_secret_ref(session_secret_ref, "Session Secret reference")
+    if weather_secret_ref is not None:
+        validate_secret_ref(weather_secret_ref, "Weather Secret reference")
 
     service_root = root / "apps" / SERVICE_DIRECTORY
     required_files = (
@@ -272,6 +275,7 @@ def validate_revision_contract(
     expected_identity: str,
     line_secret_ref: str,
     session_secret_ref: str,
+    weather_secret_ref: str,
 ) -> None:
     if not revision_ready(revision):
         raise DeploymentError("New revision is not ready")
@@ -289,6 +293,7 @@ def validate_revision_contract(
         "DSN_PASSWORD": "supabase-database-password:latest",
         "LINE_LOGIN_CHANNEL_SECRET": line_secret_ref,
         "SECRET_KEY": session_secret_ref,
+        "WEATHER_API_KEY": weather_secret_ref,
     }
     for name, reference in expected_secrets.items():
         if secret_reference(by_name.get(name, {})) != reference:
@@ -309,6 +314,7 @@ def revision_converged(
     expected_identity: str,
     line_secret_ref: str,
     session_secret_ref: str,
+    weather_secret_ref: str,
     runner: Runner,
 ) -> Optional[tuple[dict, str]]:
     """Return a distinct Ready revision with an approved runtime contract."""
@@ -358,6 +364,7 @@ def revision_converged(
         expected_identity,
         line_secret_ref,
         session_secret_ref,
+        weather_secret_ref,
     )
     return service, revision_name
 
@@ -369,6 +376,7 @@ def poll_revision(
     expected_identity: str,
     line_secret_ref: str,
     session_secret_ref: str,
+    weather_secret_ref: str,
     runner: Runner,
     timeout: float,
     interval: float,
@@ -384,6 +392,7 @@ def poll_revision(
             expected_identity,
             line_secret_ref,
             session_secret_ref,
+            weather_secret_ref,
             runner,
         )
         if result is not None:
@@ -467,6 +476,7 @@ def execute_deployment(
     rollback_revision: str,
     line_secret_ref: str,
     session_secret_ref: str,
+    weather_secret_ref: str,
     runner: Runner = run_command,
     http_get: HttpGet = http_status,
     clock: Clock = time.monotonic,
@@ -482,6 +492,7 @@ def execute_deployment(
         rollback_revision,
         line_secret_ref,
         session_secret_ref,
+        weather_secret_ref,
         runner,
         check_tools,
     )
@@ -489,6 +500,7 @@ def execute_deployment(
     rollback_revision = validate_revision(rollback_revision)
     line_secret_ref = validate_secret_ref(line_secret_ref, "LINE Login Secret reference")
     session_secret_ref = validate_secret_ref(session_secret_ref, "Session Secret reference")
+    weather_secret_ref = validate_secret_ref(weather_secret_ref, "Weather Secret reference")
     if check_tools:
         require_tool("gcloud")
 
@@ -527,6 +539,7 @@ def execute_deployment(
                 f"_IMAGE_TAG={approved_commit}",
                 f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={line_secret_ref}",
                 f"_WEB_PORTAL_SESSION_SECRET_REF={session_secret_ref}",
+                f"_WEB_PORTAL_WEATHER_SECRET_REF={weather_secret_ref}",
             )
         )
         build_id = command_output(
@@ -550,6 +563,7 @@ def execute_deployment(
             baseline_identity,
             line_secret_ref,
             session_secret_ref,
+            weather_secret_ref,
             runner,
             poll_timeout,
             poll_interval,
@@ -628,6 +642,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rollback-revision")
     parser.add_argument("--line-login-secret-ref")
     parser.add_argument("--session-secret-ref")
+    parser.add_argument("--weather-secret-ref")
     return parser
 
 
@@ -638,6 +653,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.rollback_revision,
         args.line_login_secret_ref,
         args.session_secret_ref,
+        args.weather_secret_ref,
     )
     try:
         if args.execute:
@@ -649,6 +665,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.rollback_revision,
                 args.line_login_secret_ref,
                 args.session_secret_ref,
+                args.weather_secret_ref,
             )
             print(json.dumps(result, sort_keys=True))
         else:
