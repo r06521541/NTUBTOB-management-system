@@ -13,6 +13,9 @@ note: >
   the already approved exact rollback revision web-portal-00046-g8v and restored 100% traffic. TASK-102 may implement,
   test, push, create one PR and merge under standing Git authorization. A second production deployment remains
   unauthorized until Owner approves a new exact package including the rollout vector.
+  The first approved true/false/true attempt failed closed in Cloud Build validation because the Windows-generated
+  temporary env used CRLF. No traffic changed. Work is correcting the generator to emit exact LF without weakening the
+  build gate.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-102.md
