@@ -1,24 +1,31 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>臺大校友看板</title>
-    <meta property="og:title" content="臺大校友看板" />
-    <meta property="og:description" content="進來確認校友隊各類資訊！" />
-    <meta property="og:image" content="https://storage.googleapis.com/web_portal_images/logo_square.png" />
-    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
-</head>
-<body class="auth-page">
-    <main class="auth-shell">
-        <section class="auth-panel">
-            <img class="auth-logo" src="{{ url_for('static', filename='images/logo_square.png') }}" alt="NTUBTOB 球隊隊徽">
-            <p class="auth-eyebrow">NTUBTOB TEAM PORTAL</p>
-            <h1>歡迎來到球隊 Portal</h1>
-            <p class="auth-lead">球隊資訊正在逐步整理中，請由球隊提供的連結進入賽程與出席功能。</p>
-        </section>
-    </main>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>臺大棒球校友平台</title>
+        <meta property="og:title" content="臺大棒球校友平台" />
+        <meta property="og:description" content="進來確認校友隊各類資訊！" />
+        <meta property="og:image"
+              content="https://storage.googleapis.com/web_portal_images/logo_square.png" />
+        <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}" />
+    </head>
+    <body class="auth-page">
+        <main class="auth-shell">
+            <section class="auth-panel">
+                <img class="auth-logo"
+                     src="{{ url_for('static', filename='images/logo_square.png') }}"
+                     alt="NTUBTOB 球隊隊徽" />
+                <p class="auth-eyebrow">NTUBTOB TEAM PORTAL</p>
+                <h1>歡迎來到球隊平台</h1>
+                <p class="auth-lead">歡迎回來！賽程、出席狀況與個人資訊都整理在球隊戰情室。</p>
+                <div class="auth-actions">
+                    <a class="auth-button auth-button-secondary"
+                       href="{{ url_for('member_dashboard') }}">進入球隊戰情室</a>
+                </div>
+            </section>
+        </main>
+    </body>
 </html>

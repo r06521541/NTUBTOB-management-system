@@ -1,44 +1,55 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#29415d">
-  <title>{% block title %}NTUBTOB 球隊入口{% endblock %}</title>
-  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='operations.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='interactions.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='events.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='officer_nav.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
-</head>
-<body>
-  <header class="site-header">
-    <a class="brand" href="{{ url_for('demo_portal.dashboard') if not public_page else url_for('demo_portal.login') }}">
-      <img src="{{ url_for('static', filename='images/logo_square.png') }}" alt="NTUBTOB 隊徽">
-      <span><strong>NTUBTOB</strong><small>球隊入口</small></span>
-    </a>
-    {% if not public_page %}
-    <nav class="desktop-nav" aria-label="主要導覽">
-      <a href="{{ url_for('demo_portal.dashboard') }}">首頁</a>
-      <a href="{{ url_for('demo_portal.games') }}">賽程</a>
-      <a href="{{ url_for('demo_events.events_list') }}">活動</a>
-      <a href="{{ url_for('demo_portal.game_day', game_id='demo-game-01') }}">比賽日</a>
-      {% if demo_has_capability(manage_events_capability) %}<a href="{{ url_for('demo_portal.officer') }}">幹部台</a>{% endif %}
-      <a href="{{ url_for('demo_portal.profile') }}">我的</a>
-    </nav>
-    {% endif %}
-  </header>
-  <main class="page-shell">{% block content %}{% endblock %}</main>
-  {% if not public_page %}
-  <nav class="bottom-nav"{% if demo_has_capability(manage_events_capability) %} data-role="officer"{% endif %} aria-label="手機主要導覽">
-    <a href="{{ url_for('demo_portal.dashboard') }}"><span>⌂</span>首頁</a>
-    <a href="{{ url_for('demo_portal.games') }}"><span>◇</span>賽程</a>
-    <a href="{{ url_for('demo_events.events_list') }}"><span>✦</span>活動</a>
-    {% if demo_has_capability(manage_events_capability) %}<a class="officer-nav-link" href="{{ url_for('demo_portal.officer') }}"><span>◆</span>幹部</a>{% endif %}
-    <a href="{{ url_for('demo_portal.profile') }}"><span>○</span>我的</a>
-  </nav>
-  {% endif %}
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#29415d" />
+        <title>{% block title %}NTUBTOB 球隊入口{% endblock %}</title>
+        <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='portal.css') }}" />
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='operations.css') }}" />
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='interactions.css') }}" />
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='events.css') }}" />
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='officer_nav.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}" />
+    </head>
+    <body>
+        <header class="site-header">
+            <a class="brand"
+               href="{{ url_for('demo_portal.dashboard') if not public_page else url_for('demo_portal.login') }}">
+                <img src="{{ url_for('static', filename='images/logo_square.png') }}"
+                     alt="NTUBTOB 隊徽" />
+                <span><strong>NTUBTOB</strong><small>球隊入口</small></span>
+            </a>
+            {% if not public_page %}
+                <nav class="desktop-nav" aria-label="主要導覽">
+                    <a href="{{ url_for('demo_portal.dashboard') }}">首頁</a>
+                    <a href="{{ url_for('demo_portal.games') }}">賽程</a>
+                    <a href="{{ url_for('demo_events.events_list') }}">活動</a>
+                    <a href="{{ url_for('demo_portal.game_day', game_id='demo-game-01') }}">比賽日</a>
+                    {% if demo_has_capability(manage_events_capability) %}<a href="{{ url_for('demo_portal.officer') }}">幹部台</a>{% endif %}
+                    <a href="{{ url_for('demo_portal.profile') }}">我的</a>
+                </nav>
+            {% endif %}
+        </header>
+        <main class="page-shell">
+            {% block content %}{% endblock %}
+        </main>
+        {% if not public_page %}
+            <nav class="bottom-nav"
+                 {% if demo_has_capability(manage_events_capability) %} data-role="officer" {% endif %}
+                 aria-label="手機主要導覽">
+                <a href="{{ url_for('demo_portal.dashboard') }}"><span>⌂</span>首頁</a>
+                <a href="{{ url_for('demo_portal.games') }}"><span>◇</span>賽程</a>
+                <a href="{{ url_for('demo_events.events_list') }}"><span>✦</span>活動</a>
+                {% if demo_has_capability(manage_events_capability) %}<a class="officer-nav-link" href="{{ url_for('demo_portal.officer') }}"><span>◆</span>幹部</a>{% endif %}
+                <a href="{{ url_for('demo_portal.profile') }}"><span>○</span>我的</a>
+            </nav>
+        {% endif %}
+    </body>
 </html>

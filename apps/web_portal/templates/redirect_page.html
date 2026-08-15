@@ -1,33 +1,49 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登入球隊 Portal</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
-    <meta property="og:title" content="臺大校友看板" />
-    <meta property="og:description" content="進來確認校友隊各類資訊！" />
-    <meta property="og:image" content="{{ url_for('static', filename='images/logo_square.png', _external=True) }}" />
-</head>
-<body class="auth-page">
-    <main class="auth-shell">
-        <section class="auth-panel" aria-labelledby="login-title">
-            <img class="auth-logo" src="{{ url_for('static', filename='images/logo_square.png') }}" alt="NTUBTOB 球隊隊徽">
-            <p class="auth-eyebrow">NTUBTOB TEAM PORTAL</p>
-            <h1 id="login-title">登入球隊 Portal</h1>
-            <p class="auth-lead">查看賽程、回覆出席，掌握球隊的最新安排。</p>
-            <div class="auth-actions">
-                <a class="auth-button auth-button-line" data-login-mode="normal" href="{{ normal_login_url }}">在 LINE 中登入</a>
-                <a class="auth-button auth-button-secondary" data-login-mode="browser" href="{{ browser_login_url }}">使用電腦瀏覽器登入</a>
-            </div>
-            <div class="auth-help">
-                <h2>哪一種適合我？</h2>
-                <p><strong>手機：</strong>請回到 LINE，從 LINE 內重新開啟 Portal 連結，再選擇「在 LINE 中登入」。</p>
-                <p><strong>電腦：</strong>可選擇「使用電腦瀏覽器登入」，再依 LINE 畫面使用 QR Code 或帳號登入。</p>
-                <p>手機 Safari 或其他外部瀏覽器可能無法延續 LINE App 的登入狀態；同一支手機也不適合使用 QR Code 登入。</p>
-            </div>
-        </section>
-    </main>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>登入球隊 Portal</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}" />
+        <meta property="og:title" content="臺大校友看板" />
+        <meta property="og:description" content="進來確認校友隊各類資訊！" />
+        <meta property="og:image"
+              content="{{ url_for('static', filename='images/logo_square.png', _external=True) }}" />
+    </head>
+    <body class="auth-page">
+        <main class="auth-shell">
+            <section class="auth-panel" aria-labelledby="login-title">
+                <img class="auth-logo"
+                     src="{{ url_for('static', filename='images/logo_square.png') }}"
+                     alt="NTUBTOB 球隊隊徽" />
+                <p class="auth-eyebrow">NTUBTOB TEAM PORTAL</p>
+                <h1 id="login-title">登入球隊 Portal</h1>
+                <p class="auth-lead">查看賽程、回覆出席，掌握球隊的最新安排。</p>
+                <div class="auth-actions">
+                    <a class="auth-button auth-button-line"
+                       data-login-mode="normal"
+                       href="{{ normal_login_url }}">在 LINE 中登入</a>
+                    <a class="auth-button auth-button-secondary"
+                       data-login-mode="browser"
+                       href="{{ browser_login_url }}">使用電腦瀏覽器登入</a>
+                </div>
+                <div class="auth-help">
+                    <h2>哪一種適合我？</h2>
+                    <p>
+                        <strong>手機：</strong>請回到 LINE，從 LINE 內重新開啟 Portal
+                        連結，再選擇「在 LINE 中登入」。
+                    </p>
+                    <p>
+                        <strong>電腦：</strong>可選擇「使用電腦瀏覽器登入」，再依 LINE
+                        畫面使用 QR Code 或帳號登入。
+                    </p>
+                    <p>
+                        手機 Safari 或其他外部瀏覽器可能無法延續 LINE App
+                        的登入狀態；同一支手機也不適合使用 QR Code 登入。
+                    </p>
+                </div>
+            </section>
+        </main>
+    </body>
 </html>

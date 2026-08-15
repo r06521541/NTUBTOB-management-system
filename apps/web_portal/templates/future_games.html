@@ -1,12 +1,73 @@
-{% extends '_portal_base.html' %}
-{% block title %}賽程｜NTUBTOB{% endblock %}
+{% extends '_portal_base.html' %} {% block title %}賽程｜NTUBTOB{% endblock %}
 {% block content %}
-<section class="portal-title"><p class="portal-eyebrow">SCHEDULE</p><h1>賽程</h1><p>查看近期賽事與你的出席狀態。</p></section>
-<nav class="portal-filter-row" aria-label="賽程範圍"><a href="{{ url_for('future_games') }}" aria-current="page">未來一個月</a><a href="https://cabl.org.tw/schedule.php" target="_blank" rel="noopener">聯盟官網 ↗</a></nav>
-{% if this_week_games or this_month_games %}
-<section class="portal-section-heading"><div><p class="portal-eyebrow">THIS WEEK</p><h2>本週賽事</h2></div></section>
-{% if this_week_games %}<div class="portal-timeline">{% for game in this_week_games %}<a class="portal-card portal-card-link portal-game-card" href="{{ url_for('game_detail', game_id=game.id) }}"><div class="portal-card-top"><span class="portal-eyebrow">{{ game.get_game_sign() }} {{ game.get_formatted_date() }}</span><span class="portal-badge portal-badge-pending">{{ '主場' if game.get_is_home_team() else '客場' }}</span></div><h3>{{ game.home_team }} <span>vs</span> {{ game.away_team }}</h3><p>{{ game.get_formatted_start_time_with_colon() }} · {{ game.location }}</p></a>{% endfor %}</div>{% else %}<section class="portal-card portal-empty"><h2>本週沒有賽事</h2><p>可以先查看本月其他比賽。</p></section>{% endif %}
-<section class="portal-section-heading"><div><p class="portal-eyebrow">UPCOMING</p><h2>本月其他賽事</h2></div></section>
-{% if this_month_games %}<div class="portal-card-grid">{% for game in this_month_games %}<a class="portal-card portal-card-link portal-game-card" href="{{ url_for('game_detail', game_id=game.id) }}"><div class="portal-card-top"><span class="portal-eyebrow">{{ game.get_game_sign() }} {{ game.get_formatted_date() }}</span><span class="portal-badge portal-badge-pending">詳細資料 →</span></div><h3>{{ game.get_opponent() }} <span> · {{ '主場' if game.get_is_home_team() else '客場' }}</span></h3><p>{{ game.get_formatted_start_time_with_colon() }} · {{ game.location }}</p></a>{% endfor %}</div>{% else %}<section class="portal-card portal-empty"><h2>近一個月沒有其他賽事</h2><p>請留意幹部公告或聯盟官網。</p></section>{% endif %}
-{% else %}<section class="portal-card portal-empty"><h2>近一個月尚未有聯盟賽</h2><p>請密切注意幹部通知，或前往聯盟官網確認最新資訊。</p></section>{% endif %}
+    <section class="portal-title">
+        <p class="portal-eyebrow">SCHEDULE</p>
+        <h1>賽程</h1>
+        <p>查看近期賽事與你的出席狀態。</p>
+    </section>
+    <nav class="portal-filter-row" aria-label="賽程範圍">
+        <a href="{{ url_for('future_games') }}" aria-current="page">未來一個月</a><a href="https://cabl.org.tw/schedule.php"
+   target="_blank"
+   rel="noopener">聯盟官網 ↗</a>
+    </nav>
+    {% if this_week_games or this_month_games %}
+        <section class="portal-section-heading">
+            <div>
+                <p class="portal-eyebrow">THIS WEEK</p>
+                <h2>本週賽事</h2>
+            </div>
+        </section>
+        {% if this_week_games %}
+            <div class="portal-timeline">
+                {% for game in this_week_games %}
+                    <a class="portal-card portal-card-link portal-game-card"
+                       href="{{ url_for('game_detail', game_id=game.id) }}">
+                        <div class="portal-card-top">
+                            <span class="portal-eyebrow">{{ game.get_game_sign() }} {{ game.get_formatted_date() }}</span><span class="portal-badge portal-badge-pending">{{ '主場' if game.get_is_home_team() else '客場' }}</span>
+                        </div>
+                        <h3>{{ game.home_team }} <span>vs</span> {{ game.away_team }}</h3>
+                        <p>{{ game.get_formatted_start_time_with_colon() }} · {{ game.location }}</p>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <section class="portal-card portal-empty">
+                <h2>本週沒有賽事</h2>
+                <p>可以先查看本月其他比賽。</p>
+            </section>
+        {% endif %}
+        <section class="portal-section-heading">
+            <div>
+                <p class="portal-eyebrow">UPCOMING</p>
+                <h2>本月其他賽事</h2>
+            </div>
+        </section>
+        {% if this_month_games %}
+            <div class="portal-card-grid">
+                {% for game in this_month_games %}
+                    <a class="portal-card portal-card-link portal-game-card"
+                       href="{{ url_for('game_detail', game_id=game.id) }}">
+                        <div class="portal-card-top">
+                            <span class="portal-eyebrow">{{ game.get_game_sign() }} {{ game.get_formatted_date() }}</span><span class="portal-badge portal-badge-pending">詳細資料 →</span>
+                        </div>
+                        <h3>
+                            {{ game.get_opponent() }}
+                            <span>· {{ '主場' if game.get_is_home_team() else '客場' }}</span>
+                        </h3>
+                        <p>{{ game.get_formatted_start_time_with_colon() }} · {{ game.location }}</p>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <section class="portal-card portal-empty">
+                <h2>近一個月沒有其他賽事</h2>
+                <p>請留意幹部公告或聯盟官網。</p>
+            </section>
+        {% endif %}
+    {% else %}
+        <section class="portal-card portal-empty">
+            <h2>近一個月尚未有聯盟賽</h2>
+            <p>請密切注意幹部通知，或前往聯盟官網確認最新資訊。</p>
+        </section>
+    {% endif %}
 {% endblock %}

@@ -586,6 +586,18 @@ class IdentityLifecycleRepository:
                     "status": person.portal_status,
                     "access_level": person.portal_access_level,
                     "member_id": member.id if member else None,
+                    "member": (
+                        {
+                            "id": member.id,
+                            "name": member.name,
+                            "enroll_year": member.enroll_year,
+                            "major": member.major,
+                            "number": member.number,
+                            "positions": member.positions,
+                        }
+                        if member
+                        else None
+                    ),
                     "qualifications": tuple(by_person.get(person.id, ())),
                 }
                 for person, member in session.execute(
@@ -631,6 +643,92 @@ class IdentityLifecycleRepository:
                 "available_members": available_members,
                 "audit": audit,
             }
+
+    def create_member(
+        self,
+        actor_person_id: int,
+        name: str,
+        display_name: str,
+        reason: str,
+        request_id: str,
+        *,
+        enroll_year: int | None = None,
+        major: str | None = None,
+        number: int | None = None,
+        positions: str | None = None,
+    ) -> Person:
+        """Create a new legacy Member and linked active Person atomically."""
+        name = _clean_name(name, "member name")
+        display_name = _clean_name(display_name, "display name")
+        reason = require_reason(reason)
+        major = major.strip()[:120] if major and major.strip() else None
+        positions = positions.strip()[:120] if positions and positions.strip() else None
+        if enroll_year is not None and not 1 <= enroll_year <= 999:
+            raise ValidationError("invalid enroll year")
+        if number is not None and not 0 <= number <= 999:
+            raise ValidationError("invalid member number")
+        now = utc_now()
+        try:
+            with Session(self.engine) as session, session.begin():
+                self._require_admin(session, actor_person_id)
+                if self._audit_exists(session, request_id):
+                    raise ConflictError("request already applied")
+                person = PersonRecord(
+                    display_name=display_name,
+                    formal_name=name,
+                    admin_note=None,
+                    portal_access_level="basic",
+                    portal_status="active",
+                    version=1,
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(person)
+                session.flush()
+                member = LegacyMemberRecord(
+                    name=name,
+                    enroll_year=enroll_year,
+                    major=major,
+                    number=number,
+                    positions=positions,
+                    person_id=person.id,
+                )
+                session.add(member)
+                session.flush()
+                session.add(
+                    PersonQualificationRecord(
+                        person_id=person.id,
+                        qualification="team_player",
+                        status="active",
+                        valid_from=None,
+                        valid_until=None,
+                        granted_by_person_id=actor_person_id,
+                        reason=reason,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                session.add(
+                    AccessAuditRecord(
+                        action="member_backfilled",
+                        actor_person_id=actor_person_id,
+                        target_person_id=person.id,
+                        auth_identity_id=None,
+                        before_state=None,
+                        after_state={
+                            "member_id": member.id,
+                            "person_id": person.id,
+                            "member_created": True,
+                        },
+                        reason=reason,
+                        request_id=request_id,
+                        created_at=now,
+                    )
+                )
+                session.flush()
+                return self._person(person, member)
+        except IntegrityError as error:
+            raise ConflictError("member creation conflict") from error
 
     def change_access(
         self,
@@ -2020,6 +2118,7 @@ class IdentityLifecycleRepository:
                     {
                         "person_id": person_id,
                         "member_id": member.id if member else None,
+                        "member_number": member.number if member else None,
                         "name": name,
                         "reply": reply.reply,
                         "qualification": category,

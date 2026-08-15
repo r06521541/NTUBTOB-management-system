@@ -6,7 +6,7 @@ from datetime import timedelta
 
 GAME_SCOPES = frozenset({"future", "recent", "past", "cancelled"})
 GAME_REPLY_TYPES = (1, 3, 4, 2, 5)
-LINEUP_REPLY_TYPES = frozenset({1, 3, 4})
+LINEUP_REPLY_TYPES = frozenset(GAME_REPLY_TYPES)
 LINEUP_QUALIFICATIONS = frozenset({"team_player", "guest_player"})
 
 
@@ -91,6 +91,7 @@ def attendance_projection(summary):
         qualifications[qualification] += 1
         if reply in LINEUP_REPLY_TYPES:
             member_id = item.get("member_id")
+            member_number = item.get("member_number")
             candidates.append(
                 {
                     "id": f"person-{person_id}",
@@ -100,6 +101,13 @@ def attendance_projection(summary):
                         if isinstance(member_id, int)
                         and not isinstance(member_id, bool)
                         and member_id > 0
+                        else None
+                    ),
+                    "member_number": (
+                        member_number
+                        if isinstance(member_number, int)
+                        and not isinstance(member_number, bool)
+                        and 0 <= member_number <= 999
                         else None
                     ),
                     "name": name.strip(),

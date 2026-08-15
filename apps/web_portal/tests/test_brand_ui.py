@@ -1,7 +1,6 @@
 import unittest
 from pathlib import Path
 
-
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 STATIC_DIR = WEB_PORTAL_DIR / "static"
 TEMPLATES_DIR = WEB_PORTAL_DIR / "templates"
@@ -102,6 +101,18 @@ class BrandUiContractTest(unittest.TestCase):
         for template_name in ("dashboard.html", "future_games.html", "game_detail.html"):
             template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
             self.assertIn("extends '_portal_base.html'", template)
+
+    def test_dashboard_featured_game_uses_card_link_without_duplicate_actions(self):
+        template = (TEMPLATES_DIR / "dashboard.html").read_text(encoding="utf-8")
+
+        self.assertIn("portal-featured-game-hit-area", template)
+        self.assertIn("portal-featured-game-arrow", template)
+        self.assertIn("url_for('game_detail', game_id=game.id)", template)
+        self.assertIn("先守（三壘側）", template)
+        self.assertIn("先攻（一壘側）", template)
+        self.assertIn("game.get_is_home_team()", template)
+        self.assertNotIn(">查看賽事</a>", template)
+        self.assertNotIn(">出席總覽</a>", template)
 
     def test_theme_color_and_notice_semantics_follow_brand_roles(self):
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")

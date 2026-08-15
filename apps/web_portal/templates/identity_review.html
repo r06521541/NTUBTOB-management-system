@@ -1,37 +1,42 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>身分核可｜臺大校友棒球隊</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}">
-</head>
-<body class="auth-page">
-  <main class="auth-shell">
-    <section class="auth-panel" aria-labelledby="review-title">
-      <p class="auth-eyebrow">IDENTITY REVIEW</p>
-      <h1 id="review-title">等待管理員核可</h1>
-      <p class="auth-lead">你可以留下簡短自我介紹；每 24 小時最多送出一則。</p>
-      {% if messages %}
-      <ol aria-label="核可對話">
-        {% for item in messages %}
-        <li><strong>{{ '管理員' if item.sender_role == 'admin' else '申請者' }}</strong>：{{ item.body or '內容已依保留政策移除' }}</li>
-        {% endfor %}
-      </ol>
-      {% endif %}
-      {% if not read_only %}
-      <form method="post">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <input type="hidden" name="request_id" value="{{ request_id }}">
-        <label for="message">自我介紹</label>
-        <textarea id="message" name="message" minlength="1" maxlength="1000" required></textarea>
-        <button type="submit">送出訊息</button>
-      </form>
-      {% else %}
-      <p class="auth-note">此核可對話已結案，目前為唯讀。</p>
-      {% endif %}
-    </section>
-  </main>
-</body>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>身分核可｜臺大校友棒球隊</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='auth.css') }}" />
+    </head>
+    <body class="auth-page">
+        <main class="auth-shell">
+            <section class="auth-panel" aria-labelledby="review-title">
+                <p class="auth-eyebrow">IDENTITY REVIEW</p>
+                <h1 id="review-title">等待管理員核可</h1>
+                {% if fictional_preview|default(false) %}<p class="auth-note">本頁是 fictional demo 的唯讀畫面預覽，不會送出訊息或通知。</p>{% endif %}
+                <p class="auth-lead">你可以留下簡短自我介紹；每 24 小時最多送出一則。</p>
+                {% if messages %}
+                    <ol aria-label="核可對話">
+                        {% for item in messages %}
+                            <li>
+                                <strong>{{ '管理員' if item.sender_role == 'admin' else '申請者'
+                                    }}</strong>：{{ item.body or '內容已依保留政策移除' }}
+                                {% if item.created_at %}<small>{{ item.created_at }}</small>{% endif %}
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% endif %}
+                {% if not read_only %}
+                    <form method="post">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <input type="hidden" name="request_id" value="{{ request_id }}" />
+                        <label for="message">自我介紹</label>
+                        <textarea id="message" name="message" minlength="1" maxlength="1000" required></textarea>
+                        <button type="submit">送出訊息</button>
+                    </form>
+                {% else %}
+                    <p class="auth-note">此核可對話已結案，目前為唯讀。</p>
+                {% endif %}
+            </section>
+        </main>
+    </body>
 </html>

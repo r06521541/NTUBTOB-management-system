@@ -1,10 +1,54 @@
-{% extends '_portal_base.html' %}
-{% block title %}Person 管理｜NTUBTOB{% endblock %}
-{% block content %}
-<section class="portal-title"><p class="portal-eyebrow">PEOPLE</p><h1>{{ portal_copy.person }} 管理</h1><p>查看 Person、Member 連結與目前狀態。</p></section>
-<nav class="portal-filter-row" aria-label="Person 管理導覽"><a href="{{ url_for('admin_people') }}" aria-current="page">People</a><a href="{{ url_for('admin_pending_identities') }}">待配對／待核可身分</a></nav>
-<section class="portal-card portal-roster-card"><h2>搜尋 {{ portal_copy.person }}</h2><form class="portal-form" method="get"><label>{{ portal_copy.person }}、{{ portal_copy.member }} 或{{ portal_copy.display_name }}<input name="q" value="{{ query }}" maxlength="120"></label><button class="portal-button portal-button-primary" type="submit">搜尋</button></form><p class="portal-muted">第 {{ page }} / {{ total_pages }} 頁</p></section>
-<section class="portal-section-heading"><div><p class="portal-eyebrow">DIRECTORY</p><h2>Person 列表</h2></div></section>
-{% if people %}<div class="portal-card-grid">{% for person in people %}<a class="portal-card portal-card-link portal-game-card" href="{{ url_for('admin_person_detail', person_id=person.person_id) }}"><div class="portal-card-top"><span class="portal-eyebrow">{{ portal_copy.person }} #{{ person.person_id }}</span><span class="portal-badge portal-badge-pending">{{ person.status }}</span></div><h3>{{ person.formal_name or person.display_name }}</h3><p>{{ portal_copy.display_name }}：{{ person.display_name }}</p><p>{% if person.member_id %}{{ portal_copy.member }} #{{ person.member_id }}{% else %}尚未連結 Member{% endif %}</p></a>{% endfor %}</div>{% else %}<section class="portal-card portal-empty"><h2>找不到符合條件的 {{ portal_copy.person }}</h2><p>請調整搜尋關鍵字。</p></section>{% endif %}
-<nav class="portal-filter-row" aria-label="Person 分頁">{% if page > 1 %}<a href="{{ url_for('admin_people', q=query, page=page-1) }}">← 上一頁</a>{% endif %}{% if page < total_pages %}<a href="{{ url_for('admin_people', q=query, page=page+1) }}">下一頁 →</a>{% endif %}</nav>
+{% extends '_portal_base.html' %} {% block title %}人員管理｜NTUBTOB{%
+    endblock %} {% block content %}
+    <section class="portal-title">
+        <p class="portal-eyebrow">PEOPLE</p>
+        <h1>人員管理</h1>
+        <p>查看人員、校友會成員連結與目前狀態。</p>
+    </section>
+    <nav class="portal-filter-row" aria-label="Person 管理導覽">
+        <a href="{{ url_for('admin_people') }}" aria-current="page">People</a><a href="{{ url_for('admin_pending_identities') }}">待配對／待核可身分</a>
+    </nav>
+    <p><a class="portal-button portal-button-primary" href="{{ url_for('admin_create_member') }}">新增校友會成員</a></p>
+    <section class="portal-card portal-roster-card">
+        <h2>搜尋人員</h2>
+        <form class="portal-form" method="get">
+            <label>
+                人員、會員或暱稱<input name="q" value="{{ query }}" maxlength="120" /></label><button class="portal-button portal-button-primary" type="submit">搜尋</button>
+            </form>
+            <p class="portal-muted">第 {{ page }} / {{ total_pages }} 頁</p>
+        </section>
+        <section class="portal-section-heading">
+            <div>
+                <p class="portal-eyebrow">DIRECTORY</p>
+                <h2>人員列表</h2>
+            </div>
+        </section>
+        {% if people %}
+            <div class="portal-card-grid">
+                {% for person in people %}
+                    <a class="portal-card portal-card-link portal-game-card"
+                       href="{{ url_for('admin_person_detail', person_id=person.person_id) }}">
+                        <div class="portal-card-top">
+                            <h3>{{ person.formal_name or person.display_name }}</h3>
+                            <span class="portal-badge portal-badge-pending">{{ person.status }}</span>
+                        </div>
+                        {% if person.display_name and person.display_name != person.formal_name %}
+                            <p>{{ portal_copy.display_name }}：{{ person.display_name }}</p>
+                        {% endif %}
+                        <p>
+                            {% if person.member_id %}{{ portal_copy.member }} #{{ person.member_id
+                            }}{% else %}尚未連結 Member{% endif %}
+                        </p>
+                    </a>
+                            {% endfor %}
+                        </div>
+        {% else %}
+            <section class="portal-card portal-empty">
+                <h2>找不到符合條件的 {{ portal_copy.person }}</h2>
+                <p>請調整搜尋關鍵字。</p>
+            </section>
+        {% endif %}
+        <nav class="portal-filter-row" aria-label="Person 分頁">
+            {% if page > 1 %}<a href="{{ url_for('admin_people', q=query, page=page-1) }}">← 上一頁</a>{% endif %}{% if page < total_pages %}<a href="{{ url_for('admin_people', q=query, page=page+1) }}">下一頁 →</a>{% endif %}
+        </nav>
 {% endblock %}

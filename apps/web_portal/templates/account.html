@@ -1,12 +1,61 @@
-{% extends '_portal_base.html' %}
-{% block title %}我的帳號｜NTUBTOB{% endblock %}
-{% block content %}
-<section class="portal-title"><p class="portal-eyebrow">MY ACCOUNT</p><h1>我的帳號</h1><p>管理你的 Portal 顯示資訊與登入狀態。</p></section>
-<section class="portal-card portal-roster-card">
-    <div class="portal-card-top"><div><h2>{{ member.name }}</h2><p class="portal-muted">{{ portal_copy.member }} · LINE 登入</p></div><span class="portal-badge portal-badge-attending">{{ role_label }}</span></div>
-    <dl class="portal-account-list"><div><dt>{{ portal_copy.member }}</dt><dd>{{ member.name }}</dd></div><div><dt>登入方式</dt><dd>LINE</dd></div><div><dt>{{ portal_copy.portal }}角色</dt><dd>{{ role_label }}</dd></div></dl>
-    {% if can_manage_members %}<a class="portal-button portal-button-secondary" href="{{ url_for('admin_people') }}">前往 Person 管理</a>{% endif %}
+{% extends '_portal_base.html' %} {% block title %}我的帳號｜NTUBTOB{% endblock
+    %} {% block content %}
+<section class="portal-title">
+    <p class="portal-eyebrow">MY ACCOUNT</p>
+    <h1>我的帳號</h1>
+    <p>管理你在本平台的顯示資訊與登入狀態。</p>
 </section>
-{% if session.get('person_id') %}<section class="portal-card portal-roster-card"><h2>更新{{ portal_copy.display_name }}</h2><form class="portal-form" method="post" action="{{ url_for('update_own_profile') }}"><input type="hidden" name="csrf_token" value="{{ profile_csrf_token }}"><input type="hidden" name="request_id" value="{{ profile_request_id }}"><label>{{ portal_copy.display_name }}<input name="display_name" value="{{ member.display_name|default('') }}" maxlength="120" required></label><button class="portal-button portal-button-primary" type="submit">儲存{{ portal_copy.display_name }}</button></form></section>{% endif %}
-<section class="portal-card portal-roster-card"><h2>安全與登出</h2><p class="portal-muted">這只會登出本 Portal，不會登出 LINE App。</p><form method="post" action="{{ url_for('logout') }}" data-clear-lineup-storage><input type="hidden" name="csrf_token" value="{{ logout_csrf_token }}"><button class="portal-button portal-button-secondary" type="submit">登出 Portal</button></form></section>
+<section class="portal-card portal-roster-card">
+    <div class="portal-card-top">
+        <div>
+            <h2>{{ member.name }}</h2>
+            <p class="portal-muted">{{ portal_copy.member }} · LINE 登入</p>
+        </div>
+        <span class="portal-badge portal-badge-attending">{{ role_label }}</span>
+    </div>
+    <dl class="portal-account-list">
+        <div>
+            <dt>{{ portal_copy.member }}</dt>
+            <dd>
+                {{ member.name }}
+            </dd>
+        </div>
+        <div>
+            <dt>登入方式</dt>
+            <dd>
+                LINE
+            </dd>
+        </div>
+        <div>
+            <dt>{{ portal_copy.portal }}角色</dt>
+            <dd>
+                {{ role_label }}
+            </dd>
+        </div>
+    </dl>
+    {% if can_manage_members %}<a class="portal-button portal-button-secondary"
+   href="{{ url_for('admin_people') }}">前往人員管理</a>{% endif %}
+</section>
+{% if session.get('person_id') %}
+    <section class="portal-card portal-roster-card">
+        <h2>更新{{ portal_copy.display_name }}</h2>
+        <form class="portal-form"
+              method="post"
+              action="{{ url_for('update_own_profile') }}">
+            <input type="hidden" name="csrf_token" value="{{ profile_csrf_token }}" /><input type="hidden" name="request_id" value="{{ profile_request_id }}" /><label>{{ portal_copy.display_name }}<input name="display_name"
+       value="{{ member.display_name|default('') }}"
+       maxlength="120"
+       required /></label><button class="portal-button portal-button-primary" type="submit">儲存{{ portal_copy.display_name }}</button>
+        </form>
+    </section>
+{% endif %}
+<section class="portal-card portal-roster-card">
+    <h2>安全與登出</h2>
+    <p class="portal-muted">這只會登出本平台，不會登出 LINE App。</p>
+    <form method="post"
+          action="{{ url_for('logout') }}"
+          data-clear-lineup-storage>
+        <input type="hidden" name="csrf_token" value="{{ logout_csrf_token }}" /><button class="portal-button portal-button-secondary" type="submit">登出平台</button>
+    </form>
+</section>
 {% endblock %}

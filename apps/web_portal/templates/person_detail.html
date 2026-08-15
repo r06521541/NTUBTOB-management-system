@@ -1,9 +1,109 @@
-{% extends '_portal_base.html' %}
-{% block title %}Person 詳情｜NTUBTOB{% endblock %}
-{% block content %}
-<a class="portal-back-link" href="{{ url_for('admin_people') }}">← 返回 {{ portal_copy.person }} 列表</a>
-<section class="portal-title"><p class="portal-eyebrow">PERSON PROFILE</p><h1>{{ person.formal_name or person.display_name }}</h1><p>{{ portal_copy.person }} #{{ person.person_id }}{% if person.member_id %} · {{ portal_copy.member }} #{{ person.member_id }}{% endif %}</p></section>
-<section class="portal-card portal-roster-card"><div class="portal-card-top"><h2>基本資料</h2><span class="portal-badge portal-badge-pending">{{ person.status }}</span></div><dl class="portal-account-list"><div><dt>{{ portal_copy.display_name }}</dt><dd>{{ person.display_name }}</dd></div><div><dt>正式名稱</dt><dd>{{ person.formal_name or '尚未設定' }}</dd></div><div><dt>Member</dt><dd>{{ person.member_id or '尚未連結' }}</dd></div></dl><form class="portal-form" method="post" action="{{ url_for('identity_admin_action') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="person_id" value="{{ person.person_id }}"><input type="hidden" name="request_id" value="person-profile-{{ person.person_id }}-{{ request_nonce }}"><label>{{ portal_copy.display_name }}<input name="display_name" value="{{ person.display_name }}" maxlength="120" required></label><label>原因<input name="reason" minlength="3" maxlength="300" required></label><button class="portal-button portal-button-primary" name="action" value="profile" type="submit"{% if not identity_maintenance_enabled %} disabled{% endif %}>更新資料</button></form>{% if not identity_maintenance_enabled %}<p class="portal-muted" role="status">目前為唯讀模式；維護開關未啟用。</p>{% endif %}</section>
-<section class="portal-card portal-roster-card"><div class="portal-card-top"><h2>Qualification</h2><a class="portal-button portal-button-secondary" href="{{ url_for('manage_person_qualifications', person_id=person.person_id) }}">查看與管理</a></div><p class="portal-muted">team_player 由 Member 關係決定，其他資格與有效期間在 Qualification 頁面查看。</p></section>
-{% if can_change_access %}<section class="portal-card portal-roster-card"><h2>Portal 權限</h2><p>目前：<strong>{{ person.access_level }}</strong></p>{% if person.access_level in ['basic', 'officer'] and person.person_id != session.person_id %}{% set target_access = 'officer' if person.access_level == 'basic' else 'basic' %}<form class="portal-form" method="post" action="{{ url_for('change_person_access', person_id=person.person_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="request_id" value="{{ 'person-access-' ~ person.person_id ~ '-' ~ target_access if fictional_access_reason else 'person-access-' ~ person.person_id ~ '-' ~ request_nonce }}"><label>原因<input name="reason" minlength="3" maxlength="300"{% if fictional_access_reason %} value="{{ fictional_access_reason }}" readonly{% endif %} required></label><button class="portal-button portal-button-primary" name="action" value="{{ 'promote_officer' if person.access_level == 'basic' else 'demote_basic' }}" type="submit">{{ '指派為 Officer' if person.access_level == 'basic' else '解除 Officer' }}</button></form>{% else %}<p class="portal-muted">此帳號不可由本介面變更。</p>{% endif %}</section>{% endif %}
+{% extends '_portal_base.html' %} {% block title %}人員詳情｜NTUBTOB{%
+    endblock %} {% block content %}
+    <a class="portal-back-link" href="{{ url_for('admin_people') }}">← 返回人員列表</a>
+    <section class="portal-title">
+        <p class="portal-eyebrow">PERSON PROFILE</p>
+        <h1>{{ person.formal_name or person.display_name }}</h1>
+        <p>
+            {{ portal_copy.person }} #{{ person.person_id }}{% if person.member_id %} ·
+            {{ portal_copy.member }} #{{ person.member_id }}{% endif %}
+    </p>
+</section>
+{% if person.member %}
+    <section class="portal-card portal-roster-card">
+        <div class="portal-card-top">
+            <h2>Member 基本資料</h2>
+            <span class="portal-badge portal-badge-attending">Member #{{ person.member.id }}</span>
+        </div>
+        <dl class="portal-account-list">
+            <div><dt>正式姓名</dt><dd>{{ person.member.name }}</dd></div>
+            <div><dt>入學年度</dt><dd>{{ person.member.enroll_year or '未設定' }}</dd></div>
+            <div><dt>系所</dt><dd>{{ person.member.major or '未設定' }}</dd></div>
+            <div><dt>背號</dt><dd>{{ person.member.number if person.member.number is not none else '未設定' }}</dd></div>
+            <div><dt>守位</dt><dd>{{ person.member.positions or '未設定' }}</dd></div>
+        </dl>
+    </section>
+{% else %}
+    <section class="portal-card portal-empty">
+        <h2>尚未連結至校友會成員</h2>
+        <p>此人員目前沒有連結到任一位校友會成員的基本資料。</p>
+    </section>
+{% endif %}
+<section class="portal-card portal-roster-card">
+    <div class="portal-card-top">
+        <h2>基本資料</h2>
+        <span class="portal-badge portal-badge-pending">{{ person.status }}</span>
+    </div>
+    <dl class="portal-account-list">
+        <div>
+            <dt>本名</dt>
+            <dd>
+                {{ person.formal_name or '尚未設定' }}
+            </dd>
+        </div>
+        <div>
+            <dt>管理員備註</dt>
+            <dd class="portal-admin-note">{{ person.admin_note or '尚未設定' }}</dd>
+        </div>
+    </dl>
+    <form class="portal-form"
+          method="post"
+          action="{{ url_for('identity_admin_action') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="hidden" name="person_id" value="{{ person.person_id }}" /><input type="hidden"
+       name="request_id"
+       value="person-profile-{{ person.person_id }}-{{ request_nonce }}" /><label>{{ portal_copy.display_name }}<input name="display_name"
+       value="{{ person.display_name }}"
+       maxlength="120"
+       required /></label><label>變更原因<input name="reason" minlength="3" maxlength="300" required /></label><button class="portal-button portal-button-primary"
+        name="action"
+        value="profile"
+        type="submit"
+        {% if not identity_maintenance_enabled %} disabled{% endif %}>更新資料</button>
+    </form>
+    {% if not identity_maintenance_enabled %}
+        <p class="portal-muted" role="status">目前為唯讀模式；維護開關未啟用。</p>
+    {% endif %}
+</section>
+<section class="portal-card portal-roster-card">
+    <div class="portal-card-top">
+        <h2>參與資格</h2>
+        {% set has_team_player = person.qualifications|default(())|selectattr("name", "equalto", "team_player")|list %}
+        {% if not has_team_player %}
+            <a class="portal-button portal-button-secondary"
+               href="{{ url_for('manage_person_qualifications', person_id=person.person_id) }}">查看與管理</a>
+        {% endif %}
+    </div>
+    <p class="portal-muted">
+        校友會成員一律具備球員資格，其他人員參加各類活動的資格與有效期間在於管理頁面查看。
+    </p>
+</section>
+{% if can_change_access %}
+    <section class="portal-card portal-roster-card">
+        <h2>平台權限</h2>
+        <p>目前：<strong>{% if person.access_level == 'basic' %}僅基本權限{% elif person.access_level == 'officer' %}幹部{% elif person.access_level == 'admin' %}管理員{% else %}{{ person.access_level }}{% endif %}</strong></p>
+        {% if person.access_level in ['basic', 'officer'] and person.person_id !=
+            session.person_id %}{% set target_access = 'officer' if person.access_level ==
+                'basic' else 'basic' %}
+            <form class="portal-form"
+                  method="post"
+                  action="{{ url_for('change_person_access', person_id=person.person_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="hidden"
+       name="request_id"
+       value="{{ 'person-access-' ~ person.person_id ~ '-' ~ target_access if fictional_access_reason else 'person-access-' ~ person.person_id ~ '-' ~ request_nonce }}" /><label>原因<input name="reason"
+       minlength="3"
+       maxlength="300"
+       {% if fictional_access_reason %} value="{{ fictional_access_reason }}" readonly{% endif %}
+       required /></label><button class="portal-button portal-button-primary"
+        name="action"
+        value="{{ 'promote_officer' if person.access_level == 'basic' else 'demote_basic' }}"
+        type="submit">
+                    {{ '指派為幹部' if person.access_level == 'basic' else '解除幹部'
+                    }}
+                </button>
+            </form>
+        {% else %}
+            <p class="portal-muted">此帳號不可由本介面變更。</p>
+        {% endif %}
+    </section>
+{% endif %}
 {% endblock %}

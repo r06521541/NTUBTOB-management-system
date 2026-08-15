@@ -1,3 +1,35 @@
-{% extends 'demo/base.html' %}
-{% block title %}活動｜NTUBTOB{% endblock %}
-{% block content %}<section class="page-title"><span class="eyebrow">TEAM EVENTS</span><h1>球隊活動</h1><p>比賽、聚餐與移地行程，都在同一個時間軸。</p></section><nav class="filter-tabs" aria-label="活動類型">{% for value,label in [('all','全部'),('game_day','比賽'),('practice','練球'),('trip','旅遊'),('meal','聚餐'),('meeting','會議'),('other','其他')] %}<a class="{{ 'active' if selected == value }}" href="{{ url_for('demo_events.events_list', type=value) }}">{{ label }}</a>{% endfor %}</nav>{% if events %}<div class="event-list">{% for event in events %}<a class="card event-card" href="{{ url_for('demo_events.event_detail', event_id=event.id) }}"><div><span class="badge badge-{{ 'declined' if event.status == 'cancelled' else 'attending' }}">{{ '已取消' if event.status == 'cancelled' else '已發布' }}</span><span class="eyebrow">{{ event.type }}</span></div><h2>{{ event.title }}</h2><p>{{ event.start_date }}{% if event.end_date != event.start_date %} → {{ event.end_date }}{% endif %} · {{ event.location }}</p><small>我的回覆：{{ replies.get(event.id, {}).get('event') or '尚未回覆' }}</small></a>{% endfor %}</div>{% else %}<section class="card empty-state"><strong>沒有符合條件的活動</strong></section>{% endif %}{% endblock %}
+{% extends 'demo/base.html' %} {% block title %}活動｜NTUBTOB{% endblock %} {%
+block content %}
+<section class="page-title">
+    <span class="eyebrow">TEAM EVENTS</span>
+    <h1>球隊活動</h1>
+    <p>比賽、聚餐與移地行程，都在同一個時間軸。</p>
+</section>
+<nav class="filter-tabs" aria-label="活動類型">
+    {% for value,label in
+        [('all','全部'),('game_day','比賽'),('practice','練球'),('trip','旅遊'),('meal','聚餐'),('meeting','會議'),('other','其他')]
+        %}<a class="{{ 'active' if selected == value }}"
+   href="{{ url_for('demo_events.events_list', type=value) }}">{{ label }}</a>{% endfor %}
+</nav>
+{% if events %}
+    <div class="event-list">
+        {% for event in events %}
+            <a class="card event-card"
+               href="{{ url_for('demo_events.event_detail', event_id=event.id) }}">
+                <div>
+                    <span class="badge badge-{{ 'declined' if event.status == 'cancelled' else 'attending' }}">{{ '已取消' if event.status == 'cancelled' else '已發布' }}</span><span class="eyebrow">{{ event.type }}</span>
+                </div>
+                <h2>{{ event.title }}</h2>
+                <p>
+                    {{ event.start_date }}{% if event.end_date != event.start_date %} → {{
+        event.end_date }}{% endif %} · {{ event.location }}
+        </p>
+        <small>我的回覆：{{ replies.get(event.id, {}).get('event') or '尚未回覆'
+            }}</small></a>{% endfor %}
+    </div>
+{% else %}
+    <section class="card empty-state">
+        <strong>沒有符合條件的活動</strong>
+    </section>
+{% endif %}
+{% endblock %}

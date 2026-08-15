@@ -2,7 +2,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 if str(WEB_PORTAL_DIR) not in sys.path:
     sys.path.insert(0, str(WEB_PORTAL_DIR))
@@ -18,21 +17,29 @@ from role_policy import (  # noqa: E402
     MANAGE_QUALIFICATIONS,
     REPLY_OWN_ATTENDANCE,
     ROLE_ADMIN,
-    ROLE_MEMBER,
-    ROLE_OFFICER,
+    ROLE_BASIC,
     ROLE_CAPABILITIES,
+    ROLE_OFFICER,
     SEND_NOTIFICATIONS,
     VIEW_PERSON_DIRECTORY,
     Principal,
     has_capability,
     resolve_demo_principal,
     resolve_production_principal,
+    role_label,
 )
 
 
 class RolePolicyTest(unittest.TestCase):
+    def test_role_labels_cover_basic_officer_and_admin(self):
+        self.assertEqual(role_label(Principal(ROLE_BASIC, 1)), "一般使用者")
+        self.assertEqual(role_label(Principal(ROLE_OFFICER, 2)), "幹部")
+        self.assertEqual(role_label(Principal(ROLE_ADMIN, 3)), "系統管理者")
+        self.assertEqual(role_label(Principal("unknown", 4)), "未知角色")
+        self.assertEqual(role_label(None), "未知角色")
+
     def test_role_capabilities_are_inherited_and_unknown_values_deny(self):
-        member = Principal(ROLE_MEMBER, 1)
+        member = Principal(ROLE_BASIC, 1)
         officer = Principal(ROLE_OFFICER, 2)
         admin = Principal(ROLE_ADMIN, 3)
         self.assertTrue(has_capability(member, REPLY_OWN_ATTENDANCE))
@@ -46,7 +53,7 @@ class RolePolicyTest(unittest.TestCase):
         self.assertFalse(has_capability(None, REPLY_OWN_ATTENDANCE))
 
     def test_person_and_notification_capabilities_follow_role_boundaries(self):
-        member = Principal(ROLE_MEMBER, 1)
+        member = Principal(ROLE_BASIC, 1)
         officer = Principal(ROLE_OFFICER, 2)
         admin = Principal(ROLE_ADMIN, 3)
         self.assertTrue(has_capability(member, VIEW_PERSON_DIRECTORY))
@@ -57,7 +64,7 @@ class RolePolicyTest(unittest.TestCase):
             MANAGE_PERSON_ACCESS,
             CONFIRM_NOTIFICATIONS,
         ):
-            with self.subTest(role="member", capability=capability):
+            with self.subTest(role="basic", capability=capability):
                 self.assertFalse(has_capability(member, capability))
             with self.subTest(role="officer", capability=capability):
                 self.assertTrue(has_capability(officer, capability))
@@ -68,9 +75,9 @@ class RolePolicyTest(unittest.TestCase):
 
     def test_policy_mapping_and_capability_sets_are_read_only(self):
         with self.assertRaises(TypeError):
-            ROLE_CAPABILITIES[ROLE_MEMBER] = frozenset()
+            ROLE_CAPABILITIES[ROLE_BASIC] = frozenset()
         with self.assertRaises(AttributeError):
-            ROLE_CAPABILITIES[ROLE_MEMBER].add(MANAGE_EVENTS)
+            ROLE_CAPABILITIES[ROLE_BASIC].add(MANAGE_EVENTS)
 
     def test_unhashable_or_non_string_policy_inputs_deny_without_error(self):
         for principal, capability in (
@@ -84,11 +91,11 @@ class RolePolicyTest(unittest.TestCase):
             with self.subTest(principal=principal, capability=capability):
                 self.assertFalse(has_capability(principal, capability))
 
-    def test_production_resolves_only_member_or_allowlisted_admin(self):
+    def test_production_resolves_only_basic_or_allowlisted_admin(self):
         values = {"user_id": "line-user", "member_id": 7}
         self.assertEqual(
             resolve_production_principal(values, frozenset()).role,
-            ROLE_MEMBER,
+            ROLE_BASIC,
         )
         self.assertEqual(
             resolve_production_principal(values, frozenset({7})).role,
@@ -107,7 +114,7 @@ class RolePolicyTest(unittest.TestCase):
                 )
 
     def test_demo_accepts_three_explicit_roles_and_fails_closed(self):
-        for role in (ROLE_MEMBER, ROLE_OFFICER, ROLE_ADMIN):
+        for role in (ROLE_BASIC, ROLE_OFFICER, ROLE_ADMIN):
             with self.subTest(role=role):
                 principal = resolve_demo_principal(
                     {
@@ -126,11 +133,11 @@ class RolePolicyTest(unittest.TestCase):
             )
         )
         for invalid_member in (
-            {"demo_role": ROLE_MEMBER},
-            {"id": "", "demo_role": ROLE_MEMBER},
-            {"id": "   ", "demo_role": ROLE_MEMBER},
-            {"id": 7, "demo_role": ROLE_MEMBER},
-            {"id": [], "demo_role": ROLE_MEMBER},
+            {"demo_role": ROLE_BASIC},
+            {"id": "", "demo_role": ROLE_BASIC},
+            {"id": "   ", "demo_role": ROLE_BASIC},
+            {"id": 7, "demo_role": ROLE_BASIC},
+            {"id": [], "demo_role": ROLE_BASIC},
             {"id": "demo", "demo_role": []},
         ):
             with self.subTest(invalid_member=invalid_member):

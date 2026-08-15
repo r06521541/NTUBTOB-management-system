@@ -1,26 +1,20 @@
 import json
-from datetime import datetime, timezone, timedelta
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
-
-from linebot.v3.messaging import (
-    TextMessage,
-    FlexMessage,
-    FlexContainer,
-)
+from linebot.v3.messaging import FlexContainer, FlexMessage, TextMessage
 
 from ..models.games import Game
-from ..settings import (
-    current_team, local_timezone
-)
+from ..settings import local_timezone
 from .general_message import (
     cancellation_announcement_opening,
-    weekday_mapping,
-    reply_text_mapping,
+    game_reminder,
     offseason_game_reminder,
-    game_reminder
+    reply_text_mapping,
+    weekday_mapping,
 )
+
 
 # announce cancellation
 def produce_cancellation_message_by_games(games: list[Game]) -> TextMessage:
@@ -63,7 +57,7 @@ def _produce_invitation_message_by_games_in_a_day(games_in_a_day: list[Game]) ->
     # 格式化日期和時間
     date = first_game_datetime.strftime("%-m/%-d（%a）").replace(first_game_datetime.strftime('%a'), chinese_weekday)
 
-    opponent = first_game.away_team if first_game.home_team == current_team else first_game.home_team
+    opponent = first_game.get_opponent()
     location = first_game.location
 
     hint = f"{date}在{location}有對上{opponent}的比賽！點開訊息回覆出席狀況吧！"
@@ -88,11 +82,11 @@ def _produce_game_bubble(game: Game) -> dict[str, Any]:
     date = game_datetime.strftime("%-m/%-d")
     date_with_weekday = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
     
-    opponent = game.away_team if game.home_team == current_team else game.home_team
+    opponent = game.get_opponent()
     begin_time = game_datetime.strftime("%H%M")
     end_time = (game_datetime + timedelta(minutes=game.duration)).strftime("%H%M")
     location = game.location
-    home_or_away = '先攻（一壘側）' if game.home_team == current_team else '先守（三壘側）'
+    home_or_away = '先攻（一壘側）' if game.get_is_home_team() else '先守（三壘側）'
     is_postseason = game.season == 3
     postseason_text = '季後賽 - ' if is_postseason else ''
     reminder = offseason_game_reminder if is_postseason else game_reminder
@@ -341,7 +335,7 @@ def produce_message_of_game_query_attendance(game: Game) -> FlexMessage:
     # 格式化日期和時間
     date = game_datetime.strftime("%-m/%-d（%a）").replace(game_datetime.strftime('%a'), chinese_weekday)
 
-    opponent = game.away_team if game.home_team == current_team else game.home_team
+    opponent = game.get_opponent()
     location = game.location
 
     hint = f"點開訊息，查看一下{date}在{location}打{opponent}的比賽有誰會到！"

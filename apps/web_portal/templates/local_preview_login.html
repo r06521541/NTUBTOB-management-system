@@ -1,34 +1,38 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-Hant">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>本機資料預覽登入</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='member_portal.css') }}">
-  </head>
-  <body>
-    <main class="portal-shell">
-      <section class="card empty-state">
-        <p class="eyebrow">LOCALHOST READ-ONLY PREVIEW</p>
-        <h1>選擇假名化預覽身份</h1>
-        <p>此模式只讀取本機資料庫；所有正式 Portal 寫入與外部操作均已停用。</p>
-      </section>
-      <section class="card section-stack">
-        {% if identities %}
-          {% for identity in identities %}
-            <form method="post" action="{{ url_for('local_preview_login') }}" data-clear-lineup-storage>
-              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-              <input type="hidden" name="identity_id" value="{{ identity.identity_id }}">
-              <button class="button button-secondary" type="submit">
-                {{ identity.formal_name or identity.display_name }} · {{ identity.access_level }}
-              </button>
-            </form>
-          {% endfor %}
-        {% else %}
-          <p class="empty-state">沒有可用的 linked LINE 預覽身份。</p>
-        {% endif %}
-      </section>
-    </main>
-    <script src="{{ url_for('static', filename='game_lineup.js') }}" defer></script>
-  </body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>本機資料預覽登入</title>
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='member_portal.css') }}" />
+    </head>
+    <body>
+        <main class="portal-shell">
+            <section class="card empty-state">
+                <p class="eyebrow">LOCALHOST READ-ONLY PREVIEW</p>
+                <h1>選擇假名化預覽身份</h1>
+                <p>此模式只讀取本機資料庫；所有正式 Portal 寫入與外部操作均已停用。</p>
+            </section>
+            <section class="card section-stack">
+                {% if identities %}
+                    {% for identity in identities %}
+                        <form method="post"
+                              action="{{ url_for('local_preview_login') }}"
+                              data-clear-lineup-storage>
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                            <input type="hidden" name="identity_id" value="{{ identity.identity_id }}" />
+                            <button class="button button-secondary" type="submit">
+                                {{ identity.formal_name or identity.display_name }} · {{
+                                    identity.access_level }}
+                            </button>
+                        </form>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">沒有可用的 linked LINE 預覽身份。</p>
+                {% endif %}
+            </section>
+        </main>
+        <script src="{{ url_for('static', filename='game_lineup.js') }}" defer></script>
+    </body>
 </html>

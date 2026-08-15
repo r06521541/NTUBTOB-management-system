@@ -64,7 +64,7 @@ INSERT INTO ntubtob.person_qualifications
    granted_by_person_id, reason, created_at, updated_at)
 SELECT id, 'team_player', 'active', NULL, NULL, 7101,
   'TASK-099 fictional fixture', '2037-01-01', '2037-01-01'
-FROM generate_series(7104, 7117) AS id;
+FROM generate_series(7101, 7117) AS id;
 INSERT INTO ntubtob.person_qualifications
   (person_id, qualification, status, valid_from, valid_until,
    granted_by_person_id, reason, created_at, updated_at)
@@ -77,10 +77,10 @@ INSERT INTO ntubtob.games
   (id, year, season, start_datetime, duration, location, home_team, away_team,
    invitation_time, cancellation_time, cancellation_announcement_time)
 VALUES
-  (9710, 126, 1, :anchor + interval '3 days', 180, '虛構球場', 'NTUBTOB', '虛構未來隊', :anchor - interval '2 days', NULL, NULL),
-  (9711, 126, 1, :anchor + interval '21 days', 180, '虛構球場', '虛構主隊', 'NTUBTOB', :anchor - interval '1 day', NULL, NULL),
-  (9712, 126, 1, :anchor - interval '14 days', 180, '虛構球場', 'NTUBTOB', '虛構過去隊', :anchor - interval '30 days', NULL, NULL),
-  (9713, 126, 1, :anchor + interval '35 days', 180, '虛構球場', 'NTUBTOB', '虛構取消隊', :anchor - interval '3 days', :anchor - interval '1 day', :anchor - interval '1 day');
+  (9710, 126, 1, :anchor + interval '3 days', 180, '虛構球場', '臺大', '新星', :anchor - interval '2 days', NULL, NULL),
+  (9711, 126, 1, :anchor + interval '21 days', 180, '虛構球場', '雄鷹', '臺大', :anchor - interval '1 day', NULL, NULL),
+  (9712, 126, 1, :anchor - interval '14 days', 180, '虛構球場', '臺大', '舊將', :anchor - interval '30 days', NULL, NULL),
+  (9713, 126, 1, :anchor + interval '35 days', 180, '虛構球場', '臺大', '飛鷹', :anchor - interval '3 days', :anchor - interval '1 day', :anchor - interval '1 day');
 
 INSERT INTO ntubtob.line_users
   (id, nickname, line_user_id, member_id, has_replied, ignored)
@@ -95,6 +95,13 @@ SELECT id + 2900, 9710, id + 2800, CASE WHEN id = 7118 THEN NULL ELSE id END, id
   CASE id % 4 WHEN 0 THEN 1 WHEN 1 THEN 2 WHEN 2 THEN 3 ELSE 4 END,
   '2037-01-02 00:00:00+00'
 FROM generate_series(7104, 7115) AS ids(id);
+
+INSERT INTO ntubtob.game_attendance_replies
+  (id, game_id, user_id, member_id, person_id, reply, updated_at)
+VALUES
+  (10001, 9710, NULL, 7101, 7101, 1, '2037-01-02 00:00:00+00'),
+  (10002, 9710, NULL, 7102, 7102, 3, '2037-01-02 00:00:00+00'),
+  (10003, 9710, NULL, 7103, 7103, 4, '2037-01-02 00:00:00+00');
 
 INSERT INTO ntubtob.access_audit
   (action, actor_person_id, target_person_id, auth_identity_id, before_state,
@@ -208,10 +215,10 @@ def _is_demo_fixture(session: Session) -> bool:
         "people": 18,
         "members": 17,
         "auth_identities": 3,
-        "person_qualifications": 17,
+        "person_qualifications": 20,
         "games": 4,
         "line_users": 15,
-        "game_attendance_replies": 12,
+        "game_attendance_replies": 15,
     }
     if any(_count(session, table) != count for table, count in expected_counts.items()):
         return False

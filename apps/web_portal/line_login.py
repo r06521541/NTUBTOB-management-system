@@ -3,7 +3,6 @@ from urllib.parse import urlsplit
 
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 
-
 OAUTH_STATE_SALT = "line-login-oauth-state-v1"
 OAUTH_STATE_MAX_AGE_SECONDS = 600
 LINE_HTTP_TIMEOUT_SECONDS = 10
@@ -42,7 +41,9 @@ def return_path_category(return_path):
         return "attendance"
     if parsed_path == "/account":
         return "account"
-    if re.fullmatch(r"/game-roster/[1-9][0-9]*", parsed_path):
+    if re.fullmatch(r"/game-roster/[1-9][0-9]*", parsed_path) or re.fullmatch(
+        r"/games/[1-9][0-9]*/lineup-lab", parsed_path
+    ):
         return "roster"
     return "default"
 
