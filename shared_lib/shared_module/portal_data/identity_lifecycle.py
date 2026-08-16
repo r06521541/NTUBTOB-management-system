@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
-from sqlalchemy import Engine, func, or_, select, text
+from sqlalchemy import Engine, and_, func, or_, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -2056,10 +2056,289 @@ class IdentityLifecycleRepository:
     def attendance_summary(
         self, game_id: int, use_display_name: bool = False
     ) -> AttendanceSummary:
+        summaries = self.attendance_summaries((game_id,), use_display_name)
+        if game_id not in summaries:
+            raise ConflictError("game not found")
+        return summaries[game_id]
+
+    def person_attendance_insight(
+        self, person_id: int, at: datetime | None = None
+    ) -> dict | None:
+        """Return a bounded, read-only response history for one active person."""
+        at = at or utc_now()
+        with Session(self.engine) as session:
+            person = session.get(PersonRecord, person_id)
+            if person is None:
+                return None
+            member = session.scalar(
+                select(LegacyMemberRecord).where(
+                    LegacyMemberRecord.person_id == person_id
+                )
+            )
+            qualifications = session.scalars(
+                select(PersonQualificationRecord).where(
+                    PersonQualificationRecord.person_id == person_id
+                )
+            ).all()
+            games = session.scalars(
+                select(LegacyGameRecord)
+                .where(
+                    LegacyGameRecord.invitation_time.is_not(None),
+                    LegacyGameRecord.cancellation_time.is_(None),
+                    LegacyGameRecord.start_datetime.is_not(None),
+                    LegacyGameRecord.start_datetime <= at,
+                )
+                .order_by(LegacyGameRecord.start_datetime.desc())
+                .limit(120)
+            ).all()
+            replies = session.scalars(
+                select(LegacyGameAttendanceReplyRecord)
+                .where(
+                    LegacyGameAttendanceReplyRecord.game_id.in_(
+                        tuple(game.id for game in games) or (-1,)
+                    ),
+                    or_(
+                        LegacyGameAttendanceReplyRecord.person_id == person_id,
+                        and_(
+                            LegacyGameAttendanceReplyRecord.person_id.is_(None),
+                            LegacyGameAttendanceReplyRecord.member_id
+                            == (member.id if member else -1),
+                        ),
+                    ),
+                )
+                .order_by(
+                    LegacyGameAttendanceReplyRecord.game_id,
+                    LegacyGameAttendanceReplyRecord.updated_at.desc(),
+                    LegacyGameAttendanceReplyRecord.id.desc(),
+                )
+            ).all()
+            latest = {}
+            for reply in replies:
+                latest.setdefault(reply.game_id, reply)
+            rows = tuple(
+                {
+                    "game_id": game.id,
+                    "start_datetime": game.start_datetime,
+                    "home_team": game.home_team,
+                    "away_team": game.away_team,
+                    "location": game.location,
+                    "reply": latest[game.id].reply if game.id in latest else None,
+                }
+                for game in games
+            )
+            periods = []
+            for label, days in (("近 30 天", 30), ("近 90 天", 90), ("近一年", 365)):
+                eligible = tuple(
+                    row
+                    for row in rows
+                    if row["start_datetime"] >= at - timedelta(days=days)
+                )
+                participating = sum(row["reply"] in (1, 3, 4) for row in eligible)
+                not_participating = sum(row["reply"] in (2, 5) for row in eligible)
+                replied = participating + not_participating
+                periods.append(
+                    {
+                        "label": label,
+                        "total": len(eligible),
+                        "replied": replied,
+                        "rate": round(replied * 100 / len(eligible)) if eligible else None,
+                        "participation_rate": round(participating * 100 / len(eligible)) if eligible else None,
+                        "nonparticipation_rate": round(not_participating * 100 / len(eligible)) if eligible else None,
+                    }
+                )
+            participating = sum(row["reply"] in (1, 3, 4) for row in rows)
+            not_participating = sum(row["reply"] in (2, 5) for row in rows)
+            replied = participating + not_participating
+            periods.append(
+                {
+                    "label": "可觀測賽事",
+                    "total": len(rows),
+                    "replied": replied,
+                    "rate": round(replied * 100 / len(rows)) if rows else None,
+                    "participation_rate": round(participating * 100 / len(rows)) if rows else None,
+                    "nonparticipation_rate": round(not_participating * 100 / len(rows)) if rows else None,
+                }
+            )
+            return {
+                "person_id": person.id,
+                "name": (member.name if member else person.formal_name)
+                or person.display_name,
+                "member_id": member.id if member else None,
+                "qualifications": tuple(
+                    {
+                        "name": item.qualification,
+                        "status": item.status,
+                        "valid_from": item.valid_from,
+                        "valid_until": item.valid_until,
+                    }
+                    for item in qualifications
+                ),
+                "periods": tuple(periods),
+                "recent": rows[:12],
+                "sample_size": len(rows),
+            }
+
+    def game_attendance_report(
+        self,
+        game_id: int,
+        at: datetime | None = None,
+        history_limit: int = 12,
+        minimum_rate: int = 60,
+    ) -> dict | None:
+        """Return attending and historically responsive unanswered players."""
+        if history_limit not in {5, 8, 12, 20}:
+            raise ValidationError("invalid attendance history limit")
+        if minimum_rate not in {0, *range(10, 101, 10)}:
+            raise ValidationError("invalid attendance response rate")
+        at = at or utc_now()
         with Session(self.engine) as session:
             game = session.get(LegacyGameRecord, game_id)
             if game is None or game.start_datetime is None:
-                raise ConflictError("game not found")
+                return None
+            games = session.scalars(
+                select(LegacyGameRecord)
+                .where(
+                    LegacyGameRecord.id != game_id,
+                    LegacyGameRecord.invitation_time.is_not(None),
+                    LegacyGameRecord.cancellation_time.is_(None),
+                    LegacyGameRecord.start_datetime.is_not(None),
+                    LegacyGameRecord.start_datetime < game.start_datetime,
+                )
+                .order_by(LegacyGameRecord.start_datetime.desc())
+                .limit(history_limit)
+            ).all()
+            game_ids = (game_id,) + tuple(item.id for item in games)
+            people = session.execute(
+                select(
+                    PersonRecord,
+                    LegacyMemberRecord,
+                    PersonQualificationRecord,
+                )
+                .outerjoin(
+                    LegacyMemberRecord,
+                    LegacyMemberRecord.person_id == PersonRecord.id,
+                )
+                .join(
+                    PersonQualificationRecord,
+                    PersonQualificationRecord.person_id == PersonRecord.id,
+                )
+                .where(
+                    PersonRecord.portal_status == "active",
+                    PersonQualificationRecord.qualification == "team_player",
+                )
+                .order_by(PersonRecord.id)
+            ).all()
+            by_member = {
+                member.id: person.id
+                for person, member, qualification in people
+                if member is not None
+                and is_qualification_active(
+                    qualification.status,
+                    qualification.valid_from,
+                    qualification.valid_until,
+                    game.start_datetime,
+                )
+            }
+            replies = session.scalars(
+                select(LegacyGameAttendanceReplyRecord)
+                .where(LegacyGameAttendanceReplyRecord.game_id.in_(game_ids))
+                .order_by(
+                    LegacyGameAttendanceReplyRecord.game_id,
+                    LegacyGameAttendanceReplyRecord.updated_at.desc(),
+                    LegacyGameAttendanceReplyRecord.id.desc(),
+                )
+            ).all()
+            latest = {}
+            for reply in replies:
+                resolved_person_id = reply.person_id or by_member.get(reply.member_id)
+                if resolved_person_id is not None:
+                    latest.setdefault((reply.game_id, resolved_person_id), reply.reply)
+            attending = []
+            not_attending = []
+            unanswered = []
+            for person, member, qualification in people:
+                if not is_qualification_active(
+                    qualification.status,
+                    qualification.valid_from,
+                    qualification.valid_until,
+                    game.start_datetime,
+                ):
+                    continue
+                name = (member.name if member else person.formal_name) or person.display_name
+                current_reply = latest.get((game_id, person.id))
+                projection = {
+                    "person_id": person.id,
+                    "member_id": member.id if member else None,
+                    "name": name,
+                    "reply": current_reply,
+                }
+                if current_reply in (1, 3, 4):
+                    attending.append(projection)
+                elif current_reply in (2, 5):
+                    not_attending.append(projection)
+                if current_reply is not None:
+                    continue
+                prior_replies = tuple(latest[(prior.id, person.id)] for prior in games if (prior.id, person.id) in latest)
+                participating = sum(reply in (1, 3, 4) for reply in prior_replies)
+                not_participating = sum(reply in (2, 5) for reply in prior_replies)
+                replied = participating + not_participating
+                total = len(games)
+                rate = round(replied * 100 / total) if total else None
+                if replied >= 1 and rate is not None and rate >= minimum_rate:
+                    unanswered.append(
+                        {
+                            **projection,
+                            "replied": replied,
+                            "total": total,
+                            "rate": rate,
+                            "participation_rate": round(participating * 100 / total),
+                            "nonparticipation_rate": round(not_participating * 100 / total),
+                        }
+                    )
+            unanswered.sort(key=lambda row: (-row["rate"], -row["replied"], row["name"]))
+            return {
+                "game_id": game.id,
+                "start_datetime": game.start_datetime,
+                "home_team": game.home_team,
+                "away_team": game.away_team,
+                "attending": tuple(attending),
+                "not_attending": tuple(not_attending),
+                "unanswered": tuple(unanswered),
+                "history_games": len(games),
+                "history_limit": history_limit,
+                "minimum_rate": minimum_rate,
+                "generated_at": at,
+            }
+
+    def attendance_summaries(
+        self, game_ids: Iterable[int], use_display_name: bool = False
+    ) -> dict[int, AttendanceSummary]:
+        """Load bounded attendance snapshots without per-game/person queries."""
+        normalized_ids = tuple(
+            dict.fromkeys(
+                value
+                for value in game_ids
+                if isinstance(value, int)
+                and not isinstance(value, bool)
+                and value > 0
+            )
+        )
+        if not normalized_ids:
+            return {}
+        if len(normalized_ids) > 250:
+            raise ValidationError("too many games requested")
+        with Session(self.engine) as session:
+            games = {
+                game.id: game
+                for game in session.scalars(
+                    select(LegacyGameRecord).where(
+                        LegacyGameRecord.id.in_(normalized_ids)
+                    )
+                )
+                if game.start_datetime is not None
+            }
+            if not games:
+                return {}
             rows = session.execute(
                 select(
                     LegacyGameAttendanceReplyRecord,
@@ -2079,7 +2358,7 @@ class IdentityLifecycleRepository:
                     ),
                 )
                 .where(
-                    LegacyGameAttendanceReplyRecord.game_id == game_id,
+                    LegacyGameAttendanceReplyRecord.game_id.in_(tuple(games)),
                     or_(
                         LegacyGameAttendanceReplyRecord.member_id.is_(None),
                         LegacyGameAttendanceReplyRecord.person_id.is_(None),
@@ -2088,6 +2367,7 @@ class IdentityLifecycleRepository:
                     ),
                 )
                 .order_by(
+                    LegacyGameAttendanceReplyRecord.game_id,
                     func.coalesce(
                         LegacyGameAttendanceReplyRecord.person_id,
                         LegacyMemberRecord.person_id,
@@ -2098,51 +2378,79 @@ class IdentityLifecycleRepository:
             ).all()
             latest = {}
             for reply, person, member in rows:
-                latest.setdefault(person.id, (reply, person, member))
-            participants = []
-            for person_id, (reply, person, member) in latest.items():
-                eligible, category = self._eligibility_in_session(
-                    session, person, game.start_datetime
-                )
-                if not eligible:
-                    continue
-                if category == "guest_player" and reply.reply == 5:
-                    continue
-                name = (
-                    person.display_name
-                    if use_display_name
-                    else (member.name if member else person.formal_name)
-                    or person.display_name
-                )
-                participants.append(
-                    {
-                        "person_id": person_id,
-                        "member_id": member.id if member else None,
-                        "member_number": member.number if member else None,
-                        "name": name,
-                        "reply": reply.reply,
-                        "qualification": category,
-                    }
-                )
-            team_qualifications = session.scalars(
+                latest.setdefault((reply.game_id, person.id), (reply, person, member))
+            qualification_rows = session.scalars(
                 select(PersonQualificationRecord)
                 .join(
                     PersonRecord, PersonRecord.id == PersonQualificationRecord.person_id
                 )
                 .where(
-                    PersonQualificationRecord.qualification == "team_player",
+                    PersonQualificationRecord.qualification.in_(
+                        ("team_player", "guest_player")
+                    ),
                     PersonRecord.portal_status == "active",
                 )
             ).all()
-            team_ids = {
-                qualification.person_id
-                for qualification in team_qualifications
-                if is_qualification_active(
-                    qualification.status,
-                    qualification.valid_from,
-                    qualification.valid_until,
-                    game.start_datetime,
+            qualifications_by_person: dict[int, list[PersonQualificationRecord]] = {}
+            for qualification in qualification_rows:
+                qualifications_by_person.setdefault(
+                    qualification.person_id, []
+                ).append(qualification)
+
+            summaries = {}
+            for game_id, game in games.items():
+                categories = {}
+                for person_id, qualifications in qualifications_by_person.items():
+                    active = {
+                        qualification.qualification
+                        for qualification in qualifications
+                        if is_qualification_active(
+                            qualification.status,
+                            qualification.valid_from,
+                            qualification.valid_until,
+                            game.start_datetime,
+                        )
+                    }
+                    if "team_player" in active:
+                        categories[person_id] = "team_player"
+                    elif "guest_player" in active:
+                        categories[person_id] = "guest_player"
+                participants = []
+                for (reply_game_id, person_id), (
+                    reply,
+                    person,
+                    member,
+                ) in latest.items():
+                    if reply_game_id != game_id or person_id not in categories:
+                        continue
+                    category = categories[person_id]
+                    if category == "guest_player" and reply.reply == 5:
+                        continue
+                    name = (
+                        person.display_name
+                        if use_display_name
+                        else (member.name if member else person.formal_name)
+                        or person.display_name
+                    )
+                    participants.append(
+                        {
+                            "person_id": person_id,
+                            "member_id": member.id if member else None,
+                            "member_number": member.number if member else None,
+                            "name": name,
+                            "reply": reply.reply,
+                            "qualification": category,
+                        }
+                    )
+                team_ids = {
+                    person_id
+                    for person_id, category in categories.items()
+                    if category == "team_player"
+                }
+                replied_team = sum(
+                    item["person_id"] in team_ids for item in participants
                 )
-            }
-            replied_team = sum(item["person_id"] in team_ids for item in participants)
-            return AttendanceSummary(tuple(participants), len(team_ids), replied_team)
+                summaries[game_id] = AttendanceSummary(
+                    tuple(participants), len(team_ids), replied_team
+                )
+            return summaries

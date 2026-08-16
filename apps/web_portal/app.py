@@ -193,6 +193,27 @@ def attendance_for_game(game_id, name_style):
     return attendance_analyzer.get_attendance_of_game(game_id)
 
 
+def attendance_for_games(games, name_style):
+    """Return all requested Phase C attendance mappings in one repository call."""
+    repository = phase_c_repository()
+    if repository is None:
+        return {
+            game.id: attendance_for_game(game.id, name_style) for game in games
+        }
+    summaries = repository.attendance_summaries(
+        (game.id for game in games), use_display_name=name_style == "display"
+    )
+    mappings = {}
+    for game in games:
+        mapping = {}
+        summary = summaries.get(game.id)
+        if summary is not None:
+            for participant in summary.participants:
+                mapping.setdefault(participant["reply"], []).append(participant)
+        mappings[game.id] = mapping
+    return mappings
+
+
 def phase_c_repository():
     if not is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return None
@@ -724,6 +745,10 @@ def query_attendance():
 
 def current_portal_member():
     """Load the current Member/Person projection without trusting the session copy."""
+    cached = getattr(g, "portal_lifecycle_context", None)
+    if cached is not None:
+        _, lifecycle_principal = cached
+        return lifecycle_principal.person, lifecycle_principal
     repository = phase_c_repository()
     lifecycle_principal = (
         repository.resolve_line_principal(session.get("user_id", ""))
@@ -772,28 +797,20 @@ def member_dashboard():
     ]
     unanswered_count = sum(item["reply"] is None for item in game_cards)
     weather = None
+    weather_pending = False
     next_game = game_cards[0] if game_cards else None
     if next_game and FICTIONAL_DEMO_MODE_ENABLED:
         weather = fictional_dashboard_forecast()
     elif next_game and is_weather_window(
         next_game["game"], datetime.now(local_timezone), local_timezone
     ):
-        try:
-            ballpark = Ballpark.search_by_name(next_game["game"].location)
-            if ballpark is None:
-                raise DashboardWeatherError(
-                    "Weather location configuration is unavailable"
-                )
-            weather = load_dashboard_forecast(
-                next_game["game"], ballpark, local_timezone
-            )
-        except DashboardWeatherError:
-            logger.warning("Dashboard weather data is unavailable")
+        weather_pending = True
     return render_template(
         "dashboard.html",
         member=member,
         next_game=next_game,
         weather=weather,
+        weather_pending=weather_pending,
         games=game_cards[1:4],
         unanswered_count=unanswered_count,
         reply_text_mapping=reply_text_mapping,
@@ -801,6 +818,26 @@ def member_dashboard():
         can_manage_games=_can_manage_games(lifecycle_principal),
     )
 
+
+@app.get("/dashboard/weather/<int:game_id>")
+@member_required
+def dashboard_weather(game_id):
+    games = Game.search_for_invited()
+    game = next((item for item in games if item.id == game_id), None)
+    now = datetime.now(local_timezone)
+    if game is None or not is_weather_window(game, now, local_timezone):
+        return "", 204
+    weather = None
+    try:
+        ballpark = Ballpark.search_by_name(game.location)
+        if ballpark is None:
+            raise DashboardWeatherError("Weather location configuration is unavailable")
+        weather = load_dashboard_forecast(game, ballpark, local_timezone)
+    except DashboardWeatherError:
+        logger.warning("Dashboard weather data is unavailable")
+    if weather is None:
+        return "", 204
+    return render_template("_dashboard_weather.html", weather=weather)
 
 @app.route("/attendance")
 @member_required
@@ -824,11 +861,15 @@ def attendance():
         load_error = False
     timing.finish("games_query")
 
+    try:
+        attendance_by_game = attendance_for_games(upcoming_games, name_style)
+    except SQLAlchemyError:
+        attendance_by_game = {}
+        load_error = True
     games_with_attendance = []
     for game in upcoming_games:
-        try:
-            mapping = attendance_for_game(game.id, name_style)
-        except SQLAlchemyError:
+        mapping = attendance_by_game.get(game.id)
+        if mapping is None:
             load_error = True
             continue
         games_with_attendance.append(
@@ -1126,9 +1167,23 @@ def admin_person_detail(person_id):
     )
     if person is None:
         abort(404)
+    tab = request.args.get("tab", "profile")
+    if tab not in {"profile", "member", "qualifications", "attendance"}:
+        abort(400)
+    try:
+        insight = (
+            repository.person_attendance_insight(person_id)
+            if tab == "attendance"
+            else None
+        )
+    except SQLAlchemyError:
+        return "Player insight is temporarily unavailable", 503
     return render_template(
         "person_detail.html",
         person=person,
+        active_tab=tab,
+        insight=insight,
+        reply_text_mapping=reply_text_mapping,
         csrf_token=get_or_create_csrf_token(),
         request_nonce=secrets.token_urlsafe(16),
         identity_maintenance_enabled=is_identity_maintenance_enabled(
@@ -1765,6 +1820,55 @@ def game_command_detail(game_id):
         data_time=now,
         can_manage_games=True,
         reply_text_mapping=reply_text_mapping,
+    )
+
+
+@app.get("/people/<int:person_id>/game-insights")
+@game_management_required
+def person_game_insight(person_id):
+    repository, _, role = g.game_management_context
+    try:
+        insight = repository.person_attendance_insight(person_id)
+    except SQLAlchemyError:
+        return "Player insight is temporarily unavailable", 503
+    if insight is None:
+        abort(404)
+    return render_template(
+        "person_game_insight.html",
+        insight=insight,
+        role=role,
+        reply_text_mapping=reply_text_mapping,
+        can_manage_games=True,
+    )
+
+
+@app.get("/games/<int:game_id>/attendance-report")
+@game_management_required
+def game_attendance_report(game_id):
+    repository, _, role = g.game_management_context
+    history_limit = request.args.get("history", default=12, type=int)
+    minimum_rate = request.args.get("rate", default=0, type=int)
+    if history_limit not in {5, 8, 12, 20} or minimum_rate not in {
+        0,
+        *range(10, 101, 10),
+    }:
+        abort(400)
+    try:
+        report = repository.game_attendance_report(
+            game_id,
+            history_limit=history_limit,
+            minimum_rate=minimum_rate,
+        )
+    except SQLAlchemyError:
+        return "Attendance report is temporarily unavailable", 503
+    if report is None:
+        abort(404)
+    return render_template(
+        "game_attendance_report.html",
+        report=report,
+        role=role,
+        reply_text_mapping=reply_text_mapping,
+        can_manage_games=True,
     )
 
 

@@ -22,7 +22,10 @@
     {% if games_with_attendance %}
         <div class="portal-timeline">
             {% for game in games_with_attendance %}
-                <section class="portal-card portal-roster-card">
+                <section class="portal-card portal-roster-card portal-attendance-game-card">
+
+                    <a class="portal-featured-game-hit-area" href="{{ url_for('game_detail', game_id=game.id, name_style=name_style) }}" aria-label="查看 {{ game.home_team }} 對 {{ game.away_team }} 賽事"></a>
+                    <span class="portal-featured-game-arrow" aria-hidden="true">→</span>
 
 
                     <div class="portal-card-top">
@@ -30,8 +33,6 @@
                             <p class="portal-eyebrow">{{ game.game_sign }} {{ game.game_date }}</p>
                             <h2>{{ game.home_team }} <span>vs</span> {{ game.away_team }}</h2>
                         </div>
-                        <a class="portal-button portal-button-secondary"
-                           href="{{ url_for('game_detail', game_id=game.id, name_style=name_style) }}">細節</a>
                     </div>
                     <p>{{ game.game_time }} · {{ game.location }}</p>
                     {% for reply_type in [1, 3, 4, 2, 5] %}{% if
@@ -41,12 +42,13 @@
                                 game.attendance_mapping[reply_type]|length }} 人
                         </h3>
                         <div class="portal-name-list">
-                            {% for member in game.attendance_mapping[reply_type] %}<span>{{ member.name }}</span>{% endfor %}
+                            {% for member in game.attendance_mapping[reply_type] %}<span>{% if can_manage_games %}<a href="{{ url_for('admin_person_detail', person_id=member.person_id, tab='attendance') if can_manage_people else url_for('person_game_insight', person_id=member.person_id) }}">{{ member.name }}</a>{% else %}{{ member.name }}{% endif %}</span>{% endfor %}
                         </div>
                     {% endif %}
+                    {% endfor %}
+                    {% if can_manage_games %}<div class="portal-attendance-report-action"><a class="portal-attendance-report-link" href="{{ url_for('game_attendance_report', game_id=game.id) }}"><span><small>OFFICER INSIGHT</small><strong>查看出席報告</strong></span><span aria-hidden="true">↗</span></a></div>{% endif %}
+                </section>
             {% endfor %}
-        </section>
-    {% endfor %}
     </div>
 {% else %}
     <section class="portal-card portal-empty">

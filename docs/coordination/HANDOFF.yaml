@@ -1,23 +1,20 @@
-active_task: TASK-102
-status: in_progress
+active_task: TASK-103
+status: ready_for_pr
 next_actor: work
 
-base_commit: d42057e27cd0352e5a44b77078ff2f9068b9194b
+base_commit: c25be77868f91ab9596c573bc2382d4a974720ee
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-15T17:20:00+08:00
+updated_at: 2026-08-17T04:10:00+08:00
 
 note: >
-  TASK-101 merged and was deployed as web-portal-00047-wdb, but live checks exposed Phase C disabled behavior. Work used
-  the already approved exact rollback revision web-portal-00046-g8v and restored 100% traffic. TASK-102 may implement,
-  test, push, create one PR and merge under standing Git authorization. A second production deployment remains
-  unauthorized until Owner approves a new exact package including the rollout vector.
-  The first approved true/false/true attempt failed closed in Cloud Build validation because the Windows-generated
-  temporary env used CRLF. No traffic changed. Work is correcting the generator to emit exact LF without weakening the
-  build gate.
+  TASK-103 implementation and Owner localhost UI acceptance are complete. Offline suites, compile, JavaScript syntax,
+  isort and diff pass; bundled Windows Black remains stalled and must be proven by hosted Python 3.10 CI. Owner
+  authorized commit, push, one PR, merge and Web Portal production deployment with post-deploy verification. Schema,
+  production data, Secret values, IAM, Scheduler and external notifications remain out of scope.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-102.md
-report: docs/coordination/reports/TASK-102-CODEX.md
-review: docs/coordination/reviews/TASK-102-WORK.md
+task: docs/coordination/tasks/TASK-103.md
+report: docs/coordination/reports/TASK-103-WORK.md
+review: docs/coordination/reviews/TASK-103-WORK.md

@@ -177,6 +177,48 @@ class GameCommandCenterDomainTest(unittest.TestCase):
 
 
 class GameCommandCenterStaticContractTest(unittest.TestCase):
+    def test_loading_and_insight_surfaces_are_local_and_read_only(self):
+        base = (WEB_PORTAL_DIR / "templates" / "_portal_base.html").read_text(
+            encoding="utf-8"
+        )
+        loading = (WEB_PORTAL_DIR / "static" / "portal_loading.js").read_text(
+            encoding="utf-8"
+        )
+        weather = (WEB_PORTAL_DIR / "static" / "dashboard_weather.js").read_text(
+            encoding="utf-8"
+        )
+        person = (WEB_PORTAL_DIR / "templates" / "person_detail.html").read_text(
+            encoding="utf-8"
+        )
+        report = (
+            WEB_PORTAL_DIR / "templates" / "game_attendance_report.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn("data-portal-loading", base)
+        self.assertIn("pageshow", loading)
+        self.assertNotIn("fetch(", loading)
+        self.assertIn("credentials: \"same-origin\"", weather)
+        self.assertNotIn("localStorage", weather)
+        for tab in ("基本資料", "校友會成員", "參與資格", "參賽紀錄"):
+            self.assertIn(tab, person)
+        self.assertIn('name="history"', report)
+        self.assertIn('name="rate"', report)
+        self.assertIn("report.minimum_rate", report)
+        self.assertIn("range(10,101,10)", report)
+        self.assertIn("portal-unanswered-report", report)
+        self.assertIn("report.not_attending", report)
+        self.assertIn("person.participation_rate", report)
+        self.assertIn("person.nonparticipation_rate", report)
+        self.assertNotIn('method="post"', report.lower())
+
+        lifecycle = (
+            WEB_PORTAL_DIR.parents[1]
+            / "shared_lib"
+            / "shared_module"
+            / "portal_data"
+            / "identity_lifecycle.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("from sqlalchemy import Engine, and_,", lifecycle)
+
     def test_lineup_uses_session_storage_and_has_no_side_effect_callers(self):
         script = (WEB_PORTAL_DIR / "static" / "game_lineup.js").read_text(
             encoding="utf-8"

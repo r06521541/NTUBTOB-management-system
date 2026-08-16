@@ -1985,6 +1985,31 @@ class MemberMatchingRouteTest(unittest.TestCase):
             [call(23), call(23)],
         )
 
+    def test_phase_c_attendance_batches_all_games_in_one_repository_call(self):
+        games = (SimpleNamespace(id=23), SimpleNamespace(id=24))
+        repository = MagicMock()
+        repository.attendance_summaries.return_value = {
+            23: SimpleNamespace(
+                participants=({"person_id": 70, "name": "甲", "reply": 1},)
+            ),
+            24: SimpleNamespace(
+                participants=({"person_id": 71, "name": "乙", "reply": 5},)
+            ),
+        }
+
+        with patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            result = self.app_module.attendance_for_games(games, "display")
+
+        self.assertEqual(result[23][1][0]["name"], "甲")
+        self.assertEqual(result[24][5][0]["name"], "乙")
+        repository.attendance_summaries.assert_called_once()
+        requested_ids = tuple(repository.attendance_summaries.call_args.args[0])
+        self.assertEqual(requested_ids, (23, 24))
+        self.assertTrue(repository.attendance_summaries.call_args.kwargs["use_display_name"])
+        self.attendance_analyzer.get_attendance_of_game.assert_not_called()
+
     def test_successful_attendance_logs_one_bounded_timing_event(self):
         fresh_member = SimpleNamespace(id=7, name="member-name-sentinel")
         self.member_model.search_by_id.return_value = fresh_member
@@ -2305,10 +2330,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.app_module, "load_dashboard_forecast", return_value=forecast
         ):
             response = self.client.get("/dashboard")
+            weather_response = self.client.get("/dashboard/weather/23")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("臺北中正天氣預報".encode(), response.data)
-        self.assertIn("降雨 10%".encode(), response.data)
+        self.assertIn("天氣載入中".encode(), response.data)
+        self.assertNotIn("臺北中正天氣預報".encode(), response.data)
+        self.assertEqual(weather_response.status_code, 200)
+        self.assertIn("臺北中正天氣預報".encode(), weather_response.data)
+        self.assertIn("降雨 10%".encode(), weather_response.data)
         self.ballpark_model.search_by_name.assert_called_once_with("示範球場")
 
     def test_game_detail_renders_attendance_and_csrf_form(self):
@@ -2512,6 +2541,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "/manage/games/23",
             "/manage/game-insights",
             "/manage/games/23/lineup-lab",
+            "/people/70/game-insights",
+            "/games/23/attendance-report",
         ):
             with self.subTest(path=path):
                 response = self.client.get(path)
@@ -2612,6 +2643,23 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository = MagicMock()
         repository.resolve_line_principal.return_value = self.command_principal()
         repository.attendance_summary.return_value = self.command_summary()
+        repository.person_attendance_insight.return_value = {
+            "person_id": 70,
+            "name": "虛構隊員",
+            "periods": ({"label": "近 30 天", "rate": 80, "replied": 4, "total": 5},),
+            "recent": (),
+        }
+        repository.game_attendance_report.return_value = {
+            "game_id": 23,
+            "home_team": "臺大",
+            "away_team": "虛構隊",
+            "start_datetime": datetime.now(timezone.utc),
+            "attending": ({"person_id": 70, "name": "虛構隊員", "reply": 1},),
+            "not_attending": (),
+            "unanswered": (),
+            "history_limit": 12,
+            "minimum_rate": 0,
+        }
         game = self.command_game()
         self.game_model.search_games.return_value = [game]
         self.login()
@@ -2629,6 +2677,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 self.client.get("/manage/games/23"),
                 self.client.get("/manage/game-insights"),
                 self.client.get("/games/23/lineup-lab"),
+                self.client.get("/people/70/game-insights"),
+                self.client.get("/games/23/attendance-report"),
             )
         self.assertTrue(all(response.status_code == 200 for response in pages))
         self.assertIn("GAME COMMAND CENTER".encode(), pages[0].data)
@@ -2636,6 +2686,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("不是歷史邀請回覆率".encode(), pages[2].data)
         self.assertIn(b'id="lineup-lab"', pages[3].data)
         self.assertIn("虛構隊員".encode(), pages[3].data)
+        self.assertIn("參賽回覆概況".encode(), pages[4].data)
+        self.assertIn("尚未回覆".encode(), pages[5].data)
+        self.assertIn("目前不參加／未定".encode(), pages[5].data)
+        repository.game_attendance_report.assert_called_once_with(
+            23, history_limit=12, minimum_rate=0
+        )
         for mutation in (
             "reply_to_game",
             "update_profile",

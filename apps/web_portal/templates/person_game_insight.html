@@ -1,0 +1,1 @@
+{% extends '_portal_base.html' %}{% block title %}球員參賽洞察｜NTUBTOB{% endblock %}{% block content %}<a class="portal-back-link" href="{{ url_for('game_command_center') }}">← 返回賽務管理</a><section class="portal-title"><p class="portal-eyebrow">PLAYER INSIGHT</p><h1>{{ insight.name }}</h1><p>球員參賽回覆紀錄</p></section>{% include '_person_attendance_insight.html' %}{% endblock %}
