@@ -10,6 +10,8 @@
         <link rel="stylesheet"
               href="{{ url_for('static', filename='production_portal.css') }}" />
         <script src="{{ url_for('static', filename='game_lineup.js') }}" defer></script>
+        <script src="{{ url_for('static', filename='portal_loading.js') }}" defer></script>
+        <script src="{{ url_for('static', filename='dashboard_weather.js') }}" defer></script>
     </head>
     <body data-lineup-identity="{{ lineup_identity_key }}">
         <header class="portal-header">
@@ -37,5 +39,15 @@
             <a href="{{ url_for('account') }}"><span aria-hidden="true">○</span>個人</a>
             {% if can_manage_games|default(false) %}<a href="{{ url_for('management_hub') }}"><span aria-hidden="true">◆</span>管理</a>{% endif %}
         </nav>
+        <div class="portal-loading-overlay"
+             data-portal-loading
+             role="status"
+             aria-live="polite"
+             aria-label="頁面載入中"
+             hidden>
+            <span class="portal-loading-spinner" aria-hidden="true"></span>
+            <strong>載入中…</strong>
+            <small>正在取得最新資料</small>
+        </div>
     </body>
 </html>

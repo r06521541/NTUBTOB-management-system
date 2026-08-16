@@ -1,0 +1,15 @@
+{% extends '_portal_base.html' %}{% block title %}單場出席報告｜NTUBTOB{% endblock %}{% block content %}
+<a class="portal-back-link" href="{{ url_for('game_command_detail', game_id=report.game_id) }}">← 返回賽事</a>
+<section class="portal-title"><p class="portal-eyebrow">ATTENDANCE REPORT</p><h1>{{ report.home_team }} vs {{ report.away_team }}</h1><p>{{ report.start_datetime.strftime('%Y/%m/%d %H:%M') }} · 目前回覆與待追蹤洞察</p></section>
+<div class="portal-attendance-report-grid">
+  <section class="portal-card portal-roster-card portal-unanswered-report">
+    <h2>尚未回覆</h2>
+    <form class="portal-insight-filter" method="get"><label>觀察場次<select name="history">{% for value in [5,8,12,20] %}<option value="{{ value }}"{% if report.history_limit == value %} selected{% endif %}>前 {{ value }} 場</option>{% endfor %}</select></label><label>最低回覆率<select name="rate"><option value="0"{% if report.minimum_rate == 0 %} selected{% endif %}>至少回覆 1 場</option>{% for value in range(10,101,10) %}<option value="{{ value }}"{% if report.minimum_rate == value %} selected{% endif %}>{{ value }}%</option>{% endfor %}</select></label><button class="portal-button portal-button-secondary" type="submit">套用</button></form>
+    <p class="portal-muted">依總回覆率由高至低。</p>
+    <div class="portal-unanswered-table"><div class="portal-unanswered-table-head" aria-hidden="true"><span>球員</span><span>參加</span><span>不參加／未定</span><span>回覆</span></div>{% for person in report.unanswered %}<a href="{{ url_for('admin_person_detail', person_id=person.person_id, tab='attendance') if can_manage_people else url_for('person_game_insight', person_id=person.person_id) }}"><strong>{{ person.name }}</strong><span>{{ person.participation_rate }}%</span><span>{{ person.nonparticipation_rate }}%</span><span>{{ person.replied }}/{{ person.total }}</span></a>{% else %}<p class="portal-muted">目前沒有符合條件的待追蹤球員。</p>{% endfor %}</div>
+  </section>
+  <div class="portal-current-response-stack">
+    <section class="portal-card portal-roster-card"><h2>目前參加 · {{ report.attending|length }} 人</h2><div class="portal-report-people">{% for person in report.attending %}<a href="{{ url_for('admin_person_detail', person_id=person.person_id, tab='attendance') if can_manage_people else url_for('person_game_insight', person_id=person.person_id) }}"><strong>{{ person.name }}</strong><span>{{ reply_text_mapping[person.reply] }}</span></a>{% else %}<p class="portal-muted">目前沒有人回覆參加。</p>{% endfor %}</div></section>
+    <section class="portal-card portal-roster-card"><h2>目前不參加／未定 · {{ report.not_attending|length }} 人</h2><div class="portal-report-people">{% for person in report.not_attending %}<a href="{{ url_for('admin_person_detail', person_id=person.person_id, tab='attendance') if can_manage_people else url_for('person_game_insight', person_id=person.person_id) }}"><strong>{{ person.name }}</strong><span>{{ reply_text_mapping[person.reply] }}</span></a>{% else %}<p class="portal-muted">目前沒有不參加或未定回覆。</p>{% endfor %}</div></section>
+  </div>
+</div>{% endblock %}
