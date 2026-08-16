@@ -197,9 +197,7 @@ def attendance_for_games(games, name_style):
     """Return all requested Phase C attendance mappings in one repository call."""
     repository = phase_c_repository()
     if repository is None:
-        return {
-            game.id: attendance_for_game(game.id, name_style) for game in games
-        }
+        return {game.id: attendance_for_game(game.id, name_style) for game in games}
     summaries = repository.attendance_summaries(
         (game.id for game in games), use_display_name=name_style == "display"
     )
@@ -838,6 +836,7 @@ def dashboard_weather(game_id):
     if weather is None:
         return "", 204
     return render_template("_dashboard_weather.html", weather=weather)
+
 
 @app.route("/attendance")
 @member_required

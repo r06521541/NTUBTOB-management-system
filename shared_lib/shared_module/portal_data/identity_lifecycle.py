@@ -2141,9 +2141,19 @@ class IdentityLifecycleRepository:
                         "label": label,
                         "total": len(eligible),
                         "replied": replied,
-                        "rate": round(replied * 100 / len(eligible)) if eligible else None,
-                        "participation_rate": round(participating * 100 / len(eligible)) if eligible else None,
-                        "nonparticipation_rate": round(not_participating * 100 / len(eligible)) if eligible else None,
+                        "rate": (
+                            round(replied * 100 / len(eligible)) if eligible else None
+                        ),
+                        "participation_rate": (
+                            round(participating * 100 / len(eligible))
+                            if eligible
+                            else None
+                        ),
+                        "nonparticipation_rate": (
+                            round(not_participating * 100 / len(eligible))
+                            if eligible
+                            else None
+                        ),
                     }
                 )
             participating = sum(row["reply"] in (1, 3, 4) for row in rows)
@@ -2155,8 +2165,12 @@ class IdentityLifecycleRepository:
                     "total": len(rows),
                     "replied": replied,
                     "rate": round(replied * 100 / len(rows)) if rows else None,
-                    "participation_rate": round(participating * 100 / len(rows)) if rows else None,
-                    "nonparticipation_rate": round(not_participating * 100 / len(rows)) if rows else None,
+                    "participation_rate": (
+                        round(participating * 100 / len(rows)) if rows else None
+                    ),
+                    "nonparticipation_rate": (
+                        round(not_participating * 100 / len(rows)) if rows else None
+                    ),
                 }
             )
             return {
@@ -2264,7 +2278,9 @@ class IdentityLifecycleRepository:
                     game.start_datetime,
                 ):
                     continue
-                name = (member.name if member else person.formal_name) or person.display_name
+                name = (
+                    member.name if member else person.formal_name
+                ) or person.display_name
                 current_reply = latest.get((game_id, person.id))
                 projection = {
                     "person_id": person.id,
@@ -2278,7 +2294,11 @@ class IdentityLifecycleRepository:
                     not_attending.append(projection)
                 if current_reply is not None:
                     continue
-                prior_replies = tuple(latest[(prior.id, person.id)] for prior in games if (prior.id, person.id) in latest)
+                prior_replies = tuple(
+                    latest[(prior.id, person.id)]
+                    for prior in games
+                    if (prior.id, person.id) in latest
+                )
                 participating = sum(reply in (1, 3, 4) for reply in prior_replies)
                 not_participating = sum(reply in (2, 5) for reply in prior_replies)
                 replied = participating + not_participating
@@ -2292,10 +2312,14 @@ class IdentityLifecycleRepository:
                             "total": total,
                             "rate": rate,
                             "participation_rate": round(participating * 100 / total),
-                            "nonparticipation_rate": round(not_participating * 100 / total),
+                            "nonparticipation_rate": round(
+                                not_participating * 100 / total
+                            ),
                         }
                     )
-            unanswered.sort(key=lambda row: (-row["rate"], -row["replied"], row["name"]))
+            unanswered.sort(
+                key=lambda row: (-row["rate"], -row["replied"], row["name"])
+            )
             return {
                 "game_id": game.id,
                 "start_datetime": game.start_datetime,
@@ -2318,9 +2342,7 @@ class IdentityLifecycleRepository:
             dict.fromkeys(
                 value
                 for value in game_ids
-                if isinstance(value, int)
-                and not isinstance(value, bool)
-                and value > 0
+                if isinstance(value, int) and not isinstance(value, bool) and value > 0
             )
         )
         if not normalized_ids:
@@ -2393,9 +2415,9 @@ class IdentityLifecycleRepository:
             ).all()
             qualifications_by_person: dict[int, list[PersonQualificationRecord]] = {}
             for qualification in qualification_rows:
-                qualifications_by_person.setdefault(
-                    qualification.person_id, []
-                ).append(qualification)
+                qualifications_by_person.setdefault(qualification.person_id, []).append(
+                    qualification
+                )
 
             summaries = {}
             for game_id, game in games.items():
