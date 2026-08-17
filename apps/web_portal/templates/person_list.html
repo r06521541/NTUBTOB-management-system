@@ -13,7 +13,7 @@
         <h2>搜尋人員</h2>
         <form class="portal-form" method="get">
             <label>
-                人員、會員或暱稱<input name="q" value="{{ query }}" maxlength="120" /></label><button class="portal-button portal-button-primary" type="submit">搜尋</button>
+                人員、會員或暱稱<input name="q" value="{{ query }}" maxlength="120" /></label><label><input type="checkbox" name="show_inactive" value="1"{% if show_inactive %} checked{% endif %} /> 顯示非 active 人員</label><button class="portal-button portal-button-primary" type="submit">套用</button>
             </form>
             <p class="portal-muted">第 {{ page }} / {{ total_pages }} 頁</p>
         </section>
@@ -49,6 +49,6 @@
             </section>
         {% endif %}
         <nav class="portal-filter-row" aria-label="Person 分頁">
-            {% if page > 1 %}<a href="{{ url_for('admin_people', q=query, page=page-1) }}">← 上一頁</a>{% endif %}{% if page < total_pages %}<a href="{{ url_for('admin_people', q=query, page=page+1) }}">下一頁 →</a>{% endif %}
+            {% if page > 1 %}<a href="{{ url_for('admin_people', q=query, show_inactive='1' if show_inactive else none, page=page-1) }}">← 上一頁</a>{% endif %}{% if page < total_pages %}<a href="{{ url_for('admin_people', q=query, show_inactive='1' if show_inactive else none, page=page+1) }}">下一頁 →</a>{% endif %}
         </nav>
 {% endblock %}

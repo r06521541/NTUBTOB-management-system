@@ -982,6 +982,16 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 "member_id": 8,
                 "qualifications": (),
             },
+            {
+                "person_id": 81,
+                "display_name": "停用暱稱",
+                "formal_name": "停用人員",
+                "portal_access_level": "basic",
+                "portal_status": "disabled",
+                "status": "disabled",
+                "member_id": None,
+                "qualifications": (),
+            },
         )
         repository.admin_dashboard.return_value = {
             "people": (
@@ -1014,17 +1024,24 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.app_module, "phase_c_repository", return_value=repository
         ):
             people = self.client.get("/manage/people?q=正式")
+            active_only = self.client.get("/manage/people")
+            all_people = self.client.get("/manage/people?show_inactive=1")
             pending = self.client.get("/manage/pending-identities")
         self.assertEqual(people.status_code, 200)
         self.assertIn("Person 管理".encode(), people.data)
         self.assertIn("暱稱".encode(), people.data)
         self.assertNotIn("顯示名稱".encode(), people.data)
+        self.assertIn(b'href="/manage/people/80"', active_only.data)
+        self.assertNotIn("停用人員".encode(), active_only.data)
+        self.assertIn("停用人員".encode(), all_people.data)
+        self.assertIn(b'name="show_inactive" value="1" checked', all_people.data)
         self.assertEqual(pending.status_code, 200)
         self.assertIn("待配對／待核可身分".encode(), pending.data)
         self.assertNotIn("Person 管理列表".encode(), pending.data)
         self.assertIn("暱稱".encode(), pending.data)
         self.assertNotIn("顯示名稱".encode(), pending.data)
-        repository.person_directory.assert_called_once_with(70)
+        self.assertEqual(repository.person_directory.call_count, 3)
+        repository.person_directory.assert_called_with(70)
         for item in repository.person_directory.return_value:
             self.assertNotIn("admin_note", item)
             self.assertNotIn("identity_id", item)
@@ -1587,6 +1604,64 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("管理員".encode(), page.data)
         self.assertNotIn(b">admin<", page.data)
 
+    def test_person_detail_recent_attendance_shows_only_replied_games(self):
+        repository = MagicMock()
+        repository.admin_dashboard.return_value = {
+            "people": (
+                {
+                    "person_id": 80,
+                    "display_name": "Demo Person",
+                    "formal_name": "Demo Formal",
+                    "member_id": 8,
+                    "status": "active",
+                    "qualifications": (),
+                },
+            )
+        }
+        repository.person_attendance_insight.return_value = {
+            "periods": (),
+            "recent": (
+                {
+                    "game_id": 91,
+                    "home_team": "已回覆主隊",
+                    "away_team": "已回覆客隊",
+                    "start_datetime": datetime(2026, 8, 1, tzinfo=timezone.utc),
+                    "location": "球場 A",
+                    "reply": 1,
+                },
+                {
+                    "game_id": 92,
+                    "home_team": "未回覆主隊",
+                    "away_team": "未回覆客隊",
+                    "start_datetime": datetime(2026, 8, 2, tzinfo=timezone.utc),
+                    "location": "球場 B",
+                    "reply": None,
+                },
+            ),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                user_id="line-user",
+                member_id=7,
+            )
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch(
+            "admin_security.get_current_principal",
+            return_value=Principal(ROLE_ADMIN, 7),
+        ):
+            page = self.client.get("/manage/people/80?tab=attendance")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("已回覆主隊".encode(), page.data)
+        self.assertNotIn("未回覆主隊".encode(), page.data)
+
     def test_phase_c_admin_ui_and_route_require_confirmed_identity_remap(self):
         token = self.get_csrf_token()
         repository = MagicMock()
@@ -1890,9 +1965,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.return_value = fresh_member
         game = self.portal_game()
         self.game_model.search_for_invited.return_value = [game]
-        self.attendance_analyzer.get_attendance_of_game.return_value = {
-            1: [fresh_member]
-        }
+        self.attendance_analyzer.get_attendance_of_game.return_value = {1: [fresh_member]}
         self.login()
 
         with patch.object(self.app_module, "datetime") as fake_datetime:
@@ -1945,7 +2018,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             generate_short_summary_for_team=lambda: "legacy summary",
         )
         self.game_model.search_for_invited.return_value = [game]
-        self.attendance_analyzer.get_attendance_of_game.return_value = {1: [fresh_member]}
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [fresh_member]
+        }
         self.login()
 
         with patch.object(self.app_module, "datetime") as fake_datetime:

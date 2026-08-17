@@ -1117,9 +1117,16 @@ def admin_people():
         return "Identity service is temporarily unavailable", 503
     people = repository.person_directory(actor_person_id)
     query = request.args.get("q", "").strip()
+    show_inactive = request.args.get("show_inactive") == "1"
     page = request.args.get("page", default=1, type=int)
     if page < 1:
         abort(400)
+    if not show_inactive:
+        people = tuple(
+            person
+            for person in people
+            if person.get("portal_status", person.get("status")) == "active"
+        )
     if query:
         people = tuple(
             person
@@ -1140,6 +1147,7 @@ def admin_people():
         people=people[start : start + page_size],
         available_members=(),
         query=query,
+        show_inactive=show_inactive,
         page=page,
         total_pages=total_pages,
         request_nonce=secrets.token_urlsafe(16),
