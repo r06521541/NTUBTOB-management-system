@@ -1,20 +1,19 @@
-active_task: TASK-111
-status: ready_for_hosted_ci
-next_actor: work
+active_task: TASK-112
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 4792f529a374baa3f87386a0883a6a82c1ecb048
-head_commit: 83abf8cacdc5f06e3b787d51821c698353e8af96
+base_commit: 2c33b6e48f89f43a34f44784e9c224971b5cca38
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-19T01:02:00+08:00
+updated_at: 2026-08-19T01:10:00+08:00
 
 note: >
-  TASK-111 source is accepted at 83abf8cacdc5f06e3b787d51821c698353e8af96. The approved
-  `臺大校友比賽報你知` display identity, stable `tw.org.ntubtob.portal` Android/iOS identity and reusable Flutter gate
-  await hosted Flutter plus the existing CI final gate on one PR head. No production/staging deployment, migration,
-  Secret, real LINE login, signing or notification is authorized.
+  TASK-111 merged through PR #121 at 2c33b6e48f89f43a34f44784e9c224971b5cca38. TASK-112 prepares a fail-closed
+  isolated mobile staging operator, fictional seed and exact Owner approval manifest. It performs no cloud/database/LINE
+  mutation, Secret access, real login, deployment, signing or notification.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-111.md
-report: docs/coordination/reports/TASK-111-CODEX.md
-review: docs/coordination/reviews/TASK-111-FLUTTER-WORK.md
+task: docs/coordination/tasks/TASK-112.md
+report: docs/coordination/reports/TASK-112-CODEX.md
+review: docs/coordination/reviews/TASK-112-WORK.md
