@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 
 from flask import Flask, g
 
+from shared_lib.shared_module import attendance_reply as attendance_reply_service
+
 FUNCTION_DIR = Path(__file__).resolve().parents[1]
 
 
@@ -114,6 +116,11 @@ class AttendanceReplyTest(unittest.TestCase):
         cls._stub("linebot.v3.webhooks", **webhook_types)
 
         cls._stub("shared_module", __path__=[])
+        cls.original_modules["shared_module.attendance_reply"] = sys.modules.get(
+            "shared_module.attendance_reply"
+        )
+        cls.stub_names.append("shared_module.attendance_reply")
+        sys.modules["shared_module.attendance_reply"] = attendance_reply_service
         cls._stub("shared_module.models", __path__=[])
         cls._stub("shared_module.models.line_users", LineUser=type("LineUser", (), {}))
         cls._stub("shared_module.models.games", Game=type("Game", (), {}))
@@ -302,6 +309,75 @@ class AttendanceReplyTest(unittest.TestCase):
         repository.resolve_line_principal.assert_called_once_with("fake-line-subject")
         repository.reply_to_game.assert_called_once_with(44, 23, 1, 9)
         FakeAttendanceReply.add.assert_not_called()
+        self.assertIn("Fictional game", messages[0])
+
+    def test_phase_c_changed_urgent_reply_uses_shared_notification(self):
+        self.webhook.Game.search_by_id.return_value = self.make_game(hours_from_now=6)
+        person = types.SimpleNamespace(
+            id=44, preferred_name=lambda: "Fake Guest Formal"
+        )
+        repository = types.SimpleNamespace(
+            resolve_line_principal=Mock(
+                return_value=types.SimpleNamespace(person=person)
+            ),
+            reply_to_game=Mock(return_value=True),
+        )
+        runtime = sys.modules["shared_module.portal_data.runtime"]
+        runtime.get_identity_lifecycle_repository.return_value = repository
+
+        with patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}):
+            messages = self.run_reply()
+
+        self.assertIn("Fictional game", messages[0])
+        self.webhook.notify_management_message.assert_called_once_with(
+            "緊急！Fake Guest Formal臨時回覆Fictional game這場：\nattending"
+        )
+
+    def test_phase_c_unchanged_reply_does_not_notify(self):
+        person = types.SimpleNamespace(
+            id=44, preferred_name=lambda: "Fake Guest Formal"
+        )
+        repository = types.SimpleNamespace(
+            resolve_line_principal=Mock(
+                return_value=types.SimpleNamespace(person=person)
+            ),
+            reply_to_game=Mock(return_value=False),
+        )
+        runtime = sys.modules["shared_module.portal_data.runtime"]
+        runtime.get_identity_lifecycle_repository.return_value = repository
+
+        with patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}):
+            messages = self.run_reply()
+
+        self.assertEqual(
+            messages[0],
+            self.webhook.message_templates_user.game_same_reply.format(
+                game_verbal_summary="Fictional game"
+            ),
+        )
+        self.webhook.notify_management_message.assert_not_called()
+
+    def test_phase_c_notification_failure_keeps_saved_reply_acknowledgement(self):
+        self.webhook.Game.search_by_id.return_value = self.make_game(hours_from_now=6)
+        person = types.SimpleNamespace(
+            id=44, preferred_name=lambda: "Fake Guest Formal"
+        )
+        repository = types.SimpleNamespace(
+            resolve_line_principal=Mock(
+                return_value=types.SimpleNamespace(person=person)
+            ),
+            reply_to_game=Mock(return_value=True),
+        )
+        runtime = sys.modules["shared_module.portal_data.runtime"]
+        runtime.get_identity_lifecycle_repository.return_value = repository
+        self.webhook.notify_management_message.side_effect = RuntimeError(
+            "fake notifier failure"
+        )
+
+        with patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}):
+            messages = self.run_reply()
+
+        repository.reply_to_game.assert_called_once_with(44, 23, 1, 9)
         self.assertIn("Fictional game", messages[0])
 
     def test_freeze_blocks_legacy_and_phase_c_reply_before_every_side_effect(self):

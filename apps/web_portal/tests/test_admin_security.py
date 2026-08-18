@@ -20,6 +20,9 @@ from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
 from role_policy import ROLE_ADMIN, Principal  # noqa: E402
 
+from shared_lib.shared_module import (  # noqa: E402
+    attendance_reply as attendance_reply_service,
+)
 from shared_lib.shared_module.portal_data import (  # noqa: E402
     local_database as portal_local_database,
 )
@@ -86,6 +89,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 DiscordNotifyHelper=lambda: cls.notifier
             ),
             "shared_module.attendance_analyzer": cls.attendance_analyzer,
+            "shared_module.attendance_reply": attendance_reply_service,
             "shared_module.settings": cls._module(
                 local_timezone=timezone(timedelta(hours=8))
             ),
@@ -93,7 +97,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 "shared_module.message_templates"
             ),
             "shared_module.message_templates.general_message": cls._module(
-                reply_text_mapping={}
+                reply_text_mapping={
+                    1: "會出席",
+                    2: "不出席",
+                    3: "晚到",
+                    4: "早退",
+                    5: "未定",
+                }
             ),
             "shared_module.portal_data": types.ModuleType("shared_module.portal_data"),
             "shared_module.portal_data.local_database": portal_local_database,
@@ -127,6 +137,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.ballpark_model.reset_mock()
         self.attendance_analyzer.reset_mock(return_value=True, side_effect=True)
         self.notifier.reset_mock()
+        self.notifier.notify_management_message.side_effect = None
         self.line_user_model.search_all_unknowns.return_value = [
             SimpleNamespace(line_user_id="fake-line-user", nickname="Demo User")
         ]
@@ -2437,7 +2448,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertTrue(current_session.get("member_matching_csrf_token"))
 
     def test_game_reply_requires_csrf_and_uses_phase_c_repository(self):
-        self.game_model.search_by_id.return_value = self.portal_game()
+        game = self.portal_game()
+        game.start_datetime = datetime.now(timezone.utc) + timedelta(hours=6)
+        self.game_model.search_by_id.return_value = game
         repository = MagicMock()
         self.login()
         with self.client.session_transaction() as current_session:
@@ -2457,6 +2470,58 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(missing_csrf.status_code, 400)
         self.assertEqual(saved.status_code, 302)
         self.assertEqual(saved.headers["Location"], "/games/23")
+        repository.reply_to_game.assert_called_once_with(70, 23, 1)
+        self.notifier.notify_management_message.assert_called_once_with(
+            f"緊急！Demo Member臨時回覆{game.generate_short_summary_for_team()}這場：\n會出席"
+        )
+
+    def test_unchanged_game_reply_does_not_notify(self):
+        game = self.portal_game()
+        game.start_datetime = datetime.now(timezone.utc) + timedelta(hours=6)
+        self.game_model.search_by_id.return_value = game
+        repository = MagicMock()
+        repository.reply_to_game.return_value = False
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70, member_matching_csrf_token="reply-csrf"
+            )
+
+        with patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.post(
+                "/games/23/attendance",
+                data={"reply": "1", "csrf_token": "reply-csrf"},
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.notifier.notify_management_message.assert_not_called()
+
+    def test_notification_failure_does_not_turn_saved_reply_into_failure(self):
+        game = self.portal_game()
+        game.start_datetime = datetime.now(timezone.utc) + timedelta(hours=6)
+        self.game_model.search_by_id.return_value = game
+        repository = MagicMock()
+        repository.reply_to_game.return_value = True
+        self.notifier.notify_management_message.side_effect = RuntimeError(
+            "fake notifier failure"
+        )
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70, member_matching_csrf_token="reply-csrf"
+            )
+
+        with patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.post(
+                "/games/23/attendance",
+                data={"reply": "1", "csrf_token": "reply-csrf"},
+            )
+
+        self.assertEqual(response.status_code, 302)
         repository.reply_to_game.assert_called_once_with(70, 23, 1)
 
     def preview_repository(self):
