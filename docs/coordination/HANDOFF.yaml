@@ -1,20 +1,20 @@
-active_task: TASK-103
+active_task: TASK-109
 status: ready_for_pr
 next_actor: work
 
-base_commit: c25be77868f91ab9596c573bc2382d4a974720ee
+base_commit: da85abddc7e339011df13b021038523e84900631
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-17T04:10:00+08:00
+updated_at: 2026-08-18T19:35:00+08:00
 
 note: >
-  TASK-103 implementation and Owner localhost UI acceptance are complete. Offline suites, compile, JavaScript syntax,
-  isort and diff pass; bundled Windows Black remains stalled and must be proven by hosted Python 3.10 CI. Owner
-  authorized commit, push, one PR, merge and Web Portal production deployment with post-deploy verification. Schema,
-  production data, Secret values, IAM, Scheduler and external notifications remain out of scope.
+  TASK-108 contract and TASK-109 Basic mobile API foundation are accepted by Main Work. Revision 0005 exact five-table
+  schema, independent mobile API runtime, rotating refresh, durable idempotency, official LINE verification adapter and
+  canonical OpenAPI await the single final PR and hosted Python 3.10/PostgreSQL evidence. No production migration,
+  deployment, Secret binding, IAM, external LINE call or notification is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-103.md
-report: docs/coordination/reports/TASK-103-WORK.md
-review: docs/coordination/reviews/TASK-103-WORK.md
+task: docs/coordination/tasks/TASK-109.md
+report: docs/coordination/reports/TASK-109-CODEX.md
+review: docs/coordination/reviews/TASK-109-WORK.md

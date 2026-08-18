@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-18T18:00:00+08:00
+更新時間：2026-08-18T19:35:00+08:00
 
 維護角色：Work
 
@@ -10,7 +10,8 @@ Repository 基準：`main` / `da85abddc7e339011df13b021038523e84900631`
 
 - TASK-104／105／107 Flutter client foundation 已由 PR #118 merge 至 `main`（merge commit `da85abddc7e339011df13b021038523e84900631`）；fictional source、Android/iOS runners、Flutter analyze、13 tests與Android debug build已完成，尚無裝置smoke、iOS build/signing或發布。
 - TASK-106 schema-neutral attendance reply application service 已由 PR #117 merge 至 `main`（merge commit `b26c1702605e463b96680b6c481b4da95880d198`），Web與LINE共用changed/12小時通知決策。
-- TASK-108 native LINE assertion、App session、mobile API v1、五值出席enum與idempotency契約已獲Owner核准；尚未實作runtime或schema。
+- TASK-108 mobile contract與TASK-109 Basic mobile API foundation已完成；revision 0005五表、獨立mobile API、
+  rotating refresh、exact idempotency、LINE official verify adapter與canonical OpenAPI等待final PR hosted CI，尚未部署。
 - Flutter planning 已確認 Android／iOS staging APK／TestFlight 測試路線；production、schema、Secret、IAM、正式通知與商店發布仍未授權。
 
 - Phase C 已完成 production schema、跨服務 runtime 啟用、管理入口 bootstrap 與既有可靠 LINE 隊員啟用。

@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: mobile-auth-api-foundation
 requires_independent_pr: true
-status: active
+status: completed
 base_commit: 87100faec55aef47f7c9fda1b6b1c47c79dd6c1a
 
 ## Goal
