@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import 'integration.dart';
@@ -56,12 +58,22 @@ class ReportParticipantUiModel {
   final String displayName;
 }
 
-/// Flutter-local display slot for the existing bounded non-responder insight.
-/// Thresholds and observation semantics remain server-owned and are not modeled.
-class NonResponderInsightUiModel {
-  const NonResponderInsightUiModel({required this.summary});
+class NotYetRepliedUiModel extends ReportParticipantUiModel {
+  const NotYetRepliedUiModel({
+    required super.id,
+    required super.displayName,
+    required this.observedReplies,
+    required this.observedGames,
+    required this.responseRate,
+    required this.participationRate,
+    required this.nonparticipationRate,
+  });
 
-  final String summary;
+  final int observedReplies,
+      observedGames,
+      responseRate,
+      participationRate,
+      nonparticipationRate;
 }
 
 /// Flutter-local single-game report model. It defines no JSON field names.
@@ -69,16 +81,21 @@ class SingleGameReportUiModel {
   const SingleGameReportUiModel({
     required this.gameId,
     required this.gameLabel,
-    required this.replied,
+    required this.generatedAt,
+    required this.historyGames,
+    required this.historyLimit,
+    required this.minimumResponseRate,
+    required this.attending,
+    required this.notAttending,
     required this.notYetReplied,
-    this.nonResponderInsight,
   });
 
   final String gameId;
   final String gameLabel;
-  final List<ReportParticipantUiModel> replied;
-  final List<ReportParticipantUiModel> notYetReplied;
-  final NonResponderInsightUiModel? nonResponderInsight;
+  final DateTime generatedAt;
+  final int historyGames, historyLimit, minimumResponseRate;
+  final List<ReportParticipantUiModel> attending, notAttending;
+  final List<NotYetRepliedUiModel> notYetReplied;
 }
 
 abstract interface class OfficerReportPresentationPort {
@@ -104,28 +121,37 @@ class CanonicalOfficerReportRepository
       return SingleGameReportUiModel(
         gameId: report.gameId,
         gameLabel: '賽事 ${report.gameId}',
-        replied: [
-          ...report.attending.map((person) => ReportParticipantUiModel(
-              id: person.personId, displayName: person.displayName)),
-          ...report.notAttending.map((person) => ReportParticipantUiModel(
-              id: person.personId, displayName: person.displayName)),
-        ],
-        notYetReplied: report.notYetReplied
+        generatedAt: report.generatedAt,
+        historyGames: report.observation.historyGames,
+        historyLimit: report.observation.historyLimit,
+        minimumResponseRate: report.observation.minimumResponseRate,
+        attending: report.attending
             .map((person) => ReportParticipantUiModel(
                 id: person.personId, displayName: person.displayName))
             .toList(growable: false),
-        nonResponderInsight: report.notYetReplied.isEmpty
-            ? null
-            : NonResponderInsightUiModel(
-                summary: '觀察 ${report.observation.historyGames} 場；'
-                    '最低回覆率 ${report.observation.minimumResponseRate}%。'),
+        notAttending: report.notAttending
+            .map((person) => ReportParticipantUiModel(
+                id: person.personId, displayName: person.displayName))
+            .toList(growable: false),
+        notYetReplied: report.notYetReplied
+            .map((person) => NotYetRepliedUiModel(
+                  id: person.personId,
+                  displayName: person.displayName,
+                  observedReplies: person.observedReplies,
+                  observedGames: person.observedGames,
+                  responseRate: person.responseRate,
+                  participationRate: person.participationRate,
+                  nonparticipationRate: person.nonparticipationRate,
+                ))
+            .toList(growable: false),
       );
     } on NetworkException {
       throw const RetryableOfficerReportException();
     } on SessionExpiredException {
       throw const ExpiredOfficerReportSessionException();
     } on ApiError catch (error) {
-      if (error.code == ApiErrorCode.forbidden) {
+      if (error.code == ApiErrorCode.forbidden ||
+          error.code == ApiErrorCode.resourceNotFound) {
         throw const ForbiddenOfficerReportException();
       }
       if (error.code == ApiErrorCode.sessionExpired ||
@@ -133,7 +159,9 @@ class CanonicalOfficerReportRepository
         throw const ExpiredOfficerReportSessionException();
       }
       if (error.retryable) throw const RetryableOfficerReportException();
-      rethrow;
+      throw const ContractOfficerReportException();
+    } on ContractException {
+      throw const ContractOfficerReportException();
     }
   }
 }
@@ -150,6 +178,10 @@ class ExpiredOfficerReportSessionException implements Exception {
   const ExpiredOfficerReportSessionException();
 }
 
+class ContractOfficerReportException implements Exception {
+  const ContractOfficerReportException();
+}
+
 class DeterministicFakeOfficerReportRepository
     implements OfficerReportPresentationPort {
   DeterministicFakeOfficerReportRepository({
@@ -158,19 +190,28 @@ class DeterministicFakeOfficerReportRepository
   }) : report =
             report ?? DeterministicFakeOfficerReportRepository.fictionalReport;
 
-  static const fictionalReport = SingleGameReportUiModel(
+  static final fictionalReport = SingleGameReportUiModel(
     gameId: 'fictional-game',
     gameLabel: '示範賽事',
-    replied: [
+    generatedAt: DateTime.utc(2026, 8, 19),
+    historyGames: 8,
+    historyLimit: 12,
+    minimumResponseRate: 60,
+    attending: [
       ReportParticipantUiModel(id: 'fictional-replied', displayName: '已回覆隊員'),
     ],
+    notAttending: [],
     notYetReplied: [
-      ReportParticipantUiModel(
+      NotYetRepliedUiModel(
         id: 'fictional-not-yet-replied',
         displayName: '尚未回覆隊員',
+        observedReplies: 7,
+        observedGames: 8,
+        responseRate: 88,
+        participationRate: 63,
+        nonparticipationRate: 25,
       ),
     ],
-    nonResponderInsight: NonResponderInsightUiModel(summary: '高頻未回覆觀察：示範唯讀資訊'),
   );
 
   final SingleGameReportUiModel report;
@@ -220,6 +261,155 @@ class InMemoryPrincipalOfficerReportCache
   }
 }
 
+class DurablePrincipalOfficerReportCache
+    implements PrincipalOfficerReportCache {
+  const DurablePrincipalOfficerReportCache(this.store, this.installationId);
+
+  static const _version = 1;
+  static const _maximumReports = 20;
+  final DurableStore store;
+  final String installationId;
+
+  String _key(String principalId) =>
+      'officer-report-cache:v1:$installationId:${Uri.encodeComponent(principalId)}';
+
+  @override
+  Future<SingleGameReportUiModel?> read(
+      String principalId, String gameId) async {
+    final reports = await _readAll(principalId);
+    for (final report in reports) {
+      if (report.gameId == gameId) return report;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> write(String principalId, SingleGameReportUiModel report) async {
+    final reports = await _readAll(principalId);
+    reports.removeWhere((item) => item.gameId == report.gameId);
+    reports.add(report);
+    if (reports.length > _maximumReports) {
+      reports.removeRange(0, reports.length - _maximumReports);
+    }
+    await store.write(
+      _key(principalId),
+      jsonEncode({
+        'version': _version,
+        'reports': reports.map(_encode).toList(growable: false),
+      }),
+    );
+  }
+
+  @override
+  Future<void> clearPrincipal(String principalId) =>
+      store.delete(_key(principalId));
+
+  Future<List<SingleGameReportUiModel>> _readAll(String principalId) async {
+    final key = _key(principalId);
+    final raw = await store.read(key);
+    if (raw == null) return [];
+    try {
+      final value = jsonDecode(raw) as Map<String, dynamic>;
+      if (value['version'] != _version) {
+        throw const FormatException('unknown cache version');
+      }
+      final values = value['reports'] as List<dynamic>;
+      if (values.length > _maximumReports) {
+        throw const FormatException('unbounded report cache');
+      }
+      return values
+          .map((item) => _decode(item as Map<String, dynamic>))
+          .toList(growable: true);
+    } on Object {
+      await store.delete(key);
+      return [];
+    }
+  }
+
+  static Map<String, dynamic> _encode(SingleGameReportUiModel report) => {
+        'game_id': report.gameId,
+        'game_label': report.gameLabel,
+        'generated_at': report.generatedAt.toUtc().toIso8601String(),
+        'history_games': report.historyGames,
+        'history_limit': report.historyLimit,
+        'minimum_response_rate': report.minimumResponseRate,
+        'attending': report.attending.map(_encodeParticipant).toList(),
+        'not_attending': report.notAttending.map(_encodeParticipant).toList(),
+        'not_yet_replied': report.notYetReplied
+            .map((person) => {
+                  ..._encodeParticipant(person),
+                  'observed_replies': person.observedReplies,
+                  'observed_games': person.observedGames,
+                  'response_rate': person.responseRate,
+                  'participation_rate': person.participationRate,
+                  'nonparticipation_rate': person.nonparticipationRate,
+                })
+            .toList(),
+      };
+
+  static Map<String, dynamic> _encodeParticipant(
+          ReportParticipantUiModel person) =>
+      {'id': person.id, 'display_name': person.displayName};
+
+  static SingleGameReportUiModel _decode(Map<String, dynamic> value) {
+    final generatedAt = DateTime.parse(value['generated_at'] as String);
+    if (!generatedAt.isUtc) throw const FormatException('non-UTC cache time');
+    final report = SingleGameReportUiModel(
+      gameId: value['game_id'] as String,
+      gameLabel: value['game_label'] as String,
+      generatedAt: generatedAt,
+      historyGames: value['history_games'] as int,
+      historyLimit: value['history_limit'] as int,
+      minimumResponseRate: value['minimum_response_rate'] as int,
+      attending: _decodeParticipants(value['attending']),
+      notAttending: _decodeParticipants(value['not_attending']),
+      notYetReplied: (value['not_yet_replied'] as List<dynamic>).map((item) {
+        final person = item as Map<String, dynamic>;
+        return NotYetRepliedUiModel(
+          id: person['id'] as String,
+          displayName: person['display_name'] as String,
+          observedReplies: person['observed_replies'] as int,
+          observedGames: person['observed_games'] as int,
+          responseRate: person['response_rate'] as int,
+          participationRate: person['participation_rate'] as int,
+          nonparticipationRate: person['nonparticipation_rate'] as int,
+        );
+      }).toList(growable: false),
+    );
+    if (report.gameId.isEmpty ||
+        report.gameLabel.isEmpty ||
+        report.historyGames < 0 ||
+        !const {5, 8, 12, 20}.contains(report.historyLimit) ||
+        report.minimumResponseRate < 0 ||
+        report.minimumResponseRate > 100 ||
+        report.minimumResponseRate % 10 != 0 ||
+        report.attending.length +
+                report.notAttending.length +
+                report.notYetReplied.length >
+            200 ||
+        report.notYetReplied.any((person) =>
+            person.observedReplies < 1 ||
+            person.observedGames < 1 ||
+            !_validPercentage(person.responseRate) ||
+            !_validPercentage(person.participationRate) ||
+            !_validPercentage(person.nonparticipationRate))) {
+      throw const FormatException('invalid cached report');
+    }
+    return report;
+  }
+
+  static bool _validPercentage(int value) => value >= 0 && value <= 100;
+
+  static List<ReportParticipantUiModel> _decodeParticipants(Object? value) =>
+      (value as List<dynamic>).map((item) {
+        final person = item as Map<String, dynamic>;
+        return ReportParticipantUiModel(
+          id: person['id'] as String,
+          displayName: person['display_name'] as String,
+        );
+      }).toList(growable: false);
+}
+
 enum OfficerReportViewState {
   loading,
   empty,
@@ -227,6 +417,7 @@ enum OfficerReportViewState {
   retryableError,
   forbidden,
   sessionExpired,
+  contractError,
   offlineCached,
 }
 
@@ -312,9 +503,10 @@ class OfficerReportController extends ChangeNotifier {
       report = loaded;
       lastSyncedAt = (syncedAt ?? DateTime.now()).toUtc();
       await cache.write(principal, loaded);
-      state = loaded.replied.isEmpty &&
+      state = loaded.attending.isEmpty &&
+              loaded.notAttending.isEmpty &&
               loaded.notYetReplied.isEmpty &&
-              loaded.nonResponderInsight == null
+              loaded.historyGames == 0
           ? OfficerReportViewState.empty
           : OfficerReportViewState.ready;
     } on ForbiddenOfficerReportException {
@@ -327,6 +519,8 @@ class OfficerReportController extends ChangeNotifier {
       state = OfficerReportViewState.sessionExpired;
     } on RetryableOfficerReportException {
       state = OfficerReportViewState.retryableError;
+    } on ContractOfficerReportException {
+      state = OfficerReportViewState.contractError;
     }
     notifyListeners();
   }
@@ -417,12 +611,14 @@ class CanonicalManagementReportsPage extends StatefulWidget {
     required this.person,
     required this.games,
     required this.online,
+    this.cache,
   });
 
   final BasicApi api;
   final Person person;
   final List<Game> games;
   final bool online;
+  final PrincipalOfficerReportCache? cache;
 
   @override
   State<CanonicalManagementReportsPage> createState() =>
@@ -438,7 +634,7 @@ class _CanonicalManagementReportsPageState
     super.initState();
     controller = OfficerReportController(
       repository: CanonicalOfficerReportRepository(widget.api),
-      cache: InMemoryPrincipalOfficerReportCache(),
+      cache: widget.cache ?? InMemoryPrincipalOfficerReportCache(),
     );
     controller.applyFreshPrincipal(
       principalId: widget.person.id,
@@ -466,7 +662,12 @@ class _CanonicalManagementReportsPageState
             : ListenableBuilder(
                 listenable: controller,
                 builder: (context, _) => controller.route ==
-                        ManagementPresentationRoute.singleGameReport
+                            ManagementPresentationRoute.singleGameReport ||
+                        const {
+                          OfficerReportViewState.forbidden,
+                          OfficerReportViewState.sessionExpired,
+                          OfficerReportViewState.contractError,
+                        }.contains(controller.state)
                     ? OfficerReportPanel(controller: controller)
                     : ListView(
                         children: [
@@ -527,6 +728,7 @@ class OfficerReportPanel extends StatelessWidget {
       OfficerReportViewState.retryableError => '報表暫時無法載入，請重試',
       OfficerReportViewState.forbidden => '沒有報表讀取權限',
       OfficerReportViewState.sessionExpired => '登入已逾期，報表已關閉',
+      OfficerReportViewState.contractError => '報表資料格式異常，已停止處理',
       OfficerReportViewState.offlineCached => '離線快取唯讀報表',
     };
     return Semantics(
@@ -556,20 +758,33 @@ class _ReportContents extends StatelessWidget {
   final bool offline;
 
   @override
-  Widget build(BuildContext context) => ListView(
-        children: [
-          Text(report.gameLabel),
-          if (offline) const Text('目前為離線快取，僅供讀取'),
-          const Text('已回覆'),
-          for (final participant in report.replied)
-            Text(participant.displayName),
-          const Text('尚未回覆'),
-          for (final participant in report.notYetReplied)
-            Text(participant.displayName),
-          if (report.nonResponderInsight case final insight?) ...[
-            const Text('高頻未回覆觀察'),
-            Text(insight.summary),
+  Widget build(BuildContext context) => Material(
+        child: ListView(
+          children: [
+            Text(report.gameLabel),
+            Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
+            Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
+            Text('最低回覆率：${report.minimumResponseRate}%'),
+            if (offline) const Text('目前為離線快取，僅供讀取'),
+            const Text('出席'),
+            for (final participant in report.attending)
+              Text(participant.displayName),
+            const Text('不出席'),
+            for (final participant in report.notAttending)
+              Text(participant.displayName),
+            const Text('尚未回覆'),
+            for (final participant in report.notYetReplied)
+              ListTile(
+                title: Text(participant.displayName),
+                subtitle: Text(
+                  '已觀察 ${participant.observedGames} 場、'
+                  '已回覆 ${participant.observedReplies} 場；'
+                  '回覆率 ${participant.responseRate}%；'
+                  '出席率 ${participant.participationRate}%；'
+                  '不出席率 ${participant.nonparticipationRate}%',
+                ),
+              ),
           ],
-        ],
+        ),
       );
 }

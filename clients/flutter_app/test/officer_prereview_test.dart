@@ -16,7 +16,9 @@ class ReportTransport implements ApiTransport {
     'attending': [
       {'person_id': 'person_1', 'display_name': '已出席', 'reply': 'attending'}
     ],
-    'not_attending': [],
+    'not_attending': [
+      {'person_id': 'person_3', 'display_name': '不出席', 'reply': 'not_attending'}
+    ],
     'not_yet_replied': [
       {
         'person_id': 'person_2',
@@ -39,6 +41,30 @@ class ReportTransport implements ApiTransport {
   }
 }
 
+Map<String, dynamic> reportError(String code, {bool retryable = false}) => {
+      'error': {
+        'code': code,
+        'message': 'safe',
+        'request_id': 'request',
+        'retryable': retryable,
+        'retry_after_seconds': null,
+        'field_errors': [],
+      }
+    };
+
+class FailingWriteStore extends MemoryStore {
+  bool failNextWrite = false;
+
+  @override
+  Future<void> write(String key, String value) async {
+    if (failNextWrite) {
+      failNextWrite = false;
+      throw const NetworkException();
+    }
+    await super.write(key, value);
+  }
+}
+
 Future<BasicApi> reportApi(ReportTransport transport) async {
   final store = MemoryStore();
   final session = SessionController(transport, store, 'install', SecureIds());
@@ -49,6 +75,21 @@ Future<BasicApi> reportApi(ReportTransport transport) async {
     expiresIn: 900,
   ));
   return BasicApi(session, store, 'install', SecureIds());
+}
+
+SingleGameReportUiModel reportWithId(String id) {
+  final source = DeterministicFakeOfficerReportRepository.fictionalReport;
+  return SingleGameReportUiModel(
+    gameId: id,
+    gameLabel: '賽事 $id',
+    generatedAt: source.generatedAt,
+    historyGames: source.historyGames,
+    historyLimit: source.historyLimit,
+    minimumResponseRate: source.minimumResponseRate,
+    attending: source.attending,
+    notAttending: source.notAttending,
+    notYetReplied: source.notYetReplied,
+  );
 }
 
 OfficerReportController controllerFor({
@@ -77,24 +118,34 @@ void main() {
         '/games/game_44/attendance-report?history_limit=12&minimum_response_rate=60'
       )
     ]);
-    expect(report.replied.single.displayName, '已出席');
+    expect(report.attending.single.displayName, '已出席');
+    expect(report.notAttending.single.displayName, '不出席');
     expect(report.notYetReplied.single.displayName, '尚未回覆');
+    expect(report.notYetReplied.single.responseRate, 88);
+    expect(report.historyGames, 8);
+    expect(report.historyLimit, 12);
+    expect(report.minimumResponseRate, 60);
+    expect(report.generatedAt, DateTime.utc(2026, 8, 18, 12));
   });
 
-  test('server-owned grant maps Basic denied and Officer/Admin granted', () {
-    for (final accessLevel in [AccessLevel.officer, AccessLevel.admin]) {
-      final person = Person(
-        'p',
-        'Reader',
-        const ['attendance:report:read'],
-        accessLevel: accessLevel,
-      );
-      expect(person.canReadAttendanceReport, isTrue);
+  test('server-owned role and exact capability must both grant reports', () {
+    for (final accessLevel in AccessLevel.values) {
+      for (final hasCapability in [false, true]) {
+        final person = Person(
+          'p',
+          'Reader',
+          hasCapability
+              ? const ['attendance:report:read']
+              : const ['games:read'],
+          accessLevel: accessLevel,
+        );
+        expect(
+          person.canReadAttendanceReport,
+          accessLevel != AccessLevel.basic && hasCapability,
+          reason: '$accessLevel capability=$hasCapability',
+        );
+      }
     }
-    expect(
-      const Person('p', 'Basic', ['games:read']).canReadAttendanceReport,
-      isFalse,
-    );
   });
   test('read grant alone controls discovery and route fail-closed', () async {
     final controller = controllerFor();
@@ -135,9 +186,9 @@ void main() {
         principalId: 'p',
         gameId: 'fictional-game',
       );
-      expect(first.replied.single.displayName, '已回覆隊員');
+      expect(first.attending.single.displayName, '已回覆隊員');
       expect(first.notYetReplied.single.displayName, '尚未回覆隊員');
-      expect(first.nonResponderInsight, isNotNull);
+      expect(first.notYetReplied.single.observedGames, 8);
       expect(second.gameId, first.gameId);
       expect(repository.reads, [
         ('p', 'fictional-game'),
@@ -219,6 +270,8 @@ void main() {
             OfficerReportViewState.forbidden,
         const ExpiredOfficerReportSessionException():
             OfficerReportViewState.sessionExpired,
+        const ContractOfficerReportException():
+            OfficerReportViewState.contractError,
       }.entries) {
         final controller = controllerFor(
           repository: DeterministicFakeOfficerReportRepository(
@@ -235,11 +288,16 @@ void main() {
 
       final emptyController = controllerFor(
         repository: DeterministicFakeOfficerReportRepository(
-          report: const SingleGameReportUiModel(
+          report: SingleGameReportUiModel(
             gameId: 'empty',
             gameLabel: '空白賽事',
-            replied: [],
-            notYetReplied: [],
+            generatedAt: DateTime.utc(2026),
+            historyGames: 0,
+            historyLimit: 12,
+            minimumResponseRate: 60,
+            attending: const [],
+            notAttending: const [],
+            notYetReplied: const [],
           ),
         ),
       );
@@ -293,20 +351,225 @@ void main() {
 
   testWidgets('direct canonical management route fails closed for Basic',
       (tester) async {
-    final transport = ReportTransport();
-    final api = await reportApi(transport);
-    await tester.pumpWidget(MaterialApp(
-      home: CanonicalManagementReportsPage(
-        api: api,
-        person: const Person('basic', 'Basic', ['games:read']),
-        games: [Game('game_44', DateTime.utc(2026), 60, null, 'A', 'B')],
-        online: true,
-      ),
-    ));
-    expect(find.byKey(const ValueKey('management-route-forbidden')),
-        findsOneWidget);
-    expect(find.text('唯讀出席報表'), findsNothing);
-    expect(transport.calls, isEmpty);
+    for (final person in [
+      const Person('basic', 'Basic', ['attendance:report:read']),
+      const Person('officer', 'Officer', ['games:read'],
+          accessLevel: AccessLevel.officer),
+      const Person('admin', 'Admin', ['games:read'],
+          accessLevel: AccessLevel.admin),
+    ]) {
+      final transport = ReportTransport();
+      final api = await reportApi(transport);
+      await tester.pumpWidget(MaterialApp(
+        home: CanonicalManagementReportsPage(
+          api: api,
+          person: person,
+          games: [Game('game_44', DateTime.utc(2026), 60, null, 'A', 'B')],
+          online: true,
+        ),
+      ));
+      expect(find.byKey(const ValueKey('management-route-forbidden')),
+          findsOneWidget);
+      expect(find.text('唯讀出席報表'), findsNothing);
+      expect(transport.calls, isEmpty);
+    }
+  });
+
+  testWidgets('canonical 404 and 422 settle into fail-closed UI states',
+      (tester) async {
+    for (final entry in [
+      (404, 'resource_not_found'),
+      (422, 'validation_failed')
+    ]) {
+      final transport = ReportTransport()
+        ..response = ApiResponse(entry.$1, reportError(entry.$2));
+      final controller = OfficerReportController(
+        repository:
+            CanonicalOfficerReportRepository(await reportApi(transport)),
+        cache: InMemoryPrincipalOfficerReportCache(),
+      );
+      await controller.applyFreshPrincipal(
+        principalId: 'officer',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      await controller.loadSingleGame('game_44', online: true);
+      expect(
+        controller.state,
+        entry.$1 == 404
+            ? OfficerReportViewState.forbidden
+            : OfficerReportViewState.contractError,
+      );
+      await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)),
+      );
+      expect(find.byKey(ValueKey('officer-report-${controller.state.name}')),
+          findsOneWidget);
+      expect(find.text('送出回覆'), findsNothing);
+    }
+  });
+
+  test('durable cache survives reconstruction and isolates principals',
+      () async {
+    final store = MemoryStore();
+    final first = DurablePrincipalOfficerReportCache(store, 'install-a');
+    await first.write(
+        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
+    final restarted = DurablePrincipalOfficerReportCache(store, 'install-a');
+    expect(await restarted.read('officer', 'fictional-game'), isNotNull);
+    expect(await restarted.read('basic', 'fictional-game'), isNull);
+    expect(
+      await DurablePrincipalOfficerReportCache(store, 'install-b')
+          .read('officer', 'fictional-game'),
+      isNull,
+    );
+  });
+
+  test('durable cache corrupt/version mismatch clears and fails closed',
+      () async {
+    for (final raw in ['not-json', '{"version":2,"reports":[]}']) {
+      final store = MemoryStore();
+      final cache = DurablePrincipalOfficerReportCache(store, 'install');
+      await store.write('officer-report-cache:v1:install:officer', raw);
+      expect(await cache.read('officer', 'game'), isNull);
+      expect(store.values, isEmpty);
+    }
+  });
+
+  test('single blob failed write preserves prior durable report', () async {
+    final store = FailingWriteStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    await cache.write(
+        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
+    final before = Map<String, String>.from(store.values);
+    store.failNextWrite = true;
+    expect(
+      () => cache.write(
+          'officer', DeterministicFakeOfficerReportRepository.fictionalReport),
+      throwsA(isA<NetworkException>()),
+    );
+    expect(store.values, before);
+  });
+
+  test('durable cache is bounded and serializes low-sensitive fields only',
+      () async {
+    final store = MemoryStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    for (var index = 0; index < 21; index++) {
+      await cache.write('officer', reportWithId('game-$index'));
+    }
+    expect(await cache.read('officer', 'game-0'), isNull);
+    expect(await cache.read('officer', 'game-20'), isNotNull);
+    final raw = store.values.values.single;
+    for (final prohibited in [
+      'token',
+      'nonce',
+      'provider',
+      'contact',
+      'admin_note',
+      'audit',
+      'raw_error',
+    ]) {
+      expect(raw, isNot(contains(prohibited)));
+    }
+  });
+
+  test('offline reconstructed cache requires a fresh granted controller',
+      () async {
+    final store = MemoryStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    await cache.write(
+        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
+    final denied = OfficerReportController(
+      repository: DeterministicFakeOfficerReportRepository(),
+      cache: DurablePrincipalOfficerReportCache(store, 'install'),
+    );
+    await denied.applyFreshPrincipal(
+      principalId: 'officer',
+      reportReadGrant: const ManagementReportReadGrant.denied(),
+    );
+    await denied.loadSingleGame('fictional-game', online: false);
+    expect(denied.state, OfficerReportViewState.forbidden);
+    expect(denied.report, isNull);
+
+    final granted = OfficerReportController(
+      repository: DeterministicFakeOfficerReportRepository(),
+      cache: DurablePrincipalOfficerReportCache(store, 'install'),
+    );
+    await granted.applyFreshPrincipal(
+      principalId: 'officer',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await granted.loadSingleGame('fictional-game', online: false);
+    expect(granted.state, OfficerReportViewState.offlineCached);
+    expect(granted.mutationsEnabled, isFalse);
+  });
+
+  test('durable cache is purged on downgrade identity change and session end',
+      () async {
+    final store = MemoryStore();
+    Future<void> seed(String principal) =>
+        DurablePrincipalOfficerReportCache(store, 'install').write(principal,
+            DeterministicFakeOfficerReportRepository.fictionalReport);
+
+    await seed('same');
+    final downgrade = OfficerReportController(
+      repository: DeterministicFakeOfficerReportRepository(),
+      cache: DurablePrincipalOfficerReportCache(store, 'install'),
+    );
+    await downgrade.applyFreshPrincipal(
+      principalId: 'same',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await downgrade.applyFreshPrincipal(
+      principalId: 'same',
+      reportReadGrant: const ManagementReportReadGrant.denied(),
+    );
+    expect(
+        await DurablePrincipalOfficerReportCache(store, 'install')
+            .read('same', 'fictional-game'),
+        isNull);
+
+    await seed('old');
+    final identity = OfficerReportController(
+      repository: DeterministicFakeOfficerReportRepository(),
+      cache: DurablePrincipalOfficerReportCache(store, 'install'),
+    );
+    await identity.applyFreshPrincipal(
+      principalId: 'old',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await identity.applyFreshPrincipal(
+      principalId: 'new',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    expect(
+        await DurablePrincipalOfficerReportCache(store, 'install')
+            .read('old', 'fictional-game'),
+        isNull);
+
+    await seed('expired');
+    final expired = OfficerReportController(
+      repository: DeterministicFakeOfficerReportRepository(
+          failure: const ExpiredOfficerReportSessionException()),
+      cache: DurablePrincipalOfficerReportCache(store, 'install'),
+    );
+    await expired.applyFreshPrincipal(
+      principalId: 'expired',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await expired.loadSingleGame('fictional-game', online: true);
+    expect(
+        await DurablePrincipalOfficerReportCache(store, 'install')
+            .read('expired', 'fictional-game'),
+        isNull);
+
+    await seed('logout');
+    await DurablePrincipalOfficerReportCache(store, 'install')
+        .clearPrincipal('logout');
+    expect(
+        await DurablePrincipalOfficerReportCache(store, 'install')
+            .read('logout', 'fictional-game'),
+        isNull);
   });
 
   testWidgets('granted shell navigates and renders read-only report cohorts', (
@@ -325,9 +588,13 @@ void main() {
     expect(find.text('單場出席報表'), findsOneWidget);
     await controller.loadSingleGame('fictional-game', online: true);
     await tester.pump();
-    expect(find.text('已回覆'), findsOneWidget);
+    expect(find.text('出席'), findsOneWidget);
+    expect(find.text('不出席'), findsOneWidget);
     expect(find.text('尚未回覆'), findsOneWidget);
-    expect(find.text('高頻未回覆觀察'), findsOneWidget);
+    expect(find.textContaining('回覆率 88%'), findsOneWidget);
+    expect(find.text('觀察場次：8 / 12'), findsOneWidget);
+    expect(find.text('最低回覆率：60%'), findsOneWidget);
+    expect(find.textContaining('產生時間：2026-08-19'), findsOneWidget);
     expect(find.text('送出回覆'), findsNothing);
   });
 
@@ -369,6 +636,7 @@ void main() {
       OfficerReportViewState.retryableError: '請重試',
       OfficerReportViewState.forbidden: '沒有報表讀取權限',
       OfficerReportViewState.sessionExpired: '登入已逾期',
+      OfficerReportViewState.contractError: '資料格式異常',
     }.entries) {
       controller.state = entry.key;
       await tester.pumpWidget(
