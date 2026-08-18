@@ -1,0 +1,45 @@
+# TASK-110 Codex implementation report
+
+## Execution checkpoint and scope
+
+- Goal: Basic-only native LINE authentication and canonical mobile API integration while preserving the TASK-105 fake foundation.
+- Core files: Flutter composition/models/ports/session/cache, Android/iOS runner configuration, tests, and this report only.
+- Invariants: OpenAPI is canonical; no invented wire fields; access token memory-only; refresh/session state installation-isolated; offline is read-only; Officer/Admin and real push remain fake/deferred.
+- Minimum evidence: exact dependency resolution, formatter/analyze/full tests, explicit fake debug APK, merged manifest/signing/artifact and secret/endpoint review.
+- Deferred: real LINE/API calls, staging/production values, iOS runtime/signing, release signing/deployment, Officer/Admin real APIs, push/deep links.
+
+Repository writes stayed within `clients/flutter_app/**` and this report. Branch started clean at `1ddc7f1e42020c19f4c66a9cfe480c3ab121d5f8` on `codex/task-110-flutter-basic-api`.
+
+## Delivered
+
+- Exact dependencies: `flutter_line_sdk 2.7.2`, `flutter_secure_storage 10.3.1`, and `http 1.6.0`. Versions and SDK constraints were checked against their official publisher/pub.dev package metadata and downloaded package source; the lockfile pins all transitives.
+- Compile-time composition fails closed. Development requires explicit `APP_FLAVOR=development` plus `CLIENT_MODE=fake` and rejects service values. Staging/production require `CLIENT_MODE=real`, a strict HTTPS URL without userinfo/query/fragment, and a numeric LINE channel ID. No value is committed.
+- Native LINE adapter requests only `openid`, injects a CSPRNG nonce, requires matching returned nonce and raw ID token, and exchanges the exact OpenAPI flat body with a CSPRNG attempt ID. Coordinator models pending/cancel/error/unavailable/stale/duplicate outcomes; tests never call LINE.
+- Typed, fail-closed models cover session, Basic person/capabilities, games, own/replied-team attendance, both qualifications, all five attendance values, mutation result and notification outcome. Unknown response fields are tolerated; missing required/nullable-required fields, unknown enum values, non-UTC wire timestamps, and non-Basic accounts fail typed parsing.
+- HTTP transport uses the configured HTTPS base, JSON, explicit 15-second timeout, and redacted contract errors. Access tokens stay in memory. Refresh token, refresh attempt, installation ID, mutation intent, cache index/data, and `logout_pending` use platform secure storage with Android namespace/no backup migration and iOS this-device-only Keychain accessibility.
+- Session refresh is single-flight, preserves an attempt ID across uncertain/lost responses, rotates durable refresh before accepting access, retries one request once after 401, does not refresh on other statuses, clears terminal sessions, and blocks while logout is uncertain.
+- Basic integration implements `/me`, game list/detail, attendance, and attendance mutation with durable idempotency key. Offline mutation makes zero transport calls. A 5xx uncertain mutation GET-reconciles and accepts success only when own reply matches; otherwise the same key remains durable for retry.
+- Versioned cache is partitioned by installation and person, displays fixed persisted last-sync time, and provides offline read-only Basic data. Logout clears its partition.
+- Real composition performs installation bootstrap, cold-start refresh, login/logout, Basic me/games load, and offline-cache fallback. Development still uses the unchanged TASK-105 deterministic fake UI/repositories; no UI duplication was introduced for flavor selection.
+- Android: minSdk 24, main INTERNET permission, backups disabled, no release signing block. Exact LINE 2.7.2 requires AGP 9 Built-in Kotlin and an after-evaluation library compileSdk 35 override because its own script pins 33 while resolved AndroidX metadata requires 34+. App identifier remains reviewed fictional `com.example.ntubtob_fictional_client` pending a separate production decision.
+- iOS: target remains 15; LINE callback scheme uses `line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)` and `lineauth2` query scheme. No channel value, team, profile, or signing material is present.
+
+## Verification
+
+- `flutter pub get`: passed; exact direct versions resolved.
+- `dart format --output=none --set-exit-if-changed .`: passed on clean source tree, `7 files (0 changed)`. An earlier invocation after build encountered a generated Gradle dex path disappearing during directory traversal; build output was removed and the exact gate then passed.
+- `flutter analyze`: passed, no issues.
+- `flutter test`: passed, 35 tests. Coverage includes config fail-closed, strict/forward-compatible DTO parsing, all attendance values, typed replied team/notification, 10-caller single-flight refresh, one 401 retry, lost-response attempt reuse, terminal-refresh logout cleanup, exchange token boundary, offline zero mutation, uncertain reconciliation, partitioned typed cache, auth-state semantics, and all retained TASK-105 tests.
+- `flutter build apk --debug --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake`: passed. Final APK `build/app/outputs/flutter-apk/app-debug.apk`, 163,354,354 bytes, SHA-256 `43194471BB625961E71813518BEA4938F5817FE084F0A5B024490A57FA1E1832`.
+- Merged manifest: INTERNET present; `allowBackup=false`; `fullBackupContent=false`; debug build marked debuggable; no cleartext override. `apksigner verify --print-certs` passed and identified only `CN=Android Debug`. Source/repository review found no release `signingConfig`, keystore, alias, or store file.
+- Secret scan (`api key`, client secret, private key, password, bearer patterns) found only the obvious unit-test string `Bearer new`; no credential value. Runtime URL scan found only XML namespaces/schema documentation. Config scan found names only (`API_BASE_URL`, `LINE_CHANNEL_ID`), no base URL/channel value.
+- `git diff --check`: passed. Cumulative writer-scope/status review performed before staging and commit.
+
+Toolchain: Flutter 3.47.0 stable / Dart 3.13.0, Microsoft OpenJDK 17.0.20+8, TASK-107 Android SDK. Build automatically installed official Android platforms 33 and 35 plus CMake 3.22.1 into `C:\Users\USER\.codex\toolchains\task-107\android-sdk`; existing platform 36 remained. Gradle caches are under `C:\Users\USER\.codex\toolchains\task-107\gradle-home`. Cleanup: remove those specific SDK package directories with `sdkmanager --uninstall` where supported, and stop Gradle then remove the task-107 Gradle cache. A disk-full failure initially corrupted the reproducible Gradle transforms cache; after Owner freed space, that exact cache was stopped/removed and rebuilt successfully.
+
+## Limitations and side effects
+
+- No real LINE/API request, external message, push, database operation, deployment, upload, PR, merge, release signing, or production state change occurred.
+- Android native smoke was a successful fake debug build only; no emulator/hardware was available for interactive login. iOS runtime/build/signing remains gated on macOS/Xcode.
+- Flutter emits a forward-looking warning that `flutter_line_sdk 2.7.2` still uses legacy Kotlin plugin detection. The task requires exact 2.7.2 and the current build passes; a future dependency task should reassess when an approved newer official release exists.
+- The APK/build directory is ignored and is not committed. Official SDK packages and caches listed above are the only external writes.
