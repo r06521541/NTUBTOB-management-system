@@ -3,7 +3,7 @@
 task_type: `work_package`
 delivery_group: `flutter-client-foundation`
 requires_independent_pr: `false`
-狀態：`ready_for_codex`
+狀態：`completed`
 Owner／Main Work 配發日：2026-08-18
 base：`codex/flutter-client-foundation` @ `e7891f6c01ec33ae200e936540d3512edf13e19f`
 
