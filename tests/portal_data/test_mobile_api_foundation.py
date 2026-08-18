@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+SHARED_LIB_ROOT = Path(__file__).resolve().parents[2] / "shared_lib"
+if str(SHARED_LIB_ROOT) not in sys.path:
+    sys.path.insert(0, str(SHARED_LIB_ROOT))
 
 from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
 from shared_module.portal_data.mobile_repository import MobileRepository

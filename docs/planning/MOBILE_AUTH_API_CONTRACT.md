@@ -1,6 +1,6 @@
 # Mobile authentication and API v1 contract
 
-Status: `approved` (Owner, 2026-08-18; TASK-108)  
+Status: `approved` (Owner, 2026-08-18; TASK-108)
 Runtime implementation: none
 
 This document freezes the first mobile contract for later backend and Flutter
