@@ -224,6 +224,7 @@ class Person {
   final AccessLevel accessLevel;
   final List<String> capabilities;
   bool get canReadAttendanceReport =>
+      accessLevel != AccessLevel.basic &&
       capabilities.contains('attendance:report:read');
   Map<String, dynamic> toJson() => {
         'id': id,

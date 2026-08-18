@@ -100,6 +100,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   BasicCache? _cache;
+  PrincipalOfficerReportCache? _reportCache;
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
@@ -122,6 +123,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _line = line;
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
+      _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       if (await _store.read('logout-pending:$installationId') == 'true') {
         setState(() => state = AuthViewState.logoutPending);
@@ -183,6 +185,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final loadedPerson = await _api!.me();
       final loadedGames = await _api!.games();
       final syncedAt = DateTime.now().toUtc();
+      final previous = await _cache!.load();
+      if (previous != null &&
+          (previous.person.id != loadedPerson.id ||
+              previous.person.canReadAttendanceReport &&
+                  !loadedPerson.canReadAttendanceReport)) {
+        await _reportCache!.clearPrincipal(previous.person.id);
+      }
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       if (!mounted) return;
       setState(() {
@@ -198,9 +207,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   Future<void> _showFailure(Object error) async {
     final cached = _cache == null ? null : await _cache!.load();
+    final classified = classifyFailure(error, hasCache: cached != null);
+    if (classified == AuthViewState.sessionExpired && cached != null) {
+      await _reportCache?.clearPrincipal(cached.person.id);
+    }
     if (!mounted) return;
     setState(() {
-      final classified = classifyFailure(error, hasCache: cached != null);
       if (classified == AuthViewState.offline) {
         person = cached!.person;
         games = cached.games;
@@ -214,6 +226,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   Future<void> _logout() async {
     setState(() => state = AuthViewState.logoutPending);
+    if (person case final current?) {
+      await _reportCache?.clearPrincipal(current.id);
+    }
     try {
       await _session!.logout(_line!);
       await _cache!.clear();
@@ -257,7 +272,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                   person: person!,
                   games: games,
                   online: state == AuthViewState.authenticated,
-                  lastSyncedAt: lastSyncedAt!)
+                  lastSyncedAt: lastSyncedAt!,
+                  reportCache: _reportCache)
               : AuthStatePanel(state: state),
           floatingActionButton: _canLogin
               ? FloatingActionButton(
@@ -282,12 +298,14 @@ class BasicGamesView extends StatelessWidget {
     required this.games,
     required this.online,
     required this.lastSyncedAt,
+    this.reportCache,
   });
   final BasicApi api;
   final Person person;
   final List<Game> games;
   final bool online;
   final DateTime lastSyncedAt;
+  final PrincipalOfficerReportCache? reportCache;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -313,6 +331,7 @@ class BasicGamesView extends StatelessWidget {
                 person: person,
                 games: games,
                 online: online,
+                cache: reportCache,
               ),
             )),
           ),
