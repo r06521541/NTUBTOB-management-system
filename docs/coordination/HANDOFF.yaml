@@ -1,18 +1,18 @@
 active_task: TASK-110
-status: ready_for_codex
-next_actor: codex
+status: ready_for_pr
+next_actor: work
 
 base_commit: cd28d60d328844f94d9544aa50965cf77cb2399e
-head_commit: null
+head_commit: 1fbcfff79c870ab6d336cf102f4e425d3ee8ad10
 
 updated_by: work
-updated_at: 2026-08-18T20:15:47+08:00
+updated_at: 2026-08-18T22:15:00+08:00
 
 note: >
-  TASK-109 is merged at cd28d60d328844f94d9544aa50965cf77cb2399e. TASK-110 connects the Flutter Basic client to
-  the canonical mobile API with native LINE adapter, secure session state, offline read-only cache and five-state
-  attendance. No production migration, deployment, Secret, real LINE login, staging traffic, signing or notification is
-  authorized.
+  TASK-110 is accepted by Flutter Domain Work and Main Work at 1fbcfff79c870ab6d336cf102f4e425d3ee8ad10.
+  Native LINE adapter, secure session state, canonical Basic reads, offline read-only cache and five-state attendance
+  await the single final PR and hosted Flutter evidence. No production migration, deployment, Secret, real LINE login,
+  staging traffic, signing or notification is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-110.md
