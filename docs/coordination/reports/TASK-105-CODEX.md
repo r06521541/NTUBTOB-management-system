@@ -13,6 +13,7 @@ development/staging/production 僅是環境顯示名稱；程式未包含 endpoi
 - `flutter --version`、`dart --version`、`adb version`：不可用；`java -version` 顯示 Microsoft OpenJDK 11。
 - `flutter analyze`、`flutter test`：未執行，因 Flutter/Dart SDK 不存在。
 - Review correction：補齊 `NavigationBar.selectedIndex/onDestinationSelected` 與實際頁面切換、未知 route fail-closed、四種 state semantics、typed fixtures、明確 fake API/push interfaces、offline last-sync 顯示，以及安全 platform generation/diff-review gate。
+- Second-level correction：compile-time flavor 缺值／空值／未知值全部 fail closed；bottom navigation 固定 Basic 4 項、Officer/Admin 5 項，額外能力置於集中 policy 控制的管理 hub，Basic 無法看見或解析管理能力，Officer 可進入三項 fictional shell，Admin 繼承並增加系統公告。
 - 測試檔涵蓋 flavor parse/fail-closed、角色繼承與 navigation visibility、light/dark theme、loading/empty/error/offline UI/semantics、last sync/offline read-only、fake push deterministic in-memory behavior。
 - 已完成 TASK-105 writer boundary 內 no-secrets/no-endpoints/no-network 靜態掃描、`git diff --check` 與 `git status --short`。
 

@@ -4,7 +4,13 @@ This directory is a Flutter-local, deterministic preview only. It contains no en
 
 ## Flavors and platform generation
 
-`AppFlavor` is an environment label only (`development`, `staging`, `production`). It does not select resources or credentials. Select it at compile time with `--dart-define=APP_FLAVOR=development`; an unknown value fails closed before the app starts.
+`AppFlavor` is an environment label only (`development`, `staging`, `production`). It does not select resources or credentials. A missing, empty, or unknown value fails closed before the app starts. Launch each explicit local flavor with:
+
+```sh
+flutter run --dart-define=APP_FLAVOR=development
+flutter run --dart-define=APP_FLAVOR=staging
+flutter run --dart-define=APP_FLAVOR=production
+```
 
 Platform runners are intentionally absent because this worktree has no Flutter, Dart, or Android SDK. After the owner installs a compatible Flutter SDK and confirms Android/iOS prerequisites, generate only the runners from this directory with:
 

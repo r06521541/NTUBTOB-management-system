@@ -34,23 +34,31 @@ class CapabilityPolicy {
   const CapabilityPolicy(this.persona);
   final Persona persona;
 
-  static const destinations = <DemoDestination>[
+  static const primaryDestinations = <DemoDestination>[
     DemoDestination('/', '首頁', Icons.home_outlined, Persona.basic),
     DemoDestination('/schedule', '賽程', Icons.event_outlined, Persona.basic),
     DemoDestination('/notifications', '通知', Icons.notifications_outlined, Persona.basic),
     DemoDestination('/account', '帳號', Icons.person_outline, Persona.basic),
+    DemoDestination('/management', '管理', Icons.manage_accounts_outlined, Persona.officer),
+  ];
+
+  static const managementDestinations = <DemoDestination>[
     DemoDestination('/officer/attendance', '出席摘要', Icons.fact_check_outlined, Persona.officer),
     DemoDestination('/officer/personal', '個人通知', Icons.person_pin_outlined, Persona.officer),
     DemoDestination('/officer/broadcast', '通知廣播', Icons.send_outlined, Persona.officer),
     DemoDestination('/admin', '系統公告', Icons.campaign_outlined, Persona.admin),
   ];
 
-  List<DemoDestination> get visibleDestinations => destinations
+  List<DemoDestination> get bottomDestinations => primaryDestinations
+      .where((destination) => persona.index >= destination.minimumPersona.index)
+      .toList(growable: false);
+
+  List<DemoDestination> get visibleManagementDestinations => managementDestinations
       .where((destination) => persona.index >= destination.minimumPersona.index)
       .toList(growable: false);
 
   DemoDestination? destinationFor(String? route) {
-    for (final destination in visibleDestinations) {
+    for (final destination in [...bottomDestinations, ...visibleManagementDestinations]) {
       if (destination.route == route) return destination;
     }
     return null;
@@ -152,11 +160,14 @@ class _DemoShellState extends State<DemoShell> {
   int selectedIndex = 0;
   @override
   Widget build(BuildContext context) {
-    final destinations = CapabilityPolicy(widget.persona).visibleDestinations;
+    final policy = CapabilityPolicy(widget.persona);
+    final destinations = policy.bottomDestinations;
     final selected = destinations[selectedIndex];
     return Scaffold(
       appBar: AppBar(title: Text(selected.label)),
-      body: _DestinationPage(destination: selected),
+      body: selected.route == '/management'
+          ? ManagementHub(policy: policy)
+          : _DestinationPage(destination: selected),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) => setState(() => selectedIndex = index),
@@ -167,6 +178,29 @@ class _DemoShellState extends State<DemoShell> {
       ),
     );
   }
+}
+
+class ManagementHub extends StatelessWidget {
+  const ManagementHub({super.key, required this.policy});
+  final CapabilityPolicy policy;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+        key: const ValueKey('/management'),
+        children: [
+          for (final destination in policy.visibleManagementDestinations)
+            ListTile(
+              leading: Icon(destination.icon),
+              title: Text(destination.label),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: Text(destination.label)),
+                  body: _DestinationPage(destination: destination),
+                ),
+              )),
+            ),
+        ],
+      );
 }
 
 class _DestinationPage extends StatelessWidget {
@@ -180,6 +214,7 @@ class _DestinationPage extends StatelessWidget {
       '/schedule' => DemoFixtures.fictional.schedule.join('、'),
       '/notifications' => DemoFixtures.fictional.notifications.join('、'),
       '/account' => DemoFixtures.fictional.account,
+      '/management' => 'fictional 管理功能入口',
       '/officer/attendance' => DemoFixtures.fictional.officerSummary,
       '/officer/personal' => 'fictional 個人通知預覽',
       '/officer/broadcast' => 'fictional 通知廣播預覽',

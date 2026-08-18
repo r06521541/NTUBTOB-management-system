@@ -7,6 +7,7 @@ void main() {
     expect(FlavorConfig.parse('development').flavor, AppFlavor.development);
     expect(FlavorConfig.parse('staging').flavor, AppFlavor.staging);
     expect(FlavorConfig.parse('production').flavor, AppFlavor.production);
+    expect(() => FlavorConfig.parse(''), throwsArgumentError);
     expect(() => FlavorConfig.parse('unknown'), throwsArgumentError);
   });
 
@@ -21,6 +22,14 @@ void main() {
     expect(admin.destinationFor('/officer/attendance'), isNotNull);
     expect(admin.destinationFor('/admin')?.label, '系統公告');
     expect(admin.destinationFor('/unknown'), isNull);
+    expect(basic.bottomDestinations.length, 4);
+    expect(officer.bottomDestinations.length, 5);
+    expect(admin.bottomDestinations.length, 5);
+    expect(
+      <CapabilityPolicy>[basic, officer, admin]
+          .every((policy) => policy.bottomDestinations.length <= 5),
+      isTrue,
+    );
   });
 
   test('light and dark themes preserve requested brightness', () {
@@ -28,24 +37,59 @@ void main() {
     expect(demoTheme(Brightness.dark).brightness, Brightness.dark);
   });
 
-  testWidgets('navigation switches pages and respects persona visibility', (tester) async {
+  testWidgets('basic navigation switches pages and cannot reach management', (tester) async {
     await tester.pumpWidget(const DemoApp(
       persona: Persona.basic,
       flavor: FlavorConfig(AppFlavor.development),
     ));
     expect(find.text('出席摘要'), findsNothing);
+    expect(find.text('管理'), findsNothing);
     await tester.tap(find.text('賽程'));
     await tester.pump();
     expect(find.byKey(const ValueKey('/schedule')), findsOneWidget);
 
+  });
+
+  testWidgets('officer management hub reaches its three capabilities', (tester) async {
     await tester.pumpWidget(const DemoApp(
-      persona: Persona.admin,
+      persona: Persona.officer,
       flavor: FlavorConfig(AppFlavor.staging),
     ));
+    await tester.tap(find.text('管理'));
+    await tester.pump();
     expect(find.text('出席摘要'), findsOneWidget);
+    expect(find.text('個人通知'), findsOneWidget);
+    expect(find.text('通知廣播'), findsOneWidget);
+    expect(find.text('系統公告'), findsNothing);
+
+    await tester.tap(find.text('出席摘要'));
+    await tester.pumpAndSettle();
+    expect(find.text('本週回覆率 80%'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('個人通知'));
+    await tester.pumpAndSettle();
+    expect(find.text('fictional 個人通知預覽'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('通知廣播'));
+    await tester.pumpAndSettle();
+    expect(find.text('fictional 通知廣播預覽'), findsOneWidget);
+  });
+
+  testWidgets('admin inherits officer hub and reaches announcement', (tester) async {
+    await tester.pumpWidget(const DemoApp(
+      persona: Persona.admin,
+      flavor: FlavorConfig(AppFlavor.production),
+    ));
+    await tester.tap(find.text('管理'));
+    await tester.pump();
+    expect(find.text('出席摘要'), findsOneWidget);
+    expect(find.text('個人通知'), findsOneWidget);
+    expect(find.text('通知廣播'), findsOneWidget);
     expect(find.text('系統公告'), findsOneWidget);
     await tester.tap(find.text('系統公告'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('系統公告預覽'), findsOneWidget);
   });
 
