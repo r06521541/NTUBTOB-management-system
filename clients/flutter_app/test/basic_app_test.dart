@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ntubtob_fictional_client/basic_app.dart';
-import 'package:ntubtob_fictional_client/foundation.dart';
-import 'package:ntubtob_fictional_client/integration.dart';
-import 'package:ntubtob_fictional_client/main.dart' as entrypoint;
+import 'package:ntubtob_portal/basic_app.dart';
+import 'package:ntubtob_portal/foundation.dart';
+import 'package:ntubtob_portal/integration.dart';
+import 'package:ntubtob_portal/main.dart' as entrypoint;
 
 class QueueTransport implements ApiTransport {
   final List<ApiResponse> responses = [];

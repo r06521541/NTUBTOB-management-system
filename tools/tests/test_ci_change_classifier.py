@@ -67,6 +67,15 @@ class ChangeClassifierTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertScopes([path], expected)
 
+    def test_flutter_sources_and_reusable_workflow_select_flutter(self):
+        for path in (
+            "clients/flutter_app/lib/main.dart",
+            "clients/flutter_app/android/app/build.gradle.kts",
+            ".github/workflows/flutter-tests.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertScopes([path], "flutter")
+
     def test_multiple_known_scopes_are_combined(self):
         self.assertScopes(
             [
@@ -200,6 +209,31 @@ class FinalGateTests(unittest.TestCase):
             final_gate_failures(
                 outputs(full=True), dict(successful, portal_data="cancelled")
             )
+        )
+
+    def test_flutter_is_required_when_selected_or_full(self):
+        selected = outputs(flutter=True)
+        self.assertEqual(final_gate_failures(selected, results(flutter="success")), [])
+        for result in ("failure", "cancelled", "skipped"):
+            with self.subTest(selected_result=result):
+                self.assertTrue(final_gate_failures(selected, results(flutter=result)))
+
+        full_results = results(**{scope: "success" for scope in SCOPES})
+        for result in ("failure", "cancelled", "skipped"):
+            with self.subTest(full_result=result):
+                self.assertTrue(
+                    final_gate_failures(
+                        outputs(full=True), dict(full_results, flutter=result)
+                    )
+                )
+
+    def test_non_flutter_scope_legitimately_skips_flutter(self):
+        self.assertEqual(
+            final_gate_failures(
+                outputs(web_portal=True),
+                results(web_portal="success", flutter="skipped"),
+            ),
+            [],
         )
 
     def test_invalid_or_empty_classification_fails(self):

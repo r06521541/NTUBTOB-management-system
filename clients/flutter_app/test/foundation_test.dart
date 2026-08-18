@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ntubtob_fictional_client/foundation.dart';
+import 'package:ntubtob_portal/foundation.dart';
 
 void main() {
   test('flavor parsing accepts only the three local labels', () {

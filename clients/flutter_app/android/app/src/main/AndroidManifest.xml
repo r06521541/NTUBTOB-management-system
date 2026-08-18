@@ -3,7 +3,7 @@
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
-        android:label="ntubtob_fictional_client"
+        android:label="臺大校友比賽報你知"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -1,5 +1,5 @@
-name: ntubtob_fictional_client
-description: Flutter-local fictional foundation for information architecture review.
+name: ntubtob_portal
+description: NTUBTOB mobile portal with an isolated fictional development composition.
 publish_to: none
 version: 0.1.0
 environment:

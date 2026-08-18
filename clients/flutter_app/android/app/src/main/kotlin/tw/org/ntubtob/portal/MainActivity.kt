@@ -1,4 +1,4 @@
-package com.example.ntubtob_fictional_client
+package tw.org.ntubtob.portal
 
 import io.flutter.embedding.android.FlutterActivity
 
