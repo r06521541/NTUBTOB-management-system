@@ -110,6 +110,15 @@ void main() {
         AuthViewState.sessionExpired);
   });
 
+  test('native platform mapping accepts only Android and iOS', () {
+    expect(nativePlatformName(TargetPlatform.android), 'android');
+    expect(nativePlatformName(TargetPlatform.iOS), 'ios');
+    expect(nativePlatformName(TargetPlatform.windows), isNull);
+    expect(nativePlatformName(TargetPlatform.linux), isNull);
+    expect(nativePlatformName(TargetPlatform.macOS), isNull);
+    expect(nativePlatformName(TargetPlatform.fuchsia), isNull);
+  });
+
   testWidgets('Basic-only navigation exposes games and no management',
       (tester) async {
     final transport = QueueTransport();
@@ -144,6 +153,21 @@ void main() {
     await tester.pump();
     expect(find.text('賽事與出席'), findsNothing);
     expect(transport.calls, isEmpty);
+  });
+
+  testWidgets('empty games has recognizable read-state semantics',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026))));
+    final empty = find.byKey(const ValueKey('games-empty'));
+    expect(empty, findsOneWidget);
+    expect(tester.getSemantics(empty).label, contains('目前沒有可顯示的賽事'));
   });
 
   testWidgets('game detail reads attendance and exposes five reply controls',

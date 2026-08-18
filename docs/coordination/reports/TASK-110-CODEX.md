@@ -35,13 +35,21 @@ Repository writes stayed within `clients/flutter_app/**` and this report. Branch
 - `GamePage` types both required `items` and nullable `next_cursor`; Basic loading follows canonical cursors until null and rejects a repeated cursor. No pagination field was invented.
 - Native auth tests cover cancel, stale completion, duplicate completion, provider/exchange states, and canonical `identity_pending`/`account_unavailable` classification. Fake versus real composition and Basic-only navigation are explicitly tested.
 
+### Second review correction
+
+- A replayed request returning a second 401 now clears both memory access and durable refresh/attempt state before throwing typed `SessionExpiredException` (or a non-session canonical `ApiError`). It never issues a third request.
+- Native login has an injectable, production-default 35-second timeout around the entire provider operation, including platform setup/login. Timeout maps to recoverable auth UI, performs no exchange, and never exposes nonce/token data.
+- Native login accepts only canonical `android` or `ios` platform values in both UI mapping and coordinator. Windows/web/desktop/unknown targets fail unavailable before LINE or API calls.
+- An empty canonical games result renders a dedicated icon/message and `目前沒有可顯示的賽事` semantics rather than a blank person-only list.
+- HTTP response stream consumption is covered by the same timeout and maps stream socket/timeout failures to `NetworkException`, preserving consistent offline classification.
+
 ## Verification
 
 - `flutter pub get`: passed; exact direct versions resolved.
 - `dart format --output=none --set-exit-if-changed .`: passed on clean source tree, `7 files (0 changed)`. An earlier invocation after build encountered a generated Gradle dex path disappearing during directory traversal; build output was removed and the exact gate then passed.
 - `flutter analyze`: passed, no issues.
-- `flutter test`: passed, 58 tests. Correction coverage explicitly includes 10 concurrent 401s/one refresh/one replay each, secure-store failure rollback, logout-pending restart, native cancel/stale/duplicate, every auth-state semantic, Basic-only/fake-real composition, offline reply disablement, paged games, game detail/own and replied-team attendance, all five controls, mutation pending/error/uncertain UX, same-key retry, different-reply block, and reconcile mismatch/confirmed paths, plus all retained TASK-105 tests.
-- `flutter build apk --debug --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake`: passed. Final correction APK `build/app/outputs/flutter-apk/app-debug.apk`, 163,370,730 bytes, SHA-256 `CC05F35584A581B7739370DB25D5F0655F4182EA93B4240BC2A57CE0655961CE`.
+- `flutter test`: passed, 64 tests. Correction coverage explicitly includes 10 concurrent 401s/one refresh/one replay each, terminal second-401 session clearing/no third request, secure-store failure rollback, logout-pending restart, native timeout/unsupported-platform zero-call gates, cancel/stale/duplicate, response-stream network classification, every auth-state semantic, explicit empty games semantics, Basic-only/fake-real composition, offline reply disablement, paged games, game detail/own and replied-team attendance, all five controls, mutation pending/error/uncertain UX, same-key retry, different-reply block, and reconcile mismatch/confirmed paths, plus all retained TASK-105 tests.
+- `flutter build apk --debug --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake`: passed. Final second-review APK `build/app/outputs/flutter-apk/app-debug.apk`, 163,372,266 bytes, SHA-256 `1ED5CC7EB1DFBAF74493CA3875EAA6F22C163561E8052A583C569B3A60C5048B`.
 - Merged manifest: INTERNET present; `allowBackup=false`; `fullBackupContent=false`; debug build marked debuggable; no cleartext override. `apksigner verify --print-certs` passed and identified only `CN=Android Debug`. Source/repository review found no release `signingConfig`, keystore, alias, or store file.
 - Secret scan (`api key`, client secret, private key, password, bearer patterns) found only the obvious unit-test string `Bearer new`; no credential value. Runtime URL scan found only XML namespaces/schema documentation. Config scan found names only (`API_BASE_URL`, `LINE_CHANNEL_ID`), no base URL/channel value.
 - `git diff --check`: passed. Cumulative writer-scope/status review performed before staging and commit.

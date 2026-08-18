@@ -412,7 +412,13 @@ class HttpApiTransport implements ApiTransport {
       if (error is ContractException) rethrow;
       throw const NetworkException();
     }
-    final text = await response.stream.bytesToString();
+    late final String text;
+    try {
+      text = await response.stream.bytesToString().timeout(timeout);
+    } on Object catch (error) {
+      if (error is ContractException) rethrow;
+      throw const NetworkException();
+    }
     Object? decoded;
     if (text.isNotEmpty) {
       try {
@@ -521,28 +527,36 @@ enum LoginState {
   cancelled,
   error,
   unavailable,
+  timeout,
   stale,
   duplicate
 }
 
 class LoginCoordinator extends ChangeNotifier {
   LoginCoordinator(
-      this.line, this.api, this.sessions, this.ids, this.installationId);
+      this.line, this.api, this.sessions, this.ids, this.installationId,
+      {this.loginTimeout = const Duration(seconds: 35)});
   final LineLoginPort line;
   final ApiTransport api;
   final SessionController sessions;
   final SecureIds ids;
   final String installationId;
+  final Duration loginTimeout;
   LoginState state = LoginState.idle;
   String? _active;
   final Set<String> _completed = {};
   Future<void> login(String platform) async {
+    if (platform != 'android' && platform != 'ios') {
+      state = LoginState.unavailable;
+      notifyListeners();
+      return;
+    }
     final attempt = ids.next(), nonce = ids.next();
     _active = attempt;
     state = LoginState.providerActive;
     notifyListeners();
     try {
-      final token = await line.login(nonce);
+      final token = await line.login(nonce).timeout(loginTimeout);
       await completeAttemptForTesting(
           attempt: attempt, nonce: nonce, token: token, platform: platform);
     } on PlatformException catch (error) {
@@ -551,6 +565,8 @@ class LoginCoordinator extends ChangeNotifier {
           : LoginState.error;
     } on MissingPluginException {
       state = LoginState.unavailable;
+    } on TimeoutException {
+      state = LoginState.timeout;
     } catch (_) {
       state = LoginState.error;
     } finally {
@@ -655,6 +671,17 @@ class SessionController {
           : await refresh();
       result = await api.send(method, path,
           headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+      if (result.status == 401) {
+        await clear();
+        if (result.body != null) {
+          final error = ApiError.fromJson(result.body!);
+          if (error.code != ApiErrorCode.sessionExpired &&
+              error.code != ApiErrorCode.unauthenticated) {
+            throw error;
+          }
+        }
+        throw const SessionExpiredException();
+      }
     }
     return result;
   }

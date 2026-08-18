@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:ntubtob_fictional_client/integration.dart';
 
 class ScriptedTransport implements ApiTransport {
@@ -29,6 +31,19 @@ class FakeLine implements LineLoginPort {
     calls++;
     if (error != null) throw error!;
     return token;
+  }
+
+  @override
+  Future<void> logout() async {}
+}
+
+class PendingLine implements LineLoginPort {
+  int calls = 0;
+  final Completer<String> completer = Completer<String>();
+  @override
+  Future<String> login(String nonce) {
+    calls++;
+    return completer.future;
   }
 
   @override
@@ -281,6 +296,29 @@ void main() {
     expect(api.calls.last.$3['Authorization'], 'Bearer new');
   });
 
+  test('second 401 clears access and refresh without a third request',
+      () async {
+    final api = ScriptedTransport()
+      ..responses.addAll([
+        const ApiResponse(401, null),
+        ApiResponse(200, {
+          'access_token': 'new',
+          'refresh_token': 'rotated',
+          'session_id': 's',
+          'expires_in': 900
+        }),
+        ApiResponse(401, apiError('session_expired')),
+      ]);
+    final store = MemoryStore();
+    final controller = SessionController(api, store, 'install', SecureIds());
+    await controller.accept(session('old', 'refresh'));
+    await expectLater(controller.authorized('GET', '/me'),
+        throwsA(isA<SessionExpiredException>()));
+    expect(api.calls.map((call) => call.$2), ['/me', '/auth/refresh', '/me']);
+    expect(controller.accessToken, isNull);
+    expect(store.values['refresh:install'], isNull);
+  });
+
   test('10 concurrent 401s share one refresh and replay each request once',
       () async {
     final transport = Concurrent401Transport();
@@ -397,6 +435,48 @@ void main() {
     await cancelled.login('android');
     expect(cancelled.state, LoginState.cancelled);
     expect(api.calls, isEmpty);
+  });
+
+  test('native login timeout is recoverable and performs no exchange',
+      () async {
+    final api = ScriptedTransport();
+    final line = PendingLine();
+    final login = LoginCoordinator(
+        line,
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install',
+        loginTimeout: const Duration(milliseconds: 1));
+    await login.login('android');
+    expect(login.state, LoginState.timeout);
+    expect(line.calls, 1);
+    expect(api.calls, isEmpty);
+  });
+
+  test('unsupported native platform fails closed with zero calls', () async {
+    final api = ScriptedTransport();
+    final line = FakeLine();
+    final login = LoginCoordinator(
+        line,
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install');
+    await login.login('windows');
+    expect(login.state, LoginState.unavailable);
+    expect(line.calls, 0);
+    expect(api.calls, isEmpty);
+  });
+
+  test('response stream timeout remains a NetworkException', () async {
+    final transport = HttpApiTransport(
+        Uri.parse('https://example.invalid'),
+        MockClient.streaming((_, __) async => http.StreamedResponse(
+            Stream<List<int>>.error(TimeoutException('stream timeout')), 200)),
+        timeout: const Duration(milliseconds: 5));
+    await expectLater(
+        transport.send('GET', '/me'), throwsA(isA<NetworkException>()));
   });
 
   test('stale and duplicate native completions never exchange twice', () async {

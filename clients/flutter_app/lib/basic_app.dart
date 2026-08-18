@@ -4,6 +4,12 @@ import 'package:http/http.dart' as http;
 import 'foundation.dart';
 import 'integration.dart';
 
+String? nativePlatformName(TargetPlatform platform) => switch (platform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      _ => null,
+    };
+
 enum AuthViewState {
   booting,
   loggedOut,
@@ -137,6 +143,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   Future<void> _signIn() async {
+    final platform = nativePlatformName(Theme.of(context).platform);
+    if (platform == null) {
+      setState(() => state = AuthViewState.unavailable);
+      return;
+    }
     setState(() => state = AuthViewState.providerActive);
     final login = _login!;
     void update() {
@@ -149,8 +160,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     }
 
     login.addListener(update);
-    await login.login(
-        Theme.of(context).platform == TargetPlatform.iOS ? 'ios' : 'android');
+    await login.login(platform);
     login.removeListener(update);
     if (login.state == LoginState.authenticated) {
       await _loadBasic();
@@ -160,6 +170,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     setState(() => state = switch (login.state) {
           LoginState.cancelled => AuthViewState.cancelled,
           LoginState.unavailable => AuthViewState.unavailable,
+          LoginState.timeout => AuthViewState.recoverableError,
           LoginState.identityPending => AuthViewState.identityPending,
           LoginState.accountUnavailable => AuthViewState.accountUnavailable,
           _ => AuthViewState.contractError,
@@ -289,6 +300,14 @@ class BasicGamesView extends StatelessWidget {
         ListTile(
             title: Text(person.displayName),
             subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
+        if (games.isEmpty)
+          Semantics(
+              key: const ValueKey('games-empty'),
+              label: '目前沒有可顯示的賽事',
+              child: const ListTile(
+                  leading: Icon(Icons.event_busy),
+                  title: Text('目前沒有賽事'),
+                  subtitle: Text('有新賽事時會顯示在這裡。'))),
         for (final game in games)
           ListTile(
               key: ValueKey('game-${game.id}'),
