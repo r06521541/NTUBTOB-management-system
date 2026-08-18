@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: flutter-basic-api-integration
 requires_independent_pr: true
-status: changes_requested
+status: completed
 base_commit: cd28d60d328844f94d9544aa50965cf77cb2399e
 
 ## Goal
