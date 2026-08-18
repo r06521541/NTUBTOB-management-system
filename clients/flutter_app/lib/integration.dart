@@ -114,6 +114,10 @@ class NetworkException implements Exception {
   const NetworkException();
 }
 
+class AuthorizedRequestNetworkException extends NetworkException {
+  const AuthorizedRequestNetworkException();
+}
+
 class SessionExpiredException implements Exception {
   const SessionExpiredException();
 }
@@ -663,14 +667,14 @@ class SessionController {
       Map<String, String> headers = const {}}) async {
     var token = _access ?? await refresh();
     final failedToken = token;
-    var result = await api.send(method, path,
-        headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+    var result = await _sendAuthorizedRequest(method, path, token,
+        headers: headers, body: body);
     if (result.status == 401) {
       token = _access != null && _access != failedToken
           ? _access!
           : await refresh();
-      result = await api.send(method, path,
-          headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+      result = await _sendAuthorizedRequest(method, path, token,
+          headers: headers, body: body);
       if (result.status == 401) {
         await clear();
         if (result.body != null) {
@@ -684,6 +688,18 @@ class SessionController {
       }
     }
     return result;
+  }
+
+  Future<ApiResponse> _sendAuthorizedRequest(
+      String method, String path, String token,
+      {Map<String, dynamic>? body,
+      Map<String, String> headers = const {}}) async {
+    try {
+      return await api.send(method, path,
+          headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+    } on NetworkException {
+      throw const AuthorizedRequestNetworkException();
+    }
   }
 
   Future<void> clear() async {
@@ -809,10 +825,26 @@ class BasicApi {
     }
     await store.write(keyName,
         jsonEncode({'key': key, 'reply': reply.wire, 'uncertain': true}));
-    final r = await session.authorized(
-        'PUT', '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
-        headers: {'Idempotency-Key': key}, body: {'reply': reply.wire});
+    late final ApiResponse r;
+    try {
+      r = await session.authorized(
+          'PUT', '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
+          headers: {'Idempotency-Key': key}, body: {'reply': reply.wire});
+    } on AuthorizedRequestNetworkException {
+      return _reconcileUncertainMutation(gameId, reply, keyName);
+    }
     if (r.status >= 500) {
+      return _reconcileUncertainMutation(gameId, reply, keyName);
+    }
+    if (r.status != 200 || r.body == null) _failure(r, 'mutation');
+    final result = MutationResult.fromJson(r.body!);
+    await store.delete(keyName);
+    return result;
+  }
+
+  Future<MutationResult> _reconcileUncertainMutation(
+      String gameId, AttendanceReply reply, String keyName) async {
+    try {
       final snapshot = await attendance(gameId);
       if (snapshot.ownReply == reply) {
         await store.delete(keyName);
@@ -825,11 +857,11 @@ class BasicApi {
                 NotificationStatus.unknown, 'outcome_unknown'),
             true);
       }
-      throw MutationUncertainException(reply);
+    } on MutationUncertainException {
+      rethrow;
+    } on Object {
+      // No authoritative proof: preserve the logical intent and its key.
     }
-    if (r.status != 200 || r.body == null) _failure(r, 'mutation');
-    final result = MutationResult.fromJson(r.body!);
-    await store.delete(keyName);
-    return result;
+    throw MutationUncertainException(reply);
   }
 }

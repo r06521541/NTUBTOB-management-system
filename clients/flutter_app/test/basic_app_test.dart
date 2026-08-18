@@ -12,11 +12,16 @@ class QueueTransport implements ApiTransport {
   final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
       calls = [];
   Completer<void>? mutationGate;
+  bool networkOnPut = false;
   @override
   Future<ApiResponse> send(String method, String path,
       {Map<String, String> headers = const {},
       Map<String, dynamic>? body}) async {
     calls.add((method, path, headers, body));
+    if (method == 'PUT' && networkOnPut) {
+      networkOnPut = false;
+      throw const NetworkException();
+    }
     if (method == 'PUT' && mutationGate != null) {
       await mutationGate!.future;
     }
@@ -210,6 +215,28 @@ void main() {
     final uncertain = find.byKey(const ValueKey('mutation-uncertain'));
     expect(uncertain, findsOneWidget);
     expect(tester.getSemantics(uncertain).label, contains('回覆結果待確認'));
+  });
+
+  testWidgets('PUT Network ambiguity displays uncertain instead of error',
+      (tester) async {
+    final transport = QueueTransport()
+      ..networkOnPut = true
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+        ApiResponse(200, {'game_id': 'g', 'own_reply': null, 'replied': []}),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reply-attending')));
+    await tester.tap(find.text('送出回覆'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mutation-uncertain')), findsOneWidget);
+    expect(find.byKey(const ValueKey('mutation-error')), findsNothing);
+    expect(
+        transport.calls.map((call) => call.$1), ['GET', 'GET', 'PUT', 'GET']);
   });
 
   testWidgets('mutation pending disables submit then returns ready',

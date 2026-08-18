@@ -43,13 +43,26 @@ Repository writes stayed within `clients/flutter_app/**` and this report. Branch
 - An empty canonical games result renders a dedicated icon/message and `目前沒有可顯示的賽事` semantics rather than a blank person-only list.
 - HTTP response stream consumption is covered by the same timeout and maps stream socket/timeout failures to `NetworkException`, preserving consistent offline classification.
 
+### Main Work transport-ambiguity correction
+
+- A `NetworkException` thrown only after the attendance PUT begins is treated as an uncertain mutation outcome. The client preserves the already-durable logical reply/key and immediately performs the canonical attendance GET.
+- If GET proves `own_reply == desired`, the intent is cleared and the existing unknown-outcome success is returned. A mismatching reply, GET network/timeout failure, auth failure, malformed response, or any other result that cannot prove the desired reply retains the same intent/key and throws `MutationUncertainException`.
+- Explicit PUT HTTP outcomes remain outside this ambiguity path: canonical 403/409/422/auth/contract errors are parsed and surfaced directly without attendance reconciliation. Existing 5xx reconciliation is unchanged and shares the same proof helper.
+- Tests assert `PUT -> GET` ordering and key clear/retention for Network+match, Network+mismatch, and Network+reconcile-Network; a 409 test proves no GET. Widget evidence confirms transport ambiguity renders uncertain UX rather than mutation error.
+
+### Authorized-request source correction
+
+- `SessionController` now converts a `NetworkException` to the dedicated `AuthorizedRequestNetworkException` only around the target authorized `api.send(method, path)` call. Pre-request refresh and refresh after an explicit 401 retain their ordinary recoverable `NetworkException` classification.
+- `BasicApi.reply()` reconciles only the dedicated target-request exception, so it cannot infer that a PUT was attempted when token acquisition failed. No exception-message matching is used.
+- Tests prove that a cold request whose refresh fails makes zero PUT and zero attendance-reconcile calls, and that an explicit PUT 401 followed by refresh-network failure makes no attendance-reconcile call. Both preserve the durable mutation intent without reporting `MutationUncertainException`; all prior post-PUT ambiguity and explicit 4xx coverage remains.
+
 ## Verification
 
 - `flutter pub get`: passed; exact direct versions resolved.
 - `dart format --output=none --set-exit-if-changed .`: passed on clean source tree, `7 files (0 changed)`. An earlier invocation after build encountered a generated Gradle dex path disappearing during directory traversal; build output was removed and the exact gate then passed.
 - `flutter analyze`: passed, no issues.
-- `flutter test`: passed, 64 tests. Correction coverage explicitly includes 10 concurrent 401s/one refresh/one replay each, terminal second-401 session clearing/no third request, secure-store failure rollback, logout-pending restart, native timeout/unsupported-platform zero-call gates, cancel/stale/duplicate, response-stream network classification, every auth-state semantic, explicit empty games semantics, Basic-only/fake-real composition, offline reply disablement, paged games, game detail/own and replied-team attendance, all five controls, mutation pending/error/uncertain UX, same-key retry, different-reply block, and reconcile mismatch/confirmed paths, plus all retained TASK-105 tests.
-- `flutter build apk --debug --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake`: passed. Final second-review APK `build/app/outputs/flutter-apk/app-debug.apk`, 163,372,266 bytes, SHA-256 `1ED5CC7EB1DFBAF74493CA3875EAA6F22C163561E8052A583C569B3A60C5048B`.
+- `flutter test`: passed, 71 tests. Correction coverage explicitly includes 10 concurrent 401s/one refresh/one replay each, terminal second-401 session clearing/no third request, secure-store failure rollback, logout-pending restart, native timeout/unsupported-platform zero-call gates, cancel/stale/duplicate, response-stream network classification, every auth-state semantic, explicit empty games semantics, Basic-only/fake-real composition, offline reply disablement, paged games, game detail/own and replied-team attendance, all five controls, mutation pending/error/uncertain UX, same-key retry, different-reply block, 5xx reconciliation, PUT-Network match/mismatch/reconcile-failure paths, pre-PUT and post-401 refresh-network source isolation, and explicit-error no-reconcile behavior, plus all retained TASK-105 tests.
+- `flutter build apk --debug --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake`: passed. Final source-correction APK `build/app/outputs/flutter-apk/app-debug.apk`, 185,453,774 bytes, SHA-256 `DAB31F19EE69268E84A764EB7C98E13D9EB9DC7BCF7CD361D756F2B220F8A332`.
 - Merged manifest: INTERNET present; `allowBackup=false`; `fullBackupContent=false`; debug build marked debuggable; no cleartext override. `apksigner verify --print-certs` passed and identified only `CN=Android Debug`. Source/repository review found no release `signingConfig`, keystore, alias, or store file.
 - Secret scan (`api key`, client secret, private key, password, bearer patterns) found only the obvious unit-test string `Bearer new`; no credential value. Runtime URL scan found only XML namespaces/schema documentation. Config scan found names only (`API_BASE_URL`, `LINE_CHANNEL_ID`), no base URL/channel value.
 - `git diff --check`: passed. Cumulative writer-scope/status review performed before staging and commit.
