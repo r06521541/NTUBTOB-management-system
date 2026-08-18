@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: flutter-release-identity-ci
 requires_independent_pr: true
-status: ready_for_codex
+status: ready_for_hosted_ci
 base_commit: 4792f529a374baa3f87386a0883a6a82c1ecb048
 
 ## Goal
