@@ -1,7 +1,7 @@
 # Mobile authentication and API v1 contract
 
-Status: `approved` (Owner, 2026-08-18; TASK-108)
-Runtime implementation: none
+Status: `approved` (Owner, 2026-08-18; TASK-108; Officer read extension TASK-114)
+Runtime implementation: `apps/mobile_api/`
 
 This document freezes the first mobile contract for later backend and Flutter
 implementation. It does not authorize schema, Secret, staging, production, or
@@ -16,8 +16,10 @@ external LINE operations.
   `{ "items": [], "next_cursor": null }`.
 - The authenticated principal is an active `Person` reached through a linked
   identity. UI visibility never substitutes for server authorization.
-- Production Admin continues to follow DEC-082. Persisted Officer/Admin access
-  is not enabled globally by this contract.
+- Production Admin continues to follow DEC-082. A fresh persisted `officer` or
+  `admin` Person principal receives only the bounded
+  `attendance:report:read` extension in this API; this does not enable any
+  global management route, production allowlist bypass or mutation.
 
 ## 2. Native LINE exchange
 
@@ -91,9 +93,14 @@ rotating refresh token. These are not LINE provider tokens.
   reply. Limit is bounded by the server.
 - `GET /games/{game_id}`: scoped game detail, caller reply and typed deep-link
   targets; a new application read service must own this projection.
-- `GET /games/{game_id}/attendance`: Basic sees only People who replied;
-  authorized Officer/Admin may receive the bounded fuller projection.
+- `GET /games/{game_id}/attendance`: all roles keep the Basic-safe projection:
+  own reply plus only People who replied.
 - `GET /games/{game_id}/attendance-report`: Officer/Admin capability only.
+  The server checks the capability before Game lookup, then requires that the
+  Game is visible to the active Person before reading the bounded report.
+  Basic receives 403 without resource lookup; missing, cancelled and otherwise
+  invisible Games return the same 404. Query bounds are `history_limit` in
+  `5|8|12|20` and `minimum_response_rate` in `0..100` by tens.
 
 The backend needs a Person-based current-reply helper. Existing team summaries
 cannot provide caller readback because their projection may omit guest reply 5.

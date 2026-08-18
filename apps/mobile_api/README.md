@@ -1,6 +1,7 @@
 # Mobile API
 
-Independent Flask/Cloud Run deployment unit for the Basic-only native API.
+Independent Flask/Cloud Run deployment unit for the native API. Basic access
+remains isolated; Officer/Admin receive only explicitly projected bounded reads.
 The canonical machine-readable contract is `openapi.json`.
 
 The runtime is fail closed unless PostgreSQL reports exact revision

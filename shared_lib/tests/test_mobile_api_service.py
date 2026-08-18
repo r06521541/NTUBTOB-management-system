@@ -10,8 +10,11 @@ from shared_module.mobile_api import (
     HmacAccessTokenCodec,
     MobileAuthService,
     MobilePrincipal,
+    NotFound,
+    PermissionDenied,
     TokenPair,
     VerifiedAssertion,
+    mobile_capabilities,
     secret_hash,
 )
 
@@ -145,8 +148,103 @@ class MobileAuthServiceTest(unittest.TestCase):
         self.assertEqual(values["successor_hash"], secret_hash("refresh-one"))
         self.assertNotIn("raw-refresh", values.values())
 
+    def test_authenticate_rejects_inactive_or_unlinked_fresh_principal(self):
+        access, _expires = self.service.token_codec.issue(self.repository.device, NOW)
+        self.repository.device = None
+        with self.assertRaises(AuthenticationError):
+            self.service.authenticate(access)
+
+    def test_authenticate_projects_request_time_access_downgrade(self):
+        access, _expires = self.service.token_codec.issue(self.repository.device, NOW)
+        self.repository.device = MobilePrincipal(
+            "session", 23, 7, "basic", "Fresh Basic", 1
+        )
+        principal = self.service.authenticate(access)
+        self.assertEqual(principal.access_level, "basic")
+        self.assertNotIn("attendance:report:read", mobile_capabilities(principal))
+
 
 class BasicApiServiceTest(unittest.TestCase):
+    def test_capabilities_are_projected_from_fresh_access_level(self):
+        basic = MobilePrincipal("s", 1, 2, "basic", "Basic", 1)
+        officer = MobilePrincipal("s", 1, 2, "officer", "Officer", 1)
+        admin = MobilePrincipal("s", 1, 2, "admin", "Admin", 1)
+        self.assertEqual(
+            mobile_capabilities(basic),
+            ("games:read", "attendance:reply:self"),
+        )
+        for principal in (officer, admin):
+            self.assertIn("attendance:report:read", mobile_capabilities(principal))
+
+    def test_attendance_report_is_scoped_private_and_stably_ordered(self):
+        repository = FakeAuthRepository()
+        repository.device = MobilePrincipal("session", 23, 7, "officer", "Officer", 1)
+        report = {
+            "game_id": 44,
+            "generated_at": NOW,
+            "history_games": 8,
+            "history_limit": 12,
+            "minimum_rate": 60,
+            "attending": (
+                {"person_id": 3, "name": "Zulu", "reply": 1, "member_id": 99},
+                {"person_id": 2, "name": "Alpha", "reply": 3, "admin_note": "x"},
+            ),
+            "not_attending": ({"person_id": 4, "name": "Beta", "reply": 2},),
+            "unanswered": (
+                {
+                    "person_id": 5,
+                    "name": "Gamma",
+                    "reply": None,
+                    "replied": 7,
+                    "total": 8,
+                    "rate": 88,
+                    "participation_rate": 63,
+                    "nonparticipation_rate": 25,
+                    "provider_subject": "private",
+                },
+            ),
+        }
+        data = SimpleNamespace(
+            scoped_game=Mock(return_value={"id": 44, "start_at": NOW}),
+            game_attendance_report=Mock(return_value=report),
+        )
+        attendance = Mock()
+        service = BasicApiService(data, attendance, repository, clock=lambda: NOW)
+        result = service.attendance_report(repository.device, 44)
+        self.assertEqual(
+            [item["display_name"] for item in result["attending"]],
+            ["Alpha", "Zulu"],
+        )
+        self.assertEqual(result["observation"]["history_games"], 8)
+        self.assertNotIn("member_id", str(result))
+        self.assertNotIn("admin_note", str(result))
+        self.assertNotIn("provider_subject", str(result))
+        data.scoped_game.assert_called_once()
+        data.game_attendance_report.assert_called_once_with(
+            44, at=NOW, history_limit=12, minimum_rate=60
+        )
+        attendance.assert_not_called()
+
+    def test_basic_is_denied_before_game_or_report_lookup(self):
+        repository = FakeAuthRepository()
+        data = SimpleNamespace(scoped_game=Mock(), game_attendance_report=Mock())
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+        with self.assertRaises(PermissionDenied):
+            service.attendance_report(repository.device, 44)
+        data.scoped_game.assert_not_called()
+        data.game_attendance_report.assert_not_called()
+
+    def test_invisible_game_is_not_found_before_report_lookup(self):
+        repository = FakeAuthRepository()
+        repository.device = MobilePrincipal("session", 23, 7, "officer", "Officer", 1)
+        data = SimpleNamespace(
+            scoped_game=Mock(return_value=None), game_attendance_report=Mock()
+        )
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+        with self.assertRaises(NotFound):
+            service.attendance_report(repository.device, 44)
+        data.game_attendance_report.assert_not_called()
+
     def test_games_pagination_and_basic_attendance_projection_are_bounded(self):
         repository = FakeAuthRepository()
         games = tuple(

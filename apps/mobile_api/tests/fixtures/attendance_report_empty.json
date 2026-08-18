@@ -1,0 +1,12 @@
+{
+  "attending": [],
+  "game_id": "game_44",
+  "generated_at": "2026-08-18T12:00:00Z",
+  "not_attending": [],
+  "not_yet_replied": [],
+  "observation": {
+    "history_games": 8,
+    "history_limit": 12,
+    "minimum_response_rate": 60
+  }
+}
