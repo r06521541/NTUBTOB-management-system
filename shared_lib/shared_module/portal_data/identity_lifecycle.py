@@ -2476,3 +2476,148 @@ class IdentityLifecycleRepository:
                     tuple(participants), len(team_ids), replied_team
                 )
             return summaries
+
+    def resolve_principal(
+        self, provider: str, provider_subject: str, at: datetime | None = None
+    ) -> Principal | None:
+        """Resolve an active linked identity without coupling native clients to LINE."""
+        if provider not in {"line", "google", "apple"} or not provider_subject:
+            return None
+        now = at or utc_now()
+        with Session(self.engine) as session:
+            identity = session.scalar(
+                select(AuthIdentityRecord).where(
+                    AuthIdentityRecord.provider == provider,
+                    AuthIdentityRecord.provider_subject == provider_subject,
+                    AuthIdentityRecord.status == "linked",
+                )
+            )
+            if identity is None or identity.person_id is None:
+                return None
+            person_row = session.get(PersonRecord, identity.person_id)
+            if person_row is None or person_row.portal_status != "active":
+                return None
+            member = session.scalar(
+                select(LegacyMemberRecord).where(
+                    LegacyMemberRecord.person_id == person_row.id
+                )
+            )
+            qualifications = session.scalars(
+                select(PersonQualificationRecord).where(
+                    PersonQualificationRecord.person_id == person_row.id
+                )
+            ).all()
+            active = frozenset(
+                item.qualification
+                for item in qualifications
+                if is_qualification_active(
+                    item.status, item.valid_from, item.valid_until, now
+                )
+            )
+            return Principal(
+                self._person(person_row, member), self._identity(identity), active
+            )
+
+    def resolve_principal_by_ids(
+        self, identity_id: int, person_id: int, at: datetime | None = None
+    ) -> Principal | None:
+        """Revalidate the signed session tuple against fresh lifecycle state."""
+        now = at or utc_now()
+        with Session(self.engine) as session:
+            identity = session.get(AuthIdentityRecord, identity_id)
+            person_row = session.get(PersonRecord, person_id)
+            if (
+                identity is None
+                or identity.status != "linked"
+                or identity.person_id != person_id
+                or person_row is None
+                or person_row.portal_status != "active"
+            ):
+                return None
+            member = session.scalar(
+                select(LegacyMemberRecord).where(
+                    LegacyMemberRecord.person_id == person_id
+                )
+            )
+            qualifications = session.scalars(
+                select(PersonQualificationRecord).where(
+                    PersonQualificationRecord.person_id == person_id
+                )
+            ).all()
+            return Principal(
+                self._person(person_row, member),
+                self._identity(identity),
+                frozenset(
+                    item.qualification
+                    for item in qualifications
+                    if is_qualification_active(
+                        item.status, item.valid_from, item.valid_until, now
+                    )
+                ),
+            )
+
+    def scoped_games(
+        self, person_id: int, at: datetime | None = None
+    ) -> tuple[dict, ...]:
+        """Return invited, open future Games visible to an active Basic principal."""
+        now = at or utc_now()
+        with Session(self.engine) as session:
+            person = session.get(PersonRecord, person_id)
+            if person is None or person.portal_status != "active":
+                raise AuthorizationError("active person required")
+            games = session.scalars(
+                select(LegacyGameRecord)
+                .where(
+                    LegacyGameRecord.start_datetime > now,
+                    LegacyGameRecord.invitation_time.is_not(None),
+                    LegacyGameRecord.cancellation_time.is_(None),
+                )
+                .order_by(LegacyGameRecord.start_datetime, LegacyGameRecord.id)
+            ).all()
+            return tuple(self._mobile_game_projection(game) for game in games)
+
+    def scoped_game(
+        self, person_id: int, game_id: int, at: datetime | None = None
+    ) -> dict | None:
+        return next(
+            (
+                game
+                for game in self.scoped_games(person_id, at)
+                if game["id"] == game_id
+            ),
+            None,
+        )
+
+    def own_attendance_reply(self, person_id: int, game_id: int) -> int | None:
+        """Return only the requesting Person's latest reply, including value 5."""
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(LegacyGameAttendanceReplyRecord)
+                .outerjoin(
+                    LegacyMemberRecord,
+                    LegacyMemberRecord.id == LegacyGameAttendanceReplyRecord.member_id,
+                )
+                .where(
+                    LegacyGameAttendanceReplyRecord.game_id == game_id,
+                    or_(
+                        LegacyGameAttendanceReplyRecord.person_id == person_id,
+                        LegacyMemberRecord.person_id == person_id,
+                    ),
+                )
+                .order_by(
+                    LegacyGameAttendanceReplyRecord.updated_at.desc(),
+                    LegacyGameAttendanceReplyRecord.id.desc(),
+                )
+            )
+            return None if row is None else row.reply
+
+    @staticmethod
+    def _mobile_game_projection(game: LegacyGameRecord) -> dict:
+        return {
+            "id": game.id,
+            "start_at": game.start_datetime,
+            "duration_minutes": game.duration,
+            "location": game.location,
+            "home_team": game.home_team,
+            "away_team": game.away_team,
+        }

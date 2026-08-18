@@ -33,7 +33,9 @@ class ExactTwoActivationPostgresTests(unittest.TestCase):
 
     def setUp(self):
         setup_legacy_fixture()
-        command.upgrade(Config("alembic.ini"), "head")
+        config = Config("alembic.ini")
+        command.upgrade(config, "head")
+        command.downgrade(config, "0004_phase_c_identity_lifecycle")
         with self.engine.begin() as connection:
             connection.execute(
                 text(

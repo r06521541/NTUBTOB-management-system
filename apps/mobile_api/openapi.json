@@ -1,0 +1,80 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NTUBTOB Mobile Basic API",
+    "version": "1.0.0",
+    "description": "Canonical Basic-only native contract. Tokens, provider assertions, nonces, idempotency keys and secrets are redacted from logs and error responses."
+  },
+  "servers": [{"url": "/api/v1"}],
+  "security": [{"bearerAuth": []}],
+  "paths": {
+    "/auth/line/exchange": {
+      "post": {
+        "security": [],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/LineExchangeRequest"}}}},
+        "responses": {"201": {"description": "Device session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionEnvelope"}}}}, "403": {"$ref": "#/components/responses/IdentityUnavailable"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "429": {"$ref": "#/components/responses/RateLimited"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "security": [],
+        "parameters": [{"$ref": "#/components/parameters/RefreshAttemptId"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RefreshRequest"}}}},
+        "responses": {"200": {"description": "Rotated session envelope; same attempt and request replays exactly for 300 seconds", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionEnvelope"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
+    "/auth/logout": {
+      "post": {"responses": {"204": {"description": "Current device session revoked idempotently"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "503": {"$ref": "#/components/responses/Unavailable"}}}
+    },
+    "/me": {
+      "get": {"responses": {"200": {"description": "Active Person and server-computed Basic capabilities", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Person"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "503": {"$ref": "#/components/responses/Unavailable"}}}
+    },
+    "/games": {
+      "get": {
+        "parameters": [{"name": "cursor", "in": "query", "schema": {"type": ["string", "null"], "maxLength": 256}, "description": "Opaque cursor; null starts at earliest start_at, id ascending."}, {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}}],
+        "responses": {"200": {"description": "Scoped future invited games", "content": {"application/json": {"schema": {"type": "object", "required": ["items", "next_cursor"], "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/Game"}}, "next_cursor": {"type": ["string", "null"]}}}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "503": {"$ref": "#/components/responses/Unavailable"}}}
+    },
+    "/games/{game_id}": {
+      "get": {"parameters": [{"$ref": "#/components/parameters/GameId"}], "responses": {"200": {"description": "Scoped game detail", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Game"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "503": {"$ref": "#/components/responses/Unavailable"}}}
+    },
+    "/games/{game_id}/attendance": {
+      "get": {"parameters": [{"$ref": "#/components/parameters/GameId"}], "responses": {"200": {"description": "Own reply plus only People who replied; no unreplied roster, provider subject, contact, admin note or audit data", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AttendanceRead"}, "examples": {"basic": {"value": {"game_id": "game_44", "own_reply": "undecided", "replied": [{"person_id": "person_23", "display_name": "測試球員", "reply": "attending", "qualification": "team_player"}]}}}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "503": {"$ref": "#/components/responses/Unavailable"}}}
+    },
+    "/games/{game_id}/attendance-reply": {
+      "put": {
+        "parameters": [{"$ref": "#/components/parameters/GameId"}, {"$ref": "#/components/parameters/IdempotencyKey"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["reply"], "properties": {"reply": {"$ref": "#/components/schemas/AttendanceReply"}}}}}},
+        "responses": {"200": {"description": "Durable result. changed=false never notifies. notification.status=failed still means attendance was saved; reconcile with GET attendance. expected_version is intentionally absent.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AttendanceMutation"}, "examples": {"notificationPartialFailure": {"value": {"game_id": "game_44", "reply": "arriving_late", "changed": true, "updated_at": "2026-08-18T10:00:00Z", "notification": {"status": "failed", "code": "attendance_notification_failed"}, "idempotent_replay": false}}}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "404": {"$ref": "#/components/responses/NotFound"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "429": {"$ref": "#/components/responses/RateLimited"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "short-lived app access token", "description": "Authorization header only; never cookie/query. Access TTL 900 seconds and maximum token length 4096 bytes."}},
+    "parameters": {
+      "GameId": {"name": "game_id", "in": "path", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 64}, "description": "Opaque server ID."},
+      "RefreshAttemptId": {"name": "Refresh-Attempt-ID", "in": "header", "required": true, "schema": {"type": "string", "minLength": 16, "maxLength": 200}, "description": "One ID per refresh attempt; exact replay grace 300 seconds; persisted only as a hash."},
+      "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "minLength": 16, "maxLength": 200}, "description": "One key per confirmed logical mutation; terminal result retention 86400 seconds; persisted only as a hash."}
+    },
+    "schemas": {
+      "AttendanceReply": {"type": "string", "enum": ["attending", "not_attending", "arriving_late", "leaving_early", "undecided"]},
+      "LineExchangeRequest": {"type": "object", "additionalProperties": false, "required": ["id_token", "nonce", "login_attempt_id", "installation_id", "platform"], "properties": {"id_token": {"type": "string", "minLength": 1, "maxLength": 2048, "writeOnly": true}, "nonce": {"type": "string", "minLength": 16, "maxLength": 200, "writeOnly": true}, "login_attempt_id": {"type": "string", "minLength": 16, "maxLength": 200}, "installation_id": {"type": "string", "minLength": 16, "maxLength": 200}, "platform": {"type": "string", "enum": ["ios", "android"]}}},
+      "RefreshRequest": {"type": "object", "additionalProperties": false, "required": ["refresh_token", "installation_id"], "properties": {"refresh_token": {"type": "string", "minLength": 32, "maxLength": 2048, "writeOnly": true}, "installation_id": {"type": "string", "minLength": 16, "maxLength": 200}}},
+      "SessionEnvelope": {"type": "object", "additionalProperties": false, "required": ["access_token", "refresh_token", "session_id", "expires_in"], "properties": {"access_token": {"type": "string", "writeOnly": true}, "refresh_token": {"type": "string", "writeOnly": true}, "session_id": {"type": "string", "maxLength": 64}, "expires_in": {"type": "integer", "const": 900}}},
+      "Person": {"type": "object", "additionalProperties": false, "required": ["id", "display_name", "access_level", "capabilities"], "properties": {"id": {"type": "string", "maxLength": 64}, "display_name": {"type": "string", "maxLength": 120}, "access_level": {"type": "string", "const": "basic"}, "capabilities": {"type": "array", "items": {"type": "string", "enum": ["games:read", "attendance:reply:self"]}}}},
+      "Game": {"type": "object", "additionalProperties": false, "required": ["id", "start_at", "duration_minutes", "location", "home_team", "away_team"], "properties": {"id": {"type": "string", "maxLength": 64}, "start_at": {"type": "string", "format": "date-time", "description": "RFC3339 UTC on the wire."}, "duration_minutes": {"type": ["integer", "null"]}, "location": {"type": ["string", "null"], "maxLength": 300}, "home_team": {"type": ["string", "null"], "maxLength": 200}, "away_team": {"type": ["string", "null"], "maxLength": 200}}},
+      "AttendanceRead": {"type": "object", "additionalProperties": false, "required": ["game_id", "own_reply", "replied"], "properties": {"game_id": {"type": "string"}, "own_reply": {"anyOf": [{"$ref": "#/components/schemas/AttendanceReply"}, {"type": "null"}]}, "replied": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["person_id", "display_name", "reply", "qualification"], "properties": {"person_id": {"type": "string"}, "display_name": {"type": "string", "maxLength": 120}, "reply": {"$ref": "#/components/schemas/AttendanceReply"}, "qualification": {"type": "string", "enum": ["team_player", "guest_player"]}}}}}},
+      "AttendanceMutation": {"type": "object", "additionalProperties": false, "required": ["game_id", "reply", "changed", "updated_at", "notification", "idempotent_replay"], "properties": {"game_id": {"type": "string"}, "reply": {"$ref": "#/components/schemas/AttendanceReply"}, "changed": {"type": "boolean"}, "updated_at": {"type": "string", "format": "date-time"}, "notification": {"type": "object", "additionalProperties": false, "required": ["status", "code"], "properties": {"status": {"type": "string", "enum": ["not_required", "succeeded", "failed"]}, "code": {"type": ["string", "null"], "enum": ["attendance_notification_failed", null]}}}, "idempotent_replay": {"type": "boolean"}}},
+      "Error": {"type": "object", "additionalProperties": false, "required": ["error"], "properties": {"error": {"type": "object", "additionalProperties": false, "required": ["code", "message", "request_id", "retryable", "retry_after_seconds", "field_errors"], "properties": {"code": {"type": "string", "enum": ["malformed_request", "unauthenticated", "session_expired", "identity_pending", "account_unavailable", "forbidden", "resource_not_found", "idempotency_conflict", "state_conflict", "validation_failed", "rate_limited", "service_unavailable", "server_error"]}, "message": {"type": "string", "maxLength": 300}, "request_id": {"type": "string", "maxLength": 100}, "retryable": {"type": "boolean"}, "retry_after_seconds": {"type": ["integer", "null"], "minimum": 0}, "field_errors": {"type": "array", "maxItems": 20, "items": {"type": "object"}}}}}}
+    },
+    "responses": {
+      "Unauthenticated": {"description": "Invalid or expired app session", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "IdentityUnavailable": {"description": "identity_pending or account_unavailable; no session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Forbidden": {"description": "Active session lacks capability", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "NotFound": {"description": "Scoped resource missing without existence leakage", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Conflict": {"description": "idempotency_conflict or state_conflict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Validation": {"description": "validation_failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "RateLimited": {"description": "rate_limited with Retry-After", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "Unavailable": {"description": "service_unavailable; safe to retry only when retryable=true", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+    }
+  }
+}
