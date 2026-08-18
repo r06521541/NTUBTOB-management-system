@@ -27,6 +27,11 @@ from linebot.v3.webhooks import (
     TextMessageContent,
     UnfollowEvent,
 )
+from shared_module.attendance_reply import (
+    AttendanceReplyCommand,
+    AttendanceReplyNotification,
+    AttendanceReplyService,
+)
 from shared_module.message_templates.general_message import reply_text_mapping
 from shared_module.message_templates.linebot_game_message import (
     produce_invitation_messages_by_games,
@@ -62,6 +67,10 @@ def notify_alarm_log(message: str):
 
 def notify_management_message(message: str):
     discord_notify_helper.notify_management_message(message)
+
+
+def notify_attendance_reply(notification: AttendanceReplyNotification):
+    notify_management_message(notification.management_message())
 
 
 def handle_event(body: str, signature: str):
@@ -291,16 +300,27 @@ def handle_postback_reply_game_attendance(query: str):
             return
         game_verbal_summary = game.generate_verbal_summary_for_team()
         try:
-            changed = repository.reply_to_game(
-                principal.person.id,
-                game_id,
-                reply,
-                g.user.id if g.user is not None else None,
+            result = AttendanceReplyService(
+                repository,
+                notify_attendance_reply,
+            ).reply(
+                AttendanceReplyCommand(
+                    person_id=principal.person.id,
+                    game_id=game_id,
+                    reply=reply,
+                    game_start=game.start_datetime,
+                    notification=AttendanceReplyNotification(
+                        game_summary=game_verbal_summary,
+                        person_name=principal.person.preferred_name(),
+                        reply_label=reply_text_mapping[reply],
+                    ),
+                    user_id=g.user.id if g.user is not None else None,
+                )
             )
         except (AuthorizationError, ConflictError, ValidationError):
             add_text_message_to_reply(message_templates_user.not_authenticated)
             return
-        if not changed:
+        if not result.changed:
             add_text_message_to_reply(
                 message_templates_user.game_same_reply.format(
                     game_verbal_summary=game_verbal_summary
@@ -313,14 +333,6 @@ def handle_postback_reply_game_attendance(query: str):
                 reply=reply_text_mapping[reply],
             )
         )
-        if datetime.now(timezone.utc) > game.start_datetime - timedelta(hours=12):
-            notify_management_message(
-                message_templates_management.member_rush_reply_attendance.format(
-                    game_short_summary=game_verbal_summary,
-                    member=principal.person.preferred_name(),
-                    reply=reply_text_mapping[reply],
-                )
-            )
         return
 
     member_id = g.user.member_id

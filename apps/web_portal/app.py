@@ -95,6 +95,11 @@ logger = logging.getLogger(__name__)
 
 if not DEMO_MODE_ENABLED:
     import shared_module.attendance_analyzer as attendance_analyzer
+    from shared_module.attendance_reply import (
+        AttendanceReplyCommand,
+        AttendanceReplyNotification,
+        AttendanceReplyService,
+    )
     from shared_module.message_templates.general_message import reply_text_mapping
     from shared_module.models.ballparks import Ballpark
     from shared_module.models.game_attendance_replies import GameAttendanceReply
@@ -467,6 +472,10 @@ def notify_alarm_log(message: str):
 
 def notify_management_message(message: str):
     discord_notify_helper.notify_management_message(message)
+
+
+def notify_attendance_reply(notification):
+    notify_management_message(notification.management_message())
 
 
 def log_login_callback_destination(return_path):
@@ -940,8 +949,38 @@ def reply_to_game(game_id):
         abort(404)
     if repository is None or not isinstance(person_id, int):
         return "Identity service is temporarily unavailable", 503
+    cached = getattr(g, "portal_lifecycle_context", None)
+    lifecycle_principal = cached[1] if cached is not None else None
+    member = (
+        lifecycle_principal.person
+        if lifecycle_principal is not None
+        else Member.search_by_id(session.get("member_id"))
+    )
+    if member is None:
+        return "Identity service is temporarily unavailable", 503
+    person_name = (
+        lifecycle_principal.person.preferred_name()
+        if lifecycle_principal is not None
+        else member.name
+    )
     try:
-        repository.reply_to_game(person_id, game_id, reply)
+        AttendanceReplyService(
+            repository,
+            notify_attendance_reply,
+            logger=app.logger,
+        ).reply(
+            AttendanceReplyCommand(
+                person_id=person_id,
+                game_id=game_id,
+                reply=reply,
+                game_start=game.start_datetime,
+                notification=AttendanceReplyNotification(
+                    game_summary=game.generate_short_summary_for_team(),
+                    person_name=person_name,
+                    reply_label=reply_text_mapping[reply],
+                ),
+            )
+        )
     except Exception:
         return "Attendance reply could not be saved", 409
     return redirect(url_for("game_detail", game_id=game_id))
