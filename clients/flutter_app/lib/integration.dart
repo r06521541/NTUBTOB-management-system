@@ -114,6 +114,10 @@ class NetworkException implements Exception {
   const NetworkException();
 }
 
+class AuthorizedRequestNetworkException extends NetworkException {
+  const AuthorizedRequestNetworkException();
+}
+
 class SessionExpiredException implements Exception {
   const SessionExpiredException();
 }
@@ -663,14 +667,14 @@ class SessionController {
       Map<String, String> headers = const {}}) async {
     var token = _access ?? await refresh();
     final failedToken = token;
-    var result = await api.send(method, path,
-        headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+    var result = await _sendAuthorizedRequest(method, path, token,
+        headers: headers, body: body);
     if (result.status == 401) {
       token = _access != null && _access != failedToken
           ? _access!
           : await refresh();
-      result = await api.send(method, path,
-          headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+      result = await _sendAuthorizedRequest(method, path, token,
+          headers: headers, body: body);
       if (result.status == 401) {
         await clear();
         if (result.body != null) {
@@ -684,6 +688,18 @@ class SessionController {
       }
     }
     return result;
+  }
+
+  Future<ApiResponse> _sendAuthorizedRequest(
+      String method, String path, String token,
+      {Map<String, dynamic>? body,
+      Map<String, String> headers = const {}}) async {
+    try {
+      return await api.send(method, path,
+          headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+    } on NetworkException {
+      throw const AuthorizedRequestNetworkException();
+    }
   }
 
   Future<void> clear() async {
@@ -814,7 +830,7 @@ class BasicApi {
       r = await session.authorized(
           'PUT', '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
           headers: {'Idempotency-Key': key}, body: {'reply': reply.wire});
-    } on NetworkException {
+    } on AuthorizedRequestNetworkException {
       return _reconcileUncertainMutation(gameId, reply, keyName);
     }
     if (r.status >= 500) {

@@ -576,6 +576,41 @@ void main() {
     expect(store.values['mutation:install:g'], isNull);
   });
 
+  test('pre-PUT refresh Network does not reconcile as mutation uncertain',
+      () async {
+    final transport = NetworkScriptTransport([const NetworkException()]);
+    final store = MemoryStore()
+      ..values['refresh:install'] = 'refresh-token-with-at-least-32-characters';
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await expectLater(
+        BasicApi(sessions, store, 'install', SecureIds())
+            .reply('g', AttendanceReply.attending, online: true),
+        throwsA(isA<NetworkException>()));
+    expect(transport.calls.map((call) => (call.$1, call.$2)),
+        [('POST', '/auth/refresh')]);
+    expect(store.values['mutation:install:g'], contains('attending'));
+  });
+
+  test('PUT 401 then refresh Network does not attendance reconcile', () async {
+    final transport = NetworkScriptTransport(
+        [const ApiResponse(401, null), const NetworkException()]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(
+        session('old-access', 'refresh-token-with-at-least-32-characters'));
+    await expectLater(
+        BasicApi(sessions, store, 'install', SecureIds())
+            .reply('g', AttendanceReply.attending, online: true),
+        throwsA(isA<NetworkException>()));
+    expect(transport.calls.map((call) => (call.$1, call.$2)), [
+      ('PUT', '/games/g/attendance-reply'),
+      ('POST', '/auth/refresh'),
+    ]);
+    expect(store.values['mutation:install:g'], contains('attending'));
+  });
+
   test('PUT Network reconcile mismatch retains same intent and key', () async {
     final transport = NetworkScriptTransport([
       const NetworkException(),
