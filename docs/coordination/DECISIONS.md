@@ -195,9 +195,59 @@
 - Non-goals：不要求領域內每個 UI／元件／測試小步驟逐次請示，也不允許 Domain Work 各自建立互相競爭的全域治理
   來源或編號空間。
 
+## DEC-092：Flutter client 的 source-of-truth 與環境邊界
+
+- 狀態：`active_planning`
+- 生效：2026-08-18
+- 來源：TASK-104、`docs/planning/FLUTTER_CLIENT_PLAN.md` 第 1、8、9 節；Owner Flutter planning session
+- Supersedes：無
+- 決策：Flutter 第一階段以 Android／iOS 手機 App、staging flavor 與版本化 mobile API 為規劃 source-of-truth；fictional demo、staging 與 production 必須分離。
+- Invariants：規劃文件不授權 production、schema、Secret、IAM、cloud resource、正式通知或商店發布；production promotion 仍依 DEC-078 精確批准。
+- Non-goals：不讓 App 內切換 production、不同環境混用資料，或以 demo role 推導 production authorization。
+
+## DEC-093：Mobile authentication 使用 Person 與 server-owned session
+
+- 狀態：`active_planning`
+- 生效：2026-08-18
+- 來源：TASK-104、`FLUTTER_CLIENT_PLAN.md` 第 2、4 節；Owner Flutter planning session
+- Supersedes：無；引用 DEC-079、DEC-080、DEC-084
+- 決策：Flutter 使用原生 LINE Login 與後端 authorization-code exchange；client 使用短期 access token 與受安全儲存及 rotation 保護的 refresh token，登入主體是 Person，不建立 Flutter-local Member。
+- Invariants：不把 provider secret 放入 App；不以姓名、頭貼或 email 自動合併 identity；所有 role／capability 由 server enforce。正式 mobile auth contract 必須保護 PKCE、state、nonce、redirect binding，且 authorization code 必須 single-use 並具明確 expiry。
+- Non-goals：Google／Apple OAuth、account linking、recovery 與正式 mobile token contract 尚未因本決策實作或啟用。
+
+## DEC-094：Mobile API 與 attendance business rule 由 server 擁有
+
+- 狀態：`active_planning`
+- 生效：2026-08-18
+- 來源：TASK-104、`FLUTTER_CLIENT_PLAN.md` 第 5 節；Owner Flutter planning session
+- Supersedes：無；引用 DEC-085
+- 決策：Flutter 消費版本化 JSON API；LINE webhook、Web Portal 與 Flutter 的出席回覆應共用 server-owned application service，client 不複製變更判定、12 小時緊急通知或 Discord 行為。
+- Invariants：`changed=false` 不重複副作用；mutation 需定義 authentication、authorization、idempotency、retry 與通知失敗語意。
+- Non-goals：本決策不授權 schema／migration，也不猜測現行五種 attendance reply enum；正式 contract 另案定稿。
+
+## DEC-095：Flutter capability 與通知 ownership
+
+- 狀態：`active_planning`
+- 生效：2026-08-18
+- 來源：TASK-104、`FLUTTER_CLIENT_PLAN.md` 第 2、6 節；Owner Flutter planning session
+- Supersedes：無；引用 DEC-082、DEC-085、DEC-089、DEC-090
+- 決策：Basic、Officer、Admin 的 Flutter 能力沿用 server capability；Admin 包含 Officer 能力。Officer 可規劃個人、賽事與隊務通知；Admin 可規劃系統公告與最多三則置頂。
+- Invariants：推播、Discord、recipient expansion、delivery receipt 與 audit 由後端／application service 擁有；Flutter 不直接持有渠道 secret 或自行授權。
+- Non-goals：不因 planning contract 改變 DEC-089 的 production bounded capability，不宣稱 Officer resolver、push provider 或 notification schema 已上線。
+
+## DEC-096：Flutter planning 的 staging promotion 與 offline policy
+
+- 狀態：`active_planning`
+- 生效：2026-08-18
+- 來源：TASK-104、`FLUTTER_CLIENT_PLAN.md` 第 7、8 節；Owner Flutter planning session
+- Supersedes：無；引用 DEC-078、DEC-090
+- 決策：先以 fictional demo 與 staging APK／Internal App Sharing／TestFlight 驗證；offline 僅提供最後同步資料的 read-only view，出席與通知 mutation 必須在線上。
+- Invariants：離線或不確定結果不得顯示成功；production promotion 需另案鎖定 exact artifact、target、rollback 與 Owner 批准。
+- Non-goals：不以本決策授權 SDK 安裝、staging／production deployment、商店發布或正式資料操作。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～091`，下一個新決策從 `DEC-092` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～096`，下一個新決策從 `DEC-097` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

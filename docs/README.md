@@ -23,6 +23,7 @@ TASK-001～047 位於 `coordination/archive/pre-phase-c/`；Phase C 歷史證據
 - `planning/WEB_PORTAL_PLAN.md`：Web Portal 產品方向與長期風險清單；部分早期事實已由後續任務解決，最新狀態以 `PROJECT_STATE.md` 為準。
 - `planning/ROLE_ACCESS_PROPOSAL.md`：普通隊員、幹部與系統管理者的權限方向及未決議題。
 - `planning/EVENT_MANAGEMENT_PLAN.md`：Event／Activity、多場比賽、旅遊與非聯盟活動願景。
+- `planning/FLUTTER_CLIENT_PLAN.md`：Flutter 第一階段產品、session、mobile API、通知與 staging 規格草案。
 
 規劃文件不自動授權 schema、migration、部署或正式環境操作。落地範圍必須另寫入當前 `TASK-xxx.md`。
 
