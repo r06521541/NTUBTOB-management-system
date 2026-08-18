@@ -3,7 +3,7 @@
 task_type: `work_package`
 delivery_group: `flutter-client-foundation`
 requires_independent_pr: `false`
-狀態：`ready_for_codex`
+狀態：`completed`
 Owner／Main Work 配發日：2026-08-18
 
 ## 目標
@@ -83,4 +83,3 @@ Owner／Main Work 配發日：2026-08-18
 - 完成／未完成範圍與 toolchain inventory。
 - 實際驗證命令、結果與未執行原因。
 - 外部副作用聲明與下一工作包建議。
-
