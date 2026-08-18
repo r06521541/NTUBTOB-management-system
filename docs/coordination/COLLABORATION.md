@@ -1,6 +1,6 @@
 # Work–Codex 協作流程
 
-版本：2.0
+版本：2.1
 
 適用範圍：本 repository 的產品規劃、實作、驗收、Git 整合與 production 操作。
 
@@ -35,6 +35,33 @@
 - 主動回報 blocker，不以 workaround 降低 auth、data、Secret 或 deployment boundary。
 
 Work 與 Codex 不同時修改相同程式檔案。只有 Owner 最新指示明確改變分工時例外。
+
+### 多領域 Work 與次決策核心
+
+專案可為 Flutter、Web、data 等邊界清楚的領域設置 `Domain Work`。Main Work 仍是全專案總控；Domain Work 是該領域
+的次決策核心，不是第二套全域治理來源。
+
+Domain Work 數量不預設上限。每新增一個 Domain Work，Main Work 必須先登記其領域名稱、worktree／branch、可自主
+決策範圍、禁止觸碰範圍、上游契約與交回節點；Domain Work 之間不直接建立互相矛盾的正式契約，所有跨領域依賴與
+衝突均匯入 Main Work，由 Main Work 作唯一核心協調與整合節點。
+
+- Owner 決定產品方向、優先序與重大取捨；Main Work 管理全域 TASK 編號、跨領域契約、依賴順序、現行協作文件、
+  final PR／merge／deployment 與最終驗收。
+- Domain Work 可在已核准規格與 task 內，自主與 Owner 收斂領域需求、決定低風險內部設計、拆解候選 work
+  packages、指揮領域 Codex、要求 task 內補正並驗收領域測試。
+- Domain Work 可使用獨立 worktree／branch 並行；不得與其他 Work 同時修改同一檔案，也不得自行占用全域
+  `TASK-xxx`／`DEC-xxx` 編號。候選工作先使用穩定名稱，由 Main Work 配號及檢查 delivery group。
+- 純領域內 UI、元件、routing、fake repository／fixture、測試與不改契約的重構，不需逐步向 Main Work 請示。
+- 涉及跨端 API、authentication、authorization、schema、shared model、通知語意、production、Secret、IAM、cloud
+  resource、正式資料或 release boundary 時，Domain Work 必須先升級給 Main Work；需要 Owner 權限者再由 Main Work
+  交 Owner 決定。
+- Owner 與 Domain Work 可連續互動到一個完整段落；新決定若改變已核准 task 的範圍、契約或驗收條件，必須先同步
+  Main Work，不得從討論完成推定為已授權跨領域實作、PR 或部署。
+
+Domain Work 完成正式 task 後必須交回 Main Work，至少提供 branch、完整 commit SHA、dirty state、完成／未完成範圍、
+驗證結果、外部副作用聲明與建議下一工作包。Main Work 回覆狀態只有：`changes_requested`、`accepted` 或
+`next_task_assigned`；在收到 `next_task_assigned` 前，Domain Work 可繼續規劃與處理原 task review，但不得自行開始下一個
+正式 implementation task。
 
 ## 3. 唯一真實來源
 
