@@ -54,7 +54,7 @@ Owner 確認日：2026-08-18
 
 ### 已確認（Owner：2026-08-18）
 
-- 使用原生 LINE Login；Flutter 取得 authorization code 後交由後端 exchange。
+- 使用原生 LINE Login；Flutter 將 native SDK 取得的 raw ID token 與該次 login nonce 交由後端驗證，後端只使用驗證後的 LINE `sub` 對應既有 identity／Person。Browser authorization-code／PKCE flow 不套用於此 native contract。
 - 使用短期 access token 與 refresh token；access token 僅存在記憶體，refresh token 存 Android Keystore／iOS Keychain。
 - refresh token rotation；主動登出只撤銷目前裝置。
 - App 啟動自動恢復登入；refresh 失敗時清除 session、顯示登入過期並回到 LINE Login。
@@ -64,7 +64,7 @@ Owner 確認日：2026-08-18
 ### 延後／未決
 
 - `deferred`：Google／Apple OAuth、provider linking、account recovery、conflict、unlink last usable identity 的正式流程另立 authentication task。
-- `deferred`：正式 mobile auth contract 必須定義 PKCE、state、nonce、redirect binding、authorization code single-use／expiry、refresh token server-side revocation、device record 與 rotation replay detection；本 planning task 不自行建立跨端契約。
+- `deferred`：正式 mobile auth implementation 必須完成 nonce／native callback binding、refresh token server-side revocation、device record 與 rotation replay detection；若未來另建 browser authorization-code flow，才另定 PKCE、state、redirect binding與 code single-use／expiry。
 
 既有 identity／狀態分離參照 DEC-079、DEC-080；Web Portal 的 LINE session／state／CSRF 邊界參照 DEC-084。
 

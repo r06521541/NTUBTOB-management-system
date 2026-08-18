@@ -13,6 +13,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     SmallInteger,
     String,
     Text,
@@ -383,6 +384,209 @@ Index(
     IdentityReviewMessageRecord.created_at,
     IdentityReviewMessageRecord.id,
 )
+
+
+class MobileSessionRecord(PortalDataBase):
+    __tablename__ = "mobile_sessions"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'revoked')", name="ck_mobile_sessions_status"
+        ),
+        CheckConstraint(
+            "platform IN ('ios', 'android')", name="ck_mobile_sessions_platform"
+        ),
+        CheckConstraint("access_epoch >= 1", name="ck_mobile_sessions_access_epoch"),
+        CheckConstraint(
+            "refresh_family_expires_at > created_at", name="ck_mobile_sessions_expiry"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    auth_identity_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    installation_id_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    platform: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    access_epoch: Mapped[int] = mapped_column(Integer, nullable=False)
+    refresh_family_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_mobile_sessions_person_status",
+    MobileSessionRecord.person_id,
+    MobileSessionRecord.status,
+)
+
+
+class MobileRefreshTokenRecord(PortalDataBase):
+    __tablename__ = "mobile_refresh_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_mobile_refresh_token_hash"),
+        UniqueConstraint(
+            "session_id", "generation", name="uq_mobile_refresh_generation"
+        ),
+        CheckConstraint(
+            "status IN ('current', 'rotated', 'revoked')",
+            name="ck_mobile_refresh_status",
+        ),
+        CheckConstraint("generation >= 1", name="ck_mobile_refresh_generation"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(f"{SCHEMA}.mobile_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    successor_token_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.mobile_refresh_tokens.id", ondelete="RESTRICT"),
+    )
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    rotated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+Index(
+    "ix_mobile_refresh_session_status",
+    MobileRefreshTokenRecord.session_id,
+    MobileRefreshTokenRecord.status,
+)
+
+
+class MobileRefreshAttemptRecord(PortalDataBase):
+    __tablename__ = "mobile_refresh_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "attempt_id_hash", name="uq_mobile_refresh_attempt"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(f"{SCHEMA}.mobile_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    attempt_id_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    encrypted_successor: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index("ix_mobile_refresh_attempts_expiry", MobileRefreshAttemptRecord.expires_at)
+
+
+class MobileIdempotencyRecord(PortalDataBase):
+    __tablename__ = "mobile_idempotency_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id",
+            "method",
+            "route",
+            "key_hash",
+            name="uq_mobile_idempotency_scope",
+        ),
+        CheckConstraint(
+            "state IN ('pending', 'completed')", name="ck_mobile_idempotency_state"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(f"{SCHEMA}.mobile_sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    method: Mapped[str] = mapped_column(String(10), nullable=False)
+    route: Mapped[str] = mapped_column(String(160), nullable=False)
+    key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)
+    response_status: Mapped[Optional[int]] = mapped_column(Integer)
+    response_body: Mapped[Optional[dict]] = mapped_column(JSON)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index("ix_mobile_idempotency_expiry", MobileIdempotencyRecord.expires_at)
+
+
+class MobileAuthExchangeRecord(PortalDataBase):
+    __tablename__ = "mobile_auth_exchanges"
+    __table_args__ = (
+        UniqueConstraint("provider", "assertion_hash", name="uq_mobile_auth_assertion"),
+        UniqueConstraint(
+            "provider", "login_attempt_hash", name="uq_mobile_auth_attempt"
+        ),
+        CheckConstraint(
+            "provider IN ('line', 'google', 'apple')", name="ck_mobile_auth_provider"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    assertion_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    login_attempt_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(f"{SCHEMA}.mobile_sessions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index("ix_mobile_auth_exchanges_expiry", MobileAuthExchangeRecord.expires_at)
 
 
 class EventRecord(PortalDataBase):

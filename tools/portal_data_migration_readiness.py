@@ -23,6 +23,7 @@ EXPECTED_REVISIONS = (
     "0002_portal_data_foundation",
     "0003_legacy_bigint_activity_game",
     "0004_phase_c_identity_lifecycle",
+    "0005_mobile_auth_api_foundation",
 )
 EXPECTED_TABLES = {
     "access_audit",

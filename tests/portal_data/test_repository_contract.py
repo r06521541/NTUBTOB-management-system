@@ -354,7 +354,7 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
                       ntubtob.line_users, ntubtob.cancellations, ntubtob.games,
                       ntubtob.members,
                       ntubtob.people
-                    RESTART IDENTITY;
+                    RESTART IDENTITY CASCADE;
                     INSERT INTO ntubtob.members (id, name) VALUES
                       (7001, '虛構校友甲'),
                       (7002, '虛構校友乙')

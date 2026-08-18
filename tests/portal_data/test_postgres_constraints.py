@@ -45,7 +45,7 @@ class PostgresConstraintTests(unittest.TestCase):
                       ntubtob.auth_identities, ntubtob.game_attendance_replies,
                       ntubtob.line_users, ntubtob.cancellations, ntubtob.games,
                       ntubtob.members, ntubtob.people
-                    RESTART IDENTITY;
+                    RESTART IDENTITY CASCADE;
                     INSERT INTO ntubtob.members (id, name) VALUES (7001, '虛構校友甲');
                     """
                 )
