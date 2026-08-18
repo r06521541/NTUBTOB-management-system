@@ -97,6 +97,19 @@ class MobilePrincipal:
     access_epoch: int
 
 
+BASIC_CAPABILITIES = ("games:read", "attendance:reply:self")
+OFFICER_READ_CAPABILITIES = ("attendance:report:read",)
+
+
+def mobile_capabilities(principal: MobilePrincipal) -> tuple[str, ...]:
+    """Project bounded capabilities from the request-time Person principal."""
+    if principal.access_level == "basic":
+        return BASIC_CAPABILITIES
+    if principal.access_level in {"officer", "admin"}:
+        return BASIC_CAPABILITIES + OFFICER_READ_CAPABILITIES
+    raise PermissionDenied("active Person lacks a supported mobile access level")
+
+
 @dataclass(frozen=True)
 class TokenPair:
     access_token: str
@@ -374,6 +387,86 @@ class BasicApiService:
                 None if own is None else AttendanceReplyValue.from_legacy(own).value
             ),
             "replied": participants,
+        }
+
+    def attendance_report(
+        self,
+        principal: MobilePrincipal,
+        game_id: int,
+        *,
+        history_limit: int = 12,
+        minimum_rate: int = 60,
+    ) -> dict:
+        if "attendance:report:read" not in mobile_capabilities(principal):
+            raise PermissionDenied("attendance report capability required")
+        if history_limit not in {5, 8, 12, 20} or minimum_rate not in set(
+            range(0, 101, 10)
+        ):
+            raise InvalidArgument("attendance report threshold is invalid")
+        self._game(principal, game_id)
+        report = self.data.game_attendance_report(
+            game_id,
+            at=self.clock(),
+            history_limit=history_limit,
+            minimum_rate=minimum_rate,
+        )
+        if report is None:
+            raise NotFound("game not found")
+
+        def replied_person(item: dict) -> dict:
+            return {
+                "person_id": f"person_{item['person_id']}",
+                "display_name": item["name"],
+                "reply": AttendanceReplyValue.from_legacy(item["reply"]).value,
+            }
+
+        def stable(items):
+            return sorted(
+                items,
+                key=lambda item: (
+                    item["display_name"].casefold(),
+                    item["person_id"],
+                ),
+            )
+
+        unanswered = [
+            {
+                "person_id": f"person_{item['person_id']}",
+                "display_name": item["name"],
+                "observed_replies": item["replied"],
+                "observed_games": item["total"],
+                "response_rate": item["rate"],
+                "participation_rate": item["participation_rate"],
+                "nonparticipation_rate": item["nonparticipation_rate"],
+            }
+            for item in report["unanswered"]
+        ]
+        generated_at = report["generated_at"]
+        if isinstance(generated_at, datetime):
+            generated_at = (
+                generated_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            )
+        return {
+            "game_id": f"game_{report['game_id']}",
+            "generated_at": generated_at,
+            "observation": {
+                "history_games": report["history_games"],
+                "history_limit": report["history_limit"],
+                "minimum_response_rate": report["minimum_rate"],
+            },
+            "attending": stable([replied_person(item) for item in report["attending"]]),
+            "not_attending": stable(
+                [replied_person(item) for item in report["not_attending"]]
+            ),
+            "not_yet_replied": sorted(
+                unanswered,
+                key=lambda item: (
+                    -item["response_rate"],
+                    -item["observed_replies"],
+                    item["display_name"].casefold(),
+                    item["person_id"],
+                ),
+            ),
         }
 
     def game(self, principal: MobilePrincipal, game_id: int):

@@ -196,6 +196,18 @@ void main() {
         'future': true
       });
       expect(person.id, 'p');
+      final officer = Person.fromJson({
+        'id': 'officer',
+        'display_name': 'Officer',
+        'access_level': 'officer',
+        'capabilities': [
+          'games:read',
+          'attendance:reply:self',
+          'attendance:report:read'
+        ]
+      });
+      expect(officer.accessLevel, AccessLevel.officer);
+      expect(officer.canReadAttendanceReport, isTrue);
       expect(
           () => Person.fromJson({
                 'id': 'p',
@@ -212,6 +224,50 @@ void main() {
           () => Game.fromJson(
               {'id': 'g', 'start_at': '2026-01-01T00:00:00+08:00'}),
           throwsA(isA<ContractException>()));
+    });
+    test('canonical attendance report DTO enforces exact bounded values', () {
+      final report = AttendanceReport.fromJson({
+        'game_id': 'game_44',
+        'generated_at': '2026-08-18T12:00:00Z',
+        'observation': {
+          'history_games': 8,
+          'history_limit': 12,
+          'minimum_response_rate': 60,
+        },
+        'attending': [
+          {'person_id': 'person_1', 'display_name': 'A', 'reply': 'attending'}
+        ],
+        'not_attending': [],
+        'not_yet_replied': [
+          {
+            'person_id': 'person_2',
+            'display_name': 'B',
+            'observed_replies': 7,
+            'observed_games': 8,
+            'response_rate': 88,
+            'participation_rate': 63,
+            'nonparticipation_rate': 25,
+          }
+        ],
+      });
+      expect(report.attending.single.reply, AttendanceReply.attending);
+      expect(report.notYetReplied.single.responseRate, 88);
+      expect(
+        () => AttendanceReportObservation.fromJson({
+          'history_games': 8,
+          'history_limit': 9,
+          'minimum_response_rate': 60,
+        }),
+        throwsA(isA<ContractException>()),
+      );
+      expect(
+        () => AttendanceReportObservation.fromJson({
+          'history_games': 8,
+          'history_limit': 12,
+          'minimum_response_rate': 65,
+        }),
+        throwsA(isA<ContractException>()),
+      );
     });
     test('attendance team and mutation notification are typed', () {
       final attendance = AttendanceSnapshot.fromJson({

@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import 'foundation.dart';
 import 'integration.dart';
+import 'officer_prereview.dart';
 
 String? nativePlatformName(TargetPlatform platform) => switch (platform) {
       TargetPlatform.android => 'android',
@@ -99,6 +100,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   BasicCache? _cache;
+  PrincipalOfficerReportCache? _reportCache;
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
@@ -121,6 +123,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _line = line;
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
+      _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       if (await _store.read('logout-pending:$installationId') == 'true') {
         setState(() => state = AuthViewState.logoutPending);
@@ -182,6 +185,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final loadedPerson = await _api!.me();
       final loadedGames = await _api!.games();
       final syncedAt = DateTime.now().toUtc();
+      final previous = await _cache!.load();
+      await reconcileFreshReportPrincipal(
+        cache: _reportCache!,
+        previous: previous?.person,
+        current: loadedPerson,
+      );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       if (!mounted) return;
       setState(() {
@@ -197,9 +206,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   Future<void> _showFailure(Object error) async {
     final cached = _cache == null ? null : await _cache!.load();
+    final classified = classifyFailure(error, hasCache: cached != null);
+    if (classified == AuthViewState.sessionExpired && cached != null) {
+      await _reportCache?.clearPrincipal(cached.person.id);
+    }
     if (!mounted) return;
     setState(() {
-      final classified = classifyFailure(error, hasCache: cached != null);
       if (classified == AuthViewState.offline) {
         person = cached!.person;
         games = cached.games;
@@ -213,6 +225,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   Future<void> _logout() async {
     setState(() => state = AuthViewState.logoutPending);
+    if (person case final current?) {
+      await _reportCache?.clearPrincipal(current.id);
+    }
     try {
       await _session!.logout(_line!);
       await _cache!.clear();
@@ -256,7 +271,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                   person: person!,
                   games: games,
                   online: state == AuthViewState.authenticated,
-                  lastSyncedAt: lastSyncedAt!)
+                  lastSyncedAt: lastSyncedAt!,
+                  reportCache: _reportCache)
               : AuthStatePanel(state: state),
           floatingActionButton: _canLogin
               ? FloatingActionButton(
@@ -281,12 +297,14 @@ class BasicGamesView extends StatelessWidget {
     required this.games,
     required this.online,
     required this.lastSyncedAt,
+    this.reportCache,
   });
   final BasicApi api;
   final Person person;
   final List<Game> games;
   final bool online;
   final DateTime lastSyncedAt;
+  final PrincipalOfficerReportCache? reportCache;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -300,6 +318,22 @@ class BasicGamesView extends StatelessWidget {
         ListTile(
             title: Text(person.displayName),
             subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
+        if (person.canReadAttendanceReport)
+          ListTile(
+            key: const ValueKey('management-report-entry'),
+            leading: const Icon(Icons.assessment_outlined),
+            title: const Text('出席報表'),
+            subtitle: const Text('Officer／Admin 唯讀'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => CanonicalManagementReportsPage(
+                api: api,
+                person: person,
+                games: games,
+                online: online,
+                cache: reportCache,
+              ),
+            )),
+          ),
         if (games.isEmpty)
           Semantics(
               key: const ValueKey('games-empty'),

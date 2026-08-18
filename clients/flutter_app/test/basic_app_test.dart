@@ -140,6 +140,28 @@ void main() {
     expect(find.text('系統公告'), findsNothing);
   });
 
+  testWidgets('server report grant exposes only the read-only management route',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person(
+                'p', 'Officer', ['games:read', 'attendance:report:read'],
+                accessLevel: AccessLevel.officer),
+            games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026))));
+    expect(
+        find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
+    expect(find.text('通知廣播'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('management-report-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('出席報表'), findsOneWidget);
+    expect(find.text('唯讀出席報表'), findsOneWidget);
+    expect(find.text('送出回覆'), findsNothing);
+  });
+
   testWidgets('offline Basic list disables detail and attendance reply',
       (tester) async {
     final transport = QueueTransport();
