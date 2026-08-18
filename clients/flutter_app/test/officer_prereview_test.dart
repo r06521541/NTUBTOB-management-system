@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ntubtob_portal/integration.dart';
@@ -92,6 +94,27 @@ SingleGameReportUiModel reportWithId(String id) {
   );
 }
 
+SingleGameReportUiModel largeBoundedReport() {
+  final source = DeterministicFakeOfficerReportRepository.fictionalReport;
+  return SingleGameReportUiModel(
+    gameId: 'large',
+    gameLabel: '大型報表',
+    generatedAt: source.generatedAt,
+    historyGames: source.historyGames,
+    historyLimit: source.historyLimit,
+    minimumResponseRate: source.minimumResponseRate,
+    attending: List.generate(
+      200,
+      (index) => ReportParticipantUiModel(
+        id: 'person-$index',
+        displayName: '員' * 120,
+      ),
+    ),
+    notAttending: const [],
+    notYetReplied: const [],
+  );
+}
+
 OfficerReportController controllerFor({
   OfficerReportPresentationPort? repository,
   InMemoryPrincipalOfficerReportCache? cache,
@@ -146,6 +169,32 @@ void main() {
         );
       }
     }
+  });
+
+  test('fresh lifecycle purges admin to officer but retains officer to admin',
+      () async {
+    final store = MemoryStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    const grant = ['attendance:report:read'];
+    const admin = Person('p', 'Admin', grant, accessLevel: AccessLevel.admin);
+    const officer =
+        Person('p', 'Officer', grant, accessLevel: AccessLevel.officer);
+
+    await cache.write(
+        'p', DeterministicFakeOfficerReportRepository.fictionalReport);
+    await reconcileFreshReportPrincipal(
+        cache: cache, previous: admin, current: officer);
+    expect(await cache.read('p', 'fictional-game'), isNull);
+
+    await cache.write(
+        'p', DeterministicFakeOfficerReportRepository.fictionalReport);
+    await reconcileFreshReportPrincipal(
+        cache: cache, previous: officer, current: admin);
+    expect(await cache.read('p', 'fictional-game'), isNotNull);
+    expect(
+      const Person('p', 'Basic', grant).canReadAttendanceReport,
+      isFalse,
+    );
   });
   test('read grant alone controls discovery and route fail-closed', () async {
     final controller = controllerFor();
@@ -460,6 +509,10 @@ void main() {
     expect(await cache.read('officer', 'game-0'), isNull);
     expect(await cache.read('officer', 'game-20'), isNotNull);
     final raw = store.values.values.single;
+    expect(
+        utf8.encode(raw).length,
+        lessThanOrEqualTo(
+            DurablePrincipalOfficerReportCache.maximumEncodedBytes));
     for (final prohibited in [
       'token',
       'nonce',
@@ -471,6 +524,30 @@ void main() {
     ]) {
       expect(raw, isNot(contains(prohibited)));
     }
+  });
+
+  test('oversized write preserves prior valid single blob', () async {
+    final store = MemoryStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    await cache.write(
+        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
+    final before = Map<String, String>.from(store.values);
+    expect(
+      () => cache.write('officer', largeBoundedReport()),
+      throwsA(isA<FormatException>()),
+    );
+    expect(store.values, before);
+  });
+
+  test('oversized read deletes blob and fails closed', () async {
+    final store = MemoryStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    await store.write(
+      'officer-report-cache:v1:install:officer',
+      'x' * (DurablePrincipalOfficerReportCache.maximumEncodedBytes + 1),
+    );
+    expect(await cache.read('officer', 'game'), isNull);
+    expect(store.values, isEmpty);
   });
 
   test('offline reconstructed cache requires a fresh granted controller',

@@ -235,6 +235,22 @@ abstract interface class PrincipalOfficerReportCache {
   Future<void> clearPrincipal(String principalId);
 }
 
+Future<void> reconcileFreshReportPrincipal({
+  required PrincipalOfficerReportCache cache,
+  required Person? previous,
+  required Person current,
+}) async {
+  if (previous == null) return;
+  final identityChanged = previous.id != current.id;
+  final accessLevelDowngraded =
+      current.accessLevel.index < previous.accessLevel.index;
+  final grantRevoked =
+      previous.canReadAttendanceReport && !current.canReadAttendanceReport;
+  if (identityChanged || accessLevelDowngraded || grantRevoked) {
+    await cache.clearPrincipal(previous.id);
+  }
+}
+
 class InMemoryPrincipalOfficerReportCache
     implements PrincipalOfficerReportCache {
   final Map<String, SingleGameReportUiModel> _values = {};
@@ -267,6 +283,10 @@ class DurablePrincipalOfficerReportCache
 
   static const _version = 1;
   static const _maximumReports = 20;
+  static const maximumEncodedBytes = 65536;
+  static const _maximumIdCharacters = 256;
+  static const _maximumLabelCharacters = 300;
+  static const _maximumDisplayNameCharacters = 120;
   final DurableStore store;
   final String installationId;
 
@@ -285,19 +305,21 @@ class DurablePrincipalOfficerReportCache
 
   @override
   Future<void> write(String principalId, SingleGameReportUiModel report) async {
+    _validate(report);
     final reports = await _readAll(principalId);
     reports.removeWhere((item) => item.gameId == report.gameId);
     reports.add(report);
     if (reports.length > _maximumReports) {
       reports.removeRange(0, reports.length - _maximumReports);
     }
-    await store.write(
-      _key(principalId),
-      jsonEncode({
-        'version': _version,
-        'reports': reports.map(_encode).toList(growable: false),
-      }),
-    );
+    final encoded = jsonEncode({
+      'version': _version,
+      'reports': reports.map(_encode).toList(growable: false),
+    });
+    if (utf8.encode(encoded).length > maximumEncodedBytes) {
+      throw const FormatException('report cache capacity exceeded');
+    }
+    await store.write(_key(principalId), encoded);
   }
 
   @override
@@ -309,6 +331,9 @@ class DurablePrincipalOfficerReportCache
     final raw = await store.read(key);
     if (raw == null) return [];
     try {
+      if (utf8.encode(raw).length > maximumEncodedBytes) {
+        throw const FormatException('oversized report cache');
+      }
       final value = jsonDecode(raw) as Map<String, dynamic>;
       if (value['version'] != _version) {
         throw const FormatException('unknown cache version');
@@ -376,8 +401,13 @@ class DurablePrincipalOfficerReportCache
         );
       }).toList(growable: false),
     );
-    if (report.gameId.isEmpty ||
-        report.gameLabel.isEmpty ||
+    _validate(report);
+    return report;
+  }
+
+  static void _validate(SingleGameReportUiModel report) {
+    if (!_validText(report.gameId, _maximumIdCharacters) ||
+        !_validText(report.gameLabel, _maximumLabelCharacters) ||
         report.historyGames < 0 ||
         !const {5, 8, 12, 20}.contains(report.historyLimit) ||
         report.minimumResponseRate < 0 ||
@@ -387,7 +417,12 @@ class DurablePrincipalOfficerReportCache
                 report.notAttending.length +
                 report.notYetReplied.length >
             200 ||
+        [...report.attending, ...report.notAttending].any((person) =>
+            !_validText(person.id, _maximumIdCharacters) ||
+            !_validText(person.displayName, _maximumDisplayNameCharacters)) ||
         report.notYetReplied.any((person) =>
+            !_validText(person.id, _maximumIdCharacters) ||
+            !_validText(person.displayName, _maximumDisplayNameCharacters) ||
             person.observedReplies < 1 ||
             person.observedGames < 1 ||
             !_validPercentage(person.responseRate) ||
@@ -395,10 +430,11 @@ class DurablePrincipalOfficerReportCache
             !_validPercentage(person.nonparticipationRate))) {
       throw const FormatException('invalid cached report');
     }
-    return report;
   }
 
   static bool _validPercentage(int value) => value >= 0 && value <= 100;
+  static bool _validText(String value, int maximumCharacters) =>
+      value.isNotEmpty && value.runes.length <= maximumCharacters;
 
   static List<ReportParticipantUiModel> _decodeParticipants(Object? value) =>
       (value as List<dynamic>).map((item) {
