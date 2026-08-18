@@ -1,6 +1,13 @@
 import 'package:flutter/widgets.dart';
+import 'basic_app.dart';
 import 'foundation.dart';
+import 'integration.dart';
 
-const _flavorName = String.fromEnvironment('APP_FLAVOR');
+void main() {
+  final config = AppConfig.fromEnvironment();
+  runApp(composeRoot(config));
+}
 
-void main() => runApp(DemoApp(flavor: FlavorConfig.parse(_flavorName)));
+Widget composeRoot(AppConfig config) => config.mode == ClientMode.fake
+    ? DemoApp(flavor: FlavorConfig(config.flavor))
+    : BasicBootstrapApp(config: config);
