@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 
 import 'foundation.dart';
 import 'integration.dart';
+import 'officer_prereview.dart';
 
 String? nativePlatformName(TargetPlatform platform) => switch (platform) {
       TargetPlatform.android => 'android',
@@ -300,6 +301,21 @@ class BasicGamesView extends StatelessWidget {
         ListTile(
             title: Text(person.displayName),
             subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
+        if (person.canReadAttendanceReport)
+          ListTile(
+            key: const ValueKey('management-report-entry'),
+            leading: const Icon(Icons.assessment_outlined),
+            title: const Text('出席報表'),
+            subtitle: const Text('Officer／Admin 唯讀'),
+            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => CanonicalManagementReportsPage(
+                api: api,
+                person: person,
+                games: games,
+                online: online,
+              ),
+            )),
+          ),
         if (games.isEmpty)
           Semantics(
               key: const ValueKey('games-empty'),

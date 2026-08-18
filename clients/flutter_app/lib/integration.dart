@@ -195,29 +195,153 @@ class SessionEnvelope {
   final int expiresIn;
 }
 
+enum AccessLevel { basic, officer, admin }
+
 class Person {
-  const Person(this.id, this.displayName, this.capabilities);
+  const Person(this.id, this.displayName, this.capabilities,
+      {this.accessLevel = AccessLevel.basic});
   factory Person.fromJson(Map<String, dynamic> json) {
-    if (json['access_level'] != 'basic') {
-      throw const ContractException('non-basic account');
-    }
+    final accessLevel = switch (json['access_level']) {
+      'basic' => AccessLevel.basic,
+      'officer' => AccessLevel.officer,
+      'admin' => AccessLevel.admin,
+      _ => throw const ContractException('unknown access level'),
+    };
     final caps = _required<List<dynamic>>(json, 'capabilities');
-    const allowed = {'games:read', 'attendance:reply:self'};
+    const allowed = {
+      'games:read',
+      'attendance:reply:self',
+      'attendance:report:read',
+    };
     if (caps.any((e) => e is! String || !allowed.contains(e))) {
       throw const ContractException('unknown capability');
     }
     return Person(_required(json, 'id'), _required(json, 'display_name'),
-        caps.cast<String>());
+        caps.cast<String>(),
+        accessLevel: accessLevel);
   }
   final String id, displayName;
+  final AccessLevel accessLevel;
   final List<String> capabilities;
+  bool get canReadAttendanceReport =>
+      capabilities.contains('attendance:report:read');
   Map<String, dynamic> toJson() => {
         'id': id,
         'display_name': displayName,
-        'access_level': 'basic',
+        'access_level': accessLevel.name,
         'capabilities': capabilities,
       };
 }
+
+class AttendanceReportPerson {
+  const AttendanceReportPerson(this.personId, this.displayName, this.reply);
+  factory AttendanceReportPerson.fromJson(Map<String, dynamic> json) =>
+      AttendanceReportPerson(
+        _required(json, 'person_id'),
+        _required(json, 'display_name'),
+        AttendanceReplyWire.parse(json['reply']),
+      );
+  final String personId, displayName;
+  final AttendanceReply reply;
+}
+
+class AttendanceReportUnansweredPerson {
+  const AttendanceReportUnansweredPerson({
+    required this.personId,
+    required this.displayName,
+    required this.observedReplies,
+    required this.observedGames,
+    required this.responseRate,
+    required this.participationRate,
+    required this.nonparticipationRate,
+  });
+  factory AttendanceReportUnansweredPerson.fromJson(Map<String, dynamic> json) {
+    final observedReplies = _required<int>(json, 'observed_replies');
+    final observedGames = _required<int>(json, 'observed_games');
+    final responseRate = _required<int>(json, 'response_rate');
+    final participationRate = _required<int>(json, 'participation_rate');
+    final nonparticipationRate = _required<int>(json, 'nonparticipation_rate');
+    if (observedReplies < 1 ||
+        observedGames < 1 ||
+        !_percentage(responseRate) ||
+        !_percentage(participationRate) ||
+        !_percentage(nonparticipationRate)) {
+      throw const ContractException('invalid report observation');
+    }
+    return AttendanceReportUnansweredPerson(
+      personId: _required(json, 'person_id'),
+      displayName: _required(json, 'display_name'),
+      observedReplies: observedReplies,
+      observedGames: observedGames,
+      responseRate: responseRate,
+      participationRate: participationRate,
+      nonparticipationRate: nonparticipationRate,
+    );
+  }
+  final String personId, displayName;
+  final int observedReplies,
+      observedGames,
+      responseRate,
+      participationRate,
+      nonparticipationRate;
+}
+
+bool _percentage(int value) => value >= 0 && value <= 100;
+
+class AttendanceReportObservation {
+  const AttendanceReportObservation(
+      this.historyGames, this.historyLimit, this.minimumResponseRate);
+  factory AttendanceReportObservation.fromJson(Map<String, dynamic> json) {
+    final historyGames = _required<int>(json, 'history_games');
+    final historyLimit = _required<int>(json, 'history_limit');
+    final minimumResponseRate = _required<int>(json, 'minimum_response_rate');
+    if (historyGames < 0 ||
+        !const {5, 8, 12, 20}.contains(historyLimit) ||
+        !_percentage(minimumResponseRate) ||
+        minimumResponseRate % 10 != 0) {
+      throw const ContractException('invalid report bounds');
+    }
+    return AttendanceReportObservation(
+        historyGames, historyLimit, minimumResponseRate);
+  }
+  final int historyGames, historyLimit, minimumResponseRate;
+}
+
+class AttendanceReport {
+  const AttendanceReport({
+    required this.gameId,
+    required this.generatedAt,
+    required this.observation,
+    required this.attending,
+    required this.notAttending,
+    required this.notYetReplied,
+  });
+  factory AttendanceReport.fromJson(Map<String, dynamic> json) =>
+      AttendanceReport(
+        gameId: _required(json, 'game_id'),
+        generatedAt: _utcDate(json, 'generated_at'),
+        observation: AttendanceReportObservation.fromJson(
+            _required<Map<String, dynamic>>(json, 'observation')),
+        attending: _reportPeople(json, 'attending'),
+        notAttending: _reportPeople(json, 'not_attending'),
+        notYetReplied: _required<List<dynamic>>(json, 'not_yet_replied')
+            .map((item) => AttendanceReportUnansweredPerson.fromJson(
+                item as Map<String, dynamic>))
+            .toList(growable: false),
+      );
+  final String gameId;
+  final DateTime generatedAt;
+  final AttendanceReportObservation observation;
+  final List<AttendanceReportPerson> attending, notAttending;
+  final List<AttendanceReportUnansweredPerson> notYetReplied;
+}
+
+List<AttendanceReportPerson> _reportPeople(
+        Map<String, dynamic> json, String key) =>
+    _required<List<dynamic>>(json, key)
+        .map((item) =>
+            AttendanceReportPerson.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false);
 
 class Game {
   const Game(this.id, this.startAt, this.durationMinutes, this.location,
@@ -799,6 +923,21 @@ class BasicApi {
       _failure(r, 'attendance');
     }
     return AttendanceSnapshot.fromJson(r.body!);
+  }
+
+  Future<AttendanceReport> attendanceReport(String id,
+      {int historyLimit = 12, int minimumResponseRate = 60}) async {
+    if (!const {5, 8, 12, 20}.contains(historyLimit) ||
+        !_percentage(minimumResponseRate) ||
+        minimumResponseRate % 10 != 0) {
+      throw const ContractException('invalid report query');
+    }
+    final path = '/games/${Uri.encodeComponent(id)}/attendance-report'
+        '?history_limit=$historyLimit'
+        '&minimum_response_rate=$minimumResponseRate';
+    final r = await session.authorized('GET', path);
+    if (r.status != 200 || r.body == null) _failure(r, 'attendance report');
+    return AttendanceReport.fromJson(r.body!);
   }
 
   Future<MutationResult> reply(String gameId, AttendanceReply reply,
