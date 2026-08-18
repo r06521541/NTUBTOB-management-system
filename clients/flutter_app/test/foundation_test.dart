@@ -37,7 +37,8 @@ void main() {
     expect(demoTheme(Brightness.dark).brightness, Brightness.dark);
   });
 
-  testWidgets('basic navigation switches pages and cannot reach management', (tester) async {
+  testWidgets('basic navigation switches pages and cannot reach management',
+      (tester) async {
     await tester.pumpWidget(const DemoApp(
       persona: Persona.basic,
       flavor: FlavorConfig(AppFlavor.development),
@@ -47,10 +48,10 @@ void main() {
     await tester.tap(find.text('賽程'));
     await tester.pump();
     expect(find.byKey(const ValueKey('/schedule')), findsOneWidget);
-
   });
 
-  testWidgets('officer management hub reaches its three capabilities', (tester) async {
+  testWidgets('officer management hub reaches its three capabilities',
+      (tester) async {
     await tester.pumpWidget(const DemoApp(
       persona: Persona.officer,
       flavor: FlavorConfig(AppFlavor.staging),
@@ -77,7 +78,8 @@ void main() {
     expect(find.text('fictional 通知廣播預覽'), findsOneWidget);
   });
 
-  testWidgets('admin inherits officer hub and reaches announcement', (tester) async {
+  testWidgets('admin inherits officer hub and reaches announcement',
+      (tester) async {
     await tester.pumpWidget(const DemoApp(
       persona: Persona.admin,
       flavor: FlavorConfig(AppFlavor.production),
@@ -100,7 +102,8 @@ void main() {
     LoadState.offline: '目前為離線唯讀模式',
   }.entries) {
     testWidgets('${entry.key.name} has identifiable UI', (tester) async {
-      await tester.pumpWidget(MaterialApp(home: StatePanel(
+      await tester.pumpWidget(MaterialApp(
+          home: StatePanel(
         state: entry.key,
         lastSyncedAt: DateTime.utc(2026, 1, 2, 3, 4),
       )));
@@ -112,8 +115,10 @@ void main() {
     });
   }
 
-  testWidgets('offline UI displays deterministic last sync time', (tester) async {
-    await tester.pumpWidget(MaterialApp(home: StatePanel(
+  testWidgets('offline UI displays deterministic last sync time',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+        home: StatePanel(
       state: LoadState.offline,
       lastSyncedAt: DateTime.utc(2026, 1, 2, 3, 4),
     )));
@@ -121,7 +126,8 @@ void main() {
   });
 
   test('fake repository is deterministic and offline read-only', () async {
-    final repo = InMemoryFakeApiRepository(lastSyncedAt: DateTime.utc(2026, 1, 2));
+    final repo =
+        InMemoryFakeApiRepository(lastSyncedAt: DateTime.utc(2026, 1, 2));
     final snapshot = await repo.readSnapshot();
     expect(snapshot.lastSyncedAt, DateTime.utc(2026, 1, 2));
     expect(snapshot.fixtures.account, '示範會員');
@@ -138,6 +144,7 @@ void main() {
     push.record(const FictionalPushEvent('event-1', '示範通知'));
     expect(push.events.single.id, 'event-1');
     expect(push.events.single.message, '示範通知');
-    expect(() => push.events.add(const FictionalPushEvent('event-2', '不可寫入')), throwsUnsupportedError);
+    expect(() => push.events.add(const FictionalPushEvent('event-2', '不可寫入')),
+        throwsUnsupportedError);
   });
 }

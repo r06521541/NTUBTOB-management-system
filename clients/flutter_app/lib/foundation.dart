@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 enum AppFlavor { development, staging, production }
+
 enum Persona { basic, officer, admin }
+
 enum LoadState { loading, empty, error, offline }
 
 class FlavorConfig {
@@ -37,15 +39,20 @@ class CapabilityPolicy {
   static const primaryDestinations = <DemoDestination>[
     DemoDestination('/', '首頁', Icons.home_outlined, Persona.basic),
     DemoDestination('/schedule', '賽程', Icons.event_outlined, Persona.basic),
-    DemoDestination('/notifications', '通知', Icons.notifications_outlined, Persona.basic),
+    DemoDestination(
+        '/notifications', '通知', Icons.notifications_outlined, Persona.basic),
     DemoDestination('/account', '帳號', Icons.person_outline, Persona.basic),
-    DemoDestination('/management', '管理', Icons.manage_accounts_outlined, Persona.officer),
+    DemoDestination(
+        '/management', '管理', Icons.manage_accounts_outlined, Persona.officer),
   ];
 
   static const managementDestinations = <DemoDestination>[
-    DemoDestination('/officer/attendance', '出席摘要', Icons.fact_check_outlined, Persona.officer),
-    DemoDestination('/officer/personal', '個人通知', Icons.person_pin_outlined, Persona.officer),
-    DemoDestination('/officer/broadcast', '通知廣播', Icons.send_outlined, Persona.officer),
+    DemoDestination('/officer/attendance', '出席摘要', Icons.fact_check_outlined,
+        Persona.officer),
+    DemoDestination('/officer/personal', '個人通知', Icons.person_pin_outlined,
+        Persona.officer),
+    DemoDestination(
+        '/officer/broadcast', '通知廣播', Icons.send_outlined, Persona.officer),
     DemoDestination('/admin', '系統公告', Icons.campaign_outlined, Persona.admin),
   ];
 
@@ -53,12 +60,17 @@ class CapabilityPolicy {
       .where((destination) => persona.index >= destination.minimumPersona.index)
       .toList(growable: false);
 
-  List<DemoDestination> get visibleManagementDestinations => managementDestinations
-      .where((destination) => persona.index >= destination.minimumPersona.index)
-      .toList(growable: false);
+  List<DemoDestination> get visibleManagementDestinations =>
+      managementDestinations
+          .where((destination) =>
+              persona.index >= destination.minimumPersona.index)
+          .toList(growable: false);
 
   DemoDestination? destinationFor(String? route) {
-    for (final destination in [...bottomDestinations, ...visibleManagementDestinations]) {
+    for (final destination in [
+      ...bottomDestinations,
+      ...visibleManagementDestinations
+    ]) {
       if (destination.route == route) return destination;
     }
     return null;
@@ -92,7 +104,8 @@ class DemoFixtures {
 }
 
 class DemoSnapshot {
-  const DemoSnapshot({required this.lastSyncedAt, this.fixtures = DemoFixtures.fictional});
+  const DemoSnapshot(
+      {required this.lastSyncedAt, this.fixtures = DemoFixtures.fictional});
   final DateTime lastSyncedAt;
   final DemoFixtures fixtures;
 }
@@ -104,7 +117,8 @@ abstract class FakeApiRepository {
 
 class InMemoryFakeApiRepository implements FakeApiRepository {
   InMemoryFakeApiRepository({DateTime? lastSyncedAt})
-      : _snapshot = DemoSnapshot(lastSyncedAt: lastSyncedAt ?? DateTime.utc(2026, 8, 18, 8));
+      : _snapshot = DemoSnapshot(
+            lastSyncedAt: lastSyncedAt ?? DateTime.utc(2026, 8, 18, 8));
   final DemoSnapshot _snapshot;
   @override
   Future<DemoSnapshot> readSnapshot() async => _snapshot;
@@ -135,7 +149,8 @@ ThemeData demoTheme(Brightness brightness) =>
     ThemeData(colorSchemeSeed: Colors.indigo, brightness: brightness);
 
 class DemoApp extends StatelessWidget {
-  const DemoApp({super.key, this.persona = Persona.basic, required this.flavor});
+  const DemoApp(
+      {super.key, this.persona = Persona.basic, required this.flavor});
   final Persona persona;
   final FlavorConfig flavor;
 
@@ -173,7 +188,8 @@ class _DemoShellState extends State<DemoShell> {
         onDestinationSelected: (index) => setState(() => selectedIndex = index),
         destinations: [
           for (final destination in destinations)
-            NavigationDestination(icon: Icon(destination.icon), label: destination.label),
+            NavigationDestination(
+                icon: Icon(destination.icon), label: destination.label),
         ],
       ),
     );
@@ -223,7 +239,9 @@ class _DestinationPage extends StatelessWidget {
     };
     return Center(
       key: ValueKey(destination.route),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [Text(destination.label), Text(detail)]),
+      child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [Text(destination.label), Text(detail)]),
     );
   }
 }
@@ -236,10 +254,11 @@ class StatePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (state == LoadState.loading) {
-      return const Semantics(
+      return Semantics(
         label: '正在載入內容',
         liveRegion: true,
-        child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        child: const Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
           CircularProgressIndicator(),
           SizedBox(height: 12),
           Text('正在載入，請稍候'),
@@ -259,7 +278,8 @@ class StatePanel extends StatelessWidget {
     return Semantics(
       label: '$title。$detail',
       liveRegion: true,
-      child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon),
         Text(title),
         Text(detail),

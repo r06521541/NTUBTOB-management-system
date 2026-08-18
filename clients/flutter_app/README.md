@@ -12,14 +12,14 @@ flutter run --dart-define=APP_FLAVOR=staging
 flutter run --dart-define=APP_FLAVOR=production
 ```
 
-Platform runners are intentionally absent because this worktree has no Flutter, Dart, or Android SDK. After the owner installs a compatible Flutter SDK and confirms Android/iOS prerequisites, generate only the runners from this directory with:
+Android and iOS runners were generated with Flutter 3.47.0. To reproduce them after installing a compatible Flutter SDK and confirming Android/iOS prerequisites, run from this directory:
 
 ```sh
 flutter create --platforms=android,ios --project-name ntubtob_fictional_client .
 ```
 
-The expected additions are `android/`, `ios/`, and Flutter-generated metadata. Before accepting them, review `git status --short` and the complete diff; reject unrelated dependency, identifier, signing, resource, endpoint, or credential changes. Generation does not authorize building, signing, deployment, or store distribution.
+The expected additions are `android/`, `ios/`, and Flutter-generated metadata. Before accepting regenerated files, review `git status --short` and the complete diff; reject unrelated dependency, identifier, signing, resource, endpoint, or credential changes. Generation does not authorize signing, deployment, or store distribution. iOS build and signing remain deferred to a macOS host with Xcode and CocoaPods.
 
 ## Verification gate
 
-From this directory, run `flutter pub get`, `flutter analyze`, and `flutter test`. Until the SDK is installed by the owner, these commands are not executable in the current environment. The fake repository uses a fixed/injected UTC snapshot time, and its mutation method always fails closed to preserve offline read-only behavior.
+From this directory, run `flutter pub get`, `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, and `flutter test`. The fake repository uses a fixed/injected UTC snapshot time, and its mutation method always fails closed to preserve offline read-only behavior.
