@@ -12,6 +12,8 @@ SHARED_LIB_ROOT = Path(__file__).resolve().parents[2] / "shared_lib"
 if str(SHARED_LIB_ROOT) not in sys.path:
     sys.path.insert(0, str(SHARED_LIB_ROOT))
 
+from alembic import command
+from alembic.config import Config
 from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
 from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
@@ -38,6 +40,9 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         cls.engine = create_engine(DATABASE_URL)
 
     def setUp(self):
+        config = Config("alembic.ini")
+        config.set_main_option("sqlalchemy.url", DATABASE_URL)
+        command.upgrade(config, "head")
         with self.engine.begin() as connection:
             connection.execute(
                 text(
