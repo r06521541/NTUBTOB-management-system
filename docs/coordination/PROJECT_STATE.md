@@ -18,8 +18,9 @@ Repository 基準：`main` / `7ef79b1380ac054b867bcac0fd4b2c317b81d778`
   `2c33b6e48f89f43a34f44784e9c224971b5cca38`）；hosted format/analyze/71 tests/fake Android build及final gate全綠。
 - TASK-112 mobile staging readiness已由PR #122 merge至`main`（merge commit
   `7ef79b1380ac054b867bcac0fd4b2c317b81d778`）；尚未建立或變更GCP、database、LINE channel、Secret、IAM或部署。
-- TASK-114 已配發為repository-only大工作包：Mobile Officer唯讀出席報告與Flutter parity；TASK-113 staging activation
-  保留等待Owner醒來後逐項批准，不與TASK-114混用授權。
+- TASK-114 backend與Flutter source review已接受並整合：Mobile Officer唯讀出席報告、fresh capability、Basic隔離、
+  三cohort洞察及低敏durable offline cache已完成，等待single final PR/hosted fresh-disk Flutter gate；TASK-113 staging
+  activation仍保留逐項批准，不與TASK-114混用授權。
 - Flutter planning 已確認 Android／iOS staging APK／TestFlight 測試路線；production、schema、Secret、IAM、正式通知與商店發布仍未授權。
 
 - Phase C 已完成 production schema、跨服務 runtime 啟用、管理入口 bootstrap 與既有可靠 LINE 隊員啟用。

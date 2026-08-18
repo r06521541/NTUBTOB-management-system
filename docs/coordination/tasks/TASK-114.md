@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: mobile-officer-readonly-parity
 requires_independent_pr: true
-status: ready_for_domain_planning
+status: ready_for_pr
 base_commit: 7ef79b1380ac054b867bcac0fd4b2c317b81d778
 
 ## Goal
