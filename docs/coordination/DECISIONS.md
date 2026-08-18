@@ -180,9 +180,24 @@
 - Production Admin 仍由 runtime allowlist 決定。Allowlist Admin 可透過受稽核 UI 指派 `basic ↔ officer`，但 UI
   不得建立／解除 Admin；Officer 仍只取得明確 bounded capabilities。
 
+## DEC-091：Main Work 是多領域 Work 的唯一核心協調節點
+
+- 狀態：`active`
+- 生效：2026-08-18
+- 來源：Owner 對多個決策核心與未來擴充更多 Work session 的明確決定
+- Supersedes：無
+- 決策：專案可依 Flutter、Web、data 等領域建立不限數量的 Domain Work；Domain Work 在已核准領域與 task 內具有
+  規劃、低風險次決策、派工與 task 內補正自主權。Main Work 保持唯一全域核心，統一管理 TASK／DEC 編號、跨領域
+  契約、依賴、衝突、final PR／merge／deployment 與最終驗收。
+- Invariants：新增 Domain Work 前必須由 Main Work 登記邊界；跨端 API、auth、schema、shared model、通知、production、
+  Secret、IAM、cloud、正式資料與 release 必須升級。Domain Work 完成正式 task 後交回 Main Work，未收到
+  `next_task_assigned` 不自行開始下一個正式 implementation task。
+- Non-goals：不要求領域內每個 UI／元件／測試小步驟逐次請示，也不允許 Domain Work 各自建立互相競爭的全域治理
+  來源或編號空間。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～090`，下一個新決策從 `DEC-091` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～091`，下一個新決策從 `DEC-092` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。
