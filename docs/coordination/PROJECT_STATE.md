@@ -1,12 +1,16 @@
 # 專案狀態
 
-更新時間：2026-08-11T00:21:37+08:00
+更新時間：2026-08-18T00:00:00+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `44925dad735e8ee3d28ac0f9dae0cb2535762496`
+Repository 基準：`main` / `fe874efd2089f9ab0031c13db80d753f5078ef8b`
 
 ## 目前摘要
+
+- TASK-104 `flutter-client-foundation` planning 已完成；目前等待 Main Work 配發 foundation implementation，尚未實作 App 或 API。
+- Flutter 規格位於 `docs/planning/FLUTTER_CLIENT_PLAN.md`；後續候選 packages 為 fictional foundation、schema-neutral attendance service、mobile auth/API contract、Flutter API integration、staging/release。
+- Flutter planning 已確認 Android／iOS staging APK／TestFlight 測試路線；production、schema、Secret、IAM、正式通知與商店發布仍未授權。
 
 - Phase C 已完成 production schema、跨服務 runtime 啟用、管理入口 bootstrap 與既有可靠 LINE 隊員啟用。
 - Production 目前有 197 位永久 Member 對應 Person；56 組可靠 LINE identity／active team-player 關係。
@@ -79,14 +83,11 @@ Repository 基準：`main` / `44925dad735e8ee3d28ac0f9dae0cb2535762496`
 
 ## 下一階段候選方向
 
-### P1：Phase D 身分與管理能力
+### P1：Flutter foundation planning 與既有 Phase D 收斂
 
-- 將新 pending identity 的核可、拒絕、留言與提醒流程正式投入使用。
-- 規劃 runtime allowlist 至持久化角色／capability 的安全 cutover；保留 last-admin、self-lockout、audit atomicity。
-- 為管理者建立可用且可稽核的 Person／identity／qualification 管理介面。
-- 完成人工登入 smoke，確認 active Member 不再落入「尚待核可」。
-- 交付 bounded Officer／Admin Game command center、既有 Attendance／Roster 洞察與不持久化守位試排；Game
-  資訊本批維持唯讀，schema固定 `0004`。
+- 等待 Main Work 配發 Flutter foundation implementation；未收到 `next_task_assigned` 前不開始正式 implementation task。
+- 由 Work 檢查 Flutter 規格與 DEC-079／080／082／084／085／089／090 的相容性，再決定下一個 implementation package。
+- 既有 pending identity、runtime allowlist／capability cutover 與 bounded Game command center 仍依既有 task／DEC 處理，不因 Flutter planning 自動擴張。
 
 ### P2：Event 與多元活動
 
