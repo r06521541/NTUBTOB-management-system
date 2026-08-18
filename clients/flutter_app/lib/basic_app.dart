@@ -186,12 +186,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final loadedGames = await _api!.games();
       final syncedAt = DateTime.now().toUtc();
       final previous = await _cache!.load();
-      if (previous != null &&
-          (previous.person.id != loadedPerson.id ||
-              previous.person.canReadAttendanceReport &&
-                  !loadedPerson.canReadAttendanceReport)) {
-        await _reportCache!.clearPrincipal(previous.person.id);
-      }
+      await reconcileFreshReportPrincipal(
+        cache: _reportCache!,
+        previous: previous?.person,
+        current: loadedPerson,
+      );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       if (!mounted) return;
       setState(() {
