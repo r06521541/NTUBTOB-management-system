@@ -10,15 +10,23 @@ from typing import Callable, Sequence
 from sqlalchemy import Engine, text
 
 try:
-    from .mobile_staging_contract import (REGION, REVISION, SERVICE,
-                                          StagingContractError,
-                                          validate_database_identity,
-                                          validate_target)
+    from .mobile_staging_contract import (
+        REGION,
+        REVISION,
+        SERVICE,
+        StagingContractError,
+        validate_database_identity,
+        validate_target,
+    )
 except ImportError:  # pragma: no cover - direct script execution
-    from mobile_staging_contract import (REGION, REVISION, SERVICE,
-                                         StagingContractError,
-                                         validate_database_identity,
-                                         validate_target)
+    from mobile_staging_contract import (
+        REGION,
+        REVISION,
+        SERVICE,
+        StagingContractError,
+        validate_database_identity,
+        validate_target,
+    )
 
 Runner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[str]]
 
@@ -32,7 +40,12 @@ def _json(runner: Runner, command: Sequence[str], root: Path, label: str):
 
 
 def cloud_inventory(
-    root: Path, project: str, max_instances: int, runner: Runner
+    root: Path,
+    project: str,
+    max_instances: int,
+    runner: Runner,
+    mode: str | None = None,
+    rollback_revision: str | None = None,
 ) -> dict:
     validate_target(project, REGION, SERVICE, max_instances)
     account = runner(
@@ -45,29 +58,55 @@ def cloud_inventory(
         raise StagingContractError("gcloud account/project context is not exact")
     services = _json(
         runner,
-        ["gcloud", "run", "services", "list", "--project", project,
-         "--region", REGION, "--format=json"],
+        [
+            "gcloud",
+            "run",
+            "services",
+            "list",
+            "--project",
+            project,
+            "--region",
+            REGION,
+            "--format=json",
+        ],
         root,
         "Cloud Run",
     )
     secrets = _json(
         runner,
-        ["gcloud", "secrets", "list", "--project", project,
-         "--format=json(name,replication)"],
+        [
+            "gcloud",
+            "secrets",
+            "list",
+            "--project",
+            project,
+            "--format=json(name,replication)",
+        ],
         root,
         "Secret metadata",
     )
     if not isinstance(services, list) or not isinstance(secrets, list):
         raise StagingContractError("Read-only inventory response is malformed")
+    matching = [
+        item
+        for item in services
+        if isinstance(item, dict) and item.get("metadata", {}).get("name") == SERVICE
+    ]
+    if mode == "bootstrap" and matching:
+        raise StagingContractError(
+            "Bootstrap requires the staging service to be absent"
+        )
+    if mode == "update":
+        if len(matching) != 1 or matching[0].get("status", {}).get("traffic", []) != [
+            {"revisionName": rollback_revision, "percent": 100}
+        ]:
+            raise StagingContractError("Update baseline traffic is not exact")
     return {
         "account_present": True,
         "project": project,
         "region": REGION,
-        "service_exists": any(
-            item.get("metadata", {}).get("name") == SERVICE
-            for item in services
-            if isinstance(item, dict)
-        ),
+        "service_exists": bool(matching),
+        "service_mode": mode,
         "secret_metadata_names": sorted(
             item.get("name", "").rsplit("/", 1)[-1]
             for item in secrets
@@ -81,9 +120,11 @@ def database_inventory(
     database_url: str,
     approved_staging_hash: str,
     production_hash: str,
+    provider: str = "local",
+    resource_id: str = "local-rehearsal",
 ) -> dict:
     identity = validate_database_identity(
-        database_url, approved_staging_hash, production_hash
+        database_url, approved_staging_hash, production_hash, provider, resource_id
     )
     with engine.connect() as connection:
         transaction = connection.begin()
@@ -93,10 +134,12 @@ def database_inventory(
                 text("SELECT version_num FROM ntubtob.alembic_version")
             )
             production_fingerprint = connection.scalar(
-                text("""
+                text(
+                    """
                   SELECT count(*) FROM ntubtob.people
                   WHERE id > 0 AND display_name NOT LIKE '虛構%'
-                """)
+                """
+                )
             )
             fixture_people = connection.scalar(
                 text("SELECT count(*) FROM ntubtob.people WHERE id = ANY(:ids)"),
@@ -112,6 +155,7 @@ def database_inventory(
         raise StagingContractError("Staging fixture state is partial")
     return {
         "database_identity_sha256": identity.fingerprint,
+        "database_provider": identity.provider,
         "revision": revision,
         "production_fingerprint_rows": 0,
         "fixture_state": "clean" if fixture_people == 0 else "seeded",

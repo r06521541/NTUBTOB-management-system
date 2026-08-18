@@ -22,11 +22,12 @@ or distribution.
 
 ## Discovery and exact Owner checkpoint
 
-1. Choose a dedicated non-production project and database. Produce two
-   independently reviewed SHA-256 identities over canonical
-   `postgresql://host:port/database`: one for the approved staging target and one
-   for production. The operator requires both, rejects equality, rejects a target
-   matching production, and does not trust a DSN to label itself staging.
+1. Choose a dedicated non-production project and database. Owner supplies the
+   database provider and immutable provider project/resource ID independently of
+   the DSN. Produce staging and production SHA-256 identities over canonical
+   `provider/resource/postgresql://host:port/database`. The operator rejects
+   equality or mismatch and never trusts a DSN to label itself staging. The
+   manifest exposes only provider, approved alias and resource/target hashes.
 2. Use `tools/mobile_staging_preflight.py` helpers with an injected/read-only
    runner. Cloud inventory only uses `gcloud config get-value`, Cloud Run list and
    Secret metadata list. Database inventory starts an explicit read-only
@@ -34,8 +35,9 @@ or distribution.
    partial TASK-112 fixture.
 3. Render the redacted manifest with `redacted_manifest`. It contains no host,
    username, password, provider subject or Secret payload.
-4. Main Work presents the exact project/billing/APIs, database provider and
-   monthly cost, LINE Provider and Developing channel, dedicated service account,
+4. Main Work presents the exact project/billing/APIs, database provider/resource
+   and monthly cost, LINE Provider and Developing channel, separate dedicated
+   build and runtime service accounts,
    IAM/public ingress, Secret resource versions, scaling, full commit, image
    digest, migration/seed counts, smoke and cleanup plan to Owner.
 5. Store Owner approval JSON and operator recovery state outside the repository.
@@ -67,12 +69,30 @@ private tester mapping. Seed is retry-safe; partial rows, changed labels or a
 different tester mapping stop both seed and cleanup. Cleanup validates the exact
 fixture before deleting it. Output contains counts only.
 
-## Dry run, candidate, promotion and recovery
+## Remote data operation
 
-Build the shared source distribution from the approved clean commit locally.
-The operator requires exact `shared_lib-0.0.1.tar.gz`, inspects its archive paths,
-copies it into the Docker context only for the candidate build and removes the
-copy in `finally`.
+`tools/mobile_staging_data.py` defaults to a redacted, zero-mutation plan. A
+future approved execution gates the private DSN with provider/resource identity,
+runs the repository Alembic upgrade to exact 0005, seeds the fictional fixture,
+then performs a read-only post-check. It does not retry an ambiguous mutation.
+After interruption, `--recover` only reads revision/cardinality and reports
+`not_started` or `completed`; anything else fails closed. This task did not run
+this operator against any remote database.
+
+## Build, candidate, promotion and recovery
+
+There are two separate Owner approvals and cost checkpoints:
+
+1. Build approval fixes project, full commit, exact build ID, image URI and
+   dedicated build service account, but has no digest. `build` creates a fresh
+   shared sdist from that clean HEAD in a temporary directory, copies it into the
+   Docker context only for the build, validates the returned build ID/image URI/
+   digest, records private state, and removes both copies in `finally`. A stale
+   checked-in or pre-existing dist artifact is rejected. If the response is lost,
+   `recover-build` describes the exact build ID; it never resubmits the build.
+2. Main Work presents the resulting digest and build evidence to Owner. Candidate
+   approval fixes that existing digest and either `bootstrap` or `update` mode.
+   `candidate` only deploys the approved digest and never invokes Cloud Build.
 
 Default invocation performs no cloud command:
 
@@ -88,24 +108,34 @@ $env:MOBILE_STAGING_DATABASE_URL = '<private-dedicated-staging-dsn>'
 python tools/mobile_staging_operator.py --approval C:\private\approval.json
 ```
 
-A later task needs a fresh Owner approval before any of these mutations:
+A later task needs the matching fresh Owner approval before each mutation:
 
 ```powershell
-python tools/mobile_staging_operator.py --approval C:\private\approval.json --state-file C:\private\state.json --execute candidate
-python tools/mobile_staging_operator.py --approval C:\private\approval.json --state-file C:\private\state.json --execute recover
+python tools/mobile_staging_operator.py --approval C:\private\build-approval.json --state-file C:\private\build-state.json --execute build
+python tools/mobile_staging_operator.py --approval C:\private\build-approval.json --state-file C:\private\build-state.json --execute recover-build
+python tools/mobile_staging_operator.py --approval C:\private\candidate-approval.json --state-file C:\private\candidate-state.json --execute candidate
+python tools/mobile_staging_operator.py --approval C:\private\candidate-approval.json --state-file C:\private\candidate-state.json --execute recover-candidate
 python tools/mobile_staging_operator.py --approval C:\private\approval.json --state-file C:\private\state.json --execute promote
 python tools/mobile_staging_operator.py --approval C:\private\approval.json --state-file C:\private\state.json --execute rollback
 ```
 
-Candidate execution submits one Cloud Build and deploys the exact digest as a
-no-traffic revision. Promotion is a separate exact traffic command. On
-interruption before the private state is saved, use `recover`: it does not build
-or deploy, and only accepts the exact ready, zero-traffic revision, digest,
-scaling, runtime identity, Secret references and audience. Then resume promotion
-or rollback from the saved state. Ambiguous state stops. Rollback restores 100%
-traffic to the approved prior revision;
+Google documents that `--no-traffic` prevents the deployed revision receiving
+traffic, including a first revision, and that service traffic is managed
+separately. The operator therefore treats revision describe as image/readiness
+evidence but service describe as the authoritative traffic topology. Bootstrap
+requires no prior service and `rollback_revision=null`; failed promotion cleanup
+or service deletion needs separate approval. Update requires one exact baseline
+revision at 100% before candidate promotion and can roll back to it. Both modes
+reject candidate traffic, digest, ingress, runtime identity or scaling drift.
+`recover-candidate` is read-only and never redeploys. Rollback restores 100%
+traffic only in update mode;
 candidate/image deletion and full staging cleanup remain separately approved
 cost-bearing actions.
+
+Cloud Run semantics checked against the official
+[deploy documentation](https://cloud.google.com/run/docs/deploying),
+[`gcloud run deploy` reference](https://cloud.google.com/sdk/gcloud/reference/run/deploy),
+and [traffic rollout documentation](https://cloud.google.com/run/docs/rollouts-rollbacks-traffic-migration).
 
 The operator never runs project/API/billing/database/Secret/service-account/IAM
 or LINE-channel creation. Public ingress and IAM remain Owner-controlled steps.
@@ -115,8 +145,10 @@ or LINE-channel creation. Public ingress and IAM remain Owner-controlled steps.
 After staging exists, Flutter Domain Work may use this value-free template:
 
 ```sh
-flutter build apk --flavor staging \
-  --dart-define=MOBILE_API_BASE_URL=https://<mobile-api-staging-host>/api/v1 \
+flutter build apk \
+  --dart-define=APP_FLAVOR=staging \
+  --dart-define=CLIENT_MODE=real \
+  --dart-define=API_BASE_URL=https://<mobile-api-staging-origin-without-api-v1> \
   --dart-define=LINE_CHANNEL_ID=<numeric-developing-channel-id>
 ```
 

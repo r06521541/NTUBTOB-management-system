@@ -10,7 +10,8 @@
   configuration, Cloud Run and Secret metadata names; database inventory uses an
   explicit read-only transaction and rejects revision drift, production-shaped
   People and partial fictional fixture state.
-- Added deterministic local-only fictional seed/cleanup for three Basic People,
+- Added deterministic fictional seed/cleanup primitives with a local-only direct
+  CLI for three Basic People,
   future Games and attendance states plus exactly one private tester mapping.
   Provider subject is used only as a bound database parameter, never printed or
   hashed. Seed/retry/cleanup verify exact fixture cardinality and drift.
@@ -24,6 +25,31 @@
   command.
 - Added the value-free Flutter staging build command and complete Owner approval,
   mutation, rollback and cleanup tabletop. No Flutter source was changed.
+
+## Main Work review correction
+
+- Corrected the Flutter template to the client-owned `APP_FLAVOR`, `CLIENT_MODE`,
+  `API_BASE_URL` origin and `LINE_CHANNEL_ID` defines; a static contract test
+  proves `integration.dart` appends `/api/v1`. Flutter source remains untouched.
+- Split activation into build approval/build-result state and a second candidate
+  approval. Candidate never rebuilds; lost build/candidate responses use exact,
+  read-only recovery. A fresh shared sdist is built from clean approved HEAD in a
+  temporary directory; stale dist input is rejected and temporary/context copies
+  are removed in `finally`.
+- Added mutually exclusive bootstrap/update modes. Bootstrap has no fictional
+  rollback revision; update requires one exact 100% baseline. Candidate,
+  promotion and rollback validate authoritative service traffic. Digest checking
+  accepts Cloud Run's repository-qualified or bare digest representation.
+- Added database provider plus immutable resource identity to the independent
+  approval fingerprint and redacted manifest. Runtime/build service accounts are
+  separate and project-scoped; deploy is explicit private/no-traffic while IAM
+  remains an Owner-controlled future mutation.
+- Added dry-run-first remote data plan plus approved migration/seed/post-check and
+  read-only interruption recovery. It never blindly retries an ambiguous state;
+  this task did not execute it against any remote database.
+- Fixture reply-type rows are now preserved when an exact compatible baseline
+  exists. A clean baseline receives clearly marked fixture-owned rows, and only
+  those rows are removed after dependent fixture cleanup.
 
 ## Safety review
 
@@ -41,10 +67,10 @@
 
 ## Verification
 
-- Staging operator offline contracts: 8 passed.
+- Staging operator/data/Flutter static contracts: 11 passed.
 - Mobile API full offline suite: 14 passed (with `shared_lib` checkout on
   `PYTHONPATH`, matching the packaged shared-module boundary).
-- PostgreSQL 15 and 16: repository legacy baseline upgraded to exact 0005; 3
+- PostgreSQL 15 and 16: repository legacy baseline upgraded to exact 0005; 4
   seed/cardinality/drift/retry/cleanup tests passed on each. Downgrade from 0005
   to 0004 and re-upgrade to 0005 passed on each.
 - A deliberately incorrect local fake-password rerun failed authentication

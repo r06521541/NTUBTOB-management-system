@@ -31,12 +31,16 @@ class StagingContractError(RuntimeError):
 
 @dataclass(frozen=True)
 class DatabaseIdentity:
+    provider: str
+    resource_id: str
     host: str
     port: int
     database: str
 
     @classmethod
-    def from_url(cls, value: str) -> "DatabaseIdentity":
+    def from_url(
+        cls, value: str, provider: str = "local", resource_id: str = "local-rehearsal"
+    ) -> "DatabaseIdentity":
         try:
             parsed = urlparse(
                 value.replace("postgresql+psycopg2://", "postgresql://", 1)
@@ -54,11 +58,18 @@ class DatabaseIdentity:
             or len(database) > 63
         ):
             raise StagingContractError("Database target is malformed")
-        return cls(host, port, database)
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", provider or ""):
+            raise StagingContractError("Database provider is invalid")
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]{5,127}", resource_id or ""):
+            raise StagingContractError("Database resource identity is invalid")
+        return cls(provider, resource_id, host, port, database)
 
     @property
     def fingerprint(self) -> str:
-        canonical = f"postgresql://{self.host}:{self.port}/{self.database}"
+        canonical = (
+            f"{self.provider}/{self.resource_id}/"
+            f"postgresql://{self.host}:{self.port}/{self.database}"
+        )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
@@ -76,9 +87,13 @@ def validate_target(
 
 
 def validate_database_identity(
-    database_url: str, approved_staging_hash: str, production_hash: str
+    database_url: str,
+    approved_staging_hash: str,
+    production_hash: str,
+    provider: str = "local",
+    resource_id: str = "local-rehearsal",
 ) -> DatabaseIdentity:
-    identity = DatabaseIdentity.from_url(database_url)
+    identity = DatabaseIdentity.from_url(database_url, provider, resource_id)
     hashes = (approved_staging_hash, production_hash)
     if any(not re.fullmatch(r"[0-9a-f]{64}", value or "") for value in hashes):
         raise StagingContractError("Both database identity hashes are required")
@@ -108,6 +123,9 @@ def redacted_manifest(
     database_url: str,
     approved_staging_hash: str,
     production_hash: str,
+    database_provider: str = "local",
+    database_resource_id: str = "local-rehearsal",
+    database_alias: str = "local",
     max_instances: int,
     secret_refs: dict[str, str] | None = None,
     commit: str | None = None,
@@ -115,7 +133,11 @@ def redacted_manifest(
 ) -> dict:
     validate_target(project, REGION, SERVICE, max_instances)
     identity = validate_database_identity(
-        database_url, approved_staging_hash, production_hash
+        database_url,
+        approved_staging_hash,
+        production_hash,
+        database_provider,
+        database_resource_id,
     )
     if commit is not None and not SHA_PATTERN.fullmatch(commit):
         raise StagingContractError("Commit must be a full SHA")
@@ -131,6 +153,11 @@ def redacted_manifest(
         "scaling": {"min": 0, "max": max_instances},
         "database": {
             "identity_sha256": identity.fingerprint,
+            "provider": identity.provider,
+            "resource_identity_sha256": hashlib.sha256(
+                identity.resource_id.encode("utf-8")
+            ).hexdigest(),
+            "approved_alias": database_alias,
             "credentials": "redacted",
         },
         "runtime_secret_refs": refs
@@ -157,13 +184,21 @@ def load_approval(path: Path) -> dict:
         "region",
         "service",
         "approved_commit",
+        "approval_phase",
+        "build_id",
+        "image_uri",
         "image_digest",
+        "mode",
         "candidate_revision",
         "rollback_revision",
         "database_identity_sha256",
         "production_database_identity_sha256",
+        "database_provider",
+        "database_resource_id",
+        "database_alias",
         "max_instances",
         "service_account",
+        "build_service_account",
         "runtime_secret_refs",
         "mobile_api_audience",
     }
@@ -174,23 +209,61 @@ def load_approval(path: Path) -> dict:
     )
     if not SHA_PATTERN.fullmatch(value["approved_commit"] or ""):
         raise StagingContractError("Approved commit must be a full SHA")
-    if not DIGEST_PATTERN.fullmatch(value["image_digest"] or ""):
+    if value["approval_phase"] not in {"build", "candidate"}:
+        raise StagingContractError("Approval phase is invalid")
+    if value["mode"] not in {"bootstrap", "update"}:
+        raise StagingContractError("Staging service mode is invalid")
+    if value["approval_phase"] == "candidate" and not DIGEST_PATTERN.fullmatch(
+        value["image_digest"] or ""
+    ):
         raise StagingContractError("Approved image digest is invalid")
+    if value["approval_phase"] == "build" and value["image_digest"] is not None:
+        raise StagingContractError("Build approval cannot pre-approve a digest")
+    if value["approval_phase"] == "candidate" and not re.fullmatch(
+        r"[a-z0-9][a-z0-9._-]{5,127}", value["build_id"] or ""
+    ):
+        raise StagingContractError("Candidate approval requires exact build ID")
+    if value["approval_phase"] == "build" and value["build_id"] is not None:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{5,127}", value["build_id"]):
+            raise StagingContractError("Build recovery ID is invalid")
+    if not re.fullmatch(
+        r"asia-east1-docker\.pkg\.dev/[a-z0-9-]+/[a-z0-9-]+/[a-z0-9-]+",
+        value["image_uri"] or "",
+    ):
+        raise StagingContractError("Exact image URI is invalid")
     if not re.fullmatch(
         r"mobile-api-staging-[a-z0-9-]+", value["candidate_revision"] or ""
     ):
         raise StagingContractError("Candidate revision is invalid")
-    if not re.fullmatch(
-        r"mobile-api-staging-[a-z0-9-]+", value["rollback_revision"] or ""
+    rollback = value["rollback_revision"]
+    if value["mode"] == "bootstrap" and rollback is not None:
+        raise StagingContractError("Bootstrap cannot claim a rollback revision")
+    if value["mode"] == "update" and not re.fullmatch(
+        r"mobile-api-staging-[a-z0-9-]+", rollback or ""
     ):
-        raise StagingContractError("Rollback revision is invalid")
-    if value["candidate_revision"] == value["rollback_revision"]:
+        raise StagingContractError("Update requires an exact rollback revision")
+    if rollback is not None and value["candidate_revision"] == rollback:
         raise StagingContractError("Candidate and rollback revisions must differ")
-    if not re.fullmatch(
+    account_pattern = (
         r"[a-z][a-z0-9-]{4,28}@[a-z][a-z0-9-]{4,28}\.iam\.gserviceaccount\.com",
-        value["service_account"] or "",
+    )[0]
+    for field in ("service_account", "build_service_account"):
+        account = value[field] or ""
+        if not re.fullmatch(account_pattern, account) or account.split("@", 1)[1] != (
+            value["project"] + ".iam.gserviceaccount.com"
+        ):
+            raise StagingContractError(f"Dedicated {field} project is invalid")
+    if value["service_account"] == value["build_service_account"]:
+        raise StagingContractError("Runtime and build identities must be separate")
+    DatabaseIdentity.from_url(
+        "postgresql://placeholder.invalid/placeholder",
+        value["database_provider"],
+        value["database_resource_id"],
+    )
+    if not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{2,31}", value["database_alias"] or ""
     ):
-        raise StagingContractError("Dedicated service account is invalid")
+        raise StagingContractError("Database alias is invalid")
     hashes = (
         value["database_identity_sha256"],
         value["production_database_identity_sha256"],

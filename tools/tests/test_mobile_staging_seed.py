@@ -7,7 +7,7 @@ from sqlalchemy import create_engine, text
 
 from tools.mobile_staging_contract import DatabaseIdentity
 from tools.mobile_staging_preflight import database_inventory
-from tools.mobile_staging_seed import StagingSeedError, cleanup, seed
+from tools.mobile_staging_seed import REPLY_TYPES, StagingSeedError, cleanup, seed
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL")
 
@@ -46,7 +46,9 @@ class MobileStagingSeedIntegrationTest(unittest.TestCase):
         self.assertEqual(after["fixture_state"], "seeded")
         with self.engine.connect() as connection:
             count = connection.scalar(
-                text("SELECT count(*) FROM ntubtob.auth_identities WHERE provider='line' AND provider_subject=:subject"),
+                text(
+                    "SELECT count(*) FROM ntubtob.auth_identities WHERE provider='line' AND provider_subject=:subject"
+                ),
                 {"subject": "fake-private-tester-subject"},
             )
         self.assertEqual(count, 1)
@@ -65,13 +67,51 @@ class MobileStagingSeedIntegrationTest(unittest.TestCase):
             cleanup(self.engine, "fake-private-tester-subject")
         with self.engine.begin() as connection:
             connection.execute(
-                text("UPDATE ntubtob.people SET display_name='虛構 Staging 隊友甲' WHERE id=-112002")
+                text(
+                    "UPDATE ntubtob.people SET display_name='虛構 Staging 隊友甲' WHERE id=-112002"
+                )
             )
 
     def test_wrong_private_subject_never_reuses_mapping(self):
         seed(self.engine, "fake-private-tester-subject")
         with self.assertRaises(StagingSeedError):
             seed(self.engine, "another-private-tester-subject")
+
+    def test_existing_reply_type_reference_rows_survive_seed_and_cleanup(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.attendance_reply_types (id, description) "
+                    "VALUES (:id, :description)"
+                ),
+                [
+                    {"id": key, "description": value}
+                    for key, value in REPLY_TYPES.items()
+                ],
+            )
+            before = connection.execute(
+                text(
+                    "SELECT id, description FROM ntubtob.attendance_reply_types "
+                    "ORDER BY id"
+                )
+            ).all()
+        seed(self.engine, "fake-private-tester-subject")
+        cleanup(self.engine, "fake-private-tester-subject")
+        with self.engine.connect() as connection:
+            after = connection.execute(
+                text(
+                    "SELECT id, description FROM ntubtob.attendance_reply_types "
+                    "ORDER BY id"
+                )
+            ).all()
+        self.assertEqual(after, before)
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "DELETE FROM ntubtob.attendance_reply_types " "WHERE id = ANY(:ids)"
+                ),
+                {"ids": list(REPLY_TYPES)},
+            )
 
 
 if __name__ == "__main__":
