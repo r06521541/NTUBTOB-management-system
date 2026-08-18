@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-19T00:06:34+08:00
+更新時間：2026-08-19T01:02:00+08:00
 
 維護角色：Work
 
@@ -14,8 +14,8 @@ Repository 基準：`main` / `4792f529a374baa3f87386a0883a6a82c1ecb048`
   `cd28d60d328844f94d9544aa50965cf77cb2399e`）；revision 0005尚未在 production 執行，mobile API亦尚未部署。
 - TASK-110 Flutter Basic native auth/API integration已由 PR #120 merge至 `main`（merge commit
   `4792f529a374baa3f87386a0883a6a82c1ecb048`）；真實LINE/staging、Officer/Admin、通知、簽署與發布尚未進行。
-- TASK-111 已配發：將App顯示名稱定為「臺大校友比賽報你知」、Android/iOS identity定為
-  `tw.org.ntubtob.portal`，並建立Flutter hosted CI；不串真LINE、不部署或簽署。
+- TASK-111 source已完成Domain/Main Work驗收：App顯示名稱為「臺大校友比賽報你知」、Android/iOS identity為
+  `tw.org.ntubtob.portal`；reusable Flutter workflow已納入既有final gate，等待同一PR head hosted evidence。
 - Flutter planning 已確認 Android／iOS staging APK／TestFlight 測試路線；production、schema、Secret、IAM、正式通知與商店發布仍未授權。
 
 - Phase C 已完成 production schema、跨服務 runtime 啟用、管理入口 bootstrap 與既有可靠 LINE 隊員啟用。
@@ -91,7 +91,7 @@ Repository 基準：`main` / `4792f529a374baa3f87386a0883a6a82c1ecb048`
 
 ### P1：Flutter release identity／CI 與 staging readiness
 
-- TASK-111 先固定 release identity 並取得 hosted Flutter evidence；未取得真實staging/channel設定前不做真人登入。
+- TASK-111 release identity與CI source已接受，等待hosted Flutter及既有final gate；未取得真實staging/channel設定前不做真人登入。
 - TASK-111 完成後再建立 isolated staging／Android真機task與iOS macOS gate；不提前啟用production mobile runtime。
 - 既有 pending identity、runtime allowlist／capability cutover 與 bounded Game command center 仍依既有 task／DEC 處理，不因 Flutter planning 自動擴張。
 

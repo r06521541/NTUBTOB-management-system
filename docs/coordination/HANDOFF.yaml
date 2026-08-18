@@ -1,17 +1,18 @@
 active_task: TASK-111
-status: ready_for_codex
-next_actor: codex
+status: ready_for_hosted_ci
+next_actor: work
 
 base_commit: 4792f529a374baa3f87386a0883a6a82c1ecb048
-head_commit: null
+head_commit: 83abf8cacdc5f06e3b787d51821c698353e8af96
 
 updated_by: work
-updated_at: 2026-08-19T00:06:34+08:00
+updated_at: 2026-08-19T01:02:00+08:00
 
 note: >
-  TASK-110 merged through PR #120 at 4792f529a374baa3f87386a0883a6a82c1ecb048. TASK-111 assigns the approved
-  `臺大校友比賽報你知` display identity, stable `tw.org.ntubtob.portal` Android/iOS identity and a hosted Flutter CI
-  baseline. No production/staging deployment, migration, Secret, real LINE login, signing or notification is authorized.
+  TASK-111 source is accepted at 83abf8cacdc5f06e3b787d51821c698353e8af96. The approved
+  `臺大校友比賽報你知` display identity, stable `tw.org.ntubtob.portal` Android/iOS identity and reusable Flutter gate
+  await hosted Flutter plus the existing CI final gate on one PR head. No production/staging deployment, migration,
+  Secret, real LINE login, signing or notification is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-111.md
