@@ -2,7 +2,7 @@
 
 ## Scope
 
-建立 `clients/flutter_app/` 的 Flutter-local fictional foundation：最小 `pubspec.yaml`、main entry point、flavor labels、集中 capability policy、基本導覽 shell、loading/empty/error/offline state enum、deterministic fake repository 與 offline read-only snapshot model，以及 unit test 設計。未建立 Android/iOS generated runner。
+建立 `clients/flutter_app/` 的 Flutter-local fictional foundation：最小 `pubspec.yaml`、compile-time flavor parser、集中且 fail-closed 的 capability policy、可操作角色導覽、Officer 出席／個人通知／廣播與 Admin 公告 fictional shell、light/dark theme、四種具 semantics 的狀態 UI、typed deterministic fixtures、fake API/fake push in-memory implementation、顯示最後同步時間的 offline read-only model，以及 unit/widget test 設計。未建立 Android/iOS generated runner。
 
 ## Boundary and safety
 
@@ -12,7 +12,9 @@ development/staging/production 僅是環境顯示名稱；程式未包含 endpoi
 
 - `flutter --version`、`dart --version`、`adb version`：不可用；`java -version` 顯示 Microsoft OpenJDK 11。
 - `flutter analyze`、`flutter test`：未執行，因 Flutter/Dart SDK 不存在。
-- 已完成 repository 內 no-secrets/no-endpoints/no-network 靜態掃描、`git diff --check` 與 `git status --short`。
+- Review correction：補齊 `NavigationBar.selectedIndex/onDestinationSelected` 與實際頁面切換、未知 route fail-closed、四種 state semantics、typed fixtures、明確 fake API/push interfaces、offline last-sync 顯示，以及安全 platform generation/diff-review gate。
+- 測試檔涵蓋 flavor parse/fail-closed、角色繼承與 navigation visibility、light/dark theme、loading/empty/error/offline UI/semantics、last sync/offline read-only、fake push deterministic in-memory behavior。
+- 已完成 TASK-105 writer boundary 內 no-secrets/no-endpoints/no-network 靜態掃描、`git diff --check` 與 `git status --short`。
 
 ## Handoff
 

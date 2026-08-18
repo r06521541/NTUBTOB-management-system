@@ -4,7 +4,15 @@ This directory is a Flutter-local, deterministic preview only. It contains no en
 
 ## Flavors and platform generation
 
-`AppFlavor` is an environment label only (`development`, `staging`, `production`). It does not select resources or credentials. When the Flutter SDK is available, run `flutter create .` from this directory to generate platform runners; generated Android/iOS files are intentionally deferred because this worktree has no Flutter, Dart, or Android SDK.
+`AppFlavor` is an environment label only (`development`, `staging`, `production`). It does not select resources or credentials. Select it at compile time with `--dart-define=APP_FLAVOR=development`; an unknown value fails closed before the app starts.
+
+Platform runners are intentionally absent because this worktree has no Flutter, Dart, or Android SDK. After the owner installs a compatible Flutter SDK and confirms Android/iOS prerequisites, generate only the runners from this directory with:
+
+```sh
+flutter create --platforms=android,ios --project-name ntubtob_fictional_client .
+```
+
+The expected additions are `android/`, `ios/`, and Flutter-generated metadata. Before accepting them, review `git status --short` and the complete diff; reject unrelated dependency, identifier, signing, resource, endpoint, or credential changes. Generation does not authorize building, signing, deployment, or store distribution.
 
 ## Verification gate
 
