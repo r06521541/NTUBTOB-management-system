@@ -18,6 +18,7 @@ from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
 from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
 from sqlalchemy import create_engine, text
+from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -40,6 +41,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         cls.engine = create_engine(DATABASE_URL)
 
     def setUp(self):
+        setup_legacy_fixture()
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", DATABASE_URL)
         command.upgrade(config, "head")
