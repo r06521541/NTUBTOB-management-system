@@ -5,7 +5,7 @@ import os
 
 from app import Dependencies, create_app
 from cryptography.fernet import Fernet, InvalidToken
-from line_verifier import LineJwtVerifier
+from line_verifier import LineIdTokenVerifier
 from shared_module.attendance_reply import AttendanceReplyService
 from shared_module.mobile_api import (
     BasicApiService,
@@ -63,7 +63,7 @@ cipher = RuntimeCipher(required("MOBILE_REFRESH_REPLAY_KEY"))
 token_key = base64.urlsafe_b64decode(required("MOBILE_ACCESS_SIGNING_KEY"))
 auth = MobileAuthService(
     repository,
-    LineJwtVerifier(required("MOBILE_LINE_PUBLIC_KEY")),
+    LineIdTokenVerifier(),
     cipher,
     HmacAccessTokenCodec(token_key),
     audience=required("MOBILE_API_AUDIENCE"),

@@ -1,61 +1,115 @@
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs
 
-import jwt
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 from shared_module.mobile_api import AuthenticationError
 
-from apps.mobile_api.line_verifier import LineJwtVerifier
+from apps.mobile_api.line_verifier import (
+    VERIFY_URL,
+    LineIdTokenVerifier,
+    LineVerificationRateLimited,
+    LineVerificationUnavailable,
+)
+
+NOW = datetime(2026, 8, 18, tzinfo=timezone.utc)
 
 
-class LineJwtVerifierTest(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        cls.private_key = key.private_bytes(
-            serialization.Encoding.PEM,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption(),
-        )
-        public_key = key.public_key().public_bytes(
-            serialization.Encoding.PEM,
-            serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-        cls.verifier = LineJwtVerifier(public_key.decode("ascii"))
+class FakeTransport:
+    def __init__(self, status=200, payload=None, error=None):
+        self.status, self.payload, self.error = status, payload, error
+        self.calls = []
 
-    def token(self, **overrides):
-        now = datetime.now(timezone.utc)
-        claims = {
+    def __call__(self, url, body, timeout):
+        self.calls.append((url, body, timeout))
+        if self.error:
+            raise self.error
+        return self.status, json.dumps(self.payload).encode("utf-8")
+
+
+class LineIdTokenVerifierTest(unittest.TestCase):
+    def claims(self, **overrides):
+        values = {
             "iss": "https://access.line.me",
             "aud": "fake-native-client",
             "sub": "fake-line-subject",
             "nonce": "fake-nonce-123456",
-            "exp": now + timedelta(minutes=5),
+            "exp": int((NOW + timedelta(minutes=5)).timestamp()),
         }
-        claims.update(overrides)
-        return jwt.encode(claims, self.private_key, algorithm="RS256"), now
+        values.update(overrides)
+        return values
 
-    def test_valid_signature_audience_nonce_and_expiry(self):
-        token, now = self.token()
-        result = self.verifier.verify(
-            token, "fake-native-client", "fake-nonce-123456", now
+    def test_valid_response_posts_official_fields_with_bounded_timeout(self):
+        transport = FakeTransport(payload=self.claims())
+        result = LineIdTokenVerifier(transport).verify(
+            "raw.fake.id-token", "fake-native-client", "fake-nonce-123456", NOW
         )
         self.assertEqual(result.subject, "fake-line-subject")
+        url, body, timeout = transport.calls[0]
+        self.assertEqual(url, VERIFY_URL)
+        self.assertLessEqual(timeout, 10)
+        self.assertEqual(
+            parse_qs(body.decode("ascii")),
+            {
+                "id_token": ["raw.fake.id-token"],
+                "client_id": ["fake-native-client"],
+                "nonce": ["fake-nonce-123456"],
+            },
+        )
 
-    def test_wrong_audience_nonce_expiry_and_signature_fail_closed(self):
-        cases = []
-        token, now = self.token(aud="wrong")
-        cases.append((token, "fake-nonce-123456", now))
-        token, now = self.token()
-        cases.append((token, "wrong-nonce-1234", now))
-        token, now = self.token(exp=now - timedelta(seconds=1))
-        cases.append((token, "fake-nonce-123456", now))
-        cases.append((token + "corrupt", "fake-nonce-123456", now))
-        for token, nonce, checked_at in cases:
-            with self.subTest(nonce=nonce):
+    def test_claim_schema_audience_nonce_and_expiry_fail_closed(self):
+        cases = (
+            self.claims(aud="wrong"),
+            self.claims(nonce="wrong"),
+            self.claims(exp=int((NOW - timedelta(seconds=1)).timestamp())),
+            {"sub": "incomplete"},
+            ["not", "an", "object"],
+        )
+        for payload in cases:
+            with self.subTest(payload=payload):
                 with self.assertRaises(AuthenticationError):
-                    self.verifier.verify(token, "fake-native-client", nonce, checked_at)
+                    LineIdTokenVerifier(FakeTransport(payload=payload)).verify(
+                        "raw-secret-token",
+                        "fake-native-client",
+                        "fake-nonce-123456",
+                        NOW,
+                    )
+
+    def test_provider_rejections_and_malformed_body_do_not_leak_token(self):
+        for status, payload in ((400, {}), (401, {}), (200, "not-json")):
+            with self.subTest(status=status):
+                transport = FakeTransport(status=status, payload=payload)
+                with self.assertRaises(AuthenticationError) as raised:
+                    LineIdTokenVerifier(transport).verify(
+                        "raw-secret-token",
+                        "fake-native-client",
+                        "fake-nonce-123456",
+                        NOW,
+                    )
+                self.assertNotIn("raw-secret-token", str(raised.exception))
+
+    def test_rate_limit_is_safe_and_retryable(self):
+        with self.assertRaises(LineVerificationRateLimited) as raised:
+            LineIdTokenVerifier(FakeTransport(status=429, payload={})).verify(
+                "raw-secret-token", "fake-native-client", "fake-nonce-123456", NOW
+            )
+        self.assertNotIn("raw-secret-token", str(raised.exception))
+
+    def test_server_failure_timeout_and_transport_error_are_unavailable(self):
+        cases = (
+            FakeTransport(status=500, payload={}),
+            FakeTransport(error=TimeoutError("raw-secret-token")),
+        )
+        for transport in cases:
+            with self.subTest(transport=transport):
+                with self.assertRaises(LineVerificationUnavailable) as raised:
+                    LineIdTokenVerifier(transport).verify(
+                        "raw-secret-token",
+                        "fake-native-client",
+                        "fake-nonce-123456",
+                        NOW,
+                    )
+                self.assertNotIn("raw-secret-token", str(raised.exception))
 
 
 if __name__ == "__main__":

@@ -411,6 +411,30 @@ class BasicApiService:
         game = self._game(principal, game_id)
         request = {"reply": value.value}
 
+        def response(changed, updated_at, notification):
+            return 200, {
+                "game_id": f"game_{game_id}",
+                "reply": value.value,
+                "changed": changed,
+                "updated_at": updated_at.astimezone(timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z"),
+                "notification": notification,
+            }
+
+        def reconcile():
+            state = self.data.own_attendance_reply_state(principal.person_id, game_id)
+            if state is None or state["reply"] != value.legacy_value:
+                return None
+            return response(
+                None,
+                state["updated_at"],
+                {
+                    "status": "unknown",
+                    "code": "attendance_notification_outcome_unknown",
+                },
+            )
+
         def mutation():
             result = self.attendance.reply(
                 AttendanceReplyCommand(
@@ -421,19 +445,17 @@ class BasicApiService:
                     notification,
                 )
             )
-            return 200, {
-                "game_id": f"game_{game_id}",
-                "reply": value.value,
-                "changed": result.changed,
-                "updated_at": self.clock()
-                .astimezone(timezone.utc)
-                .isoformat()
-                .replace("+00:00", "Z"),
-                "notification": {
+            state = self.data.own_attendance_reply_state(principal.person_id, game_id)
+            if state is None or state["reply"] != value.legacy_value:
+                raise MobileApiError("saved attendance readback is unavailable")
+            return response(
+                result.changed,
+                state["updated_at"],
+                {
                     "status": result.notification_status.value,
                     "code": getattr(result, "notification_error", None),
                 },
-            }
+            )
 
         return self.auth.idempotent(
             session_id=principal.session_id,
@@ -443,5 +465,6 @@ class BasicApiService:
             key_hash=secret_hash(key),
             request_hash=canonical_hash(request),
             mutation=mutation,
+            reconcile=reconcile,
             now=self.clock(),
         )

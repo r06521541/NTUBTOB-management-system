@@ -329,6 +329,106 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         self.assertEqual({result[2] for result in results}, {False, True})
         self.assertEqual(results[0][1], results[1][1])
 
+    def test_finalize_failure_reconciles_saved_mutation_without_repeating_it(self):
+        principal = self.repository.exchange(
+            provider="line",
+            subject=f"mobile-{self.id()}",
+            assertion_hash="1" * 63 + "a",
+            login_attempt_hash="2" * 63 + "a",
+            installation_id_hash="3" * 63 + "a",
+            platform="android",
+            refresh_hash="4" * 63 + "a",
+            now=NOW,
+        )
+        saved, calls = {"value": None}, []
+
+        def mutation():
+            calls.append("mutation-and-notification")
+            saved["value"] = "attending"
+            return 200, {"reply": "attending", "notification": "succeeded"}
+
+        def reconcile():
+            if saved["value"] == "attending":
+                return 200, {"reply": "attending", "notification": "unknown"}
+            return None
+
+        original = self.repository._complete_idempotency
+        finalize_calls = []
+
+        def fail_once(record, result, now):
+            finalize_calls.append(1)
+            if len(finalize_calls) == 1:
+                raise RuntimeError("simulated finalize disconnect")
+            return original(record, result, now)
+
+        self.repository._complete_idempotency = fail_once
+        try:
+            values = dict(
+                session_id=principal.session_id,
+                person_id=principal.person_id,
+                method="PUT",
+                route="/api/v1/games/46/attendance-reply",
+                key_hash="5" * 64,
+                request_hash="6" * 64,
+                mutation=mutation,
+                reconcile=reconcile,
+                now=NOW,
+            )
+            first = self.repository.idempotent(**values)
+            replay = self.repository.idempotent(**values)
+        finally:
+            self.repository._complete_idempotency = original
+        self.assertEqual(calls, ["mutation-and-notification"])
+        self.assertTrue(first[2])
+        self.assertTrue(replay[2])
+        self.assertEqual(first[1], replay[1])
+        self.assertEqual(first[1]["notification"], "succeeded")
+
+    def test_post_commit_application_failure_recovers_unknown_outcome(self):
+        principal = self.repository.exchange(
+            provider="line",
+            subject=f"mobile-{self.id()}",
+            assertion_hash="7" * 63 + "b",
+            login_attempt_hash="8" * 63 + "b",
+            installation_id_hash="9" * 63 + "b",
+            platform="ios",
+            refresh_hash="a" * 63 + "b",
+            now=NOW,
+        )
+        saved, calls = {"value": None}, []
+
+        def mutation():
+            calls.append("saved")
+            saved["value"] = "attending"
+            raise RuntimeError("simulated response construction failure")
+
+        def reconcile():
+            if saved["value"] == "attending":
+                return 200, {
+                    "reply": "attending",
+                    "changed": None,
+                    "notification": "unknown",
+                }
+            return None
+
+        values = dict(
+            session_id=principal.session_id,
+            person_id=principal.person_id,
+            method="PUT",
+            route="/api/v1/games/47/attendance-reply",
+            key_hash="b" * 64,
+            request_hash="c" * 64,
+            mutation=mutation,
+            reconcile=reconcile,
+            now=NOW,
+        )
+        first = self.repository.idempotent(**values)
+        replay = self.repository.idempotent(**values)
+        self.assertEqual(calls, ["saved"])
+        self.assertIsNone(first[1]["changed"])
+        self.assertTrue(first[2])
+        self.assertEqual(first[1], replay[1])
+
 
 if __name__ == "__main__":
     unittest.main()

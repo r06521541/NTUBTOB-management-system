@@ -200,17 +200,20 @@ class BasicApiServiceTest(unittest.TestCase):
 
     def test_five_replies_and_exact_idempotent_readback(self):
         repository = FakeAuthRepository()
+        state = {"reply": None, "updated_at": NOW}
         data = SimpleNamespace(
             scoped_game=lambda *_: {"id": 44, "start_at": NOW + timedelta(hours=6)},
             scoped_games=lambda *_: (),
+            own_attendance_reply_state=lambda *_: dict(state),
         )
-        attendance = SimpleNamespace(
-            reply=Mock(
-                return_value=SimpleNamespace(
-                    changed=True, notification_status=SimpleNamespace(value="failed")
-                )
+
+        def save(command):
+            state["reply"] = command.reply
+            return SimpleNamespace(
+                changed=True, notification_status=SimpleNamespace(value="failed")
             )
-        )
+
+        attendance = SimpleNamespace(reply=Mock(side_effect=save))
         service = BasicApiService(data, attendance, repository, clock=lambda: NOW)
         for value in (
             "attending",
@@ -232,17 +235,20 @@ class BasicApiServiceTest(unittest.TestCase):
 
     def test_same_key_different_body_conflicts(self):
         repository = FakeAuthRepository()
+        state = {"reply": None, "updated_at": NOW}
         data = SimpleNamespace(
-            scoped_game=lambda *_: {"id": 44, "start_at": NOW + timedelta(hours=6)}
+            scoped_game=lambda *_: {"id": 44, "start_at": NOW + timedelta(hours=6)},
+            own_attendance_reply_state=lambda *_: dict(state),
         )
-        attendance = SimpleNamespace(
-            reply=Mock(
-                return_value=SimpleNamespace(
-                    changed=False,
-                    notification_status=SimpleNamespace(value="not_required"),
-                )
+
+        def save(command):
+            state["reply"] = command.reply
+            return SimpleNamespace(
+                changed=False,
+                notification_status=SimpleNamespace(value="not_required"),
             )
-        )
+
+        attendance = SimpleNamespace(reply=Mock(side_effect=save))
         service = BasicApiService(data, attendance, repository, clock=lambda: NOW)
         service.attendance_reply(repository.device, 44, "attending", "same", Mock())
         with self.assertRaises(Conflict):

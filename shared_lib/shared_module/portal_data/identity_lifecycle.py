@@ -2611,6 +2611,31 @@ class IdentityLifecycleRepository:
             )
             return None if row is None else row.reply
 
+    def own_attendance_reply_state(self, person_id: int, game_id: int) -> dict | None:
+        """Return the authoritative bounded state used for mutation recovery."""
+        with Session(self.engine) as session:
+            row = session.scalar(
+                select(LegacyGameAttendanceReplyRecord)
+                .outerjoin(
+                    LegacyMemberRecord,
+                    LegacyMemberRecord.id == LegacyGameAttendanceReplyRecord.member_id,
+                )
+                .where(
+                    LegacyGameAttendanceReplyRecord.game_id == game_id,
+                    or_(
+                        LegacyGameAttendanceReplyRecord.person_id == person_id,
+                        LegacyMemberRecord.person_id == person_id,
+                    ),
+                )
+                .order_by(
+                    LegacyGameAttendanceReplyRecord.updated_at.desc(),
+                    LegacyGameAttendanceReplyRecord.id.desc(),
+                )
+            )
+            if row is None:
+                return None
+            return {"reply": row.reply, "updated_at": row.updated_at}
+
     @staticmethod
     def _mobile_game_projection(game: LegacyGameRecord) -> dict:
         return {

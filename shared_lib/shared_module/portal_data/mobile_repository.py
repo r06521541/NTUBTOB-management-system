@@ -248,6 +248,12 @@ class MobileRepository:
                 self._revoke_family(session, device, now)
 
     def idempotent(self, **values) -> tuple[int, dict, bool]:
+        """Claim durably, serialize execution, and reconcile a saved mutation.
+
+        The claim commits before the independently committing attendance service
+        runs.  A retry of a pending claim first reads the authoritative state;
+        it never repeats a mutation whose requested state is already visible.
+        """
         try:
             with Session(self.engine) as session, session.begin():
                 existing = session.scalar(
@@ -263,47 +269,79 @@ class MobileRepository:
                 if existing is not None:
                     if existing.request_hash != values["request_hash"]:
                         raise IdempotencyConflict("idempotency key body mismatch")
-                    if existing.state != "completed":
-                        raise Conflict("request is in progress")
-                    return existing.response_status, existing.response_body, True
-                record = MobileIdempotencyRecord(
-                    session_id=values["session_id"],
-                    person_id=values["person_id"],
-                    method=values["method"],
-                    route=values["route"],
-                    key_hash=values["key_hash"],
-                    request_hash=values["request_hash"],
-                    state="pending",
-                    expires_at=values["now"] + timedelta(hours=24),
-                    created_at=values["now"],
-                    updated_at=values["now"],
-                )
-                session.add(record)
-                session.flush()
-                status, body = values["mutation"]()
-                record.state, record.response_status, record.response_body = (
-                    "completed",
-                    status,
-                    body,
-                )
-                return status, body, False
-        except IntegrityError:
-            with Session(self.engine) as session:
-                existing = session.scalar(
-                    select(MobileIdempotencyRecord).where(
-                        MobileIdempotencyRecord.session_id == values["session_id"],
-                        MobileIdempotencyRecord.method == values["method"],
-                        MobileIdempotencyRecord.route == values["route"],
-                        MobileIdempotencyRecord.key_hash == values["key_hash"],
+                    if existing.state == "completed":
+                        return existing.response_status, existing.response_body, True
+                else:
+                    session.add(
+                        MobileIdempotencyRecord(
+                            session_id=values["session_id"],
+                            person_id=values["person_id"],
+                            method=values["method"],
+                            route=values["route"],
+                            key_hash=values["key_hash"],
+                            request_hash=values["request_hash"],
+                            state="pending",
+                            expires_at=values["now"] + timedelta(hours=24),
+                            created_at=values["now"],
+                            updated_at=values["now"],
+                        )
                     )
-                )
-                if (
-                    existing is not None
-                    and existing.request_hash == values["request_hash"]
-                    and existing.state == "completed"
-                ):
-                    return existing.response_status, existing.response_body, True
-            raise IdempotencyConflict("concurrent idempotent request") from None
+        except IntegrityError:
+            pass
+
+        mutation_result = None
+        mutation_started = False
+        try:
+            with Session(self.engine) as session, session.begin():
+                record = self._locked_idempotency(session, values)
+                if record.state == "completed":
+                    return record.response_status, record.response_body, True
+                reconciled = values.get("reconcile", lambda: None)()
+                replayed = reconciled is not None
+                if reconciled is not None:
+                    mutation_result = reconciled
+                else:
+                    mutation_started = True
+                    mutation_result = values["mutation"]()
+                self._complete_idempotency(record, mutation_result, values["now"])
+            return mutation_result[0], mutation_result[1], replayed
+        except Exception:
+            if not mutation_started:
+                raise
+            # The attendance transaction may already have committed.  Prove the
+            # requested readback before returning instead of reporting failure.
+            with Session(self.engine) as session, session.begin():
+                record = self._locked_idempotency(session, values)
+                if record.state == "completed":
+                    return record.response_status, record.response_body, True
+                reconciled = values.get("reconcile", lambda: None)()
+                if reconciled is None:
+                    raise
+                recovered = mutation_result or reconciled
+                self._complete_idempotency(record, recovered, values["now"])
+                return recovered[0], recovered[1], True
+
+    @staticmethod
+    def _locked_idempotency(session: Session, values) -> MobileIdempotencyRecord:
+        record = session.scalar(
+            select(MobileIdempotencyRecord)
+            .where(
+                MobileIdempotencyRecord.session_id == values["session_id"],
+                MobileIdempotencyRecord.method == values["method"],
+                MobileIdempotencyRecord.route == values["route"],
+                MobileIdempotencyRecord.key_hash == values["key_hash"],
+            )
+            .with_for_update()
+        )
+        if record is None or record.request_hash != values["request_hash"]:
+            raise IdempotencyConflict("idempotency key body mismatch")
+        return record
+
+    @staticmethod
+    def _complete_idempotency(record, result, now) -> None:
+        record.state = "completed"
+        record.response_status, record.response_body = result
+        record.updated_at = now
 
     @staticmethod
     def _principal_from_device(device: MobileSessionRecord) -> MobilePrincipal:
