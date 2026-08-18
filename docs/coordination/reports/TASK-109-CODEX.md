@@ -91,6 +91,8 @@ context; no Docker image was built.
 
 - Branch: `codex/task-109-mobile-auth-api-foundation`
 - Base: `29c4b304193bb870f565848ad587c5735c017b74`
-- Implementation commit: `b5464bd7cc41fd981548eed28bed4712b08c56d5`
+- Foundation implementation commit: `b5464bd7cc41fd981548eed28bed4712b08c56d5`
+- Review correction implementation commit:
+  `c80b7efea6ecce5b3dbefa123d2a056f51d89b19`
 - Report: `docs/coordination/reports/TASK-109-CODEX.md`
 - Next actor: Main Work review; no PR created.
