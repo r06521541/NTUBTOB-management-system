@@ -41,6 +41,8 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         cls.engine = create_engine(DATABASE_URL)
 
     def setUp(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
         setup_legacy_fixture()
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", DATABASE_URL)
