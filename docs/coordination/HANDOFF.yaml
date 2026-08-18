@@ -1,19 +1,19 @@
-active_task: TASK-112
-status: ready_for_pr
-next_actor: work
+active_task: TASK-114
+status: ready_for_domain_planning
+next_actor: shared_web_and_flutter_domain_work
 
-base_commit: 2c33b6e48f89f43a34f44784e9c224971b5cca38
-head_commit: 3766daba99a49b8371aa98341c944c72f2b25f42
+base_commit: 7ef79b1380ac054b867bcac0fd4b2c317b81d778
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-19T02:05:00+08:00
+updated_at: 2026-08-19T02:20:00+08:00
 
 note: >
-  TASK-112 source and correction review accepted at 3766daba99a49b8371aa98341c944c72f2b25f42. The fail-closed isolated
-  staging operator, fictional seed, recovery paths and exact Owner approval manifests are ready for final PR and hosted CI.
-  No cloud/database/LINE mutation, Secret access, real login, deployment, signing or notification has occurred.
+  TASK-112 merged through PR #122 at 7ef79b1380ac054b867bcac0fd4b2c317b81d778. TASK-113 remains reserved for
+  separately approved staging activation. TASK-114 is a repository-only delivery for Mobile Officer read-only attendance
+  report parity; it authorizes no deployment, Secret/IAM/LINE operation, database mutation or notification.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-112.md
-report: docs/coordination/reports/TASK-112-CODEX.md
-review: docs/coordination/reviews/TASK-112-WORK.md
+task: docs/coordination/tasks/TASK-114.md
+report: null
+review: null
