@@ -13,6 +13,7 @@ from shared_module.mobile_api import (
     MalformedRequest,
     MobileApiError,
     MobileAuthService,
+    mobile_capabilities,
 )
 
 
@@ -166,7 +167,7 @@ def create_app(dependencies: Dependencies) -> Flask:
                 "id": f"person_{principal.person_id}",
                 "display_name": principal.display_name,
                 "access_level": principal.access_level,
-                "capabilities": ["games:read", "attendance:reply:self"],
+                "capabilities": list(mobile_capabilities(principal)),
             }
         )
 
@@ -191,6 +192,33 @@ def create_app(dependencies: Dependencies) -> Flask:
     def attendance(game_key):
         principal = authenticate()
         return jsonify(dependencies.basic.attendance_view(principal, game_id(game_key)))
+
+    @app.get("/api/v1/games/<game_key>/attendance-report")
+    def attendance_report(game_key):
+        principal = authenticate()
+
+        def bounded_integer(name, default, allowed):
+            raw = request.args.get(name, str(default))
+            try:
+                value = int(raw)
+            except ValueError:
+                raise InvalidArgument(f"{name} must be an integer") from None
+            if value not in allowed:
+                raise InvalidArgument(f"{name} is outside the supported range")
+            return value
+
+        history_limit = bounded_integer("history_limit", 12, {5, 8, 12, 20})
+        minimum_rate = bounded_integer(
+            "minimum_response_rate", 60, set(range(0, 101, 10))
+        )
+        return jsonify(
+            dependencies.basic.attendance_report(
+                principal,
+                game_id(game_key),
+                history_limit=history_limit,
+                minimum_rate=minimum_rate,
+            )
+        )
 
     @app.put("/api/v1/games/<game_key>/attendance-reply")
     def put_attendance(game_key):

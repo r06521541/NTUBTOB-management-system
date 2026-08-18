@@ -1,0 +1,10 @@
+{
+  "access_level": "officer",
+  "capabilities": [
+    "games:read",
+    "attendance:reply:self",
+    "attendance:report:read"
+  ],
+  "display_name": "Officer",
+  "id": "person_23"
+}

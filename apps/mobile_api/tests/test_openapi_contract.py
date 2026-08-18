@@ -21,6 +21,7 @@ class OpenApiContractTest(unittest.TestCase):
                 "/games",
                 "/games/{game_id}",
                 "/games/{game_id}/attendance",
+                "/games/{game_id}/attendance-report",
                 "/games/{game_id}/attendance-reply",
             },
         )
@@ -65,6 +66,32 @@ class OpenApiContractTest(unittest.TestCase):
             "redacted from logs",
         ):
             self.assertIn(required, text)
+
+    def test_officer_report_contract_is_bounded_and_low_sensitive(self):
+        schemas = self.contract["components"]["schemas"]
+        self.assertEqual(
+            schemas["Person"]["properties"]["access_level"]["enum"],
+            ["basic", "officer", "admin"],
+        )
+        self.assertIn(
+            "attendance:report:read",
+            schemas["Person"]["properties"]["capabilities"]["items"]["enum"],
+        )
+        report = schemas["AttendanceReport"]
+        self.assertEqual(
+            set(report["properties"]),
+            {
+                "game_id",
+                "generated_at",
+                "observation",
+                "attending",
+                "not_attending",
+                "not_yet_replied",
+            },
+        )
+        serialized = json.dumps(report, sort_keys=True)
+        for private in ("provider_subject", "admin_note", "audit", "contact"):
+            self.assertNotIn(private, serialized)
 
     def test_deployment_unit_is_static_python310_and_excludes_private_env(self):
         root = CONTRACT.parent
