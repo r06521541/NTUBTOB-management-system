@@ -65,5 +65,6 @@
 - Branch: `codex/task-112-mobile-staging-readiness`
 - Base/task specification: `6ddf8ecf8320deb802f6e123567da6137a8ae19f`
 - Accepted upstream main: `2c33b6e48f89f43a34f44784e9c224971b5cca38`
+- Implementation commit: `5698feaf6a83623335e22e7ac641d0af16fb0132`
 - Report: `docs/coordination/reports/TASK-112-CODEX.md`
-- Next actor: Main Work review; no PR created.
+- Status/next actor: `ready_for_review` / Main Work; no PR created.
