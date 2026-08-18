@@ -245,9 +245,19 @@
 - Invariants：離線或不確定結果不得顯示成功；production promotion 需另案鎖定 exact artifact、target、rollback 與 Owner 批准。
 - Non-goals：不以本決策授權 SDK 安裝、staging／production deployment、商店發布或正式資料操作。
 
+## DEC-097：Native LINE assertion 與 mobile session contract
+
+- 狀態：`active`
+- 生效：2026-08-18
+- 來源：TASK-108、LINE native SDK 官方安全指引、`docs/planning/MOBILE_AUTH_API_CONTRACT.md`
+- Supersedes：DEC-093 中「native Flutter 取得 authorization code 交後端」及其 PKCE/code 邊界；其餘 Person、server-owned session與安全儲存方向保留
+- 決策：Flutter native LINE Login以 raw ID token與該次明示 nonce交由後端驗證，後端只使用驗證後的 `sub` 對應既有 identity／Person；browser authorization-code／PKCE flow不是本 native contract。App使用本系統短期 access token與opaque、device-bound rotating refresh token，不把LINE provider token當App session。
+- Invariants：client profile/user ID不是身份 assertion；identity必須linked且Person必須active；capability由server enforce。Refresh lost-response replay、token-family reuse detection、device revocation與精確Idempotency-Key replay必須使用durable transactional persistence，不得以process memory、signed cookie、一般cache、既有auth identity或access audit假裝完成。
+- Non-goals：本決策不授權schema/migration、runtime API、LINE channel/Secret、staging/production、Google/Apple linking、push/通知或商店發布；未來custom browser login另立PKCE與redirect contract。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～096`，下一個新決策從 `DEC-097` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～097`，下一個新決策從 `DEC-098` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

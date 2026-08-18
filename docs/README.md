@@ -24,6 +24,7 @@ TASK-001～047 位於 `coordination/archive/pre-phase-c/`；Phase C 歷史證據
 - `planning/ROLE_ACCESS_PROPOSAL.md`：普通隊員、幹部與系統管理者的權限方向及未決議題。
 - `planning/EVENT_MANAGEMENT_PLAN.md`：Event／Activity、多場比賽、旅遊與非聯盟活動願景。
 - `planning/FLUTTER_CLIENT_PLAN.md`：Flutter 第一階段產品、session、mobile API、通知與 staging 規格草案。
+- `planning/MOBILE_AUTH_API_CONTRACT.md`：TASK-108 的 native LINE、App session、API v1、出席 enum 與 idempotency 契約。
 
 規劃文件不自動授權 schema、migration、部署或正式環境操作。落地範圍必須另寫入當前 `TASK-xxx.md`。
 
