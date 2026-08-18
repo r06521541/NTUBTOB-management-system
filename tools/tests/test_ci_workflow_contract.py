@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "python-tests.yml"
+FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
 
 
 def job_block(source: str, job: str) -> str:
@@ -25,6 +26,7 @@ class WorkflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
+        cls.flutter_source = FLUTTER_WORKFLOW.read_text(encoding="utf-8")
 
     def test_triggers_concurrency_and_actions_are_fixed(self):
         self.assertRegex(self.source, r"(?m)^  pull_request:$")
@@ -40,7 +42,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertTrue(uses)
         self.assertTrue(
             all(
-                re.fullmatch(r"actions/(?:checkout|setup-python)@[0-9a-f]{40}", action)
+                action == "./.github/workflows/flutter-tests.yml"
+                or re.fullmatch(
+                    r"actions/(?:checkout|setup-python)@[0-9a-f]{40}", action
+                )
                 for action in uses
             )
         )
@@ -97,6 +102,34 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn(command, block)
                 self.assertNotIn("services:", block)
 
+    def test_flutter_is_reusable_only_exact_and_fake(self):
+        self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")
+        self.assertNotRegex(self.flutter_source, r"(?m)^  (?:push|pull_request):$")
+        self.assertIn('flutter-version: "3.47.0"', self.flutter_source)
+        self.assertIn("channel: stable", self.flutter_source)
+        self.assertIn("permissions:\n  contents: read", self.flutter_source)
+        self.assertIn("flutter pub get", self.flutter_source)
+        self.assertIn(
+            "dart format --output=none --set-exit-if-changed .",
+            self.flutter_source,
+        )
+        self.assertIn("flutter analyze", self.flutter_source)
+        self.assertIn("flutter test", self.flutter_source)
+        self.assertIn("--dart-define=APP_FLAVOR=development", self.flutter_source)
+        self.assertIn("--dart-define=CLIENT_MODE=fake", self.flutter_source)
+        uses = re.findall(r"(?m)^\s*-?\s*uses:\s*([^\s#]+)", self.flutter_source)
+        self.assertEqual(len(uses), 2)
+        self.assertTrue(
+            all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action) for action in uses)
+        )
+
+    def test_python_workflow_calls_flutter_conditionally(self):
+        block = job_block(self.source, "flutter")
+        self.assertIn("needs: classify", block)
+        self.assertIn("needs.classify.outputs.full == 'true'", block)
+        self.assertIn("needs.classify.outputs.flutter == 'true'", block)
+        self.assertIn("uses: ./.github/workflows/flutter-tests.yml", block)
+
     def test_final_gate_is_stable_always_runs_and_observes_every_child(self):
         block = job_block(self.source, "final")
         self.assertIn("name: CI final gate", block)
@@ -104,6 +137,7 @@ class WorkflowContractTests(unittest.TestCase):
         for job in (
             "classify",
             "quick",
+            "flutter",
             "portal_data",
             "web_portal",
             "game_broadcast",
@@ -139,6 +173,7 @@ class WorkflowContractTests(unittest.TestCase):
         base_environment = dict(os.environ)
         for scope in (
             "DOCS_ONLY",
+            "FLUTTER",
             "PORTAL_DATA",
             "WEB_PORTAL",
             "GAME_BROADCAST",
@@ -160,6 +195,7 @@ class WorkflowContractTests(unittest.TestCase):
         ):
             base_environment[f"CI_RESULT_{job}"] = "skipped"
         base_environment.update(CI_RESULT_CLASSIFY="success", CI_RESULT_QUICK="success")
+        base_environment["CI_RESULT_FLUTTER"] = "skipped"
 
         def run_script(environment):
             return subprocess.run(
@@ -181,11 +217,23 @@ class WorkflowContractTests(unittest.TestCase):
             "DEPLOYMENT_TOOLS",
             "UPDATE_SCHEDULE",
             "LINE_WEBHOOK",
+            "FLUTTER",
         ):
             full_environment[f"CI_RESULT_{job}"] = "success"
         self.assertEqual(run_script(full_environment).returncode, 0)
         full_environment["CI_RESULT_PORTAL_DATA"] = "cancelled"
         self.assertNotEqual(run_script(full_environment).returncode, 0)
+
+        flutter_environment = dict(
+            base_environment,
+            CI_SCOPE_FLUTTER="true",
+            CI_RESULT_FLUTTER="success",
+        )
+        self.assertEqual(run_script(flutter_environment).returncode, 0)
+        for result in ("failure", "cancelled", "skipped"):
+            with self.subTest(result=result):
+                flutter_environment["CI_RESULT_FLUTTER"] = result
+                self.assertNotEqual(run_script(flutter_environment).returncode, 0)
 
     def test_no_unreviewed_path_filter_action_is_used(self):
         self.assertNotRegex(self.source.lower(), r"paths?[-_/]filter")

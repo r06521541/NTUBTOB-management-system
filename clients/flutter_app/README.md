@@ -15,7 +15,7 @@ Staging/production require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, and nume
 Android and iOS runners were generated with Flutter 3.47.0. To reproduce them after installing a compatible Flutter SDK and confirming Android/iOS prerequisites, run from this directory:
 
 ```sh
-flutter create --platforms=android,ios --project-name ntubtob_fictional_client .
+flutter create --platforms=android,ios --project-name ntubtob_portal --org tw.org.ntubtob .
 ```
 
 The expected additions are `android/`, `ios/`, and Flutter-generated metadata. Before accepting regenerated files, review `git status --short` and the complete diff; reject unrelated dependency, identifier, signing, resource, endpoint, or credential changes. Generation does not authorize signing, deployment, or store distribution. iOS build and signing remain deferred to a macOS host with Xcode and CocoaPods.

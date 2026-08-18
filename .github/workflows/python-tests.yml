@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       docs_only: ${{ steps.changes.outputs.docs_only }}
+      flutter: ${{ steps.changes.outputs.flutter }}
       portal_data: ${{ steps.changes.outputs.portal_data }}
       web_portal: ${{ steps.changes.outputs.web_portal }}
       game_broadcast: ${{ steps.changes.outputs.game_broadcast }}
@@ -94,6 +95,14 @@ jobs:
 
       - name: Run CI classifier and workflow contracts
         run: python -m unittest discover -s tools/tests -p "test_ci_*.py" -v
+
+  flutter:
+    name: Flutter tests
+    needs: classify
+    if: needs.classify.outputs.full == 'true' || needs.classify.outputs.flutter == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/flutter-tests.yml
 
   portal_data:
     name: Portal data / ${{ matrix.postgres_image }}
@@ -272,6 +281,7 @@ jobs:
     needs:
       - classify
       - quick
+      - flutter
       - portal_data
       - web_portal
       - game_broadcast
@@ -286,6 +296,7 @@ jobs:
         shell: bash
         env:
           CI_SCOPE_DOCS_ONLY: ${{ needs.classify.outputs.docs_only }}
+          CI_SCOPE_FLUTTER: ${{ needs.classify.outputs.flutter }}
           CI_SCOPE_PORTAL_DATA: ${{ needs.classify.outputs.portal_data }}
           CI_SCOPE_WEB_PORTAL: ${{ needs.classify.outputs.web_portal }}
           CI_SCOPE_GAME_BROADCAST: ${{ needs.classify.outputs.game_broadcast }}
@@ -296,6 +307,7 @@ jobs:
           CI_SCOPE_FULL: ${{ needs.classify.outputs.full }}
           CI_RESULT_CLASSIFY: ${{ needs.classify.result }}
           CI_RESULT_QUICK: ${{ needs.quick.result }}
+          CI_RESULT_FLUTTER: ${{ needs.flutter.result }}
           CI_RESULT_PORTAL_DATA: ${{ needs.portal_data.result }}
           CI_RESULT_WEB_PORTAL: ${{ needs.web_portal.result }}
           CI_RESULT_GAME_BROADCAST: ${{ needs.game_broadcast.result }}
@@ -316,7 +328,7 @@ jobs:
           require_success quick "$CI_RESULT_QUICK"
 
           enabled=0
-          for output in DOCS_ONLY PORTAL_DATA WEB_PORTAL GAME_BROADCAST \
+          for output in DOCS_ONLY FLUTTER PORTAL_DATA WEB_PORTAL GAME_BROADCAST \
             NOTIFY_CRON DEPLOYMENT_TOOLS UPDATE_SCHEDULE LINE_WEBHOOK FULL; do
             variable="CI_SCOPE_$output"
             value="${!variable}"
@@ -340,7 +352,7 @@ jobs:
             failed=1
           fi
 
-          for scope in PORTAL_DATA WEB_PORTAL GAME_BROADCAST NOTIFY_CRON \
+          for scope in FLUTTER PORTAL_DATA WEB_PORTAL GAME_BROADCAST NOTIFY_CRON \
             DEPLOYMENT_TOOLS UPDATE_SCHEDULE LINE_WEBHOOK; do
             selected_variable="CI_SCOPE_$scope"
             result_variable="CI_RESULT_$scope"

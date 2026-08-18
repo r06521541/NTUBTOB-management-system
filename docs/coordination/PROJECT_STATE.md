@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-18T22:15:00+08:00
+更新時間：2026-08-19T01:02:00+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `cd28d60d328844f94d9544aa50965cf77cb2399e`
+Repository 基準：`main` / `4792f529a374baa3f87386a0883a6a82c1ecb048`
 
 ## 目前摘要
 
@@ -12,9 +12,10 @@ Repository 基準：`main` / `cd28d60d328844f94d9544aa50965cf77cb2399e`
 - TASK-106 schema-neutral attendance reply application service 已由 PR #117 merge 至 `main`（merge commit `b26c1702605e463b96680b6c481b4da95880d198`），Web與LINE共用changed/12小時通知決策。
 - TASK-108 mobile contract與TASK-109 Basic mobile API foundation已由 PR #119 merge 至 `main`（merge commit
   `cd28d60d328844f94d9544aa50965cf77cb2399e`）；revision 0005尚未在 production 執行，mobile API亦尚未部署。
-- TASK-110 Flutter Basic native auth/API integration已完成Domain/Main Work驗收；official LINE adapter、secure mobile
-  session、canonical Basic games/attendance、五態回覆與離線唯讀等待final PR hosted CI。真實LINE/staging、
-  Officer/Admin、通知、簽署與發布不在本task。
+- TASK-110 Flutter Basic native auth/API integration已由 PR #120 merge至 `main`（merge commit
+  `4792f529a374baa3f87386a0883a6a82c1ecb048`）；真實LINE/staging、Officer/Admin、通知、簽署與發布尚未進行。
+- TASK-111 source已完成Domain/Main Work驗收：App顯示名稱為「臺大校友比賽報你知」、Android/iOS identity為
+  `tw.org.ntubtob.portal`；reusable Flutter workflow已納入既有final gate，等待同一PR head hosted evidence。
 - Flutter planning 已確認 Android／iOS staging APK／TestFlight 測試路線；production、schema、Secret、IAM、正式通知與商店發布仍未授權。
 
 - Phase C 已完成 production schema、跨服務 runtime 啟用、管理入口 bootstrap 與既有可靠 LINE 隊員啟用。
@@ -88,10 +89,10 @@ Repository 基準：`main` / `cd28d60d328844f94d9544aa50965cf77cb2399e`
 
 ## 下一階段候選方向
 
-### P1：Flutter Basic API integration 與既有 Phase D 收斂
+### P1：Flutter release identity／CI 與 staging readiness
 
-- TASK-110 已完成實作與本機驗收，等待唯一final PR；未取得真實staging/channel設定前不做真人登入。
-- TASK-110 完成後再決定 isolated staging／Android真機與iOS macOS gate；不提前啟用production mobile runtime。
+- TASK-111 release identity與CI source已接受，等待hosted Flutter及既有final gate；未取得真實staging/channel設定前不做真人登入。
+- TASK-111 完成後再建立 isolated staging／Android真機task與iOS macOS gate；不提前啟用production mobile runtime。
 - 既有 pending identity、runtime allowlist／capability cutover 與 bounded Game command center 仍依既有 task／DEC 處理，不因 Flutter planning 自動擴張。
 
 ### P2：Event 與多元活動

@@ -10,6 +10,7 @@ from pathlib import PurePosixPath
 from typing import Iterable, Mapping, Optional, Sequence
 
 SCOPES = (
+    "flutter",
     "portal_data",
     "web_portal",
     "game_broadcast",
@@ -25,6 +26,7 @@ SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
 @dataclass(frozen=True)
 class Classification:
     docs_only: bool = False
+    flutter: bool = False
     portal_data: bool = False
     web_portal: bool = False
     game_broadcast: bool = False
@@ -60,6 +62,10 @@ def _path_scope(path: str) -> Optional[str]:
     lower = path.lower()
     name = PurePosixPath(lower).name
 
+    if lower.startswith("clients/flutter_app/") or lower == (
+        ".github/workflows/flutter-tests.yml"
+    ):
+        return "flutter"
     if lower == ".gitattributes" or lower.startswith(".github/workflows/"):
         return "full"
     if lower in (
