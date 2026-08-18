@@ -1,4 +1,10 @@
 .env.yaml
+.env
+.env.*
 *.json
+*.pem
+*.key
+*approval*
+*state*
 __pycache__/
 tests/
