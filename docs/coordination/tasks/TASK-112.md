@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: mobile-staging-readiness
 requires_independent_pr: true
-status: ready_for_codex
+status: ready_for_pr
 base_commit: 2c33b6e48f89f43a34f44784e9c224971b5cca38
 
 ## Goal

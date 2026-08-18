@@ -1,17 +1,17 @@
 active_task: TASK-112
-status: ready_for_codex
-next_actor: codex
+status: ready_for_pr
+next_actor: work
 
 base_commit: 2c33b6e48f89f43a34f44784e9c224971b5cca38
-head_commit: null
+head_commit: 3766daba99a49b8371aa98341c944c72f2b25f42
 
 updated_by: work
-updated_at: 2026-08-19T01:10:00+08:00
+updated_at: 2026-08-19T02:05:00+08:00
 
 note: >
-  TASK-111 merged through PR #121 at 2c33b6e48f89f43a34f44784e9c224971b5cca38. TASK-112 prepares a fail-closed
-  isolated mobile staging operator, fictional seed and exact Owner approval manifest. It performs no cloud/database/LINE
-  mutation, Secret access, real login, deployment, signing or notification.
+  TASK-112 source and correction review accepted at 3766daba99a49b8371aa98341c944c72f2b25f42. The fail-closed isolated
+  staging operator, fictional seed, recovery paths and exact Owner approval manifests are ready for final PR and hosted CI.
+  No cloud/database/LINE mutation, Secret access, real login, deployment, signing or notification has occurred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-112.md
