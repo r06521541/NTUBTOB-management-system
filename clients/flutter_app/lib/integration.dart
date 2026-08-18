@@ -809,10 +809,26 @@ class BasicApi {
     }
     await store.write(keyName,
         jsonEncode({'key': key, 'reply': reply.wire, 'uncertain': true}));
-    final r = await session.authorized(
-        'PUT', '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
-        headers: {'Idempotency-Key': key}, body: {'reply': reply.wire});
+    late final ApiResponse r;
+    try {
+      r = await session.authorized(
+          'PUT', '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
+          headers: {'Idempotency-Key': key}, body: {'reply': reply.wire});
+    } on NetworkException {
+      return _reconcileUncertainMutation(gameId, reply, keyName);
+    }
     if (r.status >= 500) {
+      return _reconcileUncertainMutation(gameId, reply, keyName);
+    }
+    if (r.status != 200 || r.body == null) _failure(r, 'mutation');
+    final result = MutationResult.fromJson(r.body!);
+    await store.delete(keyName);
+    return result;
+  }
+
+  Future<MutationResult> _reconcileUncertainMutation(
+      String gameId, AttendanceReply reply, String keyName) async {
+    try {
       final snapshot = await attendance(gameId);
       if (snapshot.ownReply == reply) {
         await store.delete(keyName);
@@ -825,11 +841,11 @@ class BasicApi {
                 NotificationStatus.unknown, 'outcome_unknown'),
             true);
       }
-      throw MutationUncertainException(reply);
+    } on MutationUncertainException {
+      rethrow;
+    } on Object {
+      // No authoritative proof: preserve the logical intent and its key.
     }
-    if (r.status != 200 || r.body == null) _failure(r, 'mutation');
-    final result = MutationResult.fromJson(r.body!);
-    await store.delete(keyName);
-    return result;
+    throw MutationUncertainException(reply);
   }
 }

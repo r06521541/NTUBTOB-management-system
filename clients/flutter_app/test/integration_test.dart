@@ -21,6 +21,22 @@ class ScriptedTransport implements ApiTransport {
   }
 }
 
+class NetworkScriptTransport implements ApiTransport {
+  final List<Object> outcomes;
+  NetworkScriptTransport(this.outcomes);
+  final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
+      calls = [];
+  @override
+  Future<ApiResponse> send(String method, String path,
+      {Map<String, String> headers = const {},
+      Map<String, dynamic>? body}) async {
+    calls.add((method, path, headers, body));
+    final outcome = outcomes.removeAt(0);
+    if (outcome is ApiResponse) return outcome;
+    throw outcome;
+  }
+}
+
 class FakeLine implements LineLoginPort {
   FakeLine({this.token = 'obvious-fake-id-token', this.error});
   final String token;
@@ -540,6 +556,74 @@ void main() {
     expect(result.idempotentReplay, isTrue);
     expect(store.values.keys, isNot(contains('mutation:install:g')));
     expect(transport.calls[0].$3['Idempotency-Key'], isNotEmpty);
+  });
+
+  test('PUT Network reconciles matching attendance and clears intent',
+      () async {
+    final transport = NetworkScriptTransport([
+      const NetworkException(),
+      ApiResponse(
+          200, {'game_id': 'g', 'own_reply': 'attending', 'replied': []}),
+    ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    final result = await BasicApi(sessions, store, 'install', SecureIds())
+        .reply('g', AttendanceReply.attending, online: true);
+    expect(result.notification.code, 'outcome_unknown');
+    expect(transport.calls.map((call) => call.$1), ['PUT', 'GET']);
+    expect(store.values['mutation:install:g'], isNull);
+  });
+
+  test('PUT Network reconcile mismatch retains same intent and key', () async {
+    final transport = NetworkScriptTransport([
+      const NetworkException(),
+      ApiResponse(200, {'game_id': 'g', 'own_reply': null, 'replied': []}),
+    ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    await expectLater(
+        BasicApi(sessions, store, 'install', SecureIds())
+            .reply('g', AttendanceReply.attending, online: true),
+        throwsA(isA<MutationUncertainException>()));
+    expect(transport.calls.map((call) => call.$1), ['PUT', 'GET']);
+    final intent = store.values['mutation:install:g'];
+    expect(intent, contains('attending'));
+    expect(intent, contains(transport.calls.first.$3['Idempotency-Key']!));
+  });
+
+  test('PUT Network and reconcile Network retain intent as uncertain',
+      () async {
+    final transport = NetworkScriptTransport(
+        [const NetworkException(), const NetworkException()]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    await expectLater(
+        BasicApi(sessions, store, 'install', SecureIds())
+            .reply('g', AttendanceReply.attending, online: true),
+        throwsA(isA<MutationUncertainException>()));
+    expect(transport.calls.map((call) => call.$1), ['PUT', 'GET']);
+    final intent = store.values['mutation:install:g'];
+    expect(intent, contains(transport.calls.first.$3['Idempotency-Key']!));
+  });
+
+  test('explicit mutation error does not reconcile as uncertain', () async {
+    final transport = NetworkScriptTransport(
+        [ApiResponse(409, apiError('idempotency_conflict'))]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    await expectLater(
+        BasicApi(sessions, store, 'install', SecureIds())
+            .reply('g', AttendanceReply.attending, online: true),
+        throwsA(isA<ApiError>()));
+    expect(transport.calls.map((call) => call.$1), ['PUT']);
   });
 
   test('same uncertain logical reply reuses the idempotency key', () async {
