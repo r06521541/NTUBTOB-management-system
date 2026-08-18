@@ -5,14 +5,36 @@ import 'foundation.dart';
 import 'integration.dart';
 
 enum AuthViewState {
-  signedOut,
-  pending,
+  booting,
+  loggedOut,
+  providerActive,
+  exchanging,
+  identityPending,
+  accountUnavailable,
+  sessionExpired,
   cancelled,
-  error,
+  recoverableError,
+  contractError,
   unavailable,
   logoutPending,
   offline,
   authenticated
+}
+
+AuthViewState classifyFailure(Object error, {required bool hasCache}) {
+  if (error is NetworkException) {
+    return hasCache ? AuthViewState.offline : AuthViewState.recoverableError;
+  }
+  if (error is SessionExpiredException ||
+      error is ApiError &&
+          (error.code == ApiErrorCode.sessionExpired ||
+              error.code == ApiErrorCode.unauthenticated)) {
+    return AuthViewState.sessionExpired;
+  }
+  if (error is StateError && error.message == 'signed out') {
+    return AuthViewState.loggedOut;
+  }
+  return AuthViewState.contractError;
 }
 
 class AuthStatePanel extends StatelessWidget {
@@ -21,10 +43,16 @@ class AuthStatePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (icon, label) = switch (state) {
-      AuthViewState.signedOut => (Icons.login, '請使用 LINE 安全登入'),
-      AuthViewState.pending => (Icons.hourglass_top, '登入處理中'),
+      AuthViewState.booting => (Icons.sync, '正在安全啟動'),
+      AuthViewState.loggedOut => (Icons.login, '請使用 LINE 安全登入'),
+      AuthViewState.providerActive => (Icons.open_in_new, 'LINE 登入處理中'),
+      AuthViewState.exchanging => (Icons.sync_lock, '正在交換安全工作階段'),
+      AuthViewState.identityPending => (Icons.hourglass_top, '身分資料處理中，請稍後重試'),
+      AuthViewState.accountUnavailable => (Icons.person_off, '此帳號目前無法使用行動版'),
+      AuthViewState.sessionExpired => (Icons.timer_off, '登入已逾期，請重新登入'),
       AuthViewState.cancelled => (Icons.cancel_outlined, '已取消登入'),
-      AuthViewState.error => (Icons.error_outline, '登入失敗，請稍後重試'),
+      AuthViewState.recoverableError => (Icons.wifi_off, '連線暫時失敗，請稍後重試'),
+      AuthViewState.contractError => (Icons.gpp_bad, '資料格式異常，已停止處理'),
       AuthViewState.unavailable => (Icons.mobile_off, '此裝置無法使用 LINE 登入'),
       AuthViewState.logoutPending => (Icons.logout, '登出同步中，暫停操作'),
       AuthViewState.offline => (Icons.cloud_off, '離線唯讀模式'),
@@ -35,7 +63,11 @@ class AuthStatePanel extends StatelessWidget {
       liveRegion: true,
       child: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon),
+          if (state == AuthViewState.booting ||
+              state == AuthViewState.exchanging)
+            const CircularProgressIndicator()
+          else
+            Icon(icon),
           const SizedBox(height: 12),
           Text(label),
         ]),
@@ -54,7 +86,7 @@ class BasicBootstrapApp extends StatefulWidget {
 class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   final _store = SecureStore();
   final _ids = SecureIds();
-  AuthViewState state = AuthViewState.pending;
+  AuthViewState state = AuthViewState.booting;
   late final http.Client _http;
   LoginCoordinator? _login;
   SessionController? _session;
@@ -73,36 +105,25 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   Future<void> _boot() async {
-    final installationId = await _installationId();
-    final transport = HttpApiTransport(widget.config.apiBaseUrl!, _http);
-    final session = SessionController(transport, _store, installationId, _ids);
-    final line = NativeLineLogin(widget.config.lineChannelId!);
-    _session = session;
-    _line = line;
-    _api = BasicApi(session, _store, installationId, _ids);
-    _cache = BasicCache(_store, installationId);
-    _login = LoginCoordinator(line, transport, session, _ids, installationId);
-    if (await _store.read('logout-pending:$installationId') == 'true') {
-      setState(() => state = AuthViewState.logoutPending);
-      try {
-        await session.logout(line);
-      } catch (_) {
-        return;
-      }
-    }
     try {
+      final installationId = await _installationId();
+      final transport = HttpApiTransport(widget.config.apiBaseUrl!, _http);
+      final session =
+          SessionController(transport, _store, installationId, _ids);
+      final line = NativeLineLogin(widget.config.lineChannelId!);
+      _session = session;
+      _line = line;
+      _api = BasicApi(session, _store, installationId, _ids);
+      _cache = BasicCache(_store, installationId);
+      _login = LoginCoordinator(line, transport, session, _ids, installationId);
+      if (await _store.read('logout-pending:$installationId') == 'true') {
+        setState(() => state = AuthViewState.logoutPending);
+        await session.logout(line);
+      }
       await session.refresh();
       await _loadBasic();
-    } catch (_) {
-      final cached = await _cache!.load();
-      if (!mounted) return;
-      setState(() {
-        person = cached?.person;
-        games = cached?.games ?? const [];
-        lastSyncedAt = cached?.lastSyncedAt;
-        state =
-            cached == null ? AuthViewState.signedOut : AuthViewState.offline;
-      });
+    } on Object catch (error) {
+      await _showFailure(error);
     }
   }
 
@@ -116,19 +137,32 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   Future<void> _signIn() async {
-    setState(() => state = AuthViewState.pending);
-    await _login!.login(
+    setState(() => state = AuthViewState.providerActive);
+    final login = _login!;
+    void update() {
+      if (!mounted) return;
+      setState(() => state = switch (login.state) {
+            LoginState.providerActive => AuthViewState.providerActive,
+            LoginState.exchanging => AuthViewState.exchanging,
+            _ => state,
+          });
+    }
+
+    login.addListener(update);
+    await login.login(
         Theme.of(context).platform == TargetPlatform.iOS ? 'ios' : 'android');
-    final result = _login!.state;
-    if (result == LoginState.authenticated) {
+    login.removeListener(update);
+    if (login.state == LoginState.authenticated) {
       await _loadBasic();
       return;
     }
     if (!mounted) return;
-    setState(() => state = switch (result) {
+    setState(() => state = switch (login.state) {
           LoginState.cancelled => AuthViewState.cancelled,
           LoginState.unavailable => AuthViewState.unavailable,
-          _ => AuthViewState.error,
+          LoginState.identityPending => AuthViewState.identityPending,
+          LoginState.accountUnavailable => AuthViewState.accountUnavailable,
+          _ => AuthViewState.contractError,
         });
   }
 
@@ -138,25 +172,32 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final loadedGames = await _api!.games();
       final syncedAt = DateTime.now().toUtc();
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
-      if (mounted) {
-        setState(() {
-          person = loadedPerson;
-          games = loadedGames;
-          lastSyncedAt = syncedAt;
-          state = AuthViewState.authenticated;
-        });
-      }
-    } catch (_) {
-      final cached = await _cache!.load();
-      if (mounted) {
-        setState(() {
-          person = cached?.person;
-          games = cached?.games ?? const [];
-          lastSyncedAt = cached?.lastSyncedAt;
-          state = AuthViewState.offline;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        person = loadedPerson;
+        games = loadedGames;
+        lastSyncedAt = syncedAt;
+        state = AuthViewState.authenticated;
+      });
+    } on Object catch (error) {
+      await _showFailure(error);
     }
+  }
+
+  Future<void> _showFailure(Object error) async {
+    final cached = _cache == null ? null : await _cache!.load();
+    if (!mounted) return;
+    setState(() {
+      final classified = classifyFailure(error, hasCache: cached != null);
+      if (classified == AuthViewState.offline) {
+        person = cached!.person;
+        games = cached.games;
+        lastSyncedAt = cached.lastSyncedAt;
+        state = AuthViewState.offline;
+      } else {
+        state = classified;
+      }
+    });
   }
 
   Future<void> _logout() async {
@@ -164,14 +205,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     try {
       await _session!.logout(_line!);
       await _cache!.clear();
-      if (mounted) {
-        setState(() {
-          person = null;
-          games = const [];
-          state = AuthViewState.signedOut;
-        });
-      }
-    } catch (_) {/* logout_pending intentionally blocks further actions */}
+      if (!mounted) return;
+      setState(() {
+        person = null;
+        games = const [];
+        state = AuthViewState.loggedOut;
+      });
+    } on Object {
+      // logout_pending intentionally remains visible and blocks actions.
+    }
   }
 
   @override
@@ -180,6 +222,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     super.dispose();
   }
 
+  bool get _canLogin => const {
+        AuthViewState.loggedOut,
+        AuthViewState.cancelled,
+        AuthViewState.identityPending,
+        AuthViewState.accountUnavailable,
+        AuthViewState.sessionExpired,
+        AuthViewState.recoverableError,
+      }.contains(state);
+
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: '北商乙組籃球隊',
@@ -187,34 +238,16 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         darkTheme: demoTheme(Brightness.dark),
         home: Scaffold(
           appBar: AppBar(title: const Text('隊務系統')),
-          body: state == AuthViewState.authenticated
-              ? ListView(children: [
-                  ListTile(
-                      title: Text(person!.displayName),
-                      subtitle: const Text('Basic 帳號')),
-                  for (final game in games)
-                    ListTile(
-                        title: Text(game.id),
-                        subtitle: Text(game.startAt.toIso8601String())),
-                ])
-              : state == AuthViewState.offline && person != null
-                  ? ListView(children: [
-                      const ListTile(
-                          leading: Icon(Icons.cloud_off),
-                          title: Text('離線唯讀模式')),
-                      ListTile(
-                          title: Text(person!.displayName),
-                          subtitle:
-                              Text('最後同步：${lastSyncedAt!.toIso8601String()}')),
-                      for (final game in games)
-                        ListTile(
-                            title: Text(game.id),
-                            subtitle: Text(game.startAt.toIso8601String())),
-                    ])
-                  : AuthStatePanel(state: state),
-          floatingActionButton: state == AuthViewState.signedOut ||
-                  state == AuthViewState.cancelled ||
-                  state == AuthViewState.error
+          body: state == AuthViewState.authenticated ||
+                  state == AuthViewState.offline
+              ? BasicGamesView(
+                  api: _api!,
+                  person: person!,
+                  games: games,
+                  online: state == AuthViewState.authenticated,
+                  lastSyncedAt: lastSyncedAt!)
+              : AuthStatePanel(state: state),
+          floatingActionButton: _canLogin
               ? FloatingActionButton(
                   onPressed: _login == null ? null : _signIn,
                   tooltip: 'LINE 登入',
@@ -228,3 +261,200 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         ),
       );
 }
+
+class BasicGamesView extends StatelessWidget {
+  const BasicGamesView({
+    super.key,
+    required this.api,
+    required this.person,
+    required this.games,
+    required this.online,
+    required this.lastSyncedAt,
+  });
+  final BasicApi api;
+  final Person person;
+  final List<Game> games;
+  final bool online;
+  final DateTime lastSyncedAt;
+
+  @override
+  Widget build(BuildContext context) => Material(
+          child: ListView(children: [
+        if (!online)
+          Semantics(
+              key: const ValueKey('offline-read-only'),
+              label: '離線唯讀，出席回覆已停用',
+              child: const ListTile(
+                  leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
+        ListTile(
+            title: Text(person.displayName),
+            subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
+        for (final game in games)
+          ListTile(
+              key: ValueKey('game-${game.id}'),
+              title:
+                  Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+              subtitle: Text(game.startAt.toIso8601String()),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: online
+                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) =>
+                          GameDetailPage(api: api, gameId: game.id)))
+                  : null),
+      ]));
+}
+
+enum DetailViewState {
+  loading,
+  ready,
+  mutating,
+  error,
+  mutationError,
+  uncertain,
+  contractError,
+  sessionExpired
+}
+
+class GameDetailPage extends StatefulWidget {
+  const GameDetailPage({super.key, required this.api, required this.gameId});
+  final BasicApi api;
+  final String gameId;
+  @override
+  State<GameDetailPage> createState() => _GameDetailPageState();
+}
+
+class _GameDetailPageState extends State<GameDetailPage> {
+  DetailViewState state = DetailViewState.loading;
+  Game? game;
+  AttendanceSnapshot? attendance;
+  AttendanceReply? selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final loadedGame = await widget.api.game(widget.gameId);
+      final loadedAttendance = await widget.api.attendance(widget.gameId);
+      if (!mounted) return;
+      setState(() {
+        game = loadedGame;
+        attendance = loadedAttendance;
+        selected = loadedAttendance.ownReply;
+        state = DetailViewState.ready;
+      });
+    } on Object catch (error) {
+      _fail(error);
+    }
+  }
+
+  Future<void> _submit() async {
+    if (selected == null) return;
+    setState(() => state = DetailViewState.mutating);
+    try {
+      await widget.api.reply(widget.gameId, selected!, online: true);
+      final loaded = await widget.api.attendance(widget.gameId);
+      if (!mounted) return;
+      setState(() {
+        attendance = loaded;
+        state = DetailViewState.ready;
+      });
+    } on MutationPendingException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        selected = error.reply;
+        state = DetailViewState.uncertain;
+      });
+    } on MutationUncertainException {
+      if (mounted) setState(() => state = DetailViewState.uncertain);
+    } on Object catch (error) {
+      _fail(error, mutation: true);
+    }
+  }
+
+  void _fail(Object error, {bool mutation = false}) {
+    if (!mounted) return;
+    setState(() => state = error is SessionExpiredException ||
+            error is ApiError &&
+                (error.code == ApiErrorCode.sessionExpired ||
+                    error.code == ApiErrorCode.unauthenticated)
+        ? DetailViewState.sessionExpired
+        : error is ContractException
+            ? DetailViewState.contractError
+            : mutation
+                ? DetailViewState.mutationError
+                : DetailViewState.error);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('賽事與出席')),
+        body: switch (state) {
+          DetailViewState.loading => const Center(
+              child: CircularProgressIndicator(semanticsLabel: '載入賽事與出席')),
+          DetailViewState.error =>
+            const AuthStatePanel(state: AuthViewState.recoverableError),
+          DetailViewState.mutationError => Semantics(
+              key: const ValueKey('mutation-error'),
+              label: '出席回覆失敗，未變更目前結果',
+              liveRegion: true,
+              child: const Center(child: Text('出席回覆失敗，請確認狀態後重試。'))),
+          DetailViewState.contractError =>
+            const AuthStatePanel(state: AuthViewState.contractError),
+          DetailViewState.sessionExpired =>
+            const AuthStatePanel(state: AuthViewState.sessionExpired),
+          _ => _content(),
+        },
+      );
+
+  Widget _content() => ListView(padding: const EdgeInsets.all(16), children: [
+        Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
+            style: Theme.of(context).textTheme.titleLarge),
+        Text(game!.startAt.toIso8601String()),
+        const SizedBox(height: 16),
+        const Text('我的出席回覆'),
+        if (state == DetailViewState.uncertain)
+          Semantics(
+              key: const ValueKey('mutation-uncertain'),
+              label: '回覆結果待確認，已保留同一操作識別碼',
+              liveRegion: true,
+              child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
+        Wrap(
+            spacing: 8,
+            children: AttendanceReply.values
+                .map((reply) => ChoiceChip(
+                    key: ValueKey('reply-${reply.wire}'),
+                    label: Text(_replyLabel(reply)),
+                    selected: selected == reply,
+                    onSelected: state == DetailViewState.mutating
+                        ? null
+                        : (_) => setState(() => selected = reply)))
+                .toList()),
+        FilledButton(
+            onPressed: state == DetailViewState.mutating ? null : _submit,
+            child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
+        const Divider(),
+        const Text('已回覆隊員'),
+        for (final reply in attendance!.replied)
+          ListTile(
+              title: Text(reply.displayName),
+              subtitle: Text(
+                  '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
+      ]);
+}
+
+String _replyLabel(AttendanceReply reply) => switch (reply) {
+      AttendanceReply.attending => '出席',
+      AttendanceReply.notAttending => '不出席',
+      AttendanceReply.arrivingLate => '晚到',
+      AttendanceReply.leavingEarly => '早退',
+      AttendanceReply.undecided => '未決定',
+    };
+
+String _qualificationLabel(AttendanceQualification value) => switch (value) {
+      AttendanceQualification.teamPlayer => '隊員',
+      AttendanceQualification.guestPlayer => '友隊球員',
+    };

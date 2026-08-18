@@ -62,6 +62,62 @@ class ContractException implements Exception {
   String toString() => 'ContractException($reason)';
 }
 
+enum ApiErrorCode {
+  malformedRequest,
+  unauthenticated,
+  sessionExpired,
+  identityPending,
+  accountUnavailable,
+  forbidden,
+  resourceNotFound,
+  idempotencyConflict,
+  stateConflict,
+  validationFailed,
+  rateLimited,
+  serviceUnavailable,
+  serverError
+}
+
+class ApiError implements Exception {
+  const ApiError(this.code, this.retryable, this.retryAfterSeconds);
+  factory ApiError.fromJson(Map<String, dynamic> envelope) {
+    final error = _required<Map<String, dynamic>>(envelope, 'error');
+    _required<String>(error, 'message');
+    _required<String>(error, 'request_id');
+    _required<List<dynamic>>(error, 'field_errors');
+    return ApiError(
+        switch (_required<String>(error, 'code')) {
+          'malformed_request' => ApiErrorCode.malformedRequest,
+          'unauthenticated' => ApiErrorCode.unauthenticated,
+          'session_expired' => ApiErrorCode.sessionExpired,
+          'identity_pending' => ApiErrorCode.identityPending,
+          'account_unavailable' => ApiErrorCode.accountUnavailable,
+          'forbidden' => ApiErrorCode.forbidden,
+          'resource_not_found' => ApiErrorCode.resourceNotFound,
+          'idempotency_conflict' => ApiErrorCode.idempotencyConflict,
+          'state_conflict' => ApiErrorCode.stateConflict,
+          'validation_failed' => ApiErrorCode.validationFailed,
+          'rate_limited' => ApiErrorCode.rateLimited,
+          'service_unavailable' => ApiErrorCode.serviceUnavailable,
+          'server_error' => ApiErrorCode.serverError,
+          _ => throw const ContractException('unknown API error code'),
+        },
+        _required<bool>(error, 'retryable'),
+        _nullable<int>(error, 'retry_after_seconds'));
+  }
+  final ApiErrorCode code;
+  final bool retryable;
+  final int? retryAfterSeconds;
+}
+
+class NetworkException implements Exception {
+  const NetworkException();
+}
+
+class SessionExpiredException implements Exception {
+  const SessionExpiredException();
+}
+
 T _required<T>(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is! T) throw ContractException('invalid required field: $key');
@@ -181,6 +237,17 @@ class Game {
         'home_team': homeTeam,
         'away_team': awayTeam,
       };
+}
+
+class GamePage {
+  const GamePage(this.items, this.nextCursor);
+  factory GamePage.fromJson(Map<String, dynamic> json) => GamePage(
+      _required<List<dynamic>>(json, 'items')
+          .map((item) => Game.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+      _nullable<String>(json, 'next_cursor'));
+  final List<Game> items;
+  final String? nextCursor;
 }
 
 class CachedBasicData {
@@ -338,7 +405,13 @@ class HttpApiTransport implements ApiTransport {
         ...headers
       });
     if (body != null) request.body = jsonEncode(body);
-    final response = await client.send(request).timeout(timeout);
+    late final http.StreamedResponse response;
+    try {
+      response = await client.send(request).timeout(timeout);
+    } on Object catch (error) {
+      if (error is ContractException) rethrow;
+      throw const NetworkException();
+    }
     final text = await response.stream.bytesToString();
     Object? decoded;
     if (text.isNotEmpty) {
@@ -440,8 +513,11 @@ class NativeLineLogin implements LineLoginPort {
 
 enum LoginState {
   idle,
-  pending,
+  providerActive,
+  exchanging,
   authenticated,
+  identityPending,
+  accountUnavailable,
   cancelled,
   error,
   unavailable,
@@ -463,30 +539,12 @@ class LoginCoordinator extends ChangeNotifier {
   Future<void> login(String platform) async {
     final attempt = ids.next(), nonce = ids.next();
     _active = attempt;
-    state = LoginState.pending;
+    state = LoginState.providerActive;
     notifyListeners();
     try {
       final token = await line.login(nonce);
-      if (_active != attempt) {
-        state = LoginState.stale;
-        return;
-      }
-      if (!_completed.add(attempt)) {
-        state = LoginState.duplicate;
-        return;
-      }
-      final response = await api.send('POST', '/auth/line/exchange', body: {
-        'id_token': token,
-        'nonce': nonce,
-        'login_attempt_id': attempt,
-        'installation_id': installationId,
-        'platform': platform
-      });
-      if (response.status != 201 || response.body == null) {
-        throw const ContractException('login exchange failed');
-      }
-      await sessions.accept(SessionEnvelope.fromJson(response.body!));
-      state = LoginState.authenticated;
+      await completeAttemptForTesting(
+          attempt: attempt, nonce: nonce, token: token, platform: platform);
     } on PlatformException catch (error) {
       state = error.code.toLowerCase().contains('cancel')
           ? LoginState.cancelled
@@ -498,6 +556,45 @@ class LoginCoordinator extends ChangeNotifier {
     } finally {
       notifyListeners();
     }
+  }
+
+  @visibleForTesting
+  Future<void> completeAttemptForTesting(
+      {required String attempt,
+      required String nonce,
+      required String token,
+      required String platform}) async {
+    if (_active != attempt) {
+      state = LoginState.stale;
+      return;
+    }
+    if (!_completed.add(attempt)) {
+      state = LoginState.duplicate;
+      return;
+    }
+    state = LoginState.exchanging;
+    notifyListeners();
+    final response = await api.send('POST', '/auth/line/exchange', body: {
+      'id_token': token,
+      'nonce': nonce,
+      'login_attempt_id': attempt,
+      'installation_id': installationId,
+      'platform': platform
+    });
+    if (response.status != 201 || response.body == null) {
+      if (response.body == null) {
+        throw const ContractException('missing login error body');
+      }
+      final error = ApiError.fromJson(response.body!);
+      state = switch (error.code) {
+        ApiErrorCode.identityPending => LoginState.identityPending,
+        ApiErrorCode.accountUnavailable => LoginState.accountUnavailable,
+        _ => LoginState.error,
+      };
+      return;
+    }
+    await sessions.accept(SessionEnvelope.fromJson(response.body!));
+    state = LoginState.authenticated;
   }
 }
 
@@ -511,9 +608,15 @@ class SessionController {
   Future<String>? _refreshing;
   String? get accessToken => _access;
   Future<void> accept(SessionEnvelope session) async {
-    await store.write('refresh:$installationId', session.refreshToken);
-    await store.delete('refresh-attempt:$installationId');
-    _access = session.accessToken;
+    try {
+      await store.write('refresh:$installationId', session.refreshToken);
+      await store.delete('refresh-attempt:$installationId');
+      _access = session.accessToken;
+    } on Object {
+      _access = null;
+      await store.delete('refresh:$installationId');
+      rethrow;
+    }
   }
 
   Future<String> refresh() =>
@@ -529,7 +632,7 @@ class SessionController {
         body: {'refresh_token': refresh, 'installation_id': installationId});
     if (response.status == 401) {
       await clear();
-      throw StateError('session expired');
+      throw const SessionExpiredException();
     }
     if (response.status != 200 || response.body == null) {
       throw StateError('refresh uncertain');
@@ -543,10 +646,13 @@ class SessionController {
       {Map<String, dynamic>? body,
       Map<String, String> headers = const {}}) async {
     var token = _access ?? await refresh();
+    final failedToken = token;
     var result = await api.send(method, path,
         headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
     if (result.status == 401) {
-      token = await refresh();
+      token = _access != null && _access != failedToken
+          ? _access!
+          : await refresh();
       result = await api.send(method, path,
           headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
     }
@@ -564,7 +670,7 @@ class SessionController {
     ApiResponse response;
     try {
       response = await authorized('POST', '/auth/logout');
-    } on StateError {
+    } on SessionExpiredException {
       // A terminal refresh 401 already cleared the local session and is an
       // idempotent logout outcome. Transient refresh failures retain state.
       if (await store.read('refresh:$installationId') != null) rethrow;
@@ -581,29 +687,65 @@ class SessionController {
   }
 }
 
+class MutationPendingException implements Exception {
+  const MutationPendingException(this.reply);
+  final AttendanceReply reply;
+}
+
+class MutationUncertainException implements Exception {
+  const MutationUncertainException(this.reply);
+  final AttendanceReply reply;
+}
+
+class OfflineReadOnlyException implements Exception {
+  const OfflineReadOnlyException();
+}
+
 class BasicApi {
   BasicApi(this.session, this.store, this.installationId, this.ids);
   final SessionController session;
   final DurableStore store;
   final String installationId;
   final SecureIds ids;
+  Never _failure(ApiResponse response, String operation) {
+    if (response.body != null) throw ApiError.fromJson(response.body!);
+    throw ContractException('missing $operation response body');
+  }
+
   Future<Person> me() async {
     final r = await session.authorized('GET', '/me');
-    if (r.status != 200 || r.body == null) throw StateError('me failed');
+    if (r.status != 200 || r.body == null) _failure(r, 'me');
     return Person.fromJson(r.body!);
   }
 
+  Future<GamePage> gamePage({String? cursor}) async {
+    final path = cursor == null
+        ? '/games'
+        : '/games?cursor=${Uri.encodeQueryComponent(cursor)}';
+    final r = await session.authorized('GET', path);
+    if (r.status != 200 || r.body == null) _failure(r, 'games');
+    return GamePage.fromJson(r.body!);
+  }
+
   Future<List<Game>> games() async {
-    final r = await session.authorized('GET', '/games');
-    if (r.status != 200 || r.body == null) throw StateError('games failed');
-    final values = _required<List<dynamic>>(r.body!, 'items');
-    return values.map((e) => Game.fromJson(e as Map<String, dynamic>)).toList();
+    final result = <Game>[];
+    final seen = <String>{};
+    String? cursor;
+    do {
+      final page = await gamePage(cursor: cursor);
+      result.addAll(page.items);
+      cursor = page.nextCursor;
+      if (cursor != null && !seen.add(cursor)) {
+        throw const ContractException('repeated games cursor');
+      }
+    } while (cursor != null);
+    return result;
   }
 
   Future<Game> game(String id) async {
     final r =
         await session.authorized('GET', '/games/${Uri.encodeComponent(id)}');
-    if (r.status != 200 || r.body == null) throw StateError('game failed');
+    if (r.status != 200 || r.body == null) _failure(r, 'game');
     return Game.fromJson(r.body!);
   }
 
@@ -611,19 +753,33 @@ class BasicApi {
     final r = await session.authorized(
         'GET', '/games/${Uri.encodeComponent(id)}/attendance');
     if (r.status != 200 || r.body == null) {
-      throw StateError('attendance failed');
+      _failure(r, 'attendance');
     }
     return AttendanceSnapshot.fromJson(r.body!);
   }
 
   Future<MutationResult> reply(String gameId, AttendanceReply reply,
       {required bool online}) async {
-    if (!online) throw StateError('offline read-only');
+    if (!online) throw const OfflineReadOnlyException();
     final keyName = 'mutation:$installationId:$gameId';
     final existing = await store.read(keyName);
-    final key = existing == null
-        ? ids.next()
-        : (jsonDecode(existing) as Map<String, dynamic>)['key'] as String;
+    String key;
+    if (existing == null) {
+      key = ids.next();
+    } else {
+      final intent = jsonDecode(existing) as Map<String, dynamic>;
+      final pendingReply = AttendanceReplyWire.parse(intent['reply']);
+      key = _required<String>(intent, 'key');
+      if (pendingReply != reply) {
+        final snapshot = await attendance(gameId);
+        if (snapshot.ownReply == pendingReply) {
+          await store.delete(keyName);
+          key = ids.next();
+        } else {
+          throw MutationPendingException(pendingReply);
+        }
+      }
+    }
     await store.write(keyName,
         jsonEncode({'key': key, 'reply': reply.wire, 'uncertain': true}));
     final r = await session.authorized(
@@ -642,9 +798,9 @@ class BasicApi {
                 NotificationStatus.unknown, 'outcome_unknown'),
             true);
       }
-      throw StateError('mutation outcome uncertain');
+      throw MutationUncertainException(reply);
     }
-    if (r.status != 200 || r.body == null) throw StateError('mutation failed');
+    if (r.status != 200 || r.body == null) _failure(r, 'mutation');
     final result = MutationResult.fromJson(r.body!);
     await store.delete(keyName);
     return result;

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ntubtob_fictional_client/integration.dart';
 
@@ -33,6 +34,72 @@ class FakeLine implements LineLoginPort {
   @override
   Future<void> logout() async {}
 }
+
+class FailingWriteStore extends MemoryStore {
+  @override
+  Future<void> write(String key, String value) async {
+    if (key.startsWith('refresh:')) throw StateError('secure write failed');
+    await super.write(key, value);
+  }
+}
+
+class Concurrent401Transport implements ApiTransport {
+  final Completer<void> allInitialRequests = Completer<void>();
+  int initialCount = 0;
+  int refreshCount = 0;
+  int replayCount = 0;
+  @override
+  Future<ApiResponse> send(String method, String path,
+      {Map<String, String> headers = const {},
+      Map<String, dynamic>? body}) async {
+    if (path == '/auth/refresh') {
+      refreshCount++;
+      return ApiResponse(200, {
+        'access_token': 'new-access',
+        'refresh_token': 'new-refresh-token-with-more-than-32-characters',
+        'session_id': 's',
+        'expires_in': 900
+      });
+    }
+    if (headers['Authorization'] == 'Bearer old-access') {
+      initialCount++;
+      if (initialCount == 10) allInitialRequests.complete();
+      await allInitialRequests.future;
+      return const ApiResponse(401, null);
+    }
+    replayCount++;
+    return const ApiResponse(200, {});
+  }
+}
+
+Map<String, dynamic> apiError(String code, {bool retryable = false}) => {
+      'error': {
+        'code': code,
+        'message': 'safe message',
+        'request_id': 'request',
+        'retryable': retryable,
+        'retry_after_seconds': null,
+        'field_errors': []
+      }
+    };
+
+Map<String, dynamic> gameJson(String id) => {
+      'id': id,
+      'start_at': '2026-08-18T12:00:00Z',
+      'duration_minutes': 60,
+      'location': null,
+      'home_team': 'Home',
+      'away_team': 'Away'
+    };
+
+Map<String, dynamic> mutationJson(String reply) => {
+      'game_id': 'g',
+      'reply': reply,
+      'changed': true,
+      'updated_at': '2026-08-18T12:00:00Z',
+      'notification': {'status': 'not_required', 'code': null},
+      'idempotent_replay': false,
+    };
 
 SessionEnvelope session(String access, String refresh) => SessionEnvelope(
     accessToken: access,
@@ -183,7 +250,8 @@ void main() {
       ..responses.add(const ApiResponse(401, null));
     final store = MemoryStore()..values['refresh:install'] = 'refresh';
     final controller = SessionController(api, store, 'install', SecureIds());
-    await expectLater(controller.refresh(), throwsStateError);
+    await expectLater(
+        controller.refresh(), throwsA(isA<SessionExpiredException>()));
     expect(store.values['refresh:install'], isNull);
   });
 
@@ -211,6 +279,33 @@ void main() {
     expect(result.status, 200);
     expect(api.calls.map((call) => call.$2), ['/me', '/auth/refresh', '/me']);
     expect(api.calls.last.$3['Authorization'], 'Bearer new');
+  });
+
+  test('10 concurrent 401s share one refresh and replay each request once',
+      () async {
+    final transport = Concurrent401Transport();
+    final store = MemoryStore();
+    final controller =
+        SessionController(transport, store, 'install', SecureIds());
+    await controller.accept(session(
+        'old-access', 'old-refresh-token-with-more-than-32-characters'));
+    final responses = await Future.wait(
+        List.generate(10, (index) => controller.authorized('GET', '/me')));
+    expect(responses, everyElement(isA<ApiResponse>()));
+    expect(transport.initialCount, 10);
+    expect(transport.refreshCount, 1);
+    expect(transport.replayCount, 10);
+  });
+
+  test('secure-store write failure accepts no memory or durable session',
+      () async {
+    final store = FailingWriteStore();
+    final controller =
+        SessionController(ScriptedTransport(), store, 'install', SecureIds());
+    await expectLater(
+        controller.accept(session('access', 'refresh')), throwsStateError);
+    expect(controller.accessToken, isNull);
+    expect(store.values['refresh:install'], isNull);
   });
 
   test('lost refresh response reuses durable attempt id', () async {
@@ -242,6 +337,19 @@ void main() {
     expect(store.values['logout-pending:install'], isNull);
   });
 
+  test('logout_pending restart retries and clears durable marker', () async {
+    final api = ScriptedTransport()
+      ..responses.add(const ApiResponse(204, null));
+    final store = MemoryStore()
+      ..values['refresh:install'] = 'refresh'
+      ..values['logout-pending:install'] = 'true';
+    final restarted = SessionController(api, store, 'install', SecureIds());
+    await restarted.accept(session('access', 'refresh'));
+    await restarted.logout(FakeLine());
+    expect(store.values['logout-pending:install'], isNull);
+    expect(restarted.accessToken, isNull);
+  });
+
   test('native login exchange never sends a LINE access token', () async {
     final api = ScriptedTransport()
       ..responses.add(ApiResponse(201, {
@@ -263,6 +371,66 @@ void main() {
         hasLength(greaterThanOrEqualTo(16)));
   });
 
+  test('canonical identity states and native cancel are classified', () async {
+    for (final entry in {
+      'identity_pending': LoginState.identityPending,
+      'account_unavailable': LoginState.accountUnavailable,
+    }.entries) {
+      final api = ScriptedTransport()
+        ..responses.add(ApiResponse(409, apiError(entry.key)));
+      final login = LoginCoordinator(
+          FakeLine(),
+          api,
+          SessionController(api, MemoryStore(), 'install', SecureIds()),
+          SecureIds(),
+          'install');
+      await login.login('android');
+      expect(login.state, entry.value);
+    }
+    final api = ScriptedTransport();
+    final cancelled = LoginCoordinator(
+        FakeLine(error: PlatformException(code: 'CANCELLED')),
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install');
+    await cancelled.login('android');
+    expect(cancelled.state, LoginState.cancelled);
+    expect(api.calls, isEmpty);
+  });
+
+  test('stale and duplicate native completions never exchange twice', () async {
+    final api = ScriptedTransport()
+      ..responses.add(ApiResponse(201, {
+        'access_token': 'access',
+        'refresh_token': 'refresh-token-with-at-least-32-characters',
+        'session_id': 's',
+        'expires_in': 900
+      }));
+    final login = LoginCoordinator(
+        FakeLine(),
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install');
+    await login.login('android');
+    final body = api.calls.single.$4!;
+    await login.completeAttemptForTesting(
+        attempt: body['login_attempt_id'] as String,
+        nonce: body['nonce'] as String,
+        token: 'duplicate',
+        platform: 'android');
+    expect(login.state, LoginState.duplicate);
+    expect(api.calls, hasLength(1));
+    await login.completeAttemptForTesting(
+        attempt: 'different-attempt-id',
+        nonce: 'different-nonce-value',
+        token: 'stale',
+        platform: 'android');
+    expect(login.state, LoginState.stale);
+    expect(api.calls, hasLength(1));
+  });
+
   test('offline mutation is read-only and makes zero transport calls',
       () async {
     final transport = ScriptedTransport();
@@ -271,7 +439,7 @@ void main() {
         SessionController(transport, store, 'install', SecureIds());
     final api = BasicApi(sessions, store, 'install', SecureIds());
     await expectLater(api.reply('g', AttendanceReply.attending, online: false),
-        throwsStateError);
+        throwsA(isA<OfflineReadOnlyException>()));
     expect(transport.calls, isEmpty);
     expect(store.values, isEmpty);
   });
@@ -292,6 +460,85 @@ void main() {
     expect(result.idempotentReplay, isTrue);
     expect(store.values.keys, isNot(contains('mutation:install:g')));
     expect(transport.calls[0].$3['Idempotency-Key'], isNotEmpty);
+  });
+
+  test('same uncertain logical reply reuses the idempotency key', () async {
+    final transport = ScriptedTransport()
+      ..responses.addAll([
+        const ApiResponse(503, null),
+        ApiResponse(200, {'game_id': 'g', 'own_reply': null, 'replied': []}),
+        ApiResponse(200, mutationJson('attending')),
+      ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+    await expectLater(api.reply('g', AttendanceReply.attending, online: true),
+        throwsA(isA<MutationUncertainException>()));
+    final firstKey = transport.calls.first.$3['Idempotency-Key'];
+    await api.reply('g', AttendanceReply.attending, online: true);
+    expect(transport.calls.last.$3['Idempotency-Key'], firstKey);
+  });
+
+  test('different reply is blocked while uncertain intent mismatches',
+      () async {
+    final transport = ScriptedTransport()
+      ..responses.add(
+          ApiResponse(200, {'game_id': 'g', 'own_reply': null, 'replied': []}));
+    final store = MemoryStore()
+      ..values['mutation:install:g'] =
+          '{"key":"original-key-value","reply":"attending","uncertain":true}';
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    await expectLater(
+        BasicApi(sessions, store, 'install', SecureIds())
+            .reply('g', AttendanceReply.notAttending, online: true),
+        throwsA(isA<MutationPendingException>()));
+    expect(transport.calls, hasLength(1));
+    expect(transport.calls.single.$1, 'GET');
+    expect(store.values['mutation:install:g'], contains('attending'));
+  });
+
+  test('confirmed old intent permits new reply with a new key', () async {
+    final transport = ScriptedTransport()
+      ..responses.addAll([
+        ApiResponse(
+            200, {'game_id': 'g', 'own_reply': 'attending', 'replied': []}),
+        ApiResponse(200, mutationJson('not_attending')),
+      ]);
+    final store = MemoryStore()
+      ..values['mutation:install:g'] =
+          '{"key":"original-key-value","reply":"attending","uncertain":true}';
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    await BasicApi(sessions, store, 'install', SecureIds())
+        .reply('g', AttendanceReply.notAttending, online: true);
+    expect(transport.calls.last.$3['Idempotency-Key'],
+        isNot('original-key-value'));
+  });
+
+  test('games follows canonical next_cursor until null', () async {
+    final transport = ScriptedTransport()
+      ..responses.addAll([
+        ApiResponse(200, {
+          'items': [gameJson('g1')],
+          'next_cursor': 'next'
+        }),
+        ApiResponse(200, {
+          'items': [gameJson('g2')],
+          'next_cursor': null
+        }),
+      ]);
+    final sessions =
+        SessionController(transport, MemoryStore(), 'install', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    final games =
+        await BasicApi(sessions, MemoryStore(), 'install', SecureIds()).games();
+    expect(games.map((game) => game.id), ['g1', 'g2']);
+    expect(transport.calls.last.$2, '/games?cursor=next');
   });
 
   test('cache is versioned, installation partitioned, and typed', () async {
