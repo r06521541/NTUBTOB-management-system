@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from apps.mobile_api.revision_readiness import (
     EXPECTED_REVISION,
@@ -39,17 +39,23 @@ class RevisionReadinessTest(unittest.TestCase):
 
     def test_driver_error_logs_only_exception_type(self):
         engine, logger = Mock(), Mock()
+        engine.url.host, engine.url.port = "private-host", 5432
         error = RuntimeError(
             "password authentication failed secret-host secret-password"
         )
         error.pgcode = "28P01"
         engine.connect.side_effect = error
 
-        self.assertFalse(database_revision_is_current(engine, logger))
+        with patch("apps.mobile_api.revision_readiness.socket.getaddrinfo"), patch(
+            "apps.mobile_api.revision_readiness.socket.create_connection"
+        ) as create_connection:
+            create_connection.return_value = Mock()
+            self.assertFalse(database_revision_is_current(engine, logger))
         logger.error.assert_called_once_with(
-            "mobile_api_revision_check_failed category=%s sqlstate=%s",
+            "mobile_api_revision_check_failed category=%s sqlstate=%s network=%s",
             "authentication",
             "28P01",
+            "tcp_ok",
         )
         rendered = repr(logger.error.call_args)
         self.assertNotIn("secret-host", rendered)
@@ -57,15 +63,21 @@ class RevisionReadinessTest(unittest.TestCase):
 
     def test_unknown_error_does_not_emit_unbounded_sqlstate(self):
         engine, logger = Mock(), Mock()
+        engine.url.host, engine.url.port = "private-host", 5432
         error = RuntimeError("private driver detail")
         error.pgcode = "private-unbounded-value"
         engine.connect.side_effect = error
 
-        self.assertFalse(database_revision_is_current(engine, logger))
+        with patch(
+            "apps.mobile_api.revision_readiness.socket.getaddrinfo",
+            side_effect=OSError("private DNS detail"),
+        ):
+            self.assertFalse(database_revision_is_current(engine, logger))
         logger.error.assert_called_once_with(
-            "mobile_api_revision_check_failed category=%s sqlstate=%s",
+            "mobile_api_revision_check_failed category=%s sqlstate=%s network=%s",
             "operational",
             "none",
+            "dns_failed",
         )
         self.assertNotIn("private driver detail", repr(logger.error.call_args))
 

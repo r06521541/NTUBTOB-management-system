@@ -1,5 +1,7 @@
 """Safe database revision readiness checks for the mobile API runtime."""
 
+import socket
+
 from sqlalchemy import text
 
 EXPECTED_REVISION = "0005_mobile_auth_api_foundation"
@@ -30,6 +32,26 @@ def _safe_error_category(error: Exception) -> tuple[str, str]:
     return category, sqlstate
 
 
+def _safe_network_probe(engine) -> str:
+    host, port = engine.url.host, engine.url.port or 5432
+    if not host:
+        return "configuration"
+    try:
+        socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except OSError:
+        return "dns_failed"
+    try:
+        connection = socket.create_connection((host, port), timeout=2)
+    except TimeoutError:
+        return "tcp_timeout"
+    except ConnectionRefusedError:
+        return "tcp_refused"
+    except OSError:
+        return "tcp_failed"
+    connection.close()
+    return "tcp_ok"
+
+
 def database_revision_is_current(engine, logger) -> bool:
     try:
         with engine.connect() as connection:
@@ -44,9 +66,11 @@ def database_revision_is_current(engine, logger) -> bool:
         # Driver exception text may contain connection details. Emit only the
         # bounded category and SQLSTATE so diagnostics cannot disclose credentials.
         category, sqlstate = _safe_error_category(error)
+        network = _safe_network_probe(engine)
         logger.error(
-            "mobile_api_revision_check_failed category=%s sqlstate=%s",
+            "mobile_api_revision_check_failed category=%s sqlstate=%s network=%s",
             category,
             sqlstate,
+            network,
         )
         return False
