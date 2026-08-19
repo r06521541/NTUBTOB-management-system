@@ -1,19 +1,19 @@
-active_task: TASK-115
-status: ready_for_pr
-next_actor: work
+active_task: TASK-119
+status: ready_for_codex
+next_actor: codex
 
-base_commit: 30b66cd79da0f2442ae3e9f1c2a7e091e82069be
-head_commit: 311df9e568064abc8d527c4b699c9946f762e4a5
+base_commit: d4569577817a18e74758dad61bfaff2b82991f85
+head_commit: d4569577817a18e74758dad61bfaff2b82991f85
 
 updated_by: work
-updated_at: 2026-08-20T01:20:00+08:00
+updated_at: 2026-08-20T01:32:00+08:00
 
 note: >
-  TASK-115 Flutter source and isolated staging emulator acceptance are accepted. Hosted Flutter format, analyze, tests,
-  debug build and final CI remain before merge. Physical Android and iOS runtime/signing remain deferred. Production,
-  Secret payloads, true notifications, release signing and store upload remain forbidden.
+  TASK-115 merged as PR #129 with hosted Flutter final gate. TASK-119 now adds a reversible, fixture-owned staging
+  Basic-to-Officer operator and Officer report acceptance. Physical Android and iOS runtime/signing remain deferred.
+  Production, Secret payloads, true notifications, release signing and store upload remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-115.md
-report: docs/coordination/reports/TASK-115-FLUTTER-CODEX.md
-review: docs/coordination/reviews/TASK-115-WORK.md
+task: docs/coordination/tasks/TASK-119.md
+report: docs/coordination/reports/TASK-119-CODEX.md
+review: docs/coordination/reviews/TASK-119-WORK.md
