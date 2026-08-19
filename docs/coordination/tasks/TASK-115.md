@@ -36,4 +36,3 @@ login and attendance reply recovery without expanding production scope.
 - Hosted Flutter format/analyze/test/debug-build final gate.
 - Privacy-safe emulator evidence for session, capability, offline and logout
   behavior; no raw token, provider subject or response body collection.
-
