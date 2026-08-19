@@ -12,15 +12,15 @@ Close the staging-only acceptance gap for the existing mobile Officer
 read-only attendance report. Add a fail-closed, reversible operator that
 temporarily changes only the already-linked fictional staging tester from
 Basic to Officer, proves the server capability/report boundary, then restores
-the exact Basic fixture baseline.
+the active Basic fixture state.
 
 ## Repository scope
 
 - Extend the existing mobile staging data/operator path and its tests; update
   the mobile staging runbook and this task's single Codex report.
 - The operator accepts only revision `0005`, the exact TASK-112/TASK-118
-  fictional fixture, the exact linked tester identity and the task-owned
-  access-audit transition. It provides inspect, grant, restore and recovery
+  fictional fixture, the exact linked tester identity and task-owned append-only
+  access-audit transitions. It provides inspect, grant, restore and recovery
   states without ad-hoc SQL instructions.
 - Use the existing mobile API/OpenAPI and Flutter client unchanged unless a
   reproducible defect requires a separately scoped correction.
@@ -28,13 +28,14 @@ the exact Basic fixture baseline.
 ## Invariants
 
 - The only mutable Person is `-112001`; its normal state is active Basic. The
-  only temporary state is active Officer with exactly the task-owned audit
-  transition. All other fixture rows, identities, qualifications, games,
+  only temporary state is active Officer with exactly the task-owned grant
+  audit. Restored state is active Basic with exactly one task-owned grant and
+  one task-owned restore audit. All other fixture rows, identities, qualifications, games,
   replies and non-fixture rows fail closed on drift.
-- Restore returns the original Basic fixture shape and removes only records
-  created by this task. It never deletes non-task audit/data, changes schema,
-  creates an admin, changes production, exposes Secret values or sends a
-  notification.
+- `access_audit` is schema-enforced append-only. Restore returns the Person to
+  Basic and verifies the bounded audit pair and version as the semantic fixture
+  baseline. It never deletes audit/data, changes schema, creates an admin,
+  changes production, exposes Secret values or sends a notification.
 - Staging operations follow DEC-098: agent may perform bounded fictional
   inspect/grant/restore after repository acceptance; any unknown state is
   read-only reconciled and stops.
