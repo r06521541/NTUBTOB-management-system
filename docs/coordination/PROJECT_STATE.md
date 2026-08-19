@@ -4,7 +4,7 @@
 
 維護角色：Work
 
-Repository 基準：`main` / `7ef79b1380ac054b867bcac0fd4b2c317b81d778`
+Repository 基準：`main` / `baee3f93357c1268cd6d8803e053983939fa3a5d`
 
 ## 目前摘要
 
@@ -18,9 +18,10 @@ Repository 基準：`main` / `7ef79b1380ac054b867bcac0fd4b2c317b81d778`
   `2c33b6e48f89f43a34f44784e9c224971b5cca38`）；hosted format/analyze/71 tests/fake Android build及final gate全綠。
 - TASK-112 mobile staging readiness已由PR #122 merge至`main`（merge commit
   `7ef79b1380ac054b867bcac0fd4b2c317b81d778`）；尚未建立或變更GCP、database、LINE channel、Secret、IAM或部署。
-- TASK-114 backend與Flutter source review已接受並整合：Mobile Officer唯讀出席報告、fresh capability、Basic隔離、
-  三cohort洞察及低敏durable offline cache已完成，等待single final PR/hosted fresh-disk Flutter gate；TASK-113 staging
-  activation仍保留逐項批准，不與TASK-114混用授權。
+- TASK-114 Mobile Officer唯讀出席報告與Flutter parity已由PR #123 merge至`main`（merge commit
+  `baee3f93357c1268cd6d8803e053983939fa3a5d`），hosted Flutter 97 tests/debug build與final gate全綠。
+- TASK-113 已啟動：先在E槽建立本機Android Emulator並做fake smoke，再提出dedicated staging外部資源與成本的
+  精確Owner批准manifest；目前未建立或變更任何雲端、DB、LINE、Secret或IAM資源。
 - Flutter planning 已確認 Android／iOS staging APK／TestFlight 測試路線；production、schema、Secret、IAM、正式通知與商店發布仍未授權。
 
 - Phase C 已完成 production schema、跨服務 runtime 啟用、管理入口 bootstrap 與既有可靠 LINE 隊員啟用。

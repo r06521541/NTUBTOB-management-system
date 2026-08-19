@@ -1,19 +1,19 @@
-active_task: TASK-114
-status: ready_for_pr
+active_task: TASK-113
+status: active_local_preflight
 next_actor: work
 
-base_commit: 7ef79b1380ac054b867bcac0fd4b2c317b81d778
-head_commit: 3dcc9b1cf4d34ce7ab69c7e0a49495002761c89b
+base_commit: baee3f93357c1268cd6d8803e053983939fa3a5d
+head_commit: null
 
 updated_by: work
-updated_at: 2026-08-19T03:30:00+08:00
+updated_at: 2026-08-19T09:00:00+08:00
 
 note: >
-  TASK-114 backend and Flutter lanes are accepted and integrated at 3dcc9b1cf4d34ce7ab69c7e0a49495002761c89b,
-  ready for the single final PR and hosted fresh-disk Flutter gate. TASK-113 remains reserved for separately approved staging
-  activation. No deployment, Secret/IAM/LINE operation, database mutation or notification is authorized or performed.
+  TASK-114 merged through PR #123 at baee3f93357c1268cd6d8803e053983939fa3a5d. TASK-113 begins with local-only
+  Android Emulator setup on E drive and read-only staging inventory. External staging project/database/LINE/Secret/IAM
+  mutation remains behind an exact Owner manifest checkpoint; production and notifications remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-114.md
-report: docs/coordination/reports/TASK-114-CODEX.md
-review: docs/coordination/reviews/TASK-114-WORK.md
+task: docs/coordination/tasks/TASK-113.md
+report: null
+review: null
