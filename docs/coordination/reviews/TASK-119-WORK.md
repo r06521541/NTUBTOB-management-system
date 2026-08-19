@@ -2,7 +2,7 @@
 
 ## Decision
 
-Accepted for hosted CI and final PR.
+Accepted for staging execution and final PR.
 
 ## Review findings
 
@@ -25,7 +25,9 @@ Accepted for hosted CI and final PR.
   delivery range: passed.
 - Codex evidence records PostgreSQL 16 fixture integration, mobile API and
   shared-library regression coverage. PostgreSQL 15, hosted Python 3.10 and
-  final Black evidence remain hosted-CI gates.
+  final Black evidence were hosted-CI gates.
+- Hosted CI then passed the PostgreSQL 15/16 matrix, Flutter 3.47.0
+  format/analyze/test/debug-build gate, and the repository final gate.
 
 ## Deferred
 
