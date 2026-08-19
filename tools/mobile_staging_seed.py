@@ -28,6 +28,9 @@ FIXTURE_REPLY_TYPES = {
     key: f"TASK112 fixture {value}" for key, value in REPLY_TYPES.items()
 }
 ANCHOR = datetime(2035, 1, 10, 10, tzinfo=timezone.utc)
+FIXTURE_REPLY_AT = datetime(2000, 1, 1, tzinfo=timezone.utc)
+LEGACY_FIXTURE_REPLY_AT = ANCHOR
+HIDDEN_TEST_REPLY_IDS = (1, 2)
 
 
 class StagingSeedError(RuntimeError):
@@ -204,10 +207,106 @@ def seed(engine: Engine, private_subject: str) -> dict[str, int]:
             (-112003, -112002, NULL, NULL, -112003, 5, :now)
         """
             ),
-            {"now": ANCHOR},
+            {"now": FIXTURE_REPLY_AT},
         )
         _assert_exact(connection, private_subject)
         return {**_counts(connection), "tester_mappings": 1, "reused": 0}
+
+
+def _attendance_repair_state(connection) -> dict[str, object]:
+    revision = connection.scalar(
+        text("SELECT version_num FROM ntubtob.alembic_version")
+    )
+    if revision != REVISION:
+        raise StagingSeedError("Database revision must be exact 0005")
+    fixture_rows = connection.execute(
+        text(
+            "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
+            "FROM ntubtob.game_attendance_replies "
+            "WHERE id = ANY(:ids) ORDER BY id"
+        ),
+        {"ids": list(REPLY_IDS)},
+    ).all()
+    expected = [
+        (-112003, -112002, None, None, -112003, 5),
+        (-112002, -112001, None, None, -112002, 2),
+        (-112001, -112001, None, None, -112001, 1),
+    ]
+    if [tuple(row[:6]) for row in fixture_rows] != expected:
+        raise StagingSeedError("Fictional attendance fixture is drifted")
+    timestamps = {row.updated_at for row in fixture_rows}
+    hidden_rows = connection.execute(
+        text(
+            "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
+            "FROM ntubtob.game_attendance_replies "
+            "WHERE person_id=-112001 AND game_id=-112001 "
+            "AND id <> -112001 ORDER BY id"
+        )
+    ).all()
+    if timestamps == {FIXTURE_REPLY_AT} and not hidden_rows:
+        return {"state": "repaired", "hidden_ids": ()}
+    hidden_shape = [tuple(row[1:6]) for row in hidden_rows]
+    if (
+        timestamps != {LEGACY_FIXTURE_REPLY_AT}
+        or tuple(row.id for row in hidden_rows) != HIDDEN_TEST_REPLY_IDS
+        or hidden_shape
+        != [
+            (-112001, None, None, -112001, 5),
+            (-112001, None, None, -112001, 5),
+        ]
+    ):
+        raise StagingSeedError("Fictional attendance repair state is drifted")
+    if any(
+        row.id <= 0
+        or row.updated_at is None
+        or row.updated_at >= LEGACY_FIXTURE_REPLY_AT
+        for row in hidden_rows
+    ):
+        raise StagingSeedError("Fictional attendance repair state is drifted")
+    return {"state": "required", "hidden_ids": tuple(row.id for row in hidden_rows)}
+
+
+def inspect_attendance_repair(engine: Engine) -> dict[str, object]:
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            connection.execute(text("SET TRANSACTION READ ONLY"))
+            state = _attendance_repair_state(connection)
+        finally:
+            transaction.rollback()
+    return {"state": state["state"], "hidden_rows": len(state["hidden_ids"])}
+
+
+def repair_attendance_fixture(engine: Engine) -> dict[str, object]:
+    with engine.begin() as connection:
+        state = _attendance_repair_state(connection)
+        hidden_ids = state["hidden_ids"]
+        if state["state"] == "repaired":
+            return {"state": "repaired", "removed_hidden_rows": 0}
+        deleted = connection.execute(
+            text(
+                "DELETE FROM ntubtob.game_attendance_replies "
+                "WHERE id = ANY(:ids)"
+            ),
+            {"ids": list(hidden_ids)},
+        ).rowcount
+        updated = connection.execute(
+            text(
+                "UPDATE ntubtob.game_attendance_replies SET updated_at=:fixed "
+                "WHERE id = ANY(:ids) AND updated_at=:legacy"
+            ),
+            {
+                "ids": list(REPLY_IDS),
+                "fixed": FIXTURE_REPLY_AT,
+                "legacy": LEGACY_FIXTURE_REPLY_AT,
+            },
+        ).rowcount
+        if deleted != 2 or updated != 3:
+            raise StagingSeedError("Fictional attendance repair changed unexpectedly")
+        after = _attendance_repair_state(connection)
+        if after["state"] != "repaired":
+            raise StagingSeedError("Fictional attendance repair postcheck failed")
+        return {"state": "repaired", "removed_hidden_rows": deleted}
 
 
 def cleanup(engine: Engine, private_subject: str) -> dict[str, int]:
