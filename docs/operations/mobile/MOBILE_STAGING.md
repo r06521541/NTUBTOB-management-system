@@ -9,7 +9,9 @@ or distribution.
 
 - Production project `ntubtob-schedule-405614` is always rejected.
 - Target service is `mobile-api-staging` in `asia-east1`, minimum instances 0,
-  maximum 1 to 3, and a new candidate receives no traffic.
+  maximum 1 to 3. An update candidate receives no traffic; Cloud Run requires
+  the first revision of a bootstrap service to receive 100% service traffic,
+  so that bootstrap remains private until a separate IAM approval.
 - Staging uses a dedicated project and dedicated PostgreSQL database at exact
   revision `0005_mobile_auth_api_foundation`.
 - Runtime names are `PORTAL_DATA_DATABASE_URL`, `MOBILE_API_AUDIENCE`,
@@ -97,6 +99,17 @@ fixture-created. Cleanup does not remove the legacy fixture. Downgrade, database
 deletion, or recreation remains a separate exact Owner approval. This task did
 not run this operator against any remote database.
 
+On Windows, invoke the data operator as a repository module so both `tools` and
+`shared_lib` resolve from the repository root:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --execute
+```
+
+The database URL and private tester subject remain process-only environment
+inputs. A failed import, identity check or recovery check performs no mutation;
+do not retry a later-stage failure until read-only recovery classifies it.
+
 ## Build, candidate, promotion and recovery
 
 There are two separate Owner approvals and cost checkpoints:
@@ -115,7 +128,7 @@ There are two separate Owner approvals and cost checkpoints:
 Default invocation performs no cloud command:
 
 ```powershell
-python tools/mobile_staging_operator.py
+python -m tools.mobile_staging_operator
 ```
 
 With a private approval artifact and private database URL, omitting `--execute`
@@ -123,28 +136,31 @@ still only prints a redacted manifest:
 
 ```powershell
 $env:MOBILE_STAGING_DATABASE_URL = '<private-dedicated-staging-dsn>'
-python tools/mobile_staging_operator.py --approval C:\private\approval.json
+python -m tools.mobile_staging_operator --approval C:\private\approval.json
 ```
 
 A later task needs the matching fresh Owner approval before each mutation:
 
 ```powershell
-python tools/mobile_staging_operator.py --approval C:\private\build-approval.json --state-file C:\private\build-state.json --execute build
-python tools/mobile_staging_operator.py --approval C:\private\build-approval.json --state-file C:\private\build-state.json --execute recover-build
-python tools/mobile_staging_operator.py --approval C:\private\candidate-approval.json --state-file C:\private\candidate-state.json --execute candidate
-python tools/mobile_staging_operator.py --approval C:\private\candidate-approval.json --state-file C:\private\candidate-state.json --execute recover-candidate
-python tools/mobile_staging_operator.py --approval C:\private\approval.json --state-file C:\private\state.json --execute promote
-python tools/mobile_staging_operator.py --approval C:\private\approval.json --state-file C:\private\state.json --execute rollback
+python -m tools.mobile_staging_operator --approval C:\private\build-approval.json --state-file C:\private\build-state.json --execute build
+python -m tools.mobile_staging_operator --approval C:\private\build-approval.json --state-file C:\private\build-state.json --execute recover-build
+python -m tools.mobile_staging_operator --approval C:\private\candidate-approval.json --state-file C:\private\candidate-state.json --execute candidate
+python -m tools.mobile_staging_operator --approval C:\private\candidate-approval.json --state-file C:\private\candidate-state.json --execute recover-candidate
+python -m tools.mobile_staging_operator --approval C:\private\approval.json --state-file C:\private\state.json --execute promote
+python -m tools.mobile_staging_operator --approval C:\private\approval.json --state-file C:\private\state.json --execute rollback
 ```
 
-Google documents that `--no-traffic` prevents the deployed revision receiving
-traffic, including a first revision, and that service traffic is managed
-separately. The operator therefore treats revision describe as image/readiness
-evidence but service describe as the authoritative traffic topology. Bootstrap
-requires no prior service and `rollback_revision=null`; failed promotion cleanup
-or service deletion needs separate approval. Update requires one exact baseline
+Cloud Run rejects `--no-traffic` when creating a new service. The operator
+therefore deploys a bootstrap revision as the private service's required 100%
+traffic target, while update candidates use `--no-traffic`. Service traffic is
+not public authorization: bootstrap remains inaccessible to unauthenticated
+callers until a separate IAM approval. Revision describe remains image/readiness
+evidence and service describe is authoritative for traffic. Bootstrap requires
+no prior service and `rollback_revision=null`; failed bootstrap cleanup or
+service deletion needs separate approval. Update requires one exact baseline
 revision at 100% before candidate promotion and can roll back to it. Both modes
-reject candidate traffic, digest, ingress, runtime identity or scaling drift.
+reject traffic, digest, ingress, runtime identity or scaling drift outside their
+exact mode contract.
 `recover-candidate` is read-only and never redeploys. Rollback restores 100%
 traffic only in update mode;
 candidate/image deletion and full staging cleanup remain separately approved
@@ -176,9 +192,9 @@ the build. Do not upload, sign or distribute an APK under this task.
 ## Tabletop and cleanup
 
 Sequence: read-only discovery, redacted manifest, Owner exact approval, local
-artifact validation, no-traffic candidate, revision/digest/runtime-reference
+artifact validation, mode-specific candidate, revision/digest/runtime-reference
 post-check, explicit promotion, smoke, then rollback if needed. Expected future
-external mutations are exactly one build/image upload, one no-traffic Cloud Run
-candidate and one explicit traffic update. Cleanup may delete the candidate,
+external mutations are exactly one build/image upload, one Cloud Run candidate
+and, for update mode, one explicit traffic update. Cleanup may delete the candidate,
 image, staging data/database and eventually the dedicated project only under a
 separate approval that includes residual billing checks.

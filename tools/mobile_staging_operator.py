@@ -194,7 +194,7 @@ def build_command(approval: dict) -> list[str]:
 
 
 def deploy_command(approval: dict) -> list[str]:
-    return [
+    arguments = [
         "gcloud",
         "run",
         "deploy",
@@ -209,13 +209,12 @@ def deploy_command(approval: dict) -> list[str]:
         approval["candidate_revision"].removeprefix(SERVICE + "-"),
         "--service-account",
         approval["service_account"],
-        "--no-traffic",
         "--ingress",
         "all",
         "--no-allow-unauthenticated",
-        "--min",
+        "--min-instances",
         "0",
-        "--max",
+        "--max-instances",
         str(approval["max_instances"]),
         "--set-secrets",
         ",".join(
@@ -225,6 +224,9 @@ def deploy_command(approval: dict) -> list[str]:
         f"MOBILE_API_AUDIENCE={approval['mobile_api_audience']}",
         "--quiet",
     ]
+    if approval["mode"] == "update":
+        arguments.insert(arguments.index("--ingress"), "--no-traffic")
+    return arguments
 
 
 def _build_result(value: dict, approval: dict) -> str:
@@ -326,15 +328,19 @@ def validate_candidate(approval: dict, revision: dict, service: dict) -> None:
     ):
         raise OperatorError("Cloud Run service runtime or scaling drifted")
     traffic = service.get("status", {}).get("traffic", [])
-    if any(
-        item.get("revisionName") == approval["candidate_revision"]
-        and item.get("percent", 0) != 0
+    targets = [
+        {
+            "revisionName": item.get("revisionName"),
+            "percent": item.get("percent"),
+        }
         for item in traffic
-    ):
-        raise OperatorError("Candidate unexpectedly received traffic")
-    if approval["mode"] == "bootstrap" and traffic:
-        raise OperatorError("Bootstrap candidate traffic topology is not empty")
-    if approval["mode"] == "update" and traffic != [
+        if isinstance(item, dict)
+    ]
+    if approval["mode"] == "bootstrap" and targets != [
+        {"revisionName": approval["candidate_revision"], "percent": 100}
+    ]:
+        raise OperatorError("Bootstrap candidate traffic topology drifted")
+    if approval["mode"] == "update" and targets != [
         {"revisionName": approval["rollback_revision"], "percent": 100}
     ]:
         raise OperatorError("Update baseline traffic topology drifted")
