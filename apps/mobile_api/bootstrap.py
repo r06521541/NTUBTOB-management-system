@@ -1,11 +1,13 @@
 """Fail-closed deployment bootstrap for the independent mobile API."""
 
 import base64
+import logging
 import os
 
 from app import Dependencies, create_app
 from cryptography.fernet import Fernet, InvalidToken
 from line_verifier import LineIdTokenVerifier
+from revision_readiness import database_revision_is_current
 from shared_module.attendance_reply import AttendanceReplyService
 from shared_module.mobile_api import (
     BasicApiService,
@@ -16,7 +18,8 @@ from shared_module.mobile_api import (
 from shared_module.models.db import engine
 from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
 from shared_module.portal_data.mobile_repository import MobileRepository
-from sqlalchemy import text
+
+logger = logging.getLogger(__name__)
 
 
 class RuntimeCipher:
@@ -46,16 +49,7 @@ def required(name: str) -> str:
 
 
 def revision_is_current() -> bool:
-    try:
-        with engine.connect() as connection:
-            return (
-                connection.scalar(
-                    text("SELECT version_num FROM ntubtob.alembic_version")
-                )
-                == "0005_mobile_auth_api_foundation"
-            )
-    except Exception:
-        return False
+    return database_revision_is_current(engine, logger)
 
 
 repository = MobileRepository(engine)
