@@ -28,8 +28,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = require_local_database_url(os.environ.get("PORTAL_DATA_DATABASE_URL"))
-config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+injected_connection = config.attributes.get("connection")
+database_url = None
+if injected_connection is None:
+    database_url = require_local_database_url(
+        os.environ.get("PORTAL_DATA_DATABASE_URL")
+    )
+    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 target_metadata = PortalDataBase.metadata
 
 
@@ -41,6 +46,8 @@ def include_object(object_, name, type_, reflected, compare_to):
 
 
 def run_migrations_offline() -> None:
+    if database_url is None:
+        raise RuntimeError("injected migration connections require online mode")
     context.configure(
         url=database_url,
         target_metadata=target_metadata,
@@ -55,6 +62,17 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    if injected_connection is not None:
+        context.configure(
+            connection=injected_connection,
+            target_metadata=target_metadata,
+            include_schemas=True,
+            include_object=include_object,
+            version_table_schema="ntubtob",
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

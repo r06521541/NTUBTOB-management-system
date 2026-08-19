@@ -72,12 +72,30 @@ fixture before deleting it. Output contains counts only.
 ## Remote data operation
 
 `tools/mobile_staging_data.py` defaults to a redacted, zero-mutation plan. A
-future approved execution gates the private DSN with provider/resource identity,
-runs the repository Alembic upgrade to exact 0005, seeds the fictional fixture,
-then performs a read-only post-check. It does not retry an ambiguous mutation.
-After interruption, `--recover` only reads revision/cardinality and reports
-`not_started` or `completed`; anything else fails closed. This task did not run
-this operator against any remote database.
+future approved execution gates the private DSN with provider/resource identity.
+For an exact empty dedicated database it uses one controlled connection and one
+PostgreSQL transaction to execute the repository-owned legacy fixture, stamp
+`0001_legacy_baseline`, and upgrade through exact 0005. It then verifies the
+complete table/legacy-backfill fingerprint, seeds the separate TASK-112
+fictional fixture, and performs a second read-only post-check.
+
+The normal Alembic CLI remains localhost-only. Remote migration is possible only
+through the operator-injected Alembic connection after database identity
+validation; no environment flag can turn the general CLI into a remote runner.
+The canonical recovery states are `not_started` (no `ntubtob` schema),
+`seed_pending` (exact 0005 legacy fixture, no mobile fixture), and `completed`
+(both exact fixtures). A schema without the exact table set, unknown rows,
+partial fixture IDs, an unexpected revision, or legacy attendance/backfill drift
+stops recovery without retry. Database errors are returned as redacted operator
+errors without the DSN.
+
+Legacy fixture IDs 9101 through 9604 remain repository-owned and are not
+replaced by the mobile seed. Migration 0004 links the attendance-bearing legacy
+Member to its inactive Person/qualification/audit row. Mobile seed and cleanup
+own only IDs -112001 through -112003 and reply types 1 through 5 when they were
+fixture-created. Cleanup does not remove the legacy fixture. Downgrade, database
+deletion, or recreation remains a separate exact Owner approval. This task did
+not run this operator against any remote database.
 
 ## Build, candidate, promotion and recovery
 
