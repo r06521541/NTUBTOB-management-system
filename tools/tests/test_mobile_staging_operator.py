@@ -34,11 +34,9 @@ from tools.mobile_staging_data import (
     execute_attendance_repair,
     grant_officer,
     inventory,
-    officer_inventory,
-    plan,
-    recover,
-    restore_basic,
 )
+from tools.mobile_staging_data import main as staging_data_main
+from tools.mobile_staging_data import officer_inventory, plan, recover, restore_basic
 from tools.mobile_staging_operator import (
     OperatorError,
     build_command,
@@ -302,20 +300,68 @@ class ContractTest(unittest.TestCase):
             "tools.mobile_staging_data.officer_inventory", return_value=granted
         ):
             self.assertEqual(
-                grant_officer(approval(), DATABASE_URL), {**granted, "changed": False}
+                grant_officer(approval(), DATABASE_URL, "fake-private-subject"),
+                {**granted, "changed": False},
             )
         with patch(
             "tools.mobile_staging_data.officer_inventory",
             return_value={"database_identity_sha256": STAGING_HASH, "state": "restored"},
         ):
             with self.assertRaisesRegex(StagingContractError, "not exact"):
-                grant_officer(approval(), DATABASE_URL)
+                grant_officer(approval(), DATABASE_URL, "fake-private-subject")
 
     def test_officer_transition_requires_candidate_approval(self):
         with self.assertRaisesRegex(StagingContractError, "candidate approval"):
             _execute_officer_transition(
-                approval(phase="build"), DATABASE_URL, "grant"
+                approval(phase="build"), DATABASE_URL, "fake-private-subject", "grant"
             )
+
+    def test_officer_transition_requires_private_subject_before_any_read(self):
+        with patch("tools.mobile_staging_data.officer_inventory") as inventory_mock:
+            with self.assertRaisesRegex(StagingContractError, "Private tester input"):
+                grant_officer(approval(), DATABASE_URL, "")
+        inventory_mock.assert_not_called()
+
+    def test_officer_cli_redacts_private_subject_from_output(self):
+        private_subject = "fake-private-tester-subject"
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {
+                    "MOBILE_STAGING_DATABASE_URL": DATABASE_URL,
+                    "MOBILE_STAGING_PROVIDER_SUBJECT": private_subject,
+                },
+                clear=False,
+            ), patch(
+                "tools.mobile_staging_data.officer_inventory",
+                return_value={
+                    "database_identity_sha256": STAGING_HASH,
+                    "state": "baseline",
+                },
+            ), patch("sys.stdout", new_callable=io.StringIO) as output:
+                self.assertEqual(
+                    staging_data_main(
+                        ["--approval", str(approval_path), "--inspect-officer"]
+                    ),
+                    0,
+                )
+        self.assertNotIn(private_subject, output.getvalue())
+
+    def test_generic_plan_does_not_require_private_subject(self):
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {"MOBILE_STAGING_DATABASE_URL": DATABASE_URL},
+                clear=True,
+            ), patch(
+                "tools.mobile_staging_data.plan",
+                return_value={"mutation": "none-dry-run"},
+            ), patch("sys.stdout", new_callable=io.StringIO):
+                self.assertEqual(staging_data_main(["--approval", str(approval_path)]), 0)
 
     def test_plain_alembic_cli_keeps_remote_database_gate(self):
         environment = dict(os.environ)
@@ -687,14 +733,29 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             Path.cwd(),
         )
         self.assertEqual(
-            officer_inventory(self.approval, TEST_DATABASE_URL)["state"], "baseline"
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["state"],
+            "baseline",
         )
-        granted = grant_officer(self.approval, TEST_DATABASE_URL)
+        granted = grant_officer(
+            self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+        )
         self.assertEqual((granted["state"], granted["changed"]), ("granted", True))
-        self.assertFalse(grant_officer(self.approval, TEST_DATABASE_URL)["changed"])
-        restored = restore_basic(self.approval, TEST_DATABASE_URL)
+        self.assertFalse(
+            grant_officer(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"]
+        )
+        restored = restore_basic(
+            self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+        )
         self.assertEqual((restored["state"], restored["changed"]), ("restored", True))
-        self.assertFalse(restore_basic(self.approval, TEST_DATABASE_URL)["changed"])
+        self.assertFalse(
+            restore_basic(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"]
+        )
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.execute(
@@ -736,7 +797,38 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 )
             )
         with self.assertRaisesRegex(StagingContractError, "audit or version is drifted"):
-            officer_inventory(self.approval, TEST_DATABASE_URL)
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+
+    def test_officer_subject_mismatch_denies_before_mutation(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.auth_identities SET provider_subject="
+                    "'different-private-subject' WHERE id=-112001"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "identity is drifted"):
+            grant_officer(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT portal_access_level, version FROM ntubtob.people "
+                        "WHERE id=-112001"
+                    )
+                ).one(),
+                ("basic", 1),
+            )
 
 
 if __name__ == "__main__":
