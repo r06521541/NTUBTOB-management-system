@@ -3,12 +3,19 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
 from pathlib import Path
 from subprocess import CompletedProcess
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+from alembic.util.exc import CommandError
+from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from tools.mobile_staging_contract import (
     PRODUCTION_PROJECT,
@@ -17,7 +24,9 @@ from tools.mobile_staging_contract import (
     load_approval,
     redacted_manifest,
 )
-from tools.mobile_staging_data import plan, recover
+from tools.mobile_staging_data import _bootstrap_empty_database
+from tools.mobile_staging_data import execute as execute_staging_data
+from tools.mobile_staging_data import inventory, plan, recover
 from tools.mobile_staging_operator import (
     OperatorError,
     build_command,
@@ -28,6 +37,7 @@ from tools.mobile_staging_operator import (
     validate_candidate,
 )
 from tools.mobile_staging_preflight import cloud_inventory
+from tools.mobile_staging_seed import cleanup
 
 DATABASE_URL = (
     "postgresql://fake-user:fake-password@staging-db.invalid:5432/mobile_staging"
@@ -39,6 +49,7 @@ PRODUCTION_HASH = hashlib.sha256(b"separate-production-identity").hexdigest()
 COMMIT = "a" * 40
 DIGEST = "sha256:" + "b" * 64
 IMAGE = "asia-east1-docker.pkg.dev/ntubtob-mobile-staging/mobile-staging/mobile-api"
+TEST_DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL")
 
 
 def approval(*, phase="candidate", mode="update") -> dict:
@@ -72,6 +83,19 @@ def approval(*, phase="candidate", mode="update") -> dict:
         },
         "mobile_api_audience": "1234567890",
     }
+
+
+def database_approval(database_url: str) -> dict:
+    value = approval()
+    value["database_provider"] = "local"
+    value["database_resource_id"] = "local-rehearsal"
+    value["database_identity_sha256"] = DatabaseIdentity.from_url(
+        database_url
+    ).fingerprint
+    value["production_database_identity_sha256"] = hashlib.sha256(
+        b"separate-production-database"
+    ).hexdigest()
+    return value
 
 
 def revision(value=DIGEST):
@@ -213,11 +237,39 @@ class ContractTest(unittest.TestCase):
         with patch(
             "tools.mobile_staging_data.inventory",
             return_value={
+                "database_state": "ready",
                 "revision": "0005_mobile_auth_api_foundation",
                 "fixture_state": "seeded",
             },
         ):
             self.assertEqual(recover(approval(), DATABASE_URL)["outcome"], "completed")
+
+    def test_remote_inventory_errors_are_redacted(self):
+        engine = Mock()
+        engine.connect.side_effect = SQLAlchemyError(DATABASE_URL)
+        with patch("tools.mobile_staging_data.create_engine", return_value=engine):
+            with self.assertRaisesRegex(
+                StagingContractError, "inventory failed safely"
+            ) as caught:
+                inventory(approval(), DATABASE_URL)
+        self.assertNotIn("fake-password", str(caught.exception))
+        engine.dispose.assert_called_once()
+
+    def test_plain_alembic_cli_keeps_remote_database_gate(self):
+        environment = dict(os.environ)
+        environment["PORTAL_DATA_DATABASE_URL"] = DATABASE_URL
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", "current"],
+            cwd=Path.cwd(),
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        output = result.stdout + result.stderr
+        self.assertIn("isolated local database", output)
+        self.assertNotIn("fake-password", output)
 
     def test_preflight_bootstrap_and_update_are_mutually_exclusive(self):
         def runner(arguments, _cwd):
@@ -376,6 +428,85 @@ class OperatorTest(unittest.TestCase):
                 )
             )
             self.assertFalse((mobile / "dist" / "shared_lib-0.0.1.tar.gz").exists())
+
+
+@unittest.skipUnless(TEST_DATABASE_URL, "isolated PostgreSQL URL is required")
+class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = create_engine(TEST_DATABASE_URL)
+        cls.approval = database_approval(TEST_DATABASE_URL)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.dispose()
+
+    def setUp(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+
+    def tearDown(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+        _bootstrap_empty_database(self.engine, Path.cwd())
+
+    def test_true_empty_bootstrap_injected_migration_seed_recover_and_cleanup(self):
+        before = recover(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(before["outcome"], "not_started")
+        self.assertIsNone(before["revision"])
+
+        result = execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self.assertEqual(result["outcome"], "completed")
+        self.assertEqual(result["revision"], "0005_mobile_auth_api_foundation")
+
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ntubtob.members")), 2
+            )
+            self.assertEqual(
+                connection.execute(
+                    text("SELECT id, person_id FROM ntubtob.members ORDER BY id")
+                ).all(),
+                [(9201, 1), (9202, None)],
+            )
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ntubtob.people")), 4
+            )
+
+        cleanup(self.engine, "fake-private-tester-subject")
+        cleaned = recover(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(cleaned["outcome"], "seed_pending")
+        self.assertEqual(cleaned["fixture_state"], "clean")
+
+    def test_unknown_rows_fail_recovery_without_retry(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.ballparks (id, name) "
+                    "VALUES (999999, 'unknown drift')"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "drifted"):
+            recover(self.approval, TEST_DATABASE_URL)
+
+    def test_failed_migration_transaction_recovers_as_empty(self):
+        with patch(
+            "tools.mobile_staging_data.command.upgrade",
+            side_effect=CommandError("fake migration failure"),
+        ):
+            with self.assertRaisesRegex(
+                StagingContractError, "bootstrap failed safely"
+            ):
+                _bootstrap_empty_database(self.engine, Path.cwd())
+        state = recover(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(state["outcome"], "not_started")
+        self.assertEqual(state["database_state"], "empty")
 
 
 if __name__ == "__main__":
