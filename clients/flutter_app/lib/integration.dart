@@ -715,6 +715,9 @@ class LoginCoordinator extends ChangeNotifier {
       if (_nativeAttempt == attempt) _nativeAttempt = null;
       state = LoginState.unavailable;
     } on TimeoutException {
+      // Expire exchange authority immediately while retaining the separate
+      // native lifecycle lock until the SDK future actually settles.
+      if (_active == attempt) _active = null;
       state = LoginState.timeoutUnresolved;
       unawaited(_settleTimedOutNativeFlow(attempt, nativeLogin));
     } catch (_) {

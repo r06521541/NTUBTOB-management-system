@@ -17,6 +17,7 @@ Runtime inspection retained only redacted/task-specific evidence under `E:\codex
 
 - Separates the observable 35-second UI timeout from settlement of the underlying native future.
 - Tracks exactly one unresolved native attempt and rejects re-entry without a second SDK call.
+- Invalidates the timed-out exchange generation immediately while retaining the independent native lifecycle lock.
 - Ignores a late successful native result for exchange purposes; it only confirms that the native flow settled and permits a fresh attempt.
 - Treats confirmed late cancellation as settled and retryable.
 - Keeps stale/duplicate attempt checks fail closed and preserves exactly one exchange for the fresh successful attempt.
@@ -31,6 +32,7 @@ Added deterministic coverage for:
 - configured timeout while the native future remains unresolved;
 - repeated login request during unresolved timeout producing zero additional native calls;
 - late completion producing zero exchange;
+- old callback completion during the unresolved window settling as stale with zero exchange while the native lock remains held;
 - confirmed late cancellation permitting exactly one fresh native call;
 - exactly one successful exchange on the fresh attempt;
 - disposal before late completion producing no listener notification;
@@ -43,7 +45,7 @@ Added deterministic coverage for:
 - `flutter pub get`: passed using the task-specific E-drive Pub cache.
 - `dart format` on the four exact files: executed. Dart 3.13 proposed a repository-wide style reflow within those files (more than one thousand unrelated changed lines), so that mechanical output was removed and the focused existing style retained. This is a disclosed formatter limitation, not reported as a clean format check.
 - `flutter analyze`: passed, no issues.
-- `flutter test`: passed, 103 tests.
+- `flutter test`: passed, 104 tests after the stale unresolved-window correction.
 - `flutter build apk --debug --target-platform android-x64 --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake`: passed. The output remains ignored under `clients/flutter_app/build/` and is not committed or distributed.
 - Final `git diff --check`, writer-scope, secret/credential, endpoint/config, and repository status checks are recorded at handoff.
 
