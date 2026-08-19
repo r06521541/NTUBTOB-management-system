@@ -103,6 +103,28 @@ class MobileApiRouteTest(unittest.TestCase):
             {"game_id": "44", "own_reply": "undecided", "replied": []},
         )
 
+    def test_opaque_fixture_game_id_round_trips_to_read_routes(self):
+        headers = {"Authorization": "Bearer token"}
+
+        detail = self.client.get("/api/v1/games/game_-112001", headers=headers)
+        attendance = self.client.get(
+            "/api/v1/games/game_-112001/attendance", headers=headers
+        )
+
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(attendance.status_code, 200)
+        self.basic.game.assert_called_once_with(self.principal, -112001)
+        self.basic.attendance_view.assert_called_once_with(self.principal, -112001)
+
+    def test_zero_and_malformed_game_ids_remain_rejected(self):
+        headers = {"Authorization": "Bearer token"}
+        for game_key in ("game_0", "game_nope", "fixture_-112001"):
+            with self.subTest(game_key=game_key):
+                response = self.client.get(
+                    f"/api/v1/games/{game_key}", headers=headers
+                )
+                self.assertEqual(response.status_code, 400)
+
     def test_attendance_requires_idempotency_key_and_reports_saved_notification_failure(
         self,
     ):
