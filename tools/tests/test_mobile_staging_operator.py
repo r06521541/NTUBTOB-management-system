@@ -26,14 +26,18 @@ from tools.mobile_staging_contract import (
 )
 from tools.mobile_staging_data import (
     _bootstrap_empty_database,
+    _execute_officer_transition,
     attendance_repair_inventory,
 )
 from tools.mobile_staging_data import execute as execute_staging_data
 from tools.mobile_staging_data import (
     execute_attendance_repair,
+    grant_officer,
     inventory,
+    officer_inventory,
     plan,
     recover,
+    restore_basic,
 )
 from tools.mobile_staging_operator import (
     OperatorError,
@@ -291,6 +295,27 @@ class ContractTest(unittest.TestCase):
         ):
             with self.assertRaisesRegex(StagingContractError, "not exact"):
                 execute_attendance_repair(approval(), DATABASE_URL)
+
+    def test_officer_transition_retries_only_its_exact_terminal_state(self):
+        granted = {"database_identity_sha256": STAGING_HASH, "state": "granted"}
+        with patch(
+            "tools.mobile_staging_data.officer_inventory", return_value=granted
+        ):
+            self.assertEqual(
+                grant_officer(approval(), DATABASE_URL), {**granted, "changed": False}
+            )
+        with patch(
+            "tools.mobile_staging_data.officer_inventory",
+            return_value={"database_identity_sha256": STAGING_HASH, "state": "restored"},
+        ):
+            with self.assertRaisesRegex(StagingContractError, "not exact"):
+                grant_officer(approval(), DATABASE_URL)
+
+    def test_officer_transition_requires_candidate_approval(self):
+        with self.assertRaisesRegex(StagingContractError, "candidate approval"):
+            _execute_officer_transition(
+                approval(phase="build"), DATABASE_URL, "grant"
+            )
 
     def test_plain_alembic_cli_keeps_remote_database_gate(self):
         environment = dict(os.environ)
@@ -653,6 +678,65 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 ),
                 3,
             )
+
+    def test_officer_fixture_grant_restore_and_retries_are_append_only(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self.assertEqual(
+            officer_inventory(self.approval, TEST_DATABASE_URL)["state"], "baseline"
+        )
+        granted = grant_officer(self.approval, TEST_DATABASE_URL)
+        self.assertEqual((granted["state"], granted["changed"]), ("granted", True))
+        self.assertFalse(grant_officer(self.approval, TEST_DATABASE_URL)["changed"])
+        restored = restore_basic(self.approval, TEST_DATABASE_URL)
+        self.assertEqual((restored["state"], restored["changed"]), ("restored", True))
+        self.assertFalse(restore_basic(self.approval, TEST_DATABASE_URL)["changed"])
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT id, request_id FROM ntubtob.access_audit "
+                        "WHERE id < 0 ORDER BY id"
+                    )
+                ).all(),
+                [
+                    (-119002, "task-119-fictional-officer-restore"),
+                    (-119001, "task-119-fictional-officer-grant"),
+                ],
+            )
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT portal_access_level, portal_status, version "
+                        "FROM ntubtob.people WHERE id=-112001"
+                    )
+                ).one(),
+                ("basic", "active", 3),
+            )
+
+    def test_officer_fixture_unknown_audit_drift_fails_closed(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.access_audit "
+                    "(action, target_person_id, before_state, after_state, reason, "
+                    "request_id, created_at) VALUES "
+                    "('access_changed', -112001, '{}'::json, '{}'::json, "
+                    "'unknown fixture drift', 'task-119-unknown-drift', now())"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "audit or version is drifted"):
+            officer_inventory(self.approval, TEST_DATABASE_URL)
 
 
 if __name__ == "__main__":
