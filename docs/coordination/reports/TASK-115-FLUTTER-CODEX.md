@@ -64,3 +64,25 @@ The next single-attempt acceptance must:
 5. On successful callback, verify fresh Basic data and only server-derived capability visibility, then perform the separately authorized staging read/offline/session checks.
 
 No production, deployment, cloud, database, notification, push, release-signing, store, or authenticated staging mutation side effect occurred in this source-correction phase.
+
+## TASK-118 staging reacceptance and observability correction
+
+The repaired fictional staging fixture was accepted before reacceptance. The original hidden-row timestamp defect caused the first two controlled `undecided` writes to remain unavailable to the public latest-reply readback; Main Work reconciled the authoritative prestate as `attending`. No credentials, token, provider subject, response body, storage payload, dynamic person name, or game content was retained during runtime acceptance.
+
+After the fixture repair, one retained-intent `undecided` recovery submit completed without uncertainty. A portal-only cold restart and one first-game readback established the authoritative state as `undecided`. One fresh logical intent then restored `attending`; a second portal-only cold restart and one first-game readback established authoritative `attending`. All portal force-stops and launcher starts were explicitly authorized, package-scoped, and did not clear data or touch LINE.
+
+Runtime inputs for the accepted repaired sequence were bounded to: one retained-intent recovery submit, one portal cold restart/readback, one fresh `attending` selection and submit, and one final portal cold restart/readback. No retry beyond the explicit retained-intent recovery, no login, no notification/push action, and no additional fictional mutation occurred. The final detail UI was ready, `attending` was selected after cold readback, and no loading, generic error, contract error, session-terminal, uncertainty, mutation error, or notification status was surfaced. Portal remained MainActivity-only with no ANR.
+
+Runtime also exposed a Flutter observability defect: `GameDetailPage._submit()` fetched authoritative attendance after a successful reply but did not apply `loaded.ownReply` to the selected ChoiceChip, so the in-process post-submit selection remained only a local desired value. The minimal correction now assigns `selected = loaded.ownReply` in the successful readback state update. A widget regression test queues a server readback that differs from the local selection and verifies the authoritative reply overrides it; the uncertain path remains unchanged.
+
+## Final runtime gates and verification update
+
+- The source correction was verified with `flutter pub get`, `flutter analyze`, the focused `flutter test test/basic_app_test.dart` (30 tests), and full `flutter test` (105 tests); all passed with Flutter 3.47.0 / Dart 3.13.0.
+- The scoped `dart format --output=none --set-exit-if-changed lib/basic_app.dart test/basic_app_test.dart` check was executed but reports pre-existing-style reflow in both files. No formatter output was applied, so it is not claimed as a clean formatter gate.
+- A new development fake Android debug build was attempted using the task-specific E-drive toolchain. Its current Gradle wrapper (`assembleDebug`) made no observable progress beyond the bounded window and was terminated as the only build process. No new APK was created; the existing APK remained the earlier accepted artifact and is not evidence for this source correction. Android build is therefore **unverified** for this commit, rather than passed.
+- Offline/cache runtime gate: airplane mode was enabled on `emulator-5556`, then the portal was cold-started once. It rendered the static offline read-only labels and exposed zero clickable controls; no navigation or mutation occurred. After network restoration, the authenticated shell recovered with its single logout action available.
+- Logout/cache-purge runtime gate: the logout action was tapped exactly once, followed by one package-scoped portal cold restart (no data clear and no LINE action). The cold app presented only the LINE login action; Basic navigation, Officer/management/report UI, offline cache, and prior authenticated session were absent. `MainActivity` was the only relevant activity and no ANR was observed.
+
+Runtime side effects were confined to the approved fictional staging account/game sequence, package-scoped portal stop/start operations, temporary emulator airplane-mode toggling, and one logout. There was no production access, deployment, cloud or database mutation, real notification/push, release signing, store action, credential/token/provider-subject access, raw payload/log retention, or repository runtime artifact.
+
+Deferred: a fresh Android debug artifact for this source-only observability correction requires a later clean Gradle/hosted build. iOS runtime/signing remains outside this Windows/emulator task.

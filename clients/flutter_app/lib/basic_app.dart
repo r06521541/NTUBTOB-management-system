@@ -431,6 +431,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
       if (!mounted) return;
       setState(() {
         attendance = loaded;
+        selected = loaded.ownReply;
         state = DetailViewState.ready;
       });
     } on MutationPendingException catch (error) {
