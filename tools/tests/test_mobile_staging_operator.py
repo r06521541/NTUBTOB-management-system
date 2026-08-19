@@ -246,6 +246,16 @@ class ContractTest(unittest.TestCase):
 
 
 class OperatorTest(unittest.TestCase):
+    def test_staging_build_uses_cloud_logging_for_user_specified_service_account(
+        self,
+    ):
+        configuration = Path("apps/mobile_api/cloudbuild.staging.yaml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("options:\n  logging: CLOUD_LOGGING_ONLY\n", configuration)
+        self.assertNotIn("logsBucket:", configuration)
+        self.assertNotIn("GCS_ONLY", configuration)
+
     def test_build_and_candidate_are_separate_and_scoped(self):
         build = build_command(approval(phase="build"))
         deploy = deploy_command(approval())
