@@ -21,7 +21,12 @@ try:
         load_approval,
         validate_database_identity,
     )
-    from .mobile_staging_seed import StagingSeedError, seed
+    from .mobile_staging_seed import (
+        StagingSeedError,
+        inspect_attendance_repair,
+        repair_attendance_fixture,
+        seed,
+    )
     from .setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 except ImportError:  # pragma: no cover
     from mobile_staging_contract import (
@@ -30,7 +35,12 @@ except ImportError:  # pragma: no cover
         load_approval,
         validate_database_identity,
     )
-    from mobile_staging_seed import StagingSeedError, seed
+    from mobile_staging_seed import (
+        StagingSeedError,
+        inspect_attendance_repair,
+        repair_attendance_fixture,
+        seed,
+    )
     from setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 BASE_REVISION = "0001_legacy_baseline"
@@ -302,16 +312,84 @@ def execute(
     return result
 
 
+def attendance_repair_inventory(approval: dict, database_url: str) -> dict:
+    identity = validate_database_identity(
+        database_url,
+        approval["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    engine = create_engine(database_url)
+    try:
+        try:
+            state = inspect_attendance_repair(engine)
+        except (SQLAlchemyError, StagingSeedError, UnicodeError):
+            raise StagingContractError(
+                "Remote staging attendance repair inventory failed safely"
+            ) from None
+    finally:
+        engine.dispose()
+    return {"database_identity_sha256": identity.fingerprint, **state}
+
+
+def execute_attendance_repair(approval: dict, database_url: str) -> dict:
+    if approval["approval_phase"] != "candidate":
+        raise StagingContractError(
+            "Remote attendance repair requires candidate approval"
+        )
+    before = attendance_repair_inventory(approval, database_url)
+    if before["state"] == "repaired":
+        return {**before, "removed_hidden_rows": 0}
+    if before != {
+        "database_identity_sha256": approval["database_identity_sha256"],
+        "state": "required",
+        "hidden_rows": 2,
+    }:
+        raise StagingContractError("Remote attendance repair state is not exact")
+    engine = create_engine(database_url)
+    try:
+        try:
+            result = repair_attendance_fixture(engine)
+        except (SQLAlchemyError, StagingSeedError, UnicodeError):
+            raise StagingContractError(
+                "Remote staging attendance repair failed safely; inspect before retry"
+            ) from None
+    finally:
+        engine.dispose()
+    after = attendance_repair_inventory(approval, database_url)
+    if after["state"] != "repaired" or after["hidden_rows"] != 0:
+        raise StagingContractError("Remote staging attendance repair postcheck failed")
+    return {**after, "removed_hidden_rows": result["removed_hidden_rows"]}
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--approval", required=True, type=Path)
     parser.add_argument("--execute", action="store_true")
     parser.add_argument("--recover", action="store_true")
+    parser.add_argument("--inspect-attendance-repair", action="store_true")
+    parser.add_argument("--execute-attendance-repair", action="store_true")
     args = parser.parse_args(argv)
     try:
         approval = load_approval(args.approval)
         database_url = os.environ.get("MOBILE_STAGING_DATABASE_URL", "")
-        if args.recover:
+        selected = sum(
+            bool(value)
+            for value in (
+                args.execute,
+                args.recover,
+                args.inspect_attendance_repair,
+                args.execute_attendance_repair,
+            )
+        )
+        if selected > 1:
+            raise StagingContractError("Choose exactly one staging data action")
+        if args.execute_attendance_repair:
+            result = execute_attendance_repair(approval, database_url)
+        elif args.inspect_attendance_repair:
+            result = attendance_repair_inventory(approval, database_url)
+        elif args.recover:
             result = recover(approval, database_url)
         elif args.execute:
             result = execute(

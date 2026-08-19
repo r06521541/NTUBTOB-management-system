@@ -24,9 +24,17 @@ from tools.mobile_staging_contract import (
     load_approval,
     redacted_manifest,
 )
-from tools.mobile_staging_data import _bootstrap_empty_database
+from tools.mobile_staging_data import (
+    _bootstrap_empty_database,
+    attendance_repair_inventory,
+)
 from tools.mobile_staging_data import execute as execute_staging_data
-from tools.mobile_staging_data import inventory, plan, recover
+from tools.mobile_staging_data import (
+    execute_attendance_repair,
+    inventory,
+    plan,
+    recover,
+)
 from tools.mobile_staging_operator import (
     OperatorError,
     build_command,
@@ -37,7 +45,7 @@ from tools.mobile_staging_operator import (
     validate_candidate,
 )
 from tools.mobile_staging_preflight import cloud_inventory
-from tools.mobile_staging_seed import cleanup
+from tools.mobile_staging_seed import ANCHOR, FIXTURE_REPLY_AT, cleanup
 
 DATABASE_URL = (
     "postgresql://fake-user:fake-password@staging-db.invalid:5432/mobile_staging"
@@ -271,6 +279,18 @@ class ContractTest(unittest.TestCase):
                 inventory(approval(), DATABASE_URL)
         self.assertNotIn("fake-password", str(caught.exception))
         engine.dispose.assert_called_once()
+
+    def test_attendance_repair_requires_exact_candidate_state(self):
+        with patch(
+            "tools.mobile_staging_data.attendance_repair_inventory",
+            return_value={
+                "database_identity_sha256": STAGING_HASH,
+                "state": "required",
+                "hidden_rows": 1,
+            },
+        ):
+            with self.assertRaisesRegex(StagingContractError, "not exact"):
+                execute_attendance_repair(approval(), DATABASE_URL)
 
     def test_plain_alembic_cli_keeps_remote_database_gate(self):
         environment = dict(os.environ)
@@ -536,6 +556,65 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
         state = recover(self.approval, TEST_DATABASE_URL)
         self.assertEqual(state["outcome"], "not_started")
         self.assertEqual(state["database_state"], "empty")
+
+    def test_attendance_repair_makes_runtime_reply_authoritative(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.game_attendance_replies SET updated_at=:old "
+                    "WHERE id BETWEEN -112003 AND -112001"
+                ),
+                {"old": ANCHOR},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(game_id, person_id, reply, updated_at) VALUES "
+                    "(-112001, -112001, 5, '2026-08-18T01:00:00Z'), "
+                    "(-112001, -112001, 5, '2026-08-18T02:00:00Z')"
+                )
+            )
+        before = attendance_repair_inventory(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(before["state"], "required")
+        self.assertEqual(before["hidden_rows"], 2)
+        repaired = execute_attendance_repair(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(repaired["removed_hidden_rows"], 2)
+        self.assertEqual(
+            execute_attendance_repair(self.approval, TEST_DATABASE_URL)[
+                "removed_hidden_rows"
+            ],
+            0,
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(game_id, person_id, reply, updated_at) "
+                    "VALUES (-112001, -112001, 5, '2026-08-19T01:00:00Z')"
+                )
+            )
+            latest = connection.execute(
+                text(
+                    "SELECT reply, updated_at FROM ntubtob.game_attendance_replies "
+                    "WHERE game_id=-112001 AND person_id=-112001 "
+                    "ORDER BY updated_at DESC, id DESC LIMIT 1"
+                )
+            ).one()
+            fixture_at = connection.scalar(
+                text(
+                    "SELECT updated_at FROM ntubtob.game_attendance_replies "
+                    "WHERE id=-112001"
+                )
+            )
+        self.assertEqual(latest.reply, 5)
+        self.assertEqual(fixture_at, FIXTURE_REPLY_AT)
+        self.assertGreater(latest.updated_at, fixture_at)
 
 
 if __name__ == "__main__":
