@@ -9,8 +9,9 @@ updated_by: work
 updated_at: 2026-08-20T01:32:00+08:00
 
 note: >
-  TASK-115 merged as PR #129 with hosted Flutter final gate. TASK-119 now adds a reversible, fixture-owned staging
-  Basic-to-Officer operator and Officer report acceptance. Physical Android and iOS runtime/signing remain deferred.
+  TASK-115 merged as PR #129 with hosted Flutter final gate. TASK-119 adds a fixture-owned staging Basic-to-Officer
+  operator and Officer report acceptance. access_audit is append-only: restore means Basic operational state plus one
+  exact task-owned grant/restore audit pair, never audit deletion. Physical Android and iOS runtime/signing remain deferred.
   Production, Secret payloads, true notifications, release signing and store upload remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
