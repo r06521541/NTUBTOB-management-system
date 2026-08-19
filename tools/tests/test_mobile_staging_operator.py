@@ -168,6 +168,17 @@ def service(mode="update", candidate_percent=0):
 
 
 class ContractTest(unittest.TestCase):
+    def test_database_identity_rejects_surrounding_database_whitespace(self):
+        for database in ("%20postgres", "postgres%20"):
+            with self.subTest(database=database), self.assertRaisesRegex(
+                StagingContractError, "Database target is malformed"
+            ):
+                DatabaseIdentity.from_url(
+                    f"postgresql://user:password@staging-db.invalid:5432/{database}",
+                    PROVIDER,
+                    RESOURCE,
+                )
+
     def test_database_identity_includes_provider_resource_and_manifest_redacts(self):
         other = DatabaseIdentity.from_url(DATABASE_URL, PROVIDER, RESOURCE + "-other")
         self.assertNotEqual(other.fingerprint, STAGING_HASH)

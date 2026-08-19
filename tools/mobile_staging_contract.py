@@ -54,6 +54,7 @@ class DatabaseIdentity:
             parsed.scheme != "postgresql"
             or not host
             or not database
+            or database != database.strip()
             or not 1 <= port <= 65535
             or len(database) > 63
         ):
