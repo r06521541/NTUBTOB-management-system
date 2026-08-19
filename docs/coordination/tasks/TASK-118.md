@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: mobile-staging-activation
 requires_independent_pr: false
-status: active
+status: ready_for_pr
 base_commit: d87b58de2de6d03dca9ec92ebb40b2b535cc53db
 
 ## Goal

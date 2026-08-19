@@ -31,7 +31,7 @@
 
 ## Verification
 
-- Staging seed/operator offline: 25 tests passed, 9 skipped without an explicit
+- Staging seed/operator offline: 26 tests passed, 10 skipped without an explicit
   PostgreSQL URL.
 - PostgreSQL 16.2 true-empty/fixture integration: 10 tests passed, including
   bootstrap, deterministic timestamp, exact repair, retry, drift rejection,

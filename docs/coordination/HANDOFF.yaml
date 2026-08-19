@@ -1,20 +1,19 @@
 active_task: TASK-118
-status: active
-next_actor: codex
+status: ready_for_pr
+next_actor: work
 
 base_commit: d87b58de2de6d03dca9ec92ebb40b2b535cc53db
-head_commit: null
+head_commit: 27298f9cd4e1204e8bfbfa2fb7fa1af7ff8da951
 
 updated_by: work
-updated_at: 2026-08-19T23:55:00+08:00
+updated_at: 2026-08-20T00:18:00+08:00
 
 note: >
-  TASK-117 merged and deployed to isolated staging. TASK-115 runtime acceptance exposed a deterministic fictional fixture
-  timestamp defect: the 2035 seed reply hides 2026 runtime writes and leaves same-key recovery uncertain. TASK-118 repairs
-  only exact staging fictional rows and closes the repository/runtime regression. Production, Secret payloads, schema,
-  IAM, LINE Console and notifications remain forbidden.
+  TASK-118 implementation is accepted after exact per-ID timestamp-window correction. Main targeted suites pass; hosted
+  PostgreSQL 15/16, Black and final CI remain before the isolated staging repair. DEC-098 staging fictional autonomy is
+  included in this delivery. Production, Secret payloads, schema, IAM, LINE Console and notifications remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-118.md
-report: null
-review: null
+report: docs/coordination/reports/TASK-118-CODEX.md
+review: docs/coordination/reviews/TASK-118-WORK.md
