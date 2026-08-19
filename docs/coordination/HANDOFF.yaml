@@ -1,19 +1,20 @@
-active_task: TASK-113
-status: active_local_preflight
-next_actor: work
+active_task: TASK-118
+status: active
+next_actor: codex
 
-base_commit: baee3f93357c1268cd6d8803e053983939fa3a5d
+base_commit: d87b58de2de6d03dca9ec92ebb40b2b535cc53db
 head_commit: null
 
 updated_by: work
-updated_at: 2026-08-19T09:00:00+08:00
+updated_at: 2026-08-19T23:55:00+08:00
 
 note: >
-  TASK-114 merged through PR #123 at baee3f93357c1268cd6d8803e053983939fa3a5d. TASK-113 begins with local-only
-  Android Emulator setup on E drive and read-only staging inventory. External staging project/database/LINE/Secret/IAM
-  mutation remains behind an exact Owner manifest checkpoint; production and notifications remain forbidden.
+  TASK-117 merged and deployed to isolated staging. TASK-115 runtime acceptance exposed a deterministic fictional fixture
+  timestamp defect: the 2035 seed reply hides 2026 runtime writes and leaves same-key recovery uncertain. TASK-118 repairs
+  only exact staging fictional rows and closes the repository/runtime regression. Production, Secret payloads, schema,
+  IAM, LINE Console and notifications remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-113.md
+task: docs/coordination/tasks/TASK-118.md
 report: null
 review: null
