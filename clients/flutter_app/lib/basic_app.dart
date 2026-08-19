@@ -23,6 +23,7 @@ enum AuthViewState {
   recoverableError,
   contractError,
   unavailable,
+  timeoutUnresolved,
   logoutPending,
   offline,
   authenticated
@@ -61,6 +62,10 @@ class AuthStatePanel extends StatelessWidget {
       AuthViewState.recoverableError => (Icons.wifi_off, '連線暫時失敗，請稍後重試'),
       AuthViewState.contractError => (Icons.gpp_bad, '資料格式異常，已停止處理'),
       AuthViewState.unavailable => (Icons.mobile_off, '此裝置無法使用 LINE 登入'),
+      AuthViewState.timeoutUnresolved => (
+          Icons.hourglass_disabled,
+          'LINE 登入已逾時，請關閉既有登入畫面後返回'
+        ),
       AuthViewState.logoutPending => (Icons.logout, '登出同步中，暫停操作'),
       AuthViewState.offline => (Icons.cloud_off, '離線唯讀模式'),
       AuthViewState.authenticated => (Icons.verified_user_outlined, '已安全登入'),
@@ -125,6 +130,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _cache = BasicCache(_store, installationId);
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
+      _login!.addListener(_onLoginStateChanged);
       if (await _store.read('logout-pending:$installationId') == 'true') {
         setState(() => state = AuthViewState.logoutPending);
         await session.logout(line);
@@ -151,33 +157,34 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       setState(() => state = AuthViewState.unavailable);
       return;
     }
-    setState(() => state = AuthViewState.providerActive);
     final login = _login!;
-    void update() {
-      if (!mounted) return;
-      setState(() => state = switch (login.state) {
-            LoginState.providerActive => AuthViewState.providerActive,
-            LoginState.exchanging => AuthViewState.exchanging,
-            _ => state,
-          });
-    }
-
-    login.addListener(update);
     await login.login(platform);
-    login.removeListener(update);
     if (login.state == LoginState.authenticated) {
       await _loadBasic();
-      return;
     }
-    if (!mounted) return;
-    setState(() => state = switch (login.state) {
-          LoginState.cancelled => AuthViewState.cancelled,
-          LoginState.unavailable => AuthViewState.unavailable,
-          LoginState.timeout => AuthViewState.recoverableError,
-          LoginState.identityPending => AuthViewState.identityPending,
-          LoginState.accountUnavailable => AuthViewState.accountUnavailable,
-          _ => AuthViewState.contractError,
-        });
+  }
+
+  void _onLoginStateChanged() {
+    final login = _login;
+    if (!mounted || login == null) return;
+    final next = switch (login.state) {
+      LoginState.providerActive => AuthViewState.providerActive,
+      LoginState.exchanging => AuthViewState.exchanging,
+      LoginState.cancelled => AuthViewState.cancelled,
+      LoginState.unavailable => AuthViewState.unavailable,
+      LoginState.timeoutUnresolved => AuthViewState.timeoutUnresolved,
+      LoginState.timeoutResolved => AuthViewState.recoverableError,
+      LoginState.identityPending => AuthViewState.identityPending,
+      LoginState.accountUnavailable => AuthViewState.accountUnavailable,
+      // _loadBasic owns the authenticated transition after /me and games load.
+      LoginState.authenticated => state,
+      LoginState.error ||
+      LoginState.stale ||
+      LoginState.duplicate =>
+        AuthViewState.contractError,
+      LoginState.idle => state,
+    };
+    setState(() => state = next);
   }
 
   Future<void> _loadBasic() async {
@@ -244,18 +251,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   @override
   void dispose() {
+    _login?.removeListener(_onLoginStateChanged);
+    _login?.dispose();
     _http.close();
     super.dispose();
   }
-
-  bool get _canLogin => const {
-        AuthViewState.loggedOut,
-        AuthViewState.cancelled,
-        AuthViewState.identityPending,
-        AuthViewState.accountUnavailable,
-        AuthViewState.sessionExpired,
-        AuthViewState.recoverableError,
-      }.contains(state);
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -274,19 +274,38 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                   lastSyncedAt: lastSyncedAt!,
                   reportCache: _reportCache)
               : AuthStatePanel(state: state),
-          floatingActionButton: _canLogin
+          floatingActionButton: state == AuthViewState.authenticated
               ? FloatingActionButton(
-                  onPressed: _login == null ? null : _signIn,
-                  tooltip: 'LINE 登入',
-                  child: const Icon(Icons.login))
-              : state == AuthViewState.authenticated
-                  ? FloatingActionButton(
-                      onPressed: _logout,
-                      tooltip: '登出',
-                      child: const Icon(Icons.logout))
-                  : null,
+                  onPressed: _logout,
+                  tooltip: '登出',
+                  child: const Icon(Icons.logout))
+              : LoginActionButton(
+                  state: state, onLogin: _login == null ? null : _signIn),
         ),
       );
+}
+
+class LoginActionButton extends StatelessWidget {
+  const LoginActionButton(
+      {super.key, required this.state, required this.onLogin});
+  final AuthViewState state;
+  final VoidCallback? onLogin;
+
+  static const _retryableStates = {
+    AuthViewState.loggedOut,
+    AuthViewState.cancelled,
+    AuthViewState.identityPending,
+    AuthViewState.accountUnavailable,
+    AuthViewState.sessionExpired,
+    AuthViewState.recoverableError,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_retryableStates.contains(state)) return const SizedBox.shrink();
+    return FloatingActionButton(
+        onPressed: onLogin, tooltip: 'LINE 登入', child: const Icon(Icons.login));
+  }
 }
 
 class BasicGamesView extends StatelessWidget {
@@ -413,6 +432,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
       if (!mounted) return;
       setState(() {
         attendance = loaded;
+        selected = loaded.ownReply;
         state = DetailViewState.ready;
       });
     } on MutationPendingException catch (error) {

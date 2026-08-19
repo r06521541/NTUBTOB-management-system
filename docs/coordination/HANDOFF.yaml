@@ -1,19 +1,19 @@
-active_task: TASK-118
+active_task: TASK-115
 status: ready_for_pr
 next_actor: work
 
-base_commit: d87b58de2de6d03dca9ec92ebb40b2b535cc53db
-head_commit: 27298f9cd4e1204e8bfbfa2fb7fa1af7ff8da951
+base_commit: 30b66cd79da0f2442ae3e9f1c2a7e091e82069be
+head_commit: 311df9e568064abc8d527c4b699c9946f762e4a5
 
 updated_by: work
-updated_at: 2026-08-20T00:18:00+08:00
+updated_at: 2026-08-20T01:20:00+08:00
 
 note: >
-  TASK-118 implementation is accepted after exact per-ID timestamp-window correction. Main targeted suites pass; hosted
-  PostgreSQL 15/16, Black and final CI remain before the isolated staging repair. DEC-098 staging fictional autonomy is
-  included in this delivery. Production, Secret payloads, schema, IAM, LINE Console and notifications remain forbidden.
+  TASK-115 Flutter source and isolated staging emulator acceptance are accepted. Hosted Flutter format, analyze, tests,
+  debug build and final CI remain before merge. Physical Android and iOS runtime/signing remain deferred. Production,
+  Secret payloads, true notifications, release signing and store upload remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-118.md
-report: docs/coordination/reports/TASK-118-CODEX.md
-review: docs/coordination/reviews/TASK-118-WORK.md
+task: docs/coordination/tasks/TASK-115.md
+report: docs/coordination/reports/TASK-115-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-115-WORK.md

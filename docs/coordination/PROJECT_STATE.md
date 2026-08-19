@@ -1,12 +1,16 @@
 # 專案狀態
 
-更新時間：2026-08-19T02:05:00+08:00
+更新時間：2026-08-20T01:20:00+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `baee3f93357c1268cd6d8803e053983939fa3a5d`
+Repository 基準：`main` / `30b66cd79da0f2442ae3e9f1c2a7e091e82069be`
 
 ## 目前摘要
+
+- TASK-113 isolated mobile staging 已建立並部署；TASK-118 已修復 fictional attendance fixture/recovery，均未觸及
+  production。TASK-115 Android emulator 已完成 native LINE callback、Basic API、五態回覆恢復、offline cache 與
+  logout purge 驗收；source 已接受，等待 hosted Flutter CI 與 final merge。實體 Android 與 iOS gate 尚未完成。
 
 - TASK-104／105／107 Flutter client foundation 已由 PR #118 merge 至 `main`（merge commit `da85abddc7e339011df13b021038523e84900631`）；fictional source、Android/iOS runners、Flutter analyze、13 tests與Android debug build已完成，尚無裝置smoke、iOS build/signing或發布。
 - TASK-106 schema-neutral attendance reply application service 已由 PR #117 merge 至 `main`（merge commit `b26c1702605e463b96680b6c481b4da95880d198`），Web與LINE共用changed/12小時通知決策。

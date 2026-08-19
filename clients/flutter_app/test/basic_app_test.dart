@@ -92,6 +92,28 @@ void main() {
     });
   }
 
+  testWidgets('unresolved native timeout hides login action', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: AuthStatePanel(state: AuthViewState.timeoutUnresolved),
+            floatingActionButton: LoginActionButton(
+                state: AuthViewState.timeoutUnresolved, onLogin: null))));
+    expect(find.text('LINE 登入已逾時，請關閉既有登入畫面後返回'), findsOneWidget);
+    expect(find.byTooltip('LINE 登入'), findsNothing);
+  });
+
+  testWidgets('confirmed cancellation re-enables one login action',
+      (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            floatingActionButton: LoginActionButton(
+                state: AuthViewState.cancelled, onLogin: () => calls++))));
+    expect(find.byTooltip('LINE 登入'), findsOneWidget);
+    await tester.tap(find.byTooltip('LINE 登入'));
+    expect(calls, 1);
+  });
+
   test('fake versus real composition selects separate roots', () {
     final fake = entrypoint
         .composeRoot(AppConfig.parse(flavor: 'development', mode: 'fake'));
@@ -213,6 +235,43 @@ void main() {
     for (final reply in AttendanceReply.values) {
       expect(find.byKey(ValueKey('reply-${reply.wire}')), findsOneWidget);
     }
+  });
+
+  testWidgets(
+      'successful reply applies authoritative own reply over local selection',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+        ApiResponse(200, mutationJson()),
+        ApiResponse(200, {
+          'game_id': 'g',
+          'own_reply': 'not_attending',
+          'replied': [],
+        }),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('reply-attending')));
+    await tester.tap(find.text('送出回覆'));
+    await tester.pumpAndSettle();
+
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
+            .selected,
+        isFalse);
+    expect(
+        tester
+            .widget<ChoiceChip>(
+                find.byKey(const ValueKey('reply-not_attending')))
+            .selected,
+        isTrue);
+    expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
   });
 
   testWidgets('uncertain conflicting reply has recognizable UX',

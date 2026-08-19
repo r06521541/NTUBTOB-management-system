@@ -656,7 +656,8 @@ enum LoginState {
   cancelled,
   error,
   unavailable,
-  timeout,
+  timeoutUnresolved,
+  timeoutResolved,
   stale,
   duplicate
 }
@@ -673,34 +674,88 @@ class LoginCoordinator extends ChangeNotifier {
   final Duration loginTimeout;
   LoginState state = LoginState.idle;
   String? _active;
+  String? _nativeAttempt;
+  bool _disposed = false;
   final Set<String> _completed = {};
+  bool get nativeFlowUnresolved => _nativeAttempt != null;
+
   Future<void> login(String platform) async {
     if (platform != 'android' && platform != 'ios') {
       state = LoginState.unavailable;
-      notifyListeners();
+      _notifyListeners();
+      return;
+    }
+    if (_nativeAttempt != null) {
+      state = LoginState.timeoutUnresolved;
+      _notifyListeners();
       return;
     }
     final attempt = ids.next(), nonce = ids.next();
     _active = attempt;
+    _nativeAttempt = attempt;
     state = LoginState.providerActive;
-    notifyListeners();
+    _notifyListeners();
+    late final Future<String> nativeLogin;
     try {
-      final token = await line.login(nonce).timeout(loginTimeout);
+      nativeLogin = line.login(nonce);
+      final token = await nativeLogin.timeout(loginTimeout);
+      if (_nativeAttempt != attempt) {
+        state = LoginState.stale;
+        return;
+      }
+      _nativeAttempt = null;
       await completeAttemptForTesting(
           attempt: attempt, nonce: nonce, token: token, platform: platform);
     } on PlatformException catch (error) {
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
       state = error.code.toLowerCase().contains('cancel')
           ? LoginState.cancelled
           : LoginState.error;
     } on MissingPluginException {
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
       state = LoginState.unavailable;
     } on TimeoutException {
-      state = LoginState.timeout;
+      // Expire exchange authority immediately while retaining the separate
+      // native lifecycle lock until the SDK future actually settles.
+      if (_active == attempt) _active = null;
+      state = LoginState.timeoutUnresolved;
+      unawaited(_settleTimedOutNativeFlow(attempt, nativeLogin));
     } catch (_) {
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
       state = LoginState.error;
     } finally {
-      notifyListeners();
+      _notifyListeners();
     }
+  }
+
+  Future<void> _settleTimedOutNativeFlow(
+      String attempt, Future<String> nativeLogin) async {
+    LoginState resolvedState;
+    try {
+      await nativeLogin;
+      resolvedState = LoginState.timeoutResolved;
+    } on PlatformException catch (error) {
+      resolvedState = error.code.toLowerCase().contains('cancel')
+          ? LoginState.cancelled
+          : LoginState.timeoutResolved;
+    } on Object {
+      resolvedState = LoginState.timeoutResolved;
+    }
+    if (_nativeAttempt != attempt) return;
+    _nativeAttempt = null;
+    _active = null;
+    state = resolvedState;
+    _notifyListeners();
+  }
+
+  void _notifyListeners() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 
   @visibleForTesting
@@ -718,7 +773,7 @@ class LoginCoordinator extends ChangeNotifier {
       return;
     }
     state = LoginState.exchanging;
-    notifyListeners();
+    _notifyListeners();
     final response = await api.send('POST', '/auth/line/exchange', body: {
       'id_token': token,
       'nonce': nonce,
