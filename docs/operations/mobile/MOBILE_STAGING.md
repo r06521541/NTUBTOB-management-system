@@ -135,6 +135,42 @@ zero-delta success. After an uncertain result, inspect again; never blindly
 rerun or use ad-hoc SQL. The repair does not mutate schema, notification state,
 production data or any non-fictional Person/Game.
 
+### Fictional Officer acceptance state
+
+TASK-119 adds a separate bounded state machine for the already-linked fictional
+tester only. First run `--inspect-officer`; it is read-only and accepts only
+revision `0005` plus the complete TASK-112/TASK-118 fixture. The only mutable
+Person is `-112001`; every other fixture row, identity, qualification, Game,
+reply, legacy audit, audit request ID, access level and version is exact-checked.
+
+The accepted semantic states are: `baseline` (active Basic, version 1, no
+TASK-119 audit); `granted` (active Officer, version 2, exactly one fixed
+TASK-119 grant audit); and `restored` (active Basic, version 3, exactly the
+fixed grant and restore audit pair). The task-owned audit IDs and request IDs
+are fixed in repository code. Audits are append-only: restore never deletes or
+updates either audit and therefore returns to a semantic Basic baseline, not
+the raw pre-grant database bytes. Unknown audit rows, request IDs, versions,
+identity links or non-fixture rows are drift and stop before mutation.
+
+With the existing private candidate approval and identity gate, the bounded
+commands require the same private, process-only tester-subject environment input
+used by the fictional seed. It is validated against the linked identity but is
+never printed, persisted, or included in an approval artifact. The commands are:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --inspect-officer
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --grant-officer
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --restore-basic
+```
+
+`--grant-officer` changes only exact `baseline` to `granted`; retrying exact
+`granted` is a zero-delta success. `--restore-basic` changes only exact
+`granted` to `restored`; retrying exact `restored` is likewise zero-delta. Any
+uncertain result requires another read-only inspection; do not use ad-hoc SQL,
+delete audit rows, or retry an unclassified state. This operator does not make
+the Officer account an administrator, alter production, send notifications, or
+change the mobile/Web role policy.
+
 ## Build, candidate, promotion and recovery
 
 There are two separate Owner approvals and cost checkpoints:
