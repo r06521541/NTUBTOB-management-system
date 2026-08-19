@@ -5,6 +5,31 @@ from sqlalchemy import text
 EXPECTED_REVISION = "0005_mobile_auth_api_foundation"
 
 
+def _safe_error_category(error: Exception) -> tuple[str, str]:
+    original = getattr(error, "orig", error)
+    detail = str(original).lower()
+    categories = (
+        ("authentication", ("password authentication failed", "no password supplied")),
+        ("dns", ("could not translate host name", "name or service not known")),
+        ("timeout", ("timeout expired", "connection timed out")),
+        ("refused", ("connection refused",)),
+        ("network", ("network is unreachable", "no route to host")),
+        ("ssl", ("ssl", "certificate verify failed")),
+    )
+    category = next(
+        (
+            name
+            for name, markers in categories
+            if any(marker in detail for marker in markers)
+        ),
+        "operational",
+    )
+    sqlstate = getattr(original, "pgcode", None)
+    if not isinstance(sqlstate, str) or len(sqlstate) != 5 or not sqlstate.isalnum():
+        sqlstate = "none"
+    return category, sqlstate
+
+
 def database_revision_is_current(engine, logger) -> bool:
     try:
         with engine.connect() as connection:
@@ -17,9 +42,11 @@ def database_revision_is_current(engine, logger) -> bool:
             return True
     except Exception as error:
         # Driver exception text may contain connection details. Emit only the
-        # exception class so staging diagnostics cannot disclose credentials.
+        # bounded category and SQLSTATE so diagnostics cannot disclose credentials.
+        category, sqlstate = _safe_error_category(error)
         logger.error(
-            "mobile_api_revision_check_failed error_type=%s",
-            type(error).__name__,
+            "mobile_api_revision_check_failed category=%s sqlstate=%s",
+            category,
+            sqlstate,
         )
         return False

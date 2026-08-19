@@ -39,16 +39,35 @@ class RevisionReadinessTest(unittest.TestCase):
 
     def test_driver_error_logs_only_exception_type(self):
         engine, logger = Mock(), Mock()
-        engine.connect.side_effect = RuntimeError("secret-host secret-password")
+        error = RuntimeError(
+            "password authentication failed secret-host secret-password"
+        )
+        error.pgcode = "28P01"
+        engine.connect.side_effect = error
 
         self.assertFalse(database_revision_is_current(engine, logger))
         logger.error.assert_called_once_with(
-            "mobile_api_revision_check_failed error_type=%s",
-            "RuntimeError",
+            "mobile_api_revision_check_failed category=%s sqlstate=%s",
+            "authentication",
+            "28P01",
         )
         rendered = repr(logger.error.call_args)
         self.assertNotIn("secret-host", rendered)
         self.assertNotIn("secret-password", rendered)
+
+    def test_unknown_error_does_not_emit_unbounded_sqlstate(self):
+        engine, logger = Mock(), Mock()
+        error = RuntimeError("private driver detail")
+        error.pgcode = "private-unbounded-value"
+        engine.connect.side_effect = error
+
+        self.assertFalse(database_revision_is_current(engine, logger))
+        logger.error.assert_called_once_with(
+            "mobile_api_revision_check_failed category=%s sqlstate=%s",
+            "operational",
+            "none",
+        )
+        self.assertNotIn("private driver detail", repr(logger.error.call_args))
 
 
 if __name__ == "__main__":
