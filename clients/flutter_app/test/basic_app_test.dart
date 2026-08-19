@@ -237,6 +237,40 @@ void main() {
     }
   });
 
+  testWidgets('successful reply applies authoritative own reply over local selection',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+        ApiResponse(200, mutationJson()),
+        ApiResponse(200, {
+          'game_id': 'g',
+          'own_reply': 'not_attending',
+          'replied': [],
+        }),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('reply-attending')));
+    await tester.tap(find.text('送出回覆'));
+    await tester.pumpAndSettle();
+
+    expect(
+        tester.widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
+            .selected,
+        isFalse);
+    expect(
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('reply-not_attending')))
+            .selected,
+        isTrue);
+    expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
+  });
+
   testWidgets('uncertain conflicting reply has recognizable UX',
       (tester) async {
     final transport = QueueTransport()
