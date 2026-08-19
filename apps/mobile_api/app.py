@@ -123,7 +123,7 @@ def create_app(dependencies: Dependencies) -> Flask:
             parsed = int(value[5:])
         except ValueError:
             raise MalformedRequest("game_id is malformed") from None
-        if parsed <= 0:
+        if parsed == 0:
             raise MalformedRequest("game_id is malformed")
         return parsed
 
