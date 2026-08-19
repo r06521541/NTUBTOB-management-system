@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: mobile-staging-officer-acceptance
 requires_independent_pr: true
-status: ready_for_codex
+status: ready_for_hosted_ci
 base_commit: d4569577817a18e74758dad61bfaff2b82991f85
 
 ## Goal

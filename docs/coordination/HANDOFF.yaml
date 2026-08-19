@@ -1,17 +1,19 @@
 active_task: TASK-119
-status: ready_for_codex
-next_actor: codex
+status: ready_for_hosted_ci
+next_actor: work
 
 base_commit: d4569577817a18e74758dad61bfaff2b82991f85
-head_commit: d4569577817a18e74758dad61bfaff2b82991f85
+head_commit: bbb6d06c458d5a5b34bef0731524d39e5418c307
 
 updated_by: work
-updated_at: 2026-08-20T01:32:00+08:00
+updated_at: 2026-08-20T07:30:00+08:00
 
 note: >
   TASK-115 merged as PR #129 with hosted Flutter final gate. TASK-119 adds a fixture-owned staging Basic-to-Officer
-  operator and Officer report acceptance. access_audit is append-only: restore means Basic operational state plus one
-  exact task-owned grant/restore audit pair, never audit deletion. Physical Android and iOS runtime/signing remain deferred.
+  operator and Officer report acceptance. The operator binds all Officer actions to the private process-only linked
+  LINE subject before any write. access_audit is append-only: restore means Basic operational state plus one exact
+  task-owned grant/restore audit pair, never audit deletion. Repository acceptance is complete; hosted CI is pending.
+  Physical Android and iOS runtime/signing remain deferred.
   Production, Secret payloads, true notifications, release signing and store upload remain forbidden.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
