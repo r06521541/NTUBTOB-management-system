@@ -92,6 +92,28 @@ void main() {
     });
   }
 
+  testWidgets('unresolved native timeout hides login action', (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(
+            body: AuthStatePanel(state: AuthViewState.timeoutUnresolved),
+            floatingActionButton: LoginActionButton(
+                state: AuthViewState.timeoutUnresolved, onLogin: null))));
+    expect(find.text('LINE 登入已逾時，請關閉既有登入畫面後返回'), findsOneWidget);
+    expect(find.byTooltip('LINE 登入'), findsNothing);
+  });
+
+  testWidgets('confirmed cancellation re-enables one login action',
+      (tester) async {
+    var calls = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            floatingActionButton: LoginActionButton(
+                state: AuthViewState.cancelled, onLogin: () => calls++))));
+    expect(find.byTooltip('LINE 登入'), findsOneWidget);
+    await tester.tap(find.byTooltip('LINE 登入'));
+    expect(calls, 1);
+  });
+
   test('fake versus real composition selects separate roots', () {
     final fake = entrypoint
         .composeRoot(AppConfig.parse(flavor: 'development', mode: 'fake'));

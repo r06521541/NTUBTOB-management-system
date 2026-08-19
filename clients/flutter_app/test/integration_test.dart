@@ -66,6 +66,21 @@ class PendingLine implements LineLoginPort {
   Future<void> logout() async {}
 }
 
+class ControlledLine implements LineLoginPort {
+  int calls = 0;
+  final List<Completer<String>> attempts = [];
+  @override
+  Future<String> login(String nonce) {
+    calls++;
+    final completer = Completer<String>();
+    attempts.add(completer);
+    return completer.future;
+  }
+
+  @override
+  Future<void> logout() async {}
+}
+
 class FailingWriteStore extends MemoryStore {
   @override
   Future<void> write(String key, String value) async {
@@ -509,8 +524,7 @@ void main() {
     expect(api.calls, isEmpty);
   });
 
-  test('native login timeout is recoverable and performs no exchange',
-      () async {
+  test('native timeout remains unresolved and performs no exchange', () async {
     final api = ScriptedTransport();
     final line = PendingLine();
     final login = LoginCoordinator(
@@ -521,8 +535,88 @@ void main() {
         'install',
         loginTimeout: const Duration(milliseconds: 1));
     await login.login('android');
-    expect(login.state, LoginState.timeout);
+    expect(login.state, LoginState.timeoutUnresolved);
+    expect(login.nativeFlowUnresolved, isTrue);
     expect(line.calls, 1);
+    expect(api.calls, isEmpty);
+  });
+
+  test('timeout blocks reentry and late completion never exchanges', () async {
+    final api = ScriptedTransport();
+    final line = ControlledLine();
+    final login = LoginCoordinator(
+        line,
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install',
+        loginTimeout: const Duration(milliseconds: 1));
+
+    await login.login('android');
+    await login.login('android');
+    expect(line.calls, 1);
+    expect(login.state, LoginState.timeoutUnresolved);
+
+    line.attempts.single.complete('late-obvious-fake-id-token');
+    await pumpEventQueue();
+    expect(login.state, LoginState.timeoutResolved);
+    expect(login.nativeFlowUnresolved, isFalse);
+    expect(api.calls, isEmpty);
+  });
+
+  test('confirmed late cancel permits exactly one fresh retry and exchange',
+      () async {
+    final api = ScriptedTransport()
+      ..responses.add(ApiResponse(201, {
+        'access_token': 'access',
+        'refresh_token': 'refresh-token-with-at-least-32-characters',
+        'session_id': 's',
+        'expires_in': 900
+      }));
+    final line = ControlledLine();
+    final login = LoginCoordinator(
+        line,
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install',
+        loginTimeout: const Duration(milliseconds: 1));
+
+    await login.login('android');
+    line.attempts.single
+        .completeError(PlatformException(code: 'CANCELLED'));
+    await pumpEventQueue();
+    expect(login.state, LoginState.cancelled);
+    expect(login.nativeFlowUnresolved, isFalse);
+
+    final retry = login.login('android');
+    expect(line.calls, 2);
+    line.attempts.last.complete('fresh-obvious-fake-id-token');
+    await retry;
+    expect(login.state, LoginState.authenticated);
+    expect(api.calls, hasLength(1));
+    expect(api.calls.single.$2, '/auth/line/exchange');
+  });
+
+  test('dispose suppresses notification after timed-out native completion',
+      () async {
+    final api = ScriptedTransport();
+    final line = ControlledLine();
+    final login = LoginCoordinator(
+        line,
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SecureIds(),
+        'install',
+        loginTimeout: const Duration(milliseconds: 1));
+    var notifications = 0;
+    login.addListener(() => notifications++);
+    await login.login('android');
+    login.dispose();
+    final beforeCompletion = notifications;
+    line.attempts.single.complete('late-obvious-fake-id-token');
+    await pumpEventQueue();
+    expect(notifications, beforeCompletion);
     expect(api.calls, isEmpty);
   });
 
