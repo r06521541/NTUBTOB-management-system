@@ -255,9 +255,24 @@
 - Invariants：client profile/user ID不是身份 assertion；identity必須linked且Person必須active；capability由server enforce。Refresh lost-response replay、token-family reuse detection、device revocation與精確Idempotency-Key replay必須使用durable transactional persistence，不得以process memory、signed cookie、一般cache、既有auth identity或access audit假裝完成。
 - Non-goals：本決策不授權schema/migration、runtime API、LINE channel/Secret、staging/production、Google/Apple linking、push/通知或商店發布；未來custom browser login另立PKCE與redirect contract。
 
+## DEC-098：隔離 staging fictional environment 採 agent autonomy
+
+- 狀態：`active`
+- 生效：2026-08-20
+- 來源：Owner 對 TASK-113～118 實際 activation／Emulator 流程的檢討與明確長期授權
+- Supersedes：DEC-096 中「staging deployment 一律另案逐步批准」的 staging fictional 部分；production promotion 仍保留
+- 決策：在 project、database identity、cost ceiling、runtime service account、Secret references、public boundary 與 rollback
+  已由 Owner 核准且持續一致時，Main Work 可自主完成 staging fictional build、candidate、traffic、data repair／test mutation、
+  rollback、Emulator／ADB 驗收與 task-specific cleanup。一般低敏操作使用 `operator=agent`，不建立儀式性 Owner gate。
+- Invariants：production、真實使用者／資料／通知、Secret payload、付費或公開權限擴張、release signing／store、資源／DB／
+  Secret version 的不可逆刪除仍為 Owner gate。未知外部結果先唯讀 reconcile；unknown drift、identity mismatch 或安全邊界
+  放寬立即停止。Domain Work 必須主動 heartbeat 並向 Main Work 交回，不得在自己的 session 靜默等待。
+- Non-goals：不授權 production promotion、正式 schema／資料操作、LINE／Google／Apple Console policy、建立新付費資源、
+  提高成本上限或刪除既有 cloud resource；也不允許 agent 代替 Owner 輸入帳密、掃碼或 consent。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～097`，下一個新決策從 `DEC-098` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～098`，下一個新決策從 `DEC-099` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

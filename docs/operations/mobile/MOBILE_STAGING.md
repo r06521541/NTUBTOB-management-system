@@ -110,6 +110,31 @@ The database URL and private tester subject remain process-only environment
 inputs. A failed import, identity check or recovery check performs no mutation;
 do not retry a later-stage failure until read-only recovery classifies it.
 
+### Attendance fixture repair
+
+TASK-118 adds one bounded forward repair for the original TASK-112 fictional
+attendance state. Run `--inspect-attendance-repair` first. The only executable
+pre-state is exact revision 0005 with all three original fixture replies still
+timestamped at `2035-01-10T10:00:00Z` and exactly the two proven additional
+reply IDs `1` and `2` for Person/Game `-112001`. Both rows must be `undecided`, have
+null legacy user/member ownership, and each must match its own UTC window:
+ID `1` is `2026-08-19T15:39:15Z` through `15:39:35Z`; ID `2` is
+`2026-08-19T15:44:45Z` through `15:45:05Z` (inclusive). These windows bound the
+saved request timestamps `15:39:23.883620Z` and `15:44:55.572527Z`; they allow
+only the small request-to-`utc_now()` persistence delay. Any different count,
+reply, relationship, ID-specific timestamp or fixture content is drift and
+stops without mutation.
+
+After a separate Owner/Main Work execution checkpoint, the existing private
+candidate approval and database identity gate may invoke
+`--execute-attendance-repair`. One transaction deletes only the two inspected
+row IDs and changes only the three TASK-112 reply timestamps to deterministic
+`2000-01-01T00:00:00Z`. Its postcheck must report `state=repaired`, zero hidden
+rows and `removed_hidden_rows=2`. A retry after an exact completed state is a
+zero-delta success. After an uncertain result, inspect again; never blindly
+rerun or use ad-hoc SQL. The repair does not mutate schema, notification state,
+production data or any non-fictional Person/Game.
+
 ## Build, candidate, promotion and recovery
 
 There are two separate Owner approvals and cost checkpoints:

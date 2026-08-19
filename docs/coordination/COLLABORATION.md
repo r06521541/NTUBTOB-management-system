@@ -187,6 +187,32 @@ squash merge、同步 `main` 與清理 task branch。此授權跨 session 有效
 
 上述授權不包含 production、Secret、IAM、Scheduler、通知或重大產品／架構變更。
 
+### Staging fictional autonomy 與操作責任
+
+Owner 已授權 Main Work 在已隔離、已核准 identity 與成本上限的 staging fictional environment 內，持續完成
+build、candidate revision、health check、traffic promotion／rollback、fictional seed／repair／test mutation、Emulator／ADB
+驗收及 task-specific cleanup。這些動作必須沿用既有 Secret reference、runtime identity、public boundary 與 fail-closed
+operator；不得因 staging 授權推論 production、真實通知、Secret payload、額外付費資源或不可逆刪除也獲授權。
+
+每個 runtime 指令或跨 session 派工應明列：
+
+```text
+operator=agent | owner
+owner_gate=none | <exact sensitive action>
+standing_authorization=<applicable decision/task>
+stop_only_on=<remaining stop conditions>
+report_to=main-work
+```
+
+- `operator=agent` 是一般預設。Agent 可自行完成 fictional UI 導覽、唯讀點擊、App 啟停、cold start、offline、截圖、
+  低敏 staging mutation／reconcile／restore及可復原 rollback，不得為儀式性確認停給 Owner。
+- `operator=owner` 只用於輸入帳密、掃碼、登入／consent、Secret payload、付費／公開權限、release signing／store、
+  production、真實通知與不可逆刪除等人類保留動作。交回時必須說明唯一動作、原因與完成後的安全回報文字。
+- Domain Work 收到派工後立即回 `received/executing`；執行超過一個可見工作段落時主動 heartbeat。完成、阻塞或需要
+  Owner 動作時必須主動敲 Main Work，不可只停在自己的 session 等待。
+- Main Work 可撤銷不必要的 Owner gate；撤銷時須縮限 exact action、次數、資料分類與停止條件。外部結果不確定時，
+  仍先唯讀 reconcile，不以 autonomy 作為盲目重送理由。
+
 ## 9. CI 與測試成本
 
 依實際變更選最小充分測試：

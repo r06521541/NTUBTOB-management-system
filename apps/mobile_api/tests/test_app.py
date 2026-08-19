@@ -193,8 +193,10 @@ class MobileApiRouteTest(unittest.TestCase):
                     "/api/v1/games/game_44/attendance-report", headers=headers
                 )
                 self.assertEqual(response.status_code, status)
-                self.assertEqual(response.get_json()["error"]["code"], code)
-                self.assertNotIn("44", response.get_data(as_text=True))
+                public_error = response.get_json()["error"]
+                self.assertEqual(public_error["code"], code)
+                self.assertNotIn("44", public_error["code"])
+                self.assertNotIn("44", public_error["message"])
 
     def test_inactive_fresh_principal_is_rejected_before_report_read(self):
         self.auth.authenticate.side_effect = AuthenticationError("inactive session")
