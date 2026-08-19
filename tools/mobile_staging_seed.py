@@ -31,6 +31,16 @@ ANCHOR = datetime(2035, 1, 10, 10, tzinfo=timezone.utc)
 FIXTURE_REPLY_AT = datetime(2000, 1, 1, tzinfo=timezone.utc)
 LEGACY_FIXTURE_REPLY_AT = ANCHOR
 HIDDEN_TEST_REPLY_IDS = (1, 2)
+HIDDEN_REPLY_WINDOWS = {
+    1: (
+        datetime(2026, 8, 19, 15, 39, 15, tzinfo=timezone.utc),
+        datetime(2026, 8, 19, 15, 39, 35, tzinfo=timezone.utc),
+    ),
+    2: (
+        datetime(2026, 8, 19, 15, 44, 45, tzinfo=timezone.utc),
+        datetime(2026, 8, 19, 15, 45, 5, tzinfo=timezone.utc),
+    ),
+}
 
 
 class StagingSeedError(RuntimeError):
@@ -257,9 +267,10 @@ def _attendance_repair_state(connection) -> dict[str, object]:
     ):
         raise StagingSeedError("Fictional attendance repair state is drifted")
     if any(
-        row.id <= 0
-        or row.updated_at is None
-        or row.updated_at >= LEGACY_FIXTURE_REPLY_AT
+        row.updated_at is None
+        or not HIDDEN_REPLY_WINDOWS[row.id][0]
+        <= row.updated_at
+        <= HIDDEN_REPLY_WINDOWS[row.id][1]
         for row in hidden_rows
     ):
         raise StagingSeedError("Fictional attendance repair state is drifted")

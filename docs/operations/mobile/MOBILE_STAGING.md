@@ -117,9 +117,13 @@ attendance state. Run `--inspect-attendance-repair` first. The only executable
 pre-state is exact revision 0005 with all three original fixture replies still
 timestamped at `2035-01-10T10:00:00Z` and exactly the two proven additional
 reply IDs `1` and `2` for Person/Game `-112001`. Both rows must be `undecided`, have
-null legacy user/member ownership, and predate the legacy fixture timestamp.
-Any different count, reply, relationship, timestamp or fixture content is drift
-and stops without mutation.
+null legacy user/member ownership, and each must match its own UTC window:
+ID `1` is `2026-08-19T15:39:15Z` through `15:39:35Z`; ID `2` is
+`2026-08-19T15:44:45Z` through `15:45:05Z` (inclusive). These windows bound the
+saved request timestamps `15:39:23.883620Z` and `15:44:55.572527Z`; they allow
+only the small request-to-`utc_now()` persistence delay. Any different count,
+reply, relationship, ID-specific timestamp or fixture content is drift and
+stops without mutation.
 
 After a separate Owner/Main Work execution checkpoint, the existing private
 candidate approval and database identity gate may invoke
