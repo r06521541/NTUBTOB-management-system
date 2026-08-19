@@ -8,7 +8,8 @@
 - Added a dedicated read-only inspection and candidate-approved repair path.
   It accepts only the original three fixture replies at the legacy 2035
   timestamp plus exact reply IDs `1` and `2` as `undecided` rows for Person/Game
-  `-112001` with null legacy ownership and bounded timestamps.
+  `-112001` with null legacy ownership and their individual bounded UTC windows:
+  `15:39:15Z..15:39:35Z` and `15:44:45Z..15:45:05Z` on 2026-08-19.
 - The repair transaction deletes only the two inspected row IDs, updates only
   the three fixture reply timestamps, performs an exact postcheck, and is a
   zero-delta success when retried after completion. Any count/content/timestamp
@@ -25,14 +26,16 @@
   stopped and removed.
 - The repair cannot select arbitrary rows: fixture IDs and full stored shape are
   fixed, hidden rows must be exact IDs `1` and `2` with the proven
-  Person/Game/reply/null-owner shape, and all changes occur in one transaction.
+  Person/Game/reply/null-owner shape and per-ID request-to-`utc_now()` time
+  windows, and all changes occur in one transaction.
 
 ## Verification
 
 - Staging seed/operator offline: 25 tests passed, 9 skipped without an explicit
   PostgreSQL URL.
-- PostgreSQL 16.2 true-empty/fixture integration: 9 tests passed, including
-  bootstrap, deterministic timestamp, exact repair, retry, drift rejection and
+- PostgreSQL 16.2 true-empty/fixture integration: 10 tests passed, including
+  bootstrap, deterministic timestamp, exact repair, retry, drift rejection,
+  per-ID time-window near-miss rejection before inventory/execute mutation, and
   runtime reply precedence.
 - PostgreSQL 16.2 mobile foundation integration: 8 tests passed, including
   exact/concurrent same-key idempotency and finalize/reconcile paths.

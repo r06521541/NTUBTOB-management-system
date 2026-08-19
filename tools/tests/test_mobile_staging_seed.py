@@ -149,8 +149,12 @@ class MobileStagingSeedIntegrationTest(unittest.TestCase):
                     "(-112001, NULL, NULL, -112001, 5, :second)"
                 ),
                 {
-                    "first": datetime(2026, 8, 18, 1, tzinfo=timezone.utc),
-                    "second": datetime(2026, 8, 18, 2, tzinfo=timezone.utc),
+                    "first": datetime(
+                        2026, 8, 19, 15, 39, 23, 883620, tzinfo=timezone.utc
+                    ),
+                    "second": datetime(
+                        2026, 8, 19, 15, 44, 55, 572527, tzinfo=timezone.utc
+                    ),
                 },
             )
         self.assertEqual(inspect_attendance_repair(self.engine)["state"], "required")

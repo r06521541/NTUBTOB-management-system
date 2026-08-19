@@ -576,8 +576,8 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 text(
                     "INSERT INTO ntubtob.game_attendance_replies "
                     "(game_id, person_id, reply, updated_at) VALUES "
-                    "(-112001, -112001, 5, '2026-08-18T01:00:00Z'), "
-                    "(-112001, -112001, 5, '2026-08-18T02:00:00Z')"
+                    "(-112001, -112001, 5, '2026-08-19T15:39:23.883620Z'), "
+                    "(-112001, -112001, 5, '2026-08-19T15:44:55.572527Z')"
                 )
             )
         before = attendance_repair_inventory(self.approval, TEST_DATABASE_URL)
@@ -615,6 +615,44 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
         self.assertEqual(latest.reply, 5)
         self.assertEqual(fixture_at, FIXTURE_REPLY_AT)
         self.assertGreater(latest.updated_at, fixture_at)
+
+    def test_attendance_repair_rejects_near_miss_timestamp_before_mutation(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.game_attendance_replies SET updated_at=:old "
+                    "WHERE id BETWEEN -112003 AND -112001"
+                ),
+                {"old": ANCHOR},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(game_id, person_id, reply, updated_at) VALUES "
+                    "(-112001, -112001, 5, '2026-08-19T15:39:14Z'), "
+                    "(-112001, -112001, 5, '2026-08-19T15:44:55.572527Z')"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "inventory failed safely"):
+            attendance_repair_inventory(self.approval, TEST_DATABASE_URL)
+        with self.assertRaisesRegex(StagingContractError, "inventory failed safely"):
+            execute_attendance_repair(self.approval, TEST_DATABASE_URL)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.game_attendance_replies "
+                        "WHERE person_id=-112001 AND game_id=-112001"
+                    )
+                ),
+                3,
+            )
 
 
 if __name__ == "__main__":
