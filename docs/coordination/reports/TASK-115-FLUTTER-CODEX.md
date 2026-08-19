@@ -86,3 +86,12 @@ Runtime also exposed a Flutter observability defect: `GameDetailPage._submit()` 
 Runtime side effects were confined to the approved fictional staging account/game sequence, package-scoped portal stop/start operations, temporary emulator airplane-mode toggling, and one logout. There was no production access, deployment, cloud or database mutation, real notification/push, release signing, store action, credential/token/provider-subject access, raw payload/log retention, or repository runtime artifact.
 
 Deferred: a fresh Android debug artifact for this source-only observability correction requires a later clean Gradle/hosted build. iOS runtime/signing remains outside this Windows/emulator task.
+
+## Main integration note
+
+Main Work integrated the three accepted commits onto the latest `main` and ran
+the Flutter 3.47.0 / Dart 3.13.0 formatter on `lib` and `test`. It produced
+mechanical formatting changes in `basic_app.dart`, `basic_app_test.dart` and
+`integration_test.dart`; no behavior was changed. Main reruns format, analyze
+and all tests on the final branch, while the fresh Android debug artifact stays
+deferred to hosted CI.

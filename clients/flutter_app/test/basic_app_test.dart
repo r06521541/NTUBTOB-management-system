@@ -237,7 +237,8 @@ void main() {
     }
   });
 
-  testWidgets('successful reply applies authoritative own reply over local selection',
+  testWidgets(
+      'successful reply applies authoritative own reply over local selection',
       (tester) async {
     final transport = QueueTransport()
       ..responses.addAll([
@@ -260,12 +261,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-        tester.widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
+        tester
+            .widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
             .selected,
         isFalse);
     expect(
         tester
-            .widget<ChoiceChip>(find.byKey(const ValueKey('reply-not_attending')))
+            .widget<ChoiceChip>(
+                find.byKey(const ValueKey('reply-not_attending')))
             .selected,
         isTrue);
     expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);

@@ -84,8 +84,12 @@ class ControlledLine implements LineLoginPort {
 class SequenceIds extends SecureIds {
   int index = 0;
   @override
-  String next() => ['expired-attempt', 'expired-nonce', 'fresh-attempt',
-        'fresh-nonce'][index++];
+  String next() => [
+        'expired-attempt',
+        'expired-nonce',
+        'fresh-attempt',
+        'fresh-nonce'
+      ][index++];
 }
 
 class FailingWriteStore extends MemoryStore {
@@ -571,8 +575,7 @@ void main() {
     expect(api.calls, isEmpty);
   });
 
-  test('expired callback is stale while native timeout lock remains',
-      () async {
+  test('expired callback is stale while native timeout lock remains', () async {
     final api = ScriptedTransport();
     final line = ControlledLine();
     final login = LoginCoordinator(
@@ -619,8 +622,7 @@ void main() {
         loginTimeout: const Duration(milliseconds: 1));
 
     await login.login('android');
-    line.attempts.single
-        .completeError(PlatformException(code: 'CANCELLED'));
+    line.attempts.single.completeError(PlatformException(code: 'CANCELLED'));
     await pumpEventQueue();
     expect(login.state, LoginState.cancelled);
     expect(login.nativeFlowUnresolved, isFalse);

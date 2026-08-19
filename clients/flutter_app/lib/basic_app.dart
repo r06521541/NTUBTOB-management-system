@@ -62,8 +62,10 @@ class AuthStatePanel extends StatelessWidget {
       AuthViewState.recoverableError => (Icons.wifi_off, '連線暫時失敗，請稍後重試'),
       AuthViewState.contractError => (Icons.gpp_bad, '資料格式異常，已停止處理'),
       AuthViewState.unavailable => (Icons.mobile_off, '此裝置無法使用 LINE 登入'),
-      AuthViewState.timeoutUnresolved =>
-        (Icons.hourglass_disabled, 'LINE 登入已逾時，請關閉既有登入畫面後返回'),
+      AuthViewState.timeoutUnresolved => (
+          Icons.hourglass_disabled,
+          'LINE 登入已逾時，請關閉既有登入畫面後返回'
+        ),
       AuthViewState.logoutPending => (Icons.logout, '登出同步中，暫停操作'),
       AuthViewState.offline => (Icons.cloud_off, '離線唯讀模式'),
       AuthViewState.authenticated => (Icons.verified_user_outlined, '已安全登入'),
@@ -176,7 +178,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       LoginState.accountUnavailable => AuthViewState.accountUnavailable,
       // _loadBasic owns the authenticated transition after /me and games load.
       LoginState.authenticated => state,
-      LoginState.error || LoginState.stale || LoginState.duplicate =>
+      LoginState.error ||
+      LoginState.stale ||
+      LoginState.duplicate =>
         AuthViewState.contractError,
       LoginState.idle => state,
     };
@@ -271,13 +275,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                   reportCache: _reportCache)
               : AuthStatePanel(state: state),
           floatingActionButton: state == AuthViewState.authenticated
-                  ? FloatingActionButton(
-                      onPressed: _logout,
-                      tooltip: '登出',
-                      child: const Icon(Icons.logout))
-                  : LoginActionButton(
-                      state: state,
-                      onLogin: _login == null ? null : _signIn),
+              ? FloatingActionButton(
+                  onPressed: _logout,
+                  tooltip: '登出',
+                  child: const Icon(Icons.logout))
+              : LoginActionButton(
+                  state: state, onLogin: _login == null ? null : _signIn),
         ),
       );
 }
@@ -301,9 +304,7 @@ class LoginActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!_retryableStates.contains(state)) return const SizedBox.shrink();
     return FloatingActionButton(
-        onPressed: onLogin,
-        tooltip: 'LINE 登入',
-        child: const Icon(Icons.login));
+        onPressed: onLogin, tooltip: 'LINE 登入', child: const Icon(Icons.login));
   }
 }
 
