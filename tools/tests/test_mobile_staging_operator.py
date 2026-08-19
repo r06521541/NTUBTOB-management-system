@@ -133,7 +133,13 @@ def revision(value=DIGEST):
 
 def service(mode="update", candidate_percent=0):
     traffic = (
-        []
+        [
+            {
+                "latestRevision": True,
+                "revisionName": "mobile-api-staging-candidate1",
+                "percent": 100,
+            }
+        ]
         if mode == "bootstrap"
         else [{"revisionName": "mobile-api-staging-baseline1", "percent": 100}]
     )
@@ -310,17 +316,23 @@ class OperatorTest(unittest.TestCase):
 
     def test_build_and_candidate_are_separate_and_scoped(self):
         build = build_command(approval(phase="build"))
-        deploy = deploy_command(approval())
+        update_deploy = deploy_command(approval())
+        bootstrap_deploy = deploy_command(approval(mode="bootstrap"))
         self.assertIn(
             "projects/ntubtob-mobile-staging/serviceAccounts/"
             + approval()["build_service_account"],
             build,
         )
         self.assertNotIn("run", build)
-        self.assertNotIn("builds", deploy)
-        self.assertIn("--no-traffic", deploy)
-        self.assertIn("--no-allow-unauthenticated", deploy)
-        self.assertIn("--ingress", deploy)
+        self.assertNotIn("builds", update_deploy)
+        self.assertIn("--no-traffic", update_deploy)
+        self.assertNotIn("--no-traffic", bootstrap_deploy)
+        self.assertIn("--no-allow-unauthenticated", bootstrap_deploy)
+        self.assertIn("--ingress", bootstrap_deploy)
+        self.assertIn("--min-instances", bootstrap_deploy)
+        self.assertIn("--max-instances", bootstrap_deploy)
+        self.assertNotIn("--min", bootstrap_deploy)
+        self.assertNotIn("--max", bootstrap_deploy)
 
     def test_digest_normalizes_repository_and_bare_forms(self):
         self.assertEqual(normalize_digest(DIGEST), DIGEST)
@@ -335,6 +347,12 @@ class OperatorTest(unittest.TestCase):
         validate_candidate(approval(), revision(), service())
         with self.assertRaises(OperatorError):
             validate_candidate(approval(), revision(), service(candidate_percent=100))
+        with self.assertRaises(OperatorError):
+            validate_candidate(
+                approval(mode="bootstrap"),
+                revision(IMAGE + "@" + DIGEST),
+                {**service("bootstrap"), "status": {"traffic": []}},
+            )
 
     def test_stale_shared_artifact_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
