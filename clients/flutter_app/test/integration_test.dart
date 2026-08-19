@@ -81,6 +81,13 @@ class ControlledLine implements LineLoginPort {
   Future<void> logout() async {}
 }
 
+class SequenceIds extends SecureIds {
+  int index = 0;
+  @override
+  String next() => ['expired-attempt', 'expired-nonce', 'fresh-attempt',
+        'fresh-nonce'][index++];
+}
+
 class FailingWriteStore extends MemoryStore {
   @override
   Future<void> write(String key, String value) async {
@@ -556,6 +563,35 @@ void main() {
     await login.login('android');
     expect(line.calls, 1);
     expect(login.state, LoginState.timeoutUnresolved);
+
+    line.attempts.single.complete('late-obvious-fake-id-token');
+    await pumpEventQueue();
+    expect(login.state, LoginState.timeoutResolved);
+    expect(login.nativeFlowUnresolved, isFalse);
+    expect(api.calls, isEmpty);
+  });
+
+  test('expired callback is stale while native timeout lock remains',
+      () async {
+    final api = ScriptedTransport();
+    final line = ControlledLine();
+    final login = LoginCoordinator(
+        line,
+        api,
+        SessionController(api, MemoryStore(), 'install', SecureIds()),
+        SequenceIds(),
+        'install',
+        loginTimeout: const Duration(milliseconds: 1));
+
+    await login.login('android');
+    await login.completeAttemptForTesting(
+        attempt: 'expired-attempt',
+        nonce: 'expired-nonce',
+        token: 'late-obvious-fake-id-token',
+        platform: 'android');
+    expect(login.state, LoginState.stale);
+    expect(login.nativeFlowUnresolved, isTrue);
+    expect(api.calls, isEmpty);
 
     line.attempts.single.complete('late-obvious-fake-id-token');
     await pumpEventQueue();
