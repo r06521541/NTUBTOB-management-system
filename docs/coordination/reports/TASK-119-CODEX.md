@@ -14,6 +14,10 @@
   non-task fixture tables are also checked; unknown or altered rows fail
   closed. Restore deliberately preserves audit history because the schema
   enforces append-only audits.
+- Officer inspect, grant, restore, retry and transition postchecks now also
+  require the process-only private tester subject and exact-compare it with the
+  linked identity. Absent, invalid or mismatched inputs fail before mutation;
+  the value is not included in output, errors, examples or reports.
 
 ## Safety boundary
 
@@ -26,12 +30,13 @@
 
 ## Verification
 
-- Offline staging seed/operator contracts: 30 passed, 12 PostgreSQL-dependent
-  cases skipped when no URL is supplied.
-- Disposable PostgreSQL 16.2 true-fixture integration: operator 7 passed and
+- Offline staging seed/operator contracts: 34 passed, 13 PostgreSQL-dependent
+  cases skipped when no URL is supplied, including absent-subject rejection,
+  subject-free generic plan, and output redaction.
+- Disposable PostgreSQL 16.2 true-fixture integration: operator 8 passed and
   seed 5 passed, including bootstrap, exact Officer grant/restore, append-only
-  retry, and unknown-audit drift denial. The local cluster was loopback-only
-  and removed after testing.
+  retry, unknown-audit drift denial, and subject-mismatch denial before a
+  Person write. The local cluster was loopback-only and removed after testing.
 - Mobile API offline regression: 25 passed. Shared library offline regression:
   28 passed.
 - `py_compile`, isort and `git diff --check` passed. PostgreSQL 15 and hosted
@@ -45,4 +50,4 @@
 - Branch: `codex/task-119-staging-officer-implementation`
 - Spec: `93a877b33d9b81afcd86c3b10a3d5e4baf540007`
 - Implementation commit: `1a14c011acb5a017d335e1d12bf215b8c5b18c7d`
-- Status/next actor after report commit and push: `ready_for_review` / Main Work.
+- Latest correction: pending verification, commit and push.

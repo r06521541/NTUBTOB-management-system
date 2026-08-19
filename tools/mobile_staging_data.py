@@ -23,6 +23,7 @@ try:
     )
     from .mobile_staging_seed import (
         StagingSeedError,
+        _validate_subject,
         inspect_attendance_repair,
         repair_attendance_fixture,
         seed,
@@ -37,6 +38,7 @@ except ImportError:  # pragma: no cover
     )
     from mobile_staging_seed import (
         StagingSeedError,
+        _validate_subject,
         inspect_attendance_repair,
         repair_attendance_fixture,
         seed,
@@ -160,7 +162,14 @@ def _legacy_fixture_audit(connection) -> bool:
     }
 
 
-def _officer_fixture_state(connection) -> str:
+def _officer_subject(value: str) -> str:
+    try:
+        return _validate_subject(value)
+    except StagingSeedError:
+        raise StagingContractError("Private tester input is invalid") from None
+
+
+def _officer_fixture_state(connection, private_subject: str) -> str:
     """Classify only the exact append-only TASK-119 fixture states."""
     schema_exists = connection.scalar(
         text("SELECT to_regnamespace('ntubtob') IS NOT NULL")
@@ -236,7 +245,8 @@ def _officer_fixture_state(connection) -> str:
         raise StagingContractError("Officer fixture tester is drifted")
     identity = connection.execute(
         text(
-            "SELECT id, provider, person_id, status FROM ntubtob.auth_identities "
+            "SELECT id, provider, provider_subject, person_id, status "
+            "FROM ntubtob.auth_identities "
             "WHERE id=:id"
         ),
         {"id": OFFICER_IDENTITY_ID},
@@ -244,6 +254,7 @@ def _officer_fixture_state(connection) -> str:
     if identity != {
         "id": OFFICER_IDENTITY_ID,
         "provider": "line",
+        "provider_subject": private_subject,
         "person_id": OFFICER_PERSON_ID,
         "status": "linked",
     }:
@@ -271,7 +282,10 @@ def _officer_fixture_state(connection) -> str:
     raise StagingContractError("Officer fixture audit or version is drifted")
 
 
-def officer_inventory(approval: dict, database_url: str) -> dict:
+def officer_inventory(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    private_subject = _officer_subject(private_subject)
     identity = validate_database_identity(
         database_url,
         approval["database_identity_sha256"],
@@ -286,7 +300,7 @@ def officer_inventory(approval: dict, database_url: str) -> dict:
                 transaction = connection.begin()
                 try:
                     connection.execute(text("SET TRANSACTION READ ONLY"))
-                    state = _officer_fixture_state(connection)
+                    state = _officer_fixture_state(connection, private_subject)
                 finally:
                     transaction.rollback()
         except SQLAlchemyError:
@@ -341,11 +355,12 @@ def _write_officer_transition(connection, transition: str) -> None:
 
 
 def _execute_officer_transition(
-    approval: dict, database_url: str, transition: str
+    approval: dict, database_url: str, private_subject: str, transition: str
 ) -> dict:
     if approval["approval_phase"] != "candidate":
         raise StagingContractError("Remote Officer transition requires candidate approval")
-    before = officer_inventory(approval, database_url)
+    private_subject = _officer_subject(private_subject)
+    before = officer_inventory(approval, database_url, private_subject)
     terminal_state = "granted" if transition == "grant" else "restored"
     if before["state"] == terminal_state:
         return {**before, "changed": False}
@@ -356,12 +371,18 @@ def _execute_officer_transition(
     try:
         try:
             with engine.begin() as connection:
-                if _officer_fixture_state(connection) != allowed_state:
+                if (
+                    _officer_fixture_state(connection, private_subject)
+                    != allowed_state
+                ):
                     raise StagingContractError(
                         "Remote Officer transition changed before mutation"
                     )
                 _write_officer_transition(connection, transition)
-                if _officer_fixture_state(connection) != terminal_state:
+                if (
+                    _officer_fixture_state(connection, private_subject)
+                    != terminal_state
+                ):
                     raise StagingContractError("Remote Officer transition postcheck failed")
         except StagingContractError:
             raise
@@ -371,15 +392,20 @@ def _execute_officer_transition(
             ) from None
     finally:
         engine.dispose()
-    return {**officer_inventory(approval, database_url), "changed": True}
+    return {
+        **officer_inventory(approval, database_url, private_subject),
+        "changed": True,
+    }
 
 
-def grant_officer(approval: dict, database_url: str) -> dict:
-    return _execute_officer_transition(approval, database_url, "grant")
+def grant_officer(approval: dict, database_url: str, private_subject: str) -> dict:
+    return _execute_officer_transition(approval, database_url, private_subject, "grant")
 
 
-def restore_basic(approval: dict, database_url: str) -> dict:
-    return _execute_officer_transition(approval, database_url, "restore")
+def restore_basic(approval: dict, database_url: str, private_subject: str) -> dict:
+    return _execute_officer_transition(
+        approval, database_url, private_subject, "restore"
+    )
 
 
 def plan(approval: dict, database_url: str) -> dict:
@@ -681,11 +707,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.inspect_attendance_repair:
             result = attendance_repair_inventory(approval, database_url)
         elif args.inspect_officer:
-            result = officer_inventory(approval, database_url)
+            result = officer_inventory(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
         elif args.grant_officer:
-            result = grant_officer(approval, database_url)
+            result = grant_officer(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
         elif args.restore_basic:
-            result = restore_basic(approval, database_url)
+            result = restore_basic(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
         elif args.recover:
             result = recover(approval, database_url)
         elif args.execute:

@@ -153,7 +153,9 @@ the raw pre-grant database bytes. Unknown audit rows, request IDs, versions,
 identity links or non-fixture rows are drift and stop before mutation.
 
 With the existing private candidate approval and identity gate, the bounded
-commands are:
+commands require the same private, process-only tester-subject environment input
+used by the fictional seed. It is validated against the linked identity but is
+never printed, persisted, or included in an approval artifact. The commands are:
 
 ```powershell
 python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --inspect-officer
