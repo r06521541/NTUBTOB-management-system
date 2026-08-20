@@ -3,7 +3,7 @@ status: changes_requested
 next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: 9e4ce4e9f0bb958d96b06dede3ad2aeb2b6adc1e
+head_commit: dfb172646648627d0a85495600254438f513dd34
 
 updated_by: work
 updated_at: 2026-08-20T20:05:00+08:00
@@ -36,7 +36,10 @@ note: >
   ADB-serial and package-inventory stages before activity/accessibility; their failures are not covered by the new
   status mapping. The same writer must add bounded per-stage status boundaries so ADB/package/activity/accessibility/
   semantic failures always return an actionable fixed reason code and no status-stage failure falls back to
-  RUNTIME_FAILED. During
+  RUNTIME_FAILED. The first pre-activity correction was rejected before integration because `Get-PackageState`
+  still treats a nonzero `adb shell pm path` exit as normal package absence. The same writer must make timeout/nonzero
+  exit fail as PACKAGE_UNAVAILABLE, accept only successful explicit absence or one exact package result, and add
+  function-to-governed-envelope regressions. During
   a Main read-only diagnosis, a PowerShell XML conversion error echoed the raw static logged-out hierarchy; it held no
   credential, token, subject, endpoint or user data, but violated the no-raw-hierarchy operating rule and is recorded.
   Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work

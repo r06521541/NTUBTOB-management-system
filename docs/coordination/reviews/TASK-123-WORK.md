@@ -80,6 +80,14 @@ Changes requested before controlled staging dogfood.
   status-stage failure must never fall back to `RUNTIME_FAILED`. Add direct
   governed-envelope regressions for the newly covered stages without exposing
   child output or exception text.
+- The proposed ADB/package mapping delta is not yet accepted. `Get-PackageState`
+  still maps a nonzero `adb shell pm path` exit to normal `package_absent`, so
+  transport/shell/permission failures could produce PASS. Timeout and nonzero
+  exit must produce `FAILED/PACKAGE_UNAVAILABLE`; only a successful explicit
+  empty result may mean absent, and only one exact successful package line may
+  mean installed. Add direct function-to-governed-envelope regressions for
+  timeout, nonzero, successful empty and exact installed output. Unexpected
+  successful output must fail closed, with no raw child output disclosed.
 
 ## Deferred
 
