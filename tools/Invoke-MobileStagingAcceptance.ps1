@@ -18,7 +18,7 @@ $script:HarnessShaPattern = '^[0-9a-f]{40}$'
 $script:HarnessFingerprintPattern = '^[A-F0-9]{64}$'
 $script:HarnessColdLaunchResults = @('running', 'timeout_but_running')
 $script:HarnessSteps = @(
-    'await_login', 'broker_gate', 'grant_intent', 'grant_result',
+    'await_observation', 'await_login', 'broker_gate', 'grant_intent', 'grant_result',
     'grant_reconcile', 'officer_online', 'offline_observed',
     'restore_intent', 'restore_result', 'restore_reconcile',
     'basic_restored', 'logout_intent', 'logout_result', 'logout_reconcile',
@@ -616,7 +616,12 @@ function Invoke-MobileStagingAcceptanceMain {
         $binding = Invoke-HarnessPreparation $Dependencies $checkpoint
         Assert-HarnessBinding $binding $ExpectedCommit
         if ($null -ne $checkpoint -and -not (Test-HarnessBindingEqual $checkpoint.binding $binding)) { return New-HarnessEnvelope $SelectedScenario 'DRIFT' 'none' 'start' 'stopped' 'CHECKPOINT_BINDING_DRIFT' }
-        if ($SelectedScenario -eq 'basic-authorization') { return Invoke-BasicScenario $SelectedScenario $StatePath $binding $checkpoint $Dependencies }
+        if ($SelectedScenario -eq 'basic-authorization') {
+            if ($null -eq $checkpoint) {
+                Save-HarnessCheckpoint $StatePath $SelectedScenario 'await_observation' $binding 'prepared'
+            }
+            return Invoke-BasicScenario $SelectedScenario $StatePath $binding $checkpoint $Dependencies
+        }
         return Invoke-OfficerScenario $SelectedScenario $StatePath $binding $checkpoint $Dependencies
     }
     catch {
