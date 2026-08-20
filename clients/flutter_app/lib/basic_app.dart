@@ -326,6 +326,7 @@ class BasicGamesView extends StatelessWidget {
   final bool online;
   final DateTime lastSyncedAt;
   final PrincipalOfficerReportCache? reportCache;
+
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
   /// [kDebugMode].
