@@ -31,7 +31,9 @@ accessibility call. Activity parsing uses exactly one anchored current
 resumed/top-resumed/focused record, ignores retained back-stack entries, and
 fails closed on duplicate or malformed current records. Only an exact portal
 foreground component parses one bounded in-memory hierarchy
-with DTD/external resolution prohibited and accepts exactly one logged-out,
+using exact `adb -s <serial> exec-out uiautomator dump /dev/tty` arguments,
+without a device temp file or follow-up file command. DTD/external resolution
+remains prohibited, and the classifier accepts exactly one logged-out,
 Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled
 state. Cold launch
 uses semantic package/activity/PID checks, has no timeout retry, and restores a
@@ -78,6 +80,10 @@ Using the repository bundled Python on Windows:
   calls; retained portal without a current component remains `portal_stopped`;
   an exact current portal alone permits one UI call; and duplicate, malformed,
   oversized, or timed-out inventories fail closed without sentinel disclosure.
+- Targeted API36 accessibility transport/status regressions: 4 passed. They
+  assert the exact `exec-out` argv and absence of shell/device-file commands,
+  preserve bounded hierarchy classification, and reject empty, malformed,
+  oversized, timed-out, or nonzero-exit results without raw/sentinel output.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -126,7 +132,9 @@ Owner-private action was run.
   `e362650232255a4c31a109d981a3cc2db357eacc`
 - Current foreground activity correction commit:
   `d3fa5f493b0da97910d28dd97f70871f1016c5ae`
-- Authoritative shared ancestry: `0cb5e10d50e5dfc1f91243788cce0cf96fbad4a2`
+- API36 accessibility transport correction commit:
+  `0fa86e0aeabb08515a0df88c323de55a35dc3583`
+- Authoritative shared ancestry: `a68d9d6dc4b5bb7b4df3ac39b7c1cca43fb61ac7`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
