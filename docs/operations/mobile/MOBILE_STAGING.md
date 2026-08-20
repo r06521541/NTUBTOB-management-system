@@ -143,14 +143,16 @@ revision `0005` plus the complete TASK-112/TASK-118 fixture. The only mutable
 Person is `-112001`; every other fixture row, identity, qualification, Game,
 reply, legacy audit, audit request ID, access level and version is exact-checked.
 
-The accepted semantic states are: `baseline` (active Basic, version 1, no
-TASK-119 audit); `granted` (active Officer, version 2, exactly one fixed
-TASK-119 grant audit); and `restored` (active Basic, version 3, exactly the
-fixed grant and restore audit pair). The task-owned audit IDs and request IDs
-are fixed in repository code. Audits are append-only: restore never deletes or
-updates either audit and therefore returns to a semantic Basic baseline, not
-the raw pre-grant database bytes. Unknown audit rows, request IDs, versions,
-identity links or non-fixture rows are drift and stop before mutation.
+The accepted semantic states remain `baseline`, `granted`, and `restored`.
+TASK-119's version 1/2/3 states and fixed grant/restore audit pair are accepted
+as legacy generation zero. TASK-126 permits later complete generations: each
+transition increments Person version, appends one generated-identity audit and
+uses a deterministic request ID derived from the prior version. The complete
+chain must alternate Basic and Officer with exact target, linked identity,
+before/after role and monotonic version. Restore never deletes or updates an
+audit and therefore returns to a semantic Basic baseline, not the raw pre-grant
+database bytes. Unknown audit rows, request IDs, versions, identity links or
+non-fixture rows are drift and stop before mutation.
 
 With the existing private candidate approval and identity gate, the bounded
 commands require the same private, process-only tester-subject environment input
@@ -163,9 +165,10 @@ python -m tools.mobile_staging_data --approval C:\private\candidate-approval.jso
 python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --restore-basic
 ```
 
-`--grant-officer` changes only exact `baseline` to `granted`; retrying exact
-`granted` is a zero-delta success. `--restore-basic` changes only exact
-`granted` to `restored`; retrying exact `restored` is likewise zero-delta. Any
+`--grant-officer` changes a valid `baseline` or `restored` generation to
+`granted`; retrying exact `granted` is a zero-delta success. `--restore-basic`
+changes only exact `granted` to `restored`; retrying exact `restored` is
+likewise zero-delta. Any
 uncertain result requires another read-only inspection; do not use ad-hoc SQL,
 delete audit rows, or retry an unclassified state. This operator does not make
 the Officer account an administrator, alter production, send notifications, or
@@ -230,10 +233,11 @@ The action opens an explicit read-only transaction, requires revision
 `0005_mobile_auth_api_foundation`, and reads only Person `-112001` access level,
 status and version plus aggregate active-session ownership counts. Output states
 are `no_active_sessions`, `expected_only`, `mixed_principals`, `other_only`, or
-`binding_drift`; `expected_person_match` is true only for active Officer version
-2. Expected tuple, expected-Person binding mismatch and other-principal counts
-are mutually exclusive and must sum to total or the diagnostic fails closed.
-Revoked sessions are excluded.
+`binding_drift`; `expected_person_match` is true only for an active Officer at
+the terminal version of a complete valid lifecycle generation, including
+legacy version 2. Expected tuple, expected-Person binding mismatch and
+other-principal counts are mutually exclusive and must sum to total or the
+diagnostic fails closed. Revoked sessions are excluded.
 
 The query and output never include session IDs, installation identifiers,
 tokens, refresh attempts, assertions, idempotency values, hashes, encrypted
@@ -242,6 +246,41 @@ payloads, provider subjects, or another Person's identity or role. Aggregate
 Correlating a client requires its existing redacted `/me` response containing
 only `id`, `access_level`, and `capabilities`; do not provide the token to the
 operator or copy it into a transcript.
+
+### Repeatable relational fixture lifecycle
+
+TASK-126 adds a reset/reconciliation boundary for future fictional acceptance
+runs. Inspect is explicitly read-only and returns only `ready_basic`,
+`ready_officer`, or `reset_required`:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --inspect-fixture-lifecycle
+```
+
+Attendance ownership is derived from reserved fixture Person/Game relations.
+Row ID, timestamp and total count are never ownership evidence. Canonical IDs
+may be absent or have reconstructible reply values, but an ID collision, a row
+with only one reserved side, legacy owner columns, or a relation outside the
+reserved fixture graph is unknown drift and stops. Existing TASK-118/TASK-120
+commands remain available only for their historical exact repair contracts;
+new run cleanup uses the relational lifecycle action.
+
+With candidate approval, reset reclassifies under a serializable transaction,
+locks all reserved Person, identity and Game roots, restores a valid Officer by
+appending one audit, removes only relationally-owned noncanonical attendance,
+and reconstructs canonical values without a timestamp precondition:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --reset-fixture-lifecycle
+```
+
+Postcheck uses relational absence and canonical-value assertions, not an
+affected-row count. `ready_basic` is a zero-change success. Every `mobile_*`
+row and all prior audits remain untouched; mobile ownership is validated only
+through the session/identity/Person foreign-key graph and aggregate metadata,
+never token, assertion, attempt, installation, encrypted payload or hash
+material. Serialization failure or an unknown result requires a new read-only
+inspect and must not be blindly retried.
 
 ## Build, candidate, promotion and recovery
 
@@ -468,7 +507,8 @@ TASK-123 deliberately defers these four follow-ups:
 
 - A: named resumable Staging Acceptance Harness.
 - B: no-disclosure credential launcher/broker.
-- C: relational fictional fixture lifecycle/reset/reconcile preserving audits.
+- C: relational fictional fixture lifecycle/reset/reconcile preserving audits
+  (implemented by TASK-126; runtime execution remains separately gated).
 - D: acceptance observability contracts defined before runtime claims.
 
 Cloud Run semantics checked against the official
