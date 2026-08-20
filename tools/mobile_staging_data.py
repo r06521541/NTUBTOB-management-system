@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
 
@@ -22,6 +23,7 @@ try:
         validate_database_identity,
     )
     from .mobile_staging_seed import (
+        FIXTURE_REPLY_AT,
         StagingSeedError,
         _validate_subject,
         inspect_attendance_repair,
@@ -37,6 +39,7 @@ except ImportError:  # pragma: no cover
         validate_database_identity,
     )
     from mobile_staging_seed import (
+        FIXTURE_REPLY_AT,
         StagingSeedError,
         _validate_subject,
         inspect_attendance_repair,
@@ -82,9 +85,7 @@ MOBILE_TABLES = {
     "mobile_refresh_tokens",
     "mobile_sessions",
 }
-EXPECTED_TABLES = LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES | {
-    "alembic_version"
-}
+EXPECTED_TABLES = LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES | {"alembic_version"}
 LEGACY_IDS = {
     "attendance_reply_types": (9101, 9102, 9103),
     "ballparks": (9301,),
@@ -116,18 +117,47 @@ OFFICER_AUDITS = {
         "reason": "TASK-119 fictional Officer restore",
     },
 }
+RUNTIME_RESIDUE_ROWS = (
+    (
+        3,
+        -112001,
+        None,
+        None,
+        -112001,
+        5,
+        datetime(2026, 8, 19, 16, 33, 2, 723958, tzinfo=timezone.utc),
+    ),
+    (
+        4,
+        -112001,
+        None,
+        None,
+        -112001,
+        1,
+        datetime(2026, 8, 19, 16, 36, 23, 695486, tzinfo=timezone.utc),
+    ),
+)
+CANONICAL_FIXTURE_REPLY_ROWS = (
+    (-112003, -112002, None, None, -112003, 5, FIXTURE_REPLY_AT),
+    (-112002, -112001, None, None, -112002, 2, FIXTURE_REPLY_AT),
+    (-112001, -112001, None, None, -112001, 1, FIXTURE_REPLY_AT),
+)
 
 
 def _officer_audit(connection, transition: str) -> bool:
     expected = OFFICER_AUDITS[transition]
-    row = connection.execute(
-        text(
-            "SELECT id, action, actor_person_id, target_person_id, "
-            "auth_identity_id, before_state, after_state, reason, request_id "
-            "FROM ntubtob.access_audit WHERE id=:id"
-        ),
-        {"id": OFFICER_AUDIT_IDS[transition]},
-    ).mappings().one_or_none()
+    row = (
+        connection.execute(
+            text(
+                "SELECT id, action, actor_person_id, target_person_id, "
+                "auth_identity_id, before_state, after_state, reason, request_id "
+                "FROM ntubtob.access_audit WHERE id=:id"
+            ),
+            {"id": OFFICER_AUDIT_IDS[transition]},
+        )
+        .mappings()
+        .one_or_none()
+    )
     return row == {
         "id": OFFICER_AUDIT_IDS[transition],
         "action": "access_changed",
@@ -142,13 +172,17 @@ def _officer_audit(connection, transition: str) -> bool:
 
 
 def _legacy_fixture_audit(connection) -> bool:
-    row = connection.execute(
-        text(
-            "SELECT id, action, actor_person_id, target_person_id, "
-            "auth_identity_id, before_state, after_state, reason, request_id "
-            "FROM ntubtob.access_audit WHERE id=1"
+    row = (
+        connection.execute(
+            text(
+                "SELECT id, action, actor_person_id, target_person_id, "
+                "auth_identity_id, before_state, after_state, reason, request_id "
+                "FROM ntubtob.access_audit WHERE id=1"
+            )
         )
-    ).mappings().one_or_none()
+        .mappings()
+        .one_or_none()
+    )
     return row == {
         "id": 1,
         "action": "member_backfilled",
@@ -169,7 +203,68 @@ def _officer_subject(value: str) -> str:
         raise StagingContractError("Private tester input is invalid") from None
 
 
-def _officer_fixture_state(connection, private_subject: str) -> str:
+def _mobile_history_is_exact(connection) -> bool:
+    if all(
+        connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}")) == 0
+        for table in MOBILE_TABLES
+    ):
+        return True
+    checks = (
+        (
+            "mobile_sessions",
+            "SELECT count(*) FROM ntubtob.mobile_sessions "
+            "WHERE auth_identity_id=-112001 AND person_id=-112001",
+        ),
+        (
+            "mobile_refresh_tokens",
+            "SELECT count(*) FROM ntubtob.mobile_refresh_tokens t "
+            "JOIN ntubtob.mobile_sessions s ON s.id=t.session_id "
+            "WHERE s.auth_identity_id=-112001 AND s.person_id=-112001",
+        ),
+        (
+            "mobile_refresh_attempts",
+            "SELECT count(*) FROM ntubtob.mobile_refresh_attempts a "
+            "JOIN ntubtob.mobile_sessions s ON s.id=a.session_id "
+            "WHERE s.auth_identity_id=-112001 AND s.person_id=-112001",
+        ),
+        (
+            "mobile_auth_exchanges",
+            "SELECT count(*) FROM ntubtob.mobile_auth_exchanges e "
+            "JOIN ntubtob.mobile_sessions s ON s.id=e.session_id "
+            "WHERE e.provider='line' AND s.auth_identity_id=-112001 "
+            "AND s.person_id=-112001",
+        ),
+        (
+            "mobile_idempotency_records",
+            "SELECT count(*) FROM ntubtob.mobile_idempotency_records i "
+            "JOIN ntubtob.mobile_sessions s ON s.id=i.session_id "
+            "WHERE i.person_id=-112001 AND s.auth_identity_id=-112001 "
+            "AND s.person_id=-112001",
+        ),
+    )
+    for table, owned_query in checks:
+        total = connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}"))
+        if connection.scalar(text(owned_query)) != total:
+            return False
+    return True
+
+
+def _runtime_residue_is_exact(connection) -> bool:
+    rows = connection.execute(
+        text(
+            "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
+            "FROM ntubtob.game_attendance_replies "
+            "WHERE id IN (-112003, -112002, -112001, 3, 4) ORDER BY id"
+        )
+    ).all()
+    return [tuple(row) for row in rows] == list(
+        CANONICAL_FIXTURE_REPLY_ROWS + RUNTIME_RESIDUE_ROWS
+    )
+
+
+def _officer_fixture_state(
+    connection, private_subject: str, allow_runtime_residue: bool = False
+) -> str:
     """Classify only the exact append-only TASK-119 fixture states."""
     schema_exists = connection.scalar(
         text("SELECT to_regnamespace('ntubtob') IS NOT NULL")
@@ -204,22 +299,41 @@ def _officer_fixture_state(connection, private_subject: str) -> str:
     # access_audit is deliberately classified below: its task-owned records are
     # append-only and are the only legitimate difference from the seed fixture.
     expected.pop("access_audit")
+    residue_present = False
+    residue_ids = MOBILE_FIXTURE_IDS + (3, 4) + LEGACY_IDS["game_attendance_replies"]
     for table, ids in expected.items():
+        if (
+            table == "game_attendance_replies"
+            and _ids(connection, table) == residue_ids
+        ):
+            if not allow_runtime_residue or not _runtime_residue_is_exact(connection):
+                raise StagingContractError("Officer fixture attendance is drifted")
+            residue_present = True
+            continue
         if _ids(connection, table) != ids:
             raise StagingContractError("Officer fixture is partial or drifted")
     empty_tables = (
-        LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES
-    ) - set(expected) - {"people", "access_audit"}
+        (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES)
+        - set(expected)
+        - {"people", "access_audit"}
+        - MOBILE_TABLES
+    )
     if any(_ids(connection, table) for table in empty_tables):
         raise StagingContractError("Officer fixture contains unknown rows")
+    if not _mobile_history_is_exact(connection):
+        raise StagingContractError("Officer fixture mobile history is drifted")
 
-    people = connection.execute(
-        text(
-            "SELECT id, formal_name, display_name, admin_note, portal_access_level, "
-            "portal_status, version FROM ntubtob.people "
-            "WHERE id BETWEEN -112003 AND -112001 ORDER BY id"
+    people = (
+        connection.execute(
+            text(
+                "SELECT id, formal_name, display_name, admin_note, portal_access_level, "
+                "portal_status, version FROM ntubtob.people "
+                "WHERE id BETWEEN -112003 AND -112001 ORDER BY id"
+            )
         )
-    ).mappings().all()
+        .mappings()
+        .all()
+    )
     static_people = {-112003: "虛構 Staging 隊友乙", -112002: "虛構 Staging 隊友甲"}
     if len(people) != 3:
         raise StagingContractError("Officer fixture people are drifted")
@@ -235,7 +349,9 @@ def _officer_fixture_state(connection, private_subject: str) -> str:
                 person["version"],
             ) != (None, display_name, None, "basic", "active", 1):
                 raise StagingContractError("Officer fixture people are drifted")
-    tester = next((person for person in people if person["id"] == OFFICER_PERSON_ID), None)
+    tester = next(
+        (person for person in people if person["id"] == OFFICER_PERSON_ID), None
+    )
     if tester is None or (
         tester["formal_name"],
         tester["display_name"],
@@ -243,14 +359,18 @@ def _officer_fixture_state(connection, private_subject: str) -> str:
         tester["portal_status"],
     ) != (None, "虛構 Staging 測試員", None, "active"):
         raise StagingContractError("Officer fixture tester is drifted")
-    identity = connection.execute(
-        text(
-            "SELECT id, provider, provider_subject, person_id, status "
-            "FROM ntubtob.auth_identities "
-            "WHERE id=:id"
-        ),
-        {"id": OFFICER_IDENTITY_ID},
-    ).mappings().one_or_none()
+    identity = (
+        connection.execute(
+            text(
+                "SELECT id, provider, provider_subject, person_id, status "
+                "FROM ntubtob.auth_identities "
+                "WHERE id=:id"
+            ),
+            {"id": OFFICER_IDENTITY_ID},
+        )
+        .mappings()
+        .one_or_none()
+    )
     if identity != {
         "id": OFFICER_IDENTITY_ID,
         "provider": "line",
@@ -264,17 +384,29 @@ def _officer_fixture_state(connection, private_subject: str) -> str:
     level_version = (tester["portal_access_level"], tester["version"])
     if not _legacy_fixture_audit(connection):
         raise StagingContractError("Officer fixture audit or version is drifted")
+    if (
+        residue_present
+        and level_version == ("basic", 1)
+        and audit_ids == LEGACY_IDS["access_audit"]
+    ):
+        return "runtime_residue"
     if level_version == ("basic", 1) and audit_ids == LEGACY_IDS["access_audit"]:
         return "baseline"
-    if level_version == ("officer", 2) and audit_ids == (
-        OFFICER_AUDIT_IDS["grant"],
-    ) + LEGACY_IDS["access_audit"]:
+    if (
+        level_version == ("officer", 2)
+        and audit_ids == (OFFICER_AUDIT_IDS["grant"],) + LEGACY_IDS["access_audit"]
+    ):
         if _officer_audit(connection, "grant"):
             return "granted"
-    if level_version == ("basic", 3) and audit_ids == (
-        OFFICER_AUDIT_IDS["restore"],
-        OFFICER_AUDIT_IDS["grant"],
-    ) + LEGACY_IDS["access_audit"]:
+    if (
+        level_version == ("basic", 3)
+        and audit_ids
+        == (
+            OFFICER_AUDIT_IDS["restore"],
+            OFFICER_AUDIT_IDS["grant"],
+        )
+        + LEGACY_IDS["access_audit"]
+    ):
         if _officer_audit(connection, "grant") and _officer_audit(
             connection, "restore"
         ):
@@ -282,9 +414,7 @@ def _officer_fixture_state(connection, private_subject: str) -> str:
     raise StagingContractError("Officer fixture audit or version is drifted")
 
 
-def officer_inventory(
-    approval: dict, database_url: str, private_subject: str
-) -> dict:
+def officer_inventory(approval: dict, database_url: str, private_subject: str) -> dict:
     private_subject = _officer_subject(private_subject)
     identity = validate_database_identity(
         database_url,
@@ -310,6 +440,105 @@ def officer_inventory(
     finally:
         engine.dispose()
     return {"database_identity_sha256": identity.fingerprint, "state": state}
+
+
+def runtime_residue_inventory(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    private_subject = _officer_subject(private_subject)
+    identity = validate_database_identity(
+        database_url,
+        approval["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            try:
+                connection.execute(text("SET TRANSACTION READ ONLY"))
+                state = _officer_fixture_state(connection, private_subject, True)
+            finally:
+                transaction.rollback()
+    except (SQLAlchemyError, StagingContractError):
+        raise StagingContractError(
+            "Remote staging runtime residue inventory failed safely"
+        ) from None
+    finally:
+        engine.dispose()
+    if state == "runtime_residue":
+        state = "required"
+    elif state == "baseline":
+        state = "repaired"
+    else:
+        raise StagingContractError("Remote staging runtime residue state is not exact")
+    return {
+        "database_identity_sha256": identity.fingerprint,
+        "state": state,
+        "residue_rows": 2 if state == "required" else 0,
+    }
+
+
+def execute_runtime_residue_repair(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    if approval["approval_phase"] != "candidate":
+        raise StagingContractError(
+            "Remote runtime residue repair requires candidate approval"
+        )
+    private_subject = _officer_subject(private_subject)
+    before = runtime_residue_inventory(approval, database_url, private_subject)
+    if before["state"] == "repaired":
+        return {**before, "removed_residue_rows": 0}
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            if (
+                _officer_fixture_state(connection, private_subject, True)
+                != "runtime_residue"
+            ):
+                raise StagingContractError(
+                    "Remote runtime residue changed before mutation"
+                )
+            deleted = connection.execute(
+                text(
+                    "DELETE FROM ntubtob.game_attendance_replies WHERE "
+                    "(id=:id3 AND game_id=:game AND user_id IS NULL AND "
+                    "member_id IS NULL AND person_id=:person AND reply=:reply3 "
+                    "AND updated_at=:at3) OR (id=:id4 AND game_id=:game AND "
+                    "user_id IS NULL AND member_id IS NULL AND person_id=:person "
+                    "AND reply=:reply4 AND updated_at=:at4)"
+                ),
+                {
+                    "id3": 3,
+                    "id4": 4,
+                    "game": -112001,
+                    "person": -112001,
+                    "reply3": 5,
+                    "reply4": 1,
+                    "at3": RUNTIME_RESIDUE_ROWS[0][6],
+                    "at4": RUNTIME_RESIDUE_ROWS[1][6],
+                },
+            ).rowcount
+            if (
+                deleted != 2
+                or _officer_fixture_state(connection, private_subject) != "baseline"
+            ):
+                raise StagingContractError(
+                    "Remote runtime residue repair postcheck failed"
+                )
+    except (SQLAlchemyError, StagingContractError):
+        raise StagingContractError(
+            "Remote staging runtime residue repair failed safely"
+        ) from None
+    finally:
+        engine.dispose()
+    return {
+        **runtime_residue_inventory(approval, database_url, private_subject),
+        "removed_residue_rows": 2,
+    }
 
 
 def _write_officer_transition(connection, transition: str) -> None:
@@ -358,7 +587,9 @@ def _execute_officer_transition(
     approval: dict, database_url: str, private_subject: str, transition: str
 ) -> dict:
     if approval["approval_phase"] != "candidate":
-        raise StagingContractError("Remote Officer transition requires candidate approval")
+        raise StagingContractError(
+            "Remote Officer transition requires candidate approval"
+        )
     private_subject = _officer_subject(private_subject)
     before = officer_inventory(approval, database_url, private_subject)
     terminal_state = "granted" if transition == "grant" else "restored"
@@ -371,10 +602,7 @@ def _execute_officer_transition(
     try:
         try:
             with engine.begin() as connection:
-                if (
-                    _officer_fixture_state(connection, private_subject)
-                    != allowed_state
-                ):
+                if _officer_fixture_state(connection, private_subject) != allowed_state:
                     raise StagingContractError(
                         "Remote Officer transition changed before mutation"
                     )
@@ -383,7 +611,9 @@ def _execute_officer_transition(
                     _officer_fixture_state(connection, private_subject)
                     != terminal_state
                 ):
-                    raise StagingContractError("Remote Officer transition postcheck failed")
+                    raise StagingContractError(
+                        "Remote Officer transition postcheck failed"
+                    )
         except StagingContractError:
             raise
         except (SQLAlchemyError, UnicodeError):
@@ -527,8 +757,8 @@ def _fixture_state(connection) -> str:
                 f"Remote staging fixture table is drifted: {table}; do not retry"
             )
     empty_tables = (
-        LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES
-    ) - set(expected) - {"people"}
+        (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES) - set(expected) - {"people"}
+    )
     if any(_ids(connection, table) for table in empty_tables):
         raise StagingContractError(
             "Remote staging fixture contains unknown rows; do not retry"
@@ -601,13 +831,8 @@ def execute(
         if before["outcome"] == "not_started":
             _bootstrap_empty_database(engine, root)
             migrated = inventory(approval, database_url)
-            if (
-                migrated["revision"] != REVISION
-                or migrated["fixture_state"] != "clean"
-            ):
-                raise StagingContractError(
-                    "Remote staging migration postcheck failed"
-                )
+            if migrated["revision"] != REVISION or migrated["fixture_state"] != "clean":
+                raise StagingContractError("Remote staging migration postcheck failed")
         seed(engine, private_subject)
     except StagingContractError:
         raise
@@ -681,6 +906,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--recover", action="store_true")
     parser.add_argument("--inspect-attendance-repair", action="store_true")
     parser.add_argument("--execute-attendance-repair", action="store_true")
+    parser.add_argument("--inspect-runtime-residue", action="store_true")
+    parser.add_argument("--execute-runtime-residue-repair", action="store_true")
     parser.add_argument("--inspect-officer", action="store_true")
     parser.add_argument("--grant-officer", action="store_true")
     parser.add_argument("--restore-basic", action="store_true")
@@ -695,6 +922,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.recover,
                 args.inspect_attendance_repair,
                 args.execute_attendance_repair,
+                args.inspect_runtime_residue,
+                args.execute_runtime_residue_repair,
                 args.inspect_officer,
                 args.grant_officer,
                 args.restore_basic,
@@ -706,6 +935,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = execute_attendance_repair(approval, database_url)
         elif args.inspect_attendance_repair:
             result = attendance_repair_inventory(approval, database_url)
+        elif args.execute_runtime_residue_repair:
+            result = execute_runtime_residue_repair(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
+        elif args.inspect_runtime_residue:
+            result = runtime_residue_inventory(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
         elif args.inspect_officer:
             result = officer_inventory(
                 approval,
