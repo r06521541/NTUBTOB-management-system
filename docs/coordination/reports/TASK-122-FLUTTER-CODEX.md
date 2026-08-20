@@ -26,11 +26,10 @@
   test proving an injected enable flag cannot override `debugBuild: false`.
 - `flutter analyze`: passed with no issues.
 - Full `flutter test`: passed (108 tests).
-- `dart format --output=none --set-exit-if-changed` was run for the two scoped
-  Dart files. Dart 3.13 proposes broad existing-style reflow (source 208 added/
-  157 removed lines; test 293 added/183 removed lines in a temporary preview),
-  so that mechanical output was not applied and this is not claimed as a clean
-  formatter gate.
+- Hosted CI for PR #133 (run `32335100597`) reported only the two scoped Dart
+  files as unformatted. Dart 3.13 / Flutter 3.47 formatting was then applied
+  only to those files; the resulting diff is whitespace/line-wrap style only.
+  The exact formatter check now passes.
 - A development fake Android debug build was attempted without install or
   launch. Its TASK-122 Gradle wrapper made no bounded-window progress and
   produced no APK, so only that wrapper process was terminated. The build is

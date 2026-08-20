@@ -177,8 +177,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(
           home: BasicGamesView(
               api: api,
-              person: Person(
-                  'p', 'Visible elsewhere',
+              person: Person('p', 'Visible elsewhere',
                   enabled ? const ['attendance:report:read'] : const [],
                   accessLevel: accessLevel),
               games: const [],
@@ -200,8 +199,7 @@ void main() {
   testWidgets('release-mode hard gate hides projection without changing guard',
       (tester) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
-    const person = Person(
-        'p', 'Officer', ['attendance:report:read'],
+    const person = Person('p', 'Officer', ['attendance:report:read'],
         accessLevel: AccessLevel.officer);
     await tester.pumpWidget(MaterialApp(
         home: BasicGamesView(
@@ -211,7 +209,8 @@ void main() {
             online: true,
             lastSyncedAt: DateTime.utc(2026),
             diagnosticEnabled: false)));
-    expect(find.byKey(const ValueKey('debug-principal-projection')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('debug-principal-projection')), findsNothing);
     expect(
         find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
   });
