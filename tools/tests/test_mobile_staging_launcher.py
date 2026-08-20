@@ -100,6 +100,7 @@ class PowerShellContractTest(unittest.TestCase):
             "preflight",
             "avd-start",
             "status",
+            "cleanup-artifact",
             "build",
             "signer-check",
             "install",
@@ -120,6 +121,29 @@ class PowerShellContractTest(unittest.TestCase):
         )
         for action in expected:
             self.assertIn(f"'{action}'", source)
+
+    def test_artifact_cleanup_preserves_harness_checkpoint_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            evidence = root / "evidence"
+            harness = evidence / "task-129"
+            harness.mkdir(parents=True)
+            artifact = evidence / "app-debug.apk"
+            manifest = evidence / "artifact-manifest.json"
+            checkpoint = harness / "basic.json"
+            artifact.write_bytes(b"artifact")
+            manifest.write_text("{}", encoding="utf-8")
+            checkpoint.write_text("{}", encoding="utf-8")
+            result = self.run_harness(
+                f"""
+                $script:TaskEvidenceRoot='{evidence.as_posix()}'
+                $config=[pscustomobject]@{{evidence_root='{evidence.as_posix()}';artifact_relative_path='app-debug.apk'}}
+                $value=Invoke-ArtifactCleanup $config
+                Write-Output ($value.result+','+(Test-Path -LiteralPath '{artifact.as_posix()}')+','+(Test-Path -LiteralPath '{manifest.as_posix()}')+','+(Test-Path -LiteralPath '{checkpoint.as_posix()}'))
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("removed_artifact,False,False,True", result.stdout)
 
     def test_missing_action_mode_commit_and_config_fail_before_any_command(self):
         result = subprocess.run(
