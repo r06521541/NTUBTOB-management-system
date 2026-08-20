@@ -584,6 +584,10 @@ Preparation consumes only accepted TASK-123 actions. A matching artifact
 manifest/fingerprint proves the build artifact, not the installed APK, so a
 fresh scenario still runs `signer-check`, session-preserving `install -r`, and
 one cold launch. A bound resume checkpoint revalidates instead of reinstalling.
+The AVD preparation step accepts only the launcher's two successful outcomes:
+`started` for a newly started approved AVD or `reused` for the already-running
+exact approved serial. Any other action result stops with the bounded
+`ACTION_RESULT_INVALID` reason and does not expose the raw value.
 Missing or drifted provenance performs the bounded sequence `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact is first removed only through the accepted

@@ -58,3 +58,17 @@ parser, and JSON-redaction fallback exit code.
   login/consent action ran.
 
 Next actor: Main Work review.
+
+## Controlled dogfood correction
+
+- Accepted-main dogfood reached a normal TASK-123 `avd-start=reused` result
+  because the exact approved emulator was already running. The harness had
+  allowed only `started`, stopped before build/install, and returned a generic
+  failure.
+- The correction accepts exactly `started|reused`; no other launcher action
+  vocabulary was widened. Action-result mismatches now return the bounded
+  `ACTION_RESULT_INVALID` reason without the raw result.
+- The complete mocked harness suite now passes 10 tests, including an
+  already-running AVD and a sentinel invalid-result no-disclosure regression.
+  `git diff --check` also passes. No second runtime attempt, build, install,
+  login, staging, Secret, database, or cloud action ran during this correction.

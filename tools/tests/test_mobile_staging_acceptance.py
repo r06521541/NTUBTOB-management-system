@@ -118,7 +118,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 $script:actions = @(); $script:artifactState = 'matched'; $script:loggedOut = $true
                 $deps = New-MobileAcceptanceTestDependencies -Action {{ param($name)
                     $script:actions += $name
-                    $result = @{{ preflight='ready'; 'avd-start'='started'; 'cleanup-evidence'='removed_task_owned'; build='built'; 'signer-check'='signer_matched'; install='replaced'; 'cold-launch'='running' }}[$name]
+                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-evidence'='removed_task_owned'; build='built'; 'signer-check'='signer_matched'; install='replaced'; 'cold-launch'='running' }}[$name]
                     @{{ classification='PASS'; result=$result }}
                 }} -Artifact {{
                     if ($script:artifactState -eq 'missing') {{ $script:artifactState='matched'; return @{{ state='missing' }} }}
@@ -159,6 +159,28 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                     "cold-launch",
                 ],
             )
+
+    def test_invalid_launcher_action_result_is_bounded_and_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            result = self.run_harness(
+                f"""
+                $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)
+                    $value=if($name -eq 'avd-start'){{'unexpected-sentinel-result'}}else{{'ready'}}
+                    @{{classification='PASS';result=$value}}
+                }} -Artifact {{@{{state='matched';binding={self.binding_ps()}}}}} -Observation {{throw 'must not run'}} -CheckpointPolicy {{param($path)$true}}
+                $value=Invoke-MobileStagingAcceptanceMain 'basic-authorization' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $false $deps
+                Write-HarnessJson $value
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 1)
+            envelope = json.loads(result.stdout)
+            self.assertEqual(envelope["classification"], "DRIFT")
+            self.assertEqual(
+                envelope["details"]["reason_code"], "ACTION_RESULT_INVALID"
+            )
+            self.assertNotIn("unexpected-sentinel-result", result.stdout + result.stderr)
 
     def test_officer_crash_unknown_resume_never_replays_each_mutation(self):
         with tempfile.TemporaryDirectory() as directory:

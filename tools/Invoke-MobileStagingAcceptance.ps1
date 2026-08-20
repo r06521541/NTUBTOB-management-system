@@ -67,6 +67,7 @@ function Get-HarnessFailureClassification {
 
 function Get-HarnessFailureReasonCode {
     param([string]$Message)
+    if ($Message -match 'Harness action result is invalid') { return 'ACTION_RESULT_INVALID' }
     if ($Message -match 'checkpoint binding') { return 'CHECKPOINT_BINDING_DRIFT' }
     if ($Message -match 'checkpoint lock') { return 'LOCK_UNAVAILABLE' }
     if ($Message -match 'checkpoint') { return 'CHECKPOINT_INVALID' }
@@ -312,7 +313,7 @@ function New-MobileAcceptanceDependencies {
 function Invoke-HarnessPreparation {
     param([hashtable]$Dependencies, [object]$Checkpoint)
     Invoke-HarnessAction $Dependencies 'preflight' @('ready') | Out-Null
-    Invoke-HarnessAction $Dependencies 'avd-start' @('started') | Out-Null
+    Invoke-HarnessAction $Dependencies 'avd-start' @('started', 'reused') | Out-Null
     $artifact = & $Dependencies.Artifact
     if ($artifact.state -eq 'matched') {
         if ($null -eq $Checkpoint) {
