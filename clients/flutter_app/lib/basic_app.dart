@@ -91,9 +91,99 @@ class AuthStatePanel extends StatelessWidget {
   }
 }
 
+class CacheSessionAggregateProducer {
+  const CacheSessionAggregateProducer._();
+
+  static bool matches({
+    required SessionController session,
+    required BasicCache basicCache,
+    required DurablePrincipalOfficerReportCache reportCache,
+    required BasicApi api,
+  }) =>
+      identical(session.store, basicCache.store) &&
+      identical(session.store, reportCache.store) &&
+      identical(session.store, api.store) &&
+      identical(session, api.session) &&
+      session.installationId == basicCache.installationId &&
+      session.installationId == reportCache.installationId &&
+      session.installationId == api.installationId;
+
+  static Future<CacheSessionAggregate?> observe({
+    required SessionController session,
+    required BasicCache basicCache,
+    required DurablePrincipalOfficerReportCache reportCache,
+    required BasicApi api,
+  }) async {
+    if (!matches(
+      session: session,
+      basicCache: basicCache,
+      reportCache: reportCache,
+      api: api,
+    )) {
+      return null;
+    }
+    try {
+      return CacheSessionAggregate.resolve(
+        sessionPresent: await session.observePresence(),
+        basicCachePresent: await basicCache.observePresence(),
+        officerReportCachePresent: await reportCache.observeAnyPresence(),
+        pendingAttendanceIntentCount:
+            await api.observePendingAttendanceIntentCount(),
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
+Future<CacheSessionAggregate?> completeTerminalLogout({
+  required SessionController session,
+  required BasicCache basicCache,
+  required DurablePrincipalOfficerReportCache reportCache,
+  required BasicApi api,
+  required LineLoginPort line,
+}) async {
+  if (!CacheSessionAggregateProducer.matches(
+    session: session,
+    basicCache: basicCache,
+    reportCache: reportCache,
+    api: api,
+  )) {
+    return null;
+  }
+  CacheSessionAggregate? aggregate;
+  try {
+    await session.logout(
+      line,
+      purgeLocal: () async {
+        await basicCache.clear();
+        await reportCache.clearInstallation();
+        await api.clearPendingAttendanceIntents();
+        aggregate = await CacheSessionAggregateProducer.observe(
+          session: session,
+          basicCache: basicCache,
+          reportCache: reportCache,
+          api: api,
+        );
+        if (aggregate == null) {
+          throw StateError('local purge observation unavailable');
+        }
+      },
+    );
+  } on Object {
+    return null;
+  }
+  return aggregate;
+}
+
 class BasicBootstrapApp extends StatefulWidget {
-  const BasicBootstrapApp({super.key, required this.config});
+  const BasicBootstrapApp({
+    super.key,
+    required this.config,
+    this.diagnosticEnabled = true,
+  });
   final AppConfig config;
+  final bool diagnosticEnabled;
   @override
   State<BasicBootstrapApp> createState() => _BasicBootstrapAppState();
 }
@@ -108,11 +198,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   BasicCache? _cache;
-  PrincipalOfficerReportCache? _reportCache;
+  DurablePrincipalOfficerReportCache? _reportCache;
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
   PrincipalProvenance? principalProvenance;
+  CacheSessionAggregate? cacheSessionAggregate;
 
   @override
   void initState() {
@@ -135,9 +226,24 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       _login!.addListener(_onLoginStateChanged);
-      if (await _store.read('logout-pending:$installationId') == 'true') {
-        setState(() => state = AuthViewState.logoutPending);
-        await session.logout(line);
+      if (await _store.containsKey('logout-pending:$installationId')) {
+        setState(() {
+          state = AuthViewState.logoutPending;
+          cacheSessionAggregate = null;
+        });
+        final aggregate = await completeTerminalLogout(
+          session: session,
+          basicCache: _cache!,
+          reportCache: _reportCache!,
+          api: _api!,
+          line: line,
+        );
+        if (aggregate == null || !mounted) return;
+        setState(() {
+          state = AuthViewState.loggedOut;
+          cacheSessionAggregate = aggregate;
+        });
+        return;
       }
       await session.refresh();
       await _loadBasic();
@@ -203,12 +309,14 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         current: loadedPerson,
       );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
+      final aggregate = await _observeCacheSessionAggregate();
       if (!mounted) return;
       setState(() {
         person = loadedPerson;
         games = loadedGames;
         lastSyncedAt = syncedAt;
         principalProvenance = PrincipalProvenance.freshServer;
+        cacheSessionAggregate = aggregate;
         state = AuthViewState.authenticated;
       });
     } on Object catch (error) {
@@ -222,6 +330,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (classified == AuthViewState.sessionExpired && cached != null) {
       await _reportCache?.clearPrincipal(cached.person.id);
     }
+    final aggregate = await _observeCacheSessionAggregate();
     if (!mounted) return;
     setState(() {
       if (classified == AuthViewState.offline) {
@@ -234,27 +343,56 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         principalProvenance = null;
         state = classified;
       }
+      cacheSessionAggregate = aggregate;
     });
   }
 
   Future<void> _logout() async {
-    setState(() => state = AuthViewState.logoutPending);
-    if (person case final current?) {
-      await _reportCache?.clearPrincipal(current.id);
+    setState(() {
+      state = AuthViewState.logoutPending;
+      cacheSessionAggregate = null;
+    });
+    final aggregate = await completeTerminalLogout(
+      session: _session!,
+      basicCache: _cache!,
+      reportCache: _reportCache!,
+      api: _api!,
+      line: _line!,
+    );
+    if (aggregate == null || !mounted) return;
+    setState(() {
+      person = null;
+      games = const [];
+      principalProvenance = null;
+      cacheSessionAggregate = aggregate;
+      state = AuthViewState.loggedOut;
+    });
+  }
+
+  Future<CacheSessionAggregate?> _observeCacheSessionAggregate() {
+    if (!DebugCacheSessionComposition.shouldRender(
+      debugBuild: kDebugMode,
+      diagnosticEnabled: widget.diagnosticEnabled,
+      aggregatePresent: true,
+    )) {
+      return Future.value();
     }
-    try {
-      await _session!.logout(_line!);
-      await _cache!.clear();
-      if (!mounted) return;
-      setState(() {
-        person = null;
-        games = const [];
-        principalProvenance = null;
-        state = AuthViewState.loggedOut;
-      });
-    } on Object {
-      // logout_pending intentionally remains visible and blocks actions.
+    final session = _session;
+    final basicCache = _cache;
+    final reportCache = _reportCache;
+    final api = _api;
+    if (session == null ||
+        basicCache == null ||
+        reportCache == null ||
+        api == null) {
+      return Future.value();
     }
+    return CacheSessionAggregateProducer.observe(
+      session: session,
+      basicCache: basicCache,
+      reportCache: reportCache,
+      api: api,
+    );
   }
 
   @override
@@ -272,17 +410,22 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         darkTheme: demoTheme(Brightness.dark),
         home: Scaffold(
           appBar: AppBar(title: const Text('隊務系統')),
-          body: state == AuthViewState.authenticated ||
-                  state == AuthViewState.offline
-              ? BasicGamesView(
-                  api: _api!,
-                  person: person!,
-                  games: games,
-                  online: state == AuthViewState.authenticated,
-                  lastSyncedAt: lastSyncedAt!,
-                  principalProvenance: principalProvenance,
-                  reportCache: _reportCache)
-              : AuthStatePanel(state: state),
+          body: DebugCacheSessionComposition(
+            aggregate: cacheSessionAggregate,
+            diagnosticEnabled: widget.diagnosticEnabled,
+            child: state == AuthViewState.authenticated ||
+                    state == AuthViewState.offline
+                ? BasicGamesView(
+                    api: _api!,
+                    person: person!,
+                    games: games,
+                    online: state == AuthViewState.authenticated,
+                    lastSyncedAt: lastSyncedAt!,
+                    principalProvenance: principalProvenance,
+                    reportCache: _reportCache,
+                  )
+                : AuthStatePanel(state: state),
+          ),
           floatingActionButton: state == AuthViewState.authenticated
               ? FloatingActionButton(
                   onPressed: _logout,
@@ -453,9 +596,14 @@ enum DetailViewState {
 }
 
 class DebugCacheSessionProjection extends StatelessWidget {
-  const DebugCacheSessionProjection({super.key, required this.aggregate});
+  const DebugCacheSessionProjection({
+    super.key,
+    required this.aggregate,
+    this.diagnosticEnabled = true,
+  });
 
   final CacheSessionAggregate aggregate;
+  final bool diagnosticEnabled;
 
   static bool shouldRender({
     required bool debugBuild,
@@ -466,26 +614,70 @@ class DebugCacheSessionProjection extends StatelessWidget {
   static String _presence(bool present) => present ? 'present' : 'absent';
 
   @override
-  Widget build(BuildContext context) => Semantics(
-        key: const ValueKey('debug-cache-session-projection'),
-        label: '偵錯本機狀態：session ${_presence(aggregate.sessionPresent)}；'
-            'basic_cache ${_presence(aggregate.basicCachePresent)}；'
-            'officer_report_cache '
-            '${_presence(aggregate.officerReportCachePresent)}；'
-            'pending_attendance_intent '
-            '${_presence(aggregate.pendingAttendanceIntentPresent)}',
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Text(
-            'session ${_presence(aggregate.sessionPresent)}；'
-            'basic_cache ${_presence(aggregate.basicCachePresent)}；'
-            'officer_report_cache '
-            '${_presence(aggregate.officerReportCachePresent)}；'
-            'pending_attendance_intent '
-            '${_presence(aggregate.pendingAttendanceIntentPresent)}',
-          ),
+  Widget build(BuildContext context) {
+    if (!shouldRender(
+      debugBuild: kDebugMode,
+      diagnosticEnabled: diagnosticEnabled,
+    )) {
+      return const SizedBox.shrink();
+    }
+    return Semantics(
+      key: const ValueKey('debug-cache-session-projection'),
+      label: '偵錯本機狀態：session ${_presence(aggregate.sessionPresent)}；'
+          'basic_cache ${_presence(aggregate.basicCachePresent)}；'
+          'officer_report_cache '
+          '${_presence(aggregate.officerReportCachePresent)}；'
+          'pending_attendance_intent '
+          '${_presence(aggregate.pendingAttendanceIntentPresent)}',
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(
+          'session ${_presence(aggregate.sessionPresent)}；'
+          'basic_cache ${_presence(aggregate.basicCachePresent)}；'
+          'officer_report_cache '
+          '${_presence(aggregate.officerReportCachePresent)}；'
+          'pending_attendance_intent '
+          '${_presence(aggregate.pendingAttendanceIntentPresent)}',
         ),
-      );
+      ),
+    );
+  }
+}
+
+class DebugCacheSessionComposition extends StatelessWidget {
+  const DebugCacheSessionComposition({
+    super.key,
+    required this.aggregate,
+    required this.child,
+    this.diagnosticEnabled = true,
+  });
+
+  final CacheSessionAggregate? aggregate;
+  final Widget child;
+  final bool diagnosticEnabled;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+    required bool aggregatePresent,
+  }) =>
+      debugBuild && diagnosticEnabled && aggregatePresent;
+
+  @override
+  Widget build(BuildContext context) {
+    final showDiagnostic = shouldRender(
+      debugBuild: kDebugMode,
+      diagnosticEnabled: diagnosticEnabled,
+      aggregatePresent: aggregate != null,
+    );
+    if (!showDiagnostic) return child;
+    return Column(
+      children: [
+        DebugCacheSessionProjection(aggregate: aggregate!),
+        Expanded(child: child),
+      ],
+    );
+  }
 }
 
 enum AuthoritativeOwnReplySource { freshServerGet, mutationReadback }

@@ -100,6 +100,16 @@ class FailingWriteStore extends MemoryStore {
   }
 }
 
+class FailingPrefixDeleteStore extends MemoryStore {
+  @override
+  Future<void> deleteKeysWithPrefix(String prefix) async {
+    if (prefix.startsWith('mutation:')) {
+      throw StateError('bounded purge failed');
+    }
+    await super.deleteKeysWithPrefix(prefix);
+  }
+}
+
 class Concurrent401Transport implements ApiTransport {
   final Completer<void> allInitialRequests = Completer<void>();
   int initialCount = 0;
@@ -484,6 +494,30 @@ void main() {
     await restarted.logout(FakeLine());
     expect(store.values['logout-pending:install'], isNull);
     expect(restarted.accessToken, isNull);
+  });
+
+  test('terminal logout retries only local purge after server success',
+      () async {
+    final api = ScriptedTransport()
+      ..responses.add(const ApiResponse(204, null));
+    final store = FailingPrefixDeleteStore();
+    final controller = SessionController(api, store, 'install', SecureIds());
+    await controller.accept(session('access', 'refresh'));
+
+    await expectLater(
+      controller.logout(
+        FakeLine(),
+        purgeLocal: () => store.deleteKeysWithPrefix('mutation:install:'),
+      ),
+      throwsStateError,
+    );
+    expect(store.values['logout-pending:install'], 'true');
+    expect(store.values['refresh:install'], isNull);
+    expect(api.calls.where((call) => call.$2 == '/auth/logout'), hasLength(1));
+
+    await controller.logout(FakeLine(), purgeLocal: () async {});
+    expect(store.values['logout-pending:install'], isNull);
+    expect(api.calls.where((call) => call.$2 == '/auth/logout'), hasLength(1));
   });
 
   test('native login exchange never sends a LINE access token', () async {

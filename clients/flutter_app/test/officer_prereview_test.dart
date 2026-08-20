@@ -661,6 +661,25 @@ void main() {
         isNull);
   });
 
+  test('installation aggregate presence and purge are physically scoped',
+      () async {
+    final store = MemoryStore();
+    final current = DurablePrincipalOfficerReportCache(store, 'install');
+    final other = DurablePrincipalOfficerReportCache(store, 'other');
+    await current.write(
+      'current-principal',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    await other.write(
+      'other-principal',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    expect(await current.observeAnyPresence(), isTrue);
+    await current.clearInstallation();
+    expect(await current.observeAnyPresence(), isFalse);
+    expect(await other.observeAnyPresence(), isTrue);
+  });
+
   testWidgets('granted shell navigates and renders read-only report cohorts', (
     tester,
   ) async {

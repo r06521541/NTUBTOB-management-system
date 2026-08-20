@@ -425,9 +425,19 @@ class BasicCache {
   }
 
   Future<void> clear() async {
-    final personId = await store.read(_indexKey);
-    if (personId != null) await store.delete(_key(personId));
+    await store.deleteKeysWithPrefix('cache:v1:$installationId:');
     await store.delete(_indexKey);
+  }
+
+  Future<bool?> observePresence() async {
+    final indexPresent = await store.containsKey(_indexKey);
+    final dataCount = await store.countKeysWithPrefix(
+      'cache:v1:$installationId:',
+      maximum: 1,
+    );
+    if (!indexPresent && dataCount == 0) return false;
+    if (indexPresent && dataCount == 1) return true;
+    return null;
   }
 }
 
@@ -623,6 +633,9 @@ abstract interface class DurableStore {
   Future<String?> read(String key);
   Future<void> write(String key, String value);
   Future<void> delete(String key);
+  Future<bool> containsKey(String key);
+  Future<int> countKeysWithPrefix(String prefix, {required int maximum});
+  Future<void> deleteKeysWithPrefix(String prefix);
 }
 
 class MemoryStore implements DurableStore {
@@ -637,6 +650,26 @@ class MemoryStore implements DurableStore {
   @override
   Future<void> delete(String key) async {
     values.remove(key);
+  }
+
+  @override
+  Future<bool> containsKey(String key) async => values.containsKey(key);
+
+  @override
+  Future<int> countKeysWithPrefix(String prefix, {required int maximum}) async {
+    if (maximum < 0) throw ArgumentError.value(maximum, 'maximum');
+    var count = 0;
+    for (final key in values.keys) {
+      if (!key.startsWith(prefix)) continue;
+      count++;
+      if (count > maximum) return maximum + 1;
+    }
+    return count;
+  }
+
+  @override
+  Future<void> deleteKeysWithPrefix(String prefix) async {
+    values.removeWhere((key, _) => key.startsWith(prefix));
   }
 }
 
@@ -656,6 +689,32 @@ class SecureStore implements DurableStore {
       storage.write(key: key, value: value);
   @override
   Future<void> delete(String key) => storage.delete(key: key);
+
+  @override
+  Future<bool> containsKey(String key) => storage.containsKey(key: key);
+
+  @override
+  Future<int> countKeysWithPrefix(String prefix, {required int maximum}) async {
+    if (maximum < 0) throw ArgumentError.value(maximum, 'maximum');
+    var count = 0;
+    for (final key in (await storage.readAll()).keys) {
+      if (!key.startsWith(prefix)) continue;
+      count++;
+      if (count > maximum) return maximum + 1;
+    }
+    return count;
+  }
+
+  @override
+  Future<void> deleteKeysWithPrefix(String prefix) async {
+    final keys = (await storage.readAll())
+        .keys
+        .where((key) => key.startsWith(prefix))
+        .toList(growable: false);
+    for (final key in keys) {
+      await storage.delete(key: key);
+    }
+  }
 }
 
 class SecureIds {
@@ -863,6 +922,14 @@ class SessionController {
   String? _access;
   Future<String>? _refreshing;
   String? get accessToken => _access;
+  Future<bool?> observePresence() async {
+    final refreshPresent = await store.containsKey('refresh:$installationId');
+    final attemptPresent =
+        await store.containsKey('refresh-attempt:$installationId');
+    if (!refreshPresent && attemptPresent) return null;
+    return refreshPresent;
+  }
+
   Future<void> accept(SessionEnvelope session) async {
     try {
       await store.write('refresh:$installationId', session.refreshToken);
@@ -944,25 +1011,33 @@ class SessionController {
     await store.delete('refresh-attempt:$installationId');
   }
 
-  Future<void> logout(LineLoginPort line) async {
+  Future<void> logout(
+    LineLoginPort line, {
+    Future<void> Function()? purgeLocal,
+  }) async {
     await store.write('logout-pending:$installationId', 'true');
-    ApiResponse response;
-    try {
-      response = await authorized('POST', '/auth/logout');
-    } on SessionExpiredException {
-      // A terminal refresh 401 already cleared the local session and is an
-      // idempotent logout outcome. Transient refresh failures retain state.
-      if (await store.read('refresh:$installationId') != null) rethrow;
-      response = const ApiResponse(401, null);
-    }
-    if (response.status != 204 && response.status != 401) {
-      throw StateError('logout pending');
+    final durableSessionPresent =
+        await store.containsKey('refresh:$installationId');
+    if (_access != null || durableSessionPresent) {
+      ApiResponse response;
+      try {
+        response = await authorized('POST', '/auth/logout');
+      } on SessionExpiredException {
+        // A terminal refresh 401 already cleared the local session and is an
+        // idempotent logout outcome. Transient refresh failures retain state.
+        if (await store.containsKey('refresh:$installationId')) rethrow;
+        response = const ApiResponse(401, null);
+      }
+      if (response.status != 204 && response.status != 401) {
+        throw StateError('logout pending');
+      }
     }
     await clear();
-    await store.delete('logout-pending:$installationId');
     try {
       await line.logout();
     } catch (_) {/* backend session is already closed */}
+    await purgeLocal?.call();
+    await store.delete('logout-pending:$installationId');
   }
 }
 
@@ -986,6 +1061,14 @@ class BasicApi {
   final DurableStore store;
   final String installationId;
   final SecureIds ids;
+  Future<int> observePendingAttendanceIntentCount() =>
+      store.countKeysWithPrefix(
+        'mutation:$installationId:',
+        maximum: 1,
+      );
+
+  Future<void> clearPendingAttendanceIntents() =>
+      store.deleteKeysWithPrefix('mutation:$installationId:');
   Never _failure(ApiResponse response, String operation) {
     if (response.body != null) throw ApiError.fromJson(response.body!);
     throw ContractException('missing $operation response body');
