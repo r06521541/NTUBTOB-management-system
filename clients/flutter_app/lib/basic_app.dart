@@ -454,6 +454,32 @@ enum DetailViewState {
 
 enum AuthoritativeOwnReplySource { freshServerGet, mutationReadback }
 
+enum CanonicalOwnReplyObservation {
+  none('none'),
+  undecided('undecided'),
+  attending('attending'),
+  notAttending('not_attending'),
+  arrivingLate('arriving_late'),
+  leavingEarly('leaving_early');
+
+  const CanonicalOwnReplyObservation(this.token);
+
+  final String token;
+
+  static CanonicalOwnReplyObservation fromReply(AttendanceReply? reply) =>
+      switch (reply) {
+        null => CanonicalOwnReplyObservation.none,
+        AttendanceReply.undecided => CanonicalOwnReplyObservation.undecided,
+        AttendanceReply.attending => CanonicalOwnReplyObservation.attending,
+        AttendanceReply.notAttending =>
+          CanonicalOwnReplyObservation.notAttending,
+        AttendanceReply.arrivingLate =>
+          CanonicalOwnReplyObservation.arrivingLate,
+        AttendanceReply.leavingEarly =>
+          CanonicalOwnReplyObservation.leavingEarly,
+      };
+}
+
 class GameDetailPage extends StatefulWidget {
   const GameDetailPage({
     super.key,
@@ -492,9 +518,8 @@ class _GameDetailPageState extends State<GameDetailPage> {
         attendance = loadedAttendance;
         selected = loadedAttendance.ownReply;
         authoritativeOwnReply = loadedAttendance.ownReply;
-        authoritativeOwnReplySource = loadedAttendance.ownReply == null
-            ? null
-            : AuthoritativeOwnReplySource.freshServerGet;
+        authoritativeOwnReplySource =
+            AuthoritativeOwnReplySource.freshServerGet;
         state = DetailViewState.ready;
       });
     } on Object catch (error) {
@@ -513,9 +538,8 @@ class _GameDetailPageState extends State<GameDetailPage> {
         attendance = loaded;
         selected = loaded.ownReply;
         authoritativeOwnReply = loaded.ownReply;
-        authoritativeOwnReplySource = loaded.ownReply == null
-            ? null
-            : AuthoritativeOwnReplySource.mutationReadback;
+        authoritativeOwnReplySource =
+            AuthoritativeOwnReplySource.mutationReadback;
         state = DetailViewState.ready;
       });
     } on MutationPendingException catch (error) {
@@ -598,7 +622,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
             diagnosticEnabled: widget.diagnosticEnabled,
           ))
         DebugAuthoritativeOwnReplyProjection(
-          reply: observation.$1,
+          observation: observation.$1,
           source: observation.$2,
         ),
       const Text('我的出席回覆'),
@@ -636,11 +660,11 @@ class _GameDetailPageState extends State<GameDetailPage> {
 class DebugAuthoritativeOwnReplyProjection extends StatelessWidget {
   const DebugAuthoritativeOwnReplyProjection({
     super.key,
-    required this.reply,
+    required this.observation,
     required this.source,
   });
 
-  final AttendanceReply reply;
+  final CanonicalOwnReplyObservation observation;
   final AuthoritativeOwnReplySource source;
 
   static bool shouldRender({
@@ -649,18 +673,21 @@ class DebugAuthoritativeOwnReplyProjection extends StatelessWidget {
   }) =>
       debugBuild && diagnosticEnabled;
 
-  static (AttendanceReply, AuthoritativeOwnReplySource)? canonicalReply({
+  static (CanonicalOwnReplyObservation, AuthoritativeOwnReplySource)?
+      canonicalReply({
     required AttendanceReply? reply,
     required bool detailReady,
     required bool freshServerGet,
     required bool mutationReadback,
   }) {
-    if (!detailReady || reply == null) return null;
+    if (!detailReady) return null;
     final sources = <AuthoritativeOwnReplySource>[
       if (freshServerGet) AuthoritativeOwnReplySource.freshServerGet,
       if (mutationReadback) AuthoritativeOwnReplySource.mutationReadback,
     ];
-    return sources.length == 1 ? (reply, sources.single) : null;
+    return sources.length == 1
+        ? (CanonicalOwnReplyObservation.fromReply(reply), sources.single)
+        : null;
   }
 
   String get _sourceToken => switch (source) {
@@ -671,10 +698,10 @@ class DebugAuthoritativeOwnReplyProjection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
         key: const ValueKey('debug-authoritative-own-reply-projection'),
-        label: '偵錯權威出席回覆：${reply.wire}；來源：$_sourceToken',
+        label: '偵錯權威出席回覆：${observation.token}；來源：$_sourceToken',
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Text('${reply.wire}；$_sourceToken'),
+          child: Text('${observation.token}；$_sourceToken'),
         ),
       );
 }

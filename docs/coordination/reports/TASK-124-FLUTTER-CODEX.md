@@ -84,8 +84,9 @@ authoritative reply and its mutually exclusive source. A successful fresh
 attendance GET records `fresh_server_get`; a successful mutation followed by
 the existing attendance readback records `mutation_readback`. The projection
 uses only the canonical reply vocabulary. Missing or conflicting provenance,
-a null reply, a non-ready view, pending or uncertain mutation, cached/offline
-state, and direct injection all fail closed without an authoritative claim.
+a non-ready view, pending or uncertain mutation, cached/offline state, and
+direct injection all fail closed without an authoritative claim. An
+authoritative nullable server reply is projected as the bounded token `none`.
 
 The existing submit, reconcile, idempotency, capability, and navigation
 behavior is unchanged. Rendering remains hard-gated by
@@ -106,3 +107,20 @@ local package cache. No app network, runtime, emulator, login, staging, or
 application-cache mutation was performed. No release artifact was built;
 release absence is covered by the hard-gate contract test, not an artifact
 negative scan.
+
+### Package 3 review correction: authoritative no-reply state
+
+Main review identified that a successful fresh attendance GET with
+`own_reply=null` is authoritative evidence of not yet replied. The bounded
+canonical observation now includes `none` alongside the five existing reply
+wire values. Fresh GET always records `fresh_server_get`, including null;
+successful mutation readback likewise preserves authoritative null as `none`.
+The resolver still emits nothing for missing or conflicting provenance.
+
+Correction verification:
+
+- Tests-first focused run failed on the intentionally absent `none`
+  observation.
+- `flutter test test/basic_app_test.dart --no-pub`: passed, 42 tests.
+- `flutter analyze --no-pub`: passed with `No issues found`.
+- No unrelated or full suite was rerun for this focused correction.
