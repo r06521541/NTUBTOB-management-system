@@ -196,6 +196,28 @@ bounded child cleanup, and nonzero/timeout partial-artifact cleanup. This
 correction performed no launcher runtime, emulator, staging, private-console,
 Secret, or cloud action.
 
+## Flutter config isolation correction
+
+The next bounded dogfood attempt reached Flutter/Gradle but returned nonzero
+without an artifact, manifest, or stale lock. After correcting the configured
+Android SDK to the complete approved build SDK, one justified retry still
+returned nonzero. Source-only diagnosis showed Flutter 3.47 gives inherited
+user-level `android-sdk` configuration precedence over `ANDROID_HOME`, causing
+generated `local.properties` to select an unapproved SDK.
+
+The build child now receives an isolated `APPDATA` directory derived beneath
+the validated TASK-123 temp root. This makes the existing approved
+`ANDROID_HOME` and `ANDROID_SDK_ROOT` authoritative without changing
+`HOME`, `USERPROFILE`, or global Flutter configuration. The directory is
+ordinary task temp removed by bounded cleanup, and its path/content never
+enters evidence or governed output.
+
+Affected tests prove the exact child-only APPDATA override, inherited global
+config isolation, unchanged HOME/USERPROFILE, C-drive/out-of-root rejection
+before child start, bounded cleanup, and the existing exact public-define and
+no-disclosure behavior. This correction performed no launcher runtime,
+emulator, staging, private-console, Secret, or cloud action.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.

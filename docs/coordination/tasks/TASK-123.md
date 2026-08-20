@@ -90,6 +90,12 @@ actions rather than a hidden multi-step default:
   DSN, assertion, credential, or an unapproved key/value. Child command lines,
   output, and define values are never emitted or copied into evidence, errors,
   reports, or governed JSON; in-memory collections are cleared in `finally`.
+- Every Flutter build overrides only child `APPDATA` with a validated directory
+  beneath the task-owned temp root so inherited global Flutter configuration
+  cannot override the approved Android SDK. The launcher never changes
+  `HOME`, `USERPROFILE`, global Flutter configuration, or a user profile. The
+  isolated directory is ordinary task temp removed by bounded cleanup and its
+  path/content never enters evidence or governed output.
 - Redacted evidence may contain only accepted commit, mode, package/version,
   artifact SHA-256, public signer fingerprint, AVD/API/ABI versions, bounded
   result classification and allowlisted static labels/counts.
@@ -137,6 +143,10 @@ actions rather than a hidden multi-step default:
 - Prove exact fake/staging define keys and counts, reject an adversarial
   Secret-like key/value before child start, and preserve cleanup after child
   timeout, nonzero exit, or a partial APK.
+- Prove child `APPDATA` is the exact task-owned isolation directory, inherited
+  global APPDATA cannot be selected, HOME/USERPROFILE are untouched, C-drive or
+  out-of-root isolation fails before child start, and cleanup removes it with
+  the task temp root.
 - Run affected Python tests, PowerShell parser/static checks where available,
   py_compile, Black/isort for Python test files, `git diff --check`, scope and
   sensitive-string scans. Hosted CI supplies final Python 3.10 evidence.

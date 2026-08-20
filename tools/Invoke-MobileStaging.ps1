@@ -586,10 +586,16 @@ function Invoke-FlutterBuildProcess {
     )
     $defineArguments = $null
     $buildArguments = $null
+    $tempRoot = $null
+    $appDataRoot = $null
     try {
         $defineArguments = @(Get-FlutterDefineArguments $Values $SelectedMode)
+        $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
+        $appDataRoot = Assert-TaskPath (Join-Path $tempRoot 'flutter-appdata') $tempRoot
+        [System.IO.Directory]::CreateDirectory($appDataRoot) | Out-Null
         $buildArguments = @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') + $defineArguments
         return Invoke-BoundedProcess ([string]$Config.flutter_executable) $buildArguments 600 @{
+            APPDATA = $appDataRoot
             ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
             ANDROID_HOME = [string]$Config.android_sdk_root
             JAVA_HOME = [string]$Config.java_home
@@ -604,6 +610,8 @@ function Invoke-FlutterBuildProcess {
         if ($null -ne $Values) { $Values.Clear() }
         $defineArguments = $null
         $buildArguments = $null
+        $tempRoot = $null
+        $appDataRoot = $null
     }
 }
 

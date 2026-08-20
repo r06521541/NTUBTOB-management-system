@@ -881,6 +881,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     }}
                     if (@($Arguments | Where-Object {{ $_ -like '--dart-define-from-file=*' }}).Count -ne 0) {{ throw 'Build transport is not direct' }}
                     if ([string]$ChildEnvironment.ANDROID_USER_HOME -cne '{android_user_home.as_posix()}') {{ throw 'Build child Android user home is not exact' }}
+                    if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.APPDATA),[IO.Path]::GetFullPath('{(temp_root / 'flutter-appdata').as_posix()}'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'Build child APPDATA is not exact' }}
+                    if ($ChildEnvironment.ContainsKey('HOME') -or $ChildEnvironment.ContainsKey('USERPROFILE')) {{ throw 'Build child home variables were altered' }}
                     [System.IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
                     [System.IO.File]::WriteAllBytes('{build_output.as_posix()}',[byte[]](1,2,3,4))
                     return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='build complete';Stderr=''}}
@@ -923,33 +925,36 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
 
     def test_flutter_define_transport_separates_modes_and_rejects_secret_keys(self):
         sentinel = SENSITIVE_SENTINELS[0]
-        result = self.run_harness(
-            f"""
-            $script:started=$false
-            function Invoke-BoundedProcess {{
-                param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
-                $script:started=$true
-                $expected=@('--dart-define=APP_FLAVOR=development','--dart-define=CLIENT_MODE=fake')
-                $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
-                if ($actual.Count -ne 2) {{ throw 'Fake define arguments are not exact' }}
-                for ($index=0;$index -lt 2;$index++) {{
-                    if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Fake define arguments are not exact' }}
+        with tempfile.TemporaryDirectory() as directory:
+            task_temp = Path(directory) / "task-temp"
+            result = self.run_harness(
+                f"""
+                $script:TaskTempRoot='{task_temp.as_posix()}'
+                $script:started=$false
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    $script:started=$true
+                    $expected=@('--dart-define=APP_FLAVOR=development','--dart-define=CLIENT_MODE=fake')
+                    $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
+                    if ($actual.Count -ne 2) {{ throw 'Fake define arguments are not exact' }}
+                    for ($index=0;$index -lt 2;$index++) {{
+                        if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Fake define arguments are not exact' }}
+                    }}
+                    return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
                 }}
-                return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
-            }}
-            $config=[pscustomobject]@{{flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
-            $fake=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
-            [void](Invoke-FlutterBuildProcess $config $fake 'fake' 'E:/mock/app' 'E:/mock/android-home')
-            Write-Output ('fakeStarted='+$script:started)
-            $script:started=$false
-            $adversarial=[ordered]@{{APP_FLAVOR='staging';CLIENT_MODE='real';API_BASE_URL='https://public.invalid';LINE_CHANNEL_ID='2011164500';SECRET_TOKEN='{sentinel}'}}
-            try {{ Invoke-FlutterBuildProcess $config $adversarial 'staging' 'E:/mock/app' 'E:/mock/android-home';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',secretStarted='+$script:started) }}
-            """
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("fakeStarted=True", result.stdout)
-        self.assertIn("Flutter define set is invalid,secretStarted=False", result.stdout)
-        self.assertNotIn(sentinel, result.stdout + result.stderr)
+                $config=[pscustomobject]@{{temp_root='{task_temp.as_posix()}';flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+                $fake=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+                [void](Invoke-FlutterBuildProcess $config $fake 'fake' 'E:/mock/app' 'E:/mock/android-home')
+                Write-Output ('fakeStarted='+$script:started)
+                $script:started=$false
+                $adversarial=[ordered]@{{APP_FLAVOR='staging';CLIENT_MODE='real';API_BASE_URL='https://public.invalid';LINE_CHANNEL_ID='2011164500';SECRET_TOKEN='{sentinel}'}}
+                try {{ Invoke-FlutterBuildProcess $config $adversarial 'staging' 'E:/mock/app' 'E:/mock/android-home';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',secretStarted='+$script:started) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("fakeStarted=True", result.stdout)
+            self.assertIn("Flutter define set is invalid,secretStarted=False", result.stdout)
+            self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_help_and_owner_gate_emit_one_governed_json_result(self):
         cases = (
@@ -1154,6 +1159,42 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertEqual(envelope["classification"], "FAILED")
             self.assertEqual(envelope["details"]["reason_code"], "RUNTIME_FAILED")
             self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_flutter_appdata_is_task_owned_and_outside_root_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            task_temp = Path(directory) / "task-temp"
+            inherited = "C:/global-flutter-config-sentinel"
+            evidence_root = Path(directory) / "task-evidence"
+            result = self.run_harness(
+                f"""
+                $env:APPDATA='{inherited}'
+                $script:TaskTempRoot='{task_temp.as_posix()}'
+                $script:TaskEvidenceRoot='{evidence_root.as_posix()}'
+                $script:started=$false
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    $script:started=$true
+                    if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.APPDATA),[IO.Path]::GetFullPath('{(task_temp / 'flutter-appdata').as_posix()}'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'Child APPDATA is not exact' }}
+                    if ($ChildEnvironment.ContainsKey('HOME') -or $ChildEnvironment.ContainsKey('USERPROFILE')) {{ throw 'Child home variables were altered' }}
+                    return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{temp_root='{task_temp.as_posix()}';evidence_root='{evidence_root.as_posix()}';flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+                $values=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+                [void](Invoke-FlutterBuildProcess $config $values 'fake' 'E:/mock/app' 'E:/mock/android-home')
+                Write-Output ('isolated='+$script:started+',created='+(Test-Path -LiteralPath '{(task_temp / 'flutter-appdata').as_posix()}' -PathType Container))
+                [void](Invoke-Cleanup $config $false)
+                Write-Output ('cleaned='+(-not (Test-Path -LiteralPath '{(task_temp / 'flutter-appdata').as_posix()}')))
+                $script:TaskTempRoot='E:/codex-temp/task-123'
+                $script:started=$false
+                $outside=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+                try {{ Invoke-FlutterBuildProcess $config $outside 'fake' 'E:/mock/app' 'E:/mock/android-home';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',outsideStarted='+$script:started) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("isolated=True,created=True", result.stdout)
+            self.assertIn("cleaned=True", result.stdout)
+            self.assertIn("Path escapes the task-owned root,outsideStarted=False", result.stdout)
+            self.assertNotIn(inherited, result.stdout + result.stderr)
 
     def test_real_package_state_emits_exact_governed_contract(self):
         sentinel = "private-provider-subject-sentinel"

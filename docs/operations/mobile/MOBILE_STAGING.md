@@ -404,6 +404,14 @@ launcher never emits or persists the child command line, child output, origin,
 channel ID, or define values, and clears define/argument collections in
 `finally`.
 
+Flutter build also receives a child-only `APPDATA` rooted beneath the validated
+TASK-123 temp root. This isolates Flutter 3.47 from inherited user-level
+`.flutter_settings`, allowing the approved `ANDROID_HOME` and
+`ANDROID_SDK_ROOT` to remain authoritative without running `flutter config`.
+The launcher does not alter `HOME`, `USERPROFILE`, or global Flutter settings.
+The isolated APPDATA directory is removed with normal task-temp cleanup; its
+path and contents are not evidence and are never emitted.
+
 Owner-private actions are one interactive invocation only:
 
 ```powershell
