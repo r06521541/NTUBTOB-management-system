@@ -16,6 +16,7 @@ $script:HarnessVocabularyVersion = 'task124-package4-v1'
 $script:HarnessPackage = 'tw.org.ntubtob.portal'
 $script:HarnessShaPattern = '^[0-9a-f]{40}$'
 $script:HarnessFingerprintPattern = '^[A-F0-9]{64}$'
+$script:HarnessColdLaunchResults = @('running', 'timeout_but_running')
 $script:HarnessSteps = @(
     'await_login', 'broker_gate', 'grant_intent', 'grant_result',
     'grant_reconcile', 'officer_online', 'offline_observed',
@@ -390,7 +391,7 @@ function Invoke-HarnessPreparation {
             # Artifact provenance does not prove the installed package identity.
             Invoke-HarnessAction $Dependencies 'signer-check' @('matched') | Out-Null
             Invoke-HarnessAction $Dependencies 'install' @('replaced') | Out-Null
-            Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
+            Invoke-HarnessAction $Dependencies 'cold-launch' $script:HarnessColdLaunchResults | Out-Null
         }
         return $artifact.binding
     }
@@ -401,7 +402,7 @@ function Invoke-HarnessPreparation {
     Invoke-HarnessAction $Dependencies 'build' @('built') | Out-Null
     Invoke-HarnessAction $Dependencies 'signer-check' @('matched') | Out-Null
     Invoke-HarnessAction $Dependencies 'install' @('replaced') | Out-Null
-    Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
+    Invoke-HarnessAction $Dependencies 'cold-launch' $script:HarnessColdLaunchResults | Out-Null
     $rebuilt = & $Dependencies.Artifact
     if ($rebuilt.state -ne 'matched') { Throw-HarnessSafe 'Harness artifact provenance is invalid' }
     return $rebuilt.binding
@@ -457,7 +458,7 @@ function Invoke-OfficerScenario {
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'grant_reconcile' $Binding 'reconciled'; $step = 'grant_reconcile'
     }
     if ($step -eq 'grant_reconcile') {
-        Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
+        Invoke-HarnessAction $Dependencies 'cold-launch' $script:HarnessColdLaunchResults | Out-Null
         $online = & $Dependencies.Observation
         if ($online.principal -ne 'officer' -or $online.provenance -ne 'fresh_server' -or $online.aggregate -ne 'officer_valid' -or $online.report_entry -ne 'present' -or $online.report -notin @('ready', 'empty')) { Throw-HarnessSafe 'Officer online producer observation is invalid' }
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'officer_online' $Binding 'observed'; $step = 'officer_online'
@@ -478,7 +479,7 @@ function Invoke-OfficerScenario {
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'restore_reconcile' $Binding 'reconciled'; $step = 'restore_reconcile'
     }
     if ($step -eq 'restore_reconcile') {
-        Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
+        Invoke-HarnessAction $Dependencies 'cold-launch' $script:HarnessColdLaunchResults | Out-Null
         $restored = & $Dependencies.Observation
         if (-not (Test-BasicAcceptanceObservation $restored)) { Throw-HarnessSafe 'Officer restore purge observation is invalid' }
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'basic_restored' $Binding 'observed'; $step = 'basic_restored'
@@ -488,7 +489,7 @@ function Invoke-OfficerScenario {
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'logout_reconcile' $Binding 'reconciled'; $step = 'logout_reconcile'
     }
     if ($step -eq 'logout_reconcile') {
-        Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
+        Invoke-HarnessAction $Dependencies 'cold-launch' $script:HarnessColdLaunchResults | Out-Null
         $terminal = & $Dependencies.Observation
         if (-not (Test-BasicAcceptanceObservation $terminal -Terminal)) { Throw-HarnessSafe 'Officer logout purge observation is invalid' }
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'completed' $Binding 'accepted'

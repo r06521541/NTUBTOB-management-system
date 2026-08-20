@@ -594,6 +594,9 @@ The AVD preparation step accepts only the launcher's two successful outcomes:
 `started` for a newly started approved AVD or `reused` for the already-running
 exact approved serial. Any other action result stops with the bounded
 `ACTION_RESULT_INVALID` reason and does not expose the raw value.
+Cold launch likewise accepts only `running` or TASK-123's bounded
+`timeout_but_running` terminal classification. It never retries either result;
+`timeout_unknown` remains fail closed.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting

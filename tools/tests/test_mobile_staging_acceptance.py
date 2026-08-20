@@ -177,7 +177,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 $script:actions = @(); $script:artifactState = 'matched'; $script:loggedOut = $true
                 $deps = New-MobileAcceptanceTestDependencies -Action {{ param($name)
                     $script:actions += $name
-                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-artifact'='removed_artifact'; build='built'; 'signer-check'='matched'; install='replaced'; 'cold-launch'='running' }}[$name]
+                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-artifact'='removed_artifact'; build='built'; 'signer-check'='matched'; install='replaced'; 'cold-launch'='timeout_but_running' }}[$name]
                     @{{ classification='PASS'; result=$result }}
                 }} -Artifact {{
                     if ($script:artifactState -eq 'missing') {{ $script:artifactState='matched'; return @{{ state='missing' }} }}
@@ -240,6 +240,25 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 envelope["details"]["reason_code"], "ACTION_RESULT_INVALID"
             )
             self.assertNotIn("unexpected-sentinel-result", result.stdout + result.stderr)
+
+    def test_cold_launch_timeout_unknown_is_rejected_without_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            result = self.run_harness(
+                f"""
+                $script:cold=0
+                $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)
+                    if($name -eq 'cold-launch'){{$script:cold++;return @{{classification='PASS';result='timeout_unknown'}}}}
+                    @{{classification='PASS';result=@{{preflight='ready';'avd-start'='reused';'signer-check'='matched';install='replaced'}}[$name]}}
+                }} -Artifact {{@{{state='matched';binding={self.binding_ps()}}}}} -Observation {{throw 'must not run'}} -CheckpointPolicy {{param($path)$true}}
+                $value=Invoke-MobileStagingAcceptanceMain 'basic-authorization' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $false $deps
+                [pscustomobject]@{{value=$value;cold=$script:cold}}|ConvertTo-Json -Depth 5 -Compress
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["value"]["details"]["reason_code"], "ACTION_RESULT_INVALID")
+            self.assertEqual(payload["cold"], 1)
 
     def test_artifact_manifest_drift_short_circuits_tools_and_unknown_is_bounded(self):
         with tempfile.TemporaryDirectory() as directory:

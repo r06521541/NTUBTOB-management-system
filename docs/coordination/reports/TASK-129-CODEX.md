@@ -111,3 +111,13 @@ Next actor: Main Work review.
   A direct scoped-factory regression proves the bound commands remain callable
   after return. A read-only production diagnostic now returns exact artifact
   state `drift`. No runtime retry occurred for this correction.
+
+- The next dogfood completed the fresh build/sign/install path and stopped on
+  `ACTION_RESULT_INVALID` at cold-launch vocabulary. TASK-123 intentionally
+  returns `timeout_but_running` when its bounded launcher wait times out but the
+  exact portal activity/PID are running; TASK-129 had accepted only `running`.
+  The harness now accepts exactly those two terminal-success results without
+  retry and continues to reject `timeout_unknown`. A direct regression proves
+  the unknown case invokes cold launch only once. A subsequent read-only status
+  reached the accessibility stage and failed safely; it was not retried or used
+  to claim semantic acceptance.
