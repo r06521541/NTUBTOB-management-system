@@ -88,6 +88,18 @@ Changes requested before controlled staging dogfood.
   mean installed. Add direct function-to-governed-envelope regressions for
   timeout, nonzero, successful empty and exact installed output. Unexpected
   successful output must fail closed, with no raw child output disclosed.
+- The exact package-state correction is accepted and integrated at
+  `6f27acfbfa5a51c6cddd7cb8edb85cff4b284701`. Its preflight passed, but the
+  single subsequent status dogfood still returned `FAILED/RUNTIME_FAILED`.
+  Main again performed no retry or side-channel diagnosis. Known-message
+  mapping therefore does not form a complete status boundary: an unexpected
+  PowerShell/.NET exception inside ADB, package, activity or accessibility can
+  bypass it. Wrap each actual status stage so known governed exceptions retain
+  their exact result and every unknown stage-local exception is sanitized to
+  that stage's fixed unavailable/invalid code. Add process-level tests that
+  inject unknown exceptions inside every real stage. The generic fallback may
+  remain for non-status actions, but `status` itself must never emit
+  `RUNTIME_FAILED` or disclose exception/child content.
 
 ## Deferred
 
