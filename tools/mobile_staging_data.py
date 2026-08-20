@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -86,6 +87,9 @@ MOBILE_TABLES = {
     "mobile_sessions",
 }
 EXPECTED_TABLES = LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES | {"alembic_version"}
+BROKER_REVISION = "0006_staging_broker_operation_journal"
+BROKER_TABLES = frozenset({"staging_broker_operations"})
+_BROKER_SCHEMA_MODE = ContextVar("mobile_staging_broker_schema_mode", default=False)
 LEGACY_IDS = {
     "attendance_reply_types": (9101, 9102, 9103),
     "ballparks": (9301,),
@@ -464,7 +468,12 @@ def _officer_fixture_state(
     revisions = tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
     )
-    if set(tables) != EXPECTED_TABLES or revisions != (REVISION,):
+    broker_schema = _BROKER_SCHEMA_MODE.get()
+    expected_revision = BROKER_REVISION if broker_schema else REVISION
+    expected_tables = (
+        EXPECTED_TABLES | BROKER_TABLES if broker_schema else EXPECTED_TABLES
+    )
+    if set(tables) != expected_tables or revisions != (expected_revision,):
         raise StagingContractError("Officer fixture is not ready; do not retry")
 
     expected = dict(LEGACY_IDS)
@@ -904,9 +913,7 @@ def _execute_officer_transition(
     terminal_state = "granted" if transition == "grant" else "restored"
     if before["state"] == terminal_state:
         return {**before, "changed": False}
-    allowed_states = (
-        {"baseline", "restored"} if transition == "grant" else {"granted"}
-    )
+    allowed_states = {"baseline", "restored"} if transition == "grant" else {"granted"}
     if before["state"] not in allowed_states:
         raise StagingContractError("Remote Officer transition state is not exact")
     engine = create_engine(database_url)
@@ -1137,6 +1144,43 @@ def execute_fixture_lifecycle_reset(
         **fixture_lifecycle_inventory(approval, database_url, private_subject),
         "changed": True,
     }
+
+
+def _broker_schema_call(function, *args):
+    """Run one existing bounded operator call against exact revision 0006."""
+    token = _BROKER_SCHEMA_MODE.set(True)
+    try:
+        return function(*args)
+    finally:
+        _BROKER_SCHEMA_MODE.reset(token)
+
+
+def broker_fixture_lifecycle_inventory(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    return _broker_schema_call(
+        fixture_lifecycle_inventory, approval, database_url, private_subject
+    )
+
+
+def broker_grant_officer(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    return _broker_schema_call(grant_officer, approval, database_url, private_subject)
+
+
+def broker_restore_basic(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    return _broker_schema_call(restore_basic, approval, database_url, private_subject)
+
+
+def broker_reset_fixture_lifecycle(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    return _broker_schema_call(
+        execute_fixture_lifecycle_reset, approval, database_url, private_subject
+    )
 
 
 def plan(approval: dict, database_url: str) -> dict:

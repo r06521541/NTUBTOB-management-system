@@ -1,0 +1,28 @@
+{
+  "owner_approved": true,
+  "project": "fictional-mobile-staging",
+  "region": "asia-east1",
+  "service": "mobile-api-staging",
+  "approved_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "approval_phase": "candidate",
+  "build_id": "build-task128-fictional",
+  "image_uri": "asia-east1-docker.pkg.dev/fictional-mobile-staging/mobile-staging/mobile-api",
+  "image_digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "mode": "update",
+  "candidate_revision": "mobile-api-staging-candidate1",
+  "rollback_revision": "mobile-api-staging-baseline1",
+  "database_identity_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "production_database_identity_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "database_provider": "cloudsql",
+  "database_resource_id": "projects/fictional-mobile-staging/instances/mobile-db",
+  "database_alias": "dedicated-mobile-staging",
+  "max_instances": 2,
+  "service_account": "mobile-runtime@fictional-mobile-staging.iam.gserviceaccount.com",
+  "build_service_account": "mobile-build@fictional-mobile-staging.iam.gserviceaccount.com",
+  "runtime_secret_refs": {
+    "PORTAL_DATA_DATABASE_URL": "mobile-staging-database-url:7",
+    "MOBILE_ACCESS_SIGNING_KEY": "mobile-staging-access-key:3",
+    "MOBILE_REFRESH_REPLAY_KEY": "mobile-staging-refresh-key:5"
+  },
+  "mobile_api_audience": "1234567890"
+}
