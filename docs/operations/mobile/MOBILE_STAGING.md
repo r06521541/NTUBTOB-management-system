@@ -394,8 +394,15 @@ uses semantic package/activity/PID checks, performs no coordinate/OCR/raw UI XML
 or logcat classification, and does not retry a timed-out `am start`. Any network
 setting changed by that action is restored in `finally`. Cleanup is limited to
 the two task-owned roots and retains evidence unless `-PurgeEvidence` is
-explicit. Staging Flutter defines are delivered to the child through a named
-pipe so values are absent from argv, files, evidence, and console output.
+explicit. Flutter receives direct `--dart-define` arguments for a closed public
+identifier set only: fake mode has `APP_FLAVOR` and `CLIENT_MODE`; staging has
+those plus `API_BASE_URL` and `LINE_CHANNEL_ID`. Flutter 3.47 does not support
+stdin/environment input for `--dart-define-from-file`, so no named-pipe
+transport is used. This public-identifier exception does not permit any Secret,
+token, subject, DSN, assertion, credential, or arbitrary key in argv. The
+launcher never emits or persists the child command line, child output, origin,
+channel ID, or define values, and clears define/argument collections in
+`finally`.
 
 Owner-private actions are one interactive invocation only:
 

@@ -39,8 +39,9 @@ state. Logged-out specifically requires one enabled, clickable portal
 `android.widget.Button` with exact `LINE 登入`; duplicated Flutter prompt
 semantics and other unapproved labels are ignored. Cold launch
 uses semantic package/activity/PID checks, has no timeout retry, and restores a
-temporary network change in `finally`. Flutter defines use a named pipe and do
-not enter argv, files, evidence, or output.
+temporary network change in `finally`. Flutter build arguments are limited to
+the exact public compile-time define set for fake or staging and never enter
+governed output or evidence.
 
 Owner-private inspect/grant/restore remains interactive. The provider subject
 and approved database Secret payload exist only in the child environment and
@@ -171,6 +172,29 @@ produced 39 passes and one unchanged merged-base failure in
 `test_output_redaction_fallback_is_one_failed_json_and_exit_two`; the same test
 fails independently on base/main with `ACTION_RESULT_INVALID` instead of its
 expected `OUTPUT_REDACTION_FAILED`, so this narrow correction does not alter it.
+
+## Build transport correction
+
+Controlled dogfood with the corrected signer reached Flutter, then failed
+closed after the named-pipe connection wait. Bounded artifact inspection found
+no APK, manifest, build-output APK, or stale lock. Flutter 3.47 reads
+`--dart-define-from-file` as a filesystem path and has no supported stdin or
+environment transport, so the unused named-pipe helper was removed.
+
+Build now constructs direct `--dart-define` child arguments from a closed
+public-identifier set. Fake mode accepts exactly `APP_FLAVOR` and `CLIENT_MODE`;
+staging accepts exactly those plus `API_BASE_URL` and `LINE_CHANNEL_ID` after
+the existing public-origin/channel validation. Any extra, reordered, malformed,
+or Secret-like key/value fails before child start. No child command line,
+stdout/stderr, origin, channel ID, or define value is copied into output,
+evidence, exceptions, or this report, and value/argument references are cleared
+in `finally`.
+
+Five affected tests cover exact fake/staging arguments, mode separation,
+adversarial Secret-like rejection before child start, no-disclosure evidence,
+bounded child cleanup, and nonzero/timeout partial-artifact cleanup. This
+correction performed no launcher runtime, emulator, staging, private-console,
+Secret, or cloud action.
 
 ## Deferred follow-up (not implemented)
 

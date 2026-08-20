@@ -83,6 +83,13 @@ actions rather than a hidden multi-step default:
   provider subject, token, assertion, response body, secure-store content,
   keystore path/material/password, raw UI XML, raw logcat or unredacted
   screenshots.
+- Flutter build arguments may contain only the public compile-time identifiers
+  `APP_FLAVOR`, `CLIENT_MODE`, `API_BASE_URL`, and `LINE_CHANNEL_ID` as direct
+  `--dart-define` arguments. Fake mode uses only the first two; staging uses
+  exactly all four. This allowance never extends to a Secret, token, subject,
+  DSN, assertion, credential, or an unapproved key/value. Child command lines,
+  output, and define values are never emitted or copied into evidence, errors,
+  reports, or governed JSON; in-memory collections are cleared in `finally`.
 - Redacted evidence may contain only accepted commit, mode, package/version,
   artifact SHA-256, public signer fingerprint, AVD/API/ABI versions, bounded
   result classification and allowlisted static labels/counts.
@@ -127,6 +134,9 @@ actions rather than a hidden multi-step default:
   launcher timeout where the target process actually started.
 - Prove output/evidence contain none of the forbidden sensitive fields or test
   sentinel values.
+- Prove exact fake/staging define keys and counts, reject an adversarial
+  Secret-like key/value before child start, and preserve cleanup after child
+  timeout, nonzero exit, or a partial APK.
 - Run affected Python tests, PowerShell parser/static checks where available,
   py_compile, Black/isort for Python test files, `git diff --check`, scope and
   sensitive-string scans. Hosted CI supplies final Python 3.10 evidence.

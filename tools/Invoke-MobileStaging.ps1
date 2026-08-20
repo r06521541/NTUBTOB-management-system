@@ -85,72 +85,10 @@ function Invoke-BoundedProcess {
     }
     finally {
         if ($started -and -not $process.HasExited) { try { $process.Kill() } catch { } }
+        $start.Arguments = ''
+        $Arguments = $null
+        $ChildEnvironment = $null
         $process.Dispose()
-    }
-}
-
-function Invoke-BoundedProcessWithPipe {
-    param(
-        [Parameter(Mandatory = $true)][string]$Executable,
-        [string[]]$Arguments,
-        [string]$Payload,
-        [int]$TimeoutSeconds,
-        [hashtable]$ChildEnvironment,
-        [string]$WorkingDirectory
-    )
-    if (-not [System.IO.Path]::IsPathRooted($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
-        Throw-Safe 'Approved executable is unavailable'
-    }
-    if ($TimeoutSeconds -lt 1 -or $TimeoutSeconds -gt 600) {
-        Throw-Safe 'Process timeout is outside the bounded range'
-    }
-    $pipeName = 'task123-' + [Guid]::NewGuid().ToString('N')
-    $pipePath = '\\.\pipe\' + $pipeName
-    $pipe = [System.IO.Pipes.NamedPipeServerStream]::new(
-        $pipeName,
-        [System.IO.Pipes.PipeDirection]::Out,
-        1,
-        [System.IO.Pipes.PipeTransmissionMode]::Byte,
-        [System.IO.Pipes.PipeOptions]::Asynchronous
-    )
-    $start = [System.Diagnostics.ProcessStartInfo]::new()
-    $start.FileName = $Executable
-    $allArguments = @($Arguments) + @("--dart-define-from-file=$pipePath")
-    $start.Arguments = (($allArguments | ForEach-Object { ConvertTo-SafeArgument ([string]$_) }) -join ' ')
-    $start.UseShellExecute = $false
-    $start.CreateNoWindow = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    $start.WorkingDirectory = $WorkingDirectory
-    foreach ($name in $ChildEnvironment.Keys) { $start.EnvironmentVariables[[string]$name] = [string]$ChildEnvironment[$name] }
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $start
-    $started = $false
-    try {
-        if (-not $process.Start()) { Throw-Safe 'Approved process did not start' }
-        $started = $true
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
-        $pending = $pipe.BeginWaitForConnection($null, $null)
-        if (-not $pending.AsyncWaitHandle.WaitOne(30000)) {
-            return [pscustomobject]@{ ExitCode = $null; TimedOut = $true; Stdout = ''; Stderr = '' }
-        }
-        $pipe.EndWaitForConnection($pending)
-        $writer = [System.IO.StreamWriter]::new($pipe, [System.Text.UTF8Encoding]::new($false), 1024, $true)
-        try { $writer.Write($Payload); $writer.Flush() } finally { $writer.Dispose() }
-        $pipe.Disconnect()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            return [pscustomobject]@{ ExitCode = $null; TimedOut = $true; Stdout = ''; Stderr = '' }
-        }
-        $stdoutTask.Wait()
-        $stderrTask.Wait()
-        return [pscustomobject]@{ ExitCode = $process.ExitCode; TimedOut = $false; Stdout = $stdoutTask.Result; Stderr = $stderrTask.Result }
-    }
-    finally {
-        if ($started -and -not $process.HasExited) { try { $process.Kill() } catch { } }
-        $process.Dispose()
-        $pipe.Dispose()
-        $Payload = $null
     }
 }
 
@@ -604,6 +542,71 @@ function Get-ArtifactPath {
     return $artifact
 }
 
+function Get-FlutterDefineArguments {
+    param(
+        [System.Collections.IDictionary]$Values,
+        [string]$SelectedMode
+    )
+    if ($null -eq $Values) { Throw-Safe 'Flutter define set is invalid' }
+    if ($SelectedMode -eq 'fake') {
+        $expectedKeys = @('APP_FLAVOR', 'CLIENT_MODE')
+        $validValues = (
+            [string]$Values['APP_FLAVOR'] -ceq 'development' -and
+            [string]$Values['CLIENT_MODE'] -ceq 'fake'
+        )
+    }
+    elseif ($SelectedMode -eq 'staging') {
+        $expectedKeys = @('APP_FLAVOR', 'CLIENT_MODE', 'API_BASE_URL', 'LINE_CHANNEL_ID')
+        $validValues = (
+            [string]$Values['APP_FLAVOR'] -ceq 'staging' -and
+            [string]$Values['CLIENT_MODE'] -ceq 'real' -and
+            [string]$Values['API_BASE_URL'] -cmatch '^https://[A-Za-z0-9.-]+$' -and
+            [string]$Values['LINE_CHANNEL_ID'] -cmatch '^[1-9][0-9]{4,19}$'
+        )
+    }
+    else {
+        Throw-Safe 'Flutter define set is invalid'
+    }
+    $actualKeys = @($Values.Keys | ForEach-Object { [string]$_ })
+    if ($actualKeys.Count -ne $expectedKeys.Count) { Throw-Safe 'Flutter define set is invalid' }
+    for ($index = 0; $index -lt $expectedKeys.Count; $index++) {
+        if ([string]$actualKeys[$index] -cne [string]$expectedKeys[$index]) { Throw-Safe 'Flutter define set is invalid' }
+    }
+    if (-not $validValues) { Throw-Safe 'Flutter define set is invalid' }
+    return [string[]]@($expectedKeys | ForEach-Object { '--dart-define=' + $_ + '=' + [string]$Values[$_] })
+}
+
+function Invoke-FlutterBuildProcess {
+    param(
+        [object]$Config,
+        [System.Collections.IDictionary]$Values,
+        [string]$SelectedMode,
+        [string]$WorkingDirectory,
+        [string]$AndroidUserHome
+    )
+    $defineArguments = $null
+    $buildArguments = $null
+    try {
+        $defineArguments = @(Get-FlutterDefineArguments $Values $SelectedMode)
+        $buildArguments = @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') + $defineArguments
+        return Invoke-BoundedProcess ([string]$Config.flutter_executable) $buildArguments 600 @{
+            ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
+            ANDROID_HOME = [string]$Config.android_sdk_root
+            JAVA_HOME = [string]$Config.java_home
+            ANDROID_USER_HOME = $AndroidUserHome
+            PUB_CACHE = [string]$Config.pub_cache
+            GRADLE_USER_HOME = [string]$Config.gradle_user_home
+        } $WorkingDirectory
+    }
+    finally {
+        if ($null -ne $defineArguments) { [System.Array]::Clear($defineArguments, 0, $defineArguments.Length) }
+        if ($null -ne $buildArguments) { [System.Array]::Clear($buildArguments, 0, $buildArguments.Length) }
+        if ($null -ne $Values) { $Values.Clear() }
+        $defineArguments = $null
+        $buildArguments = $null
+    }
+}
+
 function Invoke-SignerCheck {
     param([object]$Config)
     Assert-OnlyApprovedSerial $Config
@@ -644,7 +647,6 @@ function Invoke-Build {
     [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
     [System.IO.Directory]::CreateDirectory($evidenceRoot) | Out-Null
     $manifest = Join-Path $evidenceRoot 'artifact-manifest.json'
-    $definePayload = $null
     try {
         if ($SelectedMode -eq 'fake') {
             $values = [ordered]@{ APP_FLAVOR = 'development'; CLIENT_MODE = 'fake' }
@@ -655,16 +657,8 @@ function Invoke-Build {
             if ($origin -notmatch '^https://[A-Za-z0-9.-]+$' -or $channel -notmatch '^[1-9][0-9]{4,19}$') { Throw-Safe 'Private staging build inputs are unavailable or malformed' }
             $values = [ordered]@{ APP_FLAVOR = 'staging'; CLIENT_MODE = 'real'; API_BASE_URL = $origin; LINE_CHANNEL_ID = $channel }
         }
-        $definePayload = $values | ConvertTo-Json -Compress
         $appRoot = Join-Path ([string]$Config.snapshot_root) 'clients\flutter_app'
-        $result = Invoke-BoundedProcessWithPipe ([string]$Config.flutter_executable) @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') $definePayload 600 @{
-            ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
-            ANDROID_HOME = [string]$Config.android_sdk_root
-            JAVA_HOME = [string]$Config.java_home
-            ANDROID_USER_HOME = [string]$approvedSigner.AndroidUserHome
-            PUB_CACHE = [string]$Config.pub_cache
-            GRADLE_USER_HOME = [string]$Config.gradle_user_home
-        } $appRoot
+        $result = Invoke-FlutterBuildProcess $Config $values $SelectedMode $appRoot ([string]$approvedSigner.AndroidUserHome)
         if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $buildOutput -PathType Leaf)) { Throw-Safe 'Flutter build failed safely' }
         Move-Item -LiteralPath $buildOutput -Destination $artifact
         $package = Get-ApkPackageIdentity $Config $artifact
@@ -688,8 +682,10 @@ function Invoke-Build {
         throw
     }
     finally {
-        $definePayload = $null
+        $origin = $null
+        $channel = $null
         $values = $null
+        $result = $null
         if (Test-Path -LiteralPath $buildOutput) { Remove-Item -LiteralPath $buildOutput -Force }
     }
 }

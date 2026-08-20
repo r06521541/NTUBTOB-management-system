@@ -788,7 +788,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
                 function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}'}} }}
-                function Invoke-BoundedProcessWithPipe {{
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
                     [IO.Directory]::CreateDirectory('{output.parent.as_posix()}')|Out-Null
                     [IO.File]::WriteAllBytes('{output.as_posix()}',[byte[]](1,2))
                     return [pscustomobject]@{{TimedOut=$false;ExitCode=1;Stdout='';Stderr=''}}
@@ -800,7 +801,42 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("Flutter build failed safely,output=False,artifact=False", result.stdout)
 
-    def test_build_uses_named_pipe_defines_and_redacts_bounded_evidence(self):
+    def test_timed_out_partial_build_is_removed_without_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshot = root / "snapshot"
+            output = (
+                snapshot
+                / "clients"
+                / "flutter_app"
+                / "build"
+                / "app"
+                / "outputs"
+                / "flutter-apk"
+                / "app-debug.apk"
+            )
+            artifact = root / "evidence" / "app-debug.apk"
+            (snapshot / "clients" / "flutter_app").mkdir(parents=True)
+            result = self.run_harness(
+                f"""
+                function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
+                function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
+                function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
+                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}'}} }}
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    [IO.Directory]::CreateDirectory('{output.parent.as_posix()}')|Out-Null
+                    [IO.File]::WriteAllBytes('{output.as_posix()}',[byte[]](1,2))
+                    return [pscustomobject]@{{TimedOut=$true;ExitCode=$null;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{snapshot_root='{snapshot.as_posix()}';temp_root='{(root / 'temp').as_posix()}';evidence_root='{(root / 'evidence').as_posix()}';flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+                try {{ Invoke-Build $config 'fake' '{FULL_SHA}';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',output='+(Test-Path '{output.as_posix()}')+',artifact='+(Test-Path '{artifact.as_posix()}')) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Flutter build failed safely,output=False,artifact=False", result.stdout)
+
+    def test_build_uses_exact_public_defines_and_redacts_bounded_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             snapshot = root / "snapshot"
@@ -827,16 +863,30 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{(evidence / 'app-debug.apk').as_posix()}' }}
-                function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {FINGERPRINT}';Stderr=''}} }}
-                function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
-                function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
-                function Invoke-BoundedProcessWithPipe {{
-                    param($Executable,$Arguments,$Payload,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    if (@($Arguments) -contains '-list') {{
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {FINGERPRINT}';Stderr=''}}
+                    }}
+                    $expected=@(
+                        '--dart-define=APP_FLAVOR=staging',
+                        '--dart-define=CLIENT_MODE=real',
+                        ('--dart-define=API_BASE_URL='+$env:MOBILE_STAGING_PUBLIC_ORIGIN),
+                        ('--dart-define=LINE_CHANNEL_ID='+$env:MOBILE_STAGING_LINE_CHANNEL_ID)
+                    )
+                    $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
+                    if ($actual.Count -ne 4) {{ throw 'Build define arguments are not exact' }}
+                    for ($index=0;$index -lt 4;$index++) {{
+                        if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Build define arguments are not exact' }}
+                    }}
+                    if (@($Arguments | Where-Object {{ $_ -like '--dart-define-from-file=*' }}).Count -ne 0) {{ throw 'Build transport is not direct' }}
                     if ([string]$ChildEnvironment.ANDROID_USER_HOME -cne '{android_user_home.as_posix()}') {{ throw 'Build child Android user home is not exact' }}
                     [System.IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
                     [System.IO.File]::WriteAllBytes('{build_output.as_posix()}',[byte[]](1,2,3,4))
                     return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='build complete';Stderr=''}}
                 }}
+                function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
+                function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
                 $config=[pscustomobject]@{{
                     snapshot_root='{snapshot.as_posix()}';temp_root='{temp_root.as_posix()}';
                     evidence_root='{evidence.as_posix()}';flutter_executable='E:/mock/flutter.cmd';
@@ -870,6 +920,36 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             )
             for sentinel in SENSITIVE_SENTINELS:
                 self.assertNotIn(sentinel, manifest)
+
+    def test_flutter_define_transport_separates_modes_and_rejects_secret_keys(self):
+        sentinel = SENSITIVE_SENTINELS[0]
+        result = self.run_harness(
+            f"""
+            $script:started=$false
+            function Invoke-BoundedProcess {{
+                param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                $script:started=$true
+                $expected=@('--dart-define=APP_FLAVOR=development','--dart-define=CLIENT_MODE=fake')
+                $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
+                if ($actual.Count -ne 2) {{ throw 'Fake define arguments are not exact' }}
+                for ($index=0;$index -lt 2;$index++) {{
+                    if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Fake define arguments are not exact' }}
+                }}
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
+            }}
+            $config=[pscustomobject]@{{flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+            $fake=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+            [void](Invoke-FlutterBuildProcess $config $fake 'fake' 'E:/mock/app' 'E:/mock/android-home')
+            Write-Output ('fakeStarted='+$script:started)
+            $script:started=$false
+            $adversarial=[ordered]@{{APP_FLAVOR='staging';CLIENT_MODE='real';API_BASE_URL='https://public.invalid';LINE_CHANNEL_ID='2011164500';SECRET_TOKEN='{sentinel}'}}
+            try {{ Invoke-FlutterBuildProcess $config $adversarial 'staging' 'E:/mock/app' 'E:/mock/android-home';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',secretStarted='+$script:started) }}
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("fakeStarted=True", result.stdout)
+        self.assertIn("Flutter define set is invalid,secretStarted=False", result.stdout)
+        self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_help_and_owner_gate_emit_one_governed_json_result(self):
         cases = (
