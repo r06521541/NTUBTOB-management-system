@@ -183,6 +183,7 @@ void main() {
               games: const [],
               online: true,
               lastSyncedAt: DateTime.utc(2026),
+              principalProvenance: PrincipalProvenance.freshServer,
               diagnosticEnabled: true)));
       final projection =
           find.byKey(const ValueKey('debug-principal-projection'));
@@ -190,9 +191,104 @@ void main() {
       expect(
           tester.getSemantics(projection).label,
           contains(
-              '偵錯權限投影：$role；報表讀取：${enabled && accessLevel != AccessLevel.basic ? '啟用' : '停用'}'));
+              '偵錯權限投影：$role；報表讀取：${enabled && accessLevel != AccessLevel.basic ? '啟用' : '停用'}；來源：fresh_server（伺服器最新驗證）'));
       expect(find.text('attendance:report:read'), findsNothing);
       expect(find.text('p'), findsNothing);
+    }
+  });
+
+  testWidgets('fresh Basic and Officer projections are authoritative',
+      (tester) async {
+    final cases = <(Person, String)>[
+      (
+        const Person('basic-id', 'Basic', ['games:read']),
+        '偵錯權限投影：一般使用者；報表讀取：停用；來源：fresh_server（伺服器最新驗證）',
+      ),
+      (
+        const Person('officer-id', 'Officer', ['attendance:report:read'],
+            accessLevel: AccessLevel.officer),
+        '偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）',
+      ),
+    ];
+
+    for (final (person, expectedLabel) in cases) {
+      await tester.pumpWidget(MaterialApp(
+          home: Material(
+              child: DebugPrincipalProjection(
+                  person: person,
+                  provenance: PrincipalProvenance.freshServer))));
+      final projection =
+          find.byKey(const ValueKey('debug-principal-projection'));
+      expect(
+          tester.widget<Semantics>(projection).properties.label, expectedLabel);
+    }
+  });
+
+  testWidgets('offline cached Officer is explicitly non-authoritative',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person(
+                'cached-id', 'Cached Officer', ['attendance:report:read'],
+                accessLevel: AccessLevel.officer),
+            games: const [],
+            online: false,
+            lastSyncedAt: DateTime.utc(2026),
+            principalProvenance: PrincipalProvenance.offlineCache)));
+
+    final projection = find.byKey(const ValueKey('debug-principal-projection'));
+    final label = tester.getSemantics(projection).label;
+    expect(label, contains('報表讀取：啟用'));
+    expect(label, contains('來源：offline_cache（離線快取，非權威）'));
+    expect(label, isNot(contains('fresh_server')));
+    expect(
+        find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
+  });
+
+  testWidgets('direct widget injection without provenance fails closed',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person(
+                'injected-id', 'Injected Officer', ['attendance:report:read'],
+                accessLevel: AccessLevel.officer),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026))));
+
+    final projection = find.byKey(const ValueKey('debug-principal-projection'));
+    final label = tester.getSemantics(projection).label;
+    expect(label, contains('來源：unknown（來源未確認，非權威）'));
+    expect(label, isNot(contains('fresh_server')));
+  });
+
+  testWidgets('debug projection excludes sensitive principal material',
+      (tester) async {
+    const sensitive = [
+      'person-sensitive-id',
+      'Sensitive Display Name',
+      'raw:capability',
+      'token-sensitive',
+      'origin-sensitive',
+      'body-sensitive',
+      'storage-sensitive',
+    ];
+    await tester.pumpWidget(MaterialApp(
+        home: Material(
+            child: DebugPrincipalProjection(
+                person: Person(
+                    sensitive[0], sensitive[1], [sensitive[2], sensitive[3]],
+                    accessLevel: AccessLevel.officer),
+                provenance: PrincipalProvenance.offlineCache))));
+
+    final projection = find.byKey(const ValueKey('debug-principal-projection'));
+    final label = tester.getSemantics(projection).label;
+    for (final value in sensitive) {
+      expect(label, isNot(contains(value)));
     }
   });
 
