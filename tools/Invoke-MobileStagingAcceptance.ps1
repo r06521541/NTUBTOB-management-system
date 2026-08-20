@@ -61,6 +61,7 @@ function New-HarnessEnvelope {
 
 function Get-HarnessFailureClassification {
     param([string]$Message)
+    if ($Message -match 'Harness status is unavailable') { return 'EVIDENCE_GAP' }
     if ($Message -match '(?i)(timeout|timed out|bounded window)') { return 'TIMEOUT' }
     if ($Message -match '(?i)(drift|mismatch|malformed|missing|stale|lock|ambiguous|unknown|not exact|invalid|reconcile)') { return 'DRIFT' }
     return 'FAILED'
@@ -68,6 +69,7 @@ function Get-HarnessFailureClassification {
 
 function Get-HarnessFailureReasonCode {
     param([string]$Message)
+    if ($Message -match 'Harness status is unavailable') { return 'STATUS_UNAVAILABLE' }
     if ($Message -match 'Harness action result is invalid') { return 'ACTION_RESULT_INVALID' }
     if ($Message -match 'Harness artifact inspection is unavailable') { return 'ARTIFACT_UNAVAILABLE' }
     if ($Message -match 'Harness artifact provenance is invalid') { return 'ARTIFACT_INVALID' }
@@ -265,6 +267,28 @@ function Get-AdditionalAcceptanceProducerObservation {
     return [pscustomobject]@{ principal = $principal; provenance = [string]$Status.provenance; aggregate = $aggregate; report = $report; report_entry = $reportEntry; producer_gap = $false }
 }
 
+function Get-MobileAcceptanceStatus {
+    param(
+        [scriptblock]$InvokeStatus,
+        [scriptblock]$Wait = { Start-Sleep -Seconds 2 }
+    )
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            $status = & $InvokeStatus
+            if ($null -ne $status -and [string]$status.result -eq 'observed') { return $status }
+            Throw-HarnessSafe 'Harness status is unavailable'
+        }
+        catch {
+            if ($_.Exception.Message -ceq 'Accessibility inventory failed safely' -and $attempt -lt 3) {
+                & $Wait
+                continue
+            }
+            Throw-HarnessSafe 'Harness status is unavailable'
+        }
+    }
+    Throw-HarnessSafe 'Harness status is unavailable'
+}
+
 function Get-MobileAcceptanceArtifact {
     param([object]$Config, [string]$ExpectedCommit, [hashtable]$LauncherCommands)
     if ($null -eq $LauncherCommands) {
@@ -322,6 +346,8 @@ function New-MobileAcceptanceDependenciesFromConfig {
     $invokeBounded = $LauncherCommands.InvokeBounded
     $inspectArtifact = (Get-Command Get-MobileAcceptanceArtifact -CommandType Function).ScriptBlock
     $produceObservation = (Get-Command Get-AdditionalAcceptanceProducerObservation -CommandType Function).ScriptBlock
+    $readStatus = (Get-Command Get-MobileAcceptanceStatus -CommandType Function).ScriptBlock
+    $statusAction = { & $invokeMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }.GetNewClosure()
     $action = {
         param($Name)
         switch ($Name) {
@@ -338,8 +364,7 @@ function New-MobileAcceptanceDependenciesFromConfig {
     }.GetNewClosure()
     $artifact = { & $inspectArtifact $Config $ExpectedCommit $LauncherCommands }.GetNewClosure()
     $observation = {
-        $status = & $invokeMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false
-        if ($status.result -ne 'observed') { Throw-HarnessSafe 'Harness status is unavailable' }
+        $status = & $readStatus $statusAction
         return & $produceObservation $status {
             $result = & $invokeBounded ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
             if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-HarnessSafe 'Harness producer observation is unavailable' }
