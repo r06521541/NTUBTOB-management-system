@@ -431,6 +431,62 @@ class BasicCache {
   }
 }
 
+/// A de-identified, bounded local-storage observation for debug evidence.
+///
+/// A missing input or more than one pending intent is intentionally
+/// unobservable: callers must not turn partial local state into evidence.
+class CacheSessionAggregate {
+  const CacheSessionAggregate({
+    required this.sessionPresent,
+    required this.basicCachePresent,
+    required this.officerReportCachePresent,
+    required this.pendingAttendanceIntentPresent,
+  });
+
+  final bool sessionPresent;
+  final bool basicCachePresent;
+  final bool officerReportCachePresent;
+  final bool pendingAttendanceIntentPresent;
+
+  static CacheSessionAggregate? resolve({
+    required bool? sessionPresent,
+    required bool? basicCachePresent,
+    required bool? officerReportCachePresent,
+    required int? pendingAttendanceIntentCount,
+  }) {
+    if (sessionPresent == null ||
+        basicCachePresent == null ||
+        officerReportCachePresent == null ||
+        pendingAttendanceIntentCount == null ||
+        pendingAttendanceIntentCount < 0 ||
+        pendingAttendanceIntentCount > 1) {
+      return null;
+    }
+    return CacheSessionAggregate(
+      sessionPresent: sessionPresent,
+      basicCachePresent: basicCachePresent,
+      officerReportCachePresent: officerReportCachePresent,
+      pendingAttendanceIntentPresent: pendingAttendanceIntentCount == 1,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is CacheSessionAggregate &&
+      other.sessionPresent == sessionPresent &&
+      other.basicCachePresent == basicCachePresent &&
+      other.officerReportCachePresent == officerReportCachePresent &&
+      other.pendingAttendanceIntentPresent == pendingAttendanceIntentPresent;
+
+  @override
+  int get hashCode => Object.hash(
+        sessionPresent,
+        basicCachePresent,
+        officerReportCachePresent,
+        pendingAttendanceIntentPresent,
+      );
+}
+
 enum AttendanceQualification { teamPlayer, guestPlayer }
 
 class RepliedAttendance {

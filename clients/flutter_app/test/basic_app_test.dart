@@ -723,6 +723,50 @@ void main() {
     }
   });
 
+  testWidgets('cache/session projection is bounded and release-gated',
+      (tester) async {
+    const aggregate = CacheSessionAggregate(
+      sessionPresent: false,
+      basicCachePresent: false,
+      officerReportCachePresent: false,
+      pendingAttendanceIntentPresent: false,
+    );
+    await tester.pumpWidget(const MaterialApp(
+      home: DebugCacheSessionProjection(aggregate: aggregate),
+    ));
+    final projection =
+        find.byKey(const ValueKey('debug-cache-session-projection'));
+    final label = tester.widget<Semantics>(projection).properties.label!;
+    expect(label, contains('session absent'));
+    expect(label, contains('basic_cache absent'));
+    expect(label, contains('officer_report_cache absent'));
+    expect(label, contains('pending_attendance_intent absent'));
+    for (final prohibited in [
+      'refresh:install',
+      'cache:v1',
+      'officer-report-cache:v1',
+      'mutation:install:g',
+      'fictional-game',
+      'access-token',
+    ]) {
+      expect(label, isNot(contains(prohibited)));
+    }
+    expect(
+      DebugCacheSessionProjection.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+      ),
+      isFalse,
+    );
+    expect(
+      DebugCacheSessionProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
+  });
+
   testWidgets('canonical mutation error has fail-closed UX', (tester) async {
     final transport = QueueTransport()
       ..responses.addAll([

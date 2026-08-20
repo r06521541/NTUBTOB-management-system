@@ -452,6 +452,42 @@ enum DetailViewState {
   sessionExpired
 }
 
+class DebugCacheSessionProjection extends StatelessWidget {
+  const DebugCacheSessionProjection({super.key, required this.aggregate});
+
+  final CacheSessionAggregate aggregate;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+  }) =>
+      debugBuild && diagnosticEnabled;
+
+  static String _presence(bool present) => present ? 'present' : 'absent';
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        key: const ValueKey('debug-cache-session-projection'),
+        label: '偵錯本機狀態：session ${_presence(aggregate.sessionPresent)}；'
+            'basic_cache ${_presence(aggregate.basicCachePresent)}；'
+            'officer_report_cache '
+            '${_presence(aggregate.officerReportCachePresent)}；'
+            'pending_attendance_intent '
+            '${_presence(aggregate.pendingAttendanceIntentPresent)}',
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text(
+            'session ${_presence(aggregate.sessionPresent)}；'
+            'basic_cache ${_presence(aggregate.basicCachePresent)}；'
+            'officer_report_cache '
+            '${_presence(aggregate.officerReportCachePresent)}；'
+            'pending_attendance_intent '
+            '${_presence(aggregate.pendingAttendanceIntentPresent)}',
+          ),
+        ),
+      );
+}
+
 enum AuthoritativeOwnReplySource { freshServerGet, mutationReadback }
 
 enum CanonicalOwnReplyObservation {
