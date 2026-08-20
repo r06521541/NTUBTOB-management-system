@@ -3,7 +3,7 @@
 - Task type: repository compatibility bridge
 - Delivery group: `mobile-staging-acceptance-automation`
 - Requires independent PR: false
-- Status: assigned for implementation
+- Status: ready for Main Work review
 - Operator: agent under DEC-098
 - Owner gate: none for repository work; staging rollout remains separately gated
 
@@ -52,3 +52,14 @@ deployment and global coordination are read-only dependencies.
 3. Invariants: exact two-revision allowlist, read-only, unknown fail closed.
 4. Tests: direct readiness/no-disclosure suite plus compile/format/diff.
 5. Blocker: any non-additive schema or API behavior dependency returns to Main.
+
+## Evidence delta
+
+- `revision_readiness.py` now accepts exactly `0005_mobile_auth_api_foundation`
+  and `0006_staging_broker_operation_journal`; empty, malformed, unknown, older
+  and future values fail closed with only the fixed mismatch event.
+- Readiness remains a read-only query of `ntubtob.alembic_version`; no broker
+  journal table query or dependency was added, and existing driver error
+  categorization is unchanged.
+- Codex direct suite, Python 3.10 compile, Black, isort (Black profile) and
+  diff checks are complete; Main Work targeted review and hosted CI remain.
