@@ -69,6 +69,17 @@ Changes requested before controlled staging dogfood.
   stages (`ACTIVITY_UNAVAILABLE`, `ACTIVITY_INVALID`,
   `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, `SEMANTIC_DRIFT`) so
   an operator can reconcile safely without raw output or dot-sourcing internals.
+- The five reason-code mappings and their process-level no-disclosure tests are
+  accepted. On exact accepted HEAD `9e4ce4e9f0bb958d96b06dede3ad2aeb2b6adc1e`,
+  preflight passed but the single subsequent status invocation still returned
+  `FAILED/RUNTIME_FAILED`. No retry or side-channel diagnosis occurred. Static
+  source review shows `status` also traverses ADB-serial and package-inventory
+  stages before activity/accessibility. Add bounded per-stage wrapping/mapping
+  so failures in ADB, package, activity, accessibility and semantic
+  classification always emit a fixed actionable reason code; an expected
+  status-stage failure must never fall back to `RUNTIME_FAILED`. Add direct
+  governed-envelope regressions for the newly covered stages without exposing
+  child output or exception text.
 
 ## Deferred
 

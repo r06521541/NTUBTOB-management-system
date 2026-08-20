@@ -3,10 +3,10 @@ status: changes_requested
 next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: 0e905a86534aaff70cc052c239ffc9ed5f53ac4b
+head_commit: 9e4ce4e9f0bb958d96b06dede3ad2aeb2b6adc1e
 
 updated_by: work
-updated_at: 2026-08-20T19:10:00+08:00
+updated_at: 2026-08-20T20:05:00+08:00
 
 note: >
   TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
@@ -30,7 +30,13 @@ note: >
   that exact portal button semantic and targeted review accepted it. The next exact-once dogfood still returned only
   generic `FAILED/RUNTIME_FAILED`; Main stopped without side-channel diagnosis or retry. The original sole writer must
   add bounded status-stage reason codes that distinguish activity unavailable/invalid, accessibility unavailable/
-  invalid and semantic drift, so routine callers never need raw or dot-sourced diagnostics. During
+  invalid and semantic drift, so routine callers never need raw or dot-sourced diagnostics. That correction and
+  its targeted review passed. Exact-SHA preflight dogfood then passed, but the single status invocation still returned
+  FAILED/RUNTIME_FAILED. Main stopped without retry or side-channel diagnostics. Source review shows status also crosses
+  ADB-serial and package-inventory stages before activity/accessibility; their failures are not covered by the new
+  status mapping. The same writer must add bounded per-stage status boundaries so ADB/package/activity/accessibility/
+  semantic failures always return an actionable fixed reason code and no status-stage failure falls back to
+  RUNTIME_FAILED. During
   a Main read-only diagnosis, a PowerShell XML conversion error echoed the raw static logged-out hierarchy; it held no
   credential, token, subject, endpoint or user data, but violated the no-raw-hierarchy operating rule and is recorded.
   Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work
