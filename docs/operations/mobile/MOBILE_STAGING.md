@@ -328,6 +328,9 @@ toolchain/cache paths (including one absolute `apkanalyzer` package inspector),
 one AVD and serial, package/activity constants, task-owned
 `E:\codex-evidence\task-123` and `E:\codex-temp\task-123` roots, disk floor,
 artifact name, Android user-home inventory, and one allowed signer fingerprint.
+Each inventory entry is the actual `ANDROID_USER_HOME`; signer discovery checks
+only its direct `debug.keystore` child. It does not append another `.android`
+directory or accept a nested `.android\debug.keystore` fallback.
 It contains no endpoint, channel ID, provider subject, DSN, token, Secret value,
 or keystore path. A typical routine invocation is:
 

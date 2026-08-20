@@ -151,6 +151,27 @@ This terminal evidence does not claim Owner-private inspect/grant/restore
 dogfood, nor build, install, or cold-launch scenario completion. Hosted CI is
 still required. Codex performed no runtime action while recording this evidence.
 
+## Signer-home correction
+
+Subsequent controlled dogfood reached build and failed closed before Flutter
+with `FAILED/TOOLCHAIN_UNAVAILABLE`. Source diagnosis found signer discovery
+was appending `.android\debug.keystore` even though every configured entry is
+already the actual `ANDROID_USER_HOME`. The correction inspects only the direct
+`debug.keystore` child and passes that exact matched home to the Flutter build
+child as `ANDROID_USER_HOME`. It preserves exact-one public SHA-256 allowlist
+matching and does not output a home path, keystore path, key, or password.
+
+Tests now use the realistic root layout, reject zero/multiple/mismatched
+signers, prove a nested `.android\debug.keystore` is not accepted as fallback,
+and prove the build child receives the exact matched home. No launcher runtime,
+emulator, staging, private-console, Secret, or cloud action was executed for
+this correction. The two directly affected tests, Windows PowerShell parser,
+Python compile, isort, diff, and scope checks passed. The full direct suite
+produced 39 passes and one unchanged merged-base failure in
+`test_output_redaction_fallback_is_one_failed_json_and_exit_two`; the same test
+fails independently on base/main with `ACTION_RESULT_INVALID` instead of its
+expected `OUTPUT_REDACTION_FAILED`, so this narrow correction does not alter it.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.

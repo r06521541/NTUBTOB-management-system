@@ -579,7 +579,7 @@ function Get-AllowlistedDebugSigner {
     param([object]$Config)
     $found = @()
     foreach ($androidHome in @($Config.android_user_homes)) {
-        $keystore = Join-Path ([string]$androidHome) '.android\debug.keystore'
+        $keystore = Join-Path ([string]$androidHome) 'debug.keystore'
         if (-not (Test-Path -LiteralPath $keystore -PathType Leaf)) { continue }
         $result = Invoke-BoundedProcess ([string]$Config.keytool_executable) @('-list', '-v', '-keystore', $keystore, '-alias', 'androiddebugkey', '-storepass', 'android', '-keypass', 'android') 30
         if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Debug signer inventory failed safely' }

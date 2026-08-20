@@ -595,7 +595,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             base = Path(directory)
             homes = [base / "one", base / "two"]
             for home in homes:
-                (home / ".android").mkdir(parents=True)
+                home.mkdir(parents=True)
             config = (
                 "[pscustomobject]@{android_user_homes=@('"
                 + homes[0].as_posix()
@@ -611,11 +611,11 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             )
             for existing, reported, success in cases:
                 for home in homes:
-                    key = home / ".android" / "debug.keystore"
+                    key = home / "debug.keystore"
                     if key.exists():
                         key.unlink()
                 for index in existing:
-                    (homes[index] / ".android" / "debug.keystore").write_bytes(b"fake")
+                    (homes[index] / "debug.keystore").write_bytes(b"fake")
                 result = self.run_harness(
                     f"""
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {reported}';Stderr=''}} }}
@@ -628,6 +628,29 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     self.assertIn(FINGERPRINT, result.stdout)
                 else:
                     self.assertIn("Exactly one allowlisted debug signer", result.stdout)
+                for home in homes:
+                    self.assertNotIn(str(home), result.stdout + result.stderr)
+                self.assertNotIn("androiddebugkey", result.stdout + result.stderr)
+                self.assertNotIn("storepass", result.stdout + result.stderr)
+
+            nested_key = homes[0] / ".android" / "debug.keystore"
+            for home in homes:
+                root_key = home / "debug.keystore"
+                if root_key.exists():
+                    root_key.unlink()
+            nested_key.parent.mkdir()
+            nested_key.write_bytes(b"nested-must-not-match")
+            result = self.run_harness(
+                f"""
+                function Invoke-BoundedProcess {{ throw 'nested signer must not be inspected' }}
+                $config={config}
+                try {{ Get-AllowlistedDebugSigner $config; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Exactly one allowlisted debug signer", result.stdout)
+            self.assertNotIn("nested signer", result.stdout)
+            self.assertNotIn(str(nested_key), result.stdout + result.stderr)
 
     def test_install_is_session_preserving_and_uses_only_install_r(self):
         result = self.run_harness(
@@ -783,6 +806,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             snapshot = root / "snapshot"
             temp_root = root / "temp"
             evidence = root / "evidence"
+            android_user_home = root / "android-home"
             build_output = (
                 snapshot
                 / "clients"
@@ -794,6 +818,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 / "app-debug.apk"
             )
             (snapshot / "clients" / "flutter_app").mkdir(parents=True)
+            android_user_home.mkdir()
+            (android_user_home / "debug.keystore").write_bytes(b"fake")
             result = self.run_harness(
                 f"""
                 $env:MOBILE_STAGING_PUBLIC_ORIGIN='{SENSITIVE_SENTINELS[2]}'
@@ -801,11 +827,12 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{(evidence / 'app-debug.apk').as_posix()}' }}
-                function Get-AllowlistedDebugSigner {{ param($Config) return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}/android-home'}} }}
+                function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {FINGERPRINT}';Stderr=''}} }}
                 function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
                 function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
                 function Invoke-BoundedProcessWithPipe {{
-                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    param($Executable,$Arguments,$Payload,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    if ([string]$ChildEnvironment.ANDROID_USER_HOME -cne '{android_user_home.as_posix()}') {{ throw 'Build child Android user home is not exact' }}
                     [System.IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
                     [System.IO.File]::WriteAllBytes('{build_output.as_posix()}',[byte[]](1,2,3,4))
                     return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='build complete';Stderr=''}}
@@ -815,6 +842,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     evidence_root='{evidence.as_posix()}';flutter_executable='E:/mock/flutter.cmd';
                     android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';
                     pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle';
+                    android_user_homes=@('{android_user_home.as_posix()}');keytool_executable='E:/mock/keytool.exe';
                     signer_allowlist=@('{FINGERPRINT}')
                 }}
                 $value=Invoke-Build $config 'staging' '{FULL_SHA}'
