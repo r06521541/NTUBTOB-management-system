@@ -620,8 +620,11 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
         _bootstrap_empty_database(self.engine, Path.cwd())
 
-    def _seed_mobile_runtime_history(self, *, cross_principal=False):
+    def _seed_mobile_runtime_history(
+        self, *, cross_principal=False, session_id="task120-fixture-session"
+    ):
         person_id = 1 if cross_principal else -112001
+        label = session_id.rsplit("-", 1)[-1]
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -629,12 +632,16 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "(id, auth_identity_id, person_id, installation_id_hash, platform, "
                     "status, access_epoch, refresh_family_expires_at, revoked_at, "
                     "created_at, updated_at) VALUES "
-                    "('task120-fixture-session', -112001, :person, 'fake-installation', "
+                    "(:session, -112001, :person, :installation, "
                     "'android', 'revoked', 1, '2030-01-02T00:00:00Z', "
                     "'2030-01-01T00:00:00Z', '2030-01-01T00:00:00Z', "
                     "'2030-01-01T00:00:00Z')"
                 ),
-                {"person": person_id},
+                {
+                    "session": session_id,
+                    "person": person_id,
+                    "installation": f"fake-installation-{label}",
+                },
             )
             for number in range(8):
                 connection.execute(
@@ -642,11 +649,15 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                         "INSERT INTO ntubtob.mobile_refresh_tokens "
                         "(session_id, token_hash, generation, status, issued_at, "
                         "expires_at, revoked_at) VALUES "
-                        "('task120-fixture-session', :token, :generation, 'revoked', "
+                        "(:session, :token, :generation, 'revoked', "
                         "'2030-01-01T00:00:00Z', '2030-01-02T00:00:00Z', "
                         "'2030-01-01T00:00:00Z')"
                     ),
-                    {"token": f"fake-refresh-{number}", "generation": number + 1},
+                    {
+                        "session": session_id,
+                        "token": f"fake-refresh-{label}-{number}",
+                        "generation": number + 1,
+                    },
                 )
             for number in range(7):
                 connection.execute(
@@ -654,12 +665,13 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                         "INSERT INTO ntubtob.mobile_refresh_attempts "
                         "(session_id, attempt_id_hash, request_hash, encrypted_successor, "
                         "expires_at, created_at) VALUES "
-                        "('task120-fixture-session', :attempt, :request, :payload, "
+                        "(:session, :attempt, :request, :payload, "
                         "'2030-01-02T00:00:00Z', '2030-01-01T00:00:00Z')"
                     ),
                     {
-                        "attempt": f"fake-attempt-{number}",
-                        "request": f"fake-request-{number}",
+                        "session": session_id,
+                        "attempt": f"fake-attempt-{label}-{number}",
+                        "request": f"fake-request-{label}-{number}",
                         "payload": b"fake-test-payload",
                     },
                 )
@@ -668,10 +680,15 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "INSERT INTO ntubtob.mobile_auth_exchanges "
                     "(provider, assertion_hash, login_attempt_hash, session_id, "
                     "expires_at, created_at) VALUES "
-                    "('line', 'fake-assertion', 'fake-login-attempt', "
-                    "'task120-fixture-session', '2030-01-02T00:00:00Z', "
+                    "('line', :assertion, :attempt, :session, "
+                    "'2030-01-02T00:00:00Z', "
                     "'2030-01-01T00:00:00Z')"
-                )
+                ),
+                {
+                    "assertion": f"fake-assertion-{label}",
+                    "attempt": f"fake-login-attempt-{label}",
+                    "session": session_id,
+                },
             )
             for number in range(2):
                 connection.execute(
@@ -680,15 +697,16 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                         "(session_id, person_id, method, route, key_hash, request_hash, "
                         "state, response_status, response_body, expires_at, created_at, "
                         "updated_at) VALUES "
-                        "('task120-fixture-session', :person, 'PUT', '/api/v1/fake', "
+                        "(:session, :person, 'PUT', '/api/v1/fake', "
                         ":key, :request, 'completed', 200, '{}'::json, "
                         "'2030-01-02T00:00:00Z', '2030-01-01T00:00:00Z', "
                         "'2030-01-01T00:00:00Z')"
                     ),
                     {
                         "person": person_id,
-                        "key": f"fake-key-{number}",
-                        "request": f"fake-idempotency-request-{number}",
+                        "session": session_id,
+                        "key": f"fake-key-{label}-{number}",
+                        "request": f"fake-idempotency-request-{label}-{number}",
                     },
                 )
 
@@ -717,6 +735,43 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                         "(5, -112001, -112001, 1, '2026-08-19T16:36:24Z')"
                     )
                 )
+
+    def _mobile_history_snapshot(self):
+        with self.engine.connect() as connection:
+            return {
+                table: connection.execute(
+                    text(f"SELECT * FROM ntubtob.{table} ORDER BY id")
+                ).all()
+                for table in (
+                    "mobile_sessions",
+                    "mobile_refresh_tokens",
+                    "mobile_refresh_attempts",
+                    "mobile_auth_exchanges",
+                    "mobile_idempotency_records",
+                )
+            }
+
+    def _grant_officer_with_mobile_history(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        grant_officer(self.approval, TEST_DATABASE_URL, "fake-private-tester-subject")
+
+    def _assert_officer_state_unchanged(self):
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT portal_access_level, version FROM ntubtob.people "
+                        "WHERE id=-112001"
+                    )
+                ).one(),
+                ("officer", 2),
+            )
 
     def test_true_empty_bootstrap_injected_migration_seed_recover_and_cleanup(self):
         before = recover(self.approval, TEST_DATABASE_URL)
@@ -941,6 +996,58 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
             )["changed"]
         )
+
+    def test_officer_restore_accepts_dynamic_owned_mobile_history(self):
+        self._grant_officer_with_mobile_history()
+        self._seed_mobile_runtime_history(session_id="task120-officer-session-2")
+        before = self._mobile_history_snapshot()
+        restored = restore_basic(
+            self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+        )
+        self.assertEqual((restored["state"], restored["changed"]), ("restored", True))
+        self.assertEqual(self._mobile_history_snapshot(), before)
+
+    def test_officer_restore_rejects_cross_principal_mobile_session(self):
+        self._grant_officer_with_mobile_history()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.mobile_sessions SET person_id=1 "
+                    "WHERE id='task120-fixture-session'"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "mobile history is drifted"):
+            restore_basic(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        self._assert_officer_state_unchanged()
+
+    def test_officer_restore_rejects_non_line_mobile_exchange(self):
+        self._grant_officer_with_mobile_history()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("UPDATE ntubtob.mobile_auth_exchanges SET provider='google'")
+            )
+        with self.assertRaisesRegex(StagingContractError, "mobile history is drifted"):
+            restore_basic(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        self._assert_officer_state_unchanged()
+
+    def test_officer_restore_rejects_cross_principal_mobile_idempotency(self):
+        self._grant_officer_with_mobile_history()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.mobile_idempotency_records SET person_id=1 "
+                    "WHERE session_id='task120-fixture-session'"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "mobile history is drifted"):
+            restore_basic(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        self._assert_officer_state_unchanged()
 
     def test_runtime_residue_repair_rejects_near_miss_additional_and_cross_principal_history(
         self,
