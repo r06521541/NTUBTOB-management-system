@@ -84,6 +84,13 @@ function Get-HarnessFieldNames {
     return @($Value.PSObject.Properties.Name)
 }
 
+function Get-HarnessFunctionScriptBlock {
+    param([string]$Name)
+    $command = Get-Command $Name -CommandType Function -ErrorAction SilentlyContinue
+    if ($null -eq $command) { return $null }
+    return $command.ScriptBlock
+}
+
 function Assert-HarnessArguments {
     param([string]$SelectedScenario, [string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [string]$StatePath)
     if ($SelectedScenario -notin $script:HarnessScenarios) { Throw-HarnessSafe 'Scenario is explicit and required' }
@@ -258,8 +265,17 @@ function Get-AdditionalAcceptanceProducerObservation {
 }
 
 function Get-MobileAcceptanceArtifact {
-    param([object]$Config, [string]$ExpectedCommit)
-    $artifact = Get-ArtifactPath $Config
+    param([object]$Config, [string]$ExpectedCommit, [hashtable]$LauncherCommands)
+    if ($null -eq $LauncherCommands) {
+        $LauncherCommands = @{
+            GetArtifactPath = Get-HarnessFunctionScriptBlock 'Get-ArtifactPath'
+            InvokeApkTool = Get-HarnessFunctionScriptBlock 'Invoke-ApkToolWithApprovedJava'
+            GetSigner = Get-HarnessFunctionScriptBlock 'Get-ApkSignerFingerprint'
+            GetPackage = Get-HarnessFunctionScriptBlock 'Get-ApkPackageIdentity'
+        }
+    }
+    $getArtifactPath = $LauncherCommands.GetArtifactPath
+    $artifact = & $getArtifactPath $Config
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { return [ordered]@{ state = 'missing' } }
     $manifestPath = Join-Path ([string]$Config.evidence_root) 'artifact-manifest.json'
     try { $manifest = Get-Content -LiteralPath $manifestPath -Encoding UTF8 -Raw | ConvertFrom-Json } catch { return [ordered]@{ state = 'drift' } }
@@ -276,12 +292,13 @@ function Get-MobileAcceptanceArtifact {
         [string]$manifest.signer_sha256 -notmatch $script:HarnessFingerprintPattern
     ) { return [ordered]@{ state = 'drift' } }
     try {
-        $versionResult = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apkanalyzer_executable) @('manifest', 'version-name', $artifact)
+        $invokeApkTool = $LauncherCommands.InvokeApkTool
+        $versionResult = & $invokeApkTool $Config ([string]$Config.apkanalyzer_executable) @('manifest', 'version-name', $artifact)
         $versionLines = @($versionResult.Stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
         if ($versionResult.TimedOut -or $versionResult.ExitCode -ne 0 -or $versionLines.Count -ne 1) { return [ordered]@{ state = 'unavailable' } }
         $binding = [pscustomobject]@{
             accepted_sha = $ExpectedCommit; artifact_sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash
-            signer_sha256 = Get-ApkSignerFingerprint $Config $artifact; package = Get-ApkPackageIdentity $Config $artifact
+            signer_sha256 = & $LauncherCommands.GetSigner $Config $artifact; package = & $LauncherCommands.GetPackage $Config $artifact
             version = $versionLines[0].Trim(); avd = [string]$Config.avd_name; serial = [string]$Config.serial
             vocabulary_version = $script:HarnessVocabularyVersion
         }
@@ -293,27 +310,37 @@ function Get-MobileAcceptanceArtifact {
 }
 
 function New-MobileAcceptanceDependenciesFromConfig {
-    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [object]$Config)
+    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [object]$Config, [hashtable]$LauncherCommands)
+    if ($null -eq $LauncherCommands) {
+        $LauncherCommands = @{
+            InvokeMain = Get-HarnessFunctionScriptBlock 'Invoke-MobileStagingMain'
+            InvokeBounded = Get-HarnessFunctionScriptBlock 'Invoke-BoundedProcess'
+        }
+    }
+    $invokeMain = $LauncherCommands.InvokeMain
+    $invokeBounded = $LauncherCommands.InvokeBounded
+    $inspectArtifact = (Get-Command Get-MobileAcceptanceArtifact -CommandType Function).ScriptBlock
+    $produceObservation = (Get-Command Get-AdditionalAcceptanceProducerObservation -CommandType Function).ScriptBlock
     $action = {
         param($Name)
         switch ($Name) {
-            'preflight' { $value = Invoke-MobileStagingMain 'preflight' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
-            'avd-start' { $value = Invoke-MobileStagingMain 'avd-start' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
-            'cleanup-artifact' { $value = Invoke-MobileStagingMain 'cleanup-artifact' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
-            'build' { $value = Invoke-MobileStagingMain 'build' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
-            'signer-check' { $value = Invoke-MobileStagingMain 'signer-check' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
-            'install' { $value = Invoke-MobileStagingMain 'install' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $true $false $false }
-            'cold-launch' { $value = Invoke-MobileStagingMain 'cold-launch' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
+            'preflight' { $value = & $invokeMain 'preflight' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
+            'avd-start' { $value = & $invokeMain 'avd-start' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
+            'cleanup-artifact' { $value = & $invokeMain 'cleanup-artifact' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
+            'build' { $value = & $invokeMain 'build' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
+            'signer-check' { $value = & $invokeMain 'signer-check' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
+            'install' { $value = & $invokeMain 'install' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $true $false $false }
+            'cold-launch' { $value = & $invokeMain 'cold-launch' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
             default { Throw-HarnessSafe 'Harness action is unavailable' }
         }
         return [pscustomobject]@{ classification = 'PASS'; result = [string]$value.result }
     }.GetNewClosure()
-    $artifact = { Get-MobileAcceptanceArtifact $Config $ExpectedCommit }.GetNewClosure()
+    $artifact = { & $inspectArtifact $Config $ExpectedCommit $LauncherCommands }.GetNewClosure()
     $observation = {
-        $status = Invoke-MobileStagingMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false
+        $status = & $invokeMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false
         if ($status.result -ne 'observed') { Throw-HarnessSafe 'Harness status is unavailable' }
-        return Get-AdditionalAcceptanceProducerObservation $status {
-            $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
+        return & $produceObservation $status {
+            $result = & $invokeBounded ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
             if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-HarnessSafe 'Harness producer observation is unavailable' }
             return [string]$result.Stdout
         }
@@ -331,9 +358,26 @@ function New-MobileAcceptanceDependenciesFromConfig {
 
 function New-MobileAcceptanceDependencies {
     param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath)
-    . (Join-Path $PSScriptRoot 'Invoke-MobileStaging.ps1')
-    $config = Load-LauncherConfig $LauncherConfigPath
-    return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config
+    $launcherPath = Join-Path $PSScriptRoot 'Invoke-MobileStaging.ps1'
+    $launcherModule = New-Module -ArgumentList $launcherPath -ScriptBlock {
+        param($Path)
+        . $Path
+    }
+    if ($null -eq $launcherModule) { Throw-HarnessSafe 'Harness launcher composition is unavailable' }
+    $loadConfig = $launcherModule.NewBoundScriptBlock({ param($Path) Load-LauncherConfig $Path })
+    $config = & $loadConfig $LauncherConfigPath
+    $launcherCommands = @{
+        InvokeMain = $launcherModule.NewBoundScriptBlock({
+            param($Action, $Mode, $Commit, $ConfigPath, $ApprovalPath, $PreserveSession, $PublicHealth, $PurgeEvidence)
+            Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath $ApprovalPath $PreserveSession $PublicHealth $PurgeEvidence
+        })
+        InvokeBounded = $launcherModule.NewBoundScriptBlock({ param($File, $Arguments, $Timeout, [hashtable]$Environment = @{}) Invoke-BoundedProcess $File $Arguments $Timeout $Environment })
+        GetArtifactPath = $launcherModule.NewBoundScriptBlock({ param($Config) Get-ArtifactPath $Config })
+        InvokeApkTool = $launcherModule.NewBoundScriptBlock({ param($Config, $Tool, $Arguments) Invoke-ApkToolWithApprovedJava $Config $Tool $Arguments })
+        GetSigner = $launcherModule.NewBoundScriptBlock({ param($Config, $Artifact) Get-ApkSignerFingerprint $Config $Artifact })
+        GetPackage = $launcherModule.NewBoundScriptBlock({ param($Config, $Artifact) Get-ApkPackageIdentity $Config $Artifact })
+    }
+    return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands
 }
 
 function Invoke-HarnessPreparation {

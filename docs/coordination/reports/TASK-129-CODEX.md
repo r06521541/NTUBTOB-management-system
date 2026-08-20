@@ -101,3 +101,13 @@ Next actor: Main Work review.
   `signer_matched` spelling. The affected complete harness suite passes 12/12.
 - No dogfood retry, emulator mutation, build, install, login, Secret, database,
   broker, staging, or cloud operation ran during this correction.
+
+- The next bounded invocation still stopped before cleanup. A read-only direct
+  production dependency diagnostic returned only `CommandNotFoundException`:
+  TASK-123 commands had also been dot-sourced inside the factory-local scope and
+  disappeared when it returned. The factory now loads TASK-123 into an isolated
+  in-memory module and captures only its required module-bound ScriptBlocks;
+  launcher parameters and commands are not exported into harness/global scope.
+  A direct scoped-factory regression proves the bound commands remain callable
+  after return. A read-only production diagnostic now returns exact artifact
+  state `drift`. No runtime retry occurred for this correction.

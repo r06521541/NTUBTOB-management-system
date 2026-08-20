@@ -139,6 +139,36 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             ["preflight", "staging", FULL_SHA, "C:/value-free.json"],
         )
 
+    def test_scoped_launcher_commands_survive_factory_return(self):
+        result = self.run_harness(
+            """
+            function New-ScopedDependencies {
+                function Invoke-MobileStagingMain { param($action) return @{result='ready';action=$action} }
+                function Invoke-BoundedProcess { throw 'must not run' }
+                function Get-ArtifactPath { param($config) return 'E:/missing-app-debug.apk' }
+                function Invoke-ApkToolWithApprovedJava { throw 'must not run' }
+                function Get-ApkSignerFingerprint { throw 'must not run' }
+                function Get-ApkPackageIdentity { throw 'must not run' }
+                $commands=@{
+                    InvokeMain=(Get-Command Invoke-MobileStagingMain -CommandType Function).ScriptBlock
+                    InvokeBounded=(Get-Command Invoke-BoundedProcess -CommandType Function).ScriptBlock
+                    GetArtifactPath=(Get-Command Get-ArtifactPath -CommandType Function).ScriptBlock
+                    InvokeApkTool=(Get-Command Invoke-ApkToolWithApprovedJava -CommandType Function).ScriptBlock
+                    GetSigner=(Get-Command Get-ApkSignerFingerprint -CommandType Function).ScriptBlock
+                    GetPackage=(Get-Command Get-ApkPackageIdentity -CommandType Function).ScriptBlock
+                }
+                $config=[pscustomobject]@{evidence_root='E:/task-owned';adb_executable='E:/safe/adb.exe';serial='emulator-5554'}
+                return New-MobileAcceptanceDependenciesFromConfig 'staging' '20f393778a9010ac52ad9c8935f3992d72ce06a0' 'C:/value-free.json' $config $commands
+            }
+            $deps=New-ScopedDependencies
+            $artifact=& $deps.Artifact
+            $action=& $deps.Action 'preflight'
+            [pscustomobject]@{artifact=$artifact.state;action=$action.result}|ConvertTo-Json -Compress
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"artifact": "missing", "action": "ready"})
+
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"
