@@ -130,3 +130,18 @@ Next actor: Main Work review.
   unavailable condition up to three attempts with two-second waits. Unknown
   failures are attempted once and redacted; exhaustion returns bounded
   `EVIDENCE_GAP/STATUS_UNAVAILABLE`. No login or acceptance was claimed.
+
+- Accepted-main dogfood on `7613870c4644d7354b7f1cdb38c584e1c789e6fe`
+  twice exhausted the original three-attempt/two-second readiness window after
+  a successful cold launch. Governed read-only reconciliation initially
+  returned accessibility unavailable or malformed, then the unchanged parser
+  returned exact `logged_out` once API36 UIAutomator settled. The readiness
+  budget is therefore five attempts with three-second waits and retries only
+  those two exact recoverable inventory conditions. Semantic drift and unknown
+  failures remain single-attempt fail closed. No LINE login, consent, database,
+  Secret, broker, or cloud operation occurred during diagnosis or correction.
+  The affected harness suite passes 15/15; Python compile, the PowerShell parser,
+  and `git diff --check` pass. Black 24.4.2 CLI and formatter API both reproduced
+  the documented Windows stall and were boundedly terminated; hosted CI retains
+  the final formatting gate. The existing import block was not changed, so an
+  unrelated local isort baseline difference was not applied to this correction.
