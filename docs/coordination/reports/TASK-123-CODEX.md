@@ -106,6 +106,11 @@ Using the repository bundled Python on Windows:
   accessibility calls become their fixed unavailable reasons; the known
   semantic drift remains `DRIFT`. Every process emits one JSON, exits 2, and
   excludes the raw exception and child output.
+- Targeted full-entrypoint result-shape regressions: 4 passed. Package-absent,
+  portal-background, portal-stopped, logged-out, and authenticated status states
+  return one `PASS` JSON with `result=observed` and exit 0. Missing or malformed
+  action results return one `FAILED/ACTION_RESULT_INVALID` JSON with exit 2 and
+  no sentinel or raw exception.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -166,7 +171,9 @@ Owner-private action was run.
   `f8bba5b64dc44ae9fc1eb7e058a2f3df547128bf`
 - Status exception-boundary correction commit:
   `c8dc6eca7768ded4a47cf0f7d62ae39574cbf185`
-- Authoritative shared ancestry: `54a3068c0c9d6a8f3c2761a8ac47a5643a36551b`
+- Governed action-result correction commit:
+  `f1a58f6cfee9f975722b2de1ff50d457a79b8fb3`
+- Authoritative shared ancestry: `c3bfd7e40eccaea2f0b7ca46d7a60a2b39860932`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
