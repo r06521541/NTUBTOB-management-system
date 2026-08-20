@@ -1,24 +1,24 @@
 active_task: TASK-123
-status: changes_requested
-next_actor: codex
+status: ready_for_hosted_ci
+next_actor: work
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: 20f393778a9010ac52ad9c8935f3992d72ce06a0
+head_commit: f9f2a7de9fb5e017c8cdcf31586cc5d490c1fec8
 
 updated_by: work
-updated_at: 2026-08-20T15:15:00+08:00
+updated_at: 2026-08-20T15:35:00+08:00
 
 note: >
   TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
   Basic downgrade and cache purge, and logout cold non-revival all passed. TASK-123 now builds a repository-only,
-  single-entry mobile staging launch console. Flutter Domain requested four bounded corrections: preserve the
-  authoritative TASK-123/HANDOFF ancestry, implement semantic accessibility status evidence, verify the APK package
-  before session-preserving install, and apply the task lock to the complete Owner-private lifecycle. Shared/Web
-  Codex remains the sole implementation writer on the same branch. No launcher command may touch emulator, staging,
-  Secret, cloud, production or notifications during correction. Phase-two acceptance harness, no-disclosure
-  credential broker, fixture lifecycle and observability-contract work remain explicitly deferred.
+  single-entry mobile staging launch console. Flutter Domain accepted the corrected implementation after verifying
+  authoritative ancestry, bounded semantic accessibility evidence, exact APK package identity before install, and
+  a task lock around the complete Owner-private lifecycle. Main independently passed all 26 direct tests and
+  fast-forwarded the accepted history. Hosted Black and repository CI are now required before the separately
+  authorized staging dogfood. Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and
+  observability-contract work remain explicitly deferred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-123.md
 report: docs/coordination/reports/TASK-123-CODEX.md
-review: null
+review: docs/coordination/reviews/TASK-123-WORK.md
