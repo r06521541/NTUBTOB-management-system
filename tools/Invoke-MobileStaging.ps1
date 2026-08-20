@@ -891,6 +891,10 @@ function Get-FailureClassification {
     if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
     if ($Message -ceq 'Accessibility foreground state is not exact') { return 'DRIFT' }
     if ($Message -cin @(
+        'ADB inventory failed safely',
+        'ADB serial state is not ready',
+        'ADB serial inventory is not exact',
+        'Package inventory timed out',
         'Activity inventory failed safely',
         'Activity inventory size is not bounded',
         'Current activity inventory is ambiguous',
@@ -907,6 +911,12 @@ function Get-FailureClassification {
 function Get-FailureReasonCode {
     param([string]$Message)
     if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -ceq 'ADB inventory failed safely') { return 'ADB_UNAVAILABLE' }
+    if ($Message -cin @(
+        'ADB serial state is not ready',
+        'ADB serial inventory is not exact'
+    )) { return 'ADB_INVALID' }
+    if ($Message -ceq 'Package inventory timed out') { return 'PACKAGE_UNAVAILABLE' }
     if ($Message -ceq 'Activity inventory failed safely') { return 'ACTIVITY_UNAVAILABLE' }
     if ($Message -cin @(
         'Activity inventory size is not bounded',
