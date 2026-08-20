@@ -121,3 +121,12 @@ Next actor: Main Work review.
   the unknown case invokes cold launch only once. A subsequent read-only status
   reached the accessibility stage and failed safely; it was not retried or used
   to claim semantic acceptance.
+
+- After the vocabulary correction, dogfood again completed build/sign/install/
+  cold and stopped at semantic observation. A single metadata-only diagnostic
+  performed later returned exit zero with bounded output, proving API36
+  UIAutomator readiness was transient rather than a persistent configuration
+  defect. The harness now retries only the exact read-only accessibility-
+  unavailable condition up to three attempts with two-second waits. Unknown
+  failures are attempted once and redacted; exhaustion returns bounded
+  `EVIDENCE_GAP/STATUS_UNAVAILABLE`. No login or acceptance was claimed.
