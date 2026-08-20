@@ -299,6 +299,84 @@ traffic only in update mode;
 candidate/image deletion and full staging cleanup remain separately approved
 cost-bearing actions.
 
+## Bounded mobile staging launch console
+
+`tools/Invoke-MobileStaging.ps1` runs exactly one declared local action. `help`,
+`preflight`, `status`, and every routine action stay on a separate code path
+from the Owner-private actions: they do not initialize `gcloud`, resolve a
+Secret reference, read the private tester subject/database URL, or load the
+staging mutation operator. Repository tests mock every executable; TASK-123
+does not run this console against an emulator, staging, or cloud resources.
+
+Every invocation writes exactly one compressed, de-identified JSON object. Its
+top-level classification is one of `PASS`, `OWNER_ACTION_REQUIRED`, `DRIFT`,
+`TIMEOUT`, or `FAILED`, with fixed `standing_authorization=DEC-098`,
+`report_to=main-work`, bounded `stop_only_on`, action-specific `operator` and
+`owner_gate`, and `retention_owner=TASK-123`. A non-`PASS` result exits nonzero.
+No caller needs raw process output to classify an action.
+
+The value-free config contains only the exact detached snapshot, absolute
+toolchain/cache paths, one AVD and serial, package/activity constants, task-owned
+`E:\codex-evidence\task-123` and `E:\codex-temp\task-123` roots, disk floor,
+artifact name, Android user-home inventory, and one allowed signer fingerprint.
+It contains no endpoint, channel ID, provider subject, DSN, token, Secret value,
+or keystore path. A typical routine invocation is:
+
+```powershell
+.\tools\Invoke-MobileStaging.ps1 `
+  -Action preflight `
+  -Mode fake `
+  -Commit <full-accepted-sha> `
+  -ConfigPath C:\private\task-123-launcher.json
+```
+
+The routine actions are `help`, `preflight`, `avd-start`, `status`, `build`,
+`signer-check`, `install`, `cold-launch`, `health`, `stop`, and `cleanup`.
+`install` additionally requires `-PreserveSession` and only issues
+`adb install -r` after exact artifact/installed signer agreement. `cold-launch`
+uses semantic package/activity/PID checks, performs no coordinate/OCR/raw UI XML
+or logcat classification, and does not retry a timed-out `am start`. Any network
+setting changed by that action is restored in `finally`. Cleanup is limited to
+the two task-owned roots and retains evidence unless `-PurgeEvidence` is
+explicit. Staging Flutter defines are delivered to the child through a named
+pipe so values are absent from argv, files, evidence, and console output.
+
+Owner-private actions are one interactive invocation only:
+
+```powershell
+.\tools\Invoke-MobileStaging.ps1 `
+  -Action grant-officer `
+  -Mode staging `
+  -Commit <full-accepted-sha> `
+  -ConfigPath C:\private\task-123-launcher.json `
+  -ApprovalPath C:\private\candidate-approval.json
+```
+
+They are `private-inspect`, `grant-officer`, and `restore-basic`. Non-interactive
+execution returns `OWNER_ACTION_REQUIRED` before config, `gcloud`, Secret, or
+operator initialization. The Owner enters the private provider subject as a
+secure prompt; the approved database Secret value and subject exist only in the
+single child environment and are cleared in `finally`. Grant/restore always run
+read-only inspect, require exact non-sensitive `GRANT-OFFICER` or
+`RESTORE-BASIC` confirmation, attempt at most one mutation, then independently
+inspect the terminal state. An interrupted or unknown mutation is never retried;
+only read-only reconciliation is permitted. The console never prints child
+stdout, endpoint/channel values, DSN, subject, token/assertion, keystore
+material/path, raw UI/log output, or sensitive exception text.
+
+Artifact evidence is bounded to accepted commit, mode, package, artifact hash,
+public signer fingerprint, classification, and retention owner. Concurrency and
+stale task ownership fail closed through the exact task lock; the launcher kills
+only the child process it started and never performs global process/cache/app
+cleanup.
+
+TASK-123 deliberately defers these four follow-ups:
+
+- A: named resumable Staging Acceptance Harness.
+- B: no-disclosure credential launcher/broker.
+- C: relational fictional fixture lifecycle/reset/reconcile preserving audits.
+- D: acceptance observability contracts defined before runtime claims.
+
 Cloud Run semantics checked against the official
 [deploy documentation](https://cloud.google.com/run/docs/deploying),
 [`gcloud run deploy` reference](https://cloud.google.com/sdk/gcloud/reference/run/deploy),
