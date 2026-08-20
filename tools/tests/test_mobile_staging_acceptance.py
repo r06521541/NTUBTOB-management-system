@@ -291,6 +291,40 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             self.assertEqual(payload["value"]["details"]["reason_code"], "ACTION_RESULT_INVALID")
             self.assertEqual(payload["cold"], 1)
 
+    def test_basic_observation_gap_resumes_without_reinstall_or_cold_launch(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            result = self.run_harness(
+                f"""
+                $script:phase='first';$script:actions=@()
+                $binding={self.binding_ps()}
+                $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)
+                    $script:actions+=$name
+                    return @{{classification='PASS';result=@{{preflight='ready';'avd-start'='reused';'signer-check'='matched';install='replaced';'cold-launch'='running'}}[$name]}}
+                }} -Artifact {{@{{state='matched';binding=$binding}}}} -Observation {{
+                    if($script:phase -eq 'first'){{throw 'Harness status is unavailable'}}
+                    return [pscustomobject]@{{principal='logged_out';provenance='none';aggregate='terminal_absent';report='absent';report_entry='absent';producer_gap=$false}}
+                }} -CheckpointPolicy {{param($path)$true}}
+                $first=Invoke-MobileStagingAcceptanceMain 'basic-authorization' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $false $deps
+                $firstCheckpoint=Get-Content -LiteralPath '{checkpoint.as_posix()}' -Raw|ConvertFrom-Json
+                $firstActions=@($script:actions);$script:actions=@();$script:phase='resume'
+                $second=Invoke-MobileStagingAcceptanceMain 'basic-authorization' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $true $deps
+                $secondCheckpoint=Get-Content -LiteralPath '{checkpoint.as_posix()}' -Raw|ConvertFrom-Json
+                [pscustomobject]@{{first=$first;firstStep=$firstCheckpoint.step;firstActions=$firstActions;second=$second;secondStep=$secondCheckpoint.step;secondActions=$script:actions}}|ConvertTo-Json -Depth 6 -Compress
+                """
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["first"]["classification"], "EVIDENCE_GAP")
+        self.assertEqual(payload["firstStep"], "await_observation")
+        self.assertEqual(
+            payload["firstActions"],
+            ["preflight", "avd-start", "signer-check", "install", "cold-launch"],
+        )
+        self.assertEqual(payload["second"]["classification"], "OWNER_ACTION_REQUIRED")
+        self.assertEqual(payload["secondStep"], "await_login")
+        self.assertEqual(payload["secondActions"], ["preflight", "avd-start"])
+
     def test_status_readiness_retries_only_exact_recoverable_accessibility_states(self):
         result = self.run_harness(
             """

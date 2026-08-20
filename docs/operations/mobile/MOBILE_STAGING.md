@@ -584,6 +584,11 @@ Preparation consumes only accepted TASK-123 actions. A matching artifact
 manifest/fingerprint proves the build artifact, not the installed APK, so a
 fresh scenario still runs `signer-check`, session-preserving `install -r`, and
 one cold launch. A bound resume checkpoint revalidates instead of reinstalling.
+Immediately after fresh preparation, Basic writes an `await_observation`
+checkpoint before reading UI state. If bounded readiness is unavailable, the
+checkpoint remains and `-Resume` revalidates the exact artifact binding but
+does not repeat install or cold launch; an exact logged-out observation advances
+it to `await_login`.
 The production dependency factory loads TASK-123 into an isolated in-memory
 PowerShell module, then captures its value-free config, accepted binding, and
 module-bound function ScriptBlocks before the factory scope ends. Delayed

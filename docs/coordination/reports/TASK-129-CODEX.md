@@ -172,3 +172,12 @@ Next actor: Main Work review.
   bounded read-only convergence state. It still requires a later exact state;
   five persistent drift attempts return evidence gap, and unknown failures are
   never retried. No UI input, login, or sensitive hierarchy was captured.
+
+- Even with bounded convergence, the post-cold observation could remain
+  unavailable for the whole invocation and become exact only after that process
+  exited. Basic preparation now durably records `await_observation` after the
+  exact artifact/install/cold sequence and before UI evidence. A direct two-run
+  regression proves the first evidence gap retains that checkpoint and the
+  `-Resume` invocation performs only preflight/AVD revalidation before advancing
+  an exact logged-out state to `await_login`; install and cold launch each remain
+  exact once. No mutation is replayed.
