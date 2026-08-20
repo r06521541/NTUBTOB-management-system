@@ -1,0 +1,16 @@
+steps:
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: bash
+    args:
+      - -c
+      - >
+        gcloud run deploy ${_SERVICE}
+        --image=${_IMAGE}@sha256:${_IMAGE_DIGEST}
+        --region=${_REGION}
+        --no-allow-unauthenticated
+        --max-instances=1
+        --concurrency=1
+        --service-account=${_RUNTIME_IDENTITY}
+        --set-env-vars=BROKER_PROJECT=${PROJECT_ID},BROKER_REGION=${_REGION},BROKER_SERVICE=${_SERVICE},BROKER_RUNTIME_IDENTITY=${_RUNTIME_IDENTITY},BROKER_CANDIDATE_APPROVAL_SHA256=${_CANDIDATE_APPROVAL_SHA256},BROKER_ARTIFACT_SHA256=${_BROKER_ARTIFACT_SHA256},BROKER_OPERATOR_ARTIFACT_SHA256=${_OPERATOR_ARTIFACT_SHA256},BROKER_IMAGE_DIGEST=sha256:${_IMAGE_DIGEST},BROKER_DATABASE_IDENTITY_SHA256=${_DATABASE_IDENTITY_SHA256},BROKER_DATABASE_SECRET_VERSION=projects/${PROJECT_ID}/secrets/${_DATABASE_SECRET}/versions/${_DATABASE_SECRET_VERSION},BROKER_SUBJECT_SECRET_VERSION=projects/${PROJECT_ID}/secrets/${_SUBJECT_SECRET}/versions/${_SUBJECT_SECRET_VERSION}
+options:
+  logging: CLOUD_LOGGING_ONLY

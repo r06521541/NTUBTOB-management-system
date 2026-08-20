@@ -519,6 +519,33 @@ and [traffic rollout documentation](https://cloud.google.com/run/docs/rollouts-r
 The operator never runs project/API/billing/database/Secret/service-account/IAM
 or LINE-channel creation. Public ingress and IAM remain Owner-controlled steps.
 
+## Privilege-separated broker core
+
+TASK-128 provides a repository-only private broker contract for the exact
+`inspect`, `reset`, `grant`, `restore`, and `reconcile` vocabulary. The caller
+supplies only an opaque operation ID. A baked fictional candidate approval and
+the broker/operator source bytes are normalized and SHA-256 checked against the
+non-secret manifest before Secret access or TASK-126 operator import. The
+runtime does not claim to verify its own image digest: the static deployment
+contract instead requires an immutable digest, while runtime attestation binds
+the source and build inputs actually present in the image.
+
+The broker does not cache raw Secret payloads. The PostgreSQL engine is created
+only after the process-local gate and artifact checks; its pool necessarily
+retains the database DSN for the engine lifetime. The provider subject remains
+request-local and is never stored in the journal, response, log, exception, or
+temporary file. `mutation_issued` is the durable no-retry boundary: resume and
+`reconcile` perform read-only inspection against the same journal row and never
+issue a second TASK-126 mutation.
+
+Integration requires accepted TASK-130 commit
+`6099fce0cb9ecdbbb69ec7452df5771417540f20`; do not deploy TASK-128 alone.
+Main combines both packages in one delivery branch and PR. Any later external
+rollout must update the compatibility API first, then apply the 0006 journal
+migration and broker. Cloud Run, IAM, Secret versions and staging execution
+remain separate Owner gates; the checked-in deployment files are static
+contracts only.
+
 ## Flutter staging command template
 
 After staging exists, Flutter Domain Work may use this value-free template:
