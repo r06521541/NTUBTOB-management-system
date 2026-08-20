@@ -425,6 +425,27 @@ void main() {
     }
   });
 
+  testWidgets('fresh GET projects authoritative not-yet-replied as none',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson(ownReply: null)),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    expect(projection, findsOneWidget);
+    expect(
+      tester.widget<Semantics>(projection).properties.label,
+      '偵錯權威出席回覆：none；來源：fresh_server_get',
+    );
+  });
+
   testWidgets('local chip selection does not change authoritative projection',
       (tester) async {
     final transport = QueueTransport()
@@ -621,6 +642,18 @@ void main() {
         reply: null,
         detailReady: true,
         freshServerGet: true,
+        mutationReadback: false,
+      ),
+      (
+        CanonicalOwnReplyObservation.none,
+        AuthoritativeOwnReplySource.freshServerGet,
+      ),
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: null,
+        detailReady: true,
+        freshServerGet: false,
         mutationReadback: false,
       ),
       isNull,
