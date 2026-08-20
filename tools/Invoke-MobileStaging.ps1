@@ -21,7 +21,7 @@ $script:FullShaPattern = '^[0-9a-f]{40}$'
 $script:FingerprintPattern = '^[0-9A-F]{64}$'
 $script:TaskEvidenceRoot = 'E:\codex-evidence\task-123'
 $script:TaskTempRoot = 'E:\codex-temp\task-123'
-$script:RoutineActions = @('help', 'preflight', 'avd-start', 'status', 'build', 'signer-check', 'install', 'cold-launch', 'health', 'stop', 'cleanup')
+$script:RoutineActions = @('help', 'preflight', 'avd-start', 'status', 'cleanup-artifact', 'build', 'signer-check', 'install', 'cold-launch', 'health', 'stop', 'cleanup')
 $script:PrivateActions = @('private-inspect', 'grant-officer', 'restore-basic')
 
 function Throw-Safe {
@@ -925,6 +925,17 @@ function Invoke-Cleanup {
     return [ordered]@{ action = 'cleanup'; result = 'removed_task_owned'; evidence = $(if ($RemoveEvidence) { 'removed' } else { 'retained' }) }
 }
 
+function Invoke-ArtifactCleanup {
+    param([object]$Config)
+    $evidence = Assert-TaskPath ([string]$Config.evidence_root) $script:TaskEvidenceRoot -AllowRoot
+    $artifact = Get-ArtifactPath $Config
+    $manifest = Join-Path $evidence 'artifact-manifest.json'
+    foreach ($path in @($artifact, $manifest)) {
+        if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path -Force }
+    }
+    return [ordered]@{ action = 'cleanup-artifact'; result = 'removed_artifact' }
+}
+
 function ConvertFrom-PrivateSecureString {
     param([Security.SecureString]$Value)
     $pointer = [IntPtr]::Zero
@@ -1197,6 +1208,7 @@ function Invoke-MobileStagingMain {
         if ($SelectedAction -notin @('health')) { $lock = Enter-TaskLock $config }
         switch ($SelectedAction) {
             'avd-start' { return Invoke-AvdStart $config }
+            'cleanup-artifact' { return Invoke-ArtifactCleanup $config }
             'build' { return Invoke-Build $config $SelectedMode $ExpectedCommit }
             'signer-check' { return Invoke-SignerCheck $config }
             'install' { return Invoke-Install $config $KeepSession }

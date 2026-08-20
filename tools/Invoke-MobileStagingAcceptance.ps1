@@ -68,6 +68,8 @@ function Get-HarnessFailureClassification {
 function Get-HarnessFailureReasonCode {
     param([string]$Message)
     if ($Message -match 'Harness action result is invalid') { return 'ACTION_RESULT_INVALID' }
+    if ($Message -match 'Harness artifact inspection is unavailable') { return 'ARTIFACT_UNAVAILABLE' }
+    if ($Message -match 'Harness artifact provenance is invalid') { return 'ARTIFACT_INVALID' }
     if ($Message -match 'checkpoint binding') { return 'CHECKPOINT_BINDING_DRIFT' }
     if ($Message -match 'checkpoint lock') { return 'LOCK_UNAVAILABLE' }
     if ($Message -match 'checkpoint') { return 'CHECKPOINT_INVALID' }
@@ -261,16 +263,31 @@ function Get-MobileAcceptanceArtifact {
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { return [ordered]@{ state = 'missing' } }
     $manifestPath = Join-Path ([string]$Config.evidence_root) 'artifact-manifest.json'
     try { $manifest = Get-Content -LiteralPath $manifestPath -Encoding UTF8 -Raw | ConvertFrom-Json } catch { return [ordered]@{ state = 'drift' } }
-    $versionResult = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apkanalyzer_executable) @('manifest', 'version-name', $artifact)
-    $versionLines = @($versionResult.Stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
-    if ($versionResult.TimedOut -or $versionResult.ExitCode -ne 0 -or $versionLines.Count -ne 1) { return [ordered]@{ state = 'drift' } }
-    $binding = [pscustomobject]@{
-        accepted_sha = $ExpectedCommit; artifact_sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash
-        signer_sha256 = Get-ApkSignerFingerprint $Config $artifact; package = Get-ApkPackageIdentity $Config $artifact
-        version = $versionLines[0].Trim(); avd = [string]$Config.avd_name; serial = [string]$Config.serial
-        vocabulary_version = $script:HarnessVocabularyVersion
+    $expectedManifestFields = @('accepted_commit', 'artifact_sha256', 'classification', 'mode', 'package', 'retention_owner', 'signer_sha256')
+    $actualManifestFields = @(Get-HarnessFieldNames $manifest | Sort-Object)
+    if (
+        ($actualManifestFields -join "`n") -cne (($expectedManifestFields | Sort-Object) -join "`n") -or
+        $manifest.accepted_commit -cne $ExpectedCommit -or
+        $manifest.mode -cne 'staging' -or
+        $manifest.package -cne $script:HarnessPackage -or
+        $manifest.classification -cne 'PASS' -or
+        $manifest.retention_owner -cne 'TASK-123' -or
+        [string]$manifest.artifact_sha256 -notmatch $script:HarnessFingerprintPattern -or
+        [string]$manifest.signer_sha256 -notmatch $script:HarnessFingerprintPattern
+    ) { return [ordered]@{ state = 'drift' } }
+    try {
+        $versionResult = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apkanalyzer_executable) @('manifest', 'version-name', $artifact)
+        $versionLines = @($versionResult.Stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+        if ($versionResult.TimedOut -or $versionResult.ExitCode -ne 0 -or $versionLines.Count -ne 1) { return [ordered]@{ state = 'unavailable' } }
+        $binding = [pscustomobject]@{
+            accepted_sha = $ExpectedCommit; artifact_sha256 = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash
+            signer_sha256 = Get-ApkSignerFingerprint $Config $artifact; package = Get-ApkPackageIdentity $Config $artifact
+            version = $versionLines[0].Trim(); avd = [string]$Config.avd_name; serial = [string]$Config.serial
+            vocabulary_version = $script:HarnessVocabularyVersion
+        }
     }
-    if ($manifest.accepted_commit -cne $ExpectedCommit -or $manifest.mode -cne 'staging' -or $manifest.package -cne $binding.package -or $manifest.artifact_sha256 -cne $binding.artifact_sha256 -or $manifest.signer_sha256 -cne $binding.signer_sha256 -or $manifest.classification -cne 'PASS' -or $manifest.retention_owner -cne 'TASK-123') { return [ordered]@{ state = 'drift' } }
+    catch { return [ordered]@{ state = 'unavailable' } }
+    if ($manifest.package -cne $binding.package -or $manifest.artifact_sha256 -cne $binding.artifact_sha256 -or $manifest.signer_sha256 -cne $binding.signer_sha256) { return [ordered]@{ state = 'drift' } }
     Assert-HarnessBinding $binding $ExpectedCommit
     return [ordered]@{ state = 'matched'; binding = $binding }
 }
@@ -284,7 +301,7 @@ function New-MobileAcceptanceDependencies {
         switch ($Name) {
             'preflight' { $value = Invoke-MobileStagingMain 'preflight' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
             'avd-start' { $value = Invoke-MobileStagingMain 'avd-start' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
-            'cleanup-evidence' { $value = Invoke-MobileStagingMain 'cleanup' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $true }
+            'cleanup-artifact' { $value = Invoke-MobileStagingMain 'cleanup-artifact' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
             'build' { $value = Invoke-MobileStagingMain 'build' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
             'signer-check' { $value = Invoke-MobileStagingMain 'signer-check' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
             'install' { $value = Invoke-MobileStagingMain 'install' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $true $false $false }
@@ -325,7 +342,8 @@ function Invoke-HarnessPreparation {
         return $artifact.binding
     }
     if ($null -ne $Checkpoint) { Throw-HarnessSafe 'Harness checkpoint binding is missing' }
-    if ($artifact.state -eq 'drift') { Invoke-HarnessAction $Dependencies 'cleanup-evidence' @('removed_task_owned') | Out-Null }
+    if ($artifact.state -eq 'unavailable') { Throw-HarnessSafe 'Harness artifact inspection is unavailable' }
+    if ($artifact.state -eq 'drift') { Invoke-HarnessAction $Dependencies 'cleanup-artifact' @('removed_artifact') | Out-Null }
     if ($artifact.state -notin @('missing', 'drift')) { Throw-HarnessSafe 'Harness artifact provenance is invalid' }
     Invoke-HarnessAction $Dependencies 'build' @('built') | Out-Null
     Invoke-HarnessAction $Dependencies 'signer-check' @('signer_matched') | Out-Null

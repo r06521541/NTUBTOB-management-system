@@ -118,7 +118,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 $script:actions = @(); $script:artifactState = 'matched'; $script:loggedOut = $true
                 $deps = New-MobileAcceptanceTestDependencies -Action {{ param($name)
                     $script:actions += $name
-                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-evidence'='removed_task_owned'; build='built'; 'signer-check'='signer_matched'; install='replaced'; 'cold-launch'='running' }}[$name]
+                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-artifact'='removed_artifact'; build='built'; 'signer-check'='signer_matched'; install='replaced'; 'cold-launch'='running' }}[$name]
                     @{{ classification='PASS'; result=$result }}
                 }} -Artifact {{
                     if ($script:artifactState -eq 'missing') {{ $script:artifactState='matched'; return @{{ state='missing' }} }}
@@ -152,7 +152,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 [
                     "preflight",
                     "avd-start",
-                    "cleanup-evidence",
+                    "cleanup-artifact",
                     "build",
                     "signer-check",
                     "install",
@@ -181,6 +181,41 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 envelope["details"]["reason_code"], "ACTION_RESULT_INVALID"
             )
             self.assertNotIn("unexpected-sentinel-result", result.stdout + result.stderr)
+
+    def test_artifact_manifest_drift_short_circuits_tools_and_unknown_is_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact = root / "app-debug.apk"
+            artifact.write_bytes(b"fictional-apk")
+            manifest = root / "artifact-manifest.json"
+            old_manifest = {
+                "accepted_commit": "1" * 40,
+                "artifact_sha256": ARTIFACT_SHA,
+                "classification": "PASS",
+                "mode": "staging",
+                "package": "tw.org.ntubtob.portal",
+                "retention_owner": "TASK-123",
+                "signer_sha256": SIGNER_SHA,
+            }
+            manifest.write_text(json.dumps(old_manifest), encoding="utf-8")
+            result = self.run_harness(
+                f"""
+                $script:toolCalls=0
+                function Get-ArtifactPath {{param($config)'{artifact.as_posix()}'}}
+                function Invoke-ApkToolWithApprovedJava {{$script:toolCalls++;throw 'private-provider-subject-sentinel'}}
+                $config=[pscustomobject]@{{evidence_root='{root.as_posix()}';apkanalyzer_executable='E:/safe/apkanalyzer.bat';avd_name='Pixel_API';serial='emulator-5554'}}
+                $drift=Get-MobileAcceptanceArtifact $config '{FULL_SHA}'
+                $manifest=Get-Content -LiteralPath '{manifest.as_posix()}' -Raw|ConvertFrom-Json
+                $manifest.accepted_commit='{FULL_SHA}'
+                $manifest|ConvertTo-Json -Compress|Set-Content -LiteralPath '{manifest.as_posix()}' -Encoding UTF8
+                $unavailable=Get-MobileAcceptanceArtifact $config '{FULL_SHA}'
+                [pscustomobject]@{{drift=$drift.state;unavailable=$unavailable.state;calls=$script:toolCalls}}|ConvertTo-Json -Compress
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload, {"drift": "drift", "unavailable": "unavailable", "calls": 1})
+            self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
     def test_officer_crash_unknown_resume_never_replays_each_mutation(self):
         with tempfile.TemporaryDirectory() as directory:

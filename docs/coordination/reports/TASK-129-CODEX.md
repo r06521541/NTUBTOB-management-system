@@ -72,3 +72,16 @@ Next actor: Main Work review.
   already-running AVD and a sentinel invalid-result no-disclosure regression.
   `git diff --check` also passes. No second runtime attempt, build, install,
   login, staging, Secret, database, or cloud action ran during this correction.
+
+- The next dogfood invocation stopped before cleanup/build because stale
+  manifest identity was checked only after APK tool invocation. Artifact
+  inspection now validates the exact non-secret manifest fields and accepted
+  SHA first. Proven stale evidence returns drift; unknown tool outcomes return
+  bounded `ARTIFACT_UNAVAILABLE` and are never auto-cleaned.
+- Direct regressions prove stale manifest short-circuiting (zero APK tool
+  calls) and exception containment with no sentinel disclosure. No runtime
+  retry or external action occurred while applying this correction.
+- Adjacent review found that root-level evidence purge would collide with the
+  live harness checkpoint lock. TASK-123 now exposes only `cleanup-artifact`
+  for this path: it removes the exact APK and manifest while preserving the
+  TASK-129 checkpoint directory. A direct regression proves that boundary.

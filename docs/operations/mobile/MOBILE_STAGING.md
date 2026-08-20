@@ -588,11 +588,17 @@ The AVD preparation step accepts only the launcher's two successful outcomes:
 `started` for a newly started approved AVD or `reused` for the already-running
 exact approved serial. Any other action result stops with the bounded
 `ACTION_RESULT_INVALID` reason and does not expose the raw value.
-Missing or drifted provenance performs the bounded sequence `build`,
+Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
-drifted retained artifact is first removed only through the accepted
-task-owned evidence cleanup action. Every action result is checked before the
-next step.
+drifted retained artifact and its manifest are first removed without deleting
+the TASK-129 checkpoint subtree. Root-level evidence cleanup is never called
+while a scenario checkpoint lock is held. Every action result is checked before
+the next step.
+Manifest identity and accepted SHA are checked before invoking APK inspection
+tools. A known stale task-owned manifest is therefore classified as drift
+without inspecting its artifact. Tool timeout, failure, or exception is
+`ARTIFACT_UNAVAILABLE` and stops without cleanup; only proven manifest or
+artifact drift may enter task-owned evidence cleanup.
 
 Principal/provenance is consumed only from TASK-127 `status`. Additional
 TASK-124 aggregate/report observations are parsed in memory from their exact
