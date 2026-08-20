@@ -690,7 +690,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 result = self.run_harness(
                     f"""
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout=\"{output}\";Stderr=''}} }}
-                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat';java_home='E:/mock/jdk'}}
+                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat';java_home='E:/mock/jdk';android_sdk_root='E:/mock/android-sdk'}}
                     try {{ Write-Output (Get-ApkPackageIdentity $config 'E:/task/app-debug.apk') }} catch {{ Write-Output $_.Exception.Message }}
                     """
                 )
@@ -715,29 +715,39 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             f"""
             $env:JAVA_HOME='{stale_java}'
             $env:PATH='C:/stale-path-sentinel'
+            $env:ANDROID_HOME='C:/stale-android-home-sentinel'
+            $env:ANDROID_SDK_ROOT='C:/stale-android-sdk-root-sentinel'
             $env:SystemRoot='C:\\Windows'
             $script:calls=0
             function Invoke-BoundedProcess {{
                 param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
                 $script:calls++
                 $script:lastChildEnvironment=$ChildEnvironment
-                if ($ChildEnvironment.Count -ne 2) {{ throw 'APK Java environment is not closed' }}
+                if ($ChildEnvironment.Count -ne 4) {{ throw 'APK tool environment is not closed' }}
                 if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.JAVA_HOME),[IO.Path]::GetFullPath('E:/approved-jdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java home is not exact' }}
                 $expectedPath=[IO.Path]::GetFullPath('E:/approved-jdk/bin')+[IO.Path]::PathSeparator+[IO.Path]::GetFullPath('C:/Windows/System32')
                 if (-not [string]::Equals([string]$ChildEnvironment.PATH,$expectedPath,[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java path is not exact' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.ANDROID_HOME),[IO.Path]::GetFullPath('E:/approved-sdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Android home is not exact' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.ANDROID_SDK_ROOT),[IO.Path]::GetFullPath('E:/approved-sdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Android SDK root is not exact' }}
                 if ([string]$Executable -like '*apkanalyzer*') {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='tw.org.ntubtob.portal';Stderr=''}} }}
                 return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='Signer #1 certificate SHA-256 digest: {FINGERPRINT}';Stderr=''}}
             }}
-            $config=[pscustomobject]@{{java_home='E:/approved-jdk';apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+            $config=[pscustomobject]@{{java_home='E:/approved-jdk';android_sdk_root='E:/approved-sdk';apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
             $package=Get-ApkPackageIdentity $config 'E:/task/app-debug.apk'
             $fingerprint=Get-ApkSignerFingerprint $config 'E:/task/app-debug.apk'
-            if ($env:JAVA_HOME -cne '{stale_java}' -or $env:PATH -cne 'C:/stale-path-sentinel') {{ throw 'Parent Java environment changed' }}
+            if ($env:JAVA_HOME -cne '{stale_java}' -or $env:PATH -cne 'C:/stale-path-sentinel' -or $env:ANDROID_HOME -cne 'C:/stale-android-home-sentinel' -or $env:ANDROID_SDK_ROOT -cne 'C:/stale-android-sdk-root-sentinel') {{ throw 'Parent tool environment changed' }}
             if ($script:lastChildEnvironment.Count -ne 0) {{ throw 'APK Java environment was retained' }}
             Write-Output ('package='+$package+',fingerprint='+$fingerprint+',calls='+$script:calls)
             foreach ($invalid in @('relative-jdk','C:/unapproved-jdk')) {{
                 $script:started=$false
                 function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
-                $invalidConfig=[pscustomobject]@{{java_home=$invalid;apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+                $invalidConfig=[pscustomobject]@{{java_home=$invalid;android_sdk_root='E:/approved-sdk';apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+                try {{ Get-ApkPackageIdentity $invalidConfig 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
+            }}
+            foreach ($invalidSdk in @('relative-sdk','C:/unapproved-sdk')) {{
+                $script:started=$false
+                function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
+                $invalidConfig=[pscustomobject]@{{java_home='E:/approved-jdk';android_sdk_root=$invalidSdk;apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
                 try {{ Get-ApkPackageIdentity $invalidConfig 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
             }}
             foreach ($invalidRoot in @('relative-root','C:\\Windows\\..\\Temp','C:/Windows')) {{
@@ -759,10 +769,13 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             result.stdout,
         )
         self.assertEqual(result.stdout.count("Approved Java home is invalid,started=False"), 2)
+        self.assertEqual(result.stdout.count("Approved Android SDK root is invalid,started=False"), 2)
         self.assertEqual(result.stdout.count("Approved Windows root is invalid,started=False"), 3)
         self.assertIn("APK signer verification failed safely", result.stdout)
         self.assertNotIn(stale_java, result.stdout + result.stderr)
         self.assertNotIn("stale-path-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("stale-android-home-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("stale-android-sdk-root-sentinel", result.stdout + result.stderr)
         self.assertNotIn("apk-stdout-sentinel", result.stdout + result.stderr)
         self.assertNotIn("apk-stderr-sentinel", result.stdout + result.stderr)
 

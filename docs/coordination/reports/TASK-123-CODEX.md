@@ -246,6 +246,15 @@ two-entry value, malformed `SystemRoot` before child start, unchanged parent
 environment, and sentinel/output non-disclosure. No real launcher or external
 runtime action was executed for this residual correction.
 
+A subsequent public probe showed package inspection could not locate Android
+build tools because the inspector child lacked the approved SDK variables.
+The same closed four-key environment now sets both `ANDROID_HOME` and
+`ANDROID_SDK_ROOT` to the normalized approved E-drive SDK in addition to the
+approved Java and PATH values. Direct tests exclude inherited adversarial SDK
+variables, reject malformed/out-of-root SDK configuration before child start,
+and retain package/signer compatibility and no-disclosure behavior. No real
+launcher or external runtime action was executed for this residual correction.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.

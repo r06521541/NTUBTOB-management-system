@@ -416,10 +416,12 @@ APK package and signer inspection use a child-only Java selection: `JAVA_HOME`
 is the normalized approved E-drive JDK and child `PATH` contains exactly that
 JDK's `bin` directory plus trusted Windows `System32`, which Android batch
 tools require. `SystemRoot` must resolve exactly to the OS-reported Windows
-root; inherited user PATH is never copied. This prevents stale Java from
-selecting the runtime for `apkanalyzer` or `apksigner` without changing parent
-environment or global configuration, and no configured path or child output is
-emitted.
+root; inherited user PATH is never copied. The same closed child environment
+sets `ANDROID_HOME` and `ANDROID_SDK_ROOT` to the normalized approved E-drive
+SDK, so inherited SDK configuration cannot redirect build-tools discovery.
+This prevents stale Java or SDK selection for `apkanalyzer` or `apksigner`
+without changing parent environment or global configuration, and no configured
+path or child output is emitted.
 
 Owner-private actions are one interactive invocation only:
 

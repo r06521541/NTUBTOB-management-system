@@ -498,6 +498,8 @@ function Invoke-ApkToolWithApprovedJava {
         [string[]]$Arguments
     )
     $childEnvironment = $null
+    $androidSdkRoot = $null
+    $configuredAndroidSdkRoot = $null
     $configuredJavaHome = $null
     $configuredSystemRoot = $null
     $javaHome = $null
@@ -506,6 +508,15 @@ function Invoke-ApkToolWithApprovedJava {
     $system32 = $null
     $trustedSystemRoot = $null
     try {
+        $configuredAndroidSdkRoot = [string]$Config.android_sdk_root
+        if (-not [System.IO.Path]::IsPathRooted($configuredAndroidSdkRoot)) {
+            Throw-Safe 'Approved Android SDK root is invalid'
+        }
+        try { $androidSdkRoot = [System.IO.Path]::GetFullPath($configuredAndroidSdkRoot).TrimEnd('\') }
+        catch { Throw-Safe 'Approved Android SDK root is invalid' }
+        if (-not $androidSdkRoot.StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            Throw-Safe 'Approved Android SDK root is invalid'
+        }
         $configuredJavaHome = [string]$Config.java_home
         if (-not [System.IO.Path]::IsPathRooted($configuredJavaHome)) {
             Throw-Safe 'Approved Java home is invalid'
@@ -532,6 +543,8 @@ function Invoke-ApkToolWithApprovedJava {
         }
         $system32 = [System.IO.Path]::GetFullPath((Join-Path $systemRoot 'System32'))
         $childEnvironment = @{
+            ANDROID_HOME = $androidSdkRoot
+            ANDROID_SDK_ROOT = $androidSdkRoot
             JAVA_HOME = $javaHome
             PATH = $javaBin + [System.IO.Path]::PathSeparator + $system32
         }
@@ -541,6 +554,8 @@ function Invoke-ApkToolWithApprovedJava {
         if ($null -ne $childEnvironment) { $childEnvironment.Clear() }
         $childEnvironment = $null
         $Arguments = $null
+        $androidSdkRoot = $null
+        $configuredAndroidSdkRoot = $null
         $configuredJavaHome = $null
         $configuredSystemRoot = $null
         $javaHome = $null
