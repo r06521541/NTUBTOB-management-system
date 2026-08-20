@@ -715,6 +715,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             f"""
             $env:JAVA_HOME='{stale_java}'
             $env:PATH='C:/stale-path-sentinel'
+            $env:SystemRoot='C:\\Windows'
             $script:calls=0
             function Invoke-BoundedProcess {{
                 param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
@@ -722,7 +723,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 $script:lastChildEnvironment=$ChildEnvironment
                 if ($ChildEnvironment.Count -ne 2) {{ throw 'APK Java environment is not closed' }}
                 if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.JAVA_HOME),[IO.Path]::GetFullPath('E:/approved-jdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java home is not exact' }}
-                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.PATH),[IO.Path]::GetFullPath('E:/approved-jdk/bin'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java path is not exact' }}
+                $expectedPath=[IO.Path]::GetFullPath('E:/approved-jdk/bin')+[IO.Path]::PathSeparator+[IO.Path]::GetFullPath('C:/Windows/System32')
+                if (-not [string]::Equals([string]$ChildEnvironment.PATH,$expectedPath,[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java path is not exact' }}
                 if ([string]$Executable -like '*apkanalyzer*') {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='tw.org.ntubtob.portal';Stderr=''}} }}
                 return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='Signer #1 certificate SHA-256 digest: {FINGERPRINT}';Stderr=''}}
             }}
@@ -738,6 +740,13 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 $invalidConfig=[pscustomobject]@{{java_home=$invalid;apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
                 try {{ Get-ApkPackageIdentity $invalidConfig 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
             }}
+            foreach ($invalidRoot in @('relative-root','C:\\Windows\\..\\Temp','C:/Windows')) {{
+                $script:started=$false
+                $env:SystemRoot=$invalidRoot
+                function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
+                try {{ Get-ApkPackageIdentity $config 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
+            }}
+            $env:SystemRoot='C:\\Windows'
             function Invoke-BoundedProcess {{
                 return [pscustomobject]@{{TimedOut=$false;ExitCode=1;Stdout='apk-stdout-sentinel';Stderr='apk-stderr-sentinel'}}
             }}
@@ -750,6 +759,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             result.stdout,
         )
         self.assertEqual(result.stdout.count("Approved Java home is invalid,started=False"), 2)
+        self.assertEqual(result.stdout.count("Approved Windows root is invalid,started=False"), 3)
         self.assertIn("APK signer verification failed safely", result.stdout)
         self.assertNotIn(stale_java, result.stdout + result.stderr)
         self.assertNotIn("stale-path-sentinel", result.stdout + result.stderr)

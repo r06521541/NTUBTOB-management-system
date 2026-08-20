@@ -498,8 +498,13 @@ function Invoke-ApkToolWithApprovedJava {
         [string[]]$Arguments
     )
     $childEnvironment = $null
+    $configuredJavaHome = $null
+    $configuredSystemRoot = $null
     $javaHome = $null
     $javaBin = $null
+    $systemRoot = $null
+    $system32 = $null
+    $trustedSystemRoot = $null
     try {
         $configuredJavaHome = [string]$Config.java_home
         if (-not [System.IO.Path]::IsPathRooted($configuredJavaHome)) {
@@ -511,9 +516,24 @@ function Invoke-ApkToolWithApprovedJava {
             Throw-Safe 'Approved Java home is invalid'
         }
         $javaBin = [System.IO.Path]::GetFullPath((Join-Path $javaHome 'bin'))
+        $configuredSystemRoot = [string]$env:SystemRoot
+        if ($configuredSystemRoot -notmatch '^[A-Za-z]:\\Windows$') {
+            Throw-Safe 'Approved Windows root is invalid'
+        }
+        try {
+            $systemRoot = [System.IO.Path]::GetFullPath($configuredSystemRoot).TrimEnd('\')
+            $trustedSystemRoot = [System.IO.Path]::GetFullPath(
+                [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Windows)
+            ).TrimEnd('\')
+        }
+        catch { Throw-Safe 'Approved Windows root is invalid' }
+        if (-not [string]::Equals($systemRoot, $trustedSystemRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Throw-Safe 'Approved Windows root is invalid'
+        }
+        $system32 = [System.IO.Path]::GetFullPath((Join-Path $systemRoot 'System32'))
         $childEnvironment = @{
             JAVA_HOME = $javaHome
-            PATH = $javaBin
+            PATH = $javaBin + [System.IO.Path]::PathSeparator + $system32
         }
         return Invoke-BoundedProcess $Executable $Arguments 30 $childEnvironment
     }
@@ -521,8 +541,13 @@ function Invoke-ApkToolWithApprovedJava {
         if ($null -ne $childEnvironment) { $childEnvironment.Clear() }
         $childEnvironment = $null
         $Arguments = $null
+        $configuredJavaHome = $null
+        $configuredSystemRoot = $null
         $javaHome = $null
         $javaBin = $null
+        $systemRoot = $null
+        $system32 = $null
+        $trustedSystemRoot = $null
     }
 }
 

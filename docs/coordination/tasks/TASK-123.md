@@ -96,10 +96,11 @@ actions rather than a hidden multi-step default:
   `HOME`, `USERPROFILE`, global Flutter configuration, or a user profile. The
   isolated directory is ordinary task temp removed by bounded cleanup and its
   path/content never enters evidence or governed output.
-- APK package and signer inspection run with child-only `JAVA_HOME` and `PATH`
-  derived from the exact approved E-drive JDK. Inherited Java selection cannot
-  win; the launcher does not alter parent environment or global configuration,
-  and Java paths or tool output never enter governed output or evidence.
+- APK package and signer inspection run with child-only `JAVA_HOME` and a
+  two-entry `PATH`: the exact approved E-drive JDK `bin` plus the trusted
+  Windows `System32`. Inherited Java/user PATH cannot win; the launcher does
+  not alter parent environment or global configuration, and paths or tool
+  output never enter governed output or evidence.
 - Redacted evidence may contain only accepted commit, mode, package/version,
   artifact SHA-256, public signer fingerprint, AVD/API/ABI versions, bounded
   result classification and allowlisted static labels/counts.
@@ -152,8 +153,9 @@ actions rather than a hidden multi-step default:
   out-of-root isolation fails before child start, and cleanup removes it with
   the task temp root.
 - Prove both APK inspectors receive the exact approved child JDK, inherited
-  stale Java cannot win, invalid/out-of-root Java fails before child start, and
-  child output or Java paths are not disclosed.
+  stale Java/user PATH cannot win, the only second PATH entry is trusted
+  Windows `System32`, invalid Java or `SystemRoot` fails before child start,
+  and child output or paths are not disclosed.
 - Run affected Python tests, PowerShell parser/static checks where available,
   py_compile, Black/isort for Python test files, `git diff --check`, scope and
   sensitive-string scans. Hosted CI supplies final Python 3.10 evidence.

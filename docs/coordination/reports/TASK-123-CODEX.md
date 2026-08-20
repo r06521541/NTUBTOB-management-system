@@ -238,6 +238,14 @@ parser, Python compile, isort, diff, and scope checks passed. This correction
 executed no launcher runtime, emulator, staging, private-console, Secret, or
 cloud action.
 
+The next public read-only probe showed the Android package-inspection batch
+tool also requires Windows `findstr`. The child PATH is therefore now exactly
+two trusted entries: the approved JDK `bin` and OS-validated Windows
+`System32`; inherited user PATH remains excluded. Direct tests cover the exact
+two-entry value, malformed `SystemRoot` before child start, unchanged parent
+environment, and sentinel/output non-disclosure. No real launcher or external
+runtime action was executed for this residual correction.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.
