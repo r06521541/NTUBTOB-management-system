@@ -204,6 +204,9 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             ):
                 verify_migration_artifact()
 
+    def test_migration_verifier_accepts_the_broker_journal_head(self):
+        verify_migration_artifact()
+
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class PhaseCReadinessPostgresTests(unittest.TestCase):

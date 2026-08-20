@@ -5,6 +5,10 @@ import socket
 from sqlalchemy import text
 
 EXPECTED_REVISION = "0005_mobile_auth_api_foundation"
+ACCEPTED_REVISIONS = (
+    EXPECTED_REVISION,
+    "0006_staging_broker_operation_journal",
+)
 
 
 def _safe_error_category(error: Exception) -> tuple[str, str]:
@@ -58,7 +62,7 @@ def database_revision_is_current(engine, logger) -> bool:
             current = connection.scalar(
                 text("SELECT version_num FROM ntubtob.alembic_version")
             )
-            if current != EXPECTED_REVISION:
+            if type(current) is not str or current not in ACCEPTED_REVISIONS:
                 logger.error("mobile_api_revision_check_mismatch")
                 return False
             return True

@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 from apps.mobile_api.revision_readiness import (
+    ACCEPTED_REVISIONS,
     EXPECTED_REVISION,
     database_revision_is_current,
 )
@@ -27,6 +28,40 @@ class RevisionReadinessTest(unittest.TestCase):
 
         self.assertTrue(database_revision_is_current(engine, logger))
         logger.error.assert_not_called()
+
+    def test_broker_journal_revision_is_ready_without_logging(self):
+        engine, logger = Mock(), Mock()
+        connection = Mock()
+        connection.scalar.return_value = "0006_staging_broker_operation_journal"
+        engine.connect.return_value = _ConnectionContext(connection)
+
+        self.assertTrue(database_revision_is_current(engine, logger))
+        logger.error.assert_not_called()
+
+    def test_accepted_revisions_are_exactly_the_two_mobile_revisions(self):
+        self.assertEqual(
+            ACCEPTED_REVISIONS,
+            (
+                "0005_mobile_auth_api_foundation",
+                "0006_staging_broker_operation_journal",
+            ),
+        )
+
+    def test_empty_unknown_and_malformed_revisions_fail_closed_without_value_in_log(
+        self,
+    ):
+        for observed in ("", "0007_future_revision", None, 6, ["secret-value"]):
+            with self.subTest(observed_type=type(observed).__name__):
+                engine, logger = Mock(), Mock()
+                connection = Mock()
+                connection.scalar.return_value = observed
+                engine.connect.return_value = _ConnectionContext(connection)
+
+                self.assertFalse(database_revision_is_current(engine, logger))
+                logger.error.assert_called_once_with(
+                    "mobile_api_revision_check_mismatch"
+                )
+                self.assertNotIn("secret-value", repr(logger.error.call_args))
 
     def test_revision_mismatch_fails_closed_without_value_in_log(self):
         engine, logger = Mock(), Mock()

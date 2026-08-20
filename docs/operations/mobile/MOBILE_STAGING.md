@@ -530,6 +530,93 @@ and [traffic rollout documentation](https://cloud.google.com/run/docs/rollouts-r
 The operator never runs project/API/billing/database/Secret/service-account/IAM
 or LINE-channel creation. Public ingress and IAM remain Owner-controlled steps.
 
+## Privilege-separated broker core
+
+TASK-128 provides a repository-only private broker contract for the exact
+`inspect`, `reset`, `grant`, `restore`, and `reconcile` vocabulary. The caller
+supplies only an opaque operation ID. A baked fictional candidate approval and
+the broker/operator source bytes are normalized and SHA-256 checked against the
+non-secret manifest before Secret access or TASK-126 operator import. The
+runtime does not claim to verify its own image digest: the static deployment
+contract instead requires an immutable digest, while runtime attestation binds
+the source and build inputs actually present in the image.
+
+The broker does not cache raw Secret payloads. The PostgreSQL engine is created
+only after the process-local gate and artifact checks; its pool necessarily
+retains the database DSN for the engine lifetime. The provider subject remains
+request-local and is never stored in the journal, response, log, exception, or
+temporary file. `mutation_issued` is the durable no-retry boundary: resume and
+`reconcile` perform read-only inspection against the same journal row and never
+issue a second TASK-126 mutation.
+
+Integration requires accepted TASK-130 commit
+`6099fce0cb9ecdbbb69ec7452df5771417540f20`; do not deploy TASK-128 alone.
+Main combines both packages in one delivery branch and PR. Any later external
+rollout must update the compatibility API first, then apply the 0006 journal
+migration and broker. Cloud Run, IAM, Secret versions and staging execution
+remain separate Owner gates; the checked-in deployment files are static
+contracts only.
+
+## TASK-129 staging acceptance harness
+
+`tools/Invoke-MobileStagingAcceptance.ps1` is a separate scenario orchestrator;
+it does not add a default multi-step launcher action. Invoke exactly one named
+scenario with an explicit staging mode, accepted full SHA, value-free TASK-123
+config, and a checkpoint beneath the configured task-owned evidence root:
+
+```powershell
+.\tools\Invoke-MobileStagingAcceptance.ps1 `
+  -Scenario basic-authorization `
+  -Mode staging `
+  -Commit <full-accepted-sha> `
+  -ConfigPath C:\private\task-123-launcher.json `
+  -CheckpointPath E:\codex-evidence\task-123\task-129\basic.json
+```
+
+The harness emits exactly one deidentified JSON envelope per invocation. Its
+checkpoint contains only scenario/step, accepted SHA, artifact SHA-256, public
+signer fingerprint, package/version, AVD/serial, producer vocabulary version,
+and a bounded prior result. Checkpoint replacement is same-directory atomic;
+an existing lock, malformed state, wrong scenario, or changed binding stops
+without replaying a mutation. `-Resume` is mandatory when a checkpoint exists.
+
+Preparation consumes only accepted TASK-123 actions. A matching artifact
+manifest/fingerprint proves the build artifact, not the installed APK, so a
+fresh scenario still runs `signer-check`, session-preserving `install -r`, and
+one cold launch. A bound resume checkpoint revalidates instead of reinstalling.
+Missing or drifted provenance performs the bounded sequence `build`,
+`signer-check`, session-preserving `install -r`, and one `cold-launch`; a
+drifted retained artifact is first removed only through the accepted
+task-owned evidence cleanup action. Every action result is checked before the
+next step.
+
+Principal/provenance is consumed only from TASK-127 `status`. Additional
+TASK-124 aggregate/report observations are parsed in memory from their exact
+debug accessibility producer labels after, and only after, that governed status
+proves the portal is foreground. Package-absent, background, stopped,
+non-authoritative, ambiguous, or malformed states do not request an
+accessibility dump. The harness never persists or emits UI XML, labels,
+identity, endpoint, token, credential, screenshot, or logcat.
+
+The report-entry claim uses the exact static Flutter semantic node
+`出席報表` plus `Officer／Admin 唯讀`, enabled and clickable, in the portal
+package. Basic requires exactly zero such nodes; Officer requires exactly one.
+Duplicate/coexisting nodes stop as drift. The hierarchy parser reuses the
+TASK-123 bounded transport extraction rules: exactly one hierarchy element,
+no DTD/external resolver, capped in-memory input, and no retained raw output.
+
+`officer-authorization-roundtrip` first requires an authoritative Basic
+baseline. Until TASK-128's no-disclosure broker and client/network atomic
+integration are provisioned it exits `OWNER_ACTION_REQUIRED/BROKER_PROVISIONING`
+before broker or credential access. Its mocked orchestration contract records
+intent, returned result, and live read-only reconcile states separately for
+grant, restore, and logout. A crash or unknown result resumes only through
+reconciliation; it never reruns that mutation from a checkpoint. The current
+repository's broker-state and network controls are test seams, not real broker
+or offline operations. No repository implementation or review invocation runs
+an emulator, staging, network, broker, cloud, Secret, or Owner login/consent
+flow.
+
 ## Flutter staging command template
 
 After staging exists, Flutter Domain Work may use this value-free template:
