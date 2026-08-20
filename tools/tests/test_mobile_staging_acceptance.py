@@ -8,7 +8,6 @@ import textwrap
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 HARNESS = ROOT / "tools" / "Invoke-MobileStagingAcceptance.ps1"
 FULL_SHA = "20f393778a9010ac52ad9c8935f3992d72ce06a0"
@@ -110,6 +109,36 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertIn("const Text('Officer／Admin 唯讀')", basic_source)
         self.assertIn("偵錯報表投影：", report_source)
 
+    def test_production_dependency_factory_retains_delayed_bindings(self):
+        result = self.run_harness(
+            f"""
+            function Invoke-MobileStagingMain {{
+                param($action,$mode,$commit,$configPath,$approval,$preserve,$public,$purge)
+                $script:captured = @($action,$mode,$commit,$configPath)
+                return @{{result='ready'}}
+            }}
+            function Get-MobileAcceptanceArtifact {{
+                param($config,$commit)
+                return @{{state='drift';root=[string]$config.evidence_root;commit=$commit}}
+            }}
+            $config=[pscustomobject]@{{evidence_root='E:/task-owned';adb_executable='E:/safe/adb.exe';serial='emulator-5554'}}
+            $deps=New-MobileAcceptanceDependenciesFromConfig 'staging' '{FULL_SHA}' 'C:/value-free.json' $config
+            $artifact=& $deps.Artifact
+            $action=& $deps.Action 'preflight'
+            [pscustomobject]@{{artifact=$artifact;action=$action;captured=$script:captured}}|ConvertTo-Json -Depth 4 -Compress
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["artifact"]["state"], "drift")
+        self.assertEqual(payload["artifact"]["root"], "E:/task-owned")
+        self.assertEqual(payload["artifact"]["commit"], FULL_SHA)
+        self.assertEqual(payload["action"]["result"], "ready")
+        self.assertEqual(
+            payload["captured"],
+            ["preflight", "staging", FULL_SHA, "C:/value-free.json"],
+        )
+
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"
@@ -118,7 +147,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 $script:actions = @(); $script:artifactState = 'matched'; $script:loggedOut = $true
                 $deps = New-MobileAcceptanceTestDependencies -Action {{ param($name)
                     $script:actions += $name
-                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-artifact'='removed_artifact'; build='built'; 'signer-check'='signer_matched'; install='replaced'; 'cold-launch'='running' }}[$name]
+                    $result = @{{ preflight='ready'; 'avd-start'='reused'; 'cleanup-artifact'='removed_artifact'; build='built'; 'signer-check'='matched'; install='replaced'; 'cold-launch'='running' }}[$name]
                     @{{ classification='PASS'; result=$result }}
                 }} -Artifact {{
                     if ($script:artifactState -eq 'missing') {{ $script:artifactState='matched'; return @{{ state='missing' }} }}
@@ -230,7 +259,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                         if ($name -eq 'broker-grant') {{ $script:counts[$name]++; $script:role='officer'; if($script:crash -and $crashAt -eq $name) {{ throw 'unknown mutation result' }}; return @{{classification='PASS';result='granted'}} }}
                         if ($name -eq 'broker-restore') {{ $script:counts[$name]++; $script:role='basic'; if($script:crash -and $crashAt -eq $name) {{ throw 'unknown mutation result' }}; return @{{classification='PASS';result='restored'}} }}
                         if ($name -eq 'logout') {{ $script:counts[$name]++; $script:role='logged_out'; if($script:crash -and $crashAt -eq $name) {{ throw 'unknown mutation result' }}; return @{{classification='PASS';result='logged_out'}} }}
-                        $result=@{{preflight='ready';'avd-start'='started';'signer-check'='signer_matched';install='replaced';'cold-launch'='running'}}[$name]; return @{{classification='PASS';result=$result}}
+                        $result=@{{preflight='ready';'avd-start'='started';'signer-check'='matched';install='replaced';'cold-launch'='running'}}[$name]; return @{{classification='PASS';result=$result}}
                     }} -Artifact {{ @{{state='matched';binding={self.binding_ps()}}} }} -Observation {{
                         if($script:role -eq 'basic') {{ return @{{principal='basic';provenance='fresh_server';aggregate='basic_valid';report='absent';report_entry='absent';producer_gap=$false}} }}
                         if($script:role -eq 'officer') {{ return @{{principal='officer';provenance=$(if($script:network -eq 'off'){{'offline_cache'}}else{{'fresh_server'}});aggregate='officer_valid';report=$(if($script:network -eq 'off'){{'offline_cached_readonly'}}else{{'ready'}});report_entry='present';producer_gap=$false}} }}
@@ -261,7 +290,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             result = self.run_harness(
                 f"""
                 $script:actions=@()
-                $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)$script:actions+=$name;@{{classification='PASS';result=@{{preflight='ready';'avd-start'='started';'signer-check'='signer_matched';install='replaced';'cold-launch'='running'}}[$name]}}}} -Artifact {{@{{state='matched';binding={self.binding_ps()}}}}} -Observation {{@{{principal='basic';provenance='fresh_server';aggregate='basic_valid';report='absent';report_entry='absent';producer_gap=$false}}}} -BrokerReady {{$false}} -CheckpointPolicy {{param($path)$true}}
+                $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)$script:actions+=$name;@{{classification='PASS';result=@{{preflight='ready';'avd-start'='started';'signer-check'='matched';install='replaced';'cold-launch'='running'}}[$name]}}}} -Artifact {{@{{state='matched';binding={self.binding_ps()}}}}} -Observation {{@{{principal='basic';provenance='fresh_server';aggregate='basic_valid';report='absent';report_entry='absent';producer_gap=$false}}}} -BrokerReady {{$false}} -CheckpointPolicy {{param($path)$true}}
                 $value=Invoke-MobileStagingAcceptanceMain 'officer-authorization-roundtrip' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $false $deps
                 [pscustomobject]@{{value=$value;actions=$script:actions}}|ConvertTo-Json -Depth 5 -Compress
                 """
@@ -318,7 +347,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)
                     $script:actions+=$name
                     if($name -eq 'broker-grant'){{return @{{classification='PASS';result='restored'}}}}
-                    $result=@{{preflight='ready';'avd-start'='started';'signer-check'='signer_matched';install='replaced';'cold-launch'='running'}}[$name]
+                    $result=@{{preflight='ready';'avd-start'='started';'signer-check'='matched';install='replaced';'cold-launch'='running'}}[$name]
                     @{{classification='PASS';result=$result}}
                 }} -Artifact {{@{{state='matched';binding={self.binding_ps()}}}}} -Observation {{@{{principal='basic';provenance='fresh_server';aggregate='basic_valid';report='absent';report_entry='absent';producer_gap=$false}}}} -BrokerReady {{$true}} -BrokerState {{'granted'}} -CheckpointPolicy {{param($path)$true}}
                 $value=Invoke-MobileStagingAcceptanceMain 'officer-authorization-roundtrip' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $false $deps

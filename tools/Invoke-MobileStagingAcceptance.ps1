@@ -292,11 +292,9 @@ function Get-MobileAcceptanceArtifact {
     return [ordered]@{ state = 'matched'; binding = $binding }
 }
 
-function New-MobileAcceptanceDependencies {
-    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath)
-    . (Join-Path $PSScriptRoot 'Invoke-MobileStaging.ps1')
-    $config = Load-LauncherConfig $LauncherConfigPath
-    return New-MobileAcceptanceTestDependencies -Action {
+function New-MobileAcceptanceDependenciesFromConfig {
+    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [object]$Config)
+    $action = {
         param($Name)
         switch ($Name) {
             'preflight' { $value = Invoke-MobileStagingMain 'preflight' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }
@@ -309,22 +307,33 @@ function New-MobileAcceptanceDependencies {
             default { Throw-HarnessSafe 'Harness action is unavailable' }
         }
         return [pscustomobject]@{ classification = 'PASS'; result = [string]$value.result }
-    } -Artifact { Get-MobileAcceptanceArtifact $config $ExpectedCommit } -Observation {
+    }.GetNewClosure()
+    $artifact = { Get-MobileAcceptanceArtifact $Config $ExpectedCommit }.GetNewClosure()
+    $observation = {
         $status = Invoke-MobileStagingMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false
         if ($status.result -ne 'observed') { Throw-HarnessSafe 'Harness status is unavailable' }
         return Get-AdditionalAcceptanceProducerObservation $status {
-            $result = Invoke-BoundedProcess ([string]$config.adb_executable) @('-s', [string]$config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
+            $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
             if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-HarnessSafe 'Harness producer observation is unavailable' }
             return [string]$result.Stdout
         }
-    } -BrokerReady { $false } -CheckpointPolicy {
+    }.GetNewClosure()
+    $checkpointPolicy = {
         param($Path)
-        $root = [IO.Path]::GetFullPath((Join-Path ([string]$config.evidence_root) 'task-129')).TrimEnd('\')
+        $root = [IO.Path]::GetFullPath((Join-Path ([string]$Config.evidence_root) 'task-129')).TrimEnd('\')
         $full = [IO.Path]::GetFullPath($Path)
         if (-not $full.StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) { return $false }
         [IO.Directory]::CreateDirectory($root) | Out-Null
         return $true
-    }
+    }.GetNewClosure()
+    return New-MobileAcceptanceTestDependencies -Action $action -Artifact $artifact -Observation $observation -BrokerReady { $false } -CheckpointPolicy $checkpointPolicy
+}
+
+function New-MobileAcceptanceDependencies {
+    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath)
+    . (Join-Path $PSScriptRoot 'Invoke-MobileStaging.ps1')
+    $config = Load-LauncherConfig $LauncherConfigPath
+    return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config
 }
 
 function Invoke-HarnessPreparation {
@@ -335,7 +344,7 @@ function Invoke-HarnessPreparation {
     if ($artifact.state -eq 'matched') {
         if ($null -eq $Checkpoint) {
             # Artifact provenance does not prove the installed package identity.
-            Invoke-HarnessAction $Dependencies 'signer-check' @('signer_matched') | Out-Null
+            Invoke-HarnessAction $Dependencies 'signer-check' @('matched') | Out-Null
             Invoke-HarnessAction $Dependencies 'install' @('replaced') | Out-Null
             Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
         }
@@ -346,7 +355,7 @@ function Invoke-HarnessPreparation {
     if ($artifact.state -eq 'drift') { Invoke-HarnessAction $Dependencies 'cleanup-artifact' @('removed_artifact') | Out-Null }
     if ($artifact.state -notin @('missing', 'drift')) { Throw-HarnessSafe 'Harness artifact provenance is invalid' }
     Invoke-HarnessAction $Dependencies 'build' @('built') | Out-Null
-    Invoke-HarnessAction $Dependencies 'signer-check' @('signer_matched') | Out-Null
+    Invoke-HarnessAction $Dependencies 'signer-check' @('matched') | Out-Null
     Invoke-HarnessAction $Dependencies 'install' @('replaced') | Out-Null
     Invoke-HarnessAction $Dependencies 'cold-launch' @('running') | Out-Null
     $rebuilt = & $Dependencies.Artifact
