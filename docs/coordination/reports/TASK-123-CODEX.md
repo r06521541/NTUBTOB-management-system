@@ -104,6 +104,8 @@ Owner-private action was run.
   `3f424d775395d33a449a480c0c14c2dde802c1d4`
 - Controlled-dogfood correction commit:
   `5384882f43dc9cfe5e514924a97ebf91d9085c9c`
+- Output-redaction fail-closed correction commit:
+  `17774cd05e1586322d147955bdb0834367808759`
 - Authoritative shared ancestry: `7f2142d09f751e9831ebd52dcd1ab6f6c1cb449b`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
