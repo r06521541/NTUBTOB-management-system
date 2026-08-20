@@ -346,9 +346,22 @@ function Get-CurrentActivity {
     param([object]$Config)
     $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'shell', 'dumpsys', 'activity', 'activities') 15
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Activity inventory failed safely' }
-    if ($result.Stdout -match [regex]::Escape($script:MainActivity)) { return 'portal' }
-    if ($result.Stdout -match 'mResumedActivity') { return 'other' }
-    return 'none'
+    $activityInventory = [string]$result.Stdout
+    if ($activityInventory.Length -gt 65536) { Throw-Safe 'Activity inventory size is not bounded' }
+    $currentMarker = '^\s*(?:mResumedActivity|topResumedActivity|mFocusedActivity)\s*[:=]'
+    $currentRecords = @(
+        $activityInventory -split "`r?`n" | Where-Object { $_ -match $currentMarker }
+    )
+    if ($currentRecords.Count -eq 0) { return 'none' }
+    if ($currentRecords.Count -ne 1) { Throw-Safe 'Current activity inventory is ambiguous' }
+    $currentRecord = [regex]::Match(
+        [string]$currentRecords[0],
+        '^\s*(?:mResumedActivity|topResumedActivity|mFocusedActivity)\s*[:=]\s*ActivityRecord\{[^}\r\n]*\s(?:u\d+\s+)?(?<component>[A-Za-z][A-Za-z0-9_.]*\/[A-Za-z0-9_.$]+)(?:\s|\})'
+    )
+    if (-not $currentRecord.Success) { Throw-Safe 'Current activity inventory is malformed' }
+    $foregroundComponent = $currentRecord.Groups['component'].Value
+    if ($foregroundComponent -ceq $script:MainActivity) { return 'portal' }
+    return 'other'
 }
 
 function Get-PackageState {

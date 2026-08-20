@@ -367,6 +367,108 @@ class PowerShellContractTest(unittest.TestCase):
                 )
                 self.assertNotIn("secrets versions access", result.stdout + result.stderr)
 
+    def test_current_activity_uses_only_one_exact_foreground_record(self):
+        cases = (
+            (
+                "background",
+                """ACTIVITY MANAGER ACTIVITIES
+  * Hist #0: ActivityRecord{111 u0 tw.org.ntubtob.portal/.MainActivity t42}
+mResumedActivity: ActivityRecord{222 u0 com.android.chrome/com.google.android.apps.chrome.Main t88}""",
+                "other,portal_background,uiCalls=0",
+            ),
+            (
+                "stopped",
+                """ACTIVITY MANAGER ACTIVITIES
+  * Hist #0: ActivityRecord{111 u0 tw.org.ntubtob.portal/.MainActivity t42}""",
+                "none,portal_stopped,uiCalls=0",
+            ),
+            (
+                "portal",
+                """ACTIVITY MANAGER ACTIVITIES
+topResumedActivity=ActivityRecord{111 u0 tw.org.ntubtob.portal/.MainActivity t42}""",
+                "portal,logged_out,uiCalls=1",
+            ),
+        )
+        for _, inventory, expected in cases:
+            with self.subTest(expected=expected):
+                escaped = inventory.replace("'", "''")
+                result = self.run_harness(
+                    f"""
+                    $script:uiCalls=0
+                    function Assert-OnlyApprovedSerial {{ param($Config) }}
+                    function Get-PackageState {{ param($Config) return 'installed' }}
+                    function Invoke-BoundedProcess {{
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout=@'
+{escaped}
+'@;Stderr=''}}
+                    }}
+                    function Get-AllowlistedUiCounts {{
+                        param($Config)
+                        $script:uiCalls++
+                        return [ordered]@{{semantic_state='logged_out';login=1;basic=0;officer=0;report_enabled=0;report_disabled=0}}
+                    }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    $activity=Get-CurrentActivity $config
+                    $value=Invoke-Status $config
+                    Write-Output ($activity+','+$value.semantic_state+',uiCalls='+$script:uiCalls)
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected, result.stdout)
+                self.assert_safe_output(result)
+
+    def test_current_activity_rejects_ambiguous_malformed_and_unsafe_output(self):
+        sentinel = "private-provider-subject-sentinel"
+        cases = (
+            (
+                "duplicate",
+                """mResumedActivity: ActivityRecord{111 u0 tw.org.ntubtob.portal/.MainActivity t42}
+mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
+                False,
+                "Current activity inventory is ambiguous",
+            ),
+            (
+                "malformed",
+                f"mResumedActivity: {sentinel}",
+                False,
+                "Current activity inventory is malformed",
+            ),
+            (
+                "oversized",
+                "x" * 65537,
+                False,
+                "Activity inventory size is not bounded",
+            ),
+            (
+                "timeout",
+                sentinel,
+                True,
+                "Activity inventory failed safely",
+            ),
+        )
+        for _, inventory, timed_out, expected_error in cases:
+            with self.subTest(expected_error=expected_error):
+                escaped = inventory.replace("'", "''")
+                timed_out_literal = "$true" if timed_out else "$false"
+                result = self.run_harness(
+                    f"""
+                    $script:uiCalls=0
+                    function Assert-OnlyApprovedSerial {{ param($Config) }}
+                    function Get-PackageState {{ param($Config) return 'installed' }}
+                    function Invoke-BoundedProcess {{
+                        return [pscustomobject]@{{TimedOut={timed_out_literal};ExitCode=0;Stdout=@'
+{escaped}
+'@;Stderr=''}}
+                    }}
+                    function Get-AllowlistedUiCounts {{ $script:uiCalls++;throw 'must not inspect accessibility' }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    try {{ Invoke-Status $config;exit 9 }} catch {{ Write-Output ($_.Exception.Message+',uiCalls='+$script:uiCalls) }}
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected_error + ",uiCalls=0", result.stdout)
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+
     def test_disk_lock_avd_and_serial_fail_closed(self):
         result = self.run_harness(
             """

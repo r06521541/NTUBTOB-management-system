@@ -348,7 +348,10 @@ The routine actions are `help`, `preflight`, `avd-start`, `status`, `build`,
 `signer-check`, `install`, `cold-launch`, `health`, `stop`, and `cleanup`.
 `status` derives package/activity first. Package absent, portal background, and
 portal stopped return their stable state with zero login/projection counts and
-never invoke the accessibility dump. Only portal foreground captures one
+never invoke the accessibility dump. Activity classification accepts exactly
+one anchored resumed/top-resumed/focused activity record; retained back-stack
+entries are ignored, while duplicate or malformed current records fail closed.
+Only an exact portal foreground component captures one
 bounded accessibility hierarchy into memory, prohibits DTD/external resolution,
 and accepts exactly one mutually exclusive state: logged-out LINE login gate,
 Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
