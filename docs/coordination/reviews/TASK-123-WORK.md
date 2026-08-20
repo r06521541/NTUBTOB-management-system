@@ -100,6 +100,17 @@ Changes requested before controlled staging dogfood.
   inject unknown exceptions inside every real stage. The generic fallback may
   remain for non-status actions, but `status` itself must never emit
   `RUNTIME_FAILED` or disclose exception/child content.
+- The real stage-containment correction is accepted and integrated at
+  `94a85f80b9e3773c736c5a0e4e3cfba6ffa788a6`. Preflight passed, but the one
+  status invocation still returned `FAILED/RUNTIME_FAILED`; no retry or raw
+  diagnosis occurred. Source-only inspection found the post-stage cause:
+  successful status dictionaries omit `result`, while the strict-mode common
+  entrypoint unconditionally evaluates `$details.result`. Add a fixed success
+  `result` to every status return path and drive logged-out, absent,
+  background/stopped and authenticated status through the real common
+  entrypoint. Harden the entrypoint so a malformed action result produces one
+  fixed safe invalid-result code rather than generic runtime failure. Preserve
+  all accepted stage, semantic, redaction and routine/private behavior.
 
 ## Deferred
 

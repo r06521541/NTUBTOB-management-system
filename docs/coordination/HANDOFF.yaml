@@ -3,7 +3,7 @@ status: changes_requested
 next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: 6f27acfbfa5a51c6cddd7cb8edb85cff4b284701
+head_commit: 94a85f80b9e3773c736c5a0e4e3cfba6ffa788a6
 
 updated_by: work
 updated_at: 2026-08-20T20:05:00+08:00
@@ -46,7 +46,14 @@ note: >
   status stage (ADB, package, activity, accessibility), preserving known semantic drift while converting every unknown
   stage-local exception to that stage's fixed safe unavailable/invalid result; a status invocation must not emit
   RUNTIME_FAILED. Direct tests must inject unknown exceptions inside each actual stage and traverse the governed
-  envelope. During
+  envelope. That containment correction passed targeted review and was integrated. Exact-SHA preflight passed again,
+  while the single status invocation still returned FAILED/RUNTIME_FAILED. Source-only inspection now identifies the
+  exact post-stage defect: both successful `Invoke-Status` result objects omit `result`, while the strict-mode common
+  entrypoint unconditionally reads `$details.result` before writing the envelope. The exception therefore occurs after
+  all status stage boundaries. The same writer must add a fixed successful result to every status success branch and a
+  full-entrypoint regression for logged-out/background/absent/authenticated states; the common entrypoint must also
+  fail closed on a malformed action result rather than leak a generic runtime exception. No further runtime retry is
+  authorized before this correction is reviewed. During
   a Main read-only diagnosis, a PowerShell XML conversion error echoed the raw static logged-out hierarchy; it held no
   credential, token, subject, endpoint or user data, but violated the no-raw-hierarchy operating rule and is recorded.
   Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work
