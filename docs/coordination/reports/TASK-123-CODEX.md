@@ -114,6 +114,8 @@ Owner-private action was run.
   `5384882f43dc9cfe5e514924a97ebf91d9085c9c`
 - Output-redaction fail-closed correction commit:
   `17774cd05e1586322d147955bdb0834367808759`
+- Complete status-state correction commit:
+  `e362650232255a4c31a109d981a3cc2db357eacc`
 - Authoritative shared ancestry: `3b80e61e0c68ccacfed7984a82e37d4834dd9aa3`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
