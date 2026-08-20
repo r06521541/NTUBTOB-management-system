@@ -93,10 +93,14 @@ Using the repository bundled Python on Windows:
   sentinel disclosure.
 - Targeted governed status-reason regressions: 4 passed. Process-level cases
   prove exact `ADB_UNAVAILABLE`, `ADB_INVALID`, `PACKAGE_UNAVAILABLE`,
-  `ACTIVITY_UNAVAILABLE`, `ACTIVITY_INVALID`,
+  `PACKAGE_INVALID`, `ACTIVITY_UNAVAILABLE`, `ACTIVITY_INVALID`,
   `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, and `SEMANTIC_DRIFT`
   envelopes, one JSON line, exit 2, preserved normal PASS, and no fixed message,
   raw exception, or sentinel disclosure.
+- Targeted real package-state/envelope regressions: 4 passed. They prove timeout
+  and nonzero exit are unavailable, successful empty output alone is absent,
+  one exact `package:` result is installed, and unexpected successful output is
+  invalid; every case emits exactly one governed JSON without child output.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -153,7 +157,9 @@ Owner-private action was run.
   `196924a7a5bda9856c1e40536f1971c087ee7498`
 - Complete status-stage reason correction commit:
   `1c2e473fb80cd925e5fdbc2ede1c7cf2f845f304`
-- Authoritative shared ancestry: `dfb172646648627d0a85495600254438f513dd34`
+- Exact package-state correction commit:
+  `f8bba5b64dc44ae9fc1eb7e058a2f3df547128bf`
+- Authoritative shared ancestry: `c34ad7aa778bf1b2a5fcbebb995767bd56f4d91e`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
