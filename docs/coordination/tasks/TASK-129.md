@@ -3,7 +3,7 @@
 - Task type: repository implementation after producer readiness
 - Delivery group: `mobile-staging-acceptance-automation`
 - Requires independent PR: false
-- Status: planned; waits for TASK-124 package 4
+- Status: ready_for_review; TASK-124 packages 1-4 accepted
 - Operator: agent under DEC-098
 - Owner gate: LINE login/consent only when a named scenario reports it
 
@@ -104,4 +104,4 @@ harness does not patch around them.
 2. Files: one harness, direct tests, runbook and report.
 3. Invariants: no hidden default, exact checkpoint binding, no blind replay, finally restore.
 4. Tests: mocked interruption/resume matrix and exact producer vocabulary.
-5. Blocker: implementation waits for TASK-124 package 4; Officer mutation additionally waits for provisioned TASK-128 broker.
+5. Blocker: repository implementation has no blocker; real Officer mutation remains gated on provisioned TASK-128 broker.
