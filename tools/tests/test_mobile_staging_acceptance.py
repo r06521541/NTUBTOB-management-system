@@ -169,6 +169,53 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"artifact": "missing", "action": "ready"})
 
+    def test_status_action_uses_a_fresh_isolated_launcher_module_each_time(self):
+        with tempfile.TemporaryDirectory() as directory:
+            launcher = Path(directory) / "launcher.ps1"
+            launcher.write_text(
+                """
+                param([string]$Action)
+                Set-StrictMode -Version Latest
+                $script:statusCalls = 0
+                function Invoke-MobileStagingMain {
+                    param($Action,$Mode,$Commit,$ConfigPath,$ApprovalPath,$Preserve,$Public,$Purge)
+                    $script:statusCalls++
+                    if ($script:statusCalls -ne 1) { throw 'polluted module state' }
+                    if ($ConfigPath -ceq 'C:/recoverable.json') { throw 'Accessibility inventory is malformed' }
+                    if ($ConfigPath -ceq 'C:/unknown.json') { throw 'private-provider-subject-sentinel' }
+                    return @{result='observed';semantic_state='logged_out'}
+                }
+                """,
+                encoding="utf-8-sig",
+            )
+            result = self.run_harness(
+                f"""
+                $before=@(Get-Module | Where-Object {{$_.Path -ceq '{launcher.as_posix()}'}}).Count
+                $status=New-IsolatedLauncherStatusAction '{launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/value-free.json'
+                $first=& $status
+                $second=& $status
+                $recoverable=New-IsolatedLauncherStatusAction '{launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/recoverable.json'
+                try {{& $recoverable|Out-Null;$recoverableError='unexpected'}}catch{{$recoverableError=$_.Exception.Message}}
+                $unknown=New-IsolatedLauncherStatusAction '{launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/unknown.json'
+                try {{& $unknown|Out-Null;$unknownError='unexpected'}}catch{{$unknownError=$_.Exception.Message}}
+                $after=@(Get-Module | Where-Object {{$_.Path -ceq '{launcher.as_posix()}'}}).Count
+                [pscustomobject]@{{first=$first.result;second=$second.result;recoverable=$recoverableError;unknown=$unknownError;before=$before;after=$after}}|ConvertTo-Json -Compress
+                """
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "first": "observed",
+                "second": "observed",
+                "recoverable": "Accessibility inventory is malformed",
+                "unknown": "Harness status is unavailable",
+                "before": 0,
+                "after": 0,
+            },
+        )
+        self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"

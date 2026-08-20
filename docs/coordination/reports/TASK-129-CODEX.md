@@ -145,3 +145,13 @@ Next actor: Main Work review.
   the documented Windows stall and were boundedly terminated; hosted CI retains
   the final formatting gate. The existing import block was not changed, so an
   unrelated local isort baseline difference was not applied to this correction.
+
+- Post-merge dogfood proved the longer retry budget alone was insufficient:
+  status inside the long-lived action module exhausted, while an immediately
+  following governed status and a fresh isolated-module status both returned
+  exact `logged_out`. The production dependency factory now keeps mutating
+  launcher actions in their original isolated module but creates and removes a
+  fresh read-only launcher module for every semantic observation. A direct
+  regression invokes the same status action twice against a module that rejects
+  a second in-module call; both observations pass and no module remains loaded.
+  This correction does not widen retries, UI semantics, mutation, or evidence.

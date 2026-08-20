@@ -340,7 +340,14 @@ function Get-MobileAcceptanceArtifact {
 }
 
 function New-MobileAcceptanceDependenciesFromConfig {
-    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [object]$Config, [hashtable]$LauncherCommands)
+    param(
+        [string]$SelectedMode,
+        [string]$ExpectedCommit,
+        [string]$LauncherConfigPath,
+        [object]$Config,
+        [hashtable]$LauncherCommands,
+        [scriptblock]$StatusAction
+    )
     if ($null -eq $LauncherCommands) {
         $LauncherCommands = @{
             InvokeMain = Get-HarnessFunctionScriptBlock 'Invoke-MobileStagingMain'
@@ -352,7 +359,9 @@ function New-MobileAcceptanceDependenciesFromConfig {
     $inspectArtifact = (Get-Command Get-MobileAcceptanceArtifact -CommandType Function).ScriptBlock
     $produceObservation = (Get-Command Get-AdditionalAcceptanceProducerObservation -CommandType Function).ScriptBlock
     $readStatus = (Get-Command Get-MobileAcceptanceStatus -CommandType Function).ScriptBlock
-    $statusAction = { & $invokeMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }.GetNewClosure()
+    if ($null -eq $StatusAction) {
+        $StatusAction = { & $invokeMain 'status' $SelectedMode $ExpectedCommit $LauncherConfigPath '' $false $false $false }.GetNewClosure()
+    }
     $action = {
         param($Name)
         switch ($Name) {
@@ -369,7 +378,7 @@ function New-MobileAcceptanceDependenciesFromConfig {
     }.GetNewClosure()
     $artifact = { & $inspectArtifact $Config $ExpectedCommit $LauncherCommands }.GetNewClosure()
     $observation = {
-        $status = & $readStatus $statusAction
+        $status = & $readStatus $StatusAction
         return & $produceObservation $status {
             $result = & $invokeBounded ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
             if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-HarnessSafe 'Harness producer observation is unavailable' }
@@ -385,6 +394,34 @@ function New-MobileAcceptanceDependenciesFromConfig {
         return $true
     }.GetNewClosure()
     return New-MobileAcceptanceTestDependencies -Action $action -Artifact $artifact -Observation $observation -BrokerReady { $false } -CheckpointPolicy $checkpointPolicy
+}
+
+function New-IsolatedLauncherStatusAction {
+    param([string]$LauncherPath, [string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath)
+    return {
+        $statusModule = $null
+        try {
+            $statusModule = New-Module -ArgumentList $LauncherPath -ScriptBlock {
+                param($Path)
+                . $Path
+            }
+            if ($null -eq $statusModule) { Throw-HarnessSafe 'Harness status is unavailable' }
+            $invokeStatus = $statusModule.NewBoundScriptBlock({
+                param($Mode, $Commit, $ConfigPath)
+                Invoke-MobileStagingMain 'status' $Mode $Commit $ConfigPath '' $false $false $false
+            })
+            return & $invokeStatus $SelectedMode $ExpectedCommit $LauncherConfigPath
+        }
+        catch {
+            if ($_.Exception.Message -cin @(
+                'Accessibility inventory failed safely',
+                'Accessibility inventory is malformed',
+                'Accessibility foreground state is not exact'
+            )) { Throw-HarnessSafe $_.Exception.Message }
+            Throw-HarnessSafe 'Harness status is unavailable'
+        }
+        finally { if ($null -ne $statusModule) { Remove-Module $statusModule -Force -ErrorAction SilentlyContinue } }
+    }.GetNewClosure()
 }
 
 function New-MobileAcceptanceDependencies {
@@ -408,7 +445,8 @@ function New-MobileAcceptanceDependencies {
         GetSigner = $launcherModule.NewBoundScriptBlock({ param($Config, $Artifact) Get-ApkSignerFingerprint $Config $Artifact })
         GetPackage = $launcherModule.NewBoundScriptBlock({ param($Config, $Artifact) Get-ApkPackageIdentity $Config $Artifact })
     }
-    return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands
+    $statusAction = New-IsolatedLauncherStatusAction $launcherPath $SelectedMode $ExpectedCommit $LauncherConfigPath
+    return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands $statusAction
 }
 
 function Invoke-HarnessPreparation {

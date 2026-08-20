@@ -597,6 +597,10 @@ exact approved serial. Any other action result stops with the bounded
 Cold launch likewise accepts only `running` or TASK-123's bounded
 `timeout_but_running` terminal classification. It never retries either result;
 `timeout_unknown` remains fail closed.
+Build/install/cold actions stay bound to one isolated launcher module. Each
+semantic observation uses a newly loaded read-only launcher module and removes
+it immediately afterward, so long-lived Gradle/ADB action state cannot pollute
+API36 UIAutomator inventory.
 After a terminal cold launch, semantic readiness may retry only the exact
 read-only TASK-123 accessibility-unavailable or malformed-inventory conditions,
 at most five attempts with three-second waits. Semantic mismatch, unknown status
