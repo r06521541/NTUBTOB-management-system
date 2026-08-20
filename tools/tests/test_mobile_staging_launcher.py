@@ -1139,6 +1139,94 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     self.assertNotIn(sentinel, result.stdout + result.stderr)
                     self.assert_safe_output(result)
 
+    def test_real_status_stage_boundaries_sanitize_unknown_exceptions(self):
+        sentinel = "private-provider-subject-sentinel"
+        cases = (
+            (
+                f"function Assert-OnlyApprovedSerial {{ throw '{sentinel}' }}",
+                "FAILED",
+                "ADB_UNAVAILABLE",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                f"function Get-PackageState {{ throw '{sentinel}' }}",
+                "FAILED",
+                "PACKAGE_UNAVAILABLE",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                f"function Get-CurrentActivity {{ throw '{sentinel}' }}",
+                "FAILED",
+                "ACTIVITY_UNAVAILABLE",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                "function Get-CurrentActivity { return 'portal' }\n"
+                f"function Get-AllowlistedUiCounts {{ throw '{sentinel}' }}",
+                "FAILED",
+                "ACCESSIBILITY_UNAVAILABLE",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                "function Get-CurrentActivity { return 'portal' }\n"
+                "function Get-AllowlistedUiCounts { "
+                "Throw-Safe 'Accessibility foreground state is not exact' }",
+                "DRIFT",
+                "SEMANTIC_DRIFT",
+            ),
+        )
+        source = LAUNCHER.read_text(encoding="utf-8")
+        dispatch = (
+            "$details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath "
+            "$ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) "
+            "([bool]$PurgeEvidence)"
+        )
+        entry = "if ($MyInvocation.InvocationName -ne '.') {"
+        self.assertEqual(source.count(dispatch), 1)
+        self.assertEqual(source.count(entry), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (overrides, classification, reason_code) in enumerate(cases):
+                with self.subTest(reason_code=reason_code):
+                    launcher_copy = Path(directory) / f"status-stage-{index}.ps1"
+                    launcher_copy.write_text(
+                        source.replace(entry, overrides + "\n" + entry).replace(
+                            dispatch,
+                            "$details = Invoke-Status ([pscustomobject]@{})",
+                        ),
+                        encoding="utf-8",
+                    )
+                    result = subprocess.run(
+                        [
+                            "powershell.exe",
+                            "-NoLogo",
+                            "-NoProfile",
+                            "-NonInteractive",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-File",
+                            str(launcher_copy),
+                            "-Action",
+                            "status",
+                        ],
+                        cwd=ROOT,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=20,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertEqual(len(result.stdout.splitlines()), 1)
+                    envelope = json.loads(result.stdout)
+                    self.assertEqual(envelope["classification"], classification)
+                    self.assertEqual(envelope["details"]["reason_code"], reason_code)
+                    self.assertNotIn(sentinel, result.stdout + result.stderr)
+                    self.assert_safe_output(result)
+
     def test_output_redaction_fallback_is_one_failed_json_and_exit_two(self):
         sentinel = "postgresql://private-user:private-password@private.invalid/staging"
         with tempfile.TemporaryDirectory() as directory:

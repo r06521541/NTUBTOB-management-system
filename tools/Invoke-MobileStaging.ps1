@@ -380,11 +380,43 @@ function Get-PackageState {
     return 'installed'
 }
 
+function Invoke-BoundedStatusStage {
+    param(
+        [scriptblock]$Operation,
+        [string[]]$KnownMessages,
+        [string]$UnavailableMessage
+    )
+    try { return & $Operation }
+    catch {
+        $stageMessage = [string]$_.Exception.Message
+        if ($stageMessage -cin $KnownMessages) { throw }
+        Throw-Safe $UnavailableMessage
+    }
+}
+
 function Invoke-Status {
     param([object]$Config)
-    Assert-OnlyApprovedSerial $Config
-    $package = Get-PackageState $Config
-    $activity = Get-CurrentActivity $Config
+    $null = Invoke-BoundedStatusStage {
+        Assert-OnlyApprovedSerial $Config
+    } @(
+        'ADB inventory failed safely',
+        'ADB serial state is not ready',
+        'ADB serial inventory is not exact'
+    ) 'ADB inventory failed safely'
+    $package = Invoke-BoundedStatusStage {
+        Get-PackageState $Config
+    } @(
+        'Package inventory failed safely',
+        'Package inventory is malformed'
+    ) 'Package inventory failed safely'
+    $activity = Invoke-BoundedStatusStage {
+        Get-CurrentActivity $Config
+    } @(
+        'Activity inventory failed safely',
+        'Activity inventory size is not bounded',
+        'Current activity inventory is ambiguous',
+        'Current activity inventory is malformed'
+    ) 'Activity inventory failed safely'
     if ($package -eq 'absent' -or $activity -ne 'portal') {
         $boundedState = if ($package -eq 'absent') {
             'package_absent'
@@ -407,7 +439,14 @@ function Invoke-Status {
             report_disabled = 0
         }
     }
-    $ui = Get-AllowlistedUiCounts $Config
+    $ui = Invoke-BoundedStatusStage {
+        Get-AllowlistedUiCounts $Config
+    } @(
+        'Accessibility inventory failed safely',
+        'Accessibility inventory size is not bounded',
+        'Accessibility inventory is malformed',
+        'Accessibility foreground state is not exact'
+    ) 'Accessibility inventory failed safely'
     return [ordered]@{
         action = 'status'
         package = $package
