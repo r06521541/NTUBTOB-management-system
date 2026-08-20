@@ -270,16 +270,21 @@ function Get-AdditionalAcceptanceProducerObservation {
 function Get-MobileAcceptanceStatus {
     param(
         [scriptblock]$InvokeStatus,
-        [scriptblock]$Wait = { Start-Sleep -Seconds 2 }
+        [scriptblock]$Wait = { Start-Sleep -Seconds 3 }
     )
-    for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $maxAttempts = 5
+    $retryableMessages = @(
+        'Accessibility inventory failed safely',
+        'Accessibility inventory is malformed'
+    )
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         try {
             $status = & $InvokeStatus
             if ($null -ne $status -and [string]$status.result -eq 'observed') { return $status }
             Throw-HarnessSafe 'Harness status is unavailable'
         }
         catch {
-            if ($_.Exception.Message -ceq 'Accessibility inventory failed safely' -and $attempt -lt 3) {
+            if ($_.Exception.Message -cin $retryableMessages -and $attempt -lt $maxAttempts) {
                 & $Wait
                 continue
             }

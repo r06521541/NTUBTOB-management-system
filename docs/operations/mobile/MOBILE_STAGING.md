@@ -598,9 +598,10 @@ Cold launch likewise accepts only `running` or TASK-123's bounded
 `timeout_but_running` terminal classification. It never retries either result;
 `timeout_unknown` remains fail closed.
 After a terminal cold launch, semantic readiness may retry only the exact
-read-only TASK-123 accessibility-unavailable condition, at most three attempts
-with two-second waits. Unknown status failures are never retried; exhausted
-readiness returns `EVIDENCE_GAP/STATUS_UNAVAILABLE` without raw diagnostics.
+read-only TASK-123 accessibility-unavailable or malformed-inventory conditions,
+at most five attempts with three-second waits. Semantic mismatch, unknown status
+failures, and every other invalid state are never retried; exhausted readiness
+returns `EVIDENCE_GAP/STATUS_UNAVAILABLE` without raw diagnostics.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting

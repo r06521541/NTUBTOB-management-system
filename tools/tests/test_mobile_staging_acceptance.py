@@ -260,13 +260,14 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             self.assertEqual(payload["value"]["details"]["reason_code"], "ACTION_RESULT_INVALID")
             self.assertEqual(payload["cold"], 1)
 
-    def test_status_readiness_retries_only_exact_accessibility_unavailable(self):
+    def test_status_readiness_retries_only_exact_recoverable_accessibility_states(self):
         result = self.run_harness(
             """
             $script:attempts=0;$script:waits=0
             $ready=Get-MobileAcceptanceStatus -InvokeStatus {
                 $script:attempts++
-                if($script:attempts -lt 3){throw 'Accessibility inventory failed safely'}
+                if($script:attempts -eq 1){throw 'Accessibility inventory failed safely'}
+                if($script:attempts -lt 5){throw 'Accessibility inventory is malformed'}
                 return @{result='observed';semantic_state='logged_out'}
             } -Wait {$script:waits++}
             $script:unknownAttempts=0
@@ -274,16 +275,23 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 Get-MobileAcceptanceStatus -InvokeStatus {$script:unknownAttempts++;throw 'private-provider-subject-sentinel'} -Wait {throw 'must not wait'} | Out-Null
                 $unknown='unexpected'
             } catch {$unknown=$_.Exception.Message}
-            [pscustomobject]@{result=$ready.result;attempts=$script:attempts;waits=$script:waits;unknown=$unknown;unknownAttempts=$script:unknownAttempts}|ConvertTo-Json -Compress
+            $script:semanticAttempts=0
+            try {
+                Get-MobileAcceptanceStatus -InvokeStatus {$script:semanticAttempts++;throw 'Accessibility foreground state is not exact'} -Wait {throw 'must not wait'} | Out-Null
+                $semantic='unexpected'
+            } catch {$semantic=$_.Exception.Message}
+            [pscustomobject]@{result=$ready.result;attempts=$script:attempts;waits=$script:waits;unknown=$unknown;unknownAttempts=$script:unknownAttempts;semantic=$semantic;semanticAttempts=$script:semanticAttempts}|ConvertTo-Json -Compress
             """
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["result"], "observed")
-        self.assertEqual(payload["attempts"], 3)
-        self.assertEqual(payload["waits"], 2)
+        self.assertEqual(payload["attempts"], 5)
+        self.assertEqual(payload["waits"], 4)
         self.assertEqual(payload["unknown"], "Harness status is unavailable")
         self.assertEqual(payload["unknownAttempts"], 1)
+        self.assertEqual(payload["semantic"], "Harness status is unavailable")
+        self.assertEqual(payload["semanticAttempts"], 1)
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
     def test_artifact_manifest_drift_short_circuits_tools_and_unknown_is_bounded(self):
