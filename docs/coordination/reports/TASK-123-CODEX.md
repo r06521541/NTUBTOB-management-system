@@ -7,7 +7,16 @@ staging preparation and local acceptance actions. Routine and Owner-private
 dispatch are separate: routine actions never initialize the private staging
 operator, `gcloud`, database Secret resolution, or private subject handling.
 Every invocation returns one de-identified governance envelope with a stable
-classification and no raw child output.
+classification, an allowlisted non-sensitive reason code for non-PASS results,
+and no raw exception or child output.
+
+Controlled dogfood found that the real config loader used `$home` as an
+iterator; Windows PowerShell treats it as the read-only automatic `$HOME`
+variable because names are case-insensitive. The iterator and the writable
+`$Matches` collisions were renamed. A complete, unstubbed value-free config now
+loads in direct regression tests, exact invalid variants fail closed, and a
+source contract rejects assignment/iteration over PowerShell automatic or
+read-only names.
 
 The console validates an explicit full commit and clean detached snapshot,
 task-owned E-drive paths, one AVD/serial, a unique allowlisted existing debug
@@ -32,8 +41,10 @@ acquired before Secret resolution or operator initialization.
 
 - No emulator, staging, `gcloud`, Secret, database, LINE, cloud, deployment, or
   production action was executed.
-- No backend, schema, migration, Flutter source, workflow, task specification,
-  global coordination, or non-task test was changed.
+- No backend, schema, migration, Flutter source, workflow, or non-task test was
+  changed by the implementation. Authoritative shared ancestry was
+  fast-forwarded intact and carries its task, HANDOFF, COLLABORATION 2.2,
+  review, and planning rationale without Codex rewriting them.
 - Output/evidence exclude endpoints, channel IDs, subjects, DSNs, tokens,
   assertions, keystore data/path, raw UI XML, logcat, and child response bodies.
 - Cleanup is restricted to TASK-123 temp/evidence roots; it does not clear app
@@ -43,7 +54,7 @@ acquired before Secret resolution or operator initialization.
 
 Using the repository bundled Python on Windows:
 
-- `python -m unittest tools.tests.test_mobile_staging_launcher -v`: 26 passed.
+- `python -m unittest tools.tests.test_mobile_staging_launcher -v`: 29 passed.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -59,6 +70,10 @@ bounded child-process cleanup, launch
 timeout/anomaly and network restoration, private
 confirmation/mutation/reconciliation order, child-environment cleanup, and
 adversarial redaction sentinels.
+It now also covers complete real config loading, exact invalid config variants,
+automatic/read-only variable collision scanning, stable reason-code mapping,
+and actual one-line governed config/Owner-gate failures without raw exception
+or path disclosure.
 
 Bundled Black CLI and formatter API both remained unresponsive for more than
 the bounded local check window and were terminated, matching the documented
@@ -80,7 +95,7 @@ Owner-private action was run.
 - Implementation commit: `3998b9681595b503b6d9b12eb1778d8ac51ccfcc`
 - Changes-requested implementation commit:
   `3f424d775395d33a449a480c0c14c2dde802c1d4`
-- Authoritative shared ancestry: `7c4141793952f5723783d44000bceb0dc212ad71`
+- Authoritative shared ancestry: `b9f3e10ad08b84ee1aee290cd5d34b6c2dc52698`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.

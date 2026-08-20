@@ -142,9 +142,76 @@ class PowerShellContractTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         envelope = json.loads(result.stdout)
         self.assertEqual(envelope["classification"], "DRIFT")
+        self.assertEqual(envelope["details"]["reason_code"], "CONFIG_INVALID")
         self.assertEqual(envelope["standing_authorization"], "DEC-098")
         self.assertEqual(envelope["report_to"], "main-work")
+        self.assertNotIn("Action is unknown", result.stdout + result.stderr)
         self.assert_safe_output(result)
+
+    def test_real_complete_config_loads_and_exact_invalid_variants_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            valid_path = root / "valid.json"
+            valid_path.write_text(json.dumps(launcher_config()), encoding="utf-8")
+            result = self.run_harness(
+                f"""
+                $value=Load-LauncherConfig '{valid_path.as_posix()}'
+                Write-Output ($value.schema_version.ToString()+','+$value.package_id+','+$value.android_user_homes.Count)
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("1,tw.org.ntubtob.portal,1", result.stdout)
+
+            invalid_cases = (
+                ({"unexpected": "field"}, "fields are not exact"),
+                ({"package_id": "tw.org.ntubtob.wrong"}, "identity is not exact"),
+                ({"android_user_homes": [r"C:\not-approved"]}, "outside the E drive"),
+            )
+            for index, (updates, expected) in enumerate(invalid_cases):
+                with self.subTest(expected=expected):
+                    config = launcher_config()
+                    config.update(updates)
+                    invalid_path = root / f"invalid-{index}.json"
+                    invalid_path.write_text(json.dumps(config), encoding="utf-8")
+                    result = self.run_harness(
+                        f"""
+                        try {{ Load-LauncherConfig '{invalid_path.as_posix()}';exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                        """
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(expected, result.stdout)
+
+            governed = subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(LAUNCHER),
+                    "-Action",
+                    "preflight",
+                    "-Mode",
+                    "fake",
+                    "-Commit",
+                    FULL_SHA,
+                    "-ConfigPath",
+                    str(root / "invalid-0.json"),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(governed.returncode, 2, governed.stderr)
+            self.assertEqual(len(governed.stdout.splitlines()), 1)
+            envelope = json.loads(governed.stdout)
+            self.assertEqual(envelope["details"]["reason_code"], "CONFIG_INVALID")
+            self.assertNotIn(str(root), governed.stdout + governed.stderr)
+            self.assert_safe_output(governed)
 
     def test_snapshot_rejects_wrong_sha_dirty_or_attached_head(self):
         cases = (
@@ -534,17 +601,25 @@ class PowerShellContractTest(unittest.TestCase):
 
     def test_help_and_owner_gate_emit_one_governed_json_result(self):
         cases = (
-            (["-Action", "help"], "PASS", "agent", "none", 0),
-            (["-Action", "unknown-action"], "DRIFT", "agent", "none", 2),
+            (["-Action", "help"], "PASS", "agent", "none", 0, None),
+            (
+                ["-Action", "unknown-action"],
+                "DRIFT",
+                "agent",
+                "none",
+                2,
+                "CONFIG_INVALID",
+            ),
             (
                 ["-Action", "private-inspect", "-Mode", "staging", "-Commit", FULL_SHA],
                 "OWNER_ACTION_REQUIRED",
                 "owner",
                 "private-console",
                 2,
+                "OWNER_ACTION_REQUIRED",
             ),
         )
-        for arguments, classification, operator, owner_gate, returncode in cases:
+        for arguments, classification, operator, owner_gate, returncode, reason_code in cases:
             with self.subTest(classification=classification):
                 result = subprocess.run(
                     [
@@ -573,7 +648,74 @@ class PowerShellContractTest(unittest.TestCase):
                 self.assertEqual(envelope["standing_authorization"], "DEC-098")
                 self.assertEqual(envelope["report_to"], "main-work")
                 self.assertEqual(envelope["retention_owner"], "TASK-123")
+                if reason_code is not None:
+                    self.assertEqual(envelope["details"]["reason_code"], reason_code)
                 self.assert_safe_output(result)
+
+    def test_failure_reason_codes_are_bounded_and_never_echo_raw_errors(self):
+        result = self.run_harness(
+            """
+            $messages=@(
+              'Launcher config is unavailable or malformed',
+              'Snapshot commit does not match',
+              'Approved E drive has insufficient or unknown free space',
+              'Approved toolchain is incomplete',
+              'Task launcher lock already exists',
+              'OWNER_ACTION_REQUIRED',
+              'private-provider-subject-sentinel'
+            )
+            foreach($diagnosticMessage in $messages){ Write-Output (Get-FailureReasonCode $diagnosticMessage) }
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            [
+                "CONFIG_INVALID",
+                "SNAPSHOT_INVALID",
+                "DISK_UNAVAILABLE",
+                "TOOLCHAIN_UNAVAILABLE",
+                "LOCK_UNAVAILABLE",
+                "OWNER_ACTION_REQUIRED",
+                "RUNTIME_FAILED",
+            ],
+        )
+        self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+
+    def test_source_avoids_automatic_and_readonly_variable_collisions(self):
+        source = LAUNCHER.read_text(encoding="utf-8")
+        blocked = {
+            "args",
+            "error",
+            "executioncontext",
+            "foreach",
+            "home",
+            "host",
+            "input",
+            "lastexitcode",
+            "matches",
+            "myinvocation",
+            "ofs",
+            "pid",
+            "profile",
+            "psboundparameters",
+            "pscmdlet",
+            "pshome",
+            "pwd",
+            "shellid",
+            "stacktrace",
+            "switch",
+            "this",
+        }
+        assigned = {
+            name.casefold()
+            for name in re.findall(r"(?im)(?:^|[;{])\s*\$([A-Za-z][A-Za-z0-9_]*)\s*=", source)
+        }
+        iterators = {
+            name.casefold()
+            for name in re.findall(r"(?i)foreach\s*\(\s*\$([A-Za-z][A-Za-z0-9_]*)", source)
+        }
+        self.assertFalse((assigned | iterators) & blocked)
 
     def test_routine_dispatch_does_not_load_private_tools_or_environment(self):
         source = LAUNCHER.read_text(encoding="utf-8")
@@ -832,6 +974,35 @@ def candidate_approval():
             "MOBILE_REFRESH_REPLAY_KEY": "mobile-api-staging-refresh:1",
         },
         "mobile_api_audience": "1234567890123456789",
+    }
+
+
+def launcher_config():
+    return {
+        "schema_version": 1,
+        "snapshot_root": r"E:\task-123\snapshot",
+        "flutter_executable": r"E:\flutter\bin\flutter.bat",
+        "git_executable": r"C:\Program Files\Git\cmd\git.exe",
+        "adb_executable": r"E:\android\platform-tools\adb.exe",
+        "emulator_executable": r"E:\android\emulator\emulator.exe",
+        "apksigner_executable": r"E:\android\build-tools\apksigner.bat",
+        "apkanalyzer_executable": r"E:\android\cmdline-tools\bin\apkanalyzer.bat",
+        "keytool_executable": r"E:\jdk\bin\keytool.exe",
+        "android_sdk_root": r"E:\android",
+        "java_home": r"E:\jdk",
+        "android_user_homes": [r"E:\task-123\android-user"],
+        "android_avd_home": r"E:\task-123\avd",
+        "pub_cache": r"E:\task-123\pub-cache",
+        "gradle_user_home": r"E:\task-123\gradle",
+        "avd_name": "task123_avd",
+        "serial": "emulator-5556",
+        "package_id": "tw.org.ntubtob.portal",
+        "main_activity": "tw.org.ntubtob.portal/.MainActivity",
+        "evidence_root": r"E:\codex-evidence\task-123",
+        "temp_root": r"E:\codex-temp\task-123",
+        "min_free_bytes": 1073741824,
+        "signer_allowlist": [FINGERPRINT],
+        "artifact_relative_path": "app-debug.apk",
     }
 
 

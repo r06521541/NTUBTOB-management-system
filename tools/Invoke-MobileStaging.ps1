@@ -231,8 +231,8 @@ function Load-LauncherConfig {
     if ($homes.Count -lt 1 -or $homes.Count -gt 4 -or $signers.Count -ne 1) {
         Throw-Safe 'Signer inventory is not exact'
     }
-    foreach ($home in $homes) {
-        if (-not [System.IO.Path]::IsPathRooted([string]$home) -or -not ([string]$home).StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    foreach ($androidUserHomeCandidate in $homes) {
+        if (-not [System.IO.Path]::IsPathRooted([string]$androidUserHomeCandidate) -or -not ([string]$androidUserHomeCandidate).StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
             Throw-Safe 'Android user home is outside the E drive allowlist'
         }
     }
@@ -446,9 +446,9 @@ function Get-ApkSignerFingerprint {
     param([object]$Config, [string]$ApkPath)
     $result = Invoke-BoundedProcess ([string]$Config.apksigner_executable) @('verify', '--print-certs', $ApkPath) 30
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'APK signer verification failed safely' }
-    $matches = [regex]::Matches($result.Stdout, '(?im)certificate SHA-256 digest:\s*([0-9a-f:]{64,95})')
-    if ($matches.Count -ne 1) { Throw-Safe 'APK signer result is not exact' }
-    return ($matches[0].Groups[1].Value -replace ':', '').ToUpperInvariant()
+    $certificateMatches = [regex]::Matches($result.Stdout, '(?im)certificate SHA-256 digest:\s*([0-9a-f:]{64,95})')
+    if ($certificateMatches.Count -ne 1) { Throw-Safe 'APK signer result is not exact' }
+    return ($certificateMatches[0].Groups[1].Value -replace ':', '').ToUpperInvariant()
 }
 
 function Get-ApkPackageIdentity {
@@ -472,10 +472,10 @@ function Get-AllowlistedDebugSigner {
         if (-not (Test-Path -LiteralPath $keystore -PathType Leaf)) { continue }
         $result = Invoke-BoundedProcess ([string]$Config.keytool_executable) @('-list', '-v', '-keystore', $keystore, '-alias', 'androiddebugkey', '-storepass', 'android', '-keypass', 'android') 30
         if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Debug signer inventory failed safely' }
-        $matches = [regex]::Matches($result.Stdout, '(?im)SHA256:\s*([0-9A-F:]{64,95})')
-        if ($matches.Count -ne 1) { Throw-Safe 'Debug signer inventory is not exact' }
+        $certificateMatches = [regex]::Matches($result.Stdout, '(?im)SHA256:\s*([0-9A-F:]{64,95})')
+        if ($certificateMatches.Count -ne 1) { Throw-Safe 'Debug signer inventory is not exact' }
         $found += [pscustomobject]@{
-            Fingerprint = (($matches[0].Groups[1].Value -replace ':', '').ToUpperInvariant())
+            Fingerprint = (($certificateMatches[0].Groups[1].Value -replace ':', '').ToUpperInvariant())
             AndroidUserHome = [string]$androidHome
         }
     }
@@ -832,6 +832,22 @@ function Get-FailureClassification {
     return 'FAILED'
 }
 
+function Get-FailureReasonCode {
+    param([string]$Message)
+    if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -match '(?i)(launcher config|action is unknown|exact action, mode|conflicting options|full accepted commit|config identity|config fields|artifact path is not exact)') {
+        return 'CONFIG_INVALID'
+    }
+    if ($Message -match '(?i)(snapshot)') { return 'SNAPSHOT_INVALID' }
+    if ($Message -match '(?i)(approved E drive|disk threshold)') { return 'DISK_UNAVAILABLE' }
+    if ($Message -match '(?i)(task launcher lock)') { return 'LOCK_UNAVAILABLE' }
+    if ($Message -match '(?i)(toolchain|approved executable|APK package|APK signer|debug signer|artifact signer)') {
+        return 'TOOLCHAIN_UNAVAILABLE'
+    }
+    if ($Message -match '(?i)(timed out|bounded window|timeout)') { return 'RUNTIME_TIMEOUT' }
+    return 'RUNTIME_FAILED'
+}
+
 function New-LauncherEnvelope {
     param([string]$SelectedAction, [string]$Classification, [object]$Details)
     $isPrivate = $SelectedAction -in $script:PrivateActions
@@ -908,15 +924,21 @@ if ($MyInvocation.InvocationName -ne '.') {
     $details = $null
     try {
         $details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath $ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) ([bool]$PurgeEvidence)
-        if ([string]$details.result -match '^timeout') { $classification = 'TIMEOUT' }
+        if ([string]$details.result -match '^timeout') {
+            $classification = 'TIMEOUT'
+            $details['reason_code'] = 'RUNTIME_TIMEOUT'
+        }
     }
     catch {
         $classification = Get-FailureClassification $_.Exception.Message
-        $details = [ordered]@{ result = $classification.ToLowerInvariant() }
+        $details = [ordered]@{
+            result = $classification.ToLowerInvariant()
+            reason_code = Get-FailureReasonCode $_.Exception.Message
+        }
     }
     $envelope = New-LauncherEnvelope $Action $classification $details
     try { Write-SafeJson $envelope }
-    catch { Write-Output '{"action":"unknown","classification":"FAILED","operator":"agent","owner_gate":"none","standing_authorization":"DEC-098","stop_only_on":"wire-or-schema-need|unbounded-fixture-ambiguity|production-secret-external-need","report_to":"main-work","retention_owner":"TASK-123","details":{"result":"failed"}}' }
+    catch { Write-Output '{"action":"unknown","classification":"FAILED","operator":"agent","owner_gate":"none","standing_authorization":"DEC-098","stop_only_on":"wire-or-schema-need|unbounded-fixture-ambiguity|production-secret-external-need","report_to":"main-work","retention_owner":"TASK-123","details":{"result":"failed","reason_code":"OUTPUT_REDACTION_FAILED"}}' }
     if ($classification -eq 'PASS') { exit 0 }
     exit 2
 }

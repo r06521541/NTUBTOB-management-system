@@ -314,6 +314,12 @@ top-level classification is one of `PASS`, `OWNER_ACTION_REQUIRED`, `DRIFT`,
 `report_to=main-work`, bounded `stop_only_on`, action-specific `operator` and
 `owner_gate`, and `retention_owner=TASK-123`. A non-`PASS` result exits nonzero.
 No caller needs raw process output to classify an action.
+Every non-PASS `details` object also contains exactly one bounded allowlisted
+`reason_code`: `CONFIG_INVALID`, `SNAPSHOT_INVALID`, `DISK_UNAVAILABLE`,
+`TOOLCHAIN_UNAVAILABLE`, `LOCK_UNAVAILABLE`, `OWNER_ACTION_REQUIRED`,
+`RUNTIME_TIMEOUT`, `RUNTIME_FAILED`, or `OUTPUT_REDACTION_FAILED`. Raw
+exception text, paths, child output, and sensitive values are never copied into
+the governed result.
 
 The value-free config contains only the exact detached snapshot, absolute
 toolchain/cache paths (including one absolute `apkanalyzer` package inspector),
@@ -330,6 +336,11 @@ or keystore path. A typical routine invocation is:
   -Commit <full-accepted-sha> `
   -ConfigPath C:\private\task-123-launcher.json
 ```
+
+The real config loader is contract-tested with the complete value-free schema,
+including its Android user-home array. Loop and assignment names are checked
+against PowerShell automatic/read-only variables so case-insensitive collisions
+such as `$home`/`$HOME` fail review rather than runtime dogfood.
 
 The routine actions are `help`, `preflight`, `avd-start`, `status`, `build`,
 `signer-check`, `install`, `cold-launch`, `health`, `stop`, and `cleanup`.
