@@ -1692,7 +1692,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             launcher_copy = Path(directory) / "Invoke-MobileStaging.ps1"
             source = LAUNCHER.read_text(encoding="utf-8")
             original = "return [ordered]@{ result = 'available'; actions = @($script:RoutineActions + $script:PrivateActions) }"
-            injected = f"return [ordered]@{{ result = '{sentinel}'; actions = @($script:RoutineActions + $script:PrivateActions) }}"
+            injected = f"return [ordered]@{{ result = 'available'; actions = @($script:RoutineActions + $script:PrivateActions); diagnostic = '{sentinel}' }}"
             self.assertEqual(source.count(original), 1)
             launcher_copy.write_text(source.replace(original, injected), encoding="utf-8")
             result = subprocess.run(
