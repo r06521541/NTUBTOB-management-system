@@ -35,7 +35,9 @@ using exact `adb -s <serial> exec-out uiautomator dump /dev/tty` arguments,
 without a device temp file or follow-up file command. DTD/external resolution
 remains prohibited, and the classifier accepts exactly one logged-out,
 Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled
-state. Cold launch
+state. Logged-out specifically requires one enabled, clickable portal
+`android.widget.Button` with exact `LINE 登入`; duplicated Flutter prompt
+semantics and other unapproved labels are ignored. Cold launch
 uses semantic package/activity/PID checks, has no timeout retry, and restores a
 temporary network change in `finally`. Flutter defines use a named pipe and do
 not enter argv, files, evidence, or output.
@@ -84,6 +86,11 @@ Using the repository bundled Python on Windows:
   assert the exact `exec-out` argv and absence of shell/device-file commands,
   preserve bounded hierarchy classification, and reject empty, malformed,
   oversized, timed-out, or nonzero-exit results without raw/sentinel output.
+- Targeted logged-out semantic/status regressions: 4 passed. A realistic API36
+  hierarchy with duplicated prompt semantics and one exact portal login button
+  classifies `logged_out`; duplicate/coexisting buttons, wrong package/class,
+  disabled/nonclickable nodes, and missing state fail closed without raw XML or
+  sentinel disclosure.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -134,7 +141,9 @@ Owner-private action was run.
   `d3fa5f493b0da97910d28dd97f70871f1016c5ae`
 - API36 accessibility transport correction commit:
   `0fa86e0aeabb08515a0df88c323de55a35dc3583`
-- Authoritative shared ancestry: `a68d9d6dc4b5bb7b4df3ac39b7c1cca43fb61ac7`
+- Logged-out button semantic correction commit:
+  `1d5c0c38e8a6ac3333e3ec4e13f09608ef2fe5ed`
+- Authoritative shared ancestry: `0a7e6678f33d4c2a315f2c383efba32abad9cbc6`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
