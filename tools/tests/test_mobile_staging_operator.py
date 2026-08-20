@@ -32,11 +32,18 @@ from tools.mobile_staging_data import (
 from tools.mobile_staging_data import execute as execute_staging_data
 from tools.mobile_staging_data import (
     execute_attendance_repair,
+    execute_runtime_residue_repair,
     grant_officer,
     inventory,
 )
 from tools.mobile_staging_data import main as staging_data_main
-from tools.mobile_staging_data import officer_inventory, plan, recover, restore_basic
+from tools.mobile_staging_data import (
+    officer_inventory,
+    plan,
+    recover,
+    restore_basic,
+    runtime_residue_inventory,
+)
 from tools.mobile_staging_operator import (
     OperatorError,
     build_command,
@@ -296,16 +303,17 @@ class ContractTest(unittest.TestCase):
 
     def test_officer_transition_retries_only_its_exact_terminal_state(self):
         granted = {"database_identity_sha256": STAGING_HASH, "state": "granted"}
-        with patch(
-            "tools.mobile_staging_data.officer_inventory", return_value=granted
-        ):
+        with patch("tools.mobile_staging_data.officer_inventory", return_value=granted):
             self.assertEqual(
                 grant_officer(approval(), DATABASE_URL, "fake-private-subject"),
                 {**granted, "changed": False},
             )
         with patch(
             "tools.mobile_staging_data.officer_inventory",
-            return_value={"database_identity_sha256": STAGING_HASH, "state": "restored"},
+            return_value={
+                "database_identity_sha256": STAGING_HASH,
+                "state": "restored",
+            },
         ):
             with self.assertRaisesRegex(StagingContractError, "not exact"):
                 grant_officer(approval(), DATABASE_URL, "fake-private-subject")
@@ -340,7 +348,9 @@ class ContractTest(unittest.TestCase):
                     "database_identity_sha256": STAGING_HASH,
                     "state": "baseline",
                 },
-            ), patch("sys.stdout", new_callable=io.StringIO) as output:
+            ), patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as output:
                 self.assertEqual(
                     staging_data_main(
                         ["--approval", str(approval_path), "--inspect-officer"]
@@ -348,6 +358,42 @@ class ContractTest(unittest.TestCase):
                     0,
                 )
         self.assertNotIn(private_subject, output.getvalue())
+
+    def test_runtime_residue_cli_redacts_private_subject_from_output(self):
+        private_subject = "fake-private-tester-subject"
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {
+                    "MOBILE_STAGING_DATABASE_URL": DATABASE_URL,
+                    "MOBILE_STAGING_PROVIDER_SUBJECT": private_subject,
+                },
+                clear=False,
+            ), patch(
+                "tools.mobile_staging_data.runtime_residue_inventory",
+                return_value={
+                    "database_identity_sha256": STAGING_HASH,
+                    "state": "required",
+                    "residue_rows": 2,
+                },
+            ), patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as output:
+                self.assertEqual(
+                    staging_data_main(
+                        ["--approval", str(approval_path), "--inspect-runtime-residue"]
+                    ),
+                    0,
+                )
+        self.assertNotIn(private_subject, output.getvalue())
+
+    def test_runtime_residue_repair_requires_candidate_approval(self):
+        with self.assertRaisesRegex(StagingContractError, "candidate approval"):
+            execute_runtime_residue_repair(
+                approval(phase="build"), DATABASE_URL, "fake-private-subject"
+            )
 
     def test_generic_plan_does_not_require_private_subject(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -360,8 +406,12 @@ class ContractTest(unittest.TestCase):
             ), patch(
                 "tools.mobile_staging_data.plan",
                 return_value={"mutation": "none-dry-run"},
-            ), patch("sys.stdout", new_callable=io.StringIO):
-                self.assertEqual(staging_data_main(["--approval", str(approval_path)]), 0)
+            ), patch(
+                "sys.stdout", new_callable=io.StringIO
+            ):
+                self.assertEqual(
+                    staging_data_main(["--approval", str(approval_path)]), 0
+                )
 
     def test_plain_alembic_cli_keeps_remote_database_gate(self):
         environment = dict(os.environ)
@@ -570,6 +620,104 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
         _bootstrap_empty_database(self.engine, Path.cwd())
 
+    def _seed_mobile_runtime_history(self, *, cross_principal=False):
+        person_id = 1 if cross_principal else -112001
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.mobile_sessions "
+                    "(id, auth_identity_id, person_id, installation_id_hash, platform, "
+                    "status, access_epoch, refresh_family_expires_at, revoked_at, "
+                    "created_at, updated_at) VALUES "
+                    "('task120-fixture-session', -112001, :person, 'fake-installation', "
+                    "'android', 'revoked', 1, '2030-01-02T00:00:00Z', "
+                    "'2030-01-01T00:00:00Z', '2030-01-01T00:00:00Z', "
+                    "'2030-01-01T00:00:00Z')"
+                ),
+                {"person": person_id},
+            )
+            for number in range(8):
+                connection.execute(
+                    text(
+                        "INSERT INTO ntubtob.mobile_refresh_tokens "
+                        "(session_id, token_hash, generation, status, issued_at, "
+                        "expires_at, revoked_at) VALUES "
+                        "('task120-fixture-session', :token, :generation, 'revoked', "
+                        "'2030-01-01T00:00:00Z', '2030-01-02T00:00:00Z', "
+                        "'2030-01-01T00:00:00Z')"
+                    ),
+                    {"token": f"fake-refresh-{number}", "generation": number + 1},
+                )
+            for number in range(7):
+                connection.execute(
+                    text(
+                        "INSERT INTO ntubtob.mobile_refresh_attempts "
+                        "(session_id, attempt_id_hash, request_hash, encrypted_successor, "
+                        "expires_at, created_at) VALUES "
+                        "('task120-fixture-session', :attempt, :request, :payload, "
+                        "'2030-01-02T00:00:00Z', '2030-01-01T00:00:00Z')"
+                    ),
+                    {
+                        "attempt": f"fake-attempt-{number}",
+                        "request": f"fake-request-{number}",
+                        "payload": b"fake-test-payload",
+                    },
+                )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.mobile_auth_exchanges "
+                    "(provider, assertion_hash, login_attempt_hash, session_id, "
+                    "expires_at, created_at) VALUES "
+                    "('line', 'fake-assertion', 'fake-login-attempt', "
+                    "'task120-fixture-session', '2030-01-02T00:00:00Z', "
+                    "'2030-01-01T00:00:00Z')"
+                )
+            )
+            for number in range(2):
+                connection.execute(
+                    text(
+                        "INSERT INTO ntubtob.mobile_idempotency_records "
+                        "(session_id, person_id, method, route, key_hash, request_hash, "
+                        "state, response_status, response_body, expires_at, created_at, "
+                        "updated_at) VALUES "
+                        "('task120-fixture-session', :person, 'PUT', '/api/v1/fake', "
+                        ":key, :request, 'completed', 200, '{}'::json, "
+                        "'2030-01-02T00:00:00Z', '2030-01-01T00:00:00Z', "
+                        "'2030-01-01T00:00:00Z')"
+                    ),
+                    {
+                        "person": person_id,
+                        "key": f"fake-key-{number}",
+                        "request": f"fake-idempotency-request-{number}",
+                    },
+                )
+
+    def _insert_runtime_residue(self, *, near_miss=False, additional=False):
+        first_timestamp = (
+            "2026-08-19T16:33:02.723957Z"
+            if near_miss
+            else "2026-08-19T16:33:02.723958Z"
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(id, game_id, user_id, member_id, person_id, reply, updated_at) "
+                    "VALUES (3, -112001, NULL, NULL, -112001, 5, :first), "
+                    "(4, -112001, NULL, NULL, -112001, 1, "
+                    "'2026-08-19T16:36:23.695486Z')"
+                ),
+                {"first": first_timestamp},
+            )
+            if additional:
+                connection.execute(
+                    text(
+                        "INSERT INTO ntubtob.game_attendance_replies "
+                        "(id, game_id, person_id, reply, updated_at) VALUES "
+                        "(5, -112001, -112001, 1, '2026-08-19T16:36:24Z')"
+                    )
+                )
+
     def test_true_empty_bootstrap_injected_migration_seed_recover_and_cleanup(self):
         before = recover(self.approval, TEST_DATABASE_URL)
         self.assertEqual(before["outcome"], "not_started")
@@ -725,6 +873,187 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 3,
             )
 
+    def test_runtime_residue_repair_is_exact_retry_safe_and_preserves_mobile_history(
+        self,
+    ):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        self._insert_runtime_residue()
+        before = runtime_residue_inventory(
+            self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+        )
+        self.assertEqual((before["state"], before["residue_rows"]), ("required", 2))
+        repaired = execute_runtime_residue_repair(
+            self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+        )
+        self.assertEqual(
+            (repaired["state"], repaired["removed_residue_rows"]),
+            ("repaired", 2),
+        )
+        self.assertEqual(
+            execute_runtime_residue_repair(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["removed_residue_rows"],
+            0,
+        )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT id FROM ntubtob.game_attendance_replies " "ORDER BY id"
+                    )
+                )
+                .scalars()
+                .all(),
+                [-112003, -112002, -112001, 9601, 9602, 9603, 9604],
+            )
+            self.assertEqual(
+                tuple(
+                    connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}"))
+                    for table in (
+                        "mobile_sessions",
+                        "mobile_refresh_tokens",
+                        "mobile_refresh_attempts",
+                        "mobile_auth_exchanges",
+                        "mobile_idempotency_records",
+                    )
+                ),
+                (1, 8, 7, 1, 2),
+            )
+        self.assertEqual(
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["state"],
+            "baseline",
+        )
+        self.assertTrue(
+            grant_officer(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"]
+        )
+        self.assertTrue(
+            restore_basic(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"]
+        )
+
+    def test_runtime_residue_repair_rejects_near_miss_additional_and_cross_principal_history(
+        self,
+    ):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        self._insert_runtime_residue(near_miss=True)
+        with self.assertRaisesRegex(StagingContractError, "inventory failed safely"):
+            runtime_residue_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        with self.assertRaisesRegex(StagingContractError, "inventory failed safely"):
+            execute_runtime_residue_repair(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.game_attendance_replies "
+                        "WHERE id IN (3, 4)"
+                    )
+                ),
+                2,
+            )
+
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("DELETE FROM ntubtob.game_attendance_replies WHERE id IN (3, 4)")
+            )
+        self._insert_runtime_residue(additional=True)
+        with self.assertRaisesRegex(StagingContractError, "inventory failed safely"):
+            runtime_residue_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "DELETE FROM ntubtob.game_attendance_replies "
+                    "WHERE id IN (3, 4, 5)"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.mobile_sessions SET person_id=1 "
+                    "WHERE id='task120-fixture-session'"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "inventory failed safely"):
+            runtime_residue_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+
+    def test_runtime_residue_repair_rolls_back_when_postcheck_is_not_baseline(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        self._insert_runtime_residue()
+        with patch(
+            "tools.mobile_staging_data._officer_fixture_state",
+            return_value="runtime_residue",
+        ):
+            with self.assertRaisesRegex(StagingContractError, "failed safely"):
+                execute_runtime_residue_repair(
+                    self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+                )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.game_attendance_replies "
+                        "WHERE id IN (3, 4)"
+                    )
+                ),
+                2,
+            )
+
+    def test_runtime_residue_repair_does_not_admit_orphan_mobile_children(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        self._insert_runtime_residue()
+        with self.assertRaises(SQLAlchemyError):
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "INSERT INTO ntubtob.mobile_refresh_tokens "
+                        "(session_id, token_hash, generation, status, issued_at, "
+                        "expires_at) VALUES ('missing-task120-session', "
+                        "'fake-orphan-token', 1, 'current', "
+                        "'2030-01-01T00:00:00Z', '2030-01-02T00:00:00Z')"
+                    )
+                )
+        self.assertEqual(
+            runtime_residue_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["state"],
+            "required",
+        )
+
     def test_officer_fixture_grant_restore_and_retries_are_append_only(self):
         execute_staging_data(
             self.approval,
@@ -796,7 +1125,9 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "'unknown fixture drift', 'task-119-unknown-drift', now())"
                 )
             )
-        with self.assertRaisesRegex(StagingContractError, "audit or version is drifted"):
+        with self.assertRaisesRegex(
+            StagingContractError, "audit or version is drifted"
+        ):
             officer_inventory(
                 self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
             )
