@@ -1,8 +1,11 @@
 # Work–Codex 協作流程
 
-版本：2.1
+版本：2.2
 
 適用範圍：本 repository 的產品規劃、實作、驗收、Git 整合與 production 操作。
+
+多 agent 節流的改善理由、試行方式與輕量指標見 `docs/planning/MULTI_AGENT_WORKFLOW_IMPROVEMENT.md`；該文件
+提供背景但不構成第二套規則，本文件仍是唯一協作規範來源。
 
 ## 1. 核心宗旨
 
@@ -34,7 +37,13 @@
 - 保持 diff 聚焦，不修改 Work／Owner 的既有變更。
 - 主動回報 blocker，不以 workaround 降低 auth、data、Secret 或 deployment boundary。
 
-Work 與 Codex 不同時修改相同程式檔案。只有 Owner 最新指示明確改變分工時例外。
+每個 work package 只有一位 implementation writer。其他 agent 必須 read-only，且在派工時列出不重疊的專屬審查
+範圍；沒有獨立責任就不加入。Work、Domain Work 與顧問不重做 writer 的一般實作分析。平行 work packages 在
+checkpoint 宣告 owned paths，Main Work 派工前檢查交集；無法避免的交集改由同一 writer 或串行交棒。
+
+Writer 失聯或必須更換時，Main Work 先明確撤回舊 assignment、更新 HANDOFF 與 branch head，再指定新 writer；
+不得讓兩位 writer 同時修改同一 work package。Work 與 Codex 不同時修改相同程式檔案，只有 Owner 最新指示明確
+改變分工時例外。
 
 ### 多領域 Work 與次決策核心
 
@@ -108,6 +117,9 @@ delivery_group: <stable-name> | none
 requires_independent_pr: true | false
 ```
 
+Task 同時列出 verification budget，預設為：writer 一次 affected-full verification、Domain 一次 targeted review、
+Main 一次 risk review、final hosted CI 一次。預算是節流而非省略安全驗證；新增高風險 diff 時只重置受影響部分。
+
 - `planning`：唯讀盤點、產品規則或設計；通常不單獨 commit／PR。
 - `work_package`：大型成果的一段；可 commit／push 到共同 release branch。
 - `delivery`：可獨立整合、部署、rollback 或成為後續穩定基準；建立 final PR。
@@ -132,6 +144,7 @@ Work 先確認：使用者價值、範圍、非目標、已知事實、風險、
 5. 歧義或 blocker。
 
 Work 應在此時攔截錯誤設計。沒有 Owner 決策點時，Codex 可直接繼續，不增加儀式性等待。
+平行任務的第 2 行必須包含 owned paths；Main Work 在派工前確認 writer scope 沒有交集。
 
 ### C. Codex 實作與自我驗收
 
@@ -144,14 +157,19 @@ Work 應在此時攔截錯誤設計。沒有 Owner 決策點時，Codex 可直�
 - 更新同一份 Codex report；同一 task 不新增 correction report。
 - 建立描述性 commit、push，將 `HANDOFF.yaml` 交回 `ready_for_review / work`。
 
+Writer 完成初版 diff 與 invariant self-review 後，先交 architecture／authorization／security boundary review；通過後
+才執行 PostgreSQL matrix、Flutter build、Emulator 或 hosted CI 等昂貴驗證，避免錯誤設計先消耗完整 suite。
+
 ### D. Work 風險式驗收
 
 Work 檢查 branch、commit、dirty state、實際 diff、核心 invariant、權限、資料一致性與 rollback。預設執行少量高價值
 targeted tests，不機械重跑 Codex 的全部 suite。
 
 - 接受：更新同一份 Work review。
-- 補正：`changes_requested / codex`，指出最小修正與必要 regression。
-- Codex 只處理 blocker；不重做任務或重跑無關 matrix。
+- 補正：`changes_requested / codex`。Work 先完成同風險層的整體 review，再一次列完 findings、最小修正與必要
+  regression，避免逐條回送。
+- Codex 只處理 blocker；後續 review 只查 correction diff 與受影響的相鄰 invariant，不重做任務或重跑無關 matrix。
+  只有 correction 引入新風險時才新增 finding。
 
 ### E. Final integration
 
@@ -161,6 +179,10 @@ merge。純 handoff、run ID、時間戳或 merge metadata 不另建 commit／PR
 ## 7. HANDOFF
 
 `HANDOFF.yaml` 是現在輪到誰的唯一真實來源。
+
+跨 session handoff 只傳 base/head、changed files、behavior delta、exact test results、remaining limits 與 next
+actor/action。背景規則引用 authoritative path 與 section，不重貼全文；尚未進入權威文件的安全關鍵資訊仍須明列，
+不得為求短而省略。
 
 允許角色：`work`、`codex`、`owner`。常用狀態：
 
@@ -225,8 +247,17 @@ report_to=main-work
 | schema／migration／model／受控 SQL／DB verifier | PostgreSQL 15／16 matrix 與 portal-data gates |
 | auth／authorization／webhook signature／deployment tooling／workflow | 對應完整安全 suite |
 
-Codex 負責主要本機 suite；Work 以 targeted review 為預設。只有本機無法取得必要平台證據時，才提前建立 Draft PR。
-Final PR head 未再變更且 required CI 成功時，不為補 run ID 或 merge 時間再觸發 CI。
+證據採分層產生：Codex writer 跑 affected complete suite；Domain reviewer 只跑其專屬風險的 targeted tests；Main Work
+抽查關鍵 regression 與整合邊界；hosted CI 作 final gate。相關 diff 未變時，不同角色不得無理由重跑 PostgreSQL
+matrix、Flutter build／Emulator 或同一 suite；重跑時必須記錄新增風險或證據需求。
+
+Evidence reuse key 至少包含 exact full HEAD、exact command／suite、runtime／database matrix 與直接相關 artifact
+fingerprint。只有相關 diff、dependency 與 environment contract 均未變才可沿用。相同 SHA 因 runner、network 或
+platform infrastructure transient failure 的重試不算新的產品驗證輪，但須記錄 infra 原因；source、config、lockfile
+或 artifact 改變時只重置受影響的 budget slice。
+
+只有本機無法取得必要平台證據時，才提前建立 Draft PR。Final PR head 未再變更且 required CI 成功時，不為補 run
+ID 或 merge 時間再觸發 CI。
 
 ## 10. Production 流程
 
@@ -245,6 +276,8 @@ Merge 不等於部署或資料操作。Production 固定分為：
 ## 11. 文件生命週期
 
 - 同一 TASK 原則上只有一份 task、一份 report、一份 review。
+- Task 只放需求、scope、invariants、acceptance；report 只記相對 task 的完成 delta 與新證據；review 只記 findings、
+  判定與未完成事項；HANDOFF 只放狀態、SHA、下一步與真正 blocker。同一內容不得在這些文件平行維護。
 - 多輪修正更新原檔，不建立 completion／correction／recovery review 變體；不同 production operation 確有獨立安全
   邊界時才例外。
 - `PROJECT_STATE.md` 只寫現在式，不累積逐任務流水帳。
@@ -301,3 +334,7 @@ Merge 不等於部署或資料操作。Production 固定分為：
 新 session 不依賴舊對話。結束前確保 `PROJECT_STATE.md`、`DECISIONS.md` 與 `HANDOFF.yaml` 足以回答：系統現在
 如何運作、什麼尚未完成、輪到誰、下一步需要哪個決策。若沒有 active task，不要預先建立大量 task；先與 Owner
 選定下一個 delivery group。
+
+新任務優先使用乾淨 session，只讀 active task、HANDOFF、PROJECT_STATE、active decisions 與直接相關 code/tests；
+archive 按需讀。厚重 session 留作歷史顧問，不承擔日常實作或完整驗收；inactive agent 不反覆喚醒。Main Work
+維護唯一全域協調與 singleton HANDOFF，Domain Work 只回報自己的 lane delta。
