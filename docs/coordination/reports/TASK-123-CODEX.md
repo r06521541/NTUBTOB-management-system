@@ -92,7 +92,8 @@ Using the repository bundled Python on Windows:
   disabled/nonclickable nodes, and missing state fail closed without raw XML or
   sentinel disclosure.
 - Targeted governed status-reason regressions: 4 passed. Process-level cases
-  prove exact `ACTIVITY_UNAVAILABLE`, `ACTIVITY_INVALID`,
+  prove exact `ADB_UNAVAILABLE`, `ADB_INVALID`, `PACKAGE_UNAVAILABLE`,
+  `ACTIVITY_UNAVAILABLE`, `ACTIVITY_INVALID`,
   `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, and `SEMANTIC_DRIFT`
   envelopes, one JSON line, exit 2, preserved normal PASS, and no fixed message,
   raw exception, or sentinel disclosure.
@@ -150,7 +151,9 @@ Owner-private action was run.
   `1d5c0c38e8a6ac3333e3ec4e13f09608ef2fe5ed`
 - Governed status reason correction commit:
   `196924a7a5bda9856c1e40536f1971c087ee7498`
-- Authoritative shared ancestry: `22502d8a90ca3253cfe7212f26cfef309a739ea1`
+- Complete status-stage reason correction commit:
+  `1c2e473fb80cd925e5fdbc2ede1c7cf2f845f304`
+- Authoritative shared ancestry: `dfb172646648627d0a85495600254438f513dd34`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
