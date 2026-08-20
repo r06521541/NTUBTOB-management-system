@@ -1,9 +1,9 @@
 # TASK-124: Mobile staging acceptance evidence contract
 
-- Task type: planning
+- Task type: planning plus serial observability producers
 - Delivery group: `mobile-staging-acceptance-automation`
 - Requires independent PR: false
-- Status: accepted planning; ready for producer implementation
+- Status: producer package 1 accepted; ready for hosted CI
 - Owner gate: none for repository planning
 
 ## Goal
@@ -16,11 +16,12 @@ diagnostics after a scenario has already started.
 
 ## Scope and ownership
 
-Main Work is the only writer for this planning package. Owned paths are this
-task and `docs/operations/mobile/MOBILE_STAGING_ACCEPTANCE_EVIDENCE.md`.
-Reviewers are read-only and review only authorization, privacy, and whether each
-claim has a sufficient producer. No Flutter, backend, launcher, database,
-runtime, cloud, Secret, or fixture mutation is in scope.
+Main Work is the only writer for the planning package. Producer package 1 has
+one Flutter writer and owns `clients/flutter_app/lib/basic_app.dart`, its direct
+widget tests, and the single TASK-124 Flutter report. Reviewers are read-only
+and review only authorization, privacy, provenance, and unchanged release and
+navigation guards. Backend, launcher, database, runtime, cloud, Secret, and
+fixture mutation remain out of scope for this package.
 
 ## Invariants
 
