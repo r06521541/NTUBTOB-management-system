@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import io
 import json
 import os
@@ -27,6 +28,7 @@ from tools.mobile_staging_contract import (
 from tools.mobile_staging_data import (
     _bootstrap_empty_database,
     _execute_officer_transition,
+    _mobile_principal_state,
     attendance_repair_inventory,
 )
 from tools.mobile_staging_data import execute as execute_staging_data
@@ -38,6 +40,7 @@ from tools.mobile_staging_data import (
 )
 from tools.mobile_staging_data import main as staging_data_main
 from tools.mobile_staging_data import (
+    mobile_principal_inventory,
     officer_inventory,
     plan,
     recover,
@@ -185,6 +188,158 @@ def service(mode="update", candidate_percent=0):
 
 
 class ContractTest(unittest.TestCase):
+    def test_mobile_principal_states_are_mutually_exclusive_and_exhaustive(self):
+        person = {
+            "portal_access_level": "officer",
+            "portal_status": "active",
+            "version": 2,
+        }
+        cases = (
+            ("no_active_sessions", (0, 0, 0, 0)),
+            ("expected_only", (2, 2, 0, 0)),
+            ("mixed_principals", (3, 2, 0, 1)),
+            ("other_only", (2, 0, 0, 2)),
+            ("binding_drift", (2, 1, 1, 0)),
+        )
+        for expected_state, counts in cases:
+            with self.subTest(state=expected_state):
+                result = _mobile_principal_state(
+                    person,
+                    dict(
+                        zip(
+                            (
+                                "total",
+                                "expected_tuple",
+                                "expected_person_binding_mismatch",
+                                "other_principal",
+                            ),
+                            counts,
+                        )
+                    ),
+                )
+                self.assertEqual(result["state"], expected_state)
+                self.assertTrue(result["expected_person_match"])
+        with self.assertRaisesRegex(StagingContractError, "not exhaustive"):
+            _mobile_principal_state(
+                person,
+                {
+                    "total": 2,
+                    "expected_tuple": 1,
+                    "expected_person_binding_mismatch": 0,
+                    "other_principal": 0,
+                },
+            )
+
+    def test_mobile_principal_role_status_and_version_must_all_match(self):
+        sessions = {
+            "total": 1,
+            "expected_tuple": 1,
+            "expected_person_binding_mismatch": 0,
+            "other_principal": 0,
+        }
+        for person in (
+            None,
+            {
+                "portal_access_level": "basic",
+                "portal_status": "active",
+                "version": 2,
+            },
+            {
+                "portal_access_level": "officer",
+                "portal_status": "disabled",
+                "version": 2,
+            },
+            {
+                "portal_access_level": "officer",
+                "portal_status": "active",
+                "version": 3,
+            },
+        ):
+            with self.subTest(person=person):
+                self.assertFalse(
+                    _mobile_principal_state(person, sessions)["expected_person_match"]
+                )
+
+    def test_mobile_principal_inventory_requires_candidate_and_redacts_errors(self):
+        with self.assertRaisesRegex(StagingContractError, "candidate approval"):
+            mobile_principal_inventory(approval(phase="build"), DATABASE_URL)
+        engine = Mock()
+        engine.connect.side_effect = SQLAlchemyError(DATABASE_URL)
+        with patch("tools.mobile_staging_data.create_engine", return_value=engine):
+            with self.assertRaisesRegex(
+                StagingContractError, "inventory failed safely"
+            ) as caught:
+                mobile_principal_inventory(approval(), DATABASE_URL)
+        self.assertNotIn("fake-password", str(caught.exception))
+        engine.dispose.assert_called_once()
+
+    def test_mobile_principal_cli_is_subject_free_and_output_is_aggregate_only(self):
+        forbidden = (
+            "session_id",
+            "provider_subject",
+            "installation",
+            "token",
+            "attempt",
+            "assertion",
+            "idempotency",
+            "hash",
+            "encrypted",
+        )
+        result = {
+            "state": "expected_only",
+            "expected_person_match": True,
+            "expected_person": {
+                "access_level": "officer",
+                "status": "active",
+                "version": 2,
+            },
+            "active_sessions": {
+                "total": 2,
+                "expected_tuple": 2,
+                "expected_person_binding_mismatch": 0,
+                "other_principal": 0,
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {"MOBILE_STAGING_DATABASE_URL": DATABASE_URL},
+                clear=True,
+            ), patch(
+                "tools.mobile_staging_data.mobile_principal_inventory",
+                return_value=result,
+            ) as inventory_mock, patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as output:
+                self.assertEqual(
+                    staging_data_main(
+                        [
+                            "--approval",
+                            str(approval_path),
+                            "--inspect-mobile-principal",
+                        ]
+                    ),
+                    0,
+                )
+        inventory_mock.assert_called_once_with(approval(), DATABASE_URL)
+        encoded = output.getvalue().lower()
+        for value in forbidden:
+            self.assertNotIn(value, encoded)
+        source = inspect.getsource(mobile_principal_inventory).lower()
+        for value in (
+            "session_id",
+            "installation_id",
+            "token_hash",
+            "attempt_id",
+            "assertion_hash",
+            "idempotency",
+            "encrypted_successor",
+            "provider_subject",
+        ):
+            self.assertNotIn(value, source)
+
     def test_database_identity_rejects_surrounding_database_whitespace(self):
         for database in ("%20postgres", "postgres%20"):
             with self.subTest(database=database), self.assertRaisesRegex(
@@ -772,6 +927,108 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 ).one(),
                 ("officer", 2),
             )
+
+    def _insert_principal_session(
+        self, session_id, person_id, identity_id, *, status="active"
+    ):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.mobile_sessions "
+                    "(id, auth_identity_id, person_id, installation_id_hash, platform, "
+                    "status, access_epoch, refresh_family_expires_at, revoked_at, "
+                    "created_at, updated_at) VALUES "
+                    "(:session, :identity, :person, :installation, 'android', "
+                    ":status, 1, '2030-01-02T00:00:00Z', :revoked_at, "
+                    "'2030-01-01T00:00:00Z', '2030-01-01T00:00:00Z')"
+                ),
+                {
+                    "session": session_id,
+                    "identity": identity_id,
+                    "person": person_id,
+                    "installation": f"fake-installation-{session_id}",
+                    "status": status,
+                    "revoked_at": (
+                        "2030-01-01T00:00:00Z" if status == "revoked" else None
+                    ),
+                },
+            )
+
+    def _prepare_granted_principal_fixture(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        grant_officer(self.approval, TEST_DATABASE_URL, "fake-private-tester-subject")
+
+    def test_mobile_principal_inventory_classifies_active_sessions_without_writes(self):
+        self._prepare_granted_principal_fixture()
+        empty = mobile_principal_inventory(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(empty["state"], "no_active_sessions")
+        self.assertTrue(empty["expected_person_match"])
+
+        self._insert_principal_session("expected-one", -112001, -112001)
+        self._insert_principal_session("expected-two", -112001, -112001)
+        self._insert_principal_session(
+            "revoked-other", -112003, -112003, status="revoked"
+        )
+        with self.engine.connect() as connection:
+            before = connection.execute(
+                text(
+                    "SELECT id, auth_identity_id, person_id, status, access_epoch, "
+                    "created_at, updated_at FROM ntubtob.mobile_sessions ORDER BY id"
+                )
+            ).all()
+        expected = mobile_principal_inventory(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(expected["state"], "expected_only")
+        self.assertEqual(
+            expected["active_sessions"],
+            {
+                "total": 2,
+                "expected_tuple": 2,
+                "expected_person_binding_mismatch": 0,
+                "other_principal": 0,
+            },
+        )
+        with self.engine.connect() as connection:
+            after = connection.execute(
+                text(
+                    "SELECT id, auth_identity_id, person_id, status, access_epoch, "
+                    "created_at, updated_at FROM ntubtob.mobile_sessions ORDER BY id"
+                )
+            ).all()
+        self.assertEqual(after, before)
+
+        self._insert_principal_session("other-one", -112002, -112002)
+        mixed = mobile_principal_inventory(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(mixed["state"], "mixed_principals")
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.mobile_sessions SET status='revoked', "
+                    "revoked_at='2030-01-01T00:00:00Z' "
+                    "WHERE person_id=-112001"
+                )
+            )
+        other = mobile_principal_inventory(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(other["state"], "other_only")
+
+    def test_mobile_principal_inventory_reports_binding_drift(self):
+        self._prepare_granted_principal_fixture()
+        self._insert_principal_session("binding-drift", -112001, -112002)
+        result = mobile_principal_inventory(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(result["state"], "binding_drift")
+        self.assertEqual(
+            result["active_sessions"],
+            {
+                "total": 1,
+                "expected_tuple": 0,
+                "expected_person_binding_mismatch": 1,
+                "other_principal": 0,
+            },
+        )
 
     def test_true_empty_bootstrap_injected_migration_seed_recover_and_cleanup(self):
         before = recover(self.approval, TEST_DATABASE_URL)
