@@ -442,6 +442,124 @@ def officer_inventory(approval: dict, database_url: str, private_subject: str) -
     return {"database_identity_sha256": identity.fingerprint, "state": state}
 
 
+def _mobile_principal_state(expected_person: dict | None, sessions: dict) -> dict:
+    total = sessions["total"]
+    expected = sessions["expected_tuple"]
+    mismatch = sessions["expected_person_binding_mismatch"]
+    other = sessions["other_principal"]
+    if any(type(value) is not int or value < 0 for value in sessions.values()):
+        raise StagingContractError("Mobile principal aggregate is invalid")
+    if expected + mismatch + other != total:
+        raise StagingContractError("Mobile principal aggregate is not exhaustive")
+    if mismatch:
+        state = "binding_drift"
+    elif total == 0:
+        state = "no_active_sessions"
+    elif expected == total:
+        state = "expected_only"
+    elif other == total:
+        state = "other_only"
+    else:
+        state = "mixed_principals"
+    person = expected_person or {}
+    access_level = person.get("portal_access_level")
+    status = person.get("portal_status")
+    version = person.get("version")
+    return {
+        "state": state,
+        "expected_person_match": (
+            access_level == "officer" and status == "active" and version == 2
+        ),
+        "expected_person": {
+            "access_level": access_level,
+            "status": status,
+            "version": version,
+        },
+        "active_sessions": dict(sessions),
+    }
+
+
+def mobile_principal_inventory(approval: dict, database_url: str) -> dict:
+    if approval["approval_phase"] != "candidate":
+        raise StagingContractError(
+            "Mobile principal inventory requires candidate approval"
+        )
+    validate_database_identity(
+        database_url,
+        approval["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    engine = create_engine(database_url)
+    try:
+        try:
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                try:
+                    connection.execute(text("SET TRANSACTION READ ONLY"))
+                    revisions = tuple(
+                        connection.scalars(
+                            text("SELECT version_num FROM ntubtob.alembic_version")
+                        )
+                    )
+                    if revisions != (REVISION,):
+                        raise StagingContractError(
+                            "Mobile principal inventory requires exact revision 0005"
+                        )
+                    expected_person = (
+                        connection.execute(
+                            text(
+                                "SELECT portal_access_level, portal_status, version "
+                                "FROM ntubtob.people WHERE id=-112001"
+                            )
+                        )
+                        .mappings()
+                        .one_or_none()
+                    )
+                    sessions = (
+                        connection.execute(
+                            text(
+                                "SELECT "
+                                "count(*) FILTER (WHERE s.status='active') AS total, "
+                                "count(*) FILTER (WHERE s.status='active' "
+                                "AND s.person_id=-112001 "
+                                "AND s.auth_identity_id=-112001 "
+                                "AND i.status='linked' AND i.person_id=-112001) "
+                                "AS expected_tuple, "
+                                "count(*) FILTER (WHERE s.status='active' "
+                                "AND s.person_id=-112001 AND ("
+                                "s.auth_identity_id=-112001 "
+                                "AND i.status='linked' AND i.person_id=-112001) "
+                                "IS NOT TRUE) "
+                                "AS expected_person_binding_mismatch, "
+                                "count(*) FILTER (WHERE s.status='active' "
+                                "AND s.person_id<>-112001) AS other_principal "
+                                "FROM ntubtob.mobile_sessions s "
+                                "LEFT JOIN ntubtob.auth_identities i "
+                                "ON i.id=s.auth_identity_id"
+                            )
+                        )
+                        .mappings()
+                        .one()
+                    )
+                    result = _mobile_principal_state(
+                        dict(expected_person) if expected_person else None,
+                        dict(sessions),
+                    )
+                finally:
+                    transaction.rollback()
+        except StagingContractError:
+            raise
+        except SQLAlchemyError:
+            raise StagingContractError(
+                "Remote staging mobile principal inventory failed safely"
+            ) from None
+    finally:
+        engine.dispose()
+    return result
+
+
 def runtime_residue_inventory(
     approval: dict, database_url: str, private_subject: str
 ) -> dict:
@@ -909,6 +1027,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--inspect-runtime-residue", action="store_true")
     parser.add_argument("--execute-runtime-residue-repair", action="store_true")
     parser.add_argument("--inspect-officer", action="store_true")
+    parser.add_argument("--inspect-mobile-principal", action="store_true")
     parser.add_argument("--grant-officer", action="store_true")
     parser.add_argument("--restore-basic", action="store_true")
     args = parser.parse_args(argv)
@@ -925,6 +1044,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.inspect_runtime_residue,
                 args.execute_runtime_residue_repair,
                 args.inspect_officer,
+                args.inspect_mobile_principal,
                 args.grant_officer,
                 args.restore_basic,
             )
@@ -953,6 +1073,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 database_url,
                 os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
             )
+        elif args.inspect_mobile_principal:
+            result = mobile_principal_inventory(approval, database_url)
         elif args.grant_officer:
             result = grant_officer(
                 approval,

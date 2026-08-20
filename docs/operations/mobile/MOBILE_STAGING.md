@@ -215,6 +215,34 @@ result requires another inspection; do not retry with ad-hoc SQL. This repair
 does not establish provenance beyond those task-defined tuples and does not
 touch production, schema, notifications, mobile records, or another Person/Game.
 
+### Mobile principal aggregate diagnostic
+
+TASK-121 adds one read-only diagnostic for investigating a possible mismatch
+between the TASK-119 fictional Officer Person and active mobile sessions. It
+requires the existing private candidate approval and exact database identity,
+but it does not require `MOBILE_STAGING_PROVIDER_SUBJECT`:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --inspect-mobile-principal
+```
+
+The action opens an explicit read-only transaction, requires revision
+`0005_mobile_auth_api_foundation`, and reads only Person `-112001` access level,
+status and version plus aggregate active-session ownership counts. Output states
+are `no_active_sessions`, `expected_only`, `mixed_principals`, `other_only`, or
+`binding_drift`; `expected_person_match` is true only for active Officer version
+2. Expected tuple, expected-Person binding mismatch and other-principal counts
+are mutually exclusive and must sum to total or the diagnostic fails closed.
+Revoked sessions are excluded.
+
+The query and output never include session IDs, installation identifiers,
+tokens, refresh attempts, assertions, idempotency values, hashes, encrypted
+payloads, provider subjects, or another Person's identity or role. Aggregate
+`expected_only` does not prove which session a particular device token uses.
+Correlating a client requires its existing redacted `/me` response containing
+only `id`, `access_level`, and `capabilities`; do not provide the token to the
+operator or copy it into a transcript.
+
 ## Build, candidate, promotion and recovery
 
 There are two separate Owner approvals and cost checkpoints:
