@@ -1,20 +1,19 @@
-active_task: TASK-126
+active_task: TASK-127
 status: ready_for_hosted_ci
 next_actor: work
 
-base_commit: 80333ecfec117d31350e1cfbb263969a26283ef4
-head_commit: a3f253b
+base_commit: 02e42965792cf00b878ed5702d956766cc7629ab
+head_commit: a4da49a
 
 updated_by: work
-updated_at: 2026-08-20T22:30:00+08:00
+updated_at: 2026-08-20T22:20:00+08:00
 
 note: >
-  Relational fictional fixture lifecycle implementation and Main delta review are accepted.
-  Local PostgreSQL 16 passed; hosted PostgreSQL 15/16 and formatting gates remain.
-  No staging reset, Secret, cloud, emulator or production operation has run. Parallel TASK-124/127
-  observability work remains in separate non-overlapping lanes and does not change this delivery gate.
+  Principal-provenance launcher consumer and Main delta review are accepted. The launcher direct suite is 48/48;
+  hosted deployment-tool/final gates remain. No runtime, emulator, staging, Secret, database or cloud action ran.
+  TASK-124 package 4 and TASK-128 broker core continue in separate non-overlapping lanes.
 
-worktree: C:/Users/USER/.codex/visualizations/2026/08/18/01a01404-d3fd-78b3-900c-0ef9c803c5c3/task126-delivery
-task: docs/coordination/tasks/TASK-126.md
-report: docs/coordination/reports/TASK-126-CODEX.md
-review: docs/coordination/reviews/TASK-126-WORK.md
+worktree: C:/Users/USER/.codex/visualizations/2026/08/20/task127-delivery
+task: docs/coordination/tasks/TASK-127.md
+report: docs/coordination/reports/TASK-127-CODEX.md
+review: docs/coordination/reviews/TASK-127-WORK.md
