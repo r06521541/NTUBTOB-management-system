@@ -63,6 +63,12 @@ Changes requested before controlled staging dogfood.
   logged-out hierarchy in the conversion error. No credential, token, subject,
   endpoint or user data was present. This diagnostic path is discontinued; all
   subsequent checks must use the launcher's bounded extraction/parser only.
+- The exact login-button correction is accepted. The next exact-once status
+  dogfood still returned only `FAILED/RUNTIME_FAILED`; Main performed no retry
+  or side-channel diagnosis. Governed output must distinguish bounded status
+  stages (`ACTIVITY_UNAVAILABLE`, `ACTIVITY_INVALID`,
+  `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, `SEMANTIC_DRIFT`) so
+  an operator can reconcile safely without raw output or dot-sourcing internals.
 
 ## Deferred
 
