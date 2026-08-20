@@ -190,14 +190,15 @@ reply `5`, and `2026-08-19T16:33:02.723958Z`; ID `4` has the same ownership,
 reply `1`, and `2026-08-19T16:36:23.695486Z`. Any timestamp, tuple, row count,
 or additional attendance row is drift and stops without mutation.
 
-The Officer state machine can coexist with either empty mobile tables or the
-known TASK-115 mobile history only when its counts are exactly session `1`,
-refresh token `8`, refresh attempt `7`, exchange `1`, and idempotency `2`.
-Every session and child join must belong to the same linked fictional identity
-and Person `-112001`; exchanges must be LINE and idempotency rows must target
-that Person. The operator reads only this ownership metadata, never tokens,
-assertions, attempts, installation identifiers, encrypted payloads, or their
-hashes. Cross-principal, orphaned, malformed, or count-drift history fails
+The Officer state machine can coexist with empty mobile tables or with any
+nonempty fictional runtime history whose ownership is exact. Every session must
+belong to linked identity and Person `-112001`; every refresh token, refresh
+attempt, exchange, and idempotency row must join to one of those sessions;
+exchanges must be LINE and idempotency rows must target that Person. This lets a
+legitimate Officer login or refresh add sessions and children without breaking a
+later restore. The operator reads only ownership metadata and counts—never
+tokens, assertions, attempts, installation identifiers, encrypted payloads, or
+their hashes. Cross-principal, orphaned, malformed, or unowned history fails
 closed.
 
 With the existing private candidate approval and identity gate, the bounded

@@ -212,27 +212,23 @@ def _mobile_history_is_exact(connection) -> bool:
     checks = (
         (
             "mobile_sessions",
-            1,
             "SELECT count(*) FROM ntubtob.mobile_sessions "
             "WHERE auth_identity_id=-112001 AND person_id=-112001",
         ),
         (
             "mobile_refresh_tokens",
-            8,
             "SELECT count(*) FROM ntubtob.mobile_refresh_tokens t "
             "JOIN ntubtob.mobile_sessions s ON s.id=t.session_id "
             "WHERE s.auth_identity_id=-112001 AND s.person_id=-112001",
         ),
         (
             "mobile_refresh_attempts",
-            7,
             "SELECT count(*) FROM ntubtob.mobile_refresh_attempts a "
             "JOIN ntubtob.mobile_sessions s ON s.id=a.session_id "
             "WHERE s.auth_identity_id=-112001 AND s.person_id=-112001",
         ),
         (
             "mobile_auth_exchanges",
-            1,
             "SELECT count(*) FROM ntubtob.mobile_auth_exchanges e "
             "JOIN ntubtob.mobile_sessions s ON s.id=e.session_id "
             "WHERE e.provider='line' AND s.auth_identity_id=-112001 "
@@ -240,17 +236,15 @@ def _mobile_history_is_exact(connection) -> bool:
         ),
         (
             "mobile_idempotency_records",
-            2,
             "SELECT count(*) FROM ntubtob.mobile_idempotency_records i "
             "JOIN ntubtob.mobile_sessions s ON s.id=i.session_id "
             "WHERE i.person_id=-112001 AND s.auth_identity_id=-112001 "
             "AND s.person_id=-112001",
         ),
     )
-    for table, expected, owned_query in checks:
-        if connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}")) != expected:
-            return False
-        if connection.scalar(text(owned_query)) != expected:
+    for table, owned_query in checks:
+        total = connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}"))
+        if connection.scalar(text(owned_query)) != total:
             return False
     return True
 

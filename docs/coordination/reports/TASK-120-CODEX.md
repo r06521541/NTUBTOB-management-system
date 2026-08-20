@@ -17,11 +17,12 @@ operation was performed.
   predicates, requires rowcount two, and postchecks the canonical baseline.
   An exact repaired state is a zero-delta retry.
 - Preserved all `mobile_*` records. Officer inspection/transitions accept empty
-  mobile history or only the documented runtime cardinalities (1/8/7/1/2) after
-  ownership-only validation: every session/child join is linked to fictional
-  identity and Person `-112001`, LINE is the sole exchange provider, and every
-  idempotency record belongs to that Person. No token, assertion, attempt,
-  installation, encrypted payload, or hash is inspected or emitted.
+  history or any nonempty history only after dynamic ownership validation: every
+  session/child join is linked to fictional identity and Person `-112001`, LINE
+  is the sole exchange provider, and every idempotency record belongs to that
+  Person. This allows a legitimate Officer login/refresh to grow history before
+  restore. No token, assertion, attempt, installation, encrypted payload, or
+  hash is inspected or emitted.
 - Added PostgreSQL integration coverage for exact repair/retry, canonical
   readback, mobile-history immutability, Officer grant/restore after repair,
   timestamp/additional-row rejection, and cross-principal mobile-history
@@ -31,12 +32,13 @@ operation was performed.
 ## Verification
 
 - Bundled Python with temporary, repository-pinned test dependencies:
-  `python -m unittest tools.tests.test_mobile_staging_operator -q` — 35 passed,
-  12 skipped (the skips are database integration tests when no URL is supplied).
+  `python -m unittest tools.tests.test_mobile_staging_operator -q` — 39 passed,
+  16 skipped (the skips are database integration tests when no URL is supplied).
 - One-time local PostgreSQL 16 cluster:
   `python -m unittest tools.tests.test_mobile_staging_operator.EmptyDatabaseBootstrapIntegrationTest -q`
-  — 12 passed, including exact repair, retry, rollback, timestamp/additional-row,
-  mobile ownership, and Officer postcheck coverage.
+  — 16 passed, including exact repair, retry, rollback, timestamp/additional-row,
+  mobile ownership, dynamic Officer login/refresh history, and Officer
+  postcheck coverage.
 - `python -m py_compile tools/mobile_staging_data.py tools/tests/test_mobile_staging_operator.py` — passed.
 - `python -m isort --profile black --check-only ...` and
   `python -m black --check ...` — passed for the two changed Python files.
