@@ -91,9 +91,99 @@ class AuthStatePanel extends StatelessWidget {
   }
 }
 
+class CacheSessionAggregateProducer {
+  const CacheSessionAggregateProducer._();
+
+  static bool matches({
+    required SessionController session,
+    required BasicCache basicCache,
+    required DurablePrincipalOfficerReportCache reportCache,
+    required BasicApi api,
+  }) =>
+      identical(session.store, basicCache.store) &&
+      identical(session.store, reportCache.store) &&
+      identical(session.store, api.store) &&
+      identical(session, api.session) &&
+      session.installationId == basicCache.installationId &&
+      session.installationId == reportCache.installationId &&
+      session.installationId == api.installationId;
+
+  static Future<CacheSessionAggregate?> observe({
+    required SessionController session,
+    required BasicCache basicCache,
+    required DurablePrincipalOfficerReportCache reportCache,
+    required BasicApi api,
+  }) async {
+    if (!matches(
+      session: session,
+      basicCache: basicCache,
+      reportCache: reportCache,
+      api: api,
+    )) {
+      return null;
+    }
+    try {
+      return CacheSessionAggregate.resolve(
+        sessionPresent: await session.observePresence(),
+        basicCachePresent: await basicCache.observePresence(),
+        officerReportCachePresent: await reportCache.observeAnyPresence(),
+        pendingAttendanceIntentCount:
+            await api.observePendingAttendanceIntentCount(),
+      );
+    } on Object {
+      return null;
+    }
+  }
+}
+
+Future<CacheSessionAggregate?> completeTerminalLogout({
+  required SessionController session,
+  required BasicCache basicCache,
+  required DurablePrincipalOfficerReportCache reportCache,
+  required BasicApi api,
+  required LineLoginPort line,
+}) async {
+  if (!CacheSessionAggregateProducer.matches(
+    session: session,
+    basicCache: basicCache,
+    reportCache: reportCache,
+    api: api,
+  )) {
+    return null;
+  }
+  CacheSessionAggregate? aggregate;
+  try {
+    await session.logout(
+      line,
+      purgeLocal: () async {
+        await basicCache.clear();
+        await reportCache.clearInstallation();
+        await api.clearPendingAttendanceIntents();
+        aggregate = await CacheSessionAggregateProducer.observe(
+          session: session,
+          basicCache: basicCache,
+          reportCache: reportCache,
+          api: api,
+        );
+        if (aggregate == null) {
+          throw StateError('local purge observation unavailable');
+        }
+      },
+    );
+  } on Object {
+    return null;
+  }
+  return aggregate;
+}
+
 class BasicBootstrapApp extends StatefulWidget {
-  const BasicBootstrapApp({super.key, required this.config});
+  const BasicBootstrapApp({
+    super.key,
+    required this.config,
+    this.diagnosticEnabled = true,
+  });
   final AppConfig config;
+  final bool diagnosticEnabled;
   @override
   State<BasicBootstrapApp> createState() => _BasicBootstrapAppState();
 }
@@ -108,11 +198,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   BasicCache? _cache;
-  PrincipalOfficerReportCache? _reportCache;
+  DurablePrincipalOfficerReportCache? _reportCache;
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
   PrincipalProvenance? principalProvenance;
+  CacheSessionAggregate? cacheSessionAggregate;
 
   @override
   void initState() {
@@ -135,9 +226,24 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       _login!.addListener(_onLoginStateChanged);
-      if (await _store.read('logout-pending:$installationId') == 'true') {
-        setState(() => state = AuthViewState.logoutPending);
-        await session.logout(line);
+      if (await _store.containsKey('logout-pending:$installationId')) {
+        setState(() {
+          state = AuthViewState.logoutPending;
+          cacheSessionAggregate = null;
+        });
+        final aggregate = await completeTerminalLogout(
+          session: session,
+          basicCache: _cache!,
+          reportCache: _reportCache!,
+          api: _api!,
+          line: line,
+        );
+        if (aggregate == null || !mounted) return;
+        setState(() {
+          state = AuthViewState.loggedOut;
+          cacheSessionAggregate = aggregate;
+        });
+        return;
       }
       await session.refresh();
       await _loadBasic();
@@ -203,12 +309,14 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         current: loadedPerson,
       );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
+      final aggregate = await _observeCacheSessionAggregate();
       if (!mounted) return;
       setState(() {
         person = loadedPerson;
         games = loadedGames;
         lastSyncedAt = syncedAt;
         principalProvenance = PrincipalProvenance.freshServer;
+        cacheSessionAggregate = aggregate;
         state = AuthViewState.authenticated;
       });
     } on Object catch (error) {
@@ -222,6 +330,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (classified == AuthViewState.sessionExpired && cached != null) {
       await _reportCache?.clearPrincipal(cached.person.id);
     }
+    final aggregate = await _observeCacheSessionAggregate();
     if (!mounted) return;
     setState(() {
       if (classified == AuthViewState.offline) {
@@ -234,27 +343,56 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         principalProvenance = null;
         state = classified;
       }
+      cacheSessionAggregate = aggregate;
     });
   }
 
   Future<void> _logout() async {
-    setState(() => state = AuthViewState.logoutPending);
-    if (person case final current?) {
-      await _reportCache?.clearPrincipal(current.id);
+    setState(() {
+      state = AuthViewState.logoutPending;
+      cacheSessionAggregate = null;
+    });
+    final aggregate = await completeTerminalLogout(
+      session: _session!,
+      basicCache: _cache!,
+      reportCache: _reportCache!,
+      api: _api!,
+      line: _line!,
+    );
+    if (aggregate == null || !mounted) return;
+    setState(() {
+      person = null;
+      games = const [];
+      principalProvenance = null;
+      cacheSessionAggregate = aggregate;
+      state = AuthViewState.loggedOut;
+    });
+  }
+
+  Future<CacheSessionAggregate?> _observeCacheSessionAggregate() {
+    if (!DebugCacheSessionComposition.shouldRender(
+      debugBuild: kDebugMode,
+      diagnosticEnabled: widget.diagnosticEnabled,
+      aggregatePresent: true,
+    )) {
+      return Future.value();
     }
-    try {
-      await _session!.logout(_line!);
-      await _cache!.clear();
-      if (!mounted) return;
-      setState(() {
-        person = null;
-        games = const [];
-        principalProvenance = null;
-        state = AuthViewState.loggedOut;
-      });
-    } on Object {
-      // logout_pending intentionally remains visible and blocks actions.
+    final session = _session;
+    final basicCache = _cache;
+    final reportCache = _reportCache;
+    final api = _api;
+    if (session == null ||
+        basicCache == null ||
+        reportCache == null ||
+        api == null) {
+      return Future.value();
     }
+    return CacheSessionAggregateProducer.observe(
+      session: session,
+      basicCache: basicCache,
+      reportCache: reportCache,
+      api: api,
+    );
   }
 
   @override
@@ -272,17 +410,22 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         darkTheme: demoTheme(Brightness.dark),
         home: Scaffold(
           appBar: AppBar(title: const Text('隊務系統')),
-          body: state == AuthViewState.authenticated ||
-                  state == AuthViewState.offline
-              ? BasicGamesView(
-                  api: _api!,
-                  person: person!,
-                  games: games,
-                  online: state == AuthViewState.authenticated,
-                  lastSyncedAt: lastSyncedAt!,
-                  principalProvenance: principalProvenance,
-                  reportCache: _reportCache)
-              : AuthStatePanel(state: state),
+          body: DebugCacheSessionComposition(
+            aggregate: cacheSessionAggregate,
+            diagnosticEnabled: widget.diagnosticEnabled,
+            child: state == AuthViewState.authenticated ||
+                    state == AuthViewState.offline
+                ? BasicGamesView(
+                    api: _api!,
+                    person: person!,
+                    games: games,
+                    online: state == AuthViewState.authenticated,
+                    lastSyncedAt: lastSyncedAt!,
+                    principalProvenance: principalProvenance,
+                    reportCache: _reportCache,
+                  )
+                : AuthStatePanel(state: state),
+          ),
           floatingActionButton: state == AuthViewState.authenticated
               ? FloatingActionButton(
                   onPressed: _logout,
@@ -452,10 +595,129 @@ enum DetailViewState {
   sessionExpired
 }
 
+class DebugCacheSessionProjection extends StatelessWidget {
+  const DebugCacheSessionProjection({
+    super.key,
+    required this.aggregate,
+    this.diagnosticEnabled = true,
+  });
+
+  final CacheSessionAggregate aggregate;
+  final bool diagnosticEnabled;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+  }) =>
+      debugBuild && diagnosticEnabled;
+
+  static String _presence(bool present) => present ? 'present' : 'absent';
+
+  @override
+  Widget build(BuildContext context) {
+    if (!shouldRender(
+      debugBuild: kDebugMode,
+      diagnosticEnabled: diagnosticEnabled,
+    )) {
+      return const SizedBox.shrink();
+    }
+    return Semantics(
+      key: const ValueKey('debug-cache-session-projection'),
+      label: '偵錯本機狀態：session ${_presence(aggregate.sessionPresent)}；'
+          'basic_cache ${_presence(aggregate.basicCachePresent)}；'
+          'officer_report_cache '
+          '${_presence(aggregate.officerReportCachePresent)}；'
+          'pending_attendance_intent '
+          '${_presence(aggregate.pendingAttendanceIntentPresent)}',
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Text(
+          'session ${_presence(aggregate.sessionPresent)}；'
+          'basic_cache ${_presence(aggregate.basicCachePresent)}；'
+          'officer_report_cache '
+          '${_presence(aggregate.officerReportCachePresent)}；'
+          'pending_attendance_intent '
+          '${_presence(aggregate.pendingAttendanceIntentPresent)}',
+        ),
+      ),
+    );
+  }
+}
+
+class DebugCacheSessionComposition extends StatelessWidget {
+  const DebugCacheSessionComposition({
+    super.key,
+    required this.aggregate,
+    required this.child,
+    this.diagnosticEnabled = true,
+  });
+
+  final CacheSessionAggregate? aggregate;
+  final Widget child;
+  final bool diagnosticEnabled;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+    required bool aggregatePresent,
+  }) =>
+      debugBuild && diagnosticEnabled && aggregatePresent;
+
+  @override
+  Widget build(BuildContext context) {
+    final showDiagnostic = shouldRender(
+      debugBuild: kDebugMode,
+      diagnosticEnabled: diagnosticEnabled,
+      aggregatePresent: aggregate != null,
+    );
+    if (!showDiagnostic) return child;
+    return Column(
+      children: [
+        DebugCacheSessionProjection(aggregate: aggregate!),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+enum AuthoritativeOwnReplySource { freshServerGet, mutationReadback }
+
+enum CanonicalOwnReplyObservation {
+  none('none'),
+  undecided('undecided'),
+  attending('attending'),
+  notAttending('not_attending'),
+  arrivingLate('arriving_late'),
+  leavingEarly('leaving_early');
+
+  const CanonicalOwnReplyObservation(this.token);
+
+  final String token;
+
+  static CanonicalOwnReplyObservation fromReply(AttendanceReply? reply) =>
+      switch (reply) {
+        null => CanonicalOwnReplyObservation.none,
+        AttendanceReply.undecided => CanonicalOwnReplyObservation.undecided,
+        AttendanceReply.attending => CanonicalOwnReplyObservation.attending,
+        AttendanceReply.notAttending =>
+          CanonicalOwnReplyObservation.notAttending,
+        AttendanceReply.arrivingLate =>
+          CanonicalOwnReplyObservation.arrivingLate,
+        AttendanceReply.leavingEarly =>
+          CanonicalOwnReplyObservation.leavingEarly,
+      };
+}
+
 class GameDetailPage extends StatefulWidget {
-  const GameDetailPage({super.key, required this.api, required this.gameId});
+  const GameDetailPage({
+    super.key,
+    required this.api,
+    required this.gameId,
+    this.diagnosticEnabled = true,
+  });
   final BasicApi api;
   final String gameId;
+  final bool diagnosticEnabled;
   @override
   State<GameDetailPage> createState() => _GameDetailPageState();
 }
@@ -465,6 +727,8 @@ class _GameDetailPageState extends State<GameDetailPage> {
   Game? game;
   AttendanceSnapshot? attendance;
   AttendanceReply? selected;
+  AttendanceReply? authoritativeOwnReply;
+  AuthoritativeOwnReplySource? authoritativeOwnReplySource;
 
   @override
   void initState() {
@@ -481,6 +745,9 @@ class _GameDetailPageState extends State<GameDetailPage> {
         game = loadedGame;
         attendance = loadedAttendance;
         selected = loadedAttendance.ownReply;
+        authoritativeOwnReply = loadedAttendance.ownReply;
+        authoritativeOwnReplySource =
+            AuthoritativeOwnReplySource.freshServerGet;
         state = DetailViewState.ready;
       });
     } on Object catch (error) {
@@ -498,16 +765,27 @@ class _GameDetailPageState extends State<GameDetailPage> {
       setState(() {
         attendance = loaded;
         selected = loaded.ownReply;
+        authoritativeOwnReply = loaded.ownReply;
+        authoritativeOwnReplySource =
+            AuthoritativeOwnReplySource.mutationReadback;
         state = DetailViewState.ready;
       });
     } on MutationPendingException catch (error) {
       if (!mounted) return;
       setState(() {
         selected = error.reply;
+        authoritativeOwnReply = null;
+        authoritativeOwnReplySource = null;
         state = DetailViewState.uncertain;
       });
     } on MutationUncertainException {
-      if (mounted) setState(() => state = DetailViewState.uncertain);
+      if (mounted) {
+        setState(() {
+          authoritativeOwnReply = null;
+          authoritativeOwnReplySource = null;
+          state = DetailViewState.uncertain;
+        });
+      }
     } on Object catch (error) {
       _fail(error, mutation: true);
     }
@@ -515,16 +793,20 @@ class _GameDetailPageState extends State<GameDetailPage> {
 
   void _fail(Object error, {bool mutation = false}) {
     if (!mounted) return;
-    setState(() => state = error is SessionExpiredException ||
-            error is ApiError &&
-                (error.code == ApiErrorCode.sessionExpired ||
-                    error.code == ApiErrorCode.unauthenticated)
-        ? DetailViewState.sessionExpired
-        : error is ContractException
-            ? DetailViewState.contractError
-            : mutation
-                ? DetailViewState.mutationError
-                : DetailViewState.error);
+    setState(() {
+      authoritativeOwnReply = null;
+      authoritativeOwnReplySource = null;
+      state = error is SessionExpiredException ||
+              error is ApiError &&
+                  (error.code == ApiErrorCode.sessionExpired ||
+                      error.code == ApiErrorCode.unauthenticated)
+          ? DetailViewState.sessionExpired
+          : error is ContractException
+              ? DetailViewState.contractError
+              : mutation
+                  ? DetailViewState.mutationError
+                  : DetailViewState.error;
+    });
   }
 
   @override
@@ -548,40 +830,108 @@ class _GameDetailPageState extends State<GameDetailPage> {
         },
       );
 
-  Widget _content() => ListView(padding: const EdgeInsets.all(16), children: [
-        Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
-            style: Theme.of(context).textTheme.titleLarge),
-        Text(game!.startAt.toIso8601String()),
-        const SizedBox(height: 16),
-        const Text('我的出席回覆'),
-        if (state == DetailViewState.uncertain)
-          Semantics(
-              key: const ValueKey('mutation-uncertain'),
-              label: '回覆結果待確認，已保留同一操作識別碼',
-              liveRegion: true,
-              child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
-        Wrap(
-            spacing: 8,
-            children: AttendanceReply.values
-                .map((reply) => ChoiceChip(
-                    key: ValueKey('reply-${reply.wire}'),
-                    label: Text(_replyLabel(reply)),
-                    selected: selected == reply,
-                    onSelected: state == DetailViewState.mutating
-                        ? null
-                        : (_) => setState(() => selected = reply)))
-                .toList()),
-        FilledButton(
-            onPressed: state == DetailViewState.mutating ? null : _submit,
-            child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
-        const Divider(),
-        const Text('已回覆隊員'),
-        for (final reply in attendance!.replied)
-          ListTile(
-              title: Text(reply.displayName),
-              subtitle: Text(
-                  '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
-      ]);
+  Widget _content() {
+    final observation = DebugAuthoritativeOwnReplyProjection.canonicalReply(
+      reply: authoritativeOwnReply,
+      detailReady: state == DetailViewState.ready,
+      freshServerGet: authoritativeOwnReplySource ==
+          AuthoritativeOwnReplySource.freshServerGet,
+      mutationReadback: authoritativeOwnReplySource ==
+          AuthoritativeOwnReplySource.mutationReadback,
+    );
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
+          style: Theme.of(context).textTheme.titleLarge),
+      Text(game!.startAt.toIso8601String()),
+      const SizedBox(height: 16),
+      if (observation != null &&
+          DebugAuthoritativeOwnReplyProjection.shouldRender(
+            debugBuild: kDebugMode,
+            diagnosticEnabled: widget.diagnosticEnabled,
+          ))
+        DebugAuthoritativeOwnReplyProjection(
+          observation: observation.$1,
+          source: observation.$2,
+        ),
+      const Text('我的出席回覆'),
+      if (state == DetailViewState.uncertain)
+        Semantics(
+            key: const ValueKey('mutation-uncertain'),
+            label: '回覆結果待確認，已保留同一操作識別碼',
+            liveRegion: true,
+            child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
+      Wrap(
+          spacing: 8,
+          children: AttendanceReply.values
+              .map((reply) => ChoiceChip(
+                  key: ValueKey('reply-${reply.wire}'),
+                  label: Text(_replyLabel(reply)),
+                  selected: selected == reply,
+                  onSelected: state == DetailViewState.mutating
+                      ? null
+                      : (_) => setState(() => selected = reply)))
+              .toList()),
+      FilledButton(
+          onPressed: state == DetailViewState.mutating ? null : _submit,
+          child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
+      const Divider(),
+      const Text('已回覆隊員'),
+      for (final reply in attendance!.replied)
+        ListTile(
+            title: Text(reply.displayName),
+            subtitle: Text(
+                '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
+    ]);
+  }
+}
+
+class DebugAuthoritativeOwnReplyProjection extends StatelessWidget {
+  const DebugAuthoritativeOwnReplyProjection({
+    super.key,
+    required this.observation,
+    required this.source,
+  });
+
+  final CanonicalOwnReplyObservation observation;
+  final AuthoritativeOwnReplySource source;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+  }) =>
+      debugBuild && diagnosticEnabled;
+
+  static (CanonicalOwnReplyObservation, AuthoritativeOwnReplySource)?
+      canonicalReply({
+    required AttendanceReply? reply,
+    required bool detailReady,
+    required bool freshServerGet,
+    required bool mutationReadback,
+  }) {
+    if (!detailReady) return null;
+    final sources = <AuthoritativeOwnReplySource>[
+      if (freshServerGet) AuthoritativeOwnReplySource.freshServerGet,
+      if (mutationReadback) AuthoritativeOwnReplySource.mutationReadback,
+    ];
+    return sources.length == 1
+        ? (CanonicalOwnReplyObservation.fromReply(reply), sources.single)
+        : null;
+  }
+
+  String get _sourceToken => switch (source) {
+        AuthoritativeOwnReplySource.freshServerGet => 'fresh_server_get',
+        AuthoritativeOwnReplySource.mutationReadback => 'mutation_readback',
+      };
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        key: const ValueKey('debug-authoritative-own-reply-projection'),
+        label: '偵錯權威出席回覆：${observation.token}；來源：$_sourceToken',
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text('${observation.token}；$_sourceToken'),
+        ),
+      );
 }
 
 String _replyLabel(AttendanceReply reply) => switch (reply) {

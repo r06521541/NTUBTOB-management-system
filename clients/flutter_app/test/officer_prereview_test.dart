@@ -94,6 +94,18 @@ SingleGameReportUiModel reportWithId(String id) {
   );
 }
 
+SingleGameReportUiModel emptyReport() => SingleGameReportUiModel(
+      gameId: 'empty',
+      gameLabel: '空白賽事',
+      generatedAt: DateTime.utc(2026),
+      historyGames: 0,
+      historyLimit: 12,
+      minimumResponseRate: 60,
+      attending: const [],
+      notAttending: const [],
+      notYetReplied: const [],
+    );
+
 SingleGameReportUiModel largeBoundedReport() {
   final source = DeterministicFakeOfficerReportRepository.fictionalReport;
   return SingleGameReportUiModel(
@@ -649,6 +661,25 @@ void main() {
         isNull);
   });
 
+  test('installation aggregate presence and purge are physically scoped',
+      () async {
+    final store = MemoryStore();
+    final current = DurablePrincipalOfficerReportCache(store, 'install');
+    final other = DurablePrincipalOfficerReportCache(store, 'other');
+    await current.write(
+      'current-principal',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    await other.write(
+      'other-principal',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    expect(await current.observeAnyPresence(), isTrue);
+    await current.clearInstallation();
+    expect(await current.observeAnyPresence(), isFalse);
+    expect(await other.observeAnyPresence(), isTrue);
+  });
+
   testWidgets('granted shell navigates and renders read-only report cohorts', (
     tester,
   ) async {
@@ -696,6 +727,161 @@ void main() {
     expect(tester.getSemantics(panel).label, contains('離線快取唯讀報表'));
     expect(find.text('目前為離線快取，僅供讀取'), findsOneWidget);
     expect(controller.mutationsEnabled, isFalse);
+  });
+
+  testWidgets('debug report projection exposes only canonical bounded states',
+      (tester) async {
+    final ready = controllerFor();
+    await ready.applyFreshPrincipal(
+      principalId: 'ready-principal',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await ready.loadSingleGame('fictional-game', online: true);
+
+    final empty = controllerFor(
+      repository: DeterministicFakeOfficerReportRepository(
+        report: emptyReport(),
+      ),
+    );
+    await empty.applyFreshPrincipal(
+      principalId: 'empty-principal',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await empty.loadSingleGame('empty', online: true);
+
+    final cache = InMemoryPrincipalOfficerReportCache();
+    await cache.write(
+      'offline-principal',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    final offline = controllerFor(cache: cache);
+    await offline.applyFreshPrincipal(
+      principalId: 'offline-principal',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await offline.loadSingleGame('fictional-game', online: false);
+
+    for (final (controller, token) in [
+      (ready, 'ready'),
+      (empty, 'empty'),
+      (offline, 'offline_cached_readonly'),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)),
+      );
+      final projection =
+          find.byKey(const ValueKey('debug-officer-report-projection'));
+      expect(projection, findsOneWidget);
+      expect(
+        tester.widget<Semantics>(projection).properties.label,
+        '偵錯報表投影：$token；已啟用寫入控制：0',
+      );
+      expect(find.byType(FilledButton), findsNothing);
+      expect(find.byType(ElevatedButton), findsNothing);
+      expect(find.byType(TextButton), findsNothing);
+      expect(find.byType(IconButton), findsNothing);
+    }
+  });
+
+  test('report diagnostic resolution fails closed', () {
+    expect(
+      DebugOfficerReportProjection.canonicalState(
+        freshReady: false,
+        freshEmpty: false,
+        offlineCachedReadonly: false,
+        enabledWriteControlCount: 0,
+      ),
+      isNull,
+    );
+    expect(
+      DebugOfficerReportProjection.canonicalState(
+        freshReady: true,
+        freshEmpty: false,
+        offlineCachedReadonly: true,
+        enabledWriteControlCount: 0,
+      ),
+      isNull,
+    );
+    expect(
+      DebugOfficerReportProjection.canonicalState(
+        freshReady: true,
+        freshEmpty: false,
+        offlineCachedReadonly: false,
+        enabledWriteControlCount: 1,
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('direct state injection cannot claim report authority',
+      (tester) async {
+    final controller = controllerFor();
+    await controller.applyFreshPrincipal(
+      principalId: 'injected-principal',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    controller
+      ..report = DeterministicFakeOfficerReportRepository.fictionalReport
+      ..state = OfficerReportViewState.ready;
+    await tester.pumpWidget(
+      MaterialApp(home: OfficerReportPanel(controller: controller)),
+    );
+    expect(
+      find.byKey(const ValueKey('debug-officer-report-projection')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('debug gate and projection exclude sensitive report material',
+      (tester) async {
+    final controller = controllerFor();
+    await controller.applyFreshPrincipal(
+      principalId: 'sensitive-principal-id',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    await controller.loadSingleGame('fictional-game', online: true);
+
+    await tester.pumpWidget(MaterialApp(
+      home: OfficerReportPanel(
+        controller: controller,
+        diagnosticEnabled: false,
+      ),
+    ));
+    expect(
+      find.byKey(const ValueKey('debug-officer-report-projection')),
+      findsNothing,
+    );
+    expect(
+      DebugOfficerReportProjection.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+      ),
+      isFalse,
+    );
+    expect(
+      DebugOfficerReportProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(home: OfficerReportPanel(controller: controller)),
+    );
+    final projection =
+        find.byKey(const ValueKey('debug-officer-report-projection'));
+    final label = tester.widget<Semantics>(projection).properties.label!;
+    for (final prohibited in [
+      'sensitive-principal-id',
+      'fictional-game',
+      'fictional-replied',
+      '已回覆隊員',
+      'response_body',
+      'officer-report-cache',
+    ]) {
+      expect(label, isNot(contains(prohibited)));
+    }
   });
 
   testWidgets('all report states have distinguishable semantics', (

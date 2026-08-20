@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
 import 'integration.dart';
@@ -293,6 +294,14 @@ class DurablePrincipalOfficerReportCache
   String _key(String principalId) =>
       'officer-report-cache:v1:$installationId:${Uri.encodeComponent(principalId)}';
 
+  String get _installationPrefix => 'officer-report-cache:v1:$installationId:';
+
+  Future<bool> observeAnyPresence() async =>
+      await store.countKeysWithPrefix(_installationPrefix, maximum: 0) > 0;
+
+  Future<void> clearInstallation() =>
+      store.deleteKeysWithPrefix(_installationPrefix);
+
   @override
   Future<SingleGameReportUiModel?> read(
       String principalId, String gameId) async {
@@ -457,6 +466,10 @@ enum OfficerReportViewState {
   offlineCached,
 }
 
+enum OfficerReportLoadProvenance { freshServer, offlineCache }
+
+enum CanonicalOfficerReportState { ready, empty, offlineCachedReadonly }
+
 class OfficerReportController extends ChangeNotifier {
   OfficerReportController({required this.repository, required this.cache});
 
@@ -469,6 +482,7 @@ class OfficerReportController extends ChangeNotifier {
   OfficerReportViewState state = OfficerReportViewState.empty;
   SingleGameReportUiModel? report;
   DateTime? lastSyncedAt;
+  OfficerReportLoadProvenance? _loadProvenance;
 
   String? get principalId => _principalId;
   ManagementPresentationRoute get route => _route;
@@ -521,6 +535,7 @@ class OfficerReportController extends ChangeNotifier {
     }
     _route = ManagementPresentationRoute.singleGameReport;
     state = OfficerReportViewState.loading;
+    _loadProvenance = null;
     notifyListeners();
     if (!online) {
       final cached = await cache.read(principal, gameId);
@@ -528,6 +543,8 @@ class OfficerReportController extends ChangeNotifier {
       state = cached == null
           ? OfficerReportViewState.retryableError
           : OfficerReportViewState.offlineCached;
+      _loadProvenance =
+          cached == null ? null : OfficerReportLoadProvenance.offlineCache;
       notifyListeners();
       return;
     }
@@ -545,6 +562,7 @@ class OfficerReportController extends ChangeNotifier {
               loaded.historyGames == 0
           ? OfficerReportViewState.empty
           : OfficerReportViewState.ready;
+      _loadProvenance = OfficerReportLoadProvenance.freshServer;
     } on ForbiddenOfficerReportException {
       await cache.clearPrincipal(principal);
       _revokePresentation();
@@ -565,6 +583,7 @@ class OfficerReportController extends ChangeNotifier {
     _route = ManagementPresentationRoute.home;
     report = null;
     lastSyncedAt = null;
+    _loadProvenance = null;
   }
 }
 
@@ -751,9 +770,14 @@ class _ReportHub extends StatelessWidget {
 }
 
 class OfficerReportPanel extends StatelessWidget {
-  const OfficerReportPanel({super.key, required this.controller});
+  const OfficerReportPanel({
+    super.key,
+    required this.controller,
+    this.diagnosticEnabled = true,
+  });
 
   final OfficerReportController controller;
+  final bool diagnosticEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -767,24 +791,112 @@ class OfficerReportPanel extends StatelessWidget {
       OfficerReportViewState.contractError => '報表資料格式異常，已停止處理',
       OfficerReportViewState.offlineCached => '離線快取唯讀報表',
     };
+    final diagnosticState =
+        DebugOfficerReportProjection.fromController(controller);
+    final showDiagnostic = diagnosticState != null &&
+        DebugOfficerReportProjection.shouldRender(
+          debugBuild: kDebugMode,
+          diagnosticEnabled: diagnosticEnabled,
+        );
+    final content = switch (controller.state) {
+      OfficerReportViewState.loading => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      OfficerReportViewState.ready ||
+      OfficerReportViewState.offlineCached =>
+        _ReportContents(
+          report: controller.report!,
+          offline: controller.state == OfficerReportViewState.offlineCached,
+        ),
+      _ => Center(child: Text(semantics)),
+    };
     return Semantics(
       key: ValueKey('officer-report-${controller.state.name}'),
       label: semantics,
       liveRegion: true,
-      child: switch (controller.state) {
-        OfficerReportViewState.loading => const Center(
-            child: CircularProgressIndicator(),
-          ),
-        OfficerReportViewState.ready ||
-        OfficerReportViewState.offlineCached =>
-          _ReportContents(
-            report: controller.report!,
-            offline: controller.state == OfficerReportViewState.offlineCached,
-          ),
-        _ => Center(child: Text(semantics)),
-      },
+      child: showDiagnostic
+          ? Column(
+              children: [
+                DebugOfficerReportProjection(state: diagnosticState),
+                Expanded(child: content),
+              ],
+            )
+          : content,
     );
   }
+}
+
+class DebugOfficerReportProjection extends StatelessWidget {
+  const DebugOfficerReportProjection({super.key, required this.state});
+
+  final CanonicalOfficerReportState state;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+  }) =>
+      debugBuild && diagnosticEnabled;
+
+  static CanonicalOfficerReportState? canonicalState({
+    required bool freshReady,
+    required bool freshEmpty,
+    required bool offlineCachedReadonly,
+    required int enabledWriteControlCount,
+  }) {
+    if (enabledWriteControlCount != 0) return null;
+    final candidates = <CanonicalOfficerReportState>[
+      if (freshReady) CanonicalOfficerReportState.ready,
+      if (freshEmpty) CanonicalOfficerReportState.empty,
+      if (offlineCachedReadonly)
+        CanonicalOfficerReportState.offlineCachedReadonly,
+    ];
+    return candidates.length == 1 ? candidates.single : null;
+  }
+
+  static CanonicalOfficerReportState? fromController(
+    OfficerReportController controller,
+  ) {
+    final report = controller.report;
+    final reportIsEmpty = report != null &&
+        report.attending.isEmpty &&
+        report.notAttending.isEmpty &&
+        report.notYetReplied.isEmpty &&
+        report.historyGames == 0;
+    return canonicalState(
+      freshReady: controller.state == OfficerReportViewState.ready &&
+          controller._loadProvenance ==
+              OfficerReportLoadProvenance.freshServer &&
+          report != null &&
+          !reportIsEmpty,
+      freshEmpty: controller.state == OfficerReportViewState.empty &&
+          controller._loadProvenance ==
+              OfficerReportLoadProvenance.freshServer &&
+          reportIsEmpty,
+      offlineCachedReadonly:
+          controller.state == OfficerReportViewState.offlineCached &&
+              controller._loadProvenance ==
+                  OfficerReportLoadProvenance.offlineCache &&
+              report != null,
+      enabledWriteControlCount: controller.mutationsEnabled ? 1 : 0,
+    );
+  }
+
+  String get _token => switch (state) {
+        CanonicalOfficerReportState.ready => 'ready',
+        CanonicalOfficerReportState.empty => 'empty',
+        CanonicalOfficerReportState.offlineCachedReadonly =>
+          'offline_cached_readonly',
+      };
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        key: const ValueKey('debug-officer-report-projection'),
+        label: '偵錯報表投影：$_token；已啟用寫入控制：0',
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text('$_token；已啟用寫入控制：0'),
+        ),
+      );
 }
 
 class _ReportContents extends StatelessWidget {

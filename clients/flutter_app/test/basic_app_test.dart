@@ -6,6 +6,7 @@ import 'package:ntubtob_portal/basic_app.dart';
 import 'package:ntubtob_portal/foundation.dart';
 import 'package:ntubtob_portal/integration.dart';
 import 'package:ntubtob_portal/main.dart' as entrypoint;
+import 'package:ntubtob_portal/officer_prereview.dart';
 
 class QueueTransport implements ApiTransport {
   final List<ApiResponse> responses = [];
@@ -38,9 +39,9 @@ Map<String, dynamic> gameJson() => {
       'away_team': 'Away'
     };
 
-Map<String, dynamic> attendanceJson() => {
+Map<String, dynamic> attendanceJson({String? ownReply = 'undecided'}) => {
       'game_id': 'g',
-      'own_reply': 'undecided',
+      'own_reply': ownReply,
       'replied': [
         {
           'person_id': 'p2',
@@ -79,6 +80,53 @@ Future<BasicApi> apiFor(QueueTransport transport, MemoryStore store) async {
       sessionId: 's',
       expiresIn: 900));
   return BasicApi(session, store, 'install', SecureIds());
+}
+
+class LogoutLine implements LineLoginPort {
+  @override
+  Future<String> login(String nonce) async => 'unused';
+
+  @override
+  Future<void> logout() async {}
+}
+
+Future<
+    ({
+      SessionController session,
+      BasicCache basicCache,
+      DurablePrincipalOfficerReportCache reportCache,
+      BasicApi api,
+    })> aggregateComponents(
+  MemoryStore store, {
+  String installationId = 'install',
+  QueueTransport? transport,
+}) async {
+  final actualTransport = transport ?? QueueTransport();
+  final session =
+      SessionController(actualTransport, store, installationId, SecureIds());
+  return (
+    session: session,
+    basicCache: BasicCache(store, installationId),
+    reportCache: DurablePrincipalOfficerReportCache(store, installationId),
+    api: BasicApi(session, store, installationId, SecureIds()),
+  );
+}
+
+class PurgeFailingMemoryStore extends MemoryStore {
+  @override
+  Future<void> deleteKeysWithPrefix(String prefix) async {
+    if (prefix.startsWith('mutation:install:')) {
+      throw StateError('local purge failed');
+    }
+    await super.deleteKeysWithPrefix(prefix);
+  }
+}
+
+class ObservationFailingMemoryStore extends MemoryStore {
+  @override
+  Future<int> countKeysWithPrefix(String prefix, {required int maximum}) async {
+    throw StateError('storage observation failed');
+  }
 }
 
 void main() {
@@ -401,6 +449,79 @@ void main() {
     }
   });
 
+  testWidgets('fresh GET projects every canonical authoritative own reply',
+      (tester) async {
+    for (final reply in AttendanceReply.values) {
+      final transport = QueueTransport()
+        ..responses.addAll([
+          ApiResponse(200, gameJson()),
+          ApiResponse(200, attendanceJson(ownReply: reply.wire)),
+        ]);
+      final api = await apiFor(transport, MemoryStore());
+      await tester.pumpWidget(MaterialApp(
+          home: GameDetailPage(
+              key: ValueKey('detail-${reply.wire}'), api: api, gameId: 'g')));
+      await tester.pumpAndSettle();
+
+      final projection = find
+          .byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+      expect(projection, findsOneWidget);
+      expect(
+        tester.widget<Semantics>(projection).properties.label,
+        '偵錯權威出席回覆：${reply.wire}；來源：fresh_server_get',
+      );
+    }
+  });
+
+  testWidgets('fresh GET projects authoritative not-yet-replied as none',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson(ownReply: null)),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    expect(projection, findsOneWidget);
+    expect(
+      tester.widget<Semantics>(projection).properties.label,
+      '偵錯權威出席回覆：none；來源：fresh_server_get',
+    );
+  });
+
+  testWidgets('local chip selection does not change authoritative projection',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('reply-attending')));
+    await tester.pump();
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    expect(
+      tester.widget<Semantics>(projection).properties.label,
+      '偵錯權威出席回覆：undecided；來源：fresh_server_get',
+    );
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
+          .selected,
+      isTrue,
+    );
+  });
+
   testWidgets(
       'successful reply applies authoritative own reply over local selection',
       (tester) async {
@@ -436,6 +557,12 @@ void main() {
             .selected,
         isTrue);
     expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    expect(
+      tester.widget<Semantics>(projection).properties.label,
+      '偵錯權威出席回覆：not_attending；來源：mutation_readback',
+    );
   });
 
   testWidgets('uncertain conflicting reply has recognizable UX',
@@ -460,6 +587,10 @@ void main() {
     final uncertain = find.byKey(const ValueKey('mutation-uncertain'));
     expect(uncertain, findsOneWidget);
     expect(tester.getSemantics(uncertain).label, contains('回覆結果待確認'));
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
   });
 
   testWidgets('PUT Network ambiguity displays uncertain instead of error',
@@ -480,6 +611,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('mutation-uncertain')), findsOneWidget);
     expect(find.byKey(const ValueKey('mutation-error')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
     expect(
         transport.calls.map((call) => call.$1), ['GET', 'GET', 'PUT', 'GET']);
   });
@@ -503,11 +638,422 @@ void main() {
     await tester.tap(find.text('送出回覆'));
     await tester.pump();
     expect(find.text('送出中'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
     expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNull);
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.text('送出回覆'), findsOneWidget);
+    expect(
+      tester
+          .widget<Semantics>(find.byKey(
+              const ValueKey('debug-authoritative-own-reply-projection')))
+          .properties
+          .label,
+      '偵錯權威出席回覆：undecided；來源：mutation_readback',
+    );
+  });
+
+  test('authoritative reply resolver fails closed', () {
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: AttendanceReply.attending,
+        detailReady: true,
+        freshServerGet: false,
+        mutationReadback: false,
+      ),
+      isNull,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: AttendanceReply.attending,
+        detailReady: true,
+        freshServerGet: true,
+        mutationReadback: true,
+      ),
+      isNull,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: AttendanceReply.attending,
+        detailReady: false,
+        freshServerGet: true,
+        mutationReadback: false,
+      ),
+      isNull,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: null,
+        detailReady: true,
+        freshServerGet: true,
+        mutationReadback: false,
+      ),
+      (
+        CanonicalOwnReplyObservation.none,
+        AuthoritativeOwnReplySource.freshServerGet,
+      ),
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: null,
+        detailReady: true,
+        freshServerGet: false,
+        mutationReadback: false,
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('reply diagnostic gate and output exclude sensitive material',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson(ownReply: 'attending')),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: GameDetailPage(
+        api: api,
+        gameId: 'sensitive-game-id',
+        diagnosticEnabled: false,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+      ),
+      isFalse,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
+
+    final visibleTransport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson(ownReply: 'attending')),
+      ]);
+    await tester.pumpWidget(MaterialApp(
+      home: GameDetailPage(
+        api: await apiFor(visibleTransport, MemoryStore()),
+        gameId: 'g',
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    final label = tester.widget<Semantics>(projection).properties.label!;
+    for (final prohibited in [
+      'sensitive-game-id',
+      'p2',
+      '已回覆隊員',
+      'response_body',
+      'same-key-value-1234',
+      'access',
+      'mutation:install:g',
+    ]) {
+      expect(label, isNot(contains(prohibited)));
+    }
+  });
+
+  testWidgets('cache/session projection is bounded and release-gated',
+      (tester) async {
+    const aggregate = CacheSessionAggregate(
+      sessionPresent: false,
+      basicCachePresent: false,
+      officerReportCachePresent: false,
+      pendingAttendanceIntentPresent: false,
+    );
+    await tester.pumpWidget(const MaterialApp(
+      home: DebugCacheSessionProjection(aggregate: aggregate),
+    ));
+    final projection =
+        find.byKey(const ValueKey('debug-cache-session-projection'));
+    final label = tester.widget<Semantics>(projection).properties.label!;
+    expect(label, contains('session absent'));
+    expect(label, contains('basic_cache absent'));
+    expect(label, contains('officer_report_cache absent'));
+    expect(label, contains('pending_attendance_intent absent'));
+    for (final prohibited in [
+      'refresh:install',
+      'cache:v1',
+      'officer-report-cache:v1',
+      'mutation:install:g',
+      'fictional-game',
+      'access-token',
+    ]) {
+      expect(label, isNot(contains(prohibited)));
+    }
+    expect(
+      DebugCacheSessionProjection.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+      ),
+      isFalse,
+    );
+    expect(
+      DebugCacheSessionProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
+  });
+
+  testWidgets('real composition projects aggregate from physical storage',
+      (tester) async {
+    final store = MemoryStore()
+      ..values['refresh:install'] = 'not-observed'
+      ..values['cache-index:v1:install'] = 'not-output'
+      ..values['cache:v1:install:person'] = 'not-observed'
+      ..values['officer-report-cache:v1:install:person'] = 'not-observed'
+      ..values['mutation:install:game'] = 'not-observed';
+    final components = await aggregateComponents(store);
+    final aggregate = await CacheSessionAggregateProducer.observe(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: aggregate,
+        child: const Text('content'),
+      ),
+    ));
+    final projection =
+        find.byKey(const ValueKey('debug-cache-session-projection'));
+    expect(projection, findsOneWidget);
+    final label = tester.getSemantics(projection).label;
+    expect(label, contains('session present'));
+    expect(label, contains('basic_cache present'));
+    expect(label, contains('officer_report_cache present'));
+    expect(label, contains('pending_attendance_intent present'));
+    expect(label, isNot(contains('person')));
+    expect(label, isNot(contains('game')));
+  });
+
+  test('multiple physical pending intents fail closed before logout', () async {
+    final store = MemoryStore()
+      ..values['refresh:install'] = 'refresh'
+      ..values['mutation:install:first'] = 'one'
+      ..values['mutation:install:second'] = 'two';
+    final components = await aggregateComponents(store);
+    expect(
+      await CacheSessionAggregateProducer.observe(
+        session: components.session,
+        basicCache: components.basicCache,
+        reportCache: components.reportCache,
+        api: components.api,
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets(
+      'storage failure hides projection and cold logged-out is observable',
+      (tester) async {
+    final failingComponents =
+        await aggregateComponents(ObservationFailingMemoryStore());
+    final failed = await CacheSessionAggregateProducer.observe(
+      session: failingComponents.session,
+      basicCache: failingComponents.basicCache,
+      reportCache: failingComponents.reportCache,
+      api: failingComponents.api,
+    );
+    expect(failed, isNull);
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: failed,
+        child: const AuthStatePanel(state: AuthViewState.logoutPending),
+      ),
+    ));
+    expect(
+      find.byKey(const ValueKey('debug-cache-session-projection')),
+      findsNothing,
+    );
+
+    final coldComponents = await aggregateComponents(MemoryStore());
+    final cold = await CacheSessionAggregateProducer.observe(
+      session: coldComponents.session,
+      basicCache: coldComponents.basicCache,
+      reportCache: coldComponents.reportCache,
+      api: coldComponents.api,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: cold,
+        child: const AuthStatePanel(state: AuthViewState.loggedOut),
+      ),
+    ));
+    final projection =
+        find.byKey(const ValueKey('debug-cache-session-projection'));
+    expect(projection, findsOneWidget);
+    expect(tester.getSemantics(projection).label, contains('session absent'));
+    expect(tester.getSemantics(projection).label,
+        contains('pending_attendance_intent absent'));
+  });
+
+  test('fresh Basic downgrade physically removes Officer cache evidence',
+      () async {
+    final store = MemoryStore()..values['refresh:install'] = 'refresh';
+    final components = await aggregateComponents(store);
+    const previous = Person(
+      'same',
+      'Officer',
+      ['attendance:report:read'],
+      accessLevel: AccessLevel.officer,
+    );
+    const current = Person('same', 'Basic', ['games:read']);
+    await components.basicCache.save(current, const [], DateTime.utc(2026));
+    await components.reportCache.write(
+      previous.id,
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    await reconcileFreshReportPrincipal(
+      cache: components.reportCache,
+      previous: previous,
+      current: current,
+    );
+
+    final aggregate = await CacheSessionAggregateProducer.observe(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+    );
+    expect(aggregate!.sessionPresent, isTrue);
+    expect(aggregate.basicCachePresent, isTrue);
+    expect(aggregate.officerReportCachePresent, isFalse);
+    expect(aggregate.pendingAttendanceIntentPresent, isFalse);
+  });
+
+  test('terminal logout purges only current installation and observes absent',
+      () async {
+    final transport = QueueTransport()
+      ..responses.add(const ApiResponse(204, null));
+    final store = MemoryStore()..values['installation:v1'] = 'install';
+    final components = await aggregateComponents(store, transport: transport);
+    await components.session.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+    store.values['refresh-attempt:install'] = 'attempt';
+    await components.basicCache.save(
+      const Person('person', 'Basic', ['games:read']),
+      const [],
+      DateTime.utc(2026),
+    );
+    await components.reportCache.write(
+      'person',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    store.values['mutation:install:first-game'] = 'intent';
+    store.values['mutation:install:second-game'] = 'intent';
+    store.values['refresh:other'] = 'keep';
+    store.values['refresh-attempt:other'] = 'keep';
+    store.values['logout-pending:other'] = 'keep';
+    store.values['cache-index:v1:other'] = 'other-person';
+    store.values['cache:v1:other:other-person'] = 'keep';
+    store.values['officer-report-cache:v1:other:other-person'] = 'keep';
+    store.values['mutation:other:game'] = 'keep';
+
+    expect(
+      await CacheSessionAggregateProducer.observe(
+        session: components.session,
+        basicCache: components.basicCache,
+        reportCache: components.reportCache,
+        api: components.api,
+      ),
+      isNull,
+    );
+
+    final aggregate = await completeTerminalLogout(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+      line: LogoutLine(),
+    );
+    expect(
+      aggregate,
+      const CacheSessionAggregate(
+        sessionPresent: false,
+        basicCachePresent: false,
+        officerReportCachePresent: false,
+        pendingAttendanceIntentPresent: false,
+      ),
+    );
+    expect(store.values['installation:v1'], 'install');
+    expect(
+      store.values.keys.where((key) => key.contains(':other')),
+      hasLength(7),
+    );
+  });
+
+  testWidgets('purge failure stays fail closed with no projection',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.add(const ApiResponse(204, null));
+    final store = PurgeFailingMemoryStore()
+      ..values['mutation:install:game'] = 'intent';
+    final components = await aggregateComponents(store, transport: transport);
+    await components.session.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+
+    final aggregate = await completeTerminalLogout(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+      line: LogoutLine(),
+    );
+    expect(aggregate, isNull);
+    expect(store.values['logout-pending:install'], 'true');
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: aggregate,
+        child: const AuthStatePanel(state: AuthViewState.logoutPending),
+      ),
+    ));
+    expect(find.text('請使用 LINE 安全登入'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('debug-cache-session-projection')),
+      findsNothing,
+    );
+  });
+
+  test('release gate cannot render a real aggregate when injected true', () {
+    expect(
+      DebugCacheSessionComposition.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+        aggregatePresent: true,
+      ),
+      isFalse,
+    );
   });
 
   testWidgets('canonical mutation error has fail-closed UX', (tester) async {
