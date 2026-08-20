@@ -27,20 +27,22 @@ database, cloud, or deployment behavior was added.
 ## Verification
 
 - PowerShell parser: passed.
-- `git diff --check`: passed before final documentation edits; rerun required at handoff.
-- Direct launcher suite: 48 tests, 47 passed.
+- `git diff --check`: passed after the targeted review correction.
+- Direct launcher suite: 48 tests, 48 passed.
 - Three new provenance tests cover fresh Basic, fresh Officer enabled/disabled,
   offline/unknown non-authoritative states, legacy/duplicate/coexisting and
   malformed projections, source-label mismatch, sentinel redaction, deferred
   vocabulary absence, and existing foreground zero-dump behavior.
-- The one failing redaction-fallback regression was reproduced identically in
-  the accepted-base spec worktree and implementation worktree; it is isolated
-  as an accepted-base failure and was not changed in this task.
+- Main targeted review found that the inherited redaction-fallback regression
+  put its sentinel in `result`, so bounded result validation stopped before
+  `Write-SafeJson`. The corrected direct test keeps a legal result token and
+  places the sentinel in another bounded details field. It now proves the
+  actual no-disclosure fallback emits exactly one
+  `FAILED/OUTPUT_REDACTION_FAILED` envelope, exits 2, and discloses neither the
+  sentinel nor raw exception text.
 - No emulator, staging, Secret, runtime, database, cloud, or deployment command
   was executed.
 
 ## Handoff limits
 
-Hosted CI remains responsible for the final Python/format gate. The accepted
-base redaction-fallback regression must remain visible to Main Work; this
-delivery does not claim it as fixed.
+Hosted CI remains responsible for the final Python/format gate.
