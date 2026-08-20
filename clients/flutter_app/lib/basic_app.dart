@@ -30,6 +30,8 @@ enum AuthViewState {
   authenticated
 }
 
+enum PrincipalProvenance { freshServer, offlineCache }
+
 AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   if (error is NetworkException) {
     return hasCache ? AuthViewState.offline : AuthViewState.recoverableError;
@@ -110,6 +112,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
+  PrincipalProvenance? principalProvenance;
 
   @override
   void initState() {
@@ -205,6 +208,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         person = loadedPerson;
         games = loadedGames;
         lastSyncedAt = syncedAt;
+        principalProvenance = PrincipalProvenance.freshServer;
         state = AuthViewState.authenticated;
       });
     } on Object catch (error) {
@@ -224,8 +228,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         person = cached!.person;
         games = cached.games;
         lastSyncedAt = cached.lastSyncedAt;
+        principalProvenance = PrincipalProvenance.offlineCache;
         state = AuthViewState.offline;
       } else {
+        principalProvenance = null;
         state = classified;
       }
     });
@@ -243,6 +249,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       setState(() {
         person = null;
         games = const [];
+        principalProvenance = null;
         state = AuthViewState.loggedOut;
       });
     } on Object {
@@ -273,6 +280,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                   games: games,
                   online: state == AuthViewState.authenticated,
                   lastSyncedAt: lastSyncedAt!,
+                  principalProvenance: principalProvenance,
                   reportCache: _reportCache)
               : AuthStatePanel(state: state),
           floatingActionButton: state == AuthViewState.authenticated
@@ -317,6 +325,7 @@ class BasicGamesView extends StatelessWidget {
     required this.games,
     required this.online,
     required this.lastSyncedAt,
+    this.principalProvenance,
     this.reportCache,
     this.diagnosticEnabled = true,
   });
@@ -325,6 +334,7 @@ class BasicGamesView extends StatelessWidget {
   final List<Game> games;
   final bool online;
   final DateTime lastSyncedAt;
+  final PrincipalProvenance? principalProvenance;
   final PrincipalOfficerReportCache? reportCache;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
@@ -346,7 +356,8 @@ class BasicGamesView extends StatelessWidget {
             subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
         if (DebugPrincipalProjection.shouldRender(
             debugBuild: kDebugMode, diagnosticEnabled: diagnosticEnabled))
-          DebugPrincipalProjection(person: person),
+          DebugPrincipalProjection(
+              person: person, provenance: principalProvenance),
         if (person.canReadAttendanceReport)
           ListTile(
             key: const ValueKey('management-report-entry'),
@@ -387,9 +398,11 @@ class BasicGamesView extends StatelessWidget {
 }
 
 class DebugPrincipalProjection extends StatelessWidget {
-  const DebugPrincipalProjection({super.key, required this.person});
+  const DebugPrincipalProjection(
+      {super.key, required this.person, required this.provenance});
 
   final Person person;
+  final PrincipalProvenance? provenance;
 
   static bool shouldRender(
           {required bool debugBuild, required bool diagnosticEnabled}) =>
@@ -401,17 +414,28 @@ class DebugPrincipalProjection extends StatelessWidget {
         AccessLevel.admin => '系統管理者',
       };
 
+  static (String, String) localizedProvenance(
+          PrincipalProvenance? provenance) =>
+      switch (provenance) {
+        PrincipalProvenance.freshServer => ('fresh_server', '伺服器最新驗證'),
+        PrincipalProvenance.offlineCache => ('offline_cache', '離線快取，非權威'),
+        null => ('unknown', '來源未確認，非權威'),
+      };
+
   @override
   Widget build(BuildContext context) {
     final role = localizedRole(person.accessLevel);
     final reportRead = person.canReadAttendanceReport ? '啟用' : '停用';
+    final (provenanceToken, provenanceLabel) = localizedProvenance(provenance);
     return Semantics(
       key: const ValueKey('debug-principal-projection'),
-      label: '偵錯權限投影：$role；報表讀取：$reportRead',
+      label:
+          '偵錯權限投影：$role；報表讀取：$reportRead；來源：$provenanceToken（$provenanceLabel）',
       child: ListTile(
         leading: const Icon(Icons.bug_report_outlined),
         title: Text(role),
-        subtitle: Text('報表讀取：$reportRead'),
+        subtitle:
+            Text('報表讀取：$reportRead；來源：$provenanceToken（$provenanceLabel）'),
       ),
     );
   }
