@@ -3,7 +3,7 @@
 - Task type: repository implementation
 - Delivery group: `mobile-staging-acceptance-automation`
 - Requires independent PR: false
-- Status: assigned for implementation
+- Status: ready for hosted CI
 - Operator: agent under DEC-098
 - Owner gate: none for repository work
 
