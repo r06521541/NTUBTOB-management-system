@@ -67,6 +67,10 @@ actions rather than a hidden multi-step default:
 
 - No action is implicit. Missing or conflicting action/mode/commit/config is a
   hard failure before side effects.
+- Routine and Owner-private execution are separate code paths. Help, status,
+  preflight and every routine action must not initialize `gcloud`, inspect a
+  private environment variable, resolve a Secret value reference, or load the
+  mutation operator path.
 - Routine actions are agent-operable under DEC-098. LINE QR, credentials,
   login/consent, Secret payloads, private provider subject, paid/public IAM,
   production, release signing and store actions remain Owner-only.
@@ -90,6 +94,20 @@ actions rather than a hidden multi-step default:
 - Owner-private actions must refuse non-interactive or missing-confirmation
   execution. Agent execution stops with `OWNER_ACTION_REQUIRED` before Secret
   retrieval or mutation.
+- Every action emits one fixed, de-identified JSON result with stable
+  classification `PASS`, `OWNER_ACTION_REQUIRED`, `DRIFT`, `TIMEOUT`, or
+  `FAILED`. It includes `operator`, `owner_gate`,
+  `standing_authorization=DEC-098`, `stop_only_on`, and
+  `report_to=main-work`; callers never need raw logs or prose to classify the
+  result.
+- A private mutation always executes read-only inspect, exact typed
+  confirmation, at most one mutation, and an independent read-only post-check.
+  An unknown result or interruption is never retried as a mutation; the next
+  permitted action is read-only reconciliation. Confirmation text never
+  contains a provider subject, DSN, token, or Secret value.
+- Runtime classification uses semantic/accessibility identifiers and
+  allowlisted debug projections. It never depends on screen coordinates, OCR,
+  raw UI XML, or raw logcat.
 
 ## Verification
 
@@ -104,6 +122,9 @@ actions rather than a hidden multi-step default:
 - Cover Owner-private interactivity, exact mutation confirmation, approved
   Secret reference selection, child-only environment, redaction and `finally`
   cleanup on success/failure/interruption.
+- Cover process interruption and child-process residue, concurrent launcher
+  invocation, stale lock, multiple ADB serials, partial APK, wrong signer, and
+  launcher timeout where the target process actually started.
 - Prove output/evidence contain none of the forbidden sensitive fields or test
   sentinel values.
 - Run affected Python tests, PowerShell parser/static checks where available,
@@ -118,6 +139,27 @@ actions rather than a hidden multi-step default:
 - Main Work owns task integration, hosted CI, the single final PR and merge.
 - No launcher command is executed against an emulator, staging, Secret or
   cloud during repository implementation or review.
+
+## Explicit limitation and deferred follow-up
+
+TASK-123 does not make Owner-private actions fully agent-operated. The current
+credential-delivery model keeps the provider subject and database Secret value
+inside the Owner's private console, which an agent shell cannot safely inherit.
+This task reduces that boundary to one private-console invocation and explicit
+confirmation; it does not weaken or bypass it.
+
+Do not expand this delivery with multi-step acceptance scenarios, a credential
+broker, fixture lifecycle redesign, IAM/Secret changes, or new runtime
+observability. After repository acceptance, run one separately authorized
+staging dogfood in which the agent performs routine actions and the Owner uses
+only the private console. Use its remaining manual checkpoints to scope later
+work for:
+
+- a named, resumable Staging Acceptance Harness with explicit pre/post states;
+- a no-disclosure credential launcher or broker, subject to separate approval
+  for any IAM, Secret version or cloud-resource change;
+- relational fictional fixture ownership and reset/reconciliation; and
+- acceptance observability contracts defined before each runtime scenario.
 
 ## Execution checkpoint
 
