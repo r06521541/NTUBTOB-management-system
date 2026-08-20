@@ -2,7 +2,7 @@
 
 ## Decision
 
-Changes requested before controlled staging dogfood.
+Accepted; final hosted CI remains pending.
 
 ## Findings
 
@@ -114,7 +114,21 @@ Changes requested before controlled staging dogfood.
 
 ## Deferred
 
-Hosted Black/repository CI and a separately authorized staging dogfood remain
-required. TASK-123 does not make credential delivery fully agent-operated.
+Hosted Black/repository CI remains required. The completed routine dogfood does
+not cover Owner-private, build/install or cold-launch scenarios, and TASK-123
+does not make credential delivery fully agent-operated.
 The Staging Acceptance Harness, no-disclosure credential broker, relational
 fixture lifecycle and acceptance observability contract remain later work.
+
+## Final runtime decision
+
+- Accepted source: `ed645f3c0af9c43e8465bcfef597c5f58ad37827`.
+- Exact detached preflight returned one governed PASS result.
+- Exact-once status returned PASS with `result=observed`, installed portal in
+  foreground, and exact logged-out semantics (`login=1`, all Basic/Officer and
+  report counts zero).
+- No raw UI, logcat, Secret, private subject, endpoint or credential was read
+  or retained. Owner-private actions and build/install/cold-launch scenarios
+  were not claimed by this dogfood.
+- No residual Work or Domain finding remains. Final hosted CI on the delivery
+  branch is the only current delivery gate.

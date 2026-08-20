@@ -1,63 +1,20 @@
 active_task: TASK-123
-status: changes_requested
-next_actor: codex
+status: ready_for_hosted_ci
+next_actor: work
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: 94a85f80b9e3773c736c5a0e4e3cfba6ffa788a6
+head_commit: 59a7b261f52a3f02a03362ada9e5dffc23c9305a
 
 updated_by: work
-updated_at: 2026-08-20T20:05:00+08:00
+updated_at: 2026-08-20T20:45:00+08:00
 
 note: >
-  TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
-  Basic downgrade and cache purge, and logout cold non-revival all passed. TASK-123 now builds a repository-only,
-  single-entry mobile staging launch console. Flutter Domain accepted the corrected implementation after verifying
-  authoritative ancestry, bounded semantic accessibility evidence, exact APK package identity before install, and
-  a task lock around the complete Owner-private lifecycle. Main independently passed all 26 direct tests and
-  fast-forwarded the accepted history. Hosted Black and repository CI are now required before the separately
-  authorized staging dogfood. Owner accepted a concise multi-agent throttling proposal; the shortest binding rules
-  now update COLLABORATION while the planning rationale remains non-authoritative. Hosted CI passed on the new head,
-  but the first routine preflight dogfood found a PowerShell automatic-variable collision in real config loading and
-  no bounded diagnostic reason in failed JSON. The writer corrected those findings and the output-redaction
-  fallback exit semantics; targeted review accepted them. Corrected preflight dogfood now passes. The first read-only
-  status dogfood exposed a state-matrix gap. The writer added bounded logged-out, package-absent, background, stopped
-  and authenticated classifications, then anchored foreground detection to one exact current activity; targeted
-  review accepted both corrections. Corrected preflight dogfood passes and current activity now resolves to portal,
-  but status still fails because API 36 `adb shell uiautomator dump /dev/tty` returns only a completion notice, not
-  XML. The writer switched to the accepted `adb exec-out` no-persistence transport and targeted review passed. Dogfood
-  now reaches semantic classification but returns DRIFT: the Flutter login prompt is merged as one duplicated
-  content-desc, while the exact enabled login button has the stable `LINE 登入` description. The writer switched to
-  that exact portal button semantic and targeted review accepted it. The next exact-once dogfood still returned only
-  generic `FAILED/RUNTIME_FAILED`; Main stopped without side-channel diagnosis or retry. The original sole writer must
-  add bounded status-stage reason codes that distinguish activity unavailable/invalid, accessibility unavailable/
-  invalid and semantic drift, so routine callers never need raw or dot-sourced diagnostics. That correction and
-  its targeted review passed. Exact-SHA preflight dogfood then passed, but the single status invocation still returned
-  FAILED/RUNTIME_FAILED. Main stopped without retry or side-channel diagnostics. Source review shows status also crosses
-  ADB-serial and package-inventory stages before activity/accessibility; their failures are not covered by the new
-  status mapping. The same writer must add bounded per-stage status boundaries so ADB/package/activity/accessibility/
-  semantic failures always return an actionable fixed reason code and no status-stage failure falls back to
-  RUNTIME_FAILED. The first pre-activity correction was rejected before integration because `Get-PackageState`
-  still treats a nonzero `adb shell pm path` exit as normal package absence. The same writer must make timeout/nonzero
-  exit fail as PACKAGE_UNAVAILABLE, accept only successful explicit absence or one exact package result, and add
-  function-to-governed-envelope regressions. That correction passed targeted review and was integrated. Exact-SHA
-  preflight again passed, but the only subsequent status call still returned FAILED/RUNTIME_FAILED. This proves
-  enumerating known safe messages is insufficient: an internal PowerShell/.NET exception can bypass them. Main again
-  stopped without retry or side-channel diagnosis. The same writer must add real exception boundaries around each
-  status stage (ADB, package, activity, accessibility), preserving known semantic drift while converting every unknown
-  stage-local exception to that stage's fixed safe unavailable/invalid result; a status invocation must not emit
-  RUNTIME_FAILED. Direct tests must inject unknown exceptions inside each actual stage and traverse the governed
-  envelope. That containment correction passed targeted review and was integrated. Exact-SHA preflight passed again,
-  while the single status invocation still returned FAILED/RUNTIME_FAILED. Source-only inspection now identifies the
-  exact post-stage defect: both successful `Invoke-Status` result objects omit `result`, while the strict-mode common
-  entrypoint unconditionally reads `$details.result` before writing the envelope. The exception therefore occurs after
-  all status stage boundaries. The same writer must add a fixed successful result to every status success branch and a
-  full-entrypoint regression for logged-out/background/absent/authenticated states; the common entrypoint must also
-  fail closed on a malformed action result rather than leak a generic runtime exception. No further runtime retry is
-  authorized before this correction is reviewed. During
-  a Main read-only diagnosis, a PowerShell XML conversion error echoed the raw static logged-out hierarchy; it held no
-  credential, token, subject, endpoint or user data, but violated the no-raw-hierarchy operating rule and is recorded.
-  Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work
-  remain explicitly deferred.
+  TASK-123 source is accepted at ed645f3c0af9c43e8465bcfef597c5f58ad37827; the sole report-only closeout is
+  59a7b261f52a3f02a03362ada9e5dffc23c9305a. Controlled exact-SHA dogfood passed preflight and read-only status with
+  one governed JSON result: installed portal foreground, exact logged-out semantics, and no sensitive or raw runtime
+  evidence. Work and Flutter Domain have no residual finding. PR #134 final hosted CI is the only current delivery
+  gate. Owner-private credential delivery, build/install/cold-launch dogfood, and deferred phase-two A-D are not
+  claimed by this task.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-123.md
