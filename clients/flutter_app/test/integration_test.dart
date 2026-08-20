@@ -941,4 +941,58 @@ void main() {
     expect(await BasicCache(MemoryStore(), 'install-b').load(), isNull);
     expect(store.values.keys, everyElement(contains('install-a')));
   });
+
+  test('cache/session aggregate accepts only complete bounded observations',
+      () {
+    expect(
+      CacheSessionAggregate.resolve(
+        sessionPresent: false,
+        basicCachePresent: false,
+        officerReportCachePresent: false,
+        pendingAttendanceIntentCount: 0,
+      ),
+      const CacheSessionAggregate(
+        sessionPresent: false,
+        basicCachePresent: false,
+        officerReportCachePresent: false,
+        pendingAttendanceIntentPresent: false,
+      ),
+    );
+    expect(
+      CacheSessionAggregate.resolve(
+        sessionPresent: true,
+        basicCachePresent: true,
+        officerReportCachePresent: true,
+        pendingAttendanceIntentCount: 1,
+      ),
+      const CacheSessionAggregate(
+        sessionPresent: true,
+        basicCachePresent: true,
+        officerReportCachePresent: true,
+        pendingAttendanceIntentPresent: true,
+      ),
+    );
+  });
+
+  test('cache/session aggregate fails closed for missing or inconsistent state',
+      () {
+    expect(
+      CacheSessionAggregate.resolve(
+        sessionPresent: null,
+        basicCachePresent: false,
+        officerReportCachePresent: false,
+        pendingAttendanceIntentCount: 0,
+      ),
+      isNull,
+    );
+    expect(
+      CacheSessionAggregate.resolve(
+        sessionPresent: false,
+        basicCachePresent: false,
+        officerReportCachePresent: false,
+        pendingAttendanceIntentCount: 2,
+      ),
+      isNull,
+    );
+  });
 }

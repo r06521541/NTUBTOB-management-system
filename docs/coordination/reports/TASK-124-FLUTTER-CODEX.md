@@ -124,3 +124,34 @@ Correction verification:
 - `flutter test test/basic_app_test.dart --no-pub`: passed, 42 tests.
 - `flutter analyze --no-pub`: passed with `No issues found`.
 - No unrelated or full suite was rerun for this focused correction.
+
+## Producer package 4 delta: cache/session aggregate vocabulary
+
+- Base: `23c99e84c9b7a15fbade236e77d121b05e39abc3`
+- Branch: `codex/task-124-cache-session`
+- Scope: bounded cache/session aggregate vocabulary only
+
+Added a de-identified `CacheSessionAggregate` resolver. It emits exactly four
+boolean observations: session presence, Basic cache presence, Officer report
+cache presence, and pending attendance-intent presence. Every input is
+required; pending intent is bounded to zero or one. Missing, negative, or
+multi-intent observations resolve to no projection, so they cannot be
+misrepresented as purge evidence.
+
+Added the debug cache/session projection renderer with the same hard
+`kDebugMode && diagnosticEnabled` gate used by the existing client evidence.
+Its output contains only the four allowlisted `present`/`absent` tokens: no
+storage key, principal, session/provider identity, token, body, path, or cache
+value. An injected flag cannot enable rendering in a release build.
+
+This vocabulary deliberately does not alter session, cache, mutation,
+authorization, navigation, or wire behavior. It makes only a fully supplied,
+bounded aggregate eligible for a future launcher consumer; incomplete local
+state remains fail-closed rather than inventing a physical-purge claim.
+
+Verification delta:
+
+- Tests-first red run: focused integration test initially failed because the
+  aggregate API did not exist.
+- `flutter test test/integration_test.dart --no-pub`: passed, 40 tests.
+- `flutter test test/basic_app_test.dart --no-pub`: passed, 43 tests.
