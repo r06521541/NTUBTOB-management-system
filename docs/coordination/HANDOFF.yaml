@@ -1,20 +1,21 @@
 active_task: TASK-123
-status: in_progress
+status: changes_requested
 next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
 head_commit: 20f393778a9010ac52ad9c8935f3992d72ce06a0
 
 updated_by: work
-updated_at: 2026-08-20T14:36:52+08:00
+updated_at: 2026-08-20T15:15:00+08:00
 
 note: >
   TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
   Basic downgrade and cache purge, and logout cold non-revival all passed. TASK-123 now builds a repository-only,
-  single-entry mobile staging launch console. Shared/Web Codex is the sole implementation writer; Flutter Domain
-  Work is a read-only reviewer. Routine actions are agent-operable under DEC-098, while credential delivery keeps
-  Owner-private actions limited to one private-console invocation. No launcher command may touch emulator, staging,
-  Secret, cloud, production or notifications during implementation. Phase-two acceptance harness, no-disclosure
+  single-entry mobile staging launch console. Flutter Domain requested four bounded corrections: preserve the
+  authoritative TASK-123/HANDOFF ancestry, implement semantic accessibility status evidence, verify the APK package
+  before session-preserving install, and apply the task lock to the complete Owner-private lifecycle. Shared/Web
+  Codex remains the sole implementation writer on the same branch. No launcher command may touch emulator, staging,
+  Secret, cloud, production or notifications during correction. Phase-two acceptance harness, no-disclosure
   credential broker, fixture lifecycle and observability-contract work remain explicitly deferred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
