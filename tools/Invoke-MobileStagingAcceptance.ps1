@@ -275,7 +275,8 @@ function Get-MobileAcceptanceStatus {
     $maxAttempts = 5
     $retryableMessages = @(
         'Accessibility inventory failed safely',
-        'Accessibility inventory is malformed'
+        'Accessibility inventory is malformed',
+        'Accessibility foreground state is not exact'
     )
     for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
         try {
