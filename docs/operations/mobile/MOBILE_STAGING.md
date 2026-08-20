@@ -630,6 +630,8 @@ Status-child transport is also bounded without forwarding child output:
 `STATUS_HOST_UNAVAILABLE`, `STATUS_CHILD_TIMEOUT`, `STATUS_CHILD_STDERR`,
 `STATUS_CHILD_OUTPUT_INVALID`, `STATUS_CHILD_ENVELOPE_INVALID`, or
 `STATUS_CHILD_RESULT_INVALID`. None of these terminal reasons is retried.
+Parseable JSON with a null, scalar, array, missing root fields, or non-object
+`details` is classified as `STATUS_CHILD_ENVELOPE_INVALID` before any field access.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting

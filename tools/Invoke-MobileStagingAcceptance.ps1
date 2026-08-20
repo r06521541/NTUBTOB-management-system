@@ -453,19 +453,37 @@ function New-IsolatedLauncherStatusAction {
             if ($lines.Count -ne 1) { Throw-HarnessSafe 'STATUS_CHILD_OUTPUT_INVALID' }
             try { $envelope = $lines[0] | ConvertFrom-Json }
             catch { Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID' }
+            if ($null -eq $envelope -or $envelope -isnot [System.Management.Automation.PSCustomObject]) {
+                Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID'
+            }
+            $classificationProperty = $envelope.PSObject.Properties['classification']
+            $detailsProperty = $envelope.PSObject.Properties['details']
+            if ($null -eq $classificationProperty -or $null -eq $detailsProperty) {
+                Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID'
+            }
+            $details = $detailsProperty.Value
+            if ($null -eq $details -or $details -isnot [System.Management.Automation.PSCustomObject]) {
+                Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID'
+            }
+            $classification = [string]$classificationProperty.Value
+            $actionProperty = $details.PSObject.Properties['action']
+            $resultProperty = $details.PSObject.Properties['result']
+            $reasonProperty = $details.PSObject.Properties['reason_code']
+            $action = $(if ($null -eq $actionProperty) { '' } else { [string]$actionProperty.Value })
+            $actionResult = $(if ($null -eq $resultProperty) { '' } else { [string]$resultProperty.Value })
+            $reason = $(if ($null -eq $reasonProperty) { '' } else { [string]$reasonProperty.Value })
             if (
                 $result.ExitCode -eq 0 -and
-                [string]$envelope.classification -ceq 'PASS' -and
-                [string]$envelope.details.action -ceq 'status' -and
-                [string]$envelope.details.result -ceq 'observed'
-            ) { return $envelope.details }
-            $reason = [string]$envelope.details.reason_code
-            if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'FAILED') {
+                $classification -ceq 'PASS' -and
+                $action -ceq 'status' -and
+                $actionResult -ceq 'observed'
+            ) { return $details }
+            if ($result.ExitCode -eq 2 -and $classification -ceq 'FAILED') {
                 if ($reason -ceq 'ACCESSIBILITY_UNAVAILABLE') { Throw-HarnessSafe 'Accessibility inventory failed safely' }
                 if ($reason -ceq 'ACCESSIBILITY_INVALID') { Throw-HarnessSafe 'Accessibility inventory is malformed' }
                 if ($reason -cin $terminalStatusReasons) { Throw-HarnessSafe $reason }
             }
-            if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'DRIFT' -and $reason -ceq 'SEMANTIC_DRIFT') {
+            if ($result.ExitCode -eq 2 -and $classification -ceq 'DRIFT' -and $reason -ceq 'SEMANTIC_DRIFT') {
                 Throw-HarnessSafe 'Accessibility foreground state is not exact'
             }
             Throw-HarnessSafe 'STATUS_CHILD_RESULT_INVALID'
@@ -485,6 +503,7 @@ function New-IsolatedLauncherStatusAction {
             $raw = $null
             $lines = $null
             $envelope = $null
+            $details = $null
             $arguments = $null
         }
     }.GetNewClosure()

@@ -286,6 +286,39 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                     {"message": reason, "classification": classification, "reason": reason, "attempts": 1},
                 )
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
+        malformed_envelopes = (
+            "'{}'",
+            "'null'",
+            "'42'",
+            "'[]'",
+            "'{\"classification\":\"FAILED\"}'",
+            f"'{{\"classification\":\"FAILED\",\"details\":\"{sentinel}\"}}'",
+        )
+        for stdout in malformed_envelopes:
+            with self.subTest(malformed_envelope=stdout):
+                result = self.run_harness(
+                    f"""
+                    $script:attempts=0
+                    $invoke={{param($file,$arguments,$timeout)
+                        $script:attempts++
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=2;Stdout={stdout};Stderr=''}}
+                    }}
+                    $status=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invoke 'C:/powershell.exe'
+                    try {{Get-MobileAcceptanceStatus -InvokeStatus {{& $status}} -Wait {{throw 'must not wait'}}|Out-Null;$message='unexpected'}}
+                    catch {{$message=$_.Exception.Message}}
+                    $classification=Get-HarnessFailureClassification $message
+                    $reason=Get-HarnessFailureReasonCode $message
+                    Write-HarnessJson (New-HarnessEnvelope 'basic-authorization' $classification 'none' 'await_observation' 'failed' $reason)
+                    exit 2
+                    """
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(len(result.stdout.splitlines()), 1)
+                envelope = json.loads(result.stdout)
+                self.assertEqual(envelope["classification"], "EVIDENCE_GAP")
+                self.assertEqual(envelope["details"]["reason_code"], "STATUS_CHILD_ENVELOPE_INVALID")
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
         source = HARNESS.read_text(encoding="utf-8")
         self.assertEqual(
             source.count(
