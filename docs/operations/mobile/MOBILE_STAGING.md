@@ -171,6 +171,49 @@ delete audit rows, or retry an unclassified state. This operator does not make
 the Officer account an administrator, alter production, send notifications, or
 change the mobile/Web role policy.
 
+### Runtime attendance residue repair
+
+TASK-120 adds a separate, one-purpose repair for the two documented fictional
+runtime attendance rows left by the TASK-115 acceptance sequence. It is not a
+general attendance reset and it never changes any `mobile_*` record. Before an
+execution checkpoint, run the read-only command with the same private,
+process-only tester-subject input required by the Officer commands:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --inspect-runtime-residue
+```
+
+The only executable state has the canonical TASK-112/TASK-118 replies (IDs
+`-112003`, `-112002`, and `-112001`, all at `2000-01-01T00:00:00Z`) plus exactly
+these two rows: ID `3` is Game/Person `-112001`, null legacy user/member,
+reply `5`, and `2026-08-19T16:33:02.723958Z`; ID `4` has the same ownership,
+reply `1`, and `2026-08-19T16:36:23.695486Z`. Any timestamp, tuple, row count,
+or additional attendance row is drift and stops without mutation.
+
+The Officer state machine can coexist with either empty mobile tables or the
+known TASK-115 mobile history only when its counts are exactly session `1`,
+refresh token `8`, refresh attempt `7`, exchange `1`, and idempotency `2`.
+Every session and child join must belong to the same linked fictional identity
+and Person `-112001`; exchanges must be LINE and idempotency rows must target
+that Person. The operator reads only this ownership metadata, never tokens,
+assertions, attempts, installation identifiers, encrypted payloads, or their
+hashes. Cross-principal, orphaned, malformed, or count-drift history fails
+closed.
+
+With the existing private candidate approval and identity gate, the bounded
+mutation is:
+
+```powershell
+python -m tools.mobile_staging_data --approval C:\private\candidate-approval.json --execute-runtime-residue-repair
+```
+
+One transaction rechecks the full state, deletes only the two full-tuple,
+timestamp-qualified rows, requires rowcount `2`, and postchecks the canonical
+baseline. An already repaired exact state is a zero-delta success. Any uncertain
+result requires another inspection; do not retry with ad-hoc SQL. This repair
+does not establish provenance beyond those task-defined tuples and does not
+touch production, schema, notifications, mobile records, or another Person/Game.
+
 ## Build, candidate, promotion and recovery
 
 There are two separate Owner approvals and cost checkpoints:
