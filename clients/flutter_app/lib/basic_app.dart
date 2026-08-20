@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -317,6 +318,7 @@ class BasicGamesView extends StatelessWidget {
     required this.online,
     required this.lastSyncedAt,
     this.reportCache,
+    this.diagnosticEnabled = true,
   });
   final BasicApi api;
   final Person person;
@@ -324,6 +326,11 @@ class BasicGamesView extends StatelessWidget {
   final bool online;
   final DateTime lastSyncedAt;
   final PrincipalOfficerReportCache? reportCache;
+
+  /// Test injection can disable the diagnostic, but cannot enable it in a
+  /// release build because rendering is always additionally gated by
+  /// [kDebugMode].
+  final bool diagnosticEnabled;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -337,6 +344,9 @@ class BasicGamesView extends StatelessWidget {
         ListTile(
             title: Text(person.displayName),
             subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
+        if (DebugPrincipalProjection.shouldRender(
+            debugBuild: kDebugMode, diagnosticEnabled: diagnosticEnabled))
+          DebugPrincipalProjection(person: person),
         if (person.canReadAttendanceReport)
           ListTile(
             key: const ValueKey('management-report-entry'),
@@ -374,6 +384,37 @@ class BasicGamesView extends StatelessWidget {
                           GameDetailPage(api: api, gameId: game.id)))
                   : null),
       ]));
+}
+
+class DebugPrincipalProjection extends StatelessWidget {
+  const DebugPrincipalProjection({super.key, required this.person});
+
+  final Person person;
+
+  static bool shouldRender(
+          {required bool debugBuild, required bool diagnosticEnabled}) =>
+      debugBuild && diagnosticEnabled;
+
+  static String localizedRole(AccessLevel accessLevel) => switch (accessLevel) {
+        AccessLevel.basic => '一般使用者',
+        AccessLevel.officer => '幹部',
+        AccessLevel.admin => '系統管理者',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final role = localizedRole(person.accessLevel);
+    final reportRead = person.canReadAttendanceReport ? '啟用' : '停用';
+    return Semantics(
+      key: const ValueKey('debug-principal-projection'),
+      label: '偵錯權限投影：$role；報表讀取：$reportRead',
+      child: ListTile(
+        leading: const Icon(Icons.bug_report_outlined),
+        title: Text(role),
+        subtitle: Text('報表讀取：$reportRead'),
+      ),
+    );
+  }
 }
 
 enum DetailViewState {

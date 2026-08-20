@@ -162,6 +162,74 @@ void main() {
     expect(find.text('系統公告'), findsNothing);
   });
 
+  testWidgets('debug projection localizes every role and report-read state',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    final cases = <(AccessLevel, bool, String)>[
+      (AccessLevel.basic, false, '一般使用者'),
+      (AccessLevel.basic, true, '一般使用者'),
+      (AccessLevel.officer, false, '幹部'),
+      (AccessLevel.officer, true, '幹部'),
+      (AccessLevel.admin, false, '系統管理者'),
+      (AccessLevel.admin, true, '系統管理者'),
+    ];
+    for (final (accessLevel, enabled, role) in cases) {
+      await tester.pumpWidget(MaterialApp(
+          home: BasicGamesView(
+              api: api,
+              person: Person('p', 'Visible elsewhere',
+                  enabled ? const ['attendance:report:read'] : const [],
+                  accessLevel: accessLevel),
+              games: const [],
+              online: true,
+              lastSyncedAt: DateTime.utc(2026),
+              diagnosticEnabled: true)));
+      final projection =
+          find.byKey(const ValueKey('debug-principal-projection'));
+      expect(projection, findsOneWidget);
+      expect(
+          tester.getSemantics(projection).label,
+          contains(
+              '偵錯權限投影：$role；報表讀取：${enabled && accessLevel != AccessLevel.basic ? '啟用' : '停用'}'));
+      expect(find.text('attendance:report:read'), findsNothing);
+      expect(find.text('p'), findsNothing);
+    }
+  });
+
+  testWidgets('release-mode hard gate hides projection without changing guard',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    const person = Person('p', 'Officer', ['attendance:report:read'],
+        accessLevel: AccessLevel.officer);
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: person,
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            diagnosticEnabled: false)));
+    expect(
+        find.byKey(const ValueKey('debug-principal-projection')), findsNothing);
+    expect(
+        find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
+  });
+
+  test('release hard gate cannot be overridden by an injected flag', () {
+    expect(
+        DebugPrincipalProjection.shouldRender(
+            debugBuild: false, diagnosticEnabled: true),
+        isFalse);
+    expect(
+        DebugPrincipalProjection.shouldRender(
+            debugBuild: true, diagnosticEnabled: false),
+        isFalse);
+    expect(
+        DebugPrincipalProjection.shouldRender(
+            debugBuild: true, diagnosticEnabled: true),
+        isTrue);
+  });
+
   testWidgets('server report grant exposes only the read-only management route',
       (tester) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
