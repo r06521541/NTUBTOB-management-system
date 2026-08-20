@@ -889,6 +889,16 @@ function Invoke-PrivateAction {
 function Get-FailureClassification {
     param([string]$Message)
     if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -ceq 'Accessibility foreground state is not exact') { return 'DRIFT' }
+    if ($Message -cin @(
+        'Activity inventory failed safely',
+        'Activity inventory size is not bounded',
+        'Current activity inventory is ambiguous',
+        'Current activity inventory is malformed',
+        'Accessibility inventory failed safely',
+        'Accessibility inventory size is not bounded',
+        'Accessibility inventory is malformed'
+    )) { return 'FAILED' }
     if ($Message -match '(?i)(timed out|bounded window|timeout)') { return 'TIMEOUT' }
     if ($Message -match '(?i)(drift|not exact|does not match|unknown|stale|dirty|ambiguous|conflicting|escapes|collision)') { return 'DRIFT' }
     return 'FAILED'
@@ -897,6 +907,18 @@ function Get-FailureClassification {
 function Get-FailureReasonCode {
     param([string]$Message)
     if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -ceq 'Activity inventory failed safely') { return 'ACTIVITY_UNAVAILABLE' }
+    if ($Message -cin @(
+        'Activity inventory size is not bounded',
+        'Current activity inventory is ambiguous',
+        'Current activity inventory is malformed'
+    )) { return 'ACTIVITY_INVALID' }
+    if ($Message -ceq 'Accessibility inventory failed safely') { return 'ACCESSIBILITY_UNAVAILABLE' }
+    if ($Message -cin @(
+        'Accessibility inventory size is not bounded',
+        'Accessibility inventory is malformed'
+    )) { return 'ACCESSIBILITY_INVALID' }
+    if ($Message -ceq 'Accessibility foreground state is not exact') { return 'SEMANTIC_DRIFT' }
     if ($Message -match '(?i)(launcher config|action is unknown|exact action, mode|conflicting options|full accepted commit|config identity|config fields|artifact path is not exact)') {
         return 'CONFIG_INVALID'
     }

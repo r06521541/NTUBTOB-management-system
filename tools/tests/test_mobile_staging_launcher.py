@@ -906,6 +906,12 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
               'Approved toolchain is incomplete',
               'Task launcher lock already exists',
               'OWNER_ACTION_REQUIRED',
+              'Activity inventory failed safely',
+              'Activity inventory size is not bounded',
+              'Current activity inventory is ambiguous',
+              'Accessibility inventory failed safely',
+              'Accessibility inventory is malformed',
+              'Accessibility foreground state is not exact',
               'private-provider-subject-sentinel'
             )
             foreach($diagnosticMessage in $messages){ Write-Output (Get-FailureReasonCode $diagnosticMessage) }
@@ -921,10 +927,113 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 "TOOLCHAIN_UNAVAILABLE",
                 "LOCK_UNAVAILABLE",
                 "OWNER_ACTION_REQUIRED",
+                "ACTIVITY_UNAVAILABLE",
+                "ACTIVITY_INVALID",
+                "ACTIVITY_INVALID",
+                "ACCESSIBILITY_UNAVAILABLE",
+                "ACCESSIBILITY_INVALID",
+                "SEMANTIC_DRIFT",
                 "RUNTIME_FAILED",
             ],
         )
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+
+    def test_governed_status_failures_emit_exact_safe_reason_codes(self):
+        cases = (
+            ("Activity inventory failed safely", "FAILED", "ACTIVITY_UNAVAILABLE"),
+            ("Activity inventory size is not bounded", "FAILED", "ACTIVITY_INVALID"),
+            (
+                "Accessibility inventory failed safely",
+                "FAILED",
+                "ACCESSIBILITY_UNAVAILABLE",
+            ),
+            (
+                "Accessibility inventory is malformed",
+                "FAILED",
+                "ACCESSIBILITY_INVALID",
+            ),
+            (
+                "Accessibility foreground state is not exact",
+                "DRIFT",
+                "SEMANTIC_DRIFT",
+            ),
+        )
+        source = LAUNCHER.read_text(encoding="utf-8")
+        dispatch = (
+            "$details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath "
+            "$ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) "
+            "([bool]$PurgeEvidence)"
+        )
+        self.assertEqual(source.count(dispatch), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (message, classification, reason_code) in enumerate(cases):
+                with self.subTest(reason_code=reason_code):
+                    launcher_copy = Path(directory) / f"launcher-{index}.ps1"
+                    launcher_copy.write_text(
+                        source.replace(dispatch, f"Throw-Safe '{message}'"),
+                        encoding="utf-8",
+                    )
+                    result = subprocess.run(
+                        [
+                            "powershell.exe",
+                            "-NoLogo",
+                            "-NoProfile",
+                            "-NonInteractive",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-File",
+                            str(launcher_copy),
+                            "-Action",
+                            "status",
+                        ],
+                        cwd=ROOT,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=20,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertEqual(len(result.stdout.splitlines()), 1)
+                    envelope = json.loads(result.stdout)
+                    self.assertEqual(envelope["classification"], classification)
+                    self.assertEqual(envelope["details"]["reason_code"], reason_code)
+                    self.assertNotIn(message, result.stdout + result.stderr)
+                    self.assert_safe_output(result)
+
+            sentinel = "private-provider-subject-sentinel"
+            launcher_copy = Path(directory) / "launcher-raw.ps1"
+            launcher_copy.write_text(
+                source.replace(dispatch, f"throw '{sentinel}'"), encoding="utf-8"
+            )
+            result = subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(launcher_copy),
+                    "-Action",
+                    "status",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 1)
+            envelope = json.loads(result.stdout)
+            self.assertEqual(envelope["classification"], "FAILED")
+            self.assertEqual(envelope["details"]["reason_code"], "RUNTIME_FAILED")
+            self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_output_redaction_fallback_is_one_failed_json_and_exit_two(self):
         sentinel = "postgresql://private-user:private-password@private.invalid/staging"

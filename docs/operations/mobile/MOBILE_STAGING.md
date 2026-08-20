@@ -363,6 +363,10 @@ Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
 returns only that stable state and allowlisted counts; duplicate, coexisting,
 missing, malformed, or oversized states fail closed. It never persists or
 returns the hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
+Governed status failures expose only fixed stage codes: `ACTIVITY_UNAVAILABLE`,
+`ACTIVITY_INVALID`, `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, or
+`SEMANTIC_DRIFT`. The first four classify `FAILED`; semantic mismatch classifies
+`DRIFT`. All exit 2, and no exception, command output, XML, or label is included.
 `install` additionally requires `-PreserveSession` and only issues
 `adb install -r` after the absolute package inspector proves the artifact is
 exactly `tw.org.ntubtob.portal` and artifact/installed signers agree. Build
