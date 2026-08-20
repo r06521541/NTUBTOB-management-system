@@ -213,6 +213,35 @@ class PowerShellContractTest(unittest.TestCase):
             self.assertNotIn(str(root), governed.stdout + governed.stderr)
             self.assert_safe_output(governed)
 
+    def test_config_requires_apkanalyzer_under_the_same_android_sdk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            valid = launcher_config()
+            valid_path = root / "same-sdk.json"
+            valid_path.write_text(json.dumps(valid), encoding="utf-8")
+            cross = launcher_config()
+            cross["apkanalyzer_executable"] = (
+                r"E:\other-sdk\cmdline-tools\latest\bin\apkanalyzer.bat"
+            )
+            cross_path = root / "cross-sdk.json"
+            cross_path.write_text(json.dumps(cross), encoding="utf-8")
+            result = self.run_harness(
+                f"""
+                $script:childStarted=$false
+                function Invoke-BoundedProcess {{ $script:childStarted=$true;throw 'must not start' }}
+                $valid=Load-LauncherConfig '{valid_path.as_posix()}'
+                Write-Output ('valid='+$valid.schema_version)
+                try {{ Load-LauncherConfig '{cross_path.as_posix()}';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',child='+$script:childStarted) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("valid=1", result.stdout)
+            self.assertIn(
+                "APK analyzer is outside the approved Android SDK,child=False",
+                result.stdout,
+            )
+            self.assertNotIn("other-sdk", result.stdout + result.stderr)
+
     def test_snapshot_rejects_wrong_sha_dirty_or_attached_head(self):
         cases = (
             ("wrong", "", 1, "Snapshot commit does not match"),
@@ -1929,7 +1958,7 @@ def launcher_config():
         "adb_executable": r"E:\android\platform-tools\adb.exe",
         "emulator_executable": r"E:\android\emulator\emulator.exe",
         "apksigner_executable": r"E:\android\build-tools\apksigner.bat",
-        "apkanalyzer_executable": r"E:\android\cmdline-tools\bin\apkanalyzer.bat",
+        "apkanalyzer_executable": r"E:\android\cmdline-tools\latest\bin\apkanalyzer.bat",
         "keytool_executable": r"E:\jdk\bin\keytool.exe",
         "android_sdk_root": r"E:\android",
         "java_home": r"E:\jdk",

@@ -255,6 +255,13 @@ variables, reject malformed/out-of-root SDK configuration before child start,
 and retain package/signer compatibility and no-disclosure behavior. No real
 launcher or external runtime action was executed for this residual correction.
 
+Official `apkanalyzer` resolves build tools relative to its own SDK. The config
+contract now requires the analyzer's canonical path to be the allowlisted
+`cmdline-tools/latest|<numeric-version>/bin` structure beneath the configured
+Android SDK root. A direct regression proves same-root acceptance and
+cross-SDK rejection before any child action without path disclosure. No real
+launcher or external runtime action was executed for this config correction.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.

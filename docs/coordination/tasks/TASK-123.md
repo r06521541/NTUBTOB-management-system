@@ -103,6 +103,10 @@ actions rather than a hidden multi-step default:
   user PATH cannot win; the launcher does not alter parent environment or
   global configuration, and paths or tool output never enter governed output
   or evidence.
+- The configured `apkanalyzer` must resolve beneath that exact Android SDK as
+  `cmdline-tools/latest|<numeric-version>/bin/apkanalyzer.bat`; a cross-SDK or
+  structurally unexpected analyzer fails during config loading before any
+  child action.
 - Redacted evidence may contain only accepted commit, mode, package/version,
   artifact SHA-256, public signer fingerprint, AVD/API/ABI versions, bounded
   result classification and allowlisted static labels/counts.
@@ -159,6 +163,8 @@ actions rather than a hidden multi-step default:
   Windows `System32`, both Android SDK variables match the approved E-drive
   root, invalid Java/SDK/`SystemRoot` fails before child start, and child output
   or paths are not disclosed.
+- Prove a same-root allowlisted analyzer config loads and a cross-SDK analyzer
+  fails before child execution without disclosing either path.
 - Run affected Python tests, PowerShell parser/static checks where available,
   py_compile, Black/isort for Python test files, `git diff --check`, scope and
   sensitive-string scans. Hosted CI supplies final Python 3.10 evidence.

@@ -423,6 +423,12 @@ This prevents stale Java or SDK selection for `apkanalyzer` or `apksigner`
 without changing parent environment or global configuration, and no configured
 path or child output is emitted.
 
+Configuration also binds `apkanalyzer` to the same approved SDK root. Its
+canonical location must match
+`cmdline-tools/latest|<numeric-version>/bin/apkanalyzer.bat` beneath that root;
+cross-SDK or unexpected layouts fail during config loading before any child
+tool starts, with no path in governed output.
+
 Owner-private actions are one interactive invocation only:
 
 ```powershell

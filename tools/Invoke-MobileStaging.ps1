@@ -155,6 +155,19 @@ function Load-LauncherConfig {
     foreach ($pathField in @('git_executable')) {
         if (-not [System.IO.Path]::IsPathRooted([string]$config.$pathField)) { Throw-Safe 'System executable path must be absolute' }
     }
+    try {
+        $configuredSdkRoot = [System.IO.Path]::GetFullPath([string]$config.android_sdk_root).TrimEnd('\')
+        $configuredAnalyzer = [System.IO.Path]::GetFullPath([string]$config.apkanalyzer_executable)
+    }
+    catch { Throw-Safe 'APK analyzer is outside the approved Android SDK' }
+    $analyzerPrefix = $configuredSdkRoot + '\cmdline-tools\'
+    if (-not $configuredAnalyzer.StartsWith($analyzerPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Throw-Safe 'APK analyzer is outside the approved Android SDK'
+    }
+    $analyzerRelativePath = $configuredAnalyzer.Substring($analyzerPrefix.Length)
+    if ($analyzerRelativePath -notmatch '^(?:latest|[0-9]+(?:\.[0-9]+)*)\\bin\\apkanalyzer\.bat$') {
+        Throw-Safe 'APK analyzer is outside the approved Android SDK'
+    }
     if ([string]$config.evidence_root -cne $script:TaskEvidenceRoot -or [string]$config.temp_root -cne $script:TaskTempRoot) {
         Throw-Safe 'Evidence and temp roots are not task-owned'
     }
