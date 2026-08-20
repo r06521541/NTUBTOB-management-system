@@ -3,7 +3,7 @@
 task_type: delivery
 delivery_group: mobile-staging-launch-console
 requires_independent_pr: true
-status: ready_for_hosted_ci
+status: changes_requested
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
 shared_branch: codex/mobile-staging-launcher
 implementation_branch: codex/task-123-mobile-staging-launcher

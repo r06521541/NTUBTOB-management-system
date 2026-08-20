@@ -1,12 +1,12 @@
 active_task: TASK-123
-status: ready_for_hosted_ci
-next_actor: work
+status: changes_requested
+next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: dd102214a696cda374d63eaf24f67fc522385d8b
+head_commit: 584cddafed660406de16703b55a8e2a1fb6ab9ec
 
 updated_by: work
-updated_at: 2026-08-20T16:00:00+08:00
+updated_at: 2026-08-20T16:20:00+08:00
 
 note: >
   TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
@@ -16,9 +16,11 @@ note: >
   a task lock around the complete Owner-private lifecycle. Main independently passed all 26 direct tests and
   fast-forwarded the accepted history. Hosted Black and repository CI are now required before the separately
   authorized staging dogfood. Owner accepted a concise multi-agent throttling proposal; the shortest binding rules
-  now update COLLABORATION while the planning rationale remains non-authoritative. The new PR head must pass hosted
-  CI again before dogfood. Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and
-  observability-contract work remain explicitly deferred.
+  now update COLLABORATION while the planning rationale remains non-authoritative. Hosted CI passed on the new head,
+  but the first routine preflight dogfood found a PowerShell automatic-variable collision in real config loading and
+  no bounded diagnostic reason in failed JSON. The original sole writer must correct both before dogfood resumes.
+  Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work
+  remain explicitly deferred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-123.md
