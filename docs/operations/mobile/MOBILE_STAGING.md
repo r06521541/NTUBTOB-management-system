@@ -626,6 +626,10 @@ The same bounded envelope also retains pre-accessibility terminal reasons:
 `ADB_UNAVAILABLE`, `ADB_INVALID`, `PACKAGE_UNAVAILABLE`, `PACKAGE_INVALID`,
 `ACTIVITY_UNAVAILABLE`, and `ACTIVITY_INVALID`. These stages are never retried
 by the harness; unrecognized codes remain `STATUS_UNAVAILABLE`.
+Status-child transport is also bounded without forwarding child output:
+`STATUS_HOST_UNAVAILABLE`, `STATUS_CHILD_TIMEOUT`, `STATUS_CHILD_STDERR`,
+`STATUS_CHILD_OUTPUT_INVALID`, `STATUS_CHILD_ENVELOPE_INVALID`, or
+`STATUS_CHILD_RESULT_INVALID`. None of these terminal reasons is retried.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting
