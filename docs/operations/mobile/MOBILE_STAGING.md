@@ -622,6 +622,10 @@ unavailable and malformed states retain `ACCESSIBILITY_UNAVAILABLE` and
 `ACCESSIBILITY_INVALID`; exhausted foreground semantic mismatch retains
 `SEMANTIC_DRIFT`. Unknown failures remain `STATUS_UNAVAILABLE`. This distinction
 does not add attempts or authorize a retry.
+The same bounded envelope also retains pre-accessibility terminal reasons:
+`ADB_UNAVAILABLE`, `ADB_INVALID`, `PACKAGE_UNAVAILABLE`, `PACKAGE_INVALID`,
+`ACTIVITY_UNAVAILABLE`, and `ACTIVITY_INVALID`. These stages are never retried
+by the harness; unrecognized codes remain `STATUS_UNAVAILABLE`.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting

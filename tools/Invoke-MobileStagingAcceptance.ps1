@@ -17,6 +17,11 @@ $script:HarnessPackage = 'tw.org.ntubtob.portal'
 $script:HarnessShaPattern = '^[0-9a-f]{40}$'
 $script:HarnessFingerprintPattern = '^[A-F0-9]{64}$'
 $script:HarnessColdLaunchResults = @('running', 'timeout_but_running')
+$script:HarnessTerminalStatusReasons = @(
+    'ADB_UNAVAILABLE', 'ADB_INVALID',
+    'PACKAGE_UNAVAILABLE', 'PACKAGE_INVALID',
+    'ACTIVITY_UNAVAILABLE', 'ACTIVITY_INVALID'
+)
 $script:HarnessSteps = @(
     'await_observation', 'await_login', 'broker_gate', 'grant_intent', 'grant_result',
     'grant_reconcile', 'officer_online', 'offline_observed',
@@ -61,6 +66,8 @@ function New-HarnessEnvelope {
 
 function Get-HarnessFailureClassification {
     param([string]$Message)
+    if ($Message -cin @('ADB_UNAVAILABLE', 'PACKAGE_UNAVAILABLE', 'ACTIVITY_UNAVAILABLE')) { return 'EVIDENCE_GAP' }
+    if ($Message -cin @('ADB_INVALID', 'PACKAGE_INVALID', 'ACTIVITY_INVALID')) { return 'DRIFT' }
     if ($Message -ceq 'Accessibility inventory failed safely') { return 'EVIDENCE_GAP' }
     if ($Message -ceq 'Accessibility inventory is malformed') { return 'EVIDENCE_GAP' }
     if ($Message -ceq 'Accessibility foreground state is not exact') { return 'DRIFT' }
@@ -72,6 +79,7 @@ function Get-HarnessFailureClassification {
 
 function Get-HarnessFailureReasonCode {
     param([string]$Message)
+    if ($Message -cin $script:HarnessTerminalStatusReasons) { return $Message }
     if ($Message -ceq 'Accessibility inventory failed safely') { return 'ACCESSIBILITY_UNAVAILABLE' }
     if ($Message -ceq 'Accessibility inventory is malformed') { return 'ACCESSIBILITY_INVALID' }
     if ($Message -ceq 'Accessibility foreground state is not exact') { return 'SEMANTIC_DRIFT' }
@@ -299,6 +307,9 @@ function Get-MobileAcceptanceStatus {
                 }
                 Throw-HarnessSafe $readinessMessage
             }
+            if ($readinessMessage -cin $script:HarnessTerminalStatusReasons) {
+                Throw-HarnessSafe $readinessMessage
+            }
             Throw-HarnessSafe 'Harness status is unavailable'
         }
     }
@@ -416,6 +427,7 @@ function New-IsolatedLauncherStatusAction {
         [scriptblock]$InvokeBounded,
         [string]$HostExecutable
     )
+    $terminalStatusReasons = @($script:HarnessTerminalStatusReasons)
     return {
         try {
             $arguments = @(
@@ -441,6 +453,7 @@ function New-IsolatedLauncherStatusAction {
             if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'FAILED') {
                 if ($reason -ceq 'ACCESSIBILITY_UNAVAILABLE') { Throw-HarnessSafe 'Accessibility inventory failed safely' }
                 if ($reason -ceq 'ACCESSIBILITY_INVALID') { Throw-HarnessSafe 'Accessibility inventory is malformed' }
+                if ($reason -cin $terminalStatusReasons) { Throw-HarnessSafe $reason }
             }
             if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'DRIFT' -and $reason -ceq 'SEMANTIC_DRIFT') {
                 Throw-HarnessSafe 'Accessibility foreground state is not exact'
@@ -453,6 +466,9 @@ function New-IsolatedLauncherStatusAction {
                 'Accessibility inventory is malformed',
                 'Accessibility foreground state is not exact'
             )) { Throw-HarnessSafe $_.Exception.Message }
+            if ($_.Exception.Message -cin $terminalStatusReasons) {
+                Throw-HarnessSafe $_.Exception.Message
+            }
             Throw-HarnessSafe 'Harness status is unavailable'
         }
         finally {
