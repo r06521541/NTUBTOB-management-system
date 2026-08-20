@@ -20,7 +20,10 @@ $script:HarnessColdLaunchResults = @('running', 'timeout_but_running')
 $script:HarnessTerminalStatusReasons = @(
     'ADB_UNAVAILABLE', 'ADB_INVALID',
     'PACKAGE_UNAVAILABLE', 'PACKAGE_INVALID',
-    'ACTIVITY_UNAVAILABLE', 'ACTIVITY_INVALID'
+    'ACTIVITY_UNAVAILABLE', 'ACTIVITY_INVALID',
+    'STATUS_HOST_UNAVAILABLE', 'STATUS_CHILD_TIMEOUT', 'STATUS_CHILD_STDERR',
+    'STATUS_CHILD_OUTPUT_INVALID', 'STATUS_CHILD_ENVELOPE_INVALID',
+    'STATUS_CHILD_RESULT_INVALID'
 )
 $script:HarnessSteps = @(
     'await_observation', 'await_login', 'broker_gate', 'grant_intent', 'grant_result',
@@ -66,6 +69,12 @@ function New-HarnessEnvelope {
 
 function Get-HarnessFailureClassification {
     param([string]$Message)
+    if ($Message -ceq 'STATUS_CHILD_TIMEOUT') { return 'TIMEOUT' }
+    if ($Message -cin @(
+        'STATUS_HOST_UNAVAILABLE', 'STATUS_CHILD_STDERR',
+        'STATUS_CHILD_OUTPUT_INVALID', 'STATUS_CHILD_ENVELOPE_INVALID',
+        'STATUS_CHILD_RESULT_INVALID'
+    )) { return 'EVIDENCE_GAP' }
     if ($Message -cin @('ADB_UNAVAILABLE', 'PACKAGE_UNAVAILABLE', 'ACTIVITY_UNAVAILABLE')) { return 'EVIDENCE_GAP' }
     if ($Message -cin @('ADB_INVALID', 'PACKAGE_INVALID', 'ACTIVITY_INVALID')) { return 'DRIFT' }
     if ($Message -ceq 'Accessibility inventory failed safely') { return 'EVIDENCE_GAP' }
@@ -436,29 +445,48 @@ function New-IsolatedLauncherStatusAction {
                 '-Commit', $ExpectedCommit, '-ConfigPath', $LauncherConfigPath
             )
             $result = & $InvokeBounded $HostExecutable $arguments 45
-            if ($result.TimedOut -or [string]$result.Stderr -match '\S') { Throw-HarnessSafe 'Harness status is unavailable' }
+            if ($result.TimedOut) { Throw-HarnessSafe 'STATUS_CHILD_TIMEOUT' }
+            if ([string]$result.Stderr -match '\S') { Throw-HarnessSafe 'STATUS_CHILD_STDERR' }
             $raw = [string]$result.Stdout
-            if ($raw.Length -lt 1 -or $raw.Length -gt 4096) { Throw-HarnessSafe 'Harness status is unavailable' }
+            if ($raw.Length -lt 1 -or $raw.Length -gt 4096) { Throw-HarnessSafe 'STATUS_CHILD_OUTPUT_INVALID' }
             $lines = @($raw -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
-            if ($lines.Count -ne 1) { Throw-HarnessSafe 'Harness status is unavailable' }
+            if ($lines.Count -ne 1) { Throw-HarnessSafe 'STATUS_CHILD_OUTPUT_INVALID' }
             try { $envelope = $lines[0] | ConvertFrom-Json }
-            catch { Throw-HarnessSafe 'Harness status is unavailable' }
+            catch { Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID' }
+            if ($null -eq $envelope -or $envelope -isnot [System.Management.Automation.PSCustomObject]) {
+                Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID'
+            }
+            $classificationProperty = $envelope.PSObject.Properties['classification']
+            $detailsProperty = $envelope.PSObject.Properties['details']
+            if ($null -eq $classificationProperty -or $null -eq $detailsProperty) {
+                Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID'
+            }
+            $details = $detailsProperty.Value
+            if ($null -eq $details -or $details -isnot [System.Management.Automation.PSCustomObject]) {
+                Throw-HarnessSafe 'STATUS_CHILD_ENVELOPE_INVALID'
+            }
+            $classification = [string]$classificationProperty.Value
+            $actionProperty = $details.PSObject.Properties['action']
+            $resultProperty = $details.PSObject.Properties['result']
+            $reasonProperty = $details.PSObject.Properties['reason_code']
+            $action = $(if ($null -eq $actionProperty) { '' } else { [string]$actionProperty.Value })
+            $actionResult = $(if ($null -eq $resultProperty) { '' } else { [string]$resultProperty.Value })
+            $reason = $(if ($null -eq $reasonProperty) { '' } else { [string]$reasonProperty.Value })
             if (
                 $result.ExitCode -eq 0 -and
-                [string]$envelope.classification -ceq 'PASS' -and
-                [string]$envelope.details.action -ceq 'status' -and
-                [string]$envelope.details.result -ceq 'observed'
-            ) { return $envelope.details }
-            $reason = [string]$envelope.details.reason_code
-            if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'FAILED') {
+                $classification -ceq 'PASS' -and
+                $action -ceq 'status' -and
+                $actionResult -ceq 'observed'
+            ) { return $details }
+            if ($result.ExitCode -eq 2 -and $classification -ceq 'FAILED') {
                 if ($reason -ceq 'ACCESSIBILITY_UNAVAILABLE') { Throw-HarnessSafe 'Accessibility inventory failed safely' }
                 if ($reason -ceq 'ACCESSIBILITY_INVALID') { Throw-HarnessSafe 'Accessibility inventory is malformed' }
                 if ($reason -cin $terminalStatusReasons) { Throw-HarnessSafe $reason }
             }
-            if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'DRIFT' -and $reason -ceq 'SEMANTIC_DRIFT') {
+            if ($result.ExitCode -eq 2 -and $classification -ceq 'DRIFT' -and $reason -ceq 'SEMANTIC_DRIFT') {
                 Throw-HarnessSafe 'Accessibility foreground state is not exact'
             }
-            Throw-HarnessSafe 'Harness status is unavailable'
+            Throw-HarnessSafe 'STATUS_CHILD_RESULT_INVALID'
         }
         catch {
             if ($_.Exception.Message -cin @(
@@ -475,6 +503,7 @@ function New-IsolatedLauncherStatusAction {
             $raw = $null
             $lines = $null
             $envelope = $null
+            $details = $null
             $arguments = $null
         }
     }.GetNewClosure()
@@ -505,7 +534,7 @@ function New-MobileAcceptanceDependencies {
     if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) {
         $hostExecutable = Join-Path $PSHOME 'pwsh.exe'
     }
-    if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) { Throw-HarnessSafe 'Harness status is unavailable' }
+    if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) { Throw-HarnessSafe 'STATUS_HOST_UNAVAILABLE' }
     $statusAction = New-IsolatedLauncherStatusAction $launcherPath $SelectedMode $ExpectedCommit $LauncherConfigPath $launcherCommands.InvokeBounded $hostExecutable
     return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands $statusAction
 }

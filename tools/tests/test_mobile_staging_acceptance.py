@@ -194,7 +194,7 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertEqual(payload["first"], "observed")
         self.assertEqual(payload["second"], "observed")
         self.assertEqual(payload["recoverable"], "Accessibility inventory is malformed")
-        self.assertEqual(payload["unknown"], "Harness status is unavailable")
+        self.assertEqual(payload["unknown"], "STATUS_CHILD_STDERR")
         self.assertEqual(payload["calls"], 4)
         self.assertIn("C:/powershell.exe|-NoLogo|-NoProfile|-NonInteractive", payload["argv"])
         self.assertIn(f"-File|C:/launcher.ps1|-Action|status|-Mode|staging|-Commit|{FULL_SHA}", payload["argv"])
@@ -248,6 +248,95 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                     },
                 )
                 self.assertNotIn("must not wait", result.stdout + result.stderr)
+
+    def test_status_child_transport_reasons_are_bounded_without_disclosure(self):
+        sentinel = "private-provider-subject-sentinel"
+        cases = (
+            ("$true", "0", "''", "''", "STATUS_CHILD_TIMEOUT", "TIMEOUT"),
+            ("$false", "0", "'{}'", f"'{sentinel}'", "STATUS_CHILD_STDERR", "EVIDENCE_GAP"),
+            ("$false", "0", "''", "''", "STATUS_CHILD_OUTPUT_INVALID", "EVIDENCE_GAP"),
+            ("$false", "0", "'not-json'", "''", "STATUS_CHILD_ENVELOPE_INVALID", "EVIDENCE_GAP"),
+            (
+                "$false",
+                "2",
+                "'{\"classification\":\"FAILED\",\"details\":{\"reason_code\":\"RUNTIME_FAILED\"}}'",
+                "''",
+                "STATUS_CHILD_RESULT_INVALID",
+                "EVIDENCE_GAP",
+            ),
+        )
+        for timed_out, exit_code, stdout, stderr, reason, classification in cases:
+            with self.subTest(reason=reason):
+                result = self.run_harness(
+                    f"""
+                    $script:attempts=0
+                    $invoke={{param($file,$arguments,$timeout)
+                        $script:attempts++
+                        return [pscustomobject]@{{TimedOut={timed_out};ExitCode={exit_code};Stdout={stdout};Stderr={stderr}}}
+                    }}
+                    $status=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invoke 'C:/powershell.exe'
+                    try {{Get-MobileAcceptanceStatus -InvokeStatus {{& $status}} -Wait {{throw 'must not wait'}}|Out-Null;$message='unexpected'}}
+                    catch {{$message=$_.Exception.Message}}
+                    [pscustomobject]@{{message=$message;classification=Get-HarnessFailureClassification $message;reason=Get-HarnessFailureReasonCode $message;attempts=$script:attempts}}|ConvertTo-Json -Compress
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    json.loads(result.stdout),
+                    {"message": reason, "classification": classification, "reason": reason, "attempts": 1},
+                )
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+        malformed_envelopes = (
+            "'{}'",
+            "'null'",
+            "'42'",
+            "'[]'",
+            "'{\"classification\":\"FAILED\"}'",
+            f"'{{\"classification\":\"FAILED\",\"details\":\"{sentinel}\"}}'",
+        )
+        for stdout in malformed_envelopes:
+            with self.subTest(malformed_envelope=stdout):
+                result = self.run_harness(
+                    f"""
+                    $script:attempts=0
+                    $invoke={{param($file,$arguments,$timeout)
+                        $script:attempts++
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=2;Stdout={stdout};Stderr=''}}
+                    }}
+                    $status=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invoke 'C:/powershell.exe'
+                    try {{Get-MobileAcceptanceStatus -InvokeStatus {{& $status}} -Wait {{throw 'must not wait'}}|Out-Null;$message='unexpected'}}
+                    catch {{$message=$_.Exception.Message}}
+                    $classification=Get-HarnessFailureClassification $message
+                    $reason=Get-HarnessFailureReasonCode $message
+                    Write-HarnessJson (New-HarnessEnvelope 'basic-authorization' $classification 'none' 'await_observation' 'failed' $reason)
+                    exit 2
+                    """
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stderr, "")
+                self.assertEqual(len(result.stdout.splitlines()), 1)
+                envelope = json.loads(result.stdout)
+                self.assertEqual(envelope["classification"], "EVIDENCE_GAP")
+                self.assertEqual(envelope["details"]["reason_code"], "STATUS_CHILD_ENVELOPE_INVALID")
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+        source = HARNESS.read_text(encoding="utf-8")
+        self.assertEqual(
+            source.count(
+                "if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) { "
+                "Throw-HarnessSafe 'STATUS_HOST_UNAVAILABLE' }"
+            ),
+            1,
+        )
+        self.assertEqual(
+            "EVIDENCE_GAP",
+            json.loads(
+                self.run_harness(
+                    "[pscustomobject]@{classification=Get-HarnessFailureClassification "
+                    "'STATUS_HOST_UNAVAILABLE';reason=Get-HarnessFailureReasonCode "
+                    "'STATUS_HOST_UNAVAILABLE'}|ConvertTo-Json -Compress"
+                ).stdout
+            )["classification"],
+        )
 
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
