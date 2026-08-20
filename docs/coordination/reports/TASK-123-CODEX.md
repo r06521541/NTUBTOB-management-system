@@ -67,5 +67,11 @@ Owner-private action was run.
 
 ## Handoff
 
-Implementation commit and branch HEAD are recorded in the formal repository
-handoff after commit. Main Work owns integration, hosted CI, PR, and merge.
+- Branch: `codex/task-123-mobile-staging-launcher`
+- Base: `20f393778a9010ac52ad9c8935f3992d72ce06a0`
+- Implementation commit: `3998b9681595b503b6d9b12eb1778d8ac51ccfcc`
+- External side effects: none; repository-only tests used mocked executables.
+- Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
+  hosted Black/Python 3.10 remain Main Work/final CI evidence.
+
+Main Work owns integration, hosted CI, PR, and merge.
