@@ -72,3 +72,37 @@ local package cache via `pub get --offline`. No app network, runtime, emulator,
 login, staging, or application-cache mutation was performed. No release
 artifact was built; release absence is covered by the hard-gate contract test,
 not an artifact negative scan.
+
+## Producer package 3 delta: authoritative own-reply observability
+
+- Base: `ef5d9d47f8cc71ee0d34f187df51c75d3f1f52e8`
+- Branch: `codex/task-124-report-state`
+- Scope: bounded authoritative attendance own-reply observability only
+
+Game detail now keeps local chip selection separate from the bounded
+authoritative reply and its mutually exclusive source. A successful fresh
+attendance GET records `fresh_server_get`; a successful mutation followed by
+the existing attendance readback records `mutation_readback`. The projection
+uses only the canonical reply vocabulary. Missing or conflicting provenance,
+a null reply, a non-ready view, pending or uncertain mutation, cached/offline
+state, and direct injection all fail closed without an authoritative claim.
+
+The existing submit, reconcile, idempotency, capability, and navigation
+behavior is unchanged. Rendering remains hard-gated by
+`kDebugMode && diagnosticEnabled`; injection can disable diagnostics but cannot
+enable them in release. The projection contains no person, game, row, response
+body, idempotency key, token, cache key, or storage material.
+
+Verification delta:
+
+- Tests-first red run failed on the intentionally absent projection API.
+- `flutter test test/basic_app_test.dart --no-pub`: passed, 41 tests.
+- `flutter analyze --no-pub`: passed with `No issues found`.
+- `flutter test --no-pub`: passed once across packages 2 and 3, all 120 tests.
+- `dart format` was limited to the two owned Dart files.
+
+Verification used the existing Flutter 3.47.0 / Dart 3.13.0 toolchain and
+local package cache. No app network, runtime, emulator, login, staging, or
+application-cache mutation was performed. No release artifact was built;
+release absence is covered by the hard-gate contract test, not an artifact
+negative scan.

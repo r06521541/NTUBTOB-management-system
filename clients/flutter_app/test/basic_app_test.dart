@@ -38,9 +38,9 @@ Map<String, dynamic> gameJson() => {
       'away_team': 'Away'
     };
 
-Map<String, dynamic> attendanceJson() => {
+Map<String, dynamic> attendanceJson({String? ownReply = 'undecided'}) => {
       'game_id': 'g',
-      'own_reply': 'undecided',
+      'own_reply': ownReply,
       'replied': [
         {
           'person_id': 'p2',
@@ -401,6 +401,58 @@ void main() {
     }
   });
 
+  testWidgets('fresh GET projects every canonical authoritative own reply',
+      (tester) async {
+    for (final reply in AttendanceReply.values) {
+      final transport = QueueTransport()
+        ..responses.addAll([
+          ApiResponse(200, gameJson()),
+          ApiResponse(200, attendanceJson(ownReply: reply.wire)),
+        ]);
+      final api = await apiFor(transport, MemoryStore());
+      await tester.pumpWidget(MaterialApp(
+          home: GameDetailPage(
+              key: ValueKey('detail-${reply.wire}'), api: api, gameId: 'g')));
+      await tester.pumpAndSettle();
+
+      final projection = find
+          .byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+      expect(projection, findsOneWidget);
+      expect(
+        tester.widget<Semantics>(projection).properties.label,
+        '偵錯權威出席回覆：${reply.wire}；來源：fresh_server_get',
+      );
+    }
+  });
+
+  testWidgets('local chip selection does not change authoritative projection',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester
+        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('reply-attending')));
+    await tester.pump();
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    expect(
+      tester.widget<Semantics>(projection).properties.label,
+      '偵錯權威出席回覆：undecided；來源：fresh_server_get',
+    );
+    expect(
+      tester
+          .widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
+          .selected,
+      isTrue,
+    );
+  });
+
   testWidgets(
       'successful reply applies authoritative own reply over local selection',
       (tester) async {
@@ -436,6 +488,12 @@ void main() {
             .selected,
         isTrue);
     expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    expect(
+      tester.widget<Semantics>(projection).properties.label,
+      '偵錯權威出席回覆：not_attending；來源：mutation_readback',
+    );
   });
 
   testWidgets('uncertain conflicting reply has recognizable UX',
@@ -460,6 +518,10 @@ void main() {
     final uncertain = find.byKey(const ValueKey('mutation-uncertain'));
     expect(uncertain, findsOneWidget);
     expect(tester.getSemantics(uncertain).label, contains('回覆結果待確認'));
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
   });
 
   testWidgets('PUT Network ambiguity displays uncertain instead of error',
@@ -480,6 +542,10 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('mutation-uncertain')), findsOneWidget);
     expect(find.byKey(const ValueKey('mutation-error')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
     expect(
         transport.calls.map((call) => call.$1), ['GET', 'GET', 'PUT', 'GET']);
   });
@@ -503,11 +569,125 @@ void main() {
     await tester.tap(find.text('送出回覆'));
     await tester.pump();
     expect(find.text('送出中'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
     expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
         isNull);
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.text('送出回覆'), findsOneWidget);
+    expect(
+      tester
+          .widget<Semantics>(find.byKey(
+              const ValueKey('debug-authoritative-own-reply-projection')))
+          .properties
+          .label,
+      '偵錯權威出席回覆：undecided；來源：mutation_readback',
+    );
+  });
+
+  test('authoritative reply resolver fails closed', () {
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: AttendanceReply.attending,
+        detailReady: true,
+        freshServerGet: false,
+        mutationReadback: false,
+      ),
+      isNull,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: AttendanceReply.attending,
+        detailReady: true,
+        freshServerGet: true,
+        mutationReadback: true,
+      ),
+      isNull,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: AttendanceReply.attending,
+        detailReady: false,
+        freshServerGet: true,
+        mutationReadback: false,
+      ),
+      isNull,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.canonicalReply(
+        reply: null,
+        detailReady: true,
+        freshServerGet: true,
+        mutationReadback: false,
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('reply diagnostic gate and output exclude sensitive material',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson(ownReply: 'attending')),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: GameDetailPage(
+        api: api,
+        gameId: 'sensitive-game-id',
+        diagnosticEnabled: false,
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
+      findsNothing,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+      ),
+      isFalse,
+    );
+    expect(
+      DebugAuthoritativeOwnReplyProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
+
+    final visibleTransport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson(ownReply: 'attending')),
+      ]);
+    await tester.pumpWidget(MaterialApp(
+      home: GameDetailPage(
+        api: await apiFor(visibleTransport, MemoryStore()),
+        gameId: 'g',
+      ),
+    ));
+    await tester.pumpAndSettle();
+    final projection =
+        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    final label = tester.widget<Semantics>(projection).properties.label!;
+    for (final prohibited in [
+      'sensitive-game-id',
+      'p2',
+      '已回覆隊員',
+      'response_body',
+      'same-key-value-1234',
+      'access',
+      'mutation:install:g',
+    ]) {
+      expect(label, isNot(contains(prohibited)));
+    }
   });
 
   testWidgets('canonical mutation error has fail-closed UX', (tester) async {

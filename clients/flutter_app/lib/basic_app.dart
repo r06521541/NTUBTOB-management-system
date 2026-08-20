@@ -452,10 +452,18 @@ enum DetailViewState {
   sessionExpired
 }
 
+enum AuthoritativeOwnReplySource { freshServerGet, mutationReadback }
+
 class GameDetailPage extends StatefulWidget {
-  const GameDetailPage({super.key, required this.api, required this.gameId});
+  const GameDetailPage({
+    super.key,
+    required this.api,
+    required this.gameId,
+    this.diagnosticEnabled = true,
+  });
   final BasicApi api;
   final String gameId;
+  final bool diagnosticEnabled;
   @override
   State<GameDetailPage> createState() => _GameDetailPageState();
 }
@@ -465,6 +473,8 @@ class _GameDetailPageState extends State<GameDetailPage> {
   Game? game;
   AttendanceSnapshot? attendance;
   AttendanceReply? selected;
+  AttendanceReply? authoritativeOwnReply;
+  AuthoritativeOwnReplySource? authoritativeOwnReplySource;
 
   @override
   void initState() {
@@ -481,6 +491,10 @@ class _GameDetailPageState extends State<GameDetailPage> {
         game = loadedGame;
         attendance = loadedAttendance;
         selected = loadedAttendance.ownReply;
+        authoritativeOwnReply = loadedAttendance.ownReply;
+        authoritativeOwnReplySource = loadedAttendance.ownReply == null
+            ? null
+            : AuthoritativeOwnReplySource.freshServerGet;
         state = DetailViewState.ready;
       });
     } on Object catch (error) {
@@ -498,16 +512,28 @@ class _GameDetailPageState extends State<GameDetailPage> {
       setState(() {
         attendance = loaded;
         selected = loaded.ownReply;
+        authoritativeOwnReply = loaded.ownReply;
+        authoritativeOwnReplySource = loaded.ownReply == null
+            ? null
+            : AuthoritativeOwnReplySource.mutationReadback;
         state = DetailViewState.ready;
       });
     } on MutationPendingException catch (error) {
       if (!mounted) return;
       setState(() {
         selected = error.reply;
+        authoritativeOwnReply = null;
+        authoritativeOwnReplySource = null;
         state = DetailViewState.uncertain;
       });
     } on MutationUncertainException {
-      if (mounted) setState(() => state = DetailViewState.uncertain);
+      if (mounted) {
+        setState(() {
+          authoritativeOwnReply = null;
+          authoritativeOwnReplySource = null;
+          state = DetailViewState.uncertain;
+        });
+      }
     } on Object catch (error) {
       _fail(error, mutation: true);
     }
@@ -515,16 +541,20 @@ class _GameDetailPageState extends State<GameDetailPage> {
 
   void _fail(Object error, {bool mutation = false}) {
     if (!mounted) return;
-    setState(() => state = error is SessionExpiredException ||
-            error is ApiError &&
-                (error.code == ApiErrorCode.sessionExpired ||
-                    error.code == ApiErrorCode.unauthenticated)
-        ? DetailViewState.sessionExpired
-        : error is ContractException
-            ? DetailViewState.contractError
-            : mutation
-                ? DetailViewState.mutationError
-                : DetailViewState.error);
+    setState(() {
+      authoritativeOwnReply = null;
+      authoritativeOwnReplySource = null;
+      state = error is SessionExpiredException ||
+              error is ApiError &&
+                  (error.code == ApiErrorCode.sessionExpired ||
+                      error.code == ApiErrorCode.unauthenticated)
+          ? DetailViewState.sessionExpired
+          : error is ContractException
+              ? DetailViewState.contractError
+              : mutation
+                  ? DetailViewState.mutationError
+                  : DetailViewState.error;
+    });
   }
 
   @override
@@ -548,40 +578,105 @@ class _GameDetailPageState extends State<GameDetailPage> {
         },
       );
 
-  Widget _content() => ListView(padding: const EdgeInsets.all(16), children: [
-        Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
-            style: Theme.of(context).textTheme.titleLarge),
-        Text(game!.startAt.toIso8601String()),
-        const SizedBox(height: 16),
-        const Text('我的出席回覆'),
-        if (state == DetailViewState.uncertain)
-          Semantics(
-              key: const ValueKey('mutation-uncertain'),
-              label: '回覆結果待確認，已保留同一操作識別碼',
-              liveRegion: true,
-              child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
-        Wrap(
-            spacing: 8,
-            children: AttendanceReply.values
-                .map((reply) => ChoiceChip(
-                    key: ValueKey('reply-${reply.wire}'),
-                    label: Text(_replyLabel(reply)),
-                    selected: selected == reply,
-                    onSelected: state == DetailViewState.mutating
-                        ? null
-                        : (_) => setState(() => selected = reply)))
-                .toList()),
-        FilledButton(
-            onPressed: state == DetailViewState.mutating ? null : _submit,
-            child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
-        const Divider(),
-        const Text('已回覆隊員'),
-        for (final reply in attendance!.replied)
-          ListTile(
-              title: Text(reply.displayName),
-              subtitle: Text(
-                  '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
-      ]);
+  Widget _content() {
+    final observation = DebugAuthoritativeOwnReplyProjection.canonicalReply(
+      reply: authoritativeOwnReply,
+      detailReady: state == DetailViewState.ready,
+      freshServerGet: authoritativeOwnReplySource ==
+          AuthoritativeOwnReplySource.freshServerGet,
+      mutationReadback: authoritativeOwnReplySource ==
+          AuthoritativeOwnReplySource.mutationReadback,
+    );
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
+          style: Theme.of(context).textTheme.titleLarge),
+      Text(game!.startAt.toIso8601String()),
+      const SizedBox(height: 16),
+      if (observation != null &&
+          DebugAuthoritativeOwnReplyProjection.shouldRender(
+            debugBuild: kDebugMode,
+            diagnosticEnabled: widget.diagnosticEnabled,
+          ))
+        DebugAuthoritativeOwnReplyProjection(
+          reply: observation.$1,
+          source: observation.$2,
+        ),
+      const Text('我的出席回覆'),
+      if (state == DetailViewState.uncertain)
+        Semantics(
+            key: const ValueKey('mutation-uncertain'),
+            label: '回覆結果待確認，已保留同一操作識別碼',
+            liveRegion: true,
+            child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
+      Wrap(
+          spacing: 8,
+          children: AttendanceReply.values
+              .map((reply) => ChoiceChip(
+                  key: ValueKey('reply-${reply.wire}'),
+                  label: Text(_replyLabel(reply)),
+                  selected: selected == reply,
+                  onSelected: state == DetailViewState.mutating
+                      ? null
+                      : (_) => setState(() => selected = reply)))
+              .toList()),
+      FilledButton(
+          onPressed: state == DetailViewState.mutating ? null : _submit,
+          child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
+      const Divider(),
+      const Text('已回覆隊員'),
+      for (final reply in attendance!.replied)
+        ListTile(
+            title: Text(reply.displayName),
+            subtitle: Text(
+                '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
+    ]);
+  }
+}
+
+class DebugAuthoritativeOwnReplyProjection extends StatelessWidget {
+  const DebugAuthoritativeOwnReplyProjection({
+    super.key,
+    required this.reply,
+    required this.source,
+  });
+
+  final AttendanceReply reply;
+  final AuthoritativeOwnReplySource source;
+
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+  }) =>
+      debugBuild && diagnosticEnabled;
+
+  static (AttendanceReply, AuthoritativeOwnReplySource)? canonicalReply({
+    required AttendanceReply? reply,
+    required bool detailReady,
+    required bool freshServerGet,
+    required bool mutationReadback,
+  }) {
+    if (!detailReady || reply == null) return null;
+    final sources = <AuthoritativeOwnReplySource>[
+      if (freshServerGet) AuthoritativeOwnReplySource.freshServerGet,
+      if (mutationReadback) AuthoritativeOwnReplySource.mutationReadback,
+    ];
+    return sources.length == 1 ? (reply, sources.single) : null;
+  }
+
+  String get _sourceToken => switch (source) {
+        AuthoritativeOwnReplySource.freshServerGet => 'fresh_server_get',
+        AuthoritativeOwnReplySource.mutationReadback => 'mutation_readback',
+      };
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        key: const ValueKey('debug-authoritative-own-reply-projection'),
+        label: '偵錯權威出席回覆：${reply.wire}；來源：$_sourceToken',
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Text('${reply.wire}；$_sourceToken'),
+        ),
+      );
 }
 
 String _replyLabel(AttendanceReply reply) => switch (reply) {
