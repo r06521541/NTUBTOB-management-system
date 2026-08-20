@@ -152,6 +152,15 @@ This terminal evidence does not claim Owner-private inspect/grant/restore
 dogfood, nor build, install, or cold-launch scenario completion. Hosted CI is
 still required. Codex performed no runtime action while recording this evidence.
 
+Subsequent TASK-129 dogfood showed that a fresh PowerShell process could observe
+the first API36 accessibility inventory before it settled, while a later call in
+the same process succeeded. The launcher now performs a bounded local readiness
+check: at most three in-process observations, two seconds apart, and only for
+unavailable or malformed accessibility inventory. Semantic drift, size errors,
+and unknown exceptions still stop immediately. Direct regressions cover
+transient convergence, exhaustion, non-retryable drift, and unknown-error
+containment. No runtime action was performed for this correction.
+
 ## Signer-home correction
 
 Subsequent controlled dogfood reached build and failed closed before Flutter

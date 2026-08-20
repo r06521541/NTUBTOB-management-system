@@ -1570,6 +1570,88 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     self.assertNotIn(sentinel, result.stdout + result.stderr)
                     self.assert_safe_output(result)
 
+    def test_accessibility_readiness_retries_only_transient_inventory_states(self):
+        cases = (
+            (
+                "@('Accessibility inventory failed safely',"
+                "'Accessibility inventory is malformed','success')",
+                "success",
+                3,
+                2,
+            ),
+            (
+                "@('Accessibility inventory is malformed',"
+                "'Accessibility inventory is malformed',"
+                "'Accessibility inventory is malformed')",
+                "Accessibility inventory is malformed",
+                3,
+                2,
+            ),
+            (
+                "@('Accessibility foreground state is not exact')",
+                "Accessibility foreground state is not exact",
+                1,
+                0,
+            ),
+            (
+                "@('private-provider-subject-sentinel')",
+                "unknown",
+                1,
+                0,
+            ),
+        )
+        for sequence, expected, attempts, waits in cases:
+            with self.subTest(expected=expected):
+                result = self.run_harness(
+                    f"""
+                    $script:attempts=0
+                    $script:waits=0
+                    $script:sequence={sequence}
+                    function Start-Sleep {{ param([int]$Seconds) $script:waits++ }}
+                    function Get-AllowlistedUiCounts {{
+                        $value=$script:sequence[$script:attempts]
+                        $script:attempts++
+                        if ($value -eq 'success') {{ return 'success' }}
+                        throw $value
+                    }}
+                    try {{
+                        $value=Get-ReadyAllowlistedUiCounts ([pscustomobject]@{{}})
+                    }} catch {{
+                        $value=if ($_.Exception.Message -eq 'private-provider-subject-sentinel') {{
+                            'unknown'
+                        }} else {{
+                            $_.Exception.Message
+                        }}
+                    }}
+                    Write-Output ($value+',attempts='+$script:attempts+',waits='+$script:waits)
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    result.stdout.strip(),
+                    f"{expected},attempts={attempts},waits={waits}",
+                )
+                self.assertNotIn(
+                    "private-provider-subject-sentinel",
+                    result.stdout + result.stderr,
+                )
+
+    def test_status_uses_local_accessibility_readiness_and_sanitizes_unknown(self):
+        sentinel = "private-provider-subject-sentinel"
+        result = self.run_harness(
+            f"""
+            function Assert-OnlyApprovedSerial {{}}
+            function Get-PackageState {{ return 'installed' }}
+            function Get-CurrentActivity {{ return 'portal' }}
+            function Get-ReadyAllowlistedUiCounts {{ throw '{sentinel}' }}
+            try {{ Invoke-Status ([pscustomobject]@{{}}); exit 9 }}
+            catch {{ Write-Output $_.Exception.Message }}
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "Accessibility inventory failed safely")
+        self.assertNotIn(sentinel, result.stdout + result.stderr)
+
     def test_full_entrypoint_status_success_states_are_governed_passes(self):
         cases = (
             (
