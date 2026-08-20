@@ -2,7 +2,7 @@
 
 ## Decision
 
-Accepted for hosted CI and controlled staging dogfood.
+Changes requested before controlled staging dogfood.
 
 ## Findings
 
@@ -28,8 +28,11 @@ Accepted for hosted CI and controlled staging dogfood.
   checks passed. Windows Black remained boundedly stalled and is not claimed.
 - Main Work: authoritative ancestry and exact writer scope passed; independent
   bundled-Python rerun passed all 26 direct tests in 23.237 seconds.
-- Flutter Domain: accepted the corrected implementation and all eight safety
-  gates by read-only file-by-file review. No residual finding remains.
+- Flutter Domain: targeted review accepted the config-variable and bounded
+  reason-code corrections, but found that the output-redaction fallback can
+  emit `FAILED` while preserving an earlier successful process exit. The
+  fallback must return exit code 2, emit exactly one safe JSON result and have
+  a direct no-disclosure regression. Previously accepted gates remain valid.
 
 ## Deferred
 
