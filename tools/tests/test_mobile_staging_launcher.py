@@ -276,7 +276,7 @@ class PowerShellContractTest(unittest.TestCase):
             function Assert-OnlyApprovedSerial {{ param($Config) }}
             function Get-PackageState {{ param($Config) return 'installed' }}
             function Get-CurrentActivity {{ param($Config) return 'portal' }}
-            function Get-AllowlistedUiCounts {{ param($Config) return [ordered]@{{semantic_state='officer_report_enabled';login=0;basic=0;officer=1;report_enabled=1;report_disabled=0}} }}
+            function Get-AllowlistedUiCounts {{ param($Config) return [ordered]@{{semantic_state='officer_report_enabled';provenance='fresh_server';login=0;basic=0;officer=1;report_enabled=1;report_disabled=0}} }}
             $config=[pscustomobject]@{{
                 flutter_executable='{LAUNCHER.as_posix()}';adb_executable='{LAUNCHER.as_posix()}';
                 emulator_executable='{LAUNCHER.as_posix()}';apksigner_executable='{LAUNCHER.as_posix()}';
@@ -295,15 +295,15 @@ class PowerShellContractTest(unittest.TestCase):
     def test_status_classifies_only_allowlisted_accessibility_counts(self):
         cases = (
             (
-                "偵錯權限投影：一般使用者；報表讀取：停用",
+                "偵錯權限投影：一般使用者；報表讀取：停用；來源：fresh_server（伺服器最新驗證）",
                 "state=basic,login=0,basic=1,officer=0,enabled=0,disabled=1",
             ),
             (
-                "偵錯權限投影：幹部；報表讀取：啟用",
+                "偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）",
                 "state=officer_report_enabled,login=0,basic=0,officer=1,enabled=1,disabled=0",
             ),
             (
-                "偵錯權限投影：幹部；報表讀取：停用",
+                "偵錯權限投影：幹部；報表讀取：停用；來源：fresh_server（伺服器最新驗證）",
                 "state=officer_report_disabled,login=0,basic=0,officer=1,enabled=0,disabled=1",
             ),
         )
@@ -343,7 +343,7 @@ class PowerShellContractTest(unittest.TestCase):
             (
                 '<hierarchy><node package="tw.org.ntubtob.portal" class="android.widget.Button" '
                 'content-desc="LINE 登入" enabled="true" clickable="true"/>'
-                '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/></hierarchy>',
+                '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/></hierarchy>',
                 "Accessibility foreground state is not exact",
             ),
             (
@@ -407,7 +407,7 @@ class PowerShellContractTest(unittest.TestCase):
         invalid_nodes = (
             exact_button + exact_button,
             exact_button
-            + '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/>',
+            + '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/>',
             exact_button.replace('tw.org.ntubtob.portal', 'com.example.other'),
             exact_button.replace('android.widget.Button', 'android.view.View'),
             exact_button.replace('enabled="true"', 'enabled="false"'),
@@ -428,6 +428,77 @@ class PowerShellContractTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn("Accessibility foreground state is not exact", result.stdout)
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_principal_provenance_matrix_is_bounded_and_non_authoritative(self):
+        sentinel = "private-provider-subject-sentinel"
+        cases = (
+            ("一般使用者", "停用", "fresh_server", "伺服器最新驗證", "basic", "fresh_server"),
+            ("幹部", "啟用", "fresh_server", "伺服器最新驗證", "officer_report_enabled", "fresh_server"),
+            ("幹部", "停用", "fresh_server", "伺服器最新驗證", "officer_report_disabled", "fresh_server"),
+            ("一般使用者", "停用", "offline_cache", "離線快取，非權威", "basic_non_authoritative", "offline_cache"),
+            ("幹部", "啟用", "unknown", "來源未確認，非權威", "officer_report_enabled_non_authoritative", "unknown"),
+        )
+        for role, report, token, label, expected_state, expected_provenance in cases:
+            with self.subTest(token=token, role=role, report=report):
+                projection = (
+                    f"偵錯權限投影：{role}；報表讀取：{report}；來源："
+                    f"{token}（{label}）"
+                )
+                xml = f'<hierarchy><node content-desc="{projection}"/><node content-desc="{sentinel}"/></hierarchy>'
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{xml}';Stderr=''}}
+                    }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    $value=Get-AllowlistedUiCounts $config
+                    Write-Output ('state='+$value.semantic_state+',provenance='+$value.provenance)
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(
+                    f"state={expected_state},provenance={expected_provenance}",
+                    result.stdout,
+                )
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_principal_provenance_rejects_legacy_ambiguous_and_malformed_projection(self):
+        sentinel = "private-provider-subject-sentinel"
+        exact = "偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"
+        login = (
+            '<node package="tw.org.ntubtob.portal" class="android.widget.Button" '
+            'content-desc="LINE 登入" enabled="true" clickable="true"/>'
+        )
+        cases = (
+            (f'<node content-desc="{exact}"/><node content-desc="{exact}"/>', "duplicate"),
+            (f"{login}<node content-desc=\"{exact}\"/>", "coexisting"),
+            ('<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/>', "legacy"),
+            ('<node content-desc="偵錯權限投影：一般使用者；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/>', "inconsistent"),
+            ('<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（離線快取，非權威）"/>', "mismatched provenance label"),
+        )
+        for nodes, case_name in cases:
+            with self.subTest(case=case_name):
+                xml = f'<hierarchy>{nodes}<node content-desc="{sentinel}"/></hierarchy>'
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{xml}';Stderr=''}}
+                    }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    try {{ Get-AllowlistedUiCounts $config; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Accessibility foreground state is not exact", result.stdout)
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_principal_consumer_keeps_deferred_vocabulary_out_of_parser(self):
+        source = LAUNCHER.read_text(encoding="utf-8")
+        body = re.search(r"function Get-AllowlistedUiCounts \{(.*?)\n\}", source, re.S).group(1)
+        for token in ("fresh_server", "offline_cache", "unknown"):
+            self.assertIn(token, body)
+        for deferred in ("cold_reconstructed", "terminal_local", "offline_report_readonly", "ownReply"):
+            self.assertNotIn(deferred, body)
 
     def test_accessibility_transport_rejects_unsafe_results_without_disclosure(self):
         source = LAUNCHER.read_text(encoding="utf-8")
@@ -523,7 +594,7 @@ topResumedActivity=ActivityRecord{111 u0 tw.org.ntubtob.portal/.MainActivity t42
                     function Get-AllowlistedUiCounts {{
                         param($Config)
                         $script:uiCalls++
-                        return [ordered]@{{semantic_state='logged_out';login=1;basic=0;officer=0;report_enabled=0;report_disabled=0}}
+                        return [ordered]@{{semantic_state='logged_out';provenance='none';login=1;basic=0;officer=0;report_enabled=0;report_disabled=0}}
                     }}
                     $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
                     $activity=Get-CurrentActivity $config
@@ -1500,7 +1571,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 "function Get-PackageState { return 'installed' }\n"
                 "function Get-CurrentActivity { return 'portal' }\n"
                 "function Get-AllowlistedUiCounts { return [ordered]@{"
-                "semantic_state='logged_out';login=1;basic=0;officer=0;"
+                "semantic_state='logged_out';provenance='none';login=1;basic=0;officer=0;"
                 "report_enabled=0;report_disabled=0} }",
                 "logged_out",
             ),
@@ -1509,7 +1580,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 "function Get-PackageState { return 'installed' }\n"
                 "function Get-CurrentActivity { return 'portal' }\n"
                 "function Get-AllowlistedUiCounts { return [ordered]@{"
-                "semantic_state='officer_report_enabled';login=0;basic=0;officer=1;"
+                "semantic_state='officer_report_enabled';provenance='fresh_server';login=0;basic=0;officer=1;"
                 "report_enabled=1;report_disabled=0} }",
                 "officer_report_enabled",
             ),

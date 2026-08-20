@@ -384,6 +384,7 @@ function Invoke-Status {
             package = $package
             activity = $activity
             semantic_state = $boundedState
+            provenance = 'none'
             login = 0
             basic = 0
             officer = 0
@@ -405,6 +406,7 @@ function Invoke-Status {
         package = $package
         activity = $activity
         semantic_state = $ui.semantic_state
+        provenance = $ui.provenance
         login = $ui.login
         basic = $ui.basic
         officer = $ui.officer
@@ -447,13 +449,48 @@ function Get-AllowlistedUiCounts {
             ForEach-Object { [string]$_.GetAttribute('content-desc') } |
             Where-Object { $_ }
     )
-    $basicDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5LiA6Iis5L2/55So6ICF77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
-    $officerEnabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5ZWf55So'))
-    $officerDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
     $loginLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('TElORSDnmbvlhaU='))
-    $basicDisabled = @($labels | Where-Object { $_ -ceq $basicDisabledLabel }).Count
-    $officerEnabled = @($labels | Where-Object { $_ -ceq $officerEnabledLabel }).Count
-    $officerDisabled = @($labels | Where-Object { $_ -ceq $officerDisabledLabel }).Count
+    $projectionPrefix = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya'))
+    $basicRole = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5LiA6Iis5L2/55So6ICF'))
+    $officerRole = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5bm56YOo'))
+    $enabledReport = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5ZWf55So'))
+    $disabledReport = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YGc55So'))
+    $freshLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5Ly65pyN5Zmo5pyA5paw6amX6K2J'))
+    $offlineLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('6Zui57ea5b+r5Y+W77yM6Z2e5qyK5aiB'))
+    $unknownLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5L6G5rqQ5pyq56K66KqN77yM6Z2e5qyK5aiB'))
+    $reportSeparator = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yb5aCx6KGo6K6A5Y+W77ya'))
+    $sourceSeparator = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yb5L6G5rqQ77ya'))
+    $openParen = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yI'))
+    $closeParen = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yJ'))
+    $principalPattern = '^' + [regex]::Escape($projectionPrefix) + '(?<role>' + [regex]::Escape($basicRole) + '|' + [regex]::Escape($officerRole) + ')' + [regex]::Escape($reportSeparator) + '(?<report>' + [regex]::Escape($enabledReport) + '|' + [regex]::Escape($disabledReport) + ')' + [regex]::Escape($sourceSeparator) + '(?<provenance>fresh_server|offline_cache|unknown)' + [regex]::Escape($openParen) + '(?<provenance_label>' + [regex]::Escape($freshLabel) + '|' + [regex]::Escape($offlineLabel) + '|' + [regex]::Escape($unknownLabel) + ')' + [regex]::Escape($closeParen) + '$'
+    $principalNodes = @(
+        $nodes | Where-Object {
+            $label = [string]$_.GetAttribute('content-desc')
+            if ($label -notmatch $principalPattern) { return $false }
+            $provenance = $Matches['provenance']
+            $provenanceLabel = $Matches['provenance_label']
+            $expectedLabel = switch ($provenance) {
+                'fresh_server' { $freshLabel }
+                'offline_cache' { $offlineLabel }
+                'unknown' { $unknownLabel }
+            }
+            if ($provenanceLabel -cne $expectedLabel) { return $false }
+            if ($Matches['role'] -ceq $basicRole) { return $Matches['report'] -ceq $disabledReport }
+            return $Matches['report'] -in @($enabledReport, $disabledReport)
+        }
+    )
+    $basicDisabled = @($principalNodes | Where-Object {
+        [string]$_.GetAttribute('content-desc') -match $principalPattern -and
+        $Matches['role'] -ceq $basicRole
+    }).Count
+    $officerEnabled = @($principalNodes | Where-Object {
+        [string]$_.GetAttribute('content-desc') -match $principalPattern -and
+        $Matches['role'] -ceq $officerRole -and $Matches['report'] -ceq $enabledReport
+    }).Count
+    $officerDisabled = @($principalNodes | Where-Object {
+        [string]$_.GetAttribute('content-desc') -match $principalPattern -and
+        $Matches['role'] -ceq $officerRole -and $Matches['report'] -ceq $disabledReport
+    }).Count
     $login = @(
         $nodes | Where-Object {
             [string]$_.GetAttribute('package') -ceq $script:PackageId -and
@@ -463,13 +500,24 @@ function Get-AllowlistedUiCounts {
             [string]$_.GetAttribute('clickable') -ceq 'true'
         }
     ).Count
-    if (($login + $basicDisabled + $officerEnabled + $officerDisabled) -ne 1) {
+    if (($login + $principalNodes.Count) -ne 1) {
         Throw-Safe 'Accessibility foreground state is not exact'
     }
-    $semanticState = if ($login -eq 1) {
-        'logged_out'
+    if ($login -eq 1) {
+        return [ordered]@{
+            semantic_state = 'logged_out'
+            provenance = 'none'
+            login = 1
+            basic = 0
+            officer = 0
+            report_enabled = 0
+            report_disabled = 0
+        }
     }
-    elseif ($basicDisabled -eq 1) {
+    $principalLabel = [string]$principalNodes[0].GetAttribute('content-desc')
+    $null = $principalLabel -match $principalPattern
+    $provenance = $Matches['provenance']
+    $semanticState = if ($basicDisabled -eq 1) {
         'basic'
     }
     elseif ($officerEnabled -eq 1) {
@@ -478,8 +526,12 @@ function Get-AllowlistedUiCounts {
     else {
         'officer_report_disabled'
     }
+    if ($provenance -ne 'fresh_server') {
+        $semanticState += '_non_authoritative'
+    }
     return [ordered]@{
         semantic_state = $semanticState
+        provenance = $provenance
         login = $login
         basic = $basicDisabled
         officer = $officerEnabled + $officerDisabled
