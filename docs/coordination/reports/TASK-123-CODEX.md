@@ -101,6 +101,11 @@ Using the repository bundled Python on Windows:
   and nonzero exit are unavailable, successful empty output alone is absent,
   one exact `package:` result is installed, and unexpected successful output is
   invalid; every case emits exactly one governed JSON without child output.
+- Targeted real status-stage boundary regressions: 4 passed. Unknown sentinel
+  exceptions injected inside the actual ADB, package, activity, and
+  accessibility calls become their fixed unavailable reasons; the known
+  semantic drift remains `DRIFT`. Every process emits one JSON, exits 2, and
+  excludes the raw exception and child output.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -159,7 +164,9 @@ Owner-private action was run.
   `1c2e473fb80cd925e5fdbc2ede1c7cf2f845f304`
 - Exact package-state correction commit:
   `f8bba5b64dc44ae9fc1eb7e058a2f3df547128bf`
-- Authoritative shared ancestry: `c34ad7aa778bf1b2a5fcbebb995767bd56f4d91e`
+- Status exception-boundary correction commit:
+  `c8dc6eca7768ded4a47cf0f7d62ae39574cbf185`
+- Authoritative shared ancestry: `54a3068c0c9d6a8f3c2761a8ac47a5643a36551b`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
