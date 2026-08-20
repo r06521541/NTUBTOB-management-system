@@ -52,6 +52,17 @@ Changes requested before controlled staging dogfood.
   (4401 bytes, one start/end pair). Status must use exact `exec-out` transport,
   retain the existing size/XML/redaction gates and never create/cat/remove a
   device-side hierarchy file.
+- The exact `exec-out` transport correction is accepted. API 36 dogfood now
+  parses the hierarchy but returns semantic DRIFT because Flutter merges the
+  login prompt twice into one `content-desc`; the exact enabled portal login
+  button retains the stable `LINE 登入` description. Logged-out classification
+  must use that exact button semantic, reject duplicate/coexisting states and
+  keep raw hierarchy undisclosed.
+- A Main diagnostic incorrectly cast the complete child output (XML plus its
+  trailing completion notice) directly to XML. PowerShell echoed the raw static
+  logged-out hierarchy in the conversion error. No credential, token, subject,
+  endpoint or user data was present. This diagnostic path is discontinued; all
+  subsequent checks must use the launcher's bounded extraction/parser only.
 
 ## Deferred
 
