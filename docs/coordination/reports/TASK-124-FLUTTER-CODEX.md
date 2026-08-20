@@ -39,3 +39,36 @@ staging, or application-cache mutation was performed.
   aggregate, launcher-consumer, release-artifact, device, or staging evidence.
 - Main and reviewers remain read-only. The next actor is Work for delta-only
   acceptance of this shared task branch; no PR was created.
+
+## Producer package 2 delta: report-state observability
+
+- Base: `1bc95656d5b8f197f71650331438aaadc6051f4c`
+- Branch: `codex/task-124-report-state`
+- Scope: canonical Officer report-state observability only
+
+The report controller now records a mutually exclusive fresh-server or
+offline-cache load provenance. The debug-only report projection is emitted only
+when provenance, view state, report shape, and exactly zero enabled write
+controls resolve to one canonical state: `ready`, `empty`, or
+`offline_cached_readonly`. Missing, directly injected, conflicting, or nonzero
+write-control inputs produce no canonical projection. The projection contains
+no row, person, game, response-body, or cache-key material.
+
+The existing capability checks, report navigation, and read-only behavior are
+unchanged. Rendering remains hard-gated by `kDebugMode && diagnosticEnabled`;
+injection can disable diagnostics but cannot enable them in release.
+
+Verification delta:
+
+- Tests-first red run failed on the intentionally absent diagnostic API.
+- `flutter test test/officer_prereview_test.dart --no-pub`: passed, 28 tests.
+- `flutter analyze --no-pub`: passed with `No issues found` after removing one
+  unnecessary non-null assertion reported by the first analyze run.
+- `flutter test --no-pub`: passed once, all 116 tests.
+- `dart format` was limited to the two owned Dart files.
+
+Dependency setup used the existing Flutter 3.47.0 / Dart 3.13.0 toolchain and
+local package cache via `pub get --offline`. No app network, runtime, emulator,
+login, staging, or application-cache mutation was performed. No release
+artifact was built; release absence is covered by the hard-gate contract test,
+not an artifact negative scan.
