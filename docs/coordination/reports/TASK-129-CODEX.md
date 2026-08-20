@@ -85,3 +85,19 @@ Next actor: Main Work review.
   live harness checkpoint lock. TASK-123 now exposes only `cleanup-artifact`
   for this path: it removes the exact APK and manifest while preserving the
   TASK-129 checkpoint directory. A direct regression proves that boundary.
+
+## Production dependency closure correction
+
+- Controlled dogfood on merge `6477b90c617b300c47e56dabb93be332ba9febe8`
+  stopped before artifact cleanup, build, install, checkpoint creation, or UI
+  input. Source-only review found that delayed production scriptblocks did not
+  lexically retain the value-free launcher config after their factory returned.
+- The production factory now creates explicit lexical closures for action,
+  artifact, observation, and checkpoint-policy dependencies. A direct delayed
+  invocation regression proves the accepted mode/SHA/config and value-free
+  config remain bound without loading any private broker input.
+- The same adjacent vocabulary review corrected the harness to accept the
+  launcher's exact `signer-check=matched` result instead of the mock-only
+  `signer_matched` spelling. The affected complete harness suite passes 12/12.
+- No dogfood retry, emulator mutation, build, install, login, Secret, database,
+  broker, staging, or cloud operation ran during this correction.
