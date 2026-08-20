@@ -397,7 +397,11 @@ Only an exact portal foreground component captures one
 bounded accessibility hierarchy directly in memory through exact
 `adb -s <serial> exec-out uiautomator dump /dev/tty` arguments. It never uses a
 device temp file, `cat`, `pull`, or `rm`; it prohibits DTD/external resolution,
-and accepts exactly one mutually exclusive state. Logged-out requires one
+and accepts exactly one mutually exclusive state. A single `status` process may
+make at most three accessibility observations, two seconds apart, only when the
+prior observation was unavailable or malformed. Size violations, semantic
+drift, and unknown failures stop immediately; retries never persist or expose
+the hierarchy. Logged-out requires one
 enabled, clickable `android.widget.Button` in package `tw.org.ntubtob.portal`
 with exact `LINE 登入` content description; merged prompt text is ignored.
 The remaining principal state requires exactly one complete debug projection

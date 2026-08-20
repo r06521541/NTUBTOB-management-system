@@ -345,6 +345,23 @@ function Invoke-BoundedStatusStage {
     }
 }
 
+function Get-ReadyAllowlistedUiCounts {
+    param([object]$Config)
+    $retryableMessages = @(
+        'Accessibility inventory failed safely',
+        'Accessibility inventory is malformed'
+    )
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try { return Get-AllowlistedUiCounts $Config }
+        catch {
+            $readinessMessage = [string]$_.Exception.Message
+            if ($readinessMessage -cnotin $retryableMessages -or $attempt -ge 3) { throw }
+            Start-Sleep -Seconds 2
+        }
+    }
+    Throw-Safe 'Accessibility inventory failed safely'
+}
+
 function Invoke-Status {
     param([object]$Config)
     $null = Invoke-BoundedStatusStage {
@@ -393,7 +410,7 @@ function Invoke-Status {
         }
     }
     $ui = Invoke-BoundedStatusStage {
-        Get-AllowlistedUiCounts $Config
+        Get-ReadyAllowlistedUiCounts $Config
     } @(
         'Accessibility inventory failed safely',
         'Accessibility inventory size is not bounded',
