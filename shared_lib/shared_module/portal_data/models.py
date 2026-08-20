@@ -7,6 +7,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CHAR,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -587,6 +588,78 @@ class MobileAuthExchangeRecord(PortalDataBase):
 
 
 Index("ix_mobile_auth_exchanges_expiry", MobileAuthExchangeRecord.expires_at)
+
+
+class StagingBrokerOperationRecord(PortalDataBase):
+    __tablename__ = "staging_broker_operations"
+    __table_args__ = (
+        CheckConstraint(
+            "operation_id ~ '^[A-Za-z0-9_-]{16,64}$'",
+            name="ck_staging_broker_operation_id",
+        ),
+        CheckConstraint(
+            "operation IN ('inspect', 'reset', 'grant', 'restore')",
+            name="ck_staging_broker_operation",
+        ),
+        CheckConstraint(
+            "target_state IN ('ready_basic', 'ready_officer', 'reset_required')",
+            name="ck_staging_broker_target_state",
+        ),
+        CheckConstraint(
+            "inspect_fingerprint ~ '^[0-9a-f]{64}$'",
+            name="ck_staging_broker_fingerprint",
+        ),
+        CheckConstraint(
+            "lifecycle_state IN ('inspected', 'confirmed', 'mutation_issued', "
+            "'postcheck_complete', 'reconcile_required')",
+            name="ck_staging_broker_lifecycle_state",
+        ),
+        CheckConstraint(
+            "reason_code IS NULL OR reason_code IN "
+            "('OPERATOR_UNKNOWN', 'POSTCHECK_MISMATCH', 'RECONCILE_REQUIRED')",
+            name="ck_staging_broker_reason_code",
+        ),
+        CheckConstraint(
+            "updated_at >= created_at AND inspected_at >= created_at "
+            "AND (confirmed_at IS NULL) = (lifecycle_state = 'inspected') "
+            "AND (mutation_issued_at IS NULL) = "
+            "(lifecycle_state IN ('inspected', 'confirmed')) "
+            "AND (completed_at IS NOT NULL) = "
+            "(lifecycle_state IN ('postcheck_complete', 'reconcile_required')) "
+            "AND (lifecycle_state <> 'reconcile_required' OR reason_code IS NOT NULL) "
+            "AND (lifecycle_state = 'reconcile_required' OR reason_code IS NULL)",
+            name="ck_staging_broker_timestamps",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    operation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    operation: Mapped[str] = mapped_column(String(16), nullable=False)
+    target_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    inspect_fingerprint: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    lifecycle_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason_code: Mapped[Optional[str]] = mapped_column(String(32))
+    inspected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    mutation_issued_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True)
+    )
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_staging_broker_lifecycle_updated",
+    StagingBrokerOperationRecord.lifecycle_state,
+    StagingBrokerOperationRecord.updated_at,
+)
 
 
 class EventRecord(PortalDataBase):
