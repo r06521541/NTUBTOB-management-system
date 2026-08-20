@@ -98,11 +98,17 @@ paths are serial handoffs to the same writer; they never run concurrently:
    `clients/flutter_app/lib/officer_prereview.dart`, and their exact direct test
    counterparts under `clients/flutter_app/test/`. It runs serially after
    packages 1–3. Expose booleans/counts only, never keys or principal identity.
-5. Launcher observation consumer — owned paths:
+5. Launcher observation consumers — serial slices. Slice 5a consumes only the
+   accepted package-1 principal provenance vocabulary in:
+   `tools/Invoke-MobileStaging.ps1`,
+   `tools/tests/test_mobile_staging_launcher.py`, and
+   `docs/operations/mobile/MOBILE_STAGING.md`. Later slices consume report,
+   reply, and cache/session vocabulary only after their producers are accepted.
+   The combined consumer ownership remains:
    `tools/Invoke-MobileStaging.ps1`,
    `tools/tests/test_mobile_staging_launcher.py`, and
    `docs/operations/mobile/MOBILE_STAGING.md`. It is implemented only after the
-   client vocabulary is accepted.
+   corresponding client vocabulary is accepted.
 
 The Staging Acceptance Harness must not be implemented until every claim used
 by its first named scenario has a non-gap producer and direct fail-closed tests.
