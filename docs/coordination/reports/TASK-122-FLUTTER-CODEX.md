@@ -8,9 +8,9 @@
 
 ## Implementation
 
-- Adds a `kDebugMode`-defaulted, test-injectable presentation flag to the existing
-  real games view. Release presentation uses the compile-time default and does
-  not render the diagnostic.
+- Adds a hard `kDebugMode && diagnosticEnabled` render gate to the existing
+  real games view. The injected flag can disable the diagnostic in tests, but
+  cannot override compile-time release absence.
 - The diagnostic contains only the localized role (`一般使用者`, `幹部`, or
   `系統管理者`) and a localized derived `報表讀取：啟用／停用` value.
 - It does not render a principal ID, display name, raw capability data, origin,
@@ -21,10 +21,11 @@
 ## Verification
 
 - `flutter pub get`: passed.
-- Direct `flutter test test/basic_app_test.dart`: passed (32 tests), including
-  the role/report-read matrix and release-mode absence/unchanged-guard test.
+- Direct `flutter test test/basic_app_test.dart`: passed (33 tests), including
+  the role/report-read matrix, unchanged-guard test, and a hard release gate
+  test proving an injected enable flag cannot override `debugBuild: false`.
 - `flutter analyze`: passed with no issues.
-- Full `flutter test`: passed (107 tests).
+- Full `flutter test`: passed (108 tests).
 - `dart format --output=none --set-exit-if-changed` was run for the two scoped
   Dart files. Dart 3.13 proposes broad existing-style reflow (source 208 added/
   157 removed lines; test 293 added/183 removed lines in a temporary preview),

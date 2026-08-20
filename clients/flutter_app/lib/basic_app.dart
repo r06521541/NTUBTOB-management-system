@@ -318,7 +318,7 @@ class BasicGamesView extends StatelessWidget {
     required this.online,
     required this.lastSyncedAt,
     this.reportCache,
-    this.debugMode = kDebugMode,
+    this.diagnosticEnabled = true,
   });
   final BasicApi api;
   final Person person;
@@ -326,9 +326,10 @@ class BasicGamesView extends StatelessWidget {
   final bool online;
   final DateTime lastSyncedAt;
   final PrincipalOfficerReportCache? reportCache;
-  /// Injectable only for deterministic widget tests; production defaults to
-  /// Flutter's compile-time debug flag.
-  final bool debugMode;
+  /// Test injection can disable the diagnostic, but cannot enable it in a
+  /// release build because rendering is always additionally gated by
+  /// [kDebugMode].
+  final bool diagnosticEnabled;
 
   @override
   Widget build(BuildContext context) => Material(
@@ -342,7 +343,9 @@ class BasicGamesView extends StatelessWidget {
         ListTile(
             title: Text(person.displayName),
             subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
-        if (debugMode) DebugPrincipalProjection(person: person),
+        if (DebugPrincipalProjection.shouldRender(
+            debugBuild: kDebugMode, diagnosticEnabled: diagnosticEnabled))
+          DebugPrincipalProjection(person: person),
         if (person.canReadAttendanceReport)
           ListTile(
             key: const ValueKey('management-report-entry'),
@@ -386,6 +389,10 @@ class DebugPrincipalProjection extends StatelessWidget {
   const DebugPrincipalProjection({super.key, required this.person});
 
   final Person person;
+
+  static bool shouldRender(
+          {required bool debugBuild, required bool diagnosticEnabled}) =>
+      debugBuild && diagnosticEnabled;
 
   static String localizedRole(AccessLevel accessLevel) => switch (accessLevel) {
         AccessLevel.basic => '一般使用者',

@@ -184,7 +184,7 @@ void main() {
               games: const [],
               online: true,
               lastSyncedAt: DateTime.utc(2026),
-              debugMode: true)));
+              diagnosticEnabled: true)));
       final projection =
           find.byKey(const ValueKey('debug-principal-projection'));
       expect(projection, findsOneWidget);
@@ -197,7 +197,7 @@ void main() {
     }
   });
 
-  testWidgets('release-mode injection hides projection without changing guard',
+  testWidgets('release-mode hard gate hides projection without changing guard',
       (tester) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
     const person = Person(
@@ -210,10 +210,25 @@ void main() {
             games: const [],
             online: true,
             lastSyncedAt: DateTime.utc(2026),
-            debugMode: false)));
+            diagnosticEnabled: false)));
     expect(find.byKey(const ValueKey('debug-principal-projection')), findsNothing);
     expect(
         find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
+  });
+
+  test('release hard gate cannot be overridden by an injected flag', () {
+    expect(
+        DebugPrincipalProjection.shouldRender(
+            debugBuild: false, diagnosticEnabled: true),
+        isFalse);
+    expect(
+        DebugPrincipalProjection.shouldRender(
+            debugBuild: true, diagnosticEnabled: false),
+        isFalse);
+    expect(
+        DebugPrincipalProjection.shouldRender(
+            debugBuild: true, diagnosticEnabled: true),
+        isTrue);
   });
 
   testWidgets('server report grant exposes only the read-only management route',
