@@ -134,8 +134,22 @@ or path disclosure.
 Bundled Black CLI and formatter API both remained unresponsive for more than
 the bounded local check window and were terminated, matching the documented
 Windows Black limitation. No Black pass is claimed; hosted CI remains the final
-Black gate. No real emulator, Flutter build, ADB device, staging endpoint, or
-Owner-private action was run.
+Black gate.
+
+## Controlled dogfood closeout
+
+Main Work supplied terminal evidence against accepted source HEAD
+`ed645f3c0af9c43e8465bcfef597c5f58ad37827` from an exact, clean detached E-drive
+snapshot. One preflight invocation returned governed `PASS` with `result=ready`.
+One status invocation returned governed `PASS`, exit 0, and only these bounded
+status values: `result=observed`, `package=installed`, `activity=portal`,
+`semantic_state=logged_out`, `login=1`, and `basic=0`, `officer=0`,
+`report_enabled=0`, `report_disabled=0`. No retry or raw UI/logcat, Secret,
+private subject, token, or user-data output was used.
+
+This terminal evidence does not claim Owner-private inspect/grant/restore
+dogfood, nor build, install, or cold-launch scenario completion. Hosted CI is
+still required. Codex performed no runtime action while recording this evidence.
 
 ## Deferred follow-up (not implemented)
 
