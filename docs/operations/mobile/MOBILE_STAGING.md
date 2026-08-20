@@ -316,7 +316,8 @@ top-level classification is one of `PASS`, `OWNER_ACTION_REQUIRED`, `DRIFT`,
 No caller needs raw process output to classify an action.
 
 The value-free config contains only the exact detached snapshot, absolute
-toolchain/cache paths, one AVD and serial, package/activity constants, task-owned
+toolchain/cache paths (including one absolute `apkanalyzer` package inspector),
+one AVD and serial, package/activity constants, task-owned
 `E:\codex-evidence\task-123` and `E:\codex-temp\task-123` roots, disk floor,
 artifact name, Android user-home inventory, and one allowed signer fingerprint.
 It contains no endpoint, channel ID, provider subject, DSN, token, Secret value,
@@ -332,8 +333,16 @@ or keystore path. A typical routine invocation is:
 
 The routine actions are `help`, `preflight`, `avd-start`, `status`, `build`,
 `signer-check`, `install`, `cold-launch`, `health`, `stop`, and `cleanup`.
+`status` captures one bounded accessibility hierarchy into memory, prohibits
+DTD/external resolution, and returns only the exact allowlisted Basic/Officer
+and report-enabled/report-disabled counts. It never persists or returns the
+hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
 `install` additionally requires `-PreserveSession` and only issues
-`adb install -r` after exact artifact/installed signer agreement. `cold-launch`
+`adb install -r` after the absolute package inspector proves the artifact is
+exactly `tw.org.ntubtob.portal` and artifact/installed signers agree. Build
+evidence likewise records only the package identity returned by that exact
+inspection; missing, duplicate, malformed, or mismatched output fails closed.
+`cold-launch`
 uses semantic package/activity/PID checks, performs no coordinate/OCR/raw UI XML
 or logcat classification, and does not retry a timed-out `am start`. Any network
 setting changed by that action is restored in `finally`. Cleanup is limited to
@@ -363,6 +372,12 @@ inspect the terminal state. An interrupted or unknown mutation is never retried;
 only read-only reconciliation is permitted. The console never prints child
 stdout, endpoint/channel values, DSN, subject, token/assertion, keystore
 material/path, raw UI/log output, or sensitive exception text.
+
+The same task-owned exclusive lock covers the complete Owner-private lifecycle:
+inspect, confirmation, at most one mutation, independent postcheck, and
+`finally` cleanup. A concurrent or stale lock fails before Secret retrieval or
+operator initialization. An acquired lock is removed on a handled failure or
+interruption; an unowned stale lock is never silently removed.
 
 Artifact evidence is bounded to accepted commit, mode, package, artifact hash,
 public signer fingerprint, classification, and retention owner. Concurrency and

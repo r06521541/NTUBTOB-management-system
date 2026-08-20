@@ -180,12 +180,11 @@ class PowerShellContractTest(unittest.TestCase):
             function Assert-OnlyApprovedSerial {{ param($Config) }}
             function Get-PackageState {{ param($Config) return 'installed' }}
             function Get-CurrentActivity {{ param($Config) return 'portal' }}
-            function Get-AllowlistedUiCounts {{ param($Config) return [ordered]@{{officer=1}} }}
+            function Get-AllowlistedUiCounts {{ param($Config) return [ordered]@{{basic=0;officer=1;report_enabled=1;report_disabled=0}} }}
             $config=[pscustomobject]@{{
                 flutter_executable='{LAUNCHER.as_posix()}';adb_executable='{LAUNCHER.as_posix()}';
                 emulator_executable='{LAUNCHER.as_posix()}';apksigner_executable='{LAUNCHER.as_posix()}';
-                keytool_executable='{LAUNCHER.as_posix()}';python_executable='{LAUNCHER.as_posix()}';
-                gcloud_executable='{LAUNCHER.as_posix()}'
+                apkanalyzer_executable='{LAUNCHER.as_posix()}';keytool_executable='{LAUNCHER.as_posix()}'
             }}
             $a=Invoke-Preflight $config '{FULL_SHA}' 'staging'
             $b=Invoke-Status $config
@@ -196,6 +195,57 @@ class PowerShellContractTest(unittest.TestCase):
         self.assertIn("ready,installed,portal", result.stdout)
         self.assertNotIn("secrets versions access", result.stdout + result.stderr)
         self.assert_safe_output(result)
+
+    def test_status_classifies_only_allowlisted_accessibility_counts(self):
+        cases = (
+            (
+                "偵錯權限投影：一般使用者；報表讀取：停用",
+                "basic=1,officer=0,enabled=0,disabled=1",
+            ),
+            (
+                "偵錯權限投影：幹部；報表讀取：啟用",
+                "basic=0,officer=1,enabled=1,disabled=0",
+            ),
+            (
+                "偵錯權限投影：幹部；報表讀取：停用",
+                "basic=0,officer=1,enabled=0,disabled=1",
+            ),
+        )
+        sentinel = "private-provider-subject-sentinel"
+        for label, expected in cases:
+            with self.subTest(label=label):
+                xml = (
+                    '<hierarchy><node content-desc="'
+                    + label
+                    + '"/><node content-desc="'
+                    + sentinel
+                    + '"/></hierarchy>'
+                )
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{xml}';Stderr=''}} }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    $value=Get-AllowlistedUiCounts $config
+                    Write-Output ('basic='+$value.basic+',officer='+$value.officer+',enabled='+$value.report_enabled+',disabled='+$value.report_disabled)
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected, result.stdout)
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+        duplicate = (
+            '<hierarchy><node content-desc="偵錯權限投影：一般使用者；報表讀取：停用"/>'
+            '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/></hierarchy>'
+        )
+        result = self.run_harness(
+            f"""
+            function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{duplicate}';Stderr=''}} }}
+            $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+            try {{ Get-AllowlistedUiCounts $config;exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Accessibility principal projection is not exact", result.stdout)
 
     def test_disk_lock_avd_and_serial_fail_closed(self):
         result = self.run_harness(
@@ -292,6 +342,38 @@ class PowerShellContractTest(unittest.TestCase):
         self.assertNotIn("uninstall", lowered)
         self.assertNotIn("|clear|", lowered)
         self.assertNotIn("|-d|", lowered)
+
+    def test_apk_package_identity_is_exact_and_wrong_package_never_installs(self):
+        cases = (
+            ("", "malformed or ambiguous"),
+            ("tw.org.ntubtob.portal`nsecond.package", "malformed or ambiguous"),
+            ("not a package", "malformed or ambiguous"),
+            ("tw.org.ntubtob.other", "does not match"),
+            ("tw.org.ntubtob.portal", "tw.org.ntubtob.portal"),
+        )
+        for output, expected in cases:
+            with self.subTest(output=output):
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout=\"{output}\";Stderr=''}} }}
+                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat'}}
+                    try {{ Write-Output (Get-ApkPackageIdentity $config 'E:/task/app-debug.apk') }} catch {{ Write-Output $_.Exception.Message }}
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected, result.stdout)
+
+        result = self.run_harness(
+            """
+            $script:adbInstall=$false
+            function Invoke-SignerCheck { throw 'APK package identity does not match' }
+            function Invoke-BoundedProcess { $script:adbInstall=$true;throw 'must not install' }
+            $config=[pscustomobject]@{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}
+            try { Invoke-Install $config $true;exit 9 } catch { Write-Output ($_.Exception.Message+',install='+$script:adbInstall) }
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("APK package identity does not match,install=False", result.stdout)
 
     def test_cold_launch_timeout_is_not_retried_and_network_is_restored(self):
         result = self.run_harness(
@@ -410,6 +492,7 @@ class PowerShellContractTest(unittest.TestCase):
                 function Get-ArtifactPath {{ param($Config) return '{(evidence / 'app-debug.apk').as_posix()}' }}
                 function Get-AllowlistedDebugSigner {{ param($Config) return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}/android-home'}} }}
                 function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
+                function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
                 function Invoke-BoundedProcessWithPipe {{
                     param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
                     [System.IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
@@ -669,6 +752,39 @@ class PowerShellContractTest(unittest.TestCase):
             )
             self.assertIn("cleared=True", result.stdout)
             self.assert_safe_output(result)
+
+    def test_private_dispatcher_lock_blocks_before_secret_and_cleans_on_failure(self):
+        with tempfile.TemporaryDirectory() as directory:
+            temp_root = Path(directory) / "task-temp"
+            lock_path = Path(str(temp_root) + ".lock")
+            result = self.run_harness(
+                f"""
+                $script:TaskTempRoot='{temp_root.as_posix()}'
+                $script:privateCalls=0
+                function Test-OwnerInteractiveConsole {{ return $true }}
+                function Load-LauncherConfig {{ return [pscustomobject]@{{temp_root='{temp_root.as_posix()}';snapshot_root='{ROOT.as_posix()}'}} }}
+                function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
+                function Invoke-PrivateAction {{ $script:privateCalls++;throw 'private child interruption' }}
+                $config=[pscustomobject]@{{temp_root='{temp_root.as_posix()}'}}
+                $held=Enter-TaskLock $config
+                try {{ Invoke-MobileStagingMain 'private-inspect' 'staging' '{FULL_SHA}' 'E:/config.json' 'C:/private/approval.json' $false $false $false;exit 9 }} catch {{ $blocked=$_.Exception.Message }}
+                $during=$script:privateCalls
+                Remove-TaskLock $config $held
+                [IO.File]::WriteAllText('{lock_path.as_posix()}','stale')
+                try {{ Invoke-MobileStagingMain 'private-inspect' 'staging' '{FULL_SHA}' 'E:/config.json' 'C:/private/approval.json' $false $false $false;exit 7 }} catch {{ $stale=$_.Exception.Message }}
+                $duringStale=$script:privateCalls
+                Remove-Item -LiteralPath '{lock_path.as_posix()}' -Force
+                try {{ Invoke-MobileStagingMain 'private-inspect' 'staging' '{FULL_SHA}' 'E:/config.json' 'C:/private/approval.json' $false $false $false;exit 8 }} catch {{ $failed=$_.Exception.Message }}
+                Write-Output ($blocked+',privateCallsDuringLock='+$during+',stale='+$stale+',privateCallsDuringStale='+$duringStale+',failure='+$failed+',lockAfterFailure='+(Test-Path '{lock_path.as_posix()}'))
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Task launcher lock already exists", result.stdout)
+            self.assertIn("privateCallsDuringLock=0", result.stdout)
+            self.assertIn("stale=Task launcher lock already exists", result.stdout)
+            self.assertIn("privateCallsDuringStale=0", result.stdout)
+            self.assertIn("failure=private child interruption", result.stdout)
+            self.assertIn("lockAfterFailure=False", result.stdout)
 
     def test_source_forbids_destructive_or_global_cleanup_commands(self):
         source = LAUNCHER.read_text(encoding="utf-8").lower()

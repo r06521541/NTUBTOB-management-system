@@ -198,7 +198,7 @@ function Load-LauncherConfig {
     $fields = @(
         'schema_version', 'snapshot_root', 'flutter_executable', 'git_executable',
         'adb_executable', 'emulator_executable', 'apksigner_executable',
-        'keytool_executable',
+        'apkanalyzer_executable', 'keytool_executable',
         'android_sdk_root', 'java_home', 'android_user_homes', 'android_avd_home',
         'pub_cache', 'gradle_user_home', 'avd_name',
         'serial', 'package_id', 'main_activity', 'evidence_root', 'temp_root',
@@ -208,7 +208,7 @@ function Load-LauncherConfig {
     if ($config.schema_version -ne 1 -or $config.package_id -cne $script:PackageId -or $config.main_activity -cne $script:MainActivity) {
         Throw-Safe 'Launcher config identity is not exact'
     }
-    foreach ($pathField in @('snapshot_root', 'flutter_executable', 'adb_executable', 'emulator_executable', 'apksigner_executable', 'keytool_executable', 'android_sdk_root', 'java_home', 'android_avd_home', 'pub_cache', 'gradle_user_home')) {
+    foreach ($pathField in @('snapshot_root', 'flutter_executable', 'adb_executable', 'emulator_executable', 'apksigner_executable', 'apkanalyzer_executable', 'keytool_executable', 'android_sdk_root', 'java_home', 'android_avd_home', 'pub_cache', 'gradle_user_home')) {
         $value = [string]$config.$pathField
         if (-not [System.IO.Path]::IsPathRooted($value) -or -not $value.StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
             Throw-Safe 'Approved toolchain must remain on the E drive'
@@ -292,7 +292,7 @@ function Invoke-Preflight {
     param([object]$Config, [string]$ExpectedCommit, [string]$SelectedMode)
     Assert-Snapshot $Config $ExpectedCommit
     Assert-DiskAndLock $Config
-    foreach ($field in @('flutter_executable', 'adb_executable', 'emulator_executable', 'apksigner_executable', 'keytool_executable')) {
+    foreach ($field in @('flutter_executable', 'adb_executable', 'emulator_executable', 'apksigner_executable', 'apkanalyzer_executable', 'keytool_executable')) {
         if (-not (Test-Path -LiteralPath ([string]$Config.$field) -PathType Leaf)) { Throw-Safe 'Approved toolchain is incomplete' }
     }
     return [ordered]@{ action = 'preflight'; result = 'ready'; commit = $ExpectedCommit; mode = $SelectedMode }
@@ -363,11 +363,66 @@ function Invoke-Status {
     param([object]$Config)
     Assert-OnlyApprovedSerial $Config
     $activity = Get-CurrentActivity $Config
+    $ui = Get-AllowlistedUiCounts $Config
     return [ordered]@{
         action = 'status'
         package = Get-PackageState $Config
         activity = $activity
         semantic_state = $activity
+        basic = $ui.basic
+        officer = $ui.officer
+        report_enabled = $ui.report_enabled
+        report_disabled = $ui.report_disabled
+    }
+}
+
+function Get-AllowlistedUiCounts {
+    param([object]$Config)
+    $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'shell', 'uiautomator', 'dump', '/dev/tty') 15
+    if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Accessibility inventory failed safely' }
+    $raw = [string]$result.Stdout
+    if ($raw.Length -lt 1 -or $raw.Length -gt 65536) { Throw-Safe 'Accessibility inventory size is not bounded' }
+    $start = $raw.IndexOf('<hierarchy', [System.StringComparison]::Ordinal)
+    $endMarker = '</hierarchy>'
+    $end = $raw.IndexOf($endMarker, [System.StringComparison]::Ordinal)
+    if ($start -lt 0 -or $end -lt $start -or $raw.IndexOf('<hierarchy', $start + 1, [System.StringComparison]::Ordinal) -ge 0) {
+        Throw-Safe 'Accessibility inventory is malformed'
+    }
+    $settings = [System.Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $settings.MaxCharactersInDocument = 65536
+    $reader = $null
+    try {
+        $reader = [System.Xml.XmlReader]::Create(
+            [System.IO.StringReader]::new($raw.Substring($start, $end - $start + $endMarker.Length)),
+            $settings
+        )
+        $document = [System.Xml.XmlDocument]::new()
+        $document.XmlResolver = $null
+        $document.Load($reader)
+    }
+    catch { Throw-Safe 'Accessibility inventory is malformed' }
+    finally { if ($null -ne $reader) { $reader.Dispose() } }
+    $labels = @(
+        $document.SelectNodes('//node') |
+            ForEach-Object { [string]$_.GetAttribute('content-desc') } |
+            Where-Object { $_ }
+    )
+    $basicDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5LiA6Iis5L2/55So6ICF77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
+    $officerEnabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5ZWf55So'))
+    $officerDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
+    $basicDisabled = @($labels | Where-Object { $_ -ceq $basicDisabledLabel }).Count
+    $officerEnabled = @($labels | Where-Object { $_ -ceq $officerEnabledLabel }).Count
+    $officerDisabled = @($labels | Where-Object { $_ -ceq $officerDisabledLabel }).Count
+    if (($basicDisabled + $officerEnabled + $officerDisabled) -ne 1) {
+        Throw-Safe 'Accessibility principal projection is not exact'
+    }
+    return [ordered]@{
+        basic = $basicDisabled
+        officer = $officerEnabled + $officerDisabled
+        report_enabled = $officerEnabled
+        report_disabled = $basicDisabled + $officerDisabled
     }
 }
 
@@ -394,6 +449,19 @@ function Get-ApkSignerFingerprint {
     $matches = [regex]::Matches($result.Stdout, '(?im)certificate SHA-256 digest:\s*([0-9a-f:]{64,95})')
     if ($matches.Count -ne 1) { Throw-Safe 'APK signer result is not exact' }
     return ($matches[0].Groups[1].Value -replace ':', '').ToUpperInvariant()
+}
+
+function Get-ApkPackageIdentity {
+    param([object]$Config, [string]$ApkPath)
+    $result = Invoke-BoundedProcess ([string]$Config.apkanalyzer_executable) @('manifest', 'application-id', $ApkPath) 30
+    if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'APK package inspection failed safely' }
+    $lines = @($result.Stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+    if ($lines.Count -ne 1 -or $lines[0].Trim() -notmatch '^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$') {
+        Throw-Safe 'APK package identity is malformed or ambiguous'
+    }
+    $package = $lines[0].Trim()
+    if ($package -cne $script:PackageId) { Throw-Safe 'APK package identity does not match' }
+    return $package
 }
 
 function Get-AllowlistedDebugSigner {
@@ -430,6 +498,7 @@ function Invoke-SignerCheck {
     Assert-OnlyApprovedSerial $Config
     $artifact = Get-ArtifactPath $Config
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { Throw-Safe 'Fresh APK artifact is unavailable' }
+    [void](Get-ApkPackageIdentity $Config $artifact)
     $approvedSigner = Get-AllowlistedDebugSigner $Config
     $allowed = [string]$approvedSigner.Fingerprint
     $artifactSigner = Get-ApkSignerFingerprint $Config $artifact
@@ -487,20 +556,21 @@ function Invoke-Build {
         } $appRoot
         if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $buildOutput -PathType Leaf)) { Throw-Safe 'Flutter build failed safely' }
         Move-Item -LiteralPath $buildOutput -Destination $artifact
+        $package = Get-ApkPackageIdentity $Config $artifact
         $fingerprint = Get-ApkSignerFingerprint $Config $artifact
         if ($fingerprint -cne [string]$approvedSigner.Fingerprint) { Throw-Safe 'Fresh artifact signer is not allowlisted' }
         $hash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash
         $evidence = [ordered]@{
             accepted_commit = $ExpectedCommit
             mode = $SelectedMode
-            package = $script:PackageId
+            package = $package
             artifact_sha256 = $hash
             signer_sha256 = $fingerprint
             classification = 'PASS'
             retention_owner = 'TASK-123'
         }
         [System.IO.File]::WriteAllText($manifest, ($evidence | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
-        return [ordered]@{ action = 'build'; result = 'built'; commit = $ExpectedCommit; mode = $SelectedMode; package = $script:PackageId; artifact_sha256 = $hash; signer_sha256 = $fingerprint }
+        return [ordered]@{ action = 'build'; result = 'built'; commit = $ExpectedCommit; mode = $SelectedMode; package = $package; artifact_sha256 = $hash; signer_sha256 = $fingerprint }
     }
     catch {
         if (Test-Path -LiteralPath $artifact) { Remove-Item -LiteralPath $artifact -Force }
@@ -797,7 +867,12 @@ function Invoke-MobileStagingMain {
     if ($SelectedAction -in @('private-inspect', 'grant-officer', 'restore-basic')) {
         if ($SelectedMode -ne 'staging' -or $KeepSession -or $AllowPublicHealth -or $RemoveEvidence) { Throw-Safe 'Owner-private action received conflicting options' }
         Assert-Snapshot $config $ExpectedCommit
-        return Invoke-PrivateAction $config $SelectedAction $PrivateApprovalPath $ExpectedCommit
+        $privateLock = $null
+        try {
+            $privateLock = Enter-TaskLock $config
+            return Invoke-PrivateAction $config $SelectedAction $PrivateApprovalPath $ExpectedCommit
+        }
+        finally { if ($null -ne $privateLock) { Remove-TaskLock $config $privateLock } }
     }
     Assert-Snapshot $config $ExpectedCommit
     if ($SelectedAction -in @('preflight', 'status')) {
