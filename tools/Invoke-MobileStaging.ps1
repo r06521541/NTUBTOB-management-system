@@ -938,7 +938,10 @@ if ($MyInvocation.InvocationName -ne '.') {
     }
     $envelope = New-LauncherEnvelope $Action $classification $details
     try { Write-SafeJson $envelope }
-    catch { Write-Output '{"action":"unknown","classification":"FAILED","operator":"agent","owner_gate":"none","standing_authorization":"DEC-098","stop_only_on":"wire-or-schema-need|unbounded-fixture-ambiguity|production-secret-external-need","report_to":"main-work","retention_owner":"TASK-123","details":{"result":"failed","reason_code":"OUTPUT_REDACTION_FAILED"}}' }
+    catch {
+        $classification = 'FAILED'
+        Write-Output '{"action":"unknown","classification":"FAILED","operator":"agent","owner_gate":"none","standing_authorization":"DEC-098","stop_only_on":"wire-or-schema-need|unbounded-fixture-ambiguity|production-secret-external-need","report_to":"main-work","retention_owner":"TASK-123","details":{"result":"failed","reason_code":"OUTPUT_REDACTION_FAILED"}}'
+    }
     if ($classification -eq 'PASS') { exit 0 }
     exit 2
 }

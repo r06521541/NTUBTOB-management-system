@@ -9,6 +9,9 @@ operator, `gcloud`, database Secret resolution, or private subject handling.
 Every invocation returns one de-identified governance envelope with a stable
 classification, an allowlisted non-sensitive reason code for non-PASS results,
 and no raw exception or child output.
+The output-redaction fallback now changes the effective classification before
+the final exit decision, so its fixed `FAILED`/`OUTPUT_REDACTION_FAILED` JSON
+always exits 2 rather than inheriting a nominal action's successful exit.
 
 Controlled dogfood found that the real config loader used `$home` as an
 iterator; Windows PowerShell treats it as the read-only automatic `$HOME`
@@ -55,6 +58,10 @@ acquired before Secret resolution or operator initialization.
 Using the repository bundled Python on Windows:
 
 - `python -m unittest tools.tests.test_mobile_staging_launcher -v`: 29 passed.
+- Targeted output fallback plus parser regression: 2 passed; the fallback test
+  forces a nominal `help` success to contain a test sentinel and proves one
+  fixed JSON line, `FAILED`, `OUTPUT_REDACTION_FAILED`, exit 2, empty stderr,
+  and no sentinel/raw exception disclosure.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -97,7 +104,7 @@ Owner-private action was run.
   `3f424d775395d33a449a480c0c14c2dde802c1d4`
 - Controlled-dogfood correction commit:
   `5384882f43dc9cfe5e514924a97ebf91d9085c9c`
-- Authoritative shared ancestry: `b9f3e10ad08b84ee1aee290cd5d34b6c2dc52698`
+- Authoritative shared ancestry: `7f2142d09f751e9831ebd52dcd1ab6f6c1cb449b`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.

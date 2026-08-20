@@ -319,7 +319,9 @@ Every non-PASS `details` object also contains exactly one bounded allowlisted
 `TOOLCHAIN_UNAVAILABLE`, `LOCK_UNAVAILABLE`, `OWNER_ACTION_REQUIRED`,
 `RUNTIME_TIMEOUT`, `RUNTIME_FAILED`, or `OUTPUT_REDACTION_FAILED`. Raw
 exception text, paths, child output, and sensitive values are never copied into
-the governed result.
+the governed result. If the nominal result itself fails the sensitive-output
+gate, the fixed `OUTPUT_REDACTION_FAILED` fallback replaces it as the only JSON
+line and forces process exit 2; a `FAILED` envelope never exits successfully.
 
 The value-free config contains only the exact detached snapshot, absolute
 toolchain/cache paths (including one absolute `apkanalyzer` package inspector),

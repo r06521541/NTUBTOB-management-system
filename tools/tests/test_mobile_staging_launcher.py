@@ -682,6 +682,45 @@ class PowerShellContractTest(unittest.TestCase):
         )
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
+    def test_output_redaction_fallback_is_one_failed_json_and_exit_two(self):
+        sentinel = "postgresql://private-user:private-password@private.invalid/staging"
+        with tempfile.TemporaryDirectory() as directory:
+            launcher_copy = Path(directory) / "Invoke-MobileStaging.ps1"
+            source = LAUNCHER.read_text(encoding="utf-8")
+            original = "return [ordered]@{ result = 'available'; actions = @($script:RoutineActions + $script:PrivateActions) }"
+            injected = f"return [ordered]@{{ result = '{sentinel}'; actions = @($script:RoutineActions + $script:PrivateActions) }}"
+            self.assertEqual(source.count(original), 1)
+            launcher_copy.write_text(source.replace(original, injected), encoding="utf-8")
+            result = subprocess.run(
+                [
+                    "powershell.exe",
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(launcher_copy),
+                    "-Action",
+                    "help",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 1)
+            envelope = json.loads(result.stdout)
+            self.assertEqual(envelope["classification"], "FAILED")
+            self.assertEqual(
+                envelope["details"]["reason_code"], "OUTPUT_REDACTION_FAILED"
+            )
+            self.assertNotIn(sentinel, result.stdout + result.stderr)
+            self.assertNotIn("Launcher output failed", result.stdout + result.stderr)
+            self.assertEqual(result.stderr, "")
+
     def test_source_avoids_automatic_and_readonly_variable_collisions(self):
         source = LAUNCHER.read_text(encoding="utf-8")
         blocked = {
