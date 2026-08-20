@@ -294,14 +294,24 @@ class PowerShellContractTest(unittest.TestCase):
                 )
                 result = self.run_harness(
                     f"""
-                    function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{xml}';Stderr=''}} }}
+                    function Invoke-BoundedProcess {{
+                        param($Executable,$Arguments,$TimeoutSeconds)
+                        $script:capturedArgs=@($Arguments)
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{xml}';Stderr=''}}
+                    }}
                     $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
                     $value=Get-AllowlistedUiCounts $config
                     Write-Output ('state='+$value.semantic_state+',login='+$value.login+',basic='+$value.basic+',officer='+$value.officer+',enabled='+$value.report_enabled+',disabled='+$value.report_disabled)
+                    Write-Output ('argv='+($script:capturedArgs -join '|'))
                     """
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(expected, result.stdout)
+                self.assertIn(
+                    "argv=-s|emulator-5556|exec-out|uiautomator|dump|/dev/tty",
+                    result.stdout,
+                )
+                self.assertNotIn("|shell|", result.stdout)
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
 
         rejected = (
@@ -317,6 +327,7 @@ class PowerShellContractTest(unittest.TestCase):
             ),
             ('<hierarchy><node content-desc="unapproved"/></hierarchy>', "Accessibility foreground state is not exact"),
             ("not-xml", "Accessibility inventory is malformed"),
+            ("", "Accessibility inventory size is not bounded"),
         )
         for raw, expected_error in rejected:
             with self.subTest(expected_error=expected_error):
@@ -339,6 +350,35 @@ class PowerShellContractTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Accessibility inventory size is not bounded", result.stdout)
+
+    def test_accessibility_transport_rejects_unsafe_results_without_disclosure(self):
+        source = LAUNCHER.read_text(encoding="utf-8")
+        body = re.search(
+            r"function Get-AllowlistedUiCounts \{(.*?)\n\}", source, re.S
+        ).group(1)
+        self.assertIn("'exec-out', 'uiautomator', 'dump', '/dev/tty'", body)
+        for forbidden in ("'shell'", "'cat'", "'pull'", "'rm'", "/data/"):
+            self.assertNotIn(forbidden, body)
+
+        sentinel = "private-provider-subject-sentinel"
+        for timed_out, exit_code, expected_error in (
+            ("$true", 0, "Accessibility inventory failed safely"),
+            ("$false", 1, "Accessibility inventory failed safely"),
+        ):
+            with self.subTest(timed_out=timed_out, exit_code=exit_code):
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{
+                        param($Executable,$Arguments,$TimeoutSeconds)
+                        return [pscustomobject]@{{TimedOut={timed_out};ExitCode={exit_code};Stdout='{sentinel}';Stderr='{sentinel}'}}
+                    }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    try {{ Get-AllowlistedUiCounts $config;exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected_error, result.stdout)
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_status_skips_accessibility_for_absent_background_and_stopped(self):
         cases = (

@@ -352,7 +352,9 @@ never invoke the accessibility dump. Activity classification accepts exactly
 one anchored resumed/top-resumed/focused activity record; retained back-stack
 entries are ignored, while duplicate or malformed current records fail closed.
 Only an exact portal foreground component captures one
-bounded accessibility hierarchy into memory, prohibits DTD/external resolution,
+bounded accessibility hierarchy directly in memory through exact
+`adb -s <serial> exec-out uiautomator dump /dev/tty` arguments. It never uses a
+device temp file, `cat`, `pull`, or `rm`; it prohibits DTD/external resolution,
 and accepts exactly one mutually exclusive state: logged-out LINE login gate,
 Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
 returns only that stable state and allowlisted counts; duplicate, coexisting,

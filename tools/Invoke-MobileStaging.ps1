@@ -415,7 +415,7 @@ function Invoke-Status {
 
 function Get-AllowlistedUiCounts {
     param([object]$Config)
-    $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'shell', 'uiautomator', 'dump', '/dev/tty') 15
+    $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'exec-out', 'uiautomator', 'dump', '/dev/tty') 15
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Accessibility inventory failed safely' }
     $raw = [string]$result.Stdout
     if ($raw.Length -lt 1 -or $raw.Length -gt 65536) { Throw-Safe 'Accessibility inventory size is not bounded' }
