@@ -45,6 +45,13 @@ Changes requested before controlled staging dogfood.
   activity. It must parse one exact resumed/top-resumed/focused component so a
   background or stopped portal cannot trigger an accessibility dump over LINE,
   Chrome or another foreground app. Ambiguous current records must fail closed.
+- The anchored foreground parser correction is accepted. Controlled API 36
+  dogfood then showed that `adb shell uiautomator dump /dev/tty` returns only a
+  completion notice (34 bytes, zero hierarchy markers), while the same bounded
+  command through `adb exec-out` returns one complete in-memory hierarchy
+  (4401 bytes, one start/end pair). Status must use exact `exec-out` transport,
+  retain the existing size/XML/redaction gates and never create/cat/remove a
+  device-side hierarchy file.
 
 ## Deferred
 
