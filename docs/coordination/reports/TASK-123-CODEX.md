@@ -262,6 +262,33 @@ Android SDK root. A direct regression proves same-root acceptance and
 cross-SDK rejection before any child action without path disclosure. No real
 launcher or external runtime action was executed for this config correction.
 
+## Terminal controlled dogfood
+
+After the targeted corrections were accepted, one bounded staging dogfood
+sequence completed with governed results only:
+
+- `build`: `PASS` for accepted commit
+  `ed645f3c0af9c43e8465bcfef597c5f58ad37827`, mode `staging`, package
+  `tw.org.ntubtob.portal`, artifact SHA-256
+  `52240308A496C93AB8F193AB7A92CEA0ADC5A344F22B2ED06AE149C4D4DC875B`,
+  and signer SHA-256
+  `38035A5838A5D9AB60A29FB95E7118DA8E3B80D7976BE3D2D6594AE8988B85B9`.
+- `signer-check`: `PASS`, exact signer matched.
+- `install`: `PASS`, package replaced with session preservation.
+- `cold-launch`: `PASS`, app running and retry `not_needed`.
+- `status`: `PASS`, result `observed`, package `installed`, activity `portal`,
+  semantic state `logged_out`, with counts `login=1`, `basic=0`, `officer=0`,
+  `report_enabled=0`, and `report_disabled=0`.
+- `cleanup`: `PASS`, task temp removed and evidence retained.
+
+Earlier bounded attempts failed closed and led to the signer-home, public
+define transport, isolated Flutter config, Java/System32, SDK child-env, and
+same-SDK analyzer corrections recorded above. No raw child output was retained
+or copied into this report. The terminal sequence performed no login, Secret
+access, cloud operation, app-data clear/uninstall, business mutation, or
+notification. Its untracked value-free dogfood config was deleted and the main
+worktree was clean at closeout.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.
@@ -299,8 +326,10 @@ launcher or external runtime action was executed for this config correction.
 - Governed action-result correction commit:
   `f1a58f6cfee9f975722b2de1ff50d457a79b8fb3`
 - Authoritative shared ancestry: `c3bfd7e40eccaea2f0b7ca46d7a60a2b39860932`
-- External side effects: none; repository-only tests used mocked executables.
-- Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
-  hosted Black/Python 3.10 remain Main Work/final CI evidence.
+- External effects were limited to the terminal bounded build,
+  session-preserving install, cold launch, status observation, and task-temp
+  cleanup recorded above.
+- Unverified: Owner-private console/login and hosted Black/Python 3.10 remain
+  Main Work/final CI evidence.
 
 Main Work owns integration, hosted CI, PR, and merge.
