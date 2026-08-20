@@ -400,11 +400,22 @@ device temp file, `cat`, `pull`, or `rm`; it prohibits DTD/external resolution,
 and accepts exactly one mutually exclusive state. Logged-out requires one
 enabled, clickable `android.widget.Button` in package `tw.org.ntubtob.portal`
 with exact `LINE 登入` content description; merged prompt text is ignored.
-The remaining states are
-Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
-returns only that stable state and allowlisted counts; duplicate, coexisting,
-missing, malformed, or oversized states fail closed. It never persists or
-returns the hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
+The remaining principal state requires exactly one complete debug projection
+with the accepted package-1 vocabulary: Basic/report-disabled or
+Officer/report-enabled or Officer/report-disabled, followed by exactly one
+source token `fresh_server`, `offline_cache`, or `unknown` and its matching
+bounded localized source label. Basic may only be report-disabled; Officer may
+be report-enabled or report-disabled. `fresh_server` is the only authoritative
+principal provenance. `offline_cache` and `unknown` produce stable
+`*_non_authoritative` states and must not be used as authorization PASS
+evidence; the status observation remains bounded and a future harness must
+classify those states as `EVIDENCE_GAP`. The logged-out state has
+`provenance=none` and is mutually exclusive with every principal projection.
+Legacy projections without a source, duplicate or coexisting projections,
+role/report inconsistency, mismatched source labels, missing fields, malformed
+fields, or oversized states fail closed. It returns only stable state, count,
+and provenance tokens; it never persists or returns the hierarchy, localized
+labels, names, coordinates, OCR, screenshots, or logcat.
 Governed status failures expose only fixed stage codes: `ADB_UNAVAILABLE`,
 `ADB_INVALID`, `PACKAGE_UNAVAILABLE`, `PACKAGE_INVALID`, `ACTIVITY_UNAVAILABLE`,
 `ACTIVITY_INVALID`, `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, or
