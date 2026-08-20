@@ -2,7 +2,7 @@
 
 ## Decision
 
-Accepted for hosted CI and final PR.
+Accepted for staging execution and final PR.
 
 ## Findings
 
@@ -28,7 +28,9 @@ Accepted for hosted CI and final PR.
 - Main Work: cumulative source and security review passed; py_compile and diff
   check passed after integration. Its bundled Python environment lacked
   Alembic for an independent unittest rerun, so hosted Python 3.10 and
-  PostgreSQL 15/16 remain mandatory final evidence.
+  PostgreSQL 15/16 were mandatory final evidence.
+- Hosted CI passed PostgreSQL 15/16, Python 3.10 service and deployment suites,
+  Flutter 3.47.0 format/analyze/test/debug build, and the final repository gate.
 
 ## Deferred
 

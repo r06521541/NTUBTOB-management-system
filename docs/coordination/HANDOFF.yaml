@@ -1,9 +1,9 @@
 active_task: TASK-120
-status: ready_for_hosted_ci
+status: ready_for_staging_execution
 next_actor: work
 
 base_commit: a79ffc6234e25645fe431c7774ef19b50fb733d4
-head_commit: 136fb649a12be0032e0bb94837a35810012ecffa
+head_commit: 29afb5914ebbcb62d77f4a1c784904713b73d3c1
 
 updated_by: work
 updated_at: 2026-08-20T11:45:00+08:00
@@ -11,7 +11,8 @@ updated_at: 2026-08-20T11:45:00+08:00
 note: >
   TASK-119 merged as PR #130, but staging inspection correctly found two exact TASK-115 attendance rows and durable
   mobile session history. TASK-120 repairs only the proven attendance residue and validates dynamic relational ownership
-  without deleting mobile security records. Main review accepted the correction; hosted CI is the remaining merge gate.
+  without deleting mobile security records. Main review and hosted CI accepted the correction; bounded staging residue
+  repair is next after merge, followed by the paused TASK-119 Officer acceptance.
   Physical Android and iOS runtime/signing remain deferred.
   Production, Secret payloads, true notifications, release signing and store upload remain forbidden.
 
