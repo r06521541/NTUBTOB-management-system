@@ -169,51 +169,35 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), {"artifact": "missing", "action": "ready"})
 
-    def test_status_action_uses_a_fresh_isolated_launcher_module_each_time(self):
-        with tempfile.TemporaryDirectory() as directory:
-            launcher = Path(directory) / "launcher.ps1"
-            launcher.write_text(
-                """
-                param([string]$Action)
-                Set-StrictMode -Version Latest
-                $script:statusCalls = 0
-                function Invoke-MobileStagingMain {
-                    param($Action,$Mode,$Commit,$ConfigPath,$ApprovalPath,$Preserve,$Public,$Purge)
-                    $script:statusCalls++
-                    if ($script:statusCalls -ne 1) { throw 'polluted module state' }
-                    if ($ConfigPath -ceq 'C:/recoverable.json') { throw 'Accessibility inventory is malformed' }
-                    if ($ConfigPath -ceq 'C:/unknown.json') { throw 'private-provider-subject-sentinel' }
-                    return @{result='observed';semantic_state='logged_out'}
-                }
-                """,
-                encoding="utf-8-sig",
-            )
-            result = self.run_harness(
-                f"""
-                $before=@(Get-Module | Where-Object {{$_.Path -ceq '{launcher.as_posix()}'}}).Count
-                $status=New-IsolatedLauncherStatusAction '{launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/value-free.json'
-                $first=& $status
-                $second=& $status
-                $recoverable=New-IsolatedLauncherStatusAction '{launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/recoverable.json'
-                try {{& $recoverable|Out-Null;$recoverableError='unexpected'}}catch{{$recoverableError=$_.Exception.Message}}
-                $unknown=New-IsolatedLauncherStatusAction '{launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/unknown.json'
-                try {{& $unknown|Out-Null;$unknownError='unexpected'}}catch{{$unknownError=$_.Exception.Message}}
-                $after=@(Get-Module | Where-Object {{$_.Path -ceq '{launcher.as_posix()}'}}).Count
-                [pscustomobject]@{{first=$first.result;second=$second.result;recoverable=$recoverableError;unknown=$unknownError;before=$before;after=$after}}|ConvertTo-Json -Compress
-                """
-            )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            json.loads(result.stdout),
-            {
-                "first": "observed",
-                "second": "observed",
-                "recoverable": "Accessibility inventory is malformed",
-                "unknown": "Harness status is unavailable",
-                "before": 0,
-                "after": 0,
-            },
+    def test_status_action_uses_an_isolated_governed_launcher_process(self):
+        result = self.run_harness(
+            f"""
+            $script:calls=0;$script:captured=@()
+            $invoke={{param($file,$arguments,$timeout)
+                $script:calls++;$script:captured=@($file)+@($arguments)+@([string]$timeout)
+                $config=$arguments[$arguments.IndexOf('-ConfigPath')+1]
+                if($config -ceq 'C:/recoverable.json'){{return [pscustomobject]@{{TimedOut=$false;ExitCode=2;Stdout='{{"classification":"FAILED","details":{{"reason_code":"ACCESSIBILITY_INVALID"}}}}';Stderr=''}}}}
+                if($config -ceq 'C:/unknown.json'){{return [pscustomobject]@{{TimedOut=$false;ExitCode=2;Stdout='private-provider-subject-sentinel';Stderr='private-provider-subject-sentinel'}}}}
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{{"classification":"PASS","details":{{"action":"status","result":"observed","semantic_state":"logged_out"}}}}';Stderr=''}}
+            }}
+            $status=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invoke 'C:/powershell.exe'
+            $first=& $status;$second=& $status
+            $recoverable=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/recoverable.json' $invoke 'C:/powershell.exe'
+            try {{& $recoverable|Out-Null;$recoverableError='unexpected'}}catch{{$recoverableError=$_.Exception.Message}}
+            $unknown=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/unknown.json' $invoke 'C:/powershell.exe'
+            try {{& $unknown|Out-Null;$unknownError='unexpected'}}catch{{$unknownError=$_.Exception.Message}}
+            [pscustomobject]@{{first=$first.result;second=$second.result;recoverable=$recoverableError;unknown=$unknownError;calls=$script:calls;argv=($script:captured -join '|')}}|ConvertTo-Json -Compress
+            """
         )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["first"], "observed")
+        self.assertEqual(payload["second"], "observed")
+        self.assertEqual(payload["recoverable"], "Accessibility inventory is malformed")
+        self.assertEqual(payload["unknown"], "Harness status is unavailable")
+        self.assertEqual(payload["calls"], 4)
+        self.assertIn("C:/powershell.exe|-NoLogo|-NoProfile|-NonInteractive", payload["argv"])
+        self.assertIn(f"-File|C:/launcher.ps1|-Action|status|-Mode|staging|-Commit|{FULL_SHA}", payload["argv"])
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
