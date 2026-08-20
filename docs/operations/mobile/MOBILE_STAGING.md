@@ -617,7 +617,11 @@ read-only TASK-123 accessibility-unavailable, malformed-inventory, or non-exact
 foreground semantic conditions, at most five attempts with three-second waits.
 Acceptance still requires a later exact allowlisted state; persistent semantic
 drift, unknown status failures, and every other invalid state exhaust or stop as
-`EVIDENCE_GAP/STATUS_UNAVAILABLE` without raw diagnostics.
+bounded terminal evidence without raw diagnostics. Exhausted accessibility
+unavailable and malformed states retain `ACCESSIBILITY_UNAVAILABLE` and
+`ACCESSIBILITY_INVALID`; exhausted foreground semantic mismatch retains
+`SEMANTIC_DRIFT`. Unknown failures remain `STATUS_UNAVAILABLE`. This distinction
+does not add attempts or authorize a retry.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting

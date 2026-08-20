@@ -61,6 +61,9 @@ function New-HarnessEnvelope {
 
 function Get-HarnessFailureClassification {
     param([string]$Message)
+    if ($Message -ceq 'Accessibility inventory failed safely') { return 'EVIDENCE_GAP' }
+    if ($Message -ceq 'Accessibility inventory is malformed') { return 'EVIDENCE_GAP' }
+    if ($Message -ceq 'Accessibility foreground state is not exact') { return 'DRIFT' }
     if ($Message -match 'Harness status is unavailable') { return 'EVIDENCE_GAP' }
     if ($Message -match '(?i)(timeout|timed out|bounded window)') { return 'TIMEOUT' }
     if ($Message -match '(?i)(drift|mismatch|malformed|missing|stale|lock|ambiguous|unknown|not exact|invalid|reconcile)') { return 'DRIFT' }
@@ -69,6 +72,9 @@ function Get-HarnessFailureClassification {
 
 function Get-HarnessFailureReasonCode {
     param([string]$Message)
+    if ($Message -ceq 'Accessibility inventory failed safely') { return 'ACCESSIBILITY_UNAVAILABLE' }
+    if ($Message -ceq 'Accessibility inventory is malformed') { return 'ACCESSIBILITY_INVALID' }
+    if ($Message -ceq 'Accessibility foreground state is not exact') { return 'SEMANTIC_DRIFT' }
     if ($Message -match 'Harness status is unavailable') { return 'STATUS_UNAVAILABLE' }
     if ($Message -match 'Harness action result is invalid') { return 'ACTION_RESULT_INVALID' }
     if ($Message -match 'Harness artifact inspection is unavailable') { return 'ARTIFACT_UNAVAILABLE' }
@@ -285,9 +291,13 @@ function Get-MobileAcceptanceStatus {
             Throw-HarnessSafe 'Harness status is unavailable'
         }
         catch {
-            if ($_.Exception.Message -cin $retryableMessages -and $attempt -lt $maxAttempts) {
-                & $Wait
-                continue
+            $readinessMessage = [string]$_.Exception.Message
+            if ($readinessMessage -cin $retryableMessages) {
+                if ($attempt -lt $maxAttempts) {
+                    & $Wait
+                    continue
+                }
+                Throw-HarnessSafe $readinessMessage
             }
             Throw-HarnessSafe 'Harness status is unavailable'
         }

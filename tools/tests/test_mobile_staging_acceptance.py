@@ -356,10 +356,41 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertEqual(payload["waits"], 4)
         self.assertEqual(payload["unknown"], "Harness status is unavailable")
         self.assertEqual(payload["unknownAttempts"], 1)
-        self.assertEqual(payload["persistent"], "Harness status is unavailable")
+        self.assertEqual(
+            payload["persistent"], "Accessibility foreground state is not exact"
+        )
         self.assertEqual(payload["persistentAttempts"], 5)
         self.assertEqual(payload["persistentWaits"], 4)
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+
+    def test_exhausted_status_reasons_are_bounded_and_distinct(self):
+        result = self.run_harness(
+            """
+            $messages=@(
+                'Accessibility inventory failed safely',
+                'Accessibility inventory is malformed',
+                'Accessibility foreground state is not exact',
+                'Harness status is unavailable'
+            )
+            $values=@($messages|ForEach-Object{
+                [ordered]@{
+                    classification=Get-HarnessFailureClassification $_
+                    reason=Get-HarnessFailureReasonCode $_
+                }
+            })
+            $values|ConvertTo-Json -Compress
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            [
+                {"classification": "EVIDENCE_GAP", "reason": "ACCESSIBILITY_UNAVAILABLE"},
+                {"classification": "EVIDENCE_GAP", "reason": "ACCESSIBILITY_INVALID"},
+                {"classification": "DRIFT", "reason": "SEMANTIC_DRIFT"},
+                {"classification": "EVIDENCE_GAP", "reason": "STATUS_UNAVAILABLE"},
+            ],
+        )
 
     def test_artifact_manifest_drift_short_circuits_tools_and_unknown_is_bounded(self):
         with tempfile.TemporaryDirectory() as directory:
