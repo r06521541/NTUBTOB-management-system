@@ -83,6 +83,30 @@ actions rather than a hidden multi-step default:
   provider subject, token, assertion, response body, secure-store content,
   keystore path/material/password, raw UI XML, raw logcat or unredacted
   screenshots.
+- Flutter build arguments may contain only the public compile-time identifiers
+  `APP_FLAVOR`, `CLIENT_MODE`, `API_BASE_URL`, and `LINE_CHANNEL_ID` as direct
+  `--dart-define` arguments. Fake mode uses only the first two; staging uses
+  exactly all four. This allowance never extends to a Secret, token, subject,
+  DSN, assertion, credential, or an unapproved key/value. Child command lines,
+  output, and define values are never emitted or copied into evidence, errors,
+  reports, or governed JSON; in-memory collections are cleared in `finally`.
+- Every Flutter build overrides only child `APPDATA` with a validated directory
+  beneath the task-owned temp root so inherited global Flutter configuration
+  cannot override the approved Android SDK. The launcher never changes
+  `HOME`, `USERPROFILE`, global Flutter configuration, or a user profile. The
+  isolated directory is ordinary task temp removed by bounded cleanup and its
+  path/content never enters evidence or governed output.
+- APK package and signer inspection run with child-only `JAVA_HOME` and a
+  two-entry `PATH`: the exact approved E-drive JDK `bin` plus the trusted
+  Windows `System32`. The same child environment sets `ANDROID_HOME` and
+  `ANDROID_SDK_ROOT` to the exact approved E-drive SDK. Inherited Java, SDK, or
+  user PATH cannot win; the launcher does not alter parent environment or
+  global configuration, and paths or tool output never enter governed output
+  or evidence.
+- The configured `apkanalyzer` must resolve beneath that exact Android SDK as
+  `cmdline-tools/latest|<numeric-version>/bin/apkanalyzer.bat`; a cross-SDK or
+  structurally unexpected analyzer fails during config loading before any
+  child action.
 - Redacted evidence may contain only accepted commit, mode, package/version,
   artifact SHA-256, public signer fingerprint, AVD/API/ABI versions, bounded
   result classification and allowlisted static labels/counts.
@@ -127,6 +151,20 @@ actions rather than a hidden multi-step default:
   launcher timeout where the target process actually started.
 - Prove output/evidence contain none of the forbidden sensitive fields or test
   sentinel values.
+- Prove exact fake/staging define keys and counts, reject an adversarial
+  Secret-like key/value before child start, and preserve cleanup after child
+  timeout, nonzero exit, or a partial APK.
+- Prove child `APPDATA` is the exact task-owned isolation directory, inherited
+  global APPDATA cannot be selected, HOME/USERPROFILE are untouched, C-drive or
+  out-of-root isolation fails before child start, and cleanup removes it with
+  the task temp root.
+- Prove both APK inspectors receive the exact approved child JDK, inherited
+  stale Java/SDK/user PATH cannot win, the only second PATH entry is trusted
+  Windows `System32`, both Android SDK variables match the approved E-drive
+  root, invalid Java/SDK/`SystemRoot` fails before child start, and child output
+  or paths are not disclosed.
+- Prove a same-root allowlisted analyzer config loads and a cross-SDK analyzer
+  fails before child execution without disclosing either path.
 - Run affected Python tests, PowerShell parser/static checks where available,
   py_compile, Black/isort for Python test files, `git diff --check`, scope and
   sensitive-string scans. Hosted CI supplies final Python 3.10 evidence.

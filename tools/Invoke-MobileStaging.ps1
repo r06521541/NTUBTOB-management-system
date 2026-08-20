@@ -85,72 +85,10 @@ function Invoke-BoundedProcess {
     }
     finally {
         if ($started -and -not $process.HasExited) { try { $process.Kill() } catch { } }
+        $start.Arguments = ''
+        $Arguments = $null
+        $ChildEnvironment = $null
         $process.Dispose()
-    }
-}
-
-function Invoke-BoundedProcessWithPipe {
-    param(
-        [Parameter(Mandatory = $true)][string]$Executable,
-        [string[]]$Arguments,
-        [string]$Payload,
-        [int]$TimeoutSeconds,
-        [hashtable]$ChildEnvironment,
-        [string]$WorkingDirectory
-    )
-    if (-not [System.IO.Path]::IsPathRooted($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
-        Throw-Safe 'Approved executable is unavailable'
-    }
-    if ($TimeoutSeconds -lt 1 -or $TimeoutSeconds -gt 600) {
-        Throw-Safe 'Process timeout is outside the bounded range'
-    }
-    $pipeName = 'task123-' + [Guid]::NewGuid().ToString('N')
-    $pipePath = '\\.\pipe\' + $pipeName
-    $pipe = [System.IO.Pipes.NamedPipeServerStream]::new(
-        $pipeName,
-        [System.IO.Pipes.PipeDirection]::Out,
-        1,
-        [System.IO.Pipes.PipeTransmissionMode]::Byte,
-        [System.IO.Pipes.PipeOptions]::Asynchronous
-    )
-    $start = [System.Diagnostics.ProcessStartInfo]::new()
-    $start.FileName = $Executable
-    $allArguments = @($Arguments) + @("--dart-define-from-file=$pipePath")
-    $start.Arguments = (($allArguments | ForEach-Object { ConvertTo-SafeArgument ([string]$_) }) -join ' ')
-    $start.UseShellExecute = $false
-    $start.CreateNoWindow = $true
-    $start.RedirectStandardOutput = $true
-    $start.RedirectStandardError = $true
-    $start.WorkingDirectory = $WorkingDirectory
-    foreach ($name in $ChildEnvironment.Keys) { $start.EnvironmentVariables[[string]$name] = [string]$ChildEnvironment[$name] }
-    $process = [System.Diagnostics.Process]::new()
-    $process.StartInfo = $start
-    $started = $false
-    try {
-        if (-not $process.Start()) { Throw-Safe 'Approved process did not start' }
-        $started = $true
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
-        $pending = $pipe.BeginWaitForConnection($null, $null)
-        if (-not $pending.AsyncWaitHandle.WaitOne(30000)) {
-            return [pscustomobject]@{ ExitCode = $null; TimedOut = $true; Stdout = ''; Stderr = '' }
-        }
-        $pipe.EndWaitForConnection($pending)
-        $writer = [System.IO.StreamWriter]::new($pipe, [System.Text.UTF8Encoding]::new($false), 1024, $true)
-        try { $writer.Write($Payload); $writer.Flush() } finally { $writer.Dispose() }
-        $pipe.Disconnect()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            return [pscustomobject]@{ ExitCode = $null; TimedOut = $true; Stdout = ''; Stderr = '' }
-        }
-        $stdoutTask.Wait()
-        $stderrTask.Wait()
-        return [pscustomobject]@{ ExitCode = $process.ExitCode; TimedOut = $false; Stdout = $stdoutTask.Result; Stderr = $stderrTask.Result }
-    }
-    finally {
-        if ($started -and -not $process.HasExited) { try { $process.Kill() } catch { } }
-        $process.Dispose()
-        $pipe.Dispose()
-        $Payload = $null
     }
 }
 
@@ -216,6 +154,19 @@ function Load-LauncherConfig {
     }
     foreach ($pathField in @('git_executable')) {
         if (-not [System.IO.Path]::IsPathRooted([string]$config.$pathField)) { Throw-Safe 'System executable path must be absolute' }
+    }
+    try {
+        $configuredSdkRoot = [System.IO.Path]::GetFullPath([string]$config.android_sdk_root).TrimEnd('\')
+        $configuredAnalyzer = [System.IO.Path]::GetFullPath([string]$config.apkanalyzer_executable)
+    }
+    catch { Throw-Safe 'APK analyzer is outside the approved Android SDK' }
+    $analyzerPrefix = $configuredSdkRoot + '\cmdline-tools\'
+    if (-not $configuredAnalyzer.StartsWith($analyzerPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Throw-Safe 'APK analyzer is outside the approved Android SDK'
+    }
+    $analyzerRelativePath = $configuredAnalyzer.Substring($analyzerPrefix.Length)
+    if ($analyzerRelativePath -notmatch '^(?:latest|[0-9]+(?:\.[0-9]+)*)\\bin\\apkanalyzer\.bat$') {
+        Throw-Safe 'APK analyzer is outside the approved Android SDK'
     }
     if ([string]$config.evidence_root -cne $script:TaskEvidenceRoot -or [string]$config.temp_root -cne $script:TaskTempRoot) {
         Throw-Safe 'Evidence and temp roots are not task-owned'
@@ -553,9 +504,84 @@ function Remove-TaskLock {
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
 }
 
+function Invoke-ApkToolWithApprovedJava {
+    param(
+        [object]$Config,
+        [string]$Executable,
+        [string[]]$Arguments
+    )
+    $childEnvironment = $null
+    $androidSdkRoot = $null
+    $configuredAndroidSdkRoot = $null
+    $configuredJavaHome = $null
+    $configuredSystemRoot = $null
+    $javaHome = $null
+    $javaBin = $null
+    $systemRoot = $null
+    $system32 = $null
+    $trustedSystemRoot = $null
+    try {
+        $configuredAndroidSdkRoot = [string]$Config.android_sdk_root
+        if (-not [System.IO.Path]::IsPathRooted($configuredAndroidSdkRoot)) {
+            Throw-Safe 'Approved Android SDK root is invalid'
+        }
+        try { $androidSdkRoot = [System.IO.Path]::GetFullPath($configuredAndroidSdkRoot).TrimEnd('\') }
+        catch { Throw-Safe 'Approved Android SDK root is invalid' }
+        if (-not $androidSdkRoot.StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            Throw-Safe 'Approved Android SDK root is invalid'
+        }
+        $configuredJavaHome = [string]$Config.java_home
+        if (-not [System.IO.Path]::IsPathRooted($configuredJavaHome)) {
+            Throw-Safe 'Approved Java home is invalid'
+        }
+        try { $javaHome = [System.IO.Path]::GetFullPath($configuredJavaHome).TrimEnd('\') }
+        catch { Throw-Safe 'Approved Java home is invalid' }
+        if (-not $javaHome.StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            Throw-Safe 'Approved Java home is invalid'
+        }
+        $javaBin = [System.IO.Path]::GetFullPath((Join-Path $javaHome 'bin'))
+        $configuredSystemRoot = [string]$env:SystemRoot
+        if ($configuredSystemRoot -notmatch '^[A-Za-z]:\\Windows$') {
+            Throw-Safe 'Approved Windows root is invalid'
+        }
+        try {
+            $systemRoot = [System.IO.Path]::GetFullPath($configuredSystemRoot).TrimEnd('\')
+            $trustedSystemRoot = [System.IO.Path]::GetFullPath(
+                [System.Environment]::GetFolderPath([System.Environment+SpecialFolder]::Windows)
+            ).TrimEnd('\')
+        }
+        catch { Throw-Safe 'Approved Windows root is invalid' }
+        if (-not [string]::Equals($systemRoot, $trustedSystemRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Throw-Safe 'Approved Windows root is invalid'
+        }
+        $system32 = [System.IO.Path]::GetFullPath((Join-Path $systemRoot 'System32'))
+        $childEnvironment = @{
+            ANDROID_HOME = $androidSdkRoot
+            ANDROID_SDK_ROOT = $androidSdkRoot
+            JAVA_HOME = $javaHome
+            PATH = $javaBin + [System.IO.Path]::PathSeparator + $system32
+        }
+        return Invoke-BoundedProcess $Executable $Arguments 30 $childEnvironment
+    }
+    finally {
+        if ($null -ne $childEnvironment) { $childEnvironment.Clear() }
+        $childEnvironment = $null
+        $Arguments = $null
+        $androidSdkRoot = $null
+        $configuredAndroidSdkRoot = $null
+        $configuredJavaHome = $null
+        $configuredSystemRoot = $null
+        $javaHome = $null
+        $javaBin = $null
+        $systemRoot = $null
+        $system32 = $null
+        $trustedSystemRoot = $null
+    }
+}
+
 function Get-ApkSignerFingerprint {
     param([object]$Config, [string]$ApkPath)
-    $result = Invoke-BoundedProcess ([string]$Config.apksigner_executable) @('verify', '--print-certs', $ApkPath) 30
+    $result = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apksigner_executable) @('verify', '--print-certs', $ApkPath)
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'APK signer verification failed safely' }
     $certificateMatches = [regex]::Matches($result.Stdout, '(?im)certificate SHA-256 digest:\s*([0-9a-f:]{64,95})')
     if ($certificateMatches.Count -ne 1) { Throw-Safe 'APK signer result is not exact' }
@@ -564,7 +590,7 @@ function Get-ApkSignerFingerprint {
 
 function Get-ApkPackageIdentity {
     param([object]$Config, [string]$ApkPath)
-    $result = Invoke-BoundedProcess ([string]$Config.apkanalyzer_executable) @('manifest', 'application-id', $ApkPath) 30
+    $result = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apkanalyzer_executable) @('manifest', 'application-id', $ApkPath)
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'APK package inspection failed safely' }
     $lines = @($result.Stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
     if ($lines.Count -ne 1 -or $lines[0].Trim() -notmatch '^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$') {
@@ -579,7 +605,7 @@ function Get-AllowlistedDebugSigner {
     param([object]$Config)
     $found = @()
     foreach ($androidHome in @($Config.android_user_homes)) {
-        $keystore = Join-Path ([string]$androidHome) '.android\debug.keystore'
+        $keystore = Join-Path ([string]$androidHome) 'debug.keystore'
         if (-not (Test-Path -LiteralPath $keystore -PathType Leaf)) { continue }
         $result = Invoke-BoundedProcess ([string]$Config.keytool_executable) @('-list', '-v', '-keystore', $keystore, '-alias', 'androiddebugkey', '-storepass', 'android', '-keypass', 'android') 30
         if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Debug signer inventory failed safely' }
@@ -602,6 +628,79 @@ function Get-ArtifactPath {
     $artifact = [System.IO.Path]::GetFullPath((Join-Path $root ([string]$Config.artifact_relative_path)))
     if (-not $artifact.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) { Throw-Safe 'Artifact path escapes the task-owned evidence root' }
     return $artifact
+}
+
+function Get-FlutterDefineArguments {
+    param(
+        [System.Collections.IDictionary]$Values,
+        [string]$SelectedMode
+    )
+    if ($null -eq $Values) { Throw-Safe 'Flutter define set is invalid' }
+    if ($SelectedMode -eq 'fake') {
+        $expectedKeys = @('APP_FLAVOR', 'CLIENT_MODE')
+        $validValues = (
+            [string]$Values['APP_FLAVOR'] -ceq 'development' -and
+            [string]$Values['CLIENT_MODE'] -ceq 'fake'
+        )
+    }
+    elseif ($SelectedMode -eq 'staging') {
+        $expectedKeys = @('APP_FLAVOR', 'CLIENT_MODE', 'API_BASE_URL', 'LINE_CHANNEL_ID')
+        $validValues = (
+            [string]$Values['APP_FLAVOR'] -ceq 'staging' -and
+            [string]$Values['CLIENT_MODE'] -ceq 'real' -and
+            [string]$Values['API_BASE_URL'] -cmatch '^https://[A-Za-z0-9.-]+$' -and
+            [string]$Values['LINE_CHANNEL_ID'] -cmatch '^[1-9][0-9]{4,19}$'
+        )
+    }
+    else {
+        Throw-Safe 'Flutter define set is invalid'
+    }
+    $actualKeys = @($Values.Keys | ForEach-Object { [string]$_ })
+    if ($actualKeys.Count -ne $expectedKeys.Count) { Throw-Safe 'Flutter define set is invalid' }
+    for ($index = 0; $index -lt $expectedKeys.Count; $index++) {
+        if ([string]$actualKeys[$index] -cne [string]$expectedKeys[$index]) { Throw-Safe 'Flutter define set is invalid' }
+    }
+    if (-not $validValues) { Throw-Safe 'Flutter define set is invalid' }
+    return [string[]]@($expectedKeys | ForEach-Object { '--dart-define=' + $_ + '=' + [string]$Values[$_] })
+}
+
+function Invoke-FlutterBuildProcess {
+    param(
+        [object]$Config,
+        [System.Collections.IDictionary]$Values,
+        [string]$SelectedMode,
+        [string]$WorkingDirectory,
+        [string]$AndroidUserHome
+    )
+    $defineArguments = $null
+    $buildArguments = $null
+    $tempRoot = $null
+    $appDataRoot = $null
+    try {
+        $defineArguments = @(Get-FlutterDefineArguments $Values $SelectedMode)
+        $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
+        $appDataRoot = Assert-TaskPath (Join-Path $tempRoot 'flutter-appdata') $tempRoot
+        [System.IO.Directory]::CreateDirectory($appDataRoot) | Out-Null
+        $buildArguments = @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') + $defineArguments
+        return Invoke-BoundedProcess ([string]$Config.flutter_executable) $buildArguments 600 @{
+            APPDATA = $appDataRoot
+            ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
+            ANDROID_HOME = [string]$Config.android_sdk_root
+            JAVA_HOME = [string]$Config.java_home
+            ANDROID_USER_HOME = $AndroidUserHome
+            PUB_CACHE = [string]$Config.pub_cache
+            GRADLE_USER_HOME = [string]$Config.gradle_user_home
+        } $WorkingDirectory
+    }
+    finally {
+        if ($null -ne $defineArguments) { [System.Array]::Clear($defineArguments, 0, $defineArguments.Length) }
+        if ($null -ne $buildArguments) { [System.Array]::Clear($buildArguments, 0, $buildArguments.Length) }
+        if ($null -ne $Values) { $Values.Clear() }
+        $defineArguments = $null
+        $buildArguments = $null
+        $tempRoot = $null
+        $appDataRoot = $null
+    }
 }
 
 function Invoke-SignerCheck {
@@ -644,7 +743,6 @@ function Invoke-Build {
     [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
     [System.IO.Directory]::CreateDirectory($evidenceRoot) | Out-Null
     $manifest = Join-Path $evidenceRoot 'artifact-manifest.json'
-    $definePayload = $null
     try {
         if ($SelectedMode -eq 'fake') {
             $values = [ordered]@{ APP_FLAVOR = 'development'; CLIENT_MODE = 'fake' }
@@ -655,16 +753,8 @@ function Invoke-Build {
             if ($origin -notmatch '^https://[A-Za-z0-9.-]+$' -or $channel -notmatch '^[1-9][0-9]{4,19}$') { Throw-Safe 'Private staging build inputs are unavailable or malformed' }
             $values = [ordered]@{ APP_FLAVOR = 'staging'; CLIENT_MODE = 'real'; API_BASE_URL = $origin; LINE_CHANNEL_ID = $channel }
         }
-        $definePayload = $values | ConvertTo-Json -Compress
         $appRoot = Join-Path ([string]$Config.snapshot_root) 'clients\flutter_app'
-        $result = Invoke-BoundedProcessWithPipe ([string]$Config.flutter_executable) @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') $definePayload 600 @{
-            ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
-            ANDROID_HOME = [string]$Config.android_sdk_root
-            JAVA_HOME = [string]$Config.java_home
-            ANDROID_USER_HOME = [string]$approvedSigner.AndroidUserHome
-            PUB_CACHE = [string]$Config.pub_cache
-            GRADLE_USER_HOME = [string]$Config.gradle_user_home
-        } $appRoot
+        $result = Invoke-FlutterBuildProcess $Config $values $SelectedMode $appRoot ([string]$approvedSigner.AndroidUserHome)
         if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $buildOutput -PathType Leaf)) { Throw-Safe 'Flutter build failed safely' }
         Move-Item -LiteralPath $buildOutput -Destination $artifact
         $package = Get-ApkPackageIdentity $Config $artifact
@@ -688,8 +778,10 @@ function Invoke-Build {
         throw
     }
     finally {
-        $definePayload = $null
+        $origin = $null
+        $channel = $null
         $values = $null
+        $result = $null
         if (Test-Path -LiteralPath $buildOutput) { Remove-Item -LiteralPath $buildOutput -Force }
     }
 }

@@ -328,6 +328,9 @@ toolchain/cache paths (including one absolute `apkanalyzer` package inspector),
 one AVD and serial, package/activity constants, task-owned
 `E:\codex-evidence\task-123` and `E:\codex-temp\task-123` roots, disk floor,
 artifact name, Android user-home inventory, and one allowed signer fingerprint.
+Each inventory entry is the actual `ANDROID_USER_HOME`; signer discovery checks
+only its direct `debug.keystore` child. It does not append another `.android`
+directory or accept a nested `.android\debug.keystore` fallback.
 It contains no endpoint, channel ID, provider subject, DSN, token, Secret value,
 or keystore path. A typical routine invocation is:
 
@@ -391,8 +394,40 @@ uses semantic package/activity/PID checks, performs no coordinate/OCR/raw UI XML
 or logcat classification, and does not retry a timed-out `am start`. Any network
 setting changed by that action is restored in `finally`. Cleanup is limited to
 the two task-owned roots and retains evidence unless `-PurgeEvidence` is
-explicit. Staging Flutter defines are delivered to the child through a named
-pipe so values are absent from argv, files, evidence, and console output.
+explicit. Flutter receives direct `--dart-define` arguments for a closed public
+identifier set only: fake mode has `APP_FLAVOR` and `CLIENT_MODE`; staging has
+those plus `API_BASE_URL` and `LINE_CHANNEL_ID`. Flutter 3.47 does not support
+stdin/environment input for `--dart-define-from-file`, so no named-pipe
+transport is used. This public-identifier exception does not permit any Secret,
+token, subject, DSN, assertion, credential, or arbitrary key in argv. The
+launcher never emits or persists the child command line, child output, origin,
+channel ID, or define values, and clears define/argument collections in
+`finally`.
+
+Flutter build also receives a child-only `APPDATA` rooted beneath the validated
+TASK-123 temp root. This isolates Flutter 3.47 from inherited user-level
+`.flutter_settings`, allowing the approved `ANDROID_HOME` and
+`ANDROID_SDK_ROOT` to remain authoritative without running `flutter config`.
+The launcher does not alter `HOME`, `USERPROFILE`, or global Flutter settings.
+The isolated APPDATA directory is removed with normal task-temp cleanup; its
+path and contents are not evidence and are never emitted.
+
+APK package and signer inspection use a child-only Java selection: `JAVA_HOME`
+is the normalized approved E-drive JDK and child `PATH` contains exactly that
+JDK's `bin` directory plus trusted Windows `System32`, which Android batch
+tools require. `SystemRoot` must resolve exactly to the OS-reported Windows
+root; inherited user PATH is never copied. The same closed child environment
+sets `ANDROID_HOME` and `ANDROID_SDK_ROOT` to the normalized approved E-drive
+SDK, so inherited SDK configuration cannot redirect build-tools discovery.
+This prevents stale Java or SDK selection for `apkanalyzer` or `apksigner`
+without changing parent environment or global configuration, and no configured
+path or child output is emitted.
+
+Configuration also binds `apkanalyzer` to the same approved SDK root. Its
+canonical location must match
+`cmdline-tools/latest|<numeric-version>/bin/apkanalyzer.bat` beneath that root;
+cross-SDK or unexpected layouts fail during config loading before any child
+tool starts, with no path in governed output.
 
 Owner-private actions are one interactive invocation only:
 

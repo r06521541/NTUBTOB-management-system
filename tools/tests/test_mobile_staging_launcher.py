@@ -213,6 +213,35 @@ class PowerShellContractTest(unittest.TestCase):
             self.assertNotIn(str(root), governed.stdout + governed.stderr)
             self.assert_safe_output(governed)
 
+    def test_config_requires_apkanalyzer_under_the_same_android_sdk(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            valid = launcher_config()
+            valid_path = root / "same-sdk.json"
+            valid_path.write_text(json.dumps(valid), encoding="utf-8")
+            cross = launcher_config()
+            cross["apkanalyzer_executable"] = (
+                r"E:\other-sdk\cmdline-tools\latest\bin\apkanalyzer.bat"
+            )
+            cross_path = root / "cross-sdk.json"
+            cross_path.write_text(json.dumps(cross), encoding="utf-8")
+            result = self.run_harness(
+                f"""
+                $script:childStarted=$false
+                function Invoke-BoundedProcess {{ $script:childStarted=$true;throw 'must not start' }}
+                $valid=Load-LauncherConfig '{valid_path.as_posix()}'
+                Write-Output ('valid='+$valid.schema_version)
+                try {{ Load-LauncherConfig '{cross_path.as_posix()}';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',child='+$script:childStarted) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("valid=1", result.stdout)
+            self.assertIn(
+                "APK analyzer is outside the approved Android SDK,child=False",
+                result.stdout,
+            )
+            self.assertNotIn("other-sdk", result.stdout + result.stderr)
+
     def test_snapshot_rejects_wrong_sha_dirty_or_attached_head(self):
         cases = (
             ("wrong", "", 1, "Snapshot commit does not match"),
@@ -595,7 +624,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             base = Path(directory)
             homes = [base / "one", base / "two"]
             for home in homes:
-                (home / ".android").mkdir(parents=True)
+                home.mkdir(parents=True)
             config = (
                 "[pscustomobject]@{android_user_homes=@('"
                 + homes[0].as_posix()
@@ -611,11 +640,11 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             )
             for existing, reported, success in cases:
                 for home in homes:
-                    key = home / ".android" / "debug.keystore"
+                    key = home / "debug.keystore"
                     if key.exists():
                         key.unlink()
                 for index in existing:
-                    (homes[index] / ".android" / "debug.keystore").write_bytes(b"fake")
+                    (homes[index] / "debug.keystore").write_bytes(b"fake")
                 result = self.run_harness(
                     f"""
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {reported}';Stderr=''}} }}
@@ -628,6 +657,29 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     self.assertIn(FINGERPRINT, result.stdout)
                 else:
                     self.assertIn("Exactly one allowlisted debug signer", result.stdout)
+                for home in homes:
+                    self.assertNotIn(str(home), result.stdout + result.stderr)
+                self.assertNotIn("androiddebugkey", result.stdout + result.stderr)
+                self.assertNotIn("storepass", result.stdout + result.stderr)
+
+            nested_key = homes[0] / ".android" / "debug.keystore"
+            for home in homes:
+                root_key = home / "debug.keystore"
+                if root_key.exists():
+                    root_key.unlink()
+            nested_key.parent.mkdir()
+            nested_key.write_bytes(b"nested-must-not-match")
+            result = self.run_harness(
+                f"""
+                function Invoke-BoundedProcess {{ throw 'nested signer must not be inspected' }}
+                $config={config}
+                try {{ Get-AllowlistedDebugSigner $config; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Exactly one allowlisted debug signer", result.stdout)
+            self.assertNotIn("nested signer", result.stdout)
+            self.assertNotIn(str(nested_key), result.stdout + result.stderr)
 
     def test_install_is_session_preserving_and_uses_only_install_r(self):
         result = self.run_harness(
@@ -667,7 +719,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 result = self.run_harness(
                     f"""
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout=\"{output}\";Stderr=''}} }}
-                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat'}}
+                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat';java_home='E:/mock/jdk';android_sdk_root='E:/mock/android-sdk'}}
                     try {{ Write-Output (Get-ApkPackageIdentity $config 'E:/task/app-debug.apk') }} catch {{ Write-Output $_.Exception.Message }}
                     """
                 )
@@ -685,6 +737,76 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("APK package identity does not match,install=False", result.stdout)
+
+    def test_apk_tools_use_exact_child_java_and_reject_unapproved_home(self):
+        stale_java = "C:/stale-java-sentinel"
+        result = self.run_harness(
+            f"""
+            $env:JAVA_HOME='{stale_java}'
+            $env:PATH='C:/stale-path-sentinel'
+            $env:ANDROID_HOME='C:/stale-android-home-sentinel'
+            $env:ANDROID_SDK_ROOT='C:/stale-android-sdk-root-sentinel'
+            $env:SystemRoot='C:\\Windows'
+            $script:calls=0
+            function Invoke-BoundedProcess {{
+                param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                $script:calls++
+                $script:lastChildEnvironment=$ChildEnvironment
+                if ($ChildEnvironment.Count -ne 4) {{ throw 'APK tool environment is not closed' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.JAVA_HOME),[IO.Path]::GetFullPath('E:/approved-jdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java home is not exact' }}
+                $expectedPath=[IO.Path]::GetFullPath('E:/approved-jdk/bin')+[IO.Path]::PathSeparator+[IO.Path]::GetFullPath('C:/Windows/System32')
+                if (-not [string]::Equals([string]$ChildEnvironment.PATH,$expectedPath,[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java path is not exact' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.ANDROID_HOME),[IO.Path]::GetFullPath('E:/approved-sdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Android home is not exact' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.ANDROID_SDK_ROOT),[IO.Path]::GetFullPath('E:/approved-sdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Android SDK root is not exact' }}
+                if ([string]$Executable -like '*apkanalyzer*') {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='tw.org.ntubtob.portal';Stderr=''}} }}
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='Signer #1 certificate SHA-256 digest: {FINGERPRINT}';Stderr=''}}
+            }}
+            $config=[pscustomobject]@{{java_home='E:/approved-jdk';android_sdk_root='E:/approved-sdk';apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+            $package=Get-ApkPackageIdentity $config 'E:/task/app-debug.apk'
+            $fingerprint=Get-ApkSignerFingerprint $config 'E:/task/app-debug.apk'
+            if ($env:JAVA_HOME -cne '{stale_java}' -or $env:PATH -cne 'C:/stale-path-sentinel' -or $env:ANDROID_HOME -cne 'C:/stale-android-home-sentinel' -or $env:ANDROID_SDK_ROOT -cne 'C:/stale-android-sdk-root-sentinel') {{ throw 'Parent tool environment changed' }}
+            if ($script:lastChildEnvironment.Count -ne 0) {{ throw 'APK Java environment was retained' }}
+            Write-Output ('package='+$package+',fingerprint='+$fingerprint+',calls='+$script:calls)
+            foreach ($invalid in @('relative-jdk','C:/unapproved-jdk')) {{
+                $script:started=$false
+                function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
+                $invalidConfig=[pscustomobject]@{{java_home=$invalid;android_sdk_root='E:/approved-sdk';apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+                try {{ Get-ApkPackageIdentity $invalidConfig 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
+            }}
+            foreach ($invalidSdk in @('relative-sdk','C:/unapproved-sdk')) {{
+                $script:started=$false
+                function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
+                $invalidConfig=[pscustomobject]@{{java_home='E:/approved-jdk';android_sdk_root=$invalidSdk;apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+                try {{ Get-ApkPackageIdentity $invalidConfig 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
+            }}
+            foreach ($invalidRoot in @('relative-root','C:\\Windows\\..\\Temp','C:/Windows')) {{
+                $script:started=$false
+                $env:SystemRoot=$invalidRoot
+                function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
+                try {{ Get-ApkPackageIdentity $config 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
+            }}
+            $env:SystemRoot='C:\\Windows'
+            function Invoke-BoundedProcess {{
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=1;Stdout='apk-stdout-sentinel';Stderr='apk-stderr-sentinel'}}
+            }}
+            try {{ Get-ApkSignerFingerprint $config 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            f"package=tw.org.ntubtob.portal,fingerprint={FINGERPRINT},calls=2",
+            result.stdout,
+        )
+        self.assertEqual(result.stdout.count("Approved Java home is invalid,started=False"), 2)
+        self.assertEqual(result.stdout.count("Approved Android SDK root is invalid,started=False"), 2)
+        self.assertEqual(result.stdout.count("Approved Windows root is invalid,started=False"), 3)
+        self.assertIn("APK signer verification failed safely", result.stdout)
+        self.assertNotIn(stale_java, result.stdout + result.stderr)
+        self.assertNotIn("stale-path-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("stale-android-home-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("stale-android-sdk-root-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("apk-stdout-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("apk-stderr-sentinel", result.stdout + result.stderr)
 
     def test_cold_launch_timeout_is_not_retried_and_network_is_restored(self):
         result = self.run_harness(
@@ -765,7 +887,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
                 function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}'}} }}
-                function Invoke-BoundedProcessWithPipe {{
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
                     [IO.Directory]::CreateDirectory('{output.parent.as_posix()}')|Out-Null
                     [IO.File]::WriteAllBytes('{output.as_posix()}',[byte[]](1,2))
                     return [pscustomobject]@{{TimedOut=$false;ExitCode=1;Stdout='';Stderr=''}}
@@ -777,12 +900,48 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("Flutter build failed safely,output=False,artifact=False", result.stdout)
 
-    def test_build_uses_named_pipe_defines_and_redacts_bounded_evidence(self):
+    def test_timed_out_partial_build_is_removed_without_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshot = root / "snapshot"
+            output = (
+                snapshot
+                / "clients"
+                / "flutter_app"
+                / "build"
+                / "app"
+                / "outputs"
+                / "flutter-apk"
+                / "app-debug.apk"
+            )
+            artifact = root / "evidence" / "app-debug.apk"
+            (snapshot / "clients" / "flutter_app").mkdir(parents=True)
+            result = self.run_harness(
+                f"""
+                function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
+                function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
+                function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
+                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}'}} }}
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    [IO.Directory]::CreateDirectory('{output.parent.as_posix()}')|Out-Null
+                    [IO.File]::WriteAllBytes('{output.as_posix()}',[byte[]](1,2))
+                    return [pscustomobject]@{{TimedOut=$true;ExitCode=$null;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{snapshot_root='{snapshot.as_posix()}';temp_root='{(root / 'temp').as_posix()}';evidence_root='{(root / 'evidence').as_posix()}';flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+                try {{ Invoke-Build $config 'fake' '{FULL_SHA}';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',output='+(Test-Path '{output.as_posix()}')+',artifact='+(Test-Path '{artifact.as_posix()}')) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("Flutter build failed safely,output=False,artifact=False", result.stdout)
+
+    def test_build_uses_exact_public_defines_and_redacts_bounded_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             snapshot = root / "snapshot"
             temp_root = root / "temp"
             evidence = root / "evidence"
+            android_user_home = root / "android-home"
             build_output = (
                 snapshot
                 / "clients"
@@ -794,6 +953,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 / "app-debug.apk"
             )
             (snapshot / "clients" / "flutter_app").mkdir(parents=True)
+            android_user_home.mkdir()
+            (android_user_home / "debug.keystore").write_bytes(b"fake")
             result = self.run_harness(
                 f"""
                 $env:MOBILE_STAGING_PUBLIC_ORIGIN='{SENSITIVE_SENTINELS[2]}'
@@ -801,20 +962,38 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{(evidence / 'app-debug.apk').as_posix()}' }}
-                function Get-AllowlistedDebugSigner {{ param($Config) return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}/android-home'}} }}
-                function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
-                function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
-                function Invoke-BoundedProcessWithPipe {{
+                function Invoke-BoundedProcess {{
                     param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    if (@($Arguments) -contains '-list') {{
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {FINGERPRINT}';Stderr=''}}
+                    }}
+                    $expected=@(
+                        '--dart-define=APP_FLAVOR=staging',
+                        '--dart-define=CLIENT_MODE=real',
+                        ('--dart-define=API_BASE_URL='+$env:MOBILE_STAGING_PUBLIC_ORIGIN),
+                        ('--dart-define=LINE_CHANNEL_ID='+$env:MOBILE_STAGING_LINE_CHANNEL_ID)
+                    )
+                    $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
+                    if ($actual.Count -ne 4) {{ throw 'Build define arguments are not exact' }}
+                    for ($index=0;$index -lt 4;$index++) {{
+                        if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Build define arguments are not exact' }}
+                    }}
+                    if (@($Arguments | Where-Object {{ $_ -like '--dart-define-from-file=*' }}).Count -ne 0) {{ throw 'Build transport is not direct' }}
+                    if ([string]$ChildEnvironment.ANDROID_USER_HOME -cne '{android_user_home.as_posix()}') {{ throw 'Build child Android user home is not exact' }}
+                    if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.APPDATA),[IO.Path]::GetFullPath('{(temp_root / 'flutter-appdata').as_posix()}'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'Build child APPDATA is not exact' }}
+                    if ($ChildEnvironment.ContainsKey('HOME') -or $ChildEnvironment.ContainsKey('USERPROFILE')) {{ throw 'Build child home variables were altered' }}
                     [System.IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
                     [System.IO.File]::WriteAllBytes('{build_output.as_posix()}',[byte[]](1,2,3,4))
                     return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='build complete';Stderr=''}}
                 }}
+                function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
+                function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
                 $config=[pscustomobject]@{{
                     snapshot_root='{snapshot.as_posix()}';temp_root='{temp_root.as_posix()}';
                     evidence_root='{evidence.as_posix()}';flutter_executable='E:/mock/flutter.cmd';
                     android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';
                     pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle';
+                    android_user_homes=@('{android_user_home.as_posix()}');keytool_executable='E:/mock/keytool.exe';
                     signer_allowlist=@('{FINGERPRINT}')
                 }}
                 $value=Invoke-Build $config 'staging' '{FULL_SHA}'
@@ -842,6 +1021,39 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             )
             for sentinel in SENSITIVE_SENTINELS:
                 self.assertNotIn(sentinel, manifest)
+
+    def test_flutter_define_transport_separates_modes_and_rejects_secret_keys(self):
+        sentinel = SENSITIVE_SENTINELS[0]
+        with tempfile.TemporaryDirectory() as directory:
+            task_temp = Path(directory) / "task-temp"
+            result = self.run_harness(
+                f"""
+                $script:TaskTempRoot='{task_temp.as_posix()}'
+                $script:started=$false
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    $script:started=$true
+                    $expected=@('--dart-define=APP_FLAVOR=development','--dart-define=CLIENT_MODE=fake')
+                    $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
+                    if ($actual.Count -ne 2) {{ throw 'Fake define arguments are not exact' }}
+                    for ($index=0;$index -lt 2;$index++) {{
+                        if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Fake define arguments are not exact' }}
+                    }}
+                    return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{temp_root='{task_temp.as_posix()}';flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+                $fake=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+                [void](Invoke-FlutterBuildProcess $config $fake 'fake' 'E:/mock/app' 'E:/mock/android-home')
+                Write-Output ('fakeStarted='+$script:started)
+                $script:started=$false
+                $adversarial=[ordered]@{{APP_FLAVOR='staging';CLIENT_MODE='real';API_BASE_URL='https://public.invalid';LINE_CHANNEL_ID='2011164500';SECRET_TOKEN='{sentinel}'}}
+                try {{ Invoke-FlutterBuildProcess $config $adversarial 'staging' 'E:/mock/app' 'E:/mock/android-home';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',secretStarted='+$script:started) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("fakeStarted=True", result.stdout)
+            self.assertIn("Flutter define set is invalid,secretStarted=False", result.stdout)
+            self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_help_and_owner_gate_emit_one_governed_json_result(self):
         cases = (
@@ -1046,6 +1258,42 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertEqual(envelope["classification"], "FAILED")
             self.assertEqual(envelope["details"]["reason_code"], "RUNTIME_FAILED")
             self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_flutter_appdata_is_task_owned_and_outside_root_fails_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            task_temp = Path(directory) / "task-temp"
+            inherited = "C:/global-flutter-config-sentinel"
+            evidence_root = Path(directory) / "task-evidence"
+            result = self.run_harness(
+                f"""
+                $env:APPDATA='{inherited}'
+                $script:TaskTempRoot='{task_temp.as_posix()}'
+                $script:TaskEvidenceRoot='{evidence_root.as_posix()}'
+                $script:started=$false
+                function Invoke-BoundedProcess {{
+                    param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                    $script:started=$true
+                    if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.APPDATA),[IO.Path]::GetFullPath('{(task_temp / 'flutter-appdata').as_posix()}'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'Child APPDATA is not exact' }}
+                    if ($ChildEnvironment.ContainsKey('HOME') -or $ChildEnvironment.ContainsKey('USERPROFILE')) {{ throw 'Child home variables were altered' }}
+                    return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{temp_root='{task_temp.as_posix()}';evidence_root='{evidence_root.as_posix()}';flutter_executable='E:/mock/flutter.cmd';android_sdk_root='E:/mock/android';java_home='E:/mock/jdk';pub_cache='E:/mock/pub';gradle_user_home='E:/mock/gradle'}}
+                $values=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+                [void](Invoke-FlutterBuildProcess $config $values 'fake' 'E:/mock/app' 'E:/mock/android-home')
+                Write-Output ('isolated='+$script:started+',created='+(Test-Path -LiteralPath '{(task_temp / 'flutter-appdata').as_posix()}' -PathType Container))
+                [void](Invoke-Cleanup $config $false)
+                Write-Output ('cleaned='+(-not (Test-Path -LiteralPath '{(task_temp / 'flutter-appdata').as_posix()}')))
+                $script:TaskTempRoot='E:/codex-temp/task-123'
+                $script:started=$false
+                $outside=[ordered]@{{APP_FLAVOR='development';CLIENT_MODE='fake'}}
+                try {{ Invoke-FlutterBuildProcess $config $outside 'fake' 'E:/mock/app' 'E:/mock/android-home';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',outsideStarted='+$script:started) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("isolated=True,created=True", result.stdout)
+            self.assertIn("cleaned=True", result.stdout)
+            self.assertIn("Path escapes the task-owned root,outsideStarted=False", result.stdout)
+            self.assertNotIn(inherited, result.stdout + result.stderr)
 
     def test_real_package_state_emits_exact_governed_contract(self):
         sentinel = "private-provider-subject-sentinel"
@@ -1710,7 +1958,7 @@ def launcher_config():
         "adb_executable": r"E:\android\platform-tools\adb.exe",
         "emulator_executable": r"E:\android\emulator\emulator.exe",
         "apksigner_executable": r"E:\android\build-tools\apksigner.bat",
-        "apkanalyzer_executable": r"E:\android\cmdline-tools\bin\apkanalyzer.bat",
+        "apkanalyzer_executable": r"E:\android\cmdline-tools\latest\bin\apkanalyzer.bat",
         "keytool_executable": r"E:\jdk\bin\keytool.exe",
         "android_sdk_root": r"E:\android",
         "java_home": r"E:\jdk",

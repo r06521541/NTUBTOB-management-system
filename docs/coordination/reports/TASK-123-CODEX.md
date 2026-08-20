@@ -39,8 +39,9 @@ state. Logged-out specifically requires one enabled, clickable portal
 `android.widget.Button` with exact `LINE 登入`; duplicated Flutter prompt
 semantics and other unapproved labels are ignored. Cold launch
 uses semantic package/activity/PID checks, has no timeout retry, and restores a
-temporary network change in `finally`. Flutter defines use a named pipe and do
-not enter argv, files, evidence, or output.
+temporary network change in `finally`. Flutter build arguments are limited to
+the exact public compile-time define set for fake or staging and never enter
+governed output or evidence.
 
 Owner-private inspect/grant/restore remains interactive. The provider subject
 and approved database Secret payload exist only in the child environment and
@@ -151,6 +152,143 @@ This terminal evidence does not claim Owner-private inspect/grant/restore
 dogfood, nor build, install, or cold-launch scenario completion. Hosted CI is
 still required. Codex performed no runtime action while recording this evidence.
 
+## Signer-home correction
+
+Subsequent controlled dogfood reached build and failed closed before Flutter
+with `FAILED/TOOLCHAIN_UNAVAILABLE`. Source diagnosis found signer discovery
+was appending `.android\debug.keystore` even though every configured entry is
+already the actual `ANDROID_USER_HOME`. The correction inspects only the direct
+`debug.keystore` child and passes that exact matched home to the Flutter build
+child as `ANDROID_USER_HOME`. It preserves exact-one public SHA-256 allowlist
+matching and does not output a home path, keystore path, key, or password.
+
+Tests now use the realistic root layout, reject zero/multiple/mismatched
+signers, prove a nested `.android\debug.keystore` is not accepted as fallback,
+and prove the build child receives the exact matched home. No launcher runtime,
+emulator, staging, private-console, Secret, or cloud action was executed for
+this correction. The two directly affected tests, Windows PowerShell parser,
+Python compile, isort, diff, and scope checks passed. The full direct suite
+produced 39 passes and one unchanged merged-base failure in
+`test_output_redaction_fallback_is_one_failed_json_and_exit_two`; the same test
+fails independently on base/main with `ACTION_RESULT_INVALID` instead of its
+expected `OUTPUT_REDACTION_FAILED`, so this narrow correction does not alter it.
+
+## Build transport correction
+
+Controlled dogfood with the corrected signer reached Flutter, then failed
+closed after the named-pipe connection wait. Bounded artifact inspection found
+no APK, manifest, build-output APK, or stale lock. Flutter 3.47 reads
+`--dart-define-from-file` as a filesystem path and has no supported stdin or
+environment transport, so the unused named-pipe helper was removed.
+
+Build now constructs direct `--dart-define` child arguments from a closed
+public-identifier set. Fake mode accepts exactly `APP_FLAVOR` and `CLIENT_MODE`;
+staging accepts exactly those plus `API_BASE_URL` and `LINE_CHANNEL_ID` after
+the existing public-origin/channel validation. Any extra, reordered, malformed,
+or Secret-like key/value fails before child start. No child command line,
+stdout/stderr, origin, channel ID, or define value is copied into output,
+evidence, exceptions, or this report, and value/argument references are cleared
+in `finally`.
+
+Five affected tests cover exact fake/staging arguments, mode separation,
+adversarial Secret-like rejection before child start, no-disclosure evidence,
+bounded child cleanup, and nonzero/timeout partial-artifact cleanup. This
+correction performed no launcher runtime, emulator, staging, private-console,
+Secret, or cloud action.
+
+## Flutter config isolation correction
+
+The next bounded dogfood attempt reached Flutter/Gradle but returned nonzero
+without an artifact, manifest, or stale lock. After correcting the configured
+Android SDK to the complete approved build SDK, one justified retry still
+returned nonzero. Source-only diagnosis showed Flutter 3.47 gives inherited
+user-level `android-sdk` configuration precedence over `ANDROID_HOME`, causing
+generated `local.properties` to select an unapproved SDK.
+
+The build child now receives an isolated `APPDATA` directory derived beneath
+the validated TASK-123 temp root. This makes the existing approved
+`ANDROID_HOME` and `ANDROID_SDK_ROOT` authoritative without changing
+`HOME`, `USERPROFILE`, or global Flutter configuration. The directory is
+ordinary task temp removed by bounded cleanup, and its path/content never
+enters evidence or governed output.
+
+Affected tests prove the exact child-only APPDATA override, inherited global
+config isolation, unchanged HOME/USERPROFILE, C-drive/out-of-root rejection
+before child start, bounded cleanup, and the existing exact public-define and
+no-disclosure behavior. This correction performed no launcher runtime,
+emulator, staging, private-console, Secret, or cloud action.
+
+## APK tooling Java isolation correction
+
+Controlled dogfood subsequently produced an APK but failed closed during APK
+inspection because the host-selected Java was older than the approved JDK.
+Source diagnosis found package and signer inspection did not receive the build
+child's Java selection.
+
+Both APK inspectors now run with child-only `JAVA_HOME` and `PATH` derived from
+the normalized approved E-drive JDK. Inherited stale Java cannot win, while the
+parent environment and global configuration remain unchanged. The temporary
+environment is cleared in `finally`; Java paths, child output, and diagnostic
+sentinels are not emitted or retained.
+
+Direct regressions cover package and signer inspection with the exact child
+JDK, stale inherited Java, invalid/out-of-root Java before child start, and
+nonzero child-output redaction. Five affected direct tests, the PowerShell
+parser, Python compile, isort, diff, and scope checks passed. This correction
+executed no launcher runtime, emulator, staging, private-console, Secret, or
+cloud action.
+
+The next public read-only probe showed the Android package-inspection batch
+tool also requires Windows `findstr`. The child PATH is therefore now exactly
+two trusted entries: the approved JDK `bin` and OS-validated Windows
+`System32`; inherited user PATH remains excluded. Direct tests cover the exact
+two-entry value, malformed `SystemRoot` before child start, unchanged parent
+environment, and sentinel/output non-disclosure. No real launcher or external
+runtime action was executed for this residual correction.
+
+A subsequent public probe showed package inspection could not locate Android
+build tools because the inspector child lacked the approved SDK variables.
+The same closed four-key environment now sets both `ANDROID_HOME` and
+`ANDROID_SDK_ROOT` to the normalized approved E-drive SDK in addition to the
+approved Java and PATH values. Direct tests exclude inherited adversarial SDK
+variables, reject malformed/out-of-root SDK configuration before child start,
+and retain package/signer compatibility and no-disclosure behavior. No real
+launcher or external runtime action was executed for this residual correction.
+
+Official `apkanalyzer` resolves build tools relative to its own SDK. The config
+contract now requires the analyzer's canonical path to be the allowlisted
+`cmdline-tools/latest|<numeric-version>/bin` structure beneath the configured
+Android SDK root. A direct regression proves same-root acceptance and
+cross-SDK rejection before any child action without path disclosure. No real
+launcher or external runtime action was executed for this config correction.
+
+## Terminal controlled dogfood
+
+After the targeted corrections were accepted, one bounded staging dogfood
+sequence completed with governed results only:
+
+- `build`: `PASS` for accepted commit
+  `ed645f3c0af9c43e8465bcfef597c5f58ad37827`, mode `staging`, package
+  `tw.org.ntubtob.portal`, artifact SHA-256
+  `52240308A496C93AB8F193AB7A92CEA0ADC5A344F22B2ED06AE149C4D4DC875B`,
+  and signer SHA-256
+  `38035A5838A5D9AB60A29FB95E7118DA8E3B80D7976BE3D2D6594AE8988B85B9`.
+- `signer-check`: `PASS`, exact signer matched.
+- `install`: `PASS`, package replaced with session preservation.
+- `cold-launch`: `PASS`, app running and retry `not_needed`.
+- `status`: `PASS`, result `observed`, package `installed`, activity `portal`,
+  semantic state `logged_out`, with counts `login=1`, `basic=0`, `officer=0`,
+  `report_enabled=0`, and `report_disabled=0`.
+- `cleanup`: `PASS`, task temp removed and evidence retained.
+
+Earlier bounded attempts failed closed and led to the signer-home, public
+define transport, isolated Flutter config, Java/System32, SDK child-env, and
+same-SDK analyzer corrections recorded above. No raw child output was retained
+or copied into this report. The terminal sequence performed no login, Secret
+access, cloud operation, app-data clear/uninstall, business mutation, or
+notification. Its untracked value-free dogfood config was deleted and the main
+worktree was clean at closeout.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.
@@ -188,8 +326,10 @@ still required. Codex performed no runtime action while recording this evidence.
 - Governed action-result correction commit:
   `f1a58f6cfee9f975722b2de1ff50d457a79b8fb3`
 - Authoritative shared ancestry: `c3bfd7e40eccaea2f0b7ca46d7a60a2b39860932`
-- External side effects: none; repository-only tests used mocked executables.
-- Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
-  hosted Black/Python 3.10 remain Main Work/final CI evidence.
+- External effects were limited to the terminal bounded build,
+  session-preserving install, cold launch, status observation, and task-temp
+  cleanup recorded above.
+- Unverified: Owner-private console/login and hosted Black/Python 3.10 remain
+  Main Work/final CI evidence.
 
 Main Work owns integration, hosted CI, PR, and merge.
