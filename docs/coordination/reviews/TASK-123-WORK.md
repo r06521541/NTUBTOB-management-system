@@ -40,6 +40,11 @@ Changes requested before controlled staging dogfood.
   avoid UI projection reads when the package is absent or the portal is
   background/stopped. Ambiguous or duplicate allowlisted states must continue
   to fail closed, and raw accessibility data must remain undisclosed.
+- The status-state correction is otherwise accepted, but current-activity
+  detection still searches the entire `dumpsys` text for any retained portal
+  activity. It must parse one exact resumed/top-resumed/focused component so a
+  background or stopped portal cannot trigger an accessibility dump over LINE,
+  Chrome or another foreground app. Ambiguous current records must fail closed.
 
 ## Deferred
 

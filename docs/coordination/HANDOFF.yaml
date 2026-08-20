@@ -3,10 +3,10 @@ status: changes_requested
 next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: a3486d67a0fd730ae513fd420063ea82b617d61e
+head_commit: a2d9c81d9df3ca7303736b49504f24e64b6694a7
 
 updated_by: work
-updated_at: 2026-08-20T17:40:00+08:00
+updated_at: 2026-08-20T18:00:00+08:00
 
 note: >
   TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
@@ -20,9 +20,10 @@ note: >
   but the first routine preflight dogfood found a PowerShell automatic-variable collision in real config loading and
   no bounded diagnostic reason in failed JSON. The writer corrected those findings and the output-redaction
   fallback exit semantics; targeted review accepted them. Corrected preflight dogfood now passes. The first read-only
-  status dogfood exposed a complete state-matrix gap: status requires an authenticated Basic/Officer projection and
-  therefore rejects valid logged-out, package-absent, background and stopped states. The original sole writer must
-  add bounded allowlisted classification for those states before dogfood resumes.
+  status dogfood exposed a state-matrix gap. The writer added bounded logged-out, package-absent, background, stopped
+  and authenticated classifications; targeted review accepted those semantics but found one residual parser defect:
+  current activity detection treats any retained portal task as foreground. The original sole writer must anchor the
+  decision to one exact resumed/top-resumed/focused component before any UI dump, with direct dumpsys regressions.
   Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work
   remain explicitly deferred.
 
