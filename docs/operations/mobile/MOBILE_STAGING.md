@@ -584,8 +584,11 @@ Preparation consumes only accepted TASK-123 actions. A matching artifact
 manifest/fingerprint proves the build artifact, not the installed APK, so a
 fresh scenario still runs `signer-check`, session-preserving `install -r`, and
 one cold launch. A bound resume checkpoint revalidates instead of reinstalling.
-The production dependency factory captures its value-free config and accepted
-binding in lexical closures before any delayed action runs. TASK-123
+The production dependency factory loads TASK-123 into an isolated in-memory
+PowerShell module, then captures its value-free config, accepted binding, and
+module-bound function ScriptBlocks before the factory scope ends. Delayed
+closures invoke only those bound callables; launcher parameters and functions
+are not exported into the harness or global scope.
 `signer-check` succeeds only with its exact `matched` result vocabulary.
 The AVD preparation step accepts only the launcher's two successful outcomes:
 `started` for a newly started approved AVD or `reused` for the already-running
