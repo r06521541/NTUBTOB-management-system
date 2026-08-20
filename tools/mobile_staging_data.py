@@ -117,6 +117,9 @@ OFFICER_AUDITS = {
         "reason": "TASK-119 fictional Officer restore",
     },
 }
+LIFECYCLE_FIXTURE = "TASK-126"
+LIFECYCLE_REQUEST_PREFIX = "task-126-fixture-lifecycle"
+LIFECYCLE_REASON_PREFIX = "TASK-126 fictional fixture lifecycle"
 RUNTIME_RESIDUE_ROWS = (
     (
         3,
@@ -142,23 +145,32 @@ CANONICAL_FIXTURE_REPLY_ROWS = (
     (-112002, -112001, None, None, -112002, 2, FIXTURE_REPLY_AT),
     (-112001, -112001, None, None, -112001, 1, FIXTURE_REPLY_AT),
 )
+CANONICAL_ATTENDANCE = {
+    row[0]: {
+        "game_id": row[1],
+        "user_id": row[2],
+        "member_id": row[3],
+        "person_id": row[4],
+        "reply": row[5],
+    }
+    for row in CANONICAL_FIXTURE_REPLY_ROWS
+}
+AUDIT_FIELDS = (
+    "id",
+    "action",
+    "actor_person_id",
+    "target_person_id",
+    "auth_identity_id",
+    "before_state",
+    "after_state",
+    "reason",
+    "request_id",
+)
 
 
-def _officer_audit(connection, transition: str) -> bool:
+def _legacy_audit(transition: str) -> dict:
     expected = OFFICER_AUDITS[transition]
-    row = (
-        connection.execute(
-            text(
-                "SELECT id, action, actor_person_id, target_person_id, "
-                "auth_identity_id, before_state, after_state, reason, request_id "
-                "FROM ntubtob.access_audit WHERE id=:id"
-            ),
-            {"id": OFFICER_AUDIT_IDS[transition]},
-        )
-        .mappings()
-        .one_or_none()
-    )
-    return row == {
+    return {
         "id": OFFICER_AUDIT_IDS[transition],
         "action": "access_changed",
         "actor_person_id": None,
@@ -169,6 +181,86 @@ def _officer_audit(connection, transition: str) -> bool:
         "reason": expected["reason"],
         "request_id": OFFICER_REQUEST_IDS[transition],
     }
+
+
+def _lifecycle_audit(version: int, transition: str, audit_id=None) -> dict:
+    before = "basic" if transition == "grant" else "officer"
+    after = "officer" if transition == "grant" else "basic"
+    return {
+        "id": audit_id,
+        "action": "access_changed",
+        "actor_person_id": None,
+        "target_person_id": OFFICER_PERSON_ID,
+        "auth_identity_id": OFFICER_IDENTITY_ID,
+        "before_state": {
+            "access_level": before,
+            "fixture": LIFECYCLE_FIXTURE,
+            "version": version,
+        },
+        "after_state": {
+            "access_level": after,
+            "fixture": LIFECYCLE_FIXTURE,
+            "version": version + 1,
+        },
+        "reason": f"{LIFECYCLE_REASON_PREFIX} {transition}",
+        "request_id": f"{LIFECYCLE_REQUEST_PREFIX}-v{version}-{transition}",
+    }
+
+
+def _audit_shape(row) -> dict:
+    values = dict(row)
+    return {field: values.get(field) for field in AUDIT_FIELDS}
+
+
+def _classify_role_lifecycle(person: dict, audits: Sequence[dict]) -> str:
+    """Validate the complete append-only fixture role chain."""
+    expected_role = "basic"
+    expected_version = 1
+    position = 0
+    rows = [_audit_shape(row) for row in audits]
+    for transition in ("grant", "restore"):
+        if position >= len(rows):
+            break
+        if rows[position] != _legacy_audit(transition):
+            raise StagingContractError("Officer fixture lifecycle audit is drifted")
+        expected_role = "officer" if transition == "grant" else "basic"
+        expected_version += 1
+        position += 1
+
+    while position < len(rows):
+        transition = "grant" if expected_role == "basic" else "restore"
+        expected = _lifecycle_audit(
+            expected_version, transition, rows[position].get("id")
+        )
+        if rows[position] != expected:
+            raise StagingContractError("Officer fixture lifecycle audit is drifted")
+        expected_role = "officer" if transition == "grant" else "basic"
+        expected_version += 1
+        position += 1
+
+    if (
+        person.get("portal_access_level") != expected_role
+        or person.get("version") != expected_version
+    ):
+        raise StagingContractError("Officer fixture audit or version is drifted")
+    if expected_role == "officer":
+        return "granted"
+    return "baseline" if expected_version == 1 else "restored"
+
+
+def _fixture_audits(connection) -> list[dict]:
+    return list(
+        connection.execute(
+            text(
+                "SELECT id, action, actor_person_id, target_person_id, "
+                "auth_identity_id, before_state, after_state, reason, request_id "
+                "FROM ntubtob.access_audit WHERE target_person_id=:person "
+                "OR auth_identity_id=:identity ORDER BY "
+                "CASE id WHEN -119001 THEN 0 WHEN -119002 THEN 1 ELSE 2 END, id"
+            ),
+            {"person": OFFICER_PERSON_ID, "identity": OFFICER_IDENTITY_ID},
+        ).mappings()
+    )
 
 
 def _legacy_fixture_audit(connection) -> bool:
@@ -254,16 +346,106 @@ def _runtime_residue_is_exact(connection) -> bool:
         text(
             "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
             "FROM ntubtob.game_attendance_replies "
-            "WHERE id IN (-112003, -112002, -112001, 3, 4) ORDER BY id"
-        )
+            "WHERE id = ANY(:canonical_ids) OR person_id = ANY(:fixture_ids) "
+            "OR game_id = ANY(:fixture_ids) ORDER BY id"
+        ),
+        {
+            "canonical_ids": list(CANONICAL_ATTENDANCE),
+            "fixture_ids": list(MOBILE_FIXTURE_IDS),
+        },
     ).all()
     return [tuple(row) for row in rows] == list(
         CANONICAL_FIXTURE_REPLY_ROWS + RUNTIME_RESIDUE_ROWS
     )
 
 
+def _attendance_lifecycle_state(connection) -> bool:
+    """Return whether known fixture-owned attendance requires reconstruction."""
+    rows = list(
+        connection.execute(
+            text(
+                "SELECT id, game_id, user_id, member_id, person_id, reply "
+                "FROM ntubtob.game_attendance_replies "
+                "WHERE id = ANY(:canonical_ids) OR person_id = ANY(:fixture_ids) "
+                "OR game_id = ANY(:fixture_ids) ORDER BY id"
+            ),
+            {
+                "canonical_ids": list(CANONICAL_ATTENDANCE),
+                "fixture_ids": list(MOBILE_FIXTURE_IDS),
+            },
+        ).mappings()
+    )
+    seen = set()
+    reset_required = False
+    for row in rows:
+        row = dict(row)
+        canonical = CANONICAL_ATTENDANCE.get(row["id"])
+        if canonical is not None:
+            seen.add(row["id"])
+            ownership = {
+                key: row[key]
+                for key in ("game_id", "user_id", "member_id", "person_id")
+            }
+            expected_ownership = {
+                key: canonical[key]
+                for key in ("game_id", "user_id", "member_id", "person_id")
+            }
+            if ownership != expected_ownership:
+                raise StagingContractError(
+                    "Fixture attendance canonical ID collision is drifted"
+                )
+            reset_required = reset_required or row["reply"] != canonical["reply"]
+            continue
+        if (
+            row["person_id"] not in MOBILE_FIXTURE_IDS
+            or row["game_id"] not in MOBILE_FIXTURE_IDS
+            or row["user_id"] is not None
+            or row["member_id"] is not None
+            or row["reply"] not in {1, 2, 3, 4, 5}
+        ):
+            raise StagingContractError("Fixture attendance ownership is drifted")
+        reset_required = True
+    return reset_required or seen != set(CANONICAL_ATTENDANCE)
+
+
+def _attendance_is_canonical(connection) -> bool:
+    no_noncanonical = connection.scalar(
+        text(
+            "SELECT NOT EXISTS (SELECT 1 "
+            "FROM ntubtob.game_attendance_replies WHERE "
+            "(person_id = ANY(:fixture_ids) OR game_id = ANY(:fixture_ids) "
+            "OR id = ANY(:canonical_ids)) AND NOT (id = ANY(:canonical_ids)))"
+        ),
+        {
+            "fixture_ids": list(MOBILE_FIXTURE_IDS),
+            "canonical_ids": list(CANONICAL_ATTENDANCE),
+        },
+    )
+    if not no_noncanonical:
+        return False
+    for row_id, expected in CANONICAL_ATTENDANCE.items():
+        if not connection.scalar(
+            text(
+                "SELECT EXISTS (SELECT 1 FROM ntubtob.game_attendance_replies "
+                "WHERE id=:id AND game_id=:game_id AND user_id IS NULL "
+                "AND member_id IS NULL AND person_id=:person_id AND reply=:reply)"
+            ),
+            {
+                "id": row_id,
+                "game_id": expected["game_id"],
+                "person_id": expected["person_id"],
+                "reply": expected["reply"],
+            },
+        ):
+            return False
+    return True
+
+
 def _officer_fixture_state(
-    connection, private_subject: str, allow_runtime_residue: bool = False
+    connection,
+    private_subject: str,
+    allow_runtime_residue: bool = False,
+    allow_attendance_reset: bool = False,
 ) -> str:
     """Classify only the exact append-only TASK-119 fixture states."""
     schema_exists = connection.scalar(
@@ -290,32 +472,22 @@ def _officer_fixture_state(
         "attendance_reply_types"
     ]
     expected["games"] = MOBILE_FIXTURE_IDS + LEGACY_IDS["games"]
-    expected["game_attendance_replies"] = (
-        MOBILE_FIXTURE_IDS + LEGACY_IDS["game_attendance_replies"]
-    )
     expected["people"] = MOBILE_FIXTURE_IDS + LEGACY_IDS["people"]
     expected["auth_identities"] = MOBILE_FIXTURE_IDS
     expected["person_qualifications"] = MOBILE_FIXTURE_IDS + (1,)
     # access_audit is deliberately classified below: its task-owned records are
     # append-only and are the only legitimate difference from the seed fixture.
     expected.pop("access_audit")
-    residue_present = False
-    residue_ids = MOBILE_FIXTURE_IDS + (3, 4) + LEGACY_IDS["game_attendance_replies"]
+    # Attendance is classified relationally below; IDs, timestamps and totals
+    # are not ownership evidence for the repeatable fixture lifecycle.
+    expected.pop("game_attendance_replies")
     for table, ids in expected.items():
-        if (
-            table == "game_attendance_replies"
-            and _ids(connection, table) == residue_ids
-        ):
-            if not allow_runtime_residue or not _runtime_residue_is_exact(connection):
-                raise StagingContractError("Officer fixture attendance is drifted")
-            residue_present = True
-            continue
         if _ids(connection, table) != ids:
             raise StagingContractError("Officer fixture is partial or drifted")
     empty_tables = (
         (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES)
         - set(expected)
-        - {"people", "access_audit"}
+        - {"people", "access_audit", "game_attendance_replies"}
         - MOBILE_TABLES
     )
     if any(_ids(connection, table) for table in empty_tables):
@@ -380,38 +552,18 @@ def _officer_fixture_state(
     }:
         raise StagingContractError("Officer fixture identity is drifted")
 
-    audit_ids = _ids(connection, "access_audit")
-    level_version = (tester["portal_access_level"], tester["version"])
     if not _legacy_fixture_audit(connection):
         raise StagingContractError("Officer fixture audit or version is drifted")
+    role_state = _classify_role_lifecycle(tester, _fixture_audits(connection))
     if (
-        residue_present
-        and level_version == ("basic", 1)
-        and audit_ids == LEGACY_IDS["access_audit"]
+        allow_runtime_residue
+        and role_state == "baseline"
+        and _runtime_residue_is_exact(connection)
     ):
         return "runtime_residue"
-    if level_version == ("basic", 1) and audit_ids == LEGACY_IDS["access_audit"]:
-        return "baseline"
-    if (
-        level_version == ("officer", 2)
-        and audit_ids == (OFFICER_AUDIT_IDS["grant"],) + LEGACY_IDS["access_audit"]
-    ):
-        if _officer_audit(connection, "grant"):
-            return "granted"
-    if (
-        level_version == ("basic", 3)
-        and audit_ids
-        == (
-            OFFICER_AUDIT_IDS["restore"],
-            OFFICER_AUDIT_IDS["grant"],
-        )
-        + LEGACY_IDS["access_audit"]
-    ):
-        if _officer_audit(connection, "grant") and _officer_audit(
-            connection, "restore"
-        ):
-            return "restored"
-    raise StagingContractError("Officer fixture audit or version is drifted")
+    if _attendance_lifecycle_state(connection) and not allow_attendance_reset:
+        raise StagingContractError("Officer fixture attendance is drifted")
+    return role_state
 
 
 def officer_inventory(approval: dict, database_url: str, private_subject: str) -> dict:
@@ -442,7 +594,11 @@ def officer_inventory(approval: dict, database_url: str, private_subject: str) -
     return {"database_identity_sha256": identity.fingerprint, "state": state}
 
 
-def _mobile_principal_state(expected_person: dict | None, sessions: dict) -> dict:
+def _mobile_principal_state(
+    expected_person: dict | None,
+    sessions: dict,
+    valid_officer_generation: bool | None = None,
+) -> dict:
     total = sessions["total"]
     expected = sessions["expected_tuple"]
     mismatch = sessions["expected_person_binding_mismatch"]
@@ -465,10 +621,14 @@ def _mobile_principal_state(expected_person: dict | None, sessions: dict) -> dic
     access_level = person.get("portal_access_level")
     status = person.get("portal_status")
     version = person.get("version")
+    if valid_officer_generation is None:
+        valid_officer_generation = version == 2
     return {
         "state": state,
         "expected_person_match": (
-            access_level == "officer" and status == "active" and version == 2
+            access_level == "officer"
+            and status == "active"
+            and valid_officer_generation
         ),
         "expected_person": {
             "access_level": access_level,
@@ -517,6 +677,14 @@ def mobile_principal_inventory(approval: dict, database_url: str) -> dict:
                         .mappings()
                         .one_or_none()
                     )
+                    valid_officer_generation = False
+                    if expected_person is not None:
+                        valid_officer_generation = (
+                            _classify_role_lifecycle(
+                                dict(expected_person), _fixture_audits(connection)
+                            )
+                            == "granted"
+                        )
                     sessions = (
                         connection.execute(
                             text(
@@ -546,6 +714,7 @@ def mobile_principal_inventory(approval: dict, database_url: str) -> dict:
                     result = _mobile_principal_state(
                         dict(expected_person) if expected_person else None,
                         dict(sessions),
+                        valid_officer_generation,
                     )
                 finally:
                     transaction.rollback()
@@ -659,9 +828,11 @@ def execute_runtime_residue_repair(
     }
 
 
-def _write_officer_transition(connection, transition: str) -> None:
-    before, after, expected_version = (
-        ("basic", "officer", 1) if transition == "grant" else ("officer", "basic", 2)
+def _write_officer_transition(
+    connection, transition: str, expected_version: int
+) -> None:
+    before, after = (
+        ("basic", "officer") if transition == "grant" else ("officer", "basic")
     )
     result = connection.execute(
         text(
@@ -679,25 +850,45 @@ def _write_officer_transition(connection, transition: str) -> None:
     )
     if result.rowcount != 1:
         raise StagingContractError("Officer fixture transition is not exact")
-    audit = OFFICER_AUDITS[transition]
+    legacy = (transition, expected_version) in {("grant", 1), ("restore", 2)}
+    audit = (
+        _legacy_audit(transition)
+        if legacy
+        else _lifecycle_audit(expected_version, transition)
+    )
+    id_column = "id, " if legacy else ""
+    id_value = ":id, " if legacy else ""
+    values = {
+        "target": OFFICER_PERSON_ID,
+        "identity": OFFICER_IDENTITY_ID,
+        "before_state": json.dumps(audit["before_state"], sort_keys=True),
+        "after_state": json.dumps(audit["after_state"], sort_keys=True),
+        "reason": audit["reason"],
+        "request_id": audit["request_id"],
+    }
+    if legacy:
+        values["id"] = audit["id"]
+    if not legacy:
+        connection.execute(
+            text("LOCK TABLE ntubtob.access_audit IN SHARE ROW EXCLUSIVE MODE")
+        )
+        connection.execute(
+            text(
+                "SELECT setval(pg_get_serial_sequence('ntubtob.access_audit', 'id'), "
+                "GREATEST((SELECT COALESCE(MAX(id), 0) "
+                "FROM ntubtob.access_audit), 1), true)"
+            )
+        )
     connection.execute(
         text(
             "INSERT INTO ntubtob.access_audit "
-            "(id, action, actor_person_id, target_person_id, auth_identity_id, "
-            "before_state, after_state, reason, request_id, created_at) VALUES "
-            "(:id, 'access_changed', NULL, :target, :identity, "
-            "CAST(:before_state AS json), CAST(:after_state AS json), :reason, "
-            ":request_id, timezone('utc', now()))"
+            f"({id_column}action, actor_person_id, target_person_id, "
+            "auth_identity_id, before_state, after_state, reason, request_id, "
+            f"created_at) VALUES ({id_value}'access_changed', NULL, :target, "
+            ":identity, CAST(:before_state AS json), CAST(:after_state AS json), "
+            ":reason, :request_id, timezone('utc', now()))"
         ),
-        {
-            "id": OFFICER_AUDIT_IDS[transition],
-            "target": OFFICER_PERSON_ID,
-            "identity": OFFICER_IDENTITY_ID,
-            "before_state": json.dumps(audit["before"], sort_keys=True),
-            "after_state": json.dumps(audit["after"], sort_keys=True),
-            "reason": audit["reason"],
-            "request_id": OFFICER_REQUEST_IDS[transition],
-        },
+        values,
     )
 
 
@@ -713,18 +904,25 @@ def _execute_officer_transition(
     terminal_state = "granted" if transition == "grant" else "restored"
     if before["state"] == terminal_state:
         return {**before, "changed": False}
-    allowed_state = "baseline" if transition == "grant" else "granted"
-    if before["state"] != allowed_state:
+    allowed_states = (
+        {"baseline", "restored"} if transition == "grant" else {"granted"}
+    )
+    if before["state"] not in allowed_states:
         raise StagingContractError("Remote Officer transition state is not exact")
     engine = create_engine(database_url)
     try:
         try:
             with engine.begin() as connection:
-                if _officer_fixture_state(connection, private_subject) != allowed_state:
+                current_state = _officer_fixture_state(connection, private_subject)
+                if current_state not in allowed_states:
                     raise StagingContractError(
                         "Remote Officer transition changed before mutation"
                     )
-                _write_officer_transition(connection, transition)
+                expected_version = connection.scalar(
+                    text("SELECT version FROM ntubtob.people WHERE id=:id"),
+                    {"id": OFFICER_PERSON_ID},
+                )
+                _write_officer_transition(connection, transition, expected_version)
                 if (
                     _officer_fixture_state(connection, private_subject)
                     != terminal_state
@@ -754,6 +952,191 @@ def restore_basic(approval: dict, database_url: str, private_subject: str) -> di
     return _execute_officer_transition(
         approval, database_url, private_subject, "restore"
     )
+
+
+def _fixture_lifecycle_state(connection, private_subject: str) -> str:
+    role_state = _officer_fixture_state(
+        connection, private_subject, allow_attendance_reset=True
+    )
+    if _attendance_lifecycle_state(connection):
+        return "reset_required"
+    return "ready_officer" if role_state == "granted" else "ready_basic"
+
+
+def fixture_lifecycle_inventory(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    private_subject = _officer_subject(private_subject)
+    identity = validate_database_identity(
+        database_url,
+        approval["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    engine = create_engine(database_url)
+    try:
+        try:
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                try:
+                    connection.execute(text("SET TRANSACTION READ ONLY"))
+                    state = _fixture_lifecycle_state(connection, private_subject)
+                finally:
+                    transaction.rollback()
+        except StagingContractError:
+            raise
+        except SQLAlchemyError:
+            raise StagingContractError(
+                "Remote staging fixture lifecycle inventory failed safely"
+            ) from None
+    finally:
+        engine.dispose()
+    return {"database_identity_sha256": identity.fingerprint, "state": state}
+
+
+def _lock_fixture_roots(connection) -> None:
+    people = tuple(
+        connection.scalars(
+            text(
+                "SELECT id FROM ntubtob.people WHERE id = ANY(:ids) "
+                "ORDER BY id FOR UPDATE"
+            ),
+            {"ids": list(MOBILE_FIXTURE_IDS)},
+        )
+    )
+    games = tuple(
+        connection.scalars(
+            text(
+                "SELECT id FROM ntubtob.games WHERE id = ANY(:ids) "
+                "ORDER BY id FOR UPDATE"
+            ),
+            {"ids": list(MOBILE_FIXTURE_IDS)},
+        )
+    )
+    identities = tuple(
+        connection.scalars(
+            text(
+                "SELECT id FROM ntubtob.auth_identities WHERE id = ANY(:ids) "
+                "ORDER BY id FOR UPDATE"
+            ),
+            {"ids": list(MOBILE_FIXTURE_IDS)},
+        )
+    )
+    if (people, games, identities) != (
+        MOBILE_FIXTURE_IDS,
+        MOBILE_FIXTURE_IDS,
+        MOBILE_FIXTURE_IDS,
+    ):
+        raise StagingContractError("Fixture lifecycle roots are drifted")
+
+
+def _reconstruct_fixture_attendance(connection) -> None:
+    _attendance_lifecycle_state(connection)
+    connection.execute(
+        text(
+            "DELETE FROM ntubtob.game_attendance_replies "
+            "WHERE NOT (id = ANY(:canonical_ids)) "
+            "AND person_id = ANY(:fixture_ids) AND game_id = ANY(:fixture_ids)"
+        ),
+        {
+            "canonical_ids": list(CANONICAL_ATTENDANCE),
+            "fixture_ids": list(MOBILE_FIXTURE_IDS),
+        },
+    )
+    for row_id, expected in CANONICAL_ATTENDANCE.items():
+        connection.execute(
+            text(
+                "INSERT INTO ntubtob.game_attendance_replies "
+                "(id, game_id, user_id, member_id, person_id, reply, updated_at) "
+                "VALUES (:id, :game_id, NULL, NULL, :person_id, :reply, "
+                "timezone('utc', now())) ON CONFLICT (id) DO NOTHING"
+            ),
+            {
+                "id": row_id,
+                "game_id": expected["game_id"],
+                "person_id": expected["person_id"],
+                "reply": expected["reply"],
+            },
+        )
+        connection.execute(
+            text(
+                "UPDATE ntubtob.game_attendance_replies SET reply=:reply, "
+                "updated_at=CASE WHEN reply<>:reply THEN timezone('utc', now()) "
+                "ELSE updated_at END WHERE id=:id AND game_id=:game_id "
+                "AND user_id IS NULL AND member_id IS NULL AND person_id=:person_id"
+            ),
+            {
+                "id": row_id,
+                "game_id": expected["game_id"],
+                "person_id": expected["person_id"],
+                "reply": expected["reply"],
+            },
+        )
+    if not _attendance_is_canonical(connection):
+        raise StagingContractError(
+            "Remote fixture lifecycle attendance postcheck failed"
+        )
+
+
+def execute_fixture_lifecycle_reset(
+    approval: dict, database_url: str, private_subject: str
+) -> dict:
+    if approval["approval_phase"] != "candidate":
+        raise StagingContractError(
+            "Remote fixture lifecycle reset requires candidate approval"
+        )
+    private_subject = _officer_subject(private_subject)
+    before = fixture_lifecycle_inventory(approval, database_url, private_subject)
+    if before["state"] == "ready_basic":
+        return {**before, "changed": False}
+    engine = create_engine(database_url)
+    try:
+        try:
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                try:
+                    connection.execute(
+                        text("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                    )
+                    _lock_fixture_roots(connection)
+                    current = _fixture_lifecycle_state(connection, private_subject)
+                    if current not in {"ready_officer", "reset_required"}:
+                        raise StagingContractError(
+                            "Remote fixture lifecycle changed before reset"
+                        )
+                    role_state = _officer_fixture_state(
+                        connection, private_subject, allow_attendance_reset=True
+                    )
+                    if role_state == "granted":
+                        version = connection.scalar(
+                            text("SELECT version FROM ntubtob.people WHERE id=:id"),
+                            {"id": OFFICER_PERSON_ID},
+                        )
+                        _write_officer_transition(connection, "restore", version)
+                    _reconstruct_fixture_attendance(connection)
+                    if (
+                        _fixture_lifecycle_state(connection, private_subject)
+                        != "ready_basic"
+                    ):
+                        raise StagingContractError(
+                            "Remote fixture lifecycle reset postcheck failed"
+                        )
+                    transaction.commit()
+                except Exception:
+                    if transaction.is_active:
+                        transaction.rollback()
+                    raise
+        except (SQLAlchemyError, StagingContractError):
+            raise StagingContractError(
+                "Remote staging fixture lifecycle reset failed safely; inspect before retry"
+            ) from None
+    finally:
+        engine.dispose()
+    return {
+        **fixture_lifecycle_inventory(approval, database_url, private_subject),
+        "changed": True,
+    }
 
 
 def plan(approval: dict, database_url: str) -> dict:
@@ -1026,6 +1409,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--execute-attendance-repair", action="store_true")
     parser.add_argument("--inspect-runtime-residue", action="store_true")
     parser.add_argument("--execute-runtime-residue-repair", action="store_true")
+    parser.add_argument("--inspect-fixture-lifecycle", action="store_true")
+    parser.add_argument("--reset-fixture-lifecycle", action="store_true")
     parser.add_argument("--inspect-officer", action="store_true")
     parser.add_argument("--inspect-mobile-principal", action="store_true")
     parser.add_argument("--grant-officer", action="store_true")
@@ -1043,6 +1428,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.execute_attendance_repair,
                 args.inspect_runtime_residue,
                 args.execute_runtime_residue_repair,
+                args.inspect_fixture_lifecycle,
+                args.reset_fixture_lifecycle,
                 args.inspect_officer,
                 args.inspect_mobile_principal,
                 args.grant_officer,
@@ -1055,6 +1442,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             result = execute_attendance_repair(approval, database_url)
         elif args.inspect_attendance_repair:
             result = attendance_repair_inventory(approval, database_url)
+        elif args.reset_fixture_lifecycle:
+            result = execute_fixture_lifecycle_reset(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
+        elif args.inspect_fixture_lifecycle:
+            result = fixture_lifecycle_inventory(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_PROVIDER_SUBJECT", ""),
+            )
         elif args.execute_runtime_residue_repair:
             result = execute_runtime_residue_repair(
                 approval,

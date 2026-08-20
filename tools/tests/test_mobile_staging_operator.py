@@ -27,6 +27,7 @@ from tools.mobile_staging_contract import (
 )
 from tools.mobile_staging_data import (
     _bootstrap_empty_database,
+    _classify_role_lifecycle,
     _execute_officer_transition,
     _mobile_principal_state,
     attendance_repair_inventory,
@@ -34,7 +35,9 @@ from tools.mobile_staging_data import (
 from tools.mobile_staging_data import execute as execute_staging_data
 from tools.mobile_staging_data import (
     execute_attendance_repair,
+    execute_fixture_lifecycle_reset,
     execute_runtime_residue_repair,
+    fixture_lifecycle_inventory,
     grant_officer,
     inventory,
 )
@@ -188,6 +191,170 @@ def service(mode="update", candidate_percent=0):
 
 
 class ContractTest(unittest.TestCase):
+    def test_role_lifecycle_accepts_legacy_and_later_generations(self):
+        legacy_grant = {
+            "id": -119001,
+            "action": "access_changed",
+            "actor_person_id": None,
+            "target_person_id": -112001,
+            "auth_identity_id": -112001,
+            "before_state": {
+                "access_level": "basic",
+                "fixture": "TASK-112/TASK-118",
+            },
+            "after_state": {"access_level": "officer", "fixture": "TASK-119"},
+            "reason": "TASK-119 fictional Officer grant",
+            "request_id": "task-119-fictional-officer-grant",
+        }
+        legacy_restore = {
+            "id": -119002,
+            "action": "access_changed",
+            "actor_person_id": None,
+            "target_person_id": -112001,
+            "auth_identity_id": -112001,
+            "before_state": {"access_level": "officer", "fixture": "TASK-119"},
+            "after_state": {
+                "access_level": "basic",
+                "fixture": "TASK-112/TASK-118",
+            },
+            "reason": "TASK-119 fictional Officer restore",
+            "request_id": "task-119-fictional-officer-restore",
+        }
+        later_grant = {
+            "id": 2,
+            "action": "access_changed",
+            "actor_person_id": None,
+            "target_person_id": -112001,
+            "auth_identity_id": -112001,
+            "before_state": {
+                "access_level": "basic",
+                "fixture": "TASK-126",
+                "version": 3,
+            },
+            "after_state": {
+                "access_level": "officer",
+                "fixture": "TASK-126",
+                "version": 4,
+            },
+            "reason": "TASK-126 fictional fixture lifecycle grant",
+            "request_id": "task-126-fixture-lifecycle-v3-grant",
+        }
+        later_restore = {
+            "id": 3,
+            "action": "access_changed",
+            "actor_person_id": None,
+            "target_person_id": -112001,
+            "auth_identity_id": -112001,
+            "before_state": {
+                "access_level": "officer",
+                "fixture": "TASK-126",
+                "version": 4,
+            },
+            "after_state": {
+                "access_level": "basic",
+                "fixture": "TASK-126",
+                "version": 5,
+            },
+            "reason": "TASK-126 fictional fixture lifecycle restore",
+            "request_id": "task-126-fixture-lifecycle-v4-restore",
+        }
+
+        cases = (
+            ({"portal_access_level": "basic", "version": 1}, [], "baseline"),
+            (
+                {"portal_access_level": "officer", "version": 2},
+                [legacy_grant],
+                "granted",
+            ),
+            (
+                {"portal_access_level": "basic", "version": 3},
+                [legacy_grant, legacy_restore],
+                "restored",
+            ),
+            (
+                {"portal_access_level": "officer", "version": 4},
+                [legacy_grant, legacy_restore, later_grant],
+                "granted",
+            ),
+            (
+                {"portal_access_level": "basic", "version": 5},
+                [legacy_grant, legacy_restore, later_grant, later_restore],
+                "restored",
+            ),
+        )
+        for person, audits, expected in cases:
+            with self.subTest(version=person["version"]):
+                self.assertEqual(_classify_role_lifecycle(person, audits), expected)
+
+        invalid = dict(later_grant, request_id="task-126-wrong")
+        with self.assertRaisesRegex(StagingContractError, "lifecycle audit"):
+            _classify_role_lifecycle(
+                {"portal_access_level": "officer", "version": 4},
+                [legacy_grant, legacy_restore, invalid],
+            )
+        invalid = dict(later_restore, before_state={"access_level": "officer"})
+        with self.assertRaisesRegex(StagingContractError, "lifecycle audit"):
+            _classify_role_lifecycle(
+                {"portal_access_level": "basic", "version": 5},
+                [legacy_grant, legacy_restore, later_grant, invalid],
+            )
+        for invalid_chain in (
+            [legacy_restore, legacy_grant],
+            [legacy_grant, legacy_grant],
+            [legacy_grant, legacy_restore, later_grant, later_grant],
+        ):
+            with self.subTest(invalid_chain=invalid_chain):
+                with self.assertRaisesRegex(StagingContractError, "lifecycle audit"):
+                    _classify_role_lifecycle(
+                        {"portal_access_level": "basic", "version": 5},
+                        invalid_chain,
+                    )
+
+    def test_fixture_lifecycle_reset_requires_candidate_approval(self):
+        with self.assertRaisesRegex(StagingContractError, "candidate approval"):
+            execute_fixture_lifecycle_reset(
+                approval(phase="build"), DATABASE_URL, "fake-private-subject"
+            )
+
+    def test_fixture_lifecycle_cli_is_mutually_exclusive_and_redacted(self):
+        private_subject = "fake-private-fixture-subject"
+        result = {"database_identity_sha256": STAGING_HASH, "state": "ready_basic"}
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            with patch.dict(
+                os.environ,
+                {
+                    "MOBILE_STAGING_DATABASE_URL": DATABASE_URL,
+                    "MOBILE_STAGING_PROVIDER_SUBJECT": private_subject,
+                },
+                clear=False,
+            ), patch(
+                "tools.mobile_staging_data.fixture_lifecycle_inventory",
+                return_value=result,
+            ), patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as output:
+                self.assertEqual(
+                    staging_data_main(
+                        ["--approval", str(approval_path), "--inspect-fixture-lifecycle"]
+                    ),
+                    0,
+                )
+                self.assertEqual(json.loads(output.getvalue()), result)
+                self.assertNotIn(private_subject, output.getvalue())
+                self.assertEqual(
+                    staging_data_main(
+                        [
+                            "--approval",
+                            str(approval_path),
+                            "--inspect-fixture-lifecycle",
+                            "--reset-fixture-lifecycle",
+                        ]
+                    ),
+                    2,
+                )
+
     def test_mobile_principal_states_are_mutually_exclusive_and_exhaustive(self):
         person = {
             "portal_access_level": "officer",
@@ -467,11 +634,11 @@ class ContractTest(unittest.TestCase):
             "tools.mobile_staging_data.officer_inventory",
             return_value={
                 "database_identity_sha256": STAGING_HASH,
-                "state": "restored",
+                "state": "baseline",
             },
         ):
             with self.assertRaisesRegex(StagingContractError, "not exact"):
-                grant_officer(approval(), DATABASE_URL, "fake-private-subject")
+                restore_basic(approval(), DATABASE_URL, "fake-private-subject")
 
     def test_officer_transition_requires_candidate_approval(self):
         with self.assertRaisesRegex(StagingContractError, "candidate approval"):
@@ -1490,7 +1657,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 )
             )
         with self.assertRaisesRegex(
-            StagingContractError, "audit or version is drifted"
+            StagingContractError, "audit.*drifted"
         ):
             officer_inventory(
                 self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
@@ -1524,6 +1691,185 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 ).one(),
                 ("basic", 1),
             )
+
+    def test_fixture_lifecycle_repeats_and_preserves_historical_rows(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        grant_officer(self.approval, TEST_DATABASE_URL, "fake-private-tester-subject")
+        restore_basic(self.approval, TEST_DATABASE_URL, "fake-private-tester-subject")
+        with self.engine.connect() as connection:
+            legacy_audits = connection.execute(
+                text("SELECT * FROM ntubtob.access_audit ORDER BY id")
+            ).all()
+
+        grant_officer(self.approval, TEST_DATABASE_URL, "fake-private-tester-subject")
+        self.assertTrue(
+            mobile_principal_inventory(self.approval, TEST_DATABASE_URL)[
+                "expected_person_match"
+            ]
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.game_attendance_replies SET reply=4 "
+                    "WHERE id=-112001"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(game_id, person_id, reply, updated_at) VALUES "
+                    "(-112001, -112001, 5, '1999-01-01T00:00:00Z'), "
+                    "(-112002, -112003, 1, '2041-01-01T00:00:00Z')"
+                )
+            )
+        mobile_before = self._mobile_history_snapshot()
+        self.assertEqual(
+            fixture_lifecycle_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["state"],
+            "reset_required",
+        )
+
+        reset = execute_fixture_lifecycle_reset(
+            self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+        )
+        self.assertEqual((reset["state"], reset["changed"]), ("ready_basic", True))
+        self.assertEqual(
+            execute_fixture_lifecycle_reset(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"],
+            False,
+        )
+        self.assertEqual(self._mobile_history_snapshot(), mobile_before)
+        with self.engine.connect() as connection:
+            after_audits = connection.execute(
+                text("SELECT * FROM ntubtob.access_audit ORDER BY id")
+            ).all()
+            self.assertEqual(after_audits[: len(legacy_audits)], legacy_audits)
+            person = connection.execute(
+                text(
+                    "SELECT portal_access_level, version FROM ntubtob.people "
+                    "WHERE id=-112001"
+                )
+            ).one()
+            self.assertEqual(person, ("basic", 5))
+            replies = connection.execute(
+                text(
+                    "SELECT id, game_id, user_id, member_id, person_id, reply "
+                    "FROM ntubtob.game_attendance_replies "
+                    "WHERE person_id = ANY(:ids) OR game_id = ANY(:ids) ORDER BY id"
+                ),
+                {"ids": [-112003, -112002, -112001]},
+            ).all()
+            self.assertEqual(
+                replies,
+                [
+                    (-112003, -112002, None, None, -112003, 5),
+                    (-112002, -112001, None, None, -112002, 2),
+                    (-112001, -112001, None, None, -112001, 1),
+                ],
+            )
+
+    def test_fixture_lifecycle_rejects_partial_ownership_without_mutation(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(game_id, person_id, reply, updated_at) "
+                    "VALUES (9401, -112001, 1, now())"
+                )
+            )
+        with self.engine.connect() as connection:
+            before = connection.execute(
+                text(
+                    "SELECT id, game_id, person_id, reply, updated_at "
+                    "FROM ntubtob.game_attendance_replies ORDER BY id"
+                )
+            ).all()
+        with self.assertRaisesRegex(StagingContractError, "attendance ownership"):
+            fixture_lifecycle_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        with self.assertRaisesRegex(StagingContractError, "attendance ownership"):
+            execute_fixture_lifecycle_reset(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+        with self.engine.connect() as connection:
+            after = connection.execute(
+                text(
+                    "SELECT id, game_id, person_id, reply, updated_at "
+                    "FROM ntubtob.game_attendance_replies ORDER BY id"
+                )
+            ).all()
+        self.assertEqual(after, before)
+
+    def test_fixture_lifecycle_postcheck_failure_rolls_back_every_owned_table(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history()
+        grant_officer(self.approval, TEST_DATABASE_URL, "fake-private-tester-subject")
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.game_attendance_replies "
+                    "(game_id, person_id, reply, updated_at) "
+                    "VALUES (-112001, -112001, 5, now())"
+                )
+            )
+        with self.engine.connect() as connection:
+            before = {
+                "person": connection.execute(
+                    text("SELECT * FROM ntubtob.people WHERE id=-112001")
+                ).all(),
+                "attendance": connection.execute(
+                    text(
+                        "SELECT * FROM ntubtob.game_attendance_replies ORDER BY id"
+                    )
+                ).all(),
+                "audit": connection.execute(
+                    text("SELECT * FROM ntubtob.access_audit ORDER BY id")
+                ).all(),
+            }
+        mobile_before = self._mobile_history_snapshot()
+        with patch(
+            "tools.mobile_staging_data._attendance_is_canonical", return_value=False
+        ):
+            with self.assertRaisesRegex(StagingContractError, "failed safely"):
+                execute_fixture_lifecycle_reset(
+                    self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+                )
+        with self.engine.connect() as connection:
+            after = {
+                "person": connection.execute(
+                    text("SELECT * FROM ntubtob.people WHERE id=-112001")
+                ).all(),
+                "attendance": connection.execute(
+                    text(
+                        "SELECT * FROM ntubtob.game_attendance_replies ORDER BY id"
+                    )
+                ).all(),
+                "audit": connection.execute(
+                    text("SELECT * FROM ntubtob.access_audit ORDER BY id")
+                ).all(),
+            }
+        self.assertEqual(after, before)
+        self.assertEqual(self._mobile_history_snapshot(), mobile_before)
 
 
 if __name__ == "__main__":

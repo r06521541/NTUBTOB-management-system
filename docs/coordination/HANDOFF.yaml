@@ -1,22 +1,20 @@
-active_task: TASK-123
+active_task: TASK-126
 status: ready_for_hosted_ci
 next_actor: work
 
-base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: 59a7b261f52a3f02a03362ada9e5dffc23c9305a
+base_commit: 80333ecfec117d31350e1cfbb263969a26283ef4
+head_commit: a3f253b
 
 updated_by: work
-updated_at: 2026-08-20T20:45:00+08:00
+updated_at: 2026-08-20T22:30:00+08:00
 
 note: >
-  TASK-123 source is accepted at ed645f3c0af9c43e8465bcfef597c5f58ad37827; the sole report-only closeout is
-  59a7b261f52a3f02a03362ada9e5dffc23c9305a. Controlled exact-SHA dogfood passed preflight and read-only status with
-  one governed JSON result: installed portal foreground, exact logged-out semantics, and no sensitive or raw runtime
-  evidence. Work and Flutter Domain have no residual finding. PR #134 final hosted CI is the only current delivery
-  gate. Owner-private credential delivery, build/install/cold-launch dogfood, and deferred phase-two A-D are not
-  claimed by this task.
+  Relational fictional fixture lifecycle implementation and Main delta review are accepted.
+  Local PostgreSQL 16 passed; hosted PostgreSQL 15/16 and formatting gates remain.
+  No staging reset, Secret, cloud, emulator or production operation has run. Parallel TASK-124/127
+  observability work remains in separate non-overlapping lanes and does not change this delivery gate.
 
-worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-123.md
-report: docs/coordination/reports/TASK-123-CODEX.md
-review: docs/coordination/reviews/TASK-123-WORK.md
+worktree: C:/Users/USER/.codex/visualizations/2026/08/18/01a01404-d3fd-78b3-900c-0ef9c803c5c3/task126-delivery
+task: docs/coordination/tasks/TASK-126.md
+report: docs/coordination/reports/TASK-126-CODEX.md
+review: docs/coordination/reviews/TASK-126-WORK.md
