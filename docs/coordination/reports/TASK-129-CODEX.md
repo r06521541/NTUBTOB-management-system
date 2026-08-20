@@ -155,3 +155,12 @@ Next actor: Main Work review.
   regression invokes the same status action twice against a module that rejects
   a second in-module call; both observations pass and no module remains loaded.
   This correction does not widen retries, UI semantics, mutation, or evidence.
+
+- Dogfood after the module-isolation merge still exhausted status while it ran
+  inside the long-lived scenario host; the same governed status passed as soon
+  as it ran in a separate process. Semantic observation now invokes TASK-123
+  `status` in a fresh noninteractive PowerShell child and accepts only its exact
+  one-line governed JSON envelope. Known accessibility unavailable/invalid and
+  semantic-drift reason codes map back to the existing bounded harness states;
+  timeout, stderr, malformed/multiple/oversized output, or any unknown result is
+  redacted to status unavailable. No private value is placed in argv or output.

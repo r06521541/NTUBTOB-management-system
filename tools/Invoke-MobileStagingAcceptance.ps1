@@ -397,20 +397,44 @@ function New-MobileAcceptanceDependenciesFromConfig {
 }
 
 function New-IsolatedLauncherStatusAction {
-    param([string]$LauncherPath, [string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath)
+    param(
+        [string]$LauncherPath,
+        [string]$SelectedMode,
+        [string]$ExpectedCommit,
+        [string]$LauncherConfigPath,
+        [scriptblock]$InvokeBounded,
+        [string]$HostExecutable
+    )
     return {
-        $statusModule = $null
         try {
-            $statusModule = New-Module -ArgumentList $LauncherPath -ScriptBlock {
-                param($Path)
-                . $Path
+            $arguments = @(
+                '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                '-File', $LauncherPath, '-Action', 'status', '-Mode', $SelectedMode,
+                '-Commit', $ExpectedCommit, '-ConfigPath', $LauncherConfigPath
+            )
+            $result = & $InvokeBounded $HostExecutable $arguments 45
+            if ($result.TimedOut -or [string]$result.Stderr -match '\S') { Throw-HarnessSafe 'Harness status is unavailable' }
+            $raw = [string]$result.Stdout
+            if ($raw.Length -lt 1 -or $raw.Length -gt 4096) { Throw-HarnessSafe 'Harness status is unavailable' }
+            $lines = @($raw -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+            if ($lines.Count -ne 1) { Throw-HarnessSafe 'Harness status is unavailable' }
+            try { $envelope = $lines[0] | ConvertFrom-Json }
+            catch { Throw-HarnessSafe 'Harness status is unavailable' }
+            if (
+                $result.ExitCode -eq 0 -and
+                [string]$envelope.classification -ceq 'PASS' -and
+                [string]$envelope.details.action -ceq 'status' -and
+                [string]$envelope.details.result -ceq 'observed'
+            ) { return $envelope.details }
+            $reason = [string]$envelope.details.reason_code
+            if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'FAILED') {
+                if ($reason -ceq 'ACCESSIBILITY_UNAVAILABLE') { Throw-HarnessSafe 'Accessibility inventory failed safely' }
+                if ($reason -ceq 'ACCESSIBILITY_INVALID') { Throw-HarnessSafe 'Accessibility inventory is malformed' }
             }
-            if ($null -eq $statusModule) { Throw-HarnessSafe 'Harness status is unavailable' }
-            $invokeStatus = $statusModule.NewBoundScriptBlock({
-                param($Mode, $Commit, $ConfigPath)
-                Invoke-MobileStagingMain 'status' $Mode $Commit $ConfigPath '' $false $false $false
-            })
-            return & $invokeStatus $SelectedMode $ExpectedCommit $LauncherConfigPath
+            if ($result.ExitCode -eq 2 -and [string]$envelope.classification -ceq 'DRIFT' -and $reason -ceq 'SEMANTIC_DRIFT') {
+                Throw-HarnessSafe 'Accessibility foreground state is not exact'
+            }
+            Throw-HarnessSafe 'Harness status is unavailable'
         }
         catch {
             if ($_.Exception.Message -cin @(
@@ -420,7 +444,12 @@ function New-IsolatedLauncherStatusAction {
             )) { Throw-HarnessSafe $_.Exception.Message }
             Throw-HarnessSafe 'Harness status is unavailable'
         }
-        finally { if ($null -ne $statusModule) { Remove-Module $statusModule -Force -ErrorAction SilentlyContinue } }
+        finally {
+            $raw = $null
+            $lines = $null
+            $envelope = $null
+            $arguments = $null
+        }
     }.GetNewClosure()
 }
 
@@ -445,7 +474,12 @@ function New-MobileAcceptanceDependencies {
         GetSigner = $launcherModule.NewBoundScriptBlock({ param($Config, $Artifact) Get-ApkSignerFingerprint $Config $Artifact })
         GetPackage = $launcherModule.NewBoundScriptBlock({ param($Config, $Artifact) Get-ApkPackageIdentity $Config $Artifact })
     }
-    $statusAction = New-IsolatedLauncherStatusAction $launcherPath $SelectedMode $ExpectedCommit $LauncherConfigPath
+    $hostExecutable = Join-Path $PSHOME 'powershell.exe'
+    if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) {
+        $hostExecutable = Join-Path $PSHOME 'pwsh.exe'
+    }
+    if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) { Throw-HarnessSafe 'Harness status is unavailable' }
+    $statusAction = New-IsolatedLauncherStatusAction $launcherPath $SelectedMode $ExpectedCommit $LauncherConfigPath $launcherCommands.InvokeBounded $hostExecutable
     return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands $statusAction
 }
 
