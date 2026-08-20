@@ -364,11 +364,15 @@ returns only that stable state and allowlisted counts; duplicate, coexisting,
 missing, malformed, or oversized states fail closed. It never persists or
 returns the hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
 Governed status failures expose only fixed stage codes: `ADB_UNAVAILABLE`,
-`ADB_INVALID`, `PACKAGE_UNAVAILABLE`, `ACTIVITY_UNAVAILABLE`,
+`ADB_INVALID`, `PACKAGE_UNAVAILABLE`, `PACKAGE_INVALID`, `ACTIVITY_UNAVAILABLE`,
 `ACTIVITY_INVALID`, `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, or
 `SEMANTIC_DRIFT`. Operational unavailable/invalid stages classify `FAILED`;
 semantic mismatch classifies `DRIFT`. All exit 2, and no exception, command
 output, path, XML, or label is included.
+Package inventory treats timeout or nonzero exit as unavailable. Only a
+successful empty result means `package_absent`, and only one successful exact
+`package:` line means installed; other successful output is invalid and never
+echoed.
 `install` additionally requires `-PreserveSession` and only issues
 `adb install -r` after the absolute package inspector proves the artifact is
 exactly `tw.org.ntubtob.portal` and artifact/installed signers agree. Build

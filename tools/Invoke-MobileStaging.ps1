@@ -367,8 +367,16 @@ function Get-CurrentActivity {
 function Get-PackageState {
     param([object]$Config)
     $result = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'shell', 'pm', 'path', $script:PackageId) 15
-    if ($result.TimedOut) { Throw-Safe 'Package inventory timed out' }
-    if ($result.ExitCode -ne 0 -or $result.Stdout -notmatch '^package:') { return 'absent' }
+    if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Package inventory failed safely' }
+    $packageInventory = [string]$result.Stdout
+    if ($packageInventory.Length -gt 4096) { Throw-Safe 'Package inventory is malformed' }
+    if ([string]::IsNullOrWhiteSpace($packageInventory)) { return 'absent' }
+    $packageLines = @(
+        $packageInventory -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    )
+    if ($packageLines.Count -ne 1 -or [string]$packageLines[0] -notmatch '^package:\S+$') {
+        Throw-Safe 'Package inventory is malformed'
+    }
     return 'installed'
 }
 
@@ -894,7 +902,8 @@ function Get-FailureClassification {
         'ADB inventory failed safely',
         'ADB serial state is not ready',
         'ADB serial inventory is not exact',
-        'Package inventory timed out',
+        'Package inventory failed safely',
+        'Package inventory is malformed',
         'Activity inventory failed safely',
         'Activity inventory size is not bounded',
         'Current activity inventory is ambiguous',
@@ -916,7 +925,8 @@ function Get-FailureReasonCode {
         'ADB serial state is not ready',
         'ADB serial inventory is not exact'
     )) { return 'ADB_INVALID' }
-    if ($Message -ceq 'Package inventory timed out') { return 'PACKAGE_UNAVAILABLE' }
+    if ($Message -ceq 'Package inventory failed safely') { return 'PACKAGE_UNAVAILABLE' }
+    if ($Message -ceq 'Package inventory is malformed') { return 'PACKAGE_INVALID' }
     if ($Message -ceq 'Activity inventory failed safely') { return 'ACTIVITY_UNAVAILABLE' }
     if ($Message -cin @(
         'Activity inventory size is not bounded',

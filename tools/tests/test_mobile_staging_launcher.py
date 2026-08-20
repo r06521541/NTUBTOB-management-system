@@ -908,7 +908,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
               'OWNER_ACTION_REQUIRED',
               'ADB inventory failed safely',
               'ADB serial state is not ready',
-              'Package inventory timed out',
+              'Package inventory failed safely',
+              'Package inventory is malformed',
               'Activity inventory failed safely',
               'Activity inventory size is not bounded',
               'Current activity inventory is ambiguous',
@@ -933,6 +934,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 "ADB_UNAVAILABLE",
                 "ADB_INVALID",
                 "PACKAGE_UNAVAILABLE",
+                "PACKAGE_INVALID",
                 "ACTIVITY_UNAVAILABLE",
                 "ACTIVITY_INVALID",
                 "ACTIVITY_INVALID",
@@ -948,7 +950,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
         cases = (
             ("ADB inventory failed safely", "FAILED", "ADB_UNAVAILABLE"),
             ("ADB serial inventory is not exact", "FAILED", "ADB_INVALID"),
-            ("Package inventory timed out", "FAILED", "PACKAGE_UNAVAILABLE"),
+            ("Package inventory failed safely", "FAILED", "PACKAGE_UNAVAILABLE"),
+            ("Package inventory is malformed", "FAILED", "PACKAGE_INVALID"),
             ("Activity inventory failed safely", "FAILED", "ACTIVITY_UNAVAILABLE"),
             ("Activity inventory size is not bounded", "FAILED", "ACTIVITY_INVALID"),
             (
@@ -1043,6 +1046,98 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertEqual(envelope["classification"], "FAILED")
             self.assertEqual(envelope["details"]["reason_code"], "RUNTIME_FAILED")
             self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+    def test_real_package_state_emits_exact_governed_contract(self):
+        sentinel = "private-provider-subject-sentinel"
+        installed_path = "package:/data/app/exact/base.apk"
+        cases = (
+            (True, 0, sentinel, "FAILED", "PACKAGE_UNAVAILABLE", None, 2),
+            (False, 1, sentinel, "FAILED", "PACKAGE_UNAVAILABLE", None, 2),
+            (False, 0, "", "PASS", None, "absent", 0),
+            (False, 0, installed_path, "PASS", None, "installed", 0),
+            (
+                False,
+                0,
+                installed_path + "\npackage:/data/app/" + sentinel + "/base.apk",
+                "FAILED",
+                "PACKAGE_INVALID",
+                None,
+                2,
+            ),
+        )
+        source = LAUNCHER.read_text(encoding="utf-8")
+        dispatch = (
+            "$details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath "
+            "$ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) "
+            "([bool]$PurgeEvidence)"
+        )
+        entry = "if ($MyInvocation.InvocationName -ne '.') {"
+        self.assertEqual(source.count(dispatch), 1)
+        self.assertEqual(source.count(entry), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (
+                timed_out,
+                exit_code,
+                stdout,
+                classification,
+                reason_code,
+                state,
+                expected_exit,
+            ) in enumerate(cases):
+                with self.subTest(index=index, classification=classification):
+                    escaped_stdout = stdout.replace("`", "``").replace('"', '`"').replace("\n", "`n")
+                    mock = (
+                        "function Invoke-BoundedProcess { "
+                        "return [pscustomobject]@{"
+                        f"TimedOut=${str(timed_out).lower()};ExitCode={exit_code};"
+                        f'Stdout="{escaped_stdout}";Stderr="{sentinel}"'
+                        "} }\n"
+                    )
+                    real_package_dispatch = (
+                        "$packageState = Get-PackageState "
+                        "([pscustomobject]@{adb_executable='E:/mock/adb.exe';"
+                        "serial='emulator-5556'}); "
+                        "$details = [ordered]@{result=$packageState}"
+                    )
+                    launcher_copy = Path(directory) / f"package-{index}.ps1"
+                    launcher_copy.write_text(
+                        source.replace(entry, mock + entry).replace(
+                            dispatch, real_package_dispatch
+                        ),
+                        encoding="utf-8",
+                    )
+                    result = subprocess.run(
+                        [
+                            "powershell.exe",
+                            "-NoLogo",
+                            "-NoProfile",
+                            "-NonInteractive",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-File",
+                            str(launcher_copy),
+                            "-Action",
+                            "status",
+                        ],
+                        cwd=ROOT,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=20,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, expected_exit, result.stderr)
+                    self.assertEqual(len(result.stdout.splitlines()), 1)
+                    envelope = json.loads(result.stdout)
+                    self.assertEqual(envelope["classification"], classification)
+                    if reason_code:
+                        self.assertEqual(envelope["details"]["reason_code"], reason_code)
+                    else:
+                        self.assertEqual(envelope["details"]["result"], state)
+                    self.assertNotIn(installed_path, result.stdout + result.stderr)
+                    self.assertNotIn(sentinel, result.stdout + result.stderr)
+                    self.assert_safe_output(result)
 
     def test_output_redaction_fallback_is_one_failed_json_and_exit_two(self):
         sentinel = "postgresql://private-user:private-password@private.invalid/staging"
