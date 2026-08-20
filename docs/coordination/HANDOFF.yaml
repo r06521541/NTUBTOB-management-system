@@ -3,10 +3,10 @@ status: changes_requested
 next_actor: codex
 
 base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
-head_commit: b9f3e10ad08b84ee1aee290cd5d34b6c2dc52698
+head_commit: a3486d67a0fd730ae513fd420063ea82b617d61e
 
 updated_by: work
-updated_at: 2026-08-20T17:20:00+08:00
+updated_at: 2026-08-20T17:40:00+08:00
 
 note: >
   TASK-119 and TASK-122 staging runtime acceptance completed successfully: Officer online/offline read-only report,
@@ -18,9 +18,11 @@ note: >
   authorized staging dogfood. Owner accepted a concise multi-agent throttling proposal; the shortest binding rules
   now update COLLABORATION while the planning rationale remains non-authoritative. Hosted CI passed on the new head,
   but the first routine preflight dogfood found a PowerShell automatic-variable collision in real config loading and
-  no bounded diagnostic reason in failed JSON. The writer corrected both, but targeted review found one residual:
-  the output-redaction fallback can emit FAILED while returning process exit 0. The original sole writer must make
-  the fallback JSON and exit status agree and add the direct regression before dogfood resumes.
+  no bounded diagnostic reason in failed JSON. The writer corrected those findings and the output-redaction
+  fallback exit semantics; targeted review accepted them. Corrected preflight dogfood now passes. The first read-only
+  status dogfood exposed a complete state-matrix gap: status requires an authenticated Basic/Officer projection and
+  therefore rejects valid logged-out, package-absent, background and stopped states. The original sole writer must
+  add bounded allowlisted classification for those states before dogfood resumes.
   Phase-two acceptance harness, no-disclosure credential broker, fixture lifecycle and observability-contract work
   remain explicitly deferred.
 

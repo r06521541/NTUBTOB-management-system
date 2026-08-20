@@ -32,7 +32,14 @@ Changes requested before controlled staging dogfood.
   reason-code corrections, but found that the output-redaction fallback can
   emit `FAILED` while preserving an earlier successful process exit. The
   fallback must return exit code 2, emit exactly one safe JSON result and have
-  a direct no-disclosure regression. Previously accepted gates remain valid.
+  a direct no-disclosure regression. That correction is now accepted.
+- Controlled dogfood: corrected `preflight` returned one governed `PASS` JSON.
+  The first read-only `status` then returned `RUNTIME_FAILED` because its
+  semantic classifier requires exactly one authenticated Basic/Officer debug
+  projection. Status must safely classify the valid logged-out login gate and
+  avoid UI projection reads when the package is absent or the portal is
+  background/stopped. Ambiguous or duplicate allowlisted states must continue
+  to fail closed, and raw accessibility data must remain undisclosed.
 
 ## Deferred
 
