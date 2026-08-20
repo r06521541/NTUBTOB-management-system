@@ -3,7 +3,7 @@
 task_type: work_package
 delivery_group: mobile-staging-officer-acceptance
 requires_independent_pr: false
-status: ready_for_codex
+status: ready_for_pr
 base_commit: bd144e28e527959c15d7a9eb7dae8d6cb69a08d6
 
 ## Goal
