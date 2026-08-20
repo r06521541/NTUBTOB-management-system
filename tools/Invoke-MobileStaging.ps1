@@ -429,6 +429,7 @@ function Invoke-Status {
         }
         return [ordered]@{
             action = 'status'
+            result = 'observed'
             package = $package
             activity = $activity
             semantic_state = $boundedState
@@ -449,6 +450,7 @@ function Invoke-Status {
     ) 'Accessibility inventory failed safely'
     return [ordered]@{
         action = 'status'
+        result = 'observed'
         package = $package
         activity = $activity
         semantic_state = $ui.semantic_state
@@ -936,6 +938,7 @@ function Invoke-PrivateAction {
 function Get-FailureClassification {
     param([string]$Message)
     if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -ceq 'Action result is invalid') { return 'FAILED' }
     if ($Message -ceq 'Accessibility foreground state is not exact') { return 'DRIFT' }
     if ($Message -cin @(
         'ADB inventory failed safely',
@@ -959,6 +962,7 @@ function Get-FailureClassification {
 function Get-FailureReasonCode {
     param([string]$Message)
     if ($Message -eq 'OWNER_ACTION_REQUIRED') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -ceq 'Action result is invalid') { return 'ACTION_RESULT_INVALID' }
     if ($Message -ceq 'ADB inventory failed safely') { return 'ADB_UNAVAILABLE' }
     if ($Message -cin @(
         'ADB serial state is not ready',
@@ -1067,7 +1071,18 @@ if ($MyInvocation.InvocationName -ne '.') {
     $details = $null
     try {
         $details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath $ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) ([bool]$PurgeEvidence)
-        if ([string]$details.result -match '^timeout') {
+        if (
+            $null -eq $details -or
+            $details -isnot [System.Collections.IDictionary] -or
+            -not $details.Contains('result')
+        ) { Throw-Safe 'Action result is invalid' }
+        $actionResult = [string]$details['result']
+        if (
+            [string]::IsNullOrWhiteSpace($actionResult) -or
+            $actionResult.Length -gt 64 -or
+            $actionResult -notmatch '^[a-z][a-z0-9_]*$'
+        ) { Throw-Safe 'Action result is invalid' }
+        if ($actionResult -match '^timeout') {
             $classification = 'TIMEOUT'
             $details['reason_code'] = 'RUNTIME_TIMEOUT'
         }

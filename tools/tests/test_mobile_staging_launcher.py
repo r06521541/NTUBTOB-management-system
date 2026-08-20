@@ -1227,6 +1227,146 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     self.assertNotIn(sentinel, result.stdout + result.stderr)
                     self.assert_safe_output(result)
 
+    def test_full_entrypoint_status_success_states_are_governed_passes(self):
+        cases = (
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'absent' }\n"
+                "function Get-CurrentActivity { return 'none' }",
+                "package_absent",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                "function Get-CurrentActivity { return 'other' }",
+                "portal_background",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                "function Get-CurrentActivity { return 'none' }",
+                "portal_stopped",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                "function Get-CurrentActivity { return 'portal' }\n"
+                "function Get-AllowlistedUiCounts { return [ordered]@{"
+                "semantic_state='logged_out';login=1;basic=0;officer=0;"
+                "report_enabled=0;report_disabled=0} }",
+                "logged_out",
+            ),
+            (
+                "function Assert-OnlyApprovedSerial {}\n"
+                "function Get-PackageState { return 'installed' }\n"
+                "function Get-CurrentActivity { return 'portal' }\n"
+                "function Get-AllowlistedUiCounts { return [ordered]@{"
+                "semantic_state='officer_report_enabled';login=0;basic=0;officer=1;"
+                "report_enabled=1;report_disabled=0} }",
+                "officer_report_enabled",
+            ),
+        )
+        source = LAUNCHER.read_text(encoding="utf-8")
+        dispatch = (
+            "$details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath "
+            "$ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) "
+            "([bool]$PurgeEvidence)"
+        )
+        entry = "if ($MyInvocation.InvocationName -ne '.') {"
+        self.assertEqual(source.count(dispatch), 1)
+        self.assertEqual(source.count(entry), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            for index, (overrides, semantic_state) in enumerate(cases):
+                with self.subTest(semantic_state=semantic_state):
+                    launcher_copy = Path(directory) / f"status-pass-{index}.ps1"
+                    launcher_copy.write_text(
+                        source.replace(entry, overrides + "\n" + entry).replace(
+                            dispatch,
+                            "$details = Invoke-Status ([pscustomobject]@{})",
+                        ),
+                        encoding="utf-8",
+                    )
+                    result = subprocess.run(
+                        [
+                            "powershell.exe",
+                            "-NoLogo",
+                            "-NoProfile",
+                            "-NonInteractive",
+                            "-ExecutionPolicy",
+                            "Bypass",
+                            "-File",
+                            str(launcher_copy),
+                            "-Action",
+                            "status",
+                        ],
+                        cwd=ROOT,
+                        capture_output=True,
+                        text=True,
+                        encoding="utf-8",
+                        errors="replace",
+                        timeout=20,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(len(result.stdout.splitlines()), 1)
+                    envelope = json.loads(result.stdout)
+                    self.assertEqual(envelope["classification"], "PASS")
+                    self.assertEqual(envelope["details"]["result"], "observed")
+                    self.assertEqual(
+                        envelope["details"]["semantic_state"], semantic_state
+                    )
+                    self.assert_safe_output(result)
+
+    def test_common_entrypoint_rejects_missing_or_malformed_action_result(self):
+        sentinel = "private-provider-subject-sentinel"
+        replacements = (
+            "$details = [ordered]@{action='status'}",
+            f"$details = [ordered]@{{result='{sentinel}'}}",
+        )
+        source = LAUNCHER.read_text(encoding="utf-8")
+        dispatch = (
+            "$details = Invoke-MobileStagingMain $Action $Mode $Commit $ConfigPath "
+            "$ApprovalPath ([bool]$PreserveSession) ([bool]$PublicHealth) "
+            "([bool]$PurgeEvidence)"
+        )
+        self.assertEqual(source.count(dispatch), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            for index, replacement in enumerate(replacements):
+                launcher_copy = Path(directory) / f"invalid-result-{index}.ps1"
+                launcher_copy.write_text(
+                    source.replace(dispatch, replacement), encoding="utf-8"
+                )
+                result = subprocess.run(
+                    [
+                        "powershell.exe",
+                        "-NoLogo",
+                        "-NoProfile",
+                        "-NonInteractive",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        str(launcher_copy),
+                        "-Action",
+                        "status",
+                    ],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=20,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertEqual(len(result.stdout.splitlines()), 1)
+                envelope = json.loads(result.stdout)
+                self.assertEqual(envelope["classification"], "FAILED")
+                self.assertEqual(
+                    envelope["details"]["reason_code"], "ACTION_RESULT_INVALID"
+                )
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
+                self.assert_safe_output(result)
+
     def test_output_redaction_fallback_is_one_failed_json_and_exit_two(self):
         sentinel = "postgresql://private-user:private-password@private.invalid/staging"
         with tempfile.TemporaryDirectory() as directory:

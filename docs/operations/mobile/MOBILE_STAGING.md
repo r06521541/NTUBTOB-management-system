@@ -373,6 +373,10 @@ The status dispatcher wraps its actual ADB-serial, package, activity, and
 accessibility calls independently. Each boundary preserves only its documented
 fixed safe messages; any other PowerShell/.NET exception becomes that stage's
 fixed unavailable result before it reaches the governed envelope.
+Every successful status shape includes fixed `result=observed`. The common
+entrypoint validates that every action returns a bounded lowercase result before
+reading it; a missing or malformed result returns one
+`FAILED/ACTION_RESULT_INVALID` envelope with exit 2 and no raw exception.
 Package inventory treats timeout or nonzero exit as unavailable. Only a
 successful empty result means `package_absent`, and only one successful exact
 `package:` line means installed; other successful output is invalid and never
