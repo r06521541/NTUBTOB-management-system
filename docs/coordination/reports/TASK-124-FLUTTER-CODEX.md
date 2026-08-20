@@ -155,3 +155,46 @@ Verification delta:
   aggregate API did not exist.
 - `flutter test test/integration_test.dart --no-pub`: passed, 40 tests.
 - `flutter test test/basic_app_test.dart --no-pub`: passed, 43 tests.
+
+### Package 4 Main review correction: physical producer and terminal purge
+
+Main review found that the first package 4 delta accepted caller-supplied
+booleans and was not connected to physical storage. Main then explicitly
+authorized the adjacent current-installation purge correction required by the
+logout/cache-purge evidence contract.
+
+`SecureStore` and `MemoryStore` now provide only bounded prefix counts, exact
+presence booleans, and scoped prefix deletion to callers. The secure adapter
+uses `readAll` internally but never returns keys or values. The physical
+producer validates that SessionController, BasicCache, Officer report cache,
+and BasicApi share the same store and installation, then observes the refresh
+state, complete Basic cache shape, any Officer report cache, and zero/one
+pending attendance intent. Storage errors, partial Basic cache shape, orphaned
+refresh-attempt state, component mismatch, and more than one pending intent
+produce no aggregate.
+
+The real `BasicBootstrapApp` composition refreshes the producer after an
+authenticated Basic load (including downgrade reconciliation), normal cold
+logged-out detection, and terminal logout. Rendering is independently hard
+gated in both the composition and projection by
+`kDebugMode && diagnosticEnabled`; injection cannot enable release rendering.
+
+Terminal logout now keeps the current-installation logout marker until session,
+Basic cache, all Officer report caches, all attendance intents, and the final
+physical absence observation complete. A local purge or observation failure
+leaves the app in `logoutPending`. If the server logout already completed,
+retry skips the server request and resumes only local purge. Other installation
+data and the installation identity are untouched. Wire, authorization,
+navigation, mutation uncertainty, and server logout outcome rules are
+unchanged.
+
+Correction verification:
+
+- Tests-first red run failed on the intentionally absent bounded store APIs,
+  physical producer, composition, and purge callback.
+- `flutter test test/integration_test.dart test/basic_app_test.dart
+  test/officer_prereview_test.dart --no-pub`: passed, 120 tests.
+- `flutter analyze --no-pub`: passed with `No issues found`.
+- `dart format` was limited to the six owned Dart source/test files.
+- No full Flutter suite, runtime, emulator, network, cloud, or release build
+  was run.

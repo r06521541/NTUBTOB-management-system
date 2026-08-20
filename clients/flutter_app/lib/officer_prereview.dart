@@ -294,6 +294,14 @@ class DurablePrincipalOfficerReportCache
   String _key(String principalId) =>
       'officer-report-cache:v1:$installationId:${Uri.encodeComponent(principalId)}';
 
+  String get _installationPrefix => 'officer-report-cache:v1:$installationId:';
+
+  Future<bool> observeAnyPresence() async =>
+      await store.countKeysWithPrefix(_installationPrefix, maximum: 0) > 0;
+
+  Future<void> clearInstallation() =>
+      store.deleteKeysWithPrefix(_installationPrefix);
+
   @override
   Future<SingleGameReportUiModel?> read(
       String principalId, String gameId) async {

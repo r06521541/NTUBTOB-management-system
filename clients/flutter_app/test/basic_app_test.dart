@@ -6,6 +6,7 @@ import 'package:ntubtob_portal/basic_app.dart';
 import 'package:ntubtob_portal/foundation.dart';
 import 'package:ntubtob_portal/integration.dart';
 import 'package:ntubtob_portal/main.dart' as entrypoint;
+import 'package:ntubtob_portal/officer_prereview.dart';
 
 class QueueTransport implements ApiTransport {
   final List<ApiResponse> responses = [];
@@ -79,6 +80,53 @@ Future<BasicApi> apiFor(QueueTransport transport, MemoryStore store) async {
       sessionId: 's',
       expiresIn: 900));
   return BasicApi(session, store, 'install', SecureIds());
+}
+
+class LogoutLine implements LineLoginPort {
+  @override
+  Future<String> login(String nonce) async => 'unused';
+
+  @override
+  Future<void> logout() async {}
+}
+
+Future<
+    ({
+      SessionController session,
+      BasicCache basicCache,
+      DurablePrincipalOfficerReportCache reportCache,
+      BasicApi api,
+    })> aggregateComponents(
+  MemoryStore store, {
+  String installationId = 'install',
+  QueueTransport? transport,
+}) async {
+  final actualTransport = transport ?? QueueTransport();
+  final session =
+      SessionController(actualTransport, store, installationId, SecureIds());
+  return (
+    session: session,
+    basicCache: BasicCache(store, installationId),
+    reportCache: DurablePrincipalOfficerReportCache(store, installationId),
+    api: BasicApi(session, store, installationId, SecureIds()),
+  );
+}
+
+class PurgeFailingMemoryStore extends MemoryStore {
+  @override
+  Future<void> deleteKeysWithPrefix(String prefix) async {
+    if (prefix.startsWith('mutation:install:')) {
+      throw StateError('local purge failed');
+    }
+    await super.deleteKeysWithPrefix(prefix);
+  }
+}
+
+class ObservationFailingMemoryStore extends MemoryStore {
+  @override
+  Future<int> countKeysWithPrefix(String prefix, {required int maximum}) async {
+    throw StateError('storage observation failed');
+  }
 }
 
 void main() {
@@ -762,6 +810,247 @@ void main() {
       DebugCacheSessionProjection.shouldRender(
         debugBuild: true,
         diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
+  });
+
+  testWidgets('real composition projects aggregate from physical storage',
+      (tester) async {
+    final store = MemoryStore()
+      ..values['refresh:install'] = 'not-observed'
+      ..values['cache-index:v1:install'] = 'not-output'
+      ..values['cache:v1:install:person'] = 'not-observed'
+      ..values['officer-report-cache:v1:install:person'] = 'not-observed'
+      ..values['mutation:install:game'] = 'not-observed';
+    final components = await aggregateComponents(store);
+    final aggregate = await CacheSessionAggregateProducer.observe(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+    );
+
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: aggregate,
+        child: const Text('content'),
+      ),
+    ));
+    final projection =
+        find.byKey(const ValueKey('debug-cache-session-projection'));
+    expect(projection, findsOneWidget);
+    final label = tester.getSemantics(projection).label;
+    expect(label, contains('session present'));
+    expect(label, contains('basic_cache present'));
+    expect(label, contains('officer_report_cache present'));
+    expect(label, contains('pending_attendance_intent present'));
+    expect(label, isNot(contains('person')));
+    expect(label, isNot(contains('game')));
+  });
+
+  test('multiple physical pending intents fail closed before logout', () async {
+    final store = MemoryStore()
+      ..values['refresh:install'] = 'refresh'
+      ..values['mutation:install:first'] = 'one'
+      ..values['mutation:install:second'] = 'two';
+    final components = await aggregateComponents(store);
+    expect(
+      await CacheSessionAggregateProducer.observe(
+        session: components.session,
+        basicCache: components.basicCache,
+        reportCache: components.reportCache,
+        api: components.api,
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets(
+      'storage failure hides projection and cold logged-out is observable',
+      (tester) async {
+    final failingComponents =
+        await aggregateComponents(ObservationFailingMemoryStore());
+    final failed = await CacheSessionAggregateProducer.observe(
+      session: failingComponents.session,
+      basicCache: failingComponents.basicCache,
+      reportCache: failingComponents.reportCache,
+      api: failingComponents.api,
+    );
+    expect(failed, isNull);
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: failed,
+        child: const AuthStatePanel(state: AuthViewState.logoutPending),
+      ),
+    ));
+    expect(
+      find.byKey(const ValueKey('debug-cache-session-projection')),
+      findsNothing,
+    );
+
+    final coldComponents = await aggregateComponents(MemoryStore());
+    final cold = await CacheSessionAggregateProducer.observe(
+      session: coldComponents.session,
+      basicCache: coldComponents.basicCache,
+      reportCache: coldComponents.reportCache,
+      api: coldComponents.api,
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: cold,
+        child: const AuthStatePanel(state: AuthViewState.loggedOut),
+      ),
+    ));
+    final projection =
+        find.byKey(const ValueKey('debug-cache-session-projection'));
+    expect(projection, findsOneWidget);
+    expect(tester.getSemantics(projection).label, contains('session absent'));
+    expect(tester.getSemantics(projection).label,
+        contains('pending_attendance_intent absent'));
+  });
+
+  test('fresh Basic downgrade physically removes Officer cache evidence',
+      () async {
+    final store = MemoryStore()..values['refresh:install'] = 'refresh';
+    final components = await aggregateComponents(store);
+    const previous = Person(
+      'same',
+      'Officer',
+      ['attendance:report:read'],
+      accessLevel: AccessLevel.officer,
+    );
+    const current = Person('same', 'Basic', ['games:read']);
+    await components.basicCache.save(current, const [], DateTime.utc(2026));
+    await components.reportCache.write(
+      previous.id,
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    await reconcileFreshReportPrincipal(
+      cache: components.reportCache,
+      previous: previous,
+      current: current,
+    );
+
+    final aggregate = await CacheSessionAggregateProducer.observe(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+    );
+    expect(aggregate!.sessionPresent, isTrue);
+    expect(aggregate.basicCachePresent, isTrue);
+    expect(aggregate.officerReportCachePresent, isFalse);
+    expect(aggregate.pendingAttendanceIntentPresent, isFalse);
+  });
+
+  test('terminal logout purges only current installation and observes absent',
+      () async {
+    final transport = QueueTransport()
+      ..responses.add(const ApiResponse(204, null));
+    final store = MemoryStore()..values['installation:v1'] = 'install';
+    final components = await aggregateComponents(store, transport: transport);
+    await components.session.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+    store.values['refresh-attempt:install'] = 'attempt';
+    await components.basicCache.save(
+      const Person('person', 'Basic', ['games:read']),
+      const [],
+      DateTime.utc(2026),
+    );
+    await components.reportCache.write(
+      'person',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    store.values['mutation:install:first-game'] = 'intent';
+    store.values['mutation:install:second-game'] = 'intent';
+    store.values['refresh:other'] = 'keep';
+    store.values['refresh-attempt:other'] = 'keep';
+    store.values['logout-pending:other'] = 'keep';
+    store.values['cache-index:v1:other'] = 'other-person';
+    store.values['cache:v1:other:other-person'] = 'keep';
+    store.values['officer-report-cache:v1:other:other-person'] = 'keep';
+    store.values['mutation:other:game'] = 'keep';
+
+    expect(
+      await CacheSessionAggregateProducer.observe(
+        session: components.session,
+        basicCache: components.basicCache,
+        reportCache: components.reportCache,
+        api: components.api,
+      ),
+      isNull,
+    );
+
+    final aggregate = await completeTerminalLogout(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+      line: LogoutLine(),
+    );
+    expect(
+      aggregate,
+      const CacheSessionAggregate(
+        sessionPresent: false,
+        basicCachePresent: false,
+        officerReportCachePresent: false,
+        pendingAttendanceIntentPresent: false,
+      ),
+    );
+    expect(store.values['installation:v1'], 'install');
+    expect(
+      store.values.keys.where((key) => key.contains(':other')),
+      hasLength(7),
+    );
+  });
+
+  testWidgets('purge failure stays fail closed with no projection',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.add(const ApiResponse(204, null));
+    final store = PurgeFailingMemoryStore()
+      ..values['mutation:install:game'] = 'intent';
+    final components = await aggregateComponents(store, transport: transport);
+    await components.session.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+
+    final aggregate = await completeTerminalLogout(
+      session: components.session,
+      basicCache: components.basicCache,
+      reportCache: components.reportCache,
+      api: components.api,
+      line: LogoutLine(),
+    );
+    expect(aggregate, isNull);
+    expect(store.values['logout-pending:install'], 'true');
+    await tester.pumpWidget(MaterialApp(
+      home: DebugCacheSessionComposition(
+        aggregate: aggregate,
+        child: const AuthStatePanel(state: AuthViewState.logoutPending),
+      ),
+    ));
+    expect(find.text('請使用 LINE 安全登入'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('debug-cache-session-projection')),
+      findsNothing,
+    );
+  });
+
+  test('release gate cannot render a real aggregate when injected true', () {
+    expect(
+      DebugCacheSessionComposition.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+        aggregatePresent: true,
       ),
       isFalse,
     );
