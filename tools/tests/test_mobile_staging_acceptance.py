@@ -298,7 +298,8 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             $ready=Get-MobileAcceptanceStatus -InvokeStatus {
                 $script:attempts++
                 if($script:attempts -eq 1){throw 'Accessibility inventory failed safely'}
-                if($script:attempts -lt 5){throw 'Accessibility inventory is malformed'}
+                if($script:attempts -eq 2){throw 'Accessibility inventory is malformed'}
+                if($script:attempts -lt 5){throw 'Accessibility foreground state is not exact'}
                 return @{result='observed';semantic_state='logged_out'}
             } -Wait {$script:waits++}
             $script:unknownAttempts=0
@@ -306,12 +307,12 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 Get-MobileAcceptanceStatus -InvokeStatus {$script:unknownAttempts++;throw 'private-provider-subject-sentinel'} -Wait {throw 'must not wait'} | Out-Null
                 $unknown='unexpected'
             } catch {$unknown=$_.Exception.Message}
-            $script:semanticAttempts=0
+            $script:persistentAttempts=0;$script:persistentWaits=0
             try {
-                Get-MobileAcceptanceStatus -InvokeStatus {$script:semanticAttempts++;throw 'Accessibility foreground state is not exact'} -Wait {throw 'must not wait'} | Out-Null
-                $semantic='unexpected'
-            } catch {$semantic=$_.Exception.Message}
-            [pscustomobject]@{result=$ready.result;attempts=$script:attempts;waits=$script:waits;unknown=$unknown;unknownAttempts=$script:unknownAttempts;semantic=$semantic;semanticAttempts=$script:semanticAttempts}|ConvertTo-Json -Compress
+                Get-MobileAcceptanceStatus -InvokeStatus {$script:persistentAttempts++;throw 'Accessibility foreground state is not exact'} -Wait {$script:persistentWaits++} | Out-Null
+                $persistent='unexpected'
+            } catch {$persistent=$_.Exception.Message}
+            [pscustomobject]@{result=$ready.result;attempts=$script:attempts;waits=$script:waits;unknown=$unknown;unknownAttempts=$script:unknownAttempts;persistent=$persistent;persistentAttempts=$script:persistentAttempts;persistentWaits=$script:persistentWaits}|ConvertTo-Json -Compress
             """
         )
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -321,8 +322,9 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertEqual(payload["waits"], 4)
         self.assertEqual(payload["unknown"], "Harness status is unavailable")
         self.assertEqual(payload["unknownAttempts"], 1)
-        self.assertEqual(payload["semantic"], "Harness status is unavailable")
-        self.assertEqual(payload["semanticAttempts"], 1)
+        self.assertEqual(payload["persistent"], "Harness status is unavailable")
+        self.assertEqual(payload["persistentAttempts"], 5)
+        self.assertEqual(payload["persistentWaits"], 4)
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
     def test_artifact_manifest_drift_short_circuits_tools_and_unknown_is_bounded(self):

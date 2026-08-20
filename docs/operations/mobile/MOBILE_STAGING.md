@@ -604,10 +604,11 @@ long-lived Gradle/ADB action host cannot pollute API36 UIAutomator inventory.
 The child argv contains only the launcher path, action, mode, accepted full SHA,
 and value-free config path; raw child output is never forwarded.
 After a terminal cold launch, semantic readiness may retry only the exact
-read-only TASK-123 accessibility-unavailable or malformed-inventory conditions,
-at most five attempts with three-second waits. Semantic mismatch, unknown status
-failures, and every other invalid state are never retried; exhausted readiness
-returns `EVIDENCE_GAP/STATUS_UNAVAILABLE` without raw diagnostics.
+read-only TASK-123 accessibility-unavailable, malformed-inventory, or non-exact
+foreground semantic conditions, at most five attempts with three-second waits.
+Acceptance still requires a later exact allowlisted state; persistent semantic
+drift, unknown status failures, and every other invalid state exhaust or stop as
+`EVIDENCE_GAP/STATUS_UNAVAILABLE` without raw diagnostics.
 Missing or drifted provenance performs the bounded sequence `cleanup-artifact`, `build`,
 `signer-check`, session-preserving `install -r`, and one `cold-launch`; a
 drifted retained artifact and its manifest are first removed without deleting

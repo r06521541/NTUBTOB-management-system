@@ -164,3 +164,11 @@ Next actor: Main Work review.
   semantic-drift reason codes map back to the existing bounded harness states;
   timeout, stderr, malformed/multiple/oversized output, or any unknown result is
   redacted to status unavailable. No private value is placed in argv or output.
+
+- Process-isolated dogfood returned governed `SEMANTIC_DRIFT` immediately after
+  cold launch; a later allowlisted aggregate showed the same foreground had
+  converged to exactly one login button and zero principal projections. The
+  readiness loop now treats only that exact semantic-drift message as another
+  bounded read-only convergence state. It still requires a later exact state;
+  five persistent drift attempts return evidence gap, and unknown failures are
+  never retried. No UI input, login, or sensitive hierarchy was captured.
