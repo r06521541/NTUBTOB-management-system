@@ -27,7 +27,10 @@ signer, exact `tw.org.ntubtob.portal` APK identity through one absolute package
 inspector, fresh APK evidence, and session-preserving `adb install -r`. Status
 first derives package/activity. Package absent, portal background, and portal
 stopped return bounded states and zero projection/login counts without an
-accessibility call. Portal foreground parses one bounded in-memory hierarchy
+accessibility call. Activity parsing uses exactly one anchored current
+resumed/top-resumed/focused record, ignores retained back-stack entries, and
+fails closed on duplicate or malformed current records. Only an exact portal
+foreground component parses one bounded in-memory hierarchy
 with DTD/external resolution prohibited and accepts exactly one logged-out,
 Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled
 state. Cold launch
@@ -70,6 +73,11 @@ Using the repository bundled Python on Windows:
   stopped with zero accessibility calls; duplicate/coexisting/missing states;
   malformed/oversized input; zero Secret/mutation access; and sentinel/raw
   hierarchy non-disclosure.
+- Targeted foreground parser/status regressions: 4 passed. They prove a retained
+  portal task plus current Chrome remains `portal_background` with zero UI
+  calls; retained portal without a current component remains `portal_stopped`;
+  an exact current portal alone permits one UI call; and duplicate, malformed,
+  oversized, or timed-out inventories fail closed without sentinel disclosure.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -116,7 +124,9 @@ Owner-private action was run.
   `17774cd05e1586322d147955bdb0834367808759`
 - Complete status-state correction commit:
   `e362650232255a4c31a109d981a3cc2db357eacc`
-- Authoritative shared ancestry: `3b80e61e0c68ccacfed7984a82e37d4834dd9aa3`
+- Current foreground activity correction commit:
+  `d3fa5f493b0da97910d28dd97f70871f1016c5ae`
+- Authoritative shared ancestry: `0cb5e10d50e5dfc1f91243788cce0cf96fbad4a2`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.
