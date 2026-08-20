@@ -25,9 +25,12 @@ The console validates an explicit full commit and clean detached snapshot,
 task-owned E-drive paths, one AVD/serial, a unique allowlisted existing debug
 signer, exact `tw.org.ntubtob.portal` APK identity through one absolute package
 inspector, fresh APK evidence, and session-preserving `adb install -r`. Status
-parses one bounded in-memory accessibility hierarchy with DTD/external
-resolution prohibited, then returns only allowlisted Basic/Officer and report
-enabled/disabled counts. Cold launch
+first derives package/activity. Package absent, portal background, and portal
+stopped return bounded states and zero projection/login counts without an
+accessibility call. Portal foreground parses one bounded in-memory hierarchy
+with DTD/external resolution prohibited and accepts exactly one logged-out,
+Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled
+state. Cold launch
 uses semantic package/activity/PID checks, has no timeout retry, and restores a
 temporary network change in `finally`. Flutter defines use a named pipe and do
 not enter argv, files, evidence, or output.
@@ -62,6 +65,11 @@ Using the repository bundled Python on Windows:
   forces a nominal `help` success to contain a test sentinel and proves one
   fixed JSON line, `FAILED`, `OUTPUT_REDACTION_FAILED`, exit 2, empty stderr,
   and no sentinel/raw exception disclosure.
+- Targeted status-state plus parser regressions: 4 passed. They cover logged-out
+  and all three authenticated foreground states; package absent/background/
+  stopped with zero accessibility calls; duplicate/coexisting/missing states;
+  malformed/oversized input; zero Secret/mutation access; and sentinel/raw
+  hierarchy non-disclosure.
 - `python -m py_compile tools/tests/test_mobile_staging_launcher.py`: passed.
 - `python -m isort --check-only tools/tests/test_mobile_staging_launcher.py`:
   passed after applying isort to the new file.
@@ -106,7 +114,7 @@ Owner-private action was run.
   `5384882f43dc9cfe5e514924a97ebf91d9085c9c`
 - Output-redaction fail-closed correction commit:
   `17774cd05e1586322d147955bdb0834367808759`
-- Authoritative shared ancestry: `7f2142d09f751e9831ebd52dcd1ab6f6c1cb449b`
+- Authoritative shared ancestry: `3b80e61e0c68ccacfed7984a82e37d4834dd9aa3`
 - External side effects: none; repository-only tests used mocked executables.
 - Unverified: real emulator/ADB/Flutter build, Owner-private console, staging and
   hosted Black/Python 3.10 remain Main Work/final CI evidence.

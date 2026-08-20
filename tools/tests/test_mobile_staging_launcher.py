@@ -247,7 +247,7 @@ class PowerShellContractTest(unittest.TestCase):
             function Assert-OnlyApprovedSerial {{ param($Config) }}
             function Get-PackageState {{ param($Config) return 'installed' }}
             function Get-CurrentActivity {{ param($Config) return 'portal' }}
-            function Get-AllowlistedUiCounts {{ param($Config) return [ordered]@{{basic=0;officer=1;report_enabled=1;report_disabled=0}} }}
+            function Get-AllowlistedUiCounts {{ param($Config) return [ordered]@{{semantic_state='officer_report_enabled';login=0;basic=0;officer=1;report_enabled=1;report_disabled=0}} }}
             $config=[pscustomobject]@{{
                 flutter_executable='{LAUNCHER.as_posix()}';adb_executable='{LAUNCHER.as_posix()}';
                 emulator_executable='{LAUNCHER.as_posix()}';apksigner_executable='{LAUNCHER.as_posix()}';
@@ -266,16 +266,20 @@ class PowerShellContractTest(unittest.TestCase):
     def test_status_classifies_only_allowlisted_accessibility_counts(self):
         cases = (
             (
+                "請使用 LINE 安全登入",
+                "state=logged_out,login=1,basic=0,officer=0,enabled=0,disabled=0",
+            ),
+            (
                 "偵錯權限投影：一般使用者；報表讀取：停用",
-                "basic=1,officer=0,enabled=0,disabled=1",
+                "state=basic,login=0,basic=1,officer=0,enabled=0,disabled=1",
             ),
             (
                 "偵錯權限投影：幹部；報表讀取：啟用",
-                "basic=0,officer=1,enabled=1,disabled=0",
+                "state=officer_report_enabled,login=0,basic=0,officer=1,enabled=1,disabled=0",
             ),
             (
                 "偵錯權限投影：幹部；報表讀取：停用",
-                "basic=0,officer=1,enabled=0,disabled=1",
+                "state=officer_report_disabled,login=0,basic=0,officer=1,enabled=0,disabled=1",
             ),
         )
         sentinel = "private-provider-subject-sentinel"
@@ -293,26 +297,75 @@ class PowerShellContractTest(unittest.TestCase):
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{xml}';Stderr=''}} }}
                     $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
                     $value=Get-AllowlistedUiCounts $config
-                    Write-Output ('basic='+$value.basic+',officer='+$value.officer+',enabled='+$value.report_enabled+',disabled='+$value.report_disabled)
+                    Write-Output ('state='+$value.semantic_state+',login='+$value.login+',basic='+$value.basic+',officer='+$value.officer+',enabled='+$value.report_enabled+',disabled='+$value.report_disabled)
                     """
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertIn(expected, result.stdout)
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
 
-        duplicate = (
-            '<hierarchy><node content-desc="偵錯權限投影：一般使用者；報表讀取：停用"/>'
-            '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/></hierarchy>'
+        rejected = (
+            (
+                '<hierarchy><node content-desc="請使用 LINE 安全登入"/>'
+                '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/></hierarchy>',
+                "Accessibility foreground state is not exact",
+            ),
+            (
+                '<hierarchy><node content-desc="請使用 LINE 安全登入"/>'
+                '<node content-desc="請使用 LINE 安全登入"/></hierarchy>',
+                "Accessibility foreground state is not exact",
+            ),
+            ('<hierarchy><node content-desc="unapproved"/></hierarchy>', "Accessibility foreground state is not exact"),
+            ("not-xml", "Accessibility inventory is malformed"),
         )
+        for raw, expected_error in rejected:
+            with self.subTest(expected_error=expected_error):
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{raw}';Stderr=''}} }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    try {{ Get-AllowlistedUiCounts $config;exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(expected_error, result.stdout)
+
         result = self.run_harness(
-            f"""
-            function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{duplicate}';Stderr=''}} }}
-            $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
-            try {{ Get-AllowlistedUiCounts $config;exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+            """
+            function Invoke-BoundedProcess { return [pscustomobject]@{TimedOut=$false;ExitCode=0;Stdout=('x' * 65537);Stderr=''} }
+            $config=[pscustomobject]@{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}
+            try { Get-AllowlistedUiCounts $config;exit 9 } catch { Write-Output $_.Exception.Message }
             """
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Accessibility principal projection is not exact", result.stdout)
+        self.assertIn("Accessibility inventory size is not bounded", result.stdout)
+
+    def test_status_skips_accessibility_for_absent_background_and_stopped(self):
+        cases = (
+            ("absent", "none", "package_absent"),
+            ("installed", "other", "portal_background"),
+            ("installed", "none", "portal_stopped"),
+        )
+        for package, activity, semantic_state in cases:
+            with self.subTest(semantic_state=semantic_state):
+                result = self.run_harness(
+                    f"""
+                    $script:uiCalls=0
+                    function Assert-OnlyApprovedSerial {{ param($Config) }}
+                    function Get-PackageState {{ param($Config) return '{package}' }}
+                    function Get-CurrentActivity {{ param($Config) return '{activity}' }}
+                    function Get-AllowlistedUiCounts {{ $script:uiCalls++;throw 'must not inspect accessibility' }}
+                    $config=[pscustomobject]@{{}}
+                    $value=Invoke-Status $config
+                    Write-Output ($value.semantic_state+',login='+$value.login+',basic='+$value.basic+',officer='+$value.officer+',uiCalls='+$script:uiCalls)
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(
+                    f"{semantic_state},login=0,basic=0,officer=0,uiCalls=0",
+                    result.stdout,
+                )
+                self.assertNotIn("secrets versions access", result.stdout + result.stderr)
 
     def test_disk_lock_avd_and_serial_fail_closed(self):
         result = self.run_harness(

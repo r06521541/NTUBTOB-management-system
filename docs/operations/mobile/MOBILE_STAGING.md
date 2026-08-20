@@ -346,10 +346,15 @@ such as `$home`/`$HOME` fail review rather than runtime dogfood.
 
 The routine actions are `help`, `preflight`, `avd-start`, `status`, `build`,
 `signer-check`, `install`, `cold-launch`, `health`, `stop`, and `cleanup`.
-`status` captures one bounded accessibility hierarchy into memory, prohibits
-DTD/external resolution, and returns only the exact allowlisted Basic/Officer
-and report-enabled/report-disabled counts. It never persists or returns the
-hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
+`status` derives package/activity first. Package absent, portal background, and
+portal stopped return their stable state with zero login/projection counts and
+never invoke the accessibility dump. Only portal foreground captures one
+bounded accessibility hierarchy into memory, prohibits DTD/external resolution,
+and accepts exactly one mutually exclusive state: logged-out LINE login gate,
+Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
+returns only that stable state and allowlisted counts; duplicate, coexisting,
+missing, malformed, or oversized states fail closed. It never persists or
+returns the hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
 `install` additionally requires `-PreserveSession` and only issues
 `adb install -r` after the absolute package inspector proves the artifact is
 exactly `tw.org.ntubtob.portal` and artifact/installed signers agree. Build

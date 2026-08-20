@@ -362,13 +362,37 @@ function Get-PackageState {
 function Invoke-Status {
     param([object]$Config)
     Assert-OnlyApprovedSerial $Config
+    $package = Get-PackageState $Config
     $activity = Get-CurrentActivity $Config
+    if ($package -eq 'absent' -or $activity -ne 'portal') {
+        $boundedState = if ($package -eq 'absent') {
+            'package_absent'
+        }
+        elseif ($activity -eq 'other') {
+            'portal_background'
+        }
+        else {
+            'portal_stopped'
+        }
+        return [ordered]@{
+            action = 'status'
+            package = $package
+            activity = $activity
+            semantic_state = $boundedState
+            login = 0
+            basic = 0
+            officer = 0
+            report_enabled = 0
+            report_disabled = 0
+        }
+    }
     $ui = Get-AllowlistedUiCounts $Config
     return [ordered]@{
         action = 'status'
-        package = Get-PackageState $Config
+        package = $package
         activity = $activity
-        semantic_state = $activity
+        semantic_state = $ui.semantic_state
+        login = $ui.login
         basic = $ui.basic
         officer = $ui.officer
         report_enabled = $ui.report_enabled
@@ -412,13 +436,29 @@ function Get-AllowlistedUiCounts {
     $basicDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5LiA6Iis5L2/55So6ICF77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
     $officerEnabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5ZWf55So'))
     $officerDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
+    $loginLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('6KuL5L2/55SoIExJTkUg5a6J5YWo55m75YWl'))
     $basicDisabled = @($labels | Where-Object { $_ -ceq $basicDisabledLabel }).Count
     $officerEnabled = @($labels | Where-Object { $_ -ceq $officerEnabledLabel }).Count
     $officerDisabled = @($labels | Where-Object { $_ -ceq $officerDisabledLabel }).Count
-    if (($basicDisabled + $officerEnabled + $officerDisabled) -ne 1) {
-        Throw-Safe 'Accessibility principal projection is not exact'
+    $login = @($labels | Where-Object { $_ -ceq $loginLabel }).Count
+    if (($login + $basicDisabled + $officerEnabled + $officerDisabled) -ne 1) {
+        Throw-Safe 'Accessibility foreground state is not exact'
+    }
+    $semanticState = if ($login -eq 1) {
+        'logged_out'
+    }
+    elseif ($basicDisabled -eq 1) {
+        'basic'
+    }
+    elseif ($officerEnabled -eq 1) {
+        'officer_report_enabled'
+    }
+    else {
+        'officer_report_disabled'
     }
     return [ordered]@{
+        semantic_state = $semanticState
+        login = $login
         basic = $basicDisabled
         officer = $officerEnabled + $officerDisabled
         report_enabled = $officerEnabled
