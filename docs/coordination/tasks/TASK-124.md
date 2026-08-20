@@ -3,7 +3,7 @@
 - Task type: planning plus serial observability producers
 - Delivery group: `mobile-staging-acceptance-automation`
 - Requires independent PR: false
-- Status: producer package 1 accepted; ready for hosted CI
+- Status: producer packages 1-4 accepted; ready for hosted CI
 - Owner gate: none for repository planning
 
 ## Goal

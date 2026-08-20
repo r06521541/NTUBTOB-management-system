@@ -1,19 +1,20 @@
-active_task: TASK-127
+active_task: TASK-124
 status: ready_for_hosted_ci
 next_actor: work
 
-base_commit: 02e42965792cf00b878ed5702d956766cc7629ab
-head_commit: a4da49a
+base_commit: 3cb18bf67dadab072fb0a24407c4564a185d46db
+head_commit: 66614c6
 
 updated_by: work
-updated_at: 2026-08-20T22:20:00+08:00
+updated_at: 2026-08-20T22:40:00+08:00
 
 note: >
-  Principal-provenance launcher consumer and Main delta review are accepted. The launcher direct suite is 48/48;
-  hosted deployment-tool/final gates remain. No runtime, emulator, staging, Secret, database or cloud action ran.
-  TASK-124 package 4 and TASK-128 broker core continue in separate non-overlapping lanes.
+  TASK-124 report, authoritative reply and physical cache/session producers are accepted after targeted review.
+  Package 4 now observes real current-installation storage and terminal logout clears session, Basic cache, Officer
+  cache and pending attendance intents fail closed. Hosted Flutter/final gates remain. No runtime, emulator, network,
+  staging, Secret or cloud action ran. TASK-128 broker core continues independently.
 
-worktree: C:/Users/USER/.codex/visualizations/2026/08/20/task127-delivery
-task: docs/coordination/tasks/TASK-127.md
-report: docs/coordination/reports/TASK-127-CODEX.md
-review: docs/coordination/reviews/TASK-127-WORK.md
+worktree: C:/Users/USER/.codex/visualizations/2026/08/20/task124-observability-delivery
+task: docs/coordination/tasks/TASK-124.md
+report: docs/coordination/reports/TASK-124-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-124-WORK.md
