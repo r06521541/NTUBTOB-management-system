@@ -690,7 +690,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 result = self.run_harness(
                     f"""
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout=\"{output}\";Stderr=''}} }}
-                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat'}}
+                    $config=[pscustomobject]@{{apkanalyzer_executable='E:/mock/apkanalyzer.bat';java_home='E:/mock/jdk'}}
                     try {{ Write-Output (Get-ApkPackageIdentity $config 'E:/task/app-debug.apk') }} catch {{ Write-Output $_.Exception.Message }}
                     """
                 )
@@ -708,6 +708,53 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("APK package identity does not match,install=False", result.stdout)
+
+    def test_apk_tools_use_exact_child_java_and_reject_unapproved_home(self):
+        stale_java = "C:/stale-java-sentinel"
+        result = self.run_harness(
+            f"""
+            $env:JAVA_HOME='{stale_java}'
+            $env:PATH='C:/stale-path-sentinel'
+            $script:calls=0
+            function Invoke-BoundedProcess {{
+                param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
+                $script:calls++
+                $script:lastChildEnvironment=$ChildEnvironment
+                if ($ChildEnvironment.Count -ne 2) {{ throw 'APK Java environment is not closed' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.JAVA_HOME),[IO.Path]::GetFullPath('E:/approved-jdk'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java home is not exact' }}
+                if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.PATH),[IO.Path]::GetFullPath('E:/approved-jdk/bin'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'APK Java path is not exact' }}
+                if ([string]$Executable -like '*apkanalyzer*') {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='tw.org.ntubtob.portal';Stderr=''}} }}
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='Signer #1 certificate SHA-256 digest: {FINGERPRINT}';Stderr=''}}
+            }}
+            $config=[pscustomobject]@{{java_home='E:/approved-jdk';apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+            $package=Get-ApkPackageIdentity $config 'E:/task/app-debug.apk'
+            $fingerprint=Get-ApkSignerFingerprint $config 'E:/task/app-debug.apk'
+            if ($env:JAVA_HOME -cne '{stale_java}' -or $env:PATH -cne 'C:/stale-path-sentinel') {{ throw 'Parent Java environment changed' }}
+            if ($script:lastChildEnvironment.Count -ne 0) {{ throw 'APK Java environment was retained' }}
+            Write-Output ('package='+$package+',fingerprint='+$fingerprint+',calls='+$script:calls)
+            foreach ($invalid in @('relative-jdk','C:/unapproved-jdk')) {{
+                $script:started=$false
+                function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
+                $invalidConfig=[pscustomobject]@{{java_home=$invalid;apkanalyzer_executable='E:/mock/apkanalyzer.bat';apksigner_executable='E:/mock/apksigner.bat'}}
+                try {{ Get-ApkPackageIdentity $invalidConfig 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:started) }}
+            }}
+            function Invoke-BoundedProcess {{
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=1;Stdout='apk-stdout-sentinel';Stderr='apk-stderr-sentinel'}}
+            }}
+            try {{ Get-ApkSignerFingerprint $config 'E:/task/app-debug.apk';exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(
+            f"package=tw.org.ntubtob.portal,fingerprint={FINGERPRINT},calls=2",
+            result.stdout,
+        )
+        self.assertEqual(result.stdout.count("Approved Java home is invalid,started=False"), 2)
+        self.assertIn("APK signer verification failed safely", result.stdout)
+        self.assertNotIn(stale_java, result.stdout + result.stderr)
+        self.assertNotIn("stale-path-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("apk-stdout-sentinel", result.stdout + result.stderr)
+        self.assertNotIn("apk-stderr-sentinel", result.stdout + result.stderr)
 
     def test_cold_launch_timeout_is_not_retried_and_network_is_restored(self):
         result = self.run_harness(

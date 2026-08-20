@@ -218,6 +218,26 @@ before child start, bounded cleanup, and the existing exact public-define and
 no-disclosure behavior. This correction performed no launcher runtime,
 emulator, staging, private-console, Secret, or cloud action.
 
+## APK tooling Java isolation correction
+
+Controlled dogfood subsequently produced an APK but failed closed during APK
+inspection because the host-selected Java was older than the approved JDK.
+Source diagnosis found package and signer inspection did not receive the build
+child's Java selection.
+
+Both APK inspectors now run with child-only `JAVA_HOME` and `PATH` derived from
+the normalized approved E-drive JDK. Inherited stale Java cannot win, while the
+parent environment and global configuration remain unchanged. The temporary
+environment is cleared in `finally`; Java paths, child output, and diagnostic
+sentinels are not emitted or retained.
+
+Direct regressions cover package and signer inspection with the exact child
+JDK, stale inherited Java, invalid/out-of-root Java before child start, and
+nonzero child-output redaction. Five affected direct tests, the PowerShell
+parser, Python compile, isort, diff, and scope checks passed. This correction
+executed no launcher runtime, emulator, staging, private-console, Secret, or
+cloud action.
+
 ## Deferred follow-up (not implemented)
 
 - A: named resumable Staging Acceptance Harness.

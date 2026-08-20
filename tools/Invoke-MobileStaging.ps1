@@ -491,9 +491,44 @@ function Remove-TaskLock {
     if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
 }
 
+function Invoke-ApkToolWithApprovedJava {
+    param(
+        [object]$Config,
+        [string]$Executable,
+        [string[]]$Arguments
+    )
+    $childEnvironment = $null
+    $javaHome = $null
+    $javaBin = $null
+    try {
+        $configuredJavaHome = [string]$Config.java_home
+        if (-not [System.IO.Path]::IsPathRooted($configuredJavaHome)) {
+            Throw-Safe 'Approved Java home is invalid'
+        }
+        try { $javaHome = [System.IO.Path]::GetFullPath($configuredJavaHome).TrimEnd('\') }
+        catch { Throw-Safe 'Approved Java home is invalid' }
+        if (-not $javaHome.StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            Throw-Safe 'Approved Java home is invalid'
+        }
+        $javaBin = [System.IO.Path]::GetFullPath((Join-Path $javaHome 'bin'))
+        $childEnvironment = @{
+            JAVA_HOME = $javaHome
+            PATH = $javaBin
+        }
+        return Invoke-BoundedProcess $Executable $Arguments 30 $childEnvironment
+    }
+    finally {
+        if ($null -ne $childEnvironment) { $childEnvironment.Clear() }
+        $childEnvironment = $null
+        $Arguments = $null
+        $javaHome = $null
+        $javaBin = $null
+    }
+}
+
 function Get-ApkSignerFingerprint {
     param([object]$Config, [string]$ApkPath)
-    $result = Invoke-BoundedProcess ([string]$Config.apksigner_executable) @('verify', '--print-certs', $ApkPath) 30
+    $result = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apksigner_executable) @('verify', '--print-certs', $ApkPath)
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'APK signer verification failed safely' }
     $certificateMatches = [regex]::Matches($result.Stdout, '(?im)certificate SHA-256 digest:\s*([0-9a-f:]{64,95})')
     if ($certificateMatches.Count -ne 1) { Throw-Safe 'APK signer result is not exact' }
@@ -502,7 +537,7 @@ function Get-ApkSignerFingerprint {
 
 function Get-ApkPackageIdentity {
     param([object]$Config, [string]$ApkPath)
-    $result = Invoke-BoundedProcess ([string]$Config.apkanalyzer_executable) @('manifest', 'application-id', $ApkPath) 30
+    $result = Invoke-ApkToolWithApprovedJava $Config ([string]$Config.apkanalyzer_executable) @('manifest', 'application-id', $ApkPath)
     if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'APK package inspection failed safely' }
     $lines = @($result.Stdout -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
     if ($lines.Count -ne 1 -or $lines[0].Trim() -notmatch '^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+$') {

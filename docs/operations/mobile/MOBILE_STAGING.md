@@ -412,6 +412,13 @@ The launcher does not alter `HOME`, `USERPROFILE`, or global Flutter settings.
 The isolated APPDATA directory is removed with normal task-temp cleanup; its
 path and contents are not evidence and are never emitted.
 
+APK package and signer inspection use a child-only Java selection: `JAVA_HOME`
+is the normalized approved E-drive JDK and child `PATH` contains only that
+JDK's `bin` directory. This prevents inherited stale Java configuration from
+selecting the runtime for `apkanalyzer` or `apksigner`. The launcher does not
+change parent Java environment or global configuration, and never emits the
+configured Java path or child output.
+
 Owner-private actions are one interactive invocation only:
 
 ```powershell
