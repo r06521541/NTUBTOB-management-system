@@ -266,10 +266,6 @@ class PowerShellContractTest(unittest.TestCase):
     def test_status_classifies_only_allowlisted_accessibility_counts(self):
         cases = (
             (
-                "請使用 LINE 安全登入",
-                "state=logged_out,login=1,basic=0,officer=0,enabled=0,disabled=0",
-            ),
-            (
                 "偵錯權限投影：一般使用者；報表讀取：停用",
                 "state=basic,login=0,basic=1,officer=0,enabled=0,disabled=1",
             ),
@@ -316,7 +312,8 @@ class PowerShellContractTest(unittest.TestCase):
 
         rejected = (
             (
-                '<hierarchy><node content-desc="請使用 LINE 安全登入"/>'
+                '<hierarchy><node package="tw.org.ntubtob.portal" class="android.widget.Button" '
+                'content-desc="LINE 登入" enabled="true" clickable="true"/>'
                 '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/></hierarchy>',
                 "Accessibility foreground state is not exact",
             ),
@@ -350,6 +347,58 @@ class PowerShellContractTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Accessibility inventory size is not bounded", result.stdout)
+
+    def test_logged_out_requires_one_exact_portal_login_button(self):
+        prompt = "請使用 LINE 安全登入 請使用 LINE 安全登入"
+        sentinel = "private-provider-subject-sentinel"
+        exact_button = (
+            '<node package="tw.org.ntubtob.portal" class="android.widget.Button" '
+            'content-desc="LINE 登入" enabled="true" clickable="true"/>'
+        )
+        valid = (
+            '<hierarchy><node package="tw.org.ntubtob.portal" '
+            f'class="android.view.View" content-desc="{prompt}"/>{exact_button}'
+            f'<node content-desc="{sentinel}"/></hierarchy>'
+        )
+        result = self.run_harness(
+            f"""
+            function Invoke-BoundedProcess {{
+                return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{valid}';Stderr=''}}
+            }}
+            $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+            $value=Get-AllowlistedUiCounts $config
+            Write-Output ('state='+$value.semantic_state+',login='+$value.login+',basic='+$value.basic+',officer='+$value.officer)
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("state=logged_out,login=1,basic=0,officer=0", result.stdout)
+        self.assertNotIn(prompt, result.stdout + result.stderr)
+        self.assertNotIn(sentinel, result.stdout + result.stderr)
+
+        invalid_nodes = (
+            exact_button + exact_button,
+            exact_button
+            + '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/>',
+            exact_button.replace('tw.org.ntubtob.portal', 'com.example.other'),
+            exact_button.replace('android.widget.Button', 'android.view.View'),
+            exact_button.replace('enabled="true"', 'enabled="false"'),
+            exact_button.replace('clickable="true"', 'clickable="false"'),
+        )
+        for nodes in invalid_nodes:
+            with self.subTest(nodes=nodes):
+                hierarchy = f'<hierarchy>{nodes}<node content-desc="{sentinel}"/></hierarchy>'
+                result = self.run_harness(
+                    f"""
+                    function Invoke-BoundedProcess {{
+                        return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='{hierarchy}';Stderr=''}}
+                    }}
+                    $config=[pscustomobject]@{{adb_executable='E:/mock/adb.exe';serial='emulator-5556'}}
+                    try {{ Get-AllowlistedUiCounts $config;exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("Accessibility foreground state is not exact", result.stdout)
+                self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_accessibility_transport_rejects_unsafe_results_without_disclosure(self):
         source = LAUNCHER.read_text(encoding="utf-8")

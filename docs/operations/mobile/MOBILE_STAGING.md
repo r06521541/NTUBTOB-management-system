@@ -355,7 +355,10 @@ Only an exact portal foreground component captures one
 bounded accessibility hierarchy directly in memory through exact
 `adb -s <serial> exec-out uiautomator dump /dev/tty` arguments. It never uses a
 device temp file, `cat`, `pull`, or `rm`; it prohibits DTD/external resolution,
-and accepts exactly one mutually exclusive state: logged-out LINE login gate,
+and accepts exactly one mutually exclusive state. Logged-out requires one
+enabled, clickable `android.widget.Button` in package `tw.org.ntubtob.portal`
+with exact `LINE 登入` content description; merged prompt text is ignored.
+The remaining states are
 Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
 returns only that stable state and allowlisted counts; duplicate, coexisting,
 missing, malformed, or oversized states fail closed. It never persists or

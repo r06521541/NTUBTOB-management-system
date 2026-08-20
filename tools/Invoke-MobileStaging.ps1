@@ -441,19 +441,28 @@ function Get-AllowlistedUiCounts {
     }
     catch { Throw-Safe 'Accessibility inventory is malformed' }
     finally { if ($null -ne $reader) { $reader.Dispose() } }
+    $nodes = @($document.SelectNodes('//node'))
     $labels = @(
-        $document.SelectNodes('//node') |
+        $nodes |
             ForEach-Object { [string]$_.GetAttribute('content-desc') } |
             Where-Object { $_ }
     )
     $basicDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5LiA6Iis5L2/55So6ICF77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
     $officerEnabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5ZWf55So'))
     $officerDisabledLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('5YG16Yyv5qyK6ZmQ5oqV5b2x77ya5bm56YOo77yb5aCx6KGo6K6A5Y+W77ya5YGc55So'))
-    $loginLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('6KuL5L2/55SoIExJTkUg5a6J5YWo55m75YWl'))
+    $loginLabel = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('TElORSDnmbvlhaU='))
     $basicDisabled = @($labels | Where-Object { $_ -ceq $basicDisabledLabel }).Count
     $officerEnabled = @($labels | Where-Object { $_ -ceq $officerEnabledLabel }).Count
     $officerDisabled = @($labels | Where-Object { $_ -ceq $officerDisabledLabel }).Count
-    $login = @($labels | Where-Object { $_ -ceq $loginLabel }).Count
+    $login = @(
+        $nodes | Where-Object {
+            [string]$_.GetAttribute('package') -ceq $script:PackageId -and
+            [string]$_.GetAttribute('class') -ceq 'android.widget.Button' -and
+            [string]$_.GetAttribute('content-desc') -ceq $loginLabel -and
+            [string]$_.GetAttribute('enabled') -ceq 'true' -and
+            [string]$_.GetAttribute('clickable') -ceq 'true'
+        }
+    ).Count
     if (($login + $basicDisabled + $officerEnabled + $officerDisabled) -ne 1) {
         Throw-Safe 'Accessibility foreground state is not exact'
     }
