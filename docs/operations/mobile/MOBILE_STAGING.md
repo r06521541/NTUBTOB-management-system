@@ -299,6 +299,143 @@ traffic only in update mode;
 candidate/image deletion and full staging cleanup remain separately approved
 cost-bearing actions.
 
+## Bounded mobile staging launch console
+
+`tools/Invoke-MobileStaging.ps1` runs exactly one declared local action. `help`,
+`preflight`, `status`, and every routine action stay on a separate code path
+from the Owner-private actions: they do not initialize `gcloud`, resolve a
+Secret reference, read the private tester subject/database URL, or load the
+staging mutation operator. Repository tests mock every executable; TASK-123
+does not run this console against an emulator, staging, or cloud resources.
+
+Every invocation writes exactly one compressed, de-identified JSON object. Its
+top-level classification is one of `PASS`, `OWNER_ACTION_REQUIRED`, `DRIFT`,
+`TIMEOUT`, or `FAILED`, with fixed `standing_authorization=DEC-098`,
+`report_to=main-work`, bounded `stop_only_on`, action-specific `operator` and
+`owner_gate`, and `retention_owner=TASK-123`. A non-`PASS` result exits nonzero.
+No caller needs raw process output to classify an action.
+Every non-PASS `details` object also contains exactly one bounded allowlisted
+`reason_code`: `CONFIG_INVALID`, `SNAPSHOT_INVALID`, `DISK_UNAVAILABLE`,
+`TOOLCHAIN_UNAVAILABLE`, `LOCK_UNAVAILABLE`, `OWNER_ACTION_REQUIRED`,
+`RUNTIME_TIMEOUT`, `RUNTIME_FAILED`, or `OUTPUT_REDACTION_FAILED`. Raw
+exception text, paths, child output, and sensitive values are never copied into
+the governed result. If the nominal result itself fails the sensitive-output
+gate, the fixed `OUTPUT_REDACTION_FAILED` fallback replaces it as the only JSON
+line and forces process exit 2; a `FAILED` envelope never exits successfully.
+
+The value-free config contains only the exact detached snapshot, absolute
+toolchain/cache paths (including one absolute `apkanalyzer` package inspector),
+one AVD and serial, package/activity constants, task-owned
+`E:\codex-evidence\task-123` and `E:\codex-temp\task-123` roots, disk floor,
+artifact name, Android user-home inventory, and one allowed signer fingerprint.
+It contains no endpoint, channel ID, provider subject, DSN, token, Secret value,
+or keystore path. A typical routine invocation is:
+
+```powershell
+.\tools\Invoke-MobileStaging.ps1 `
+  -Action preflight `
+  -Mode fake `
+  -Commit <full-accepted-sha> `
+  -ConfigPath C:\private\task-123-launcher.json
+```
+
+The real config loader is contract-tested with the complete value-free schema,
+including its Android user-home array. Loop and assignment names are checked
+against PowerShell automatic/read-only variables so case-insensitive collisions
+such as `$home`/`$HOME` fail review rather than runtime dogfood.
+
+The routine actions are `help`, `preflight`, `avd-start`, `status`, `build`,
+`signer-check`, `install`, `cold-launch`, `health`, `stop`, and `cleanup`.
+`status` derives package/activity first. Package absent, portal background, and
+portal stopped return their stable state with zero login/projection counts and
+never invoke the accessibility dump. Activity classification accepts exactly
+one anchored resumed/top-resumed/focused activity record; retained back-stack
+entries are ignored, while duplicate or malformed current records fail closed.
+Only an exact portal foreground component captures one
+bounded accessibility hierarchy directly in memory through exact
+`adb -s <serial> exec-out uiautomator dump /dev/tty` arguments. It never uses a
+device temp file, `cat`, `pull`, or `rm`; it prohibits DTD/external resolution,
+and accepts exactly one mutually exclusive state. Logged-out requires one
+enabled, clickable `android.widget.Button` in package `tw.org.ntubtob.portal`
+with exact `LINE 登入` content description; merged prompt text is ignored.
+The remaining states are
+Basic/report-disabled, Officer/report-enabled, or Officer/report-disabled. It
+returns only that stable state and allowlisted counts; duplicate, coexisting,
+missing, malformed, or oversized states fail closed. It never persists or
+returns the hierarchy, labels, names, coordinates, OCR, screenshots, or logcat.
+Governed status failures expose only fixed stage codes: `ADB_UNAVAILABLE`,
+`ADB_INVALID`, `PACKAGE_UNAVAILABLE`, `PACKAGE_INVALID`, `ACTIVITY_UNAVAILABLE`,
+`ACTIVITY_INVALID`, `ACCESSIBILITY_UNAVAILABLE`, `ACCESSIBILITY_INVALID`, or
+`SEMANTIC_DRIFT`. Operational unavailable/invalid stages classify `FAILED`;
+semantic mismatch classifies `DRIFT`. All exit 2, and no exception, command
+output, path, XML, or label is included.
+The status dispatcher wraps its actual ADB-serial, package, activity, and
+accessibility calls independently. Each boundary preserves only its documented
+fixed safe messages; any other PowerShell/.NET exception becomes that stage's
+fixed unavailable result before it reaches the governed envelope.
+Every successful status shape includes fixed `result=observed`. The common
+entrypoint validates that every action returns a bounded lowercase result before
+reading it; a missing or malformed result returns one
+`FAILED/ACTION_RESULT_INVALID` envelope with exit 2 and no raw exception.
+Package inventory treats timeout or nonzero exit as unavailable. Only a
+successful empty result means `package_absent`, and only one successful exact
+`package:` line means installed; other successful output is invalid and never
+echoed.
+`install` additionally requires `-PreserveSession` and only issues
+`adb install -r` after the absolute package inspector proves the artifact is
+exactly `tw.org.ntubtob.portal` and artifact/installed signers agree. Build
+evidence likewise records only the package identity returned by that exact
+inspection; missing, duplicate, malformed, or mismatched output fails closed.
+`cold-launch`
+uses semantic package/activity/PID checks, performs no coordinate/OCR/raw UI XML
+or logcat classification, and does not retry a timed-out `am start`. Any network
+setting changed by that action is restored in `finally`. Cleanup is limited to
+the two task-owned roots and retains evidence unless `-PurgeEvidence` is
+explicit. Staging Flutter defines are delivered to the child through a named
+pipe so values are absent from argv, files, evidence, and console output.
+
+Owner-private actions are one interactive invocation only:
+
+```powershell
+.\tools\Invoke-MobileStaging.ps1 `
+  -Action grant-officer `
+  -Mode staging `
+  -Commit <full-accepted-sha> `
+  -ConfigPath C:\private\task-123-launcher.json `
+  -ApprovalPath C:\private\candidate-approval.json
+```
+
+They are `private-inspect`, `grant-officer`, and `restore-basic`. Non-interactive
+execution returns `OWNER_ACTION_REQUIRED` before config, `gcloud`, Secret, or
+operator initialization. The Owner enters the private provider subject as a
+secure prompt; the approved database Secret value and subject exist only in the
+single child environment and are cleared in `finally`. Grant/restore always run
+read-only inspect, require exact non-sensitive `GRANT-OFFICER` or
+`RESTORE-BASIC` confirmation, attempt at most one mutation, then independently
+inspect the terminal state. An interrupted or unknown mutation is never retried;
+only read-only reconciliation is permitted. The console never prints child
+stdout, endpoint/channel values, DSN, subject, token/assertion, keystore
+material/path, raw UI/log output, or sensitive exception text.
+
+The same task-owned exclusive lock covers the complete Owner-private lifecycle:
+inspect, confirmation, at most one mutation, independent postcheck, and
+`finally` cleanup. A concurrent or stale lock fails before Secret retrieval or
+operator initialization. An acquired lock is removed on a handled failure or
+interruption; an unowned stale lock is never silently removed.
+
+Artifact evidence is bounded to accepted commit, mode, package, artifact hash,
+public signer fingerprint, classification, and retention owner. Concurrency and
+stale task ownership fail closed through the exact task lock; the launcher kills
+only the child process it started and never performs global process/cache/app
+cleanup.
+
+TASK-123 deliberately defers these four follow-ups:
+
+- A: named resumable Staging Acceptance Harness.
+- B: no-disclosure credential launcher/broker.
+- C: relational fictional fixture lifecycle/reset/reconcile preserving audits.
+- D: acceptance observability contracts defined before runtime claims.
+
 Cloud Run semantics checked against the official
 [deploy documentation](https://cloud.google.com/run/docs/deploying),
 [`gcloud run deploy` reference](https://cloud.google.com/sdk/gcloud/reference/run/deploy),

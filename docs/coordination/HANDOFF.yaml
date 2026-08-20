@@ -1,22 +1,22 @@
-active_task: TASK-120
-status: ready_for_staging_execution
+active_task: TASK-123
+status: ready_for_hosted_ci
 next_actor: work
 
-base_commit: a79ffc6234e25645fe431c7774ef19b50fb733d4
-head_commit: 29afb5914ebbcb62d77f4a1c784904713b73d3c1
+base_commit: ff5dfd13da930226a8195f53e0c931f6c9d2fb31
+head_commit: 59a7b261f52a3f02a03362ada9e5dffc23c9305a
 
 updated_by: work
-updated_at: 2026-08-20T11:45:00+08:00
+updated_at: 2026-08-20T20:45:00+08:00
 
 note: >
-  TASK-119 merged as PR #130, but staging inspection correctly found two exact TASK-115 attendance rows and durable
-  mobile session history. TASK-120 repairs only the proven attendance residue and validates dynamic relational ownership
-  without deleting mobile security records. Main review and hosted CI accepted the correction; bounded staging residue
-  repair is next after merge, followed by the paused TASK-119 Officer acceptance.
-  Physical Android and iOS runtime/signing remain deferred.
-  Production, Secret payloads, true notifications, release signing and store upload remain forbidden.
+  TASK-123 source is accepted at ed645f3c0af9c43e8465bcfef597c5f58ad37827; the sole report-only closeout is
+  59a7b261f52a3f02a03362ada9e5dffc23c9305a. Controlled exact-SHA dogfood passed preflight and read-only status with
+  one governed JSON result: installed portal foreground, exact logged-out semantics, and no sensitive or raw runtime
+  evidence. Work and Flutter Domain have no residual finding. PR #134 final hosted CI is the only current delivery
+  gate. Owner-private credential delivery, build/install/cold-launch dogfood, and deferred phase-two A-D are not
+  claimed by this task.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-120.md
-report: docs/coordination/reports/TASK-120-CODEX.md
-review: docs/coordination/reviews/TASK-120-WORK.md
+task: docs/coordination/tasks/TASK-123.md
+report: docs/coordination/reports/TASK-123-CODEX.md
+review: docs/coordination/reviews/TASK-123-WORK.md
