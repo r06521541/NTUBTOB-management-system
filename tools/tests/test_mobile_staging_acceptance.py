@@ -200,6 +200,55 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
         self.assertIn(f"-File|C:/launcher.ps1|-Action|status|-Mode|staging|-Commit|{FULL_SHA}", payload["argv"])
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
+    def test_preaccessibility_status_reasons_are_preserved_without_retry(self):
+        reasons = (
+            "ADB_UNAVAILABLE",
+            "ADB_INVALID",
+            "PACKAGE_UNAVAILABLE",
+            "PACKAGE_INVALID",
+            "ACTIVITY_UNAVAILABLE",
+            "ACTIVITY_INVALID",
+        )
+        for reason in reasons:
+            with self.subTest(reason=reason):
+                result = self.run_harness(
+                    f"""
+                    $script:attempts=0
+                    $invoke={{param($file,$arguments,$timeout)
+                        $script:attempts++
+                        return [pscustomobject]@{{
+                            TimedOut=$false;ExitCode=2
+                            Stdout='{{"classification":"FAILED","details":{{"reason_code":"{reason}"}}}}'
+                            Stderr=''
+                        }}
+                    }}
+                    $status=New-IsolatedLauncherStatusAction 'C:/launcher.ps1' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invoke 'C:/powershell.exe'
+                    try {{
+                        Get-MobileAcceptanceStatus -InvokeStatus {{& $status}} -Wait {{throw 'must not wait'}} | Out-Null
+                        $message='unexpected'
+                    }} catch {{$message=$_.Exception.Message}}
+                    [pscustomobject]@{{
+                        message=$message
+                        classification=Get-HarnessFailureClassification $message
+                        reason=Get-HarnessFailureReasonCode $message
+                        attempts=$script:attempts
+                    }}|ConvertTo-Json -Compress
+                    """
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(
+                    json.loads(result.stdout),
+                    {
+                        "message": reason,
+                        "classification": (
+                            "EVIDENCE_GAP" if reason.endswith("UNAVAILABLE") else "DRIFT"
+                        ),
+                        "reason": reason,
+                        "attempts": 1,
+                    },
+                )
+                self.assertNotIn("must not wait", result.stdout + result.stderr)
+
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"
