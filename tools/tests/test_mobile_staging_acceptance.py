@@ -304,6 +304,73 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 },
             )
 
+    def test_private_sidecar_write_rejects_nested_junction_before_creating_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            real = root / "real"
+            nested = real / "nested"
+            nested.mkdir(parents=True)
+            junction = root / "junction"
+            linked = subprocess.run(
+                ["cmd.exe", "/c", "mklink", "/J", str(junction), str(real)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(linked.returncode, 0, linked.stdout + linked.stderr)
+            apparent_state = junction / "nested" / "checkpoint.json"
+            target_sidecar = Path(str(nested / "checkpoint.json") + ".broker-grant.private.json")
+            apparent_sidecar = Path(str(apparent_state) + ".broker-grant.private.json")
+            try:
+                result = self.run_harness(
+                    f"""
+                    $binding={self.binding_ps()}
+                    try{{Save-HarnessBrokerPrivateState '{apparent_state.as_posix()}' 'grant' $binding 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'|Out-Null;$message='unexpected'}}catch{{$message=$_.Exception.Message}}
+                    [pscustomobject]@{{message=$message;apparent=(Test-Path -LiteralPath '{apparent_sidecar.as_posix()}');target=(Test-Path -LiteralPath '{target_sidecar.as_posix()}')}}|ConvertTo-Json -Compress
+                    """
+                )
+            finally:
+                junction.rmdir()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(result.stdout),
+                {
+                    "message": "Harness broker private state is invalid",
+                    "apparent": False,
+                    "target": False,
+                },
+            )
+
+    def test_broker_config_postcheck_runs_after_timeout_and_invalid_output(self):
+        result = self.run_harness(
+            """
+            $script:fingerprintCalls=0;$script:childCalls=0
+            function Get-HarnessBrokerConfigFingerprint {param($path)$script:fingerprintCalls++;if($script:fingerprintCalls -eq 1){'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'}else{'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD'}}
+            $timeoutInvoke={param($file,$arguments,$timeout)$script:childCalls++;[pscustomobject]@{TimedOut=$true;ExitCode=-1;Stdout='';Stderr=''}}
+            $timeoutBroker=New-IsolatedBrokerClientAction 'C:/broker.ps1' 'E:/value-free.json' 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' $timeoutInvoke 'C:/powershell.exe'
+            try{& $timeoutBroker 'grant' '0123456789abcdef'|Out-Null;$timeoutMessage='unexpected'}catch{$timeoutMessage=$_.Exception.Message}
+            $timeoutCalls=$script:childCalls;$timeoutFingerprints=$script:fingerprintCalls
+            $script:fingerprintCalls=0;$script:childCalls=0
+            $invalidInvoke={param($file,$arguments,$timeout)$script:childCalls++;[pscustomobject]@{TimedOut=$false;ExitCode=2;Stdout='private-provider-subject-sentinel';Stderr=''}}
+            $invalidBroker=New-IsolatedBrokerClientAction 'C:/broker.ps1' 'E:/value-free.json' 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' $invalidInvoke 'C:/powershell.exe'
+            try{& $invalidBroker 'grant' '0123456789abcdef'|Out-Null;$invalidMessage='unexpected'}catch{$invalidMessage=$_.Exception.Message}
+            [pscustomobject]@{timeout=$timeoutMessage;timeoutCalls=$timeoutCalls;timeoutFingerprints=$timeoutFingerprints;invalid=$invalidMessage;invalidCalls=$script:childCalls;invalidFingerprints=$script:fingerprintCalls}|ConvertTo-Json -Compress
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "timeout": "Harness broker result is invalid",
+                "timeoutCalls": 1,
+                "timeoutFingerprints": 2,
+                "invalid": "Harness broker result is invalid",
+                "invalidCalls": 1,
+                "invalidFingerprints": 2,
+            },
+        )
+        self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+
     def test_broker_config_drift_stops_before_same_id_reconcile(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"

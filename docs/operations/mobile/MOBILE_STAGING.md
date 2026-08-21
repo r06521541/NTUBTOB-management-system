@@ -771,7 +771,10 @@ orphaned, malformed or binding-mismatched private state stops fail closed. The
 sidecar also binds the LF-normalized SHA-256 of the exact value-free broker
 config. Reads reject reparse paths, multi-link files, oversized content and
 before/after file-identity changes before invoking the broker child. The child
-envelope must retain TASK-134's exact Owner gate and stop policy.
+envelope must retain TASK-134's exact Owner gate and stop policy. Sidecar writes
+validate the full destination ancestor chain before creating any private bytes.
+Every launched child is followed by the config-fingerprint check even when it
+times out, fails, or returns malformed output.
 Logout remains a portal action and never enters the broker vocabulary.
 
 TASK-138 wires the real broker only. Network controls and report navigation

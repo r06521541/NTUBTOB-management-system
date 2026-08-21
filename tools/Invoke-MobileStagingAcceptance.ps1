@@ -383,13 +383,33 @@ function Get-HarnessBrokerPrivatePath {
     return $StatePath + ".broker-$BrokerAction.private.json"
 }
 
+function Assert-HarnessDirectoryChainNoReparse {
+    param([string]$DirectoryPath)
+    try {
+        $currentPath = [IO.Path]::GetFullPath($DirectoryPath)
+        while ($currentPath) {
+            $item = Get-Item -LiteralPath $currentPath -Force
+            if (
+                -not $item.PSIsContainer -or
+                ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+            ) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+            $parentPath = [IO.Path]::GetDirectoryName($currentPath)
+            if (-not $parentPath -or $parentPath -ceq $currentPath) { break }
+            $currentPath = $parentPath
+        }
+    }
+    catch {
+        Throw-HarnessSafe 'Harness broker private state is invalid'
+    }
+    finally { $currentPath = $null; $item = $null; $parentPath = $null }
+}
+
 function Save-HarnessBrokerPrivateState {
     param([string]$StatePath, [string]$BrokerAction, [object]$Binding, [string]$BrokerConfigFingerprint)
     if ($BrokerConfigFingerprint -notmatch $script:HarnessFingerprintPattern) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     $path = Get-HarnessBrokerPrivatePath $StatePath $BrokerAction
     $directory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path))
-    $directoryItem = Get-Item -LiteralPath $directory -Force
-    if (($directoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    Assert-HarnessDirectoryChainNoReparse $directory
     if (Test-Path -LiteralPath $path) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     if (@(Get-ChildItem -LiteralPath $directory -Filter ([IO.Path]::GetFileName($path) + '.*.tmp') -Force).Count -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     $operationId = [Guid]::NewGuid().ToString('N')
@@ -500,6 +520,10 @@ function New-IsolatedBrokerClientAction {
         if (-not $BrokerConfigPath) {
             return [pscustomobject]@{ classification = 'OWNER_ACTION_REQUIRED'; result = 'stopped'; state = 'unavailable'; reason_code = 'BROKER_PROVISIONING' }
         }
+        $childLaunched = $false
+        $failureMessage = $null
+        $postCheckFailed = $false
+        $resultEnvelope = $null
         try {
             if ((Get-HarnessBrokerConfigFingerprint $BrokerConfigPath) -cne $BrokerConfigFingerprint) { Throw-HarnessSafe 'Harness broker result is invalid' }
             $arguments = @(
@@ -507,6 +531,7 @@ function New-IsolatedBrokerClientAction {
                 '-File', $BrokerPath, '-Action', $BrokerAction, '-ConfigPath', $BrokerConfigPath
             )
             if ($BrokerAction -ne 'status') { $arguments += @('-OperationId', $OperationId) }
+            $childLaunched = $true
             $child = & $InvokeBounded $HostExecutable $arguments 120
             if ($child.TimedOut) { Throw-HarnessSafe 'Harness broker timed out' }
             if ([string]$child.Stderr -match '\S') { Throw-HarnessSafe 'Harness broker operation result is unknown' }
@@ -542,14 +567,23 @@ function New-IsolatedBrokerClientAction {
                 (($classification -eq 'PASS') -ne ($child.ExitCode -eq 0)) -or
                 ($classification -ne 'PASS' -and $child.ExitCode -ne 2)
             ) { Throw-HarnessSafe 'Harness broker result is invalid' }
-            if ((Get-HarnessBrokerConfigFingerprint $BrokerConfigPath) -cne $BrokerConfigFingerprint) { Throw-HarnessSafe 'Harness broker result is invalid' }
-            return [pscustomobject]@{ classification = $classification; result = $resultValue; state = $state; reason_code = $reason }
+            $resultEnvelope = [pscustomobject]@{ classification = $classification; result = $resultValue; state = $state; reason_code = $reason }
         }
         catch {
-            if ($_.Exception.Message -cin @('Harness broker timed out', 'Harness broker operation result is unknown', 'Harness broker result is invalid')) { Throw-HarnessSafe $_.Exception.Message }
-            Throw-HarnessSafe 'Harness broker operation result is unknown'
+            $failureMessage = if ($_.Exception.Message -cin @('Harness broker timed out', 'Harness broker operation result is unknown', 'Harness broker result is invalid')) { $_.Exception.Message } else { 'Harness broker operation result is unknown' }
         }
-        finally { $arguments = $null; $child = $null; $raw = $null; $lines = $null; $envelope = $null }
+        finally {
+            if ($childLaunched) {
+                try {
+                    if ((Get-HarnessBrokerConfigFingerprint $BrokerConfigPath) -cne $BrokerConfigFingerprint) { $postCheckFailed = $true }
+                }
+                catch { $postCheckFailed = $true }
+            }
+            $arguments = $null; $child = $null; $raw = $null; $lines = $null; $envelope = $null
+        }
+        if ($postCheckFailed) { Throw-HarnessSafe 'Harness broker result is invalid' }
+        if ($failureMessage) { Throw-HarnessSafe $failureMessage }
+        return $resultEnvelope
     }.GetNewClosure()
 }
 

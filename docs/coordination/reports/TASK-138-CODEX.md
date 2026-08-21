@@ -18,6 +18,10 @@
 - Private file reads reject reparse paths, hardlinks, replacement races and
   oversized content. Broker child results require TASK-134's exact governance
   envelope as well as bounded result fields.
+- Sidecar creation validates the complete destination ancestor chain before
+  generating or writing private bytes. Every launched broker child performs the
+  broker-config fingerprint post-check, including timeout and malformed-output
+  paths.
 - Broker provisioning, drift, timeout, unavailable and unknown-result states are
   bounded and never expose child stdout/stderr or generate a replacement ID.
 - No Flutter, broker, launcher, schema, cloud, Secret or production source was
@@ -30,6 +34,8 @@
   suite evidence reused under the task verification budget.
 - Domain correction delta (file identity, broker-config binding and governance
   envelope): focused 4/4 PASS; no full replay.
+- Residual correction delta (pre-write ancestor validation and unconditional
+  post-child config check): focused 2/2 PASS; no full replay.
 - PowerShell parser for `Invoke-MobileStagingAcceptance.ps1`: PASS.
 - `python -m py_compile tools/tests/test_mobile_staging_acceptance.py`: PASS.
 - `python -m isort --check-only tools/tests/test_mobile_staging_acceptance.py`: PASS.
