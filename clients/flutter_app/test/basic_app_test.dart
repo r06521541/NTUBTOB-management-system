@@ -254,6 +254,101 @@ void main() {
     expect(find.text('系統公告'), findsNothing);
   });
 
+  testWidgets('fresh account status is reachable with safe semantics',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('hidden-id', '可見名稱', ['hidden-capability'],
+                accessLevel: AccessLevel.admin),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026, 8, 20, 1, 2),
+            principalProvenance: PrincipalProvenance.freshServer)));
+
+    await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('帳號與資料狀態'), findsOneWidget);
+    expect(find.text('可見名稱'), findsOneWidget);
+    expect(find.textContaining('伺服器同步資料'), findsWidgets);
+    expect(find.byKey(const ValueKey('management-report-entry')), findsNothing);
+    expect(api.session.api, isA<QueueTransport>());
+    expect((api.session.api as QueueTransport).calls, isEmpty);
+    final semantics = tester.getSemantics(
+        find.byKey(const ValueKey('account-data-provenance')));
+    expect(semantics.label, contains('伺服器同步資料'));
+    final renderedText = tester.allWidgets.whereType<Text>().map((text) =>
+        text.data ?? text.textSpan?.toPlainText() ?? '').join('\n');
+    final pageSemantics = [
+      tester.getSemantics(find.byKey(const ValueKey('account-display-name'))),
+      tester.getSemantics(find.byKey(const ValueKey('account-last-sync'))),
+      semantics,
+    ].map((node) => node.label).join('\n');
+    for (final sensitive in [
+      'hidden-id',
+      'hidden-capability',
+      'admin',
+      'access',
+      'token',
+      'session',
+      'endpoint',
+      'cache',
+      'fresh_server',
+      'offline_cache',
+    ]) {
+      expect(renderedText, isNot(contains(sensitive)));
+      expect(pageSemantics, isNot(contains(sensitive)));
+      expect(semantics.label, isNot(contains(sensitive)));
+    }
+  });
+
+  testWidgets('offline account status is read-only and non-authoritative',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('offline-id', '離線名稱', ['games:read']),
+            games: const [],
+            online: false,
+            lastSyncedAt: DateTime.utc(2026, 8, 20),
+            principalProvenance: PrincipalProvenance.offlineCache)));
+
+    await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
+    await tester.pumpAndSettle();
+    final semantics = tester.getSemantics(
+        find.byKey(const ValueKey('account-data-provenance')));
+    expect(semantics.label, contains('離線快取'));
+    expect(semantics.label, contains('唯讀'));
+    expect(semantics.label, contains('非權威'));
+    expect(find.byTooltip('重新整理賽事'), findsNothing);
+    expect(find.text('出席報表'), findsNothing);
+    expect((api.session.api as QueueTransport).calls, isEmpty);
+  });
+
+  testWidgets('unknown account provenance fails closed without internal labels',
+      (tester) async {
+    final transport = QueueTransport();
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('unknown-id', '未知來源名稱', ['games:read']),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026, 8, 20))));
+
+    await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
+    await tester.pumpAndSettle();
+    final semantics = tester.getSemantics(
+        find.byKey(const ValueKey('account-data-provenance')));
+    expect(semantics.label, contains('資料來源未確認，請勿視為權威'));
+    expect(semantics.label, isNot(contains('fresh_server')));
+    expect(semantics.label, isNot(contains('offline_cache')));
+    expect(transport.calls, isEmpty);
+  });
+
   testWidgets('debug projection localizes every role and report-read state',
       (tester) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
