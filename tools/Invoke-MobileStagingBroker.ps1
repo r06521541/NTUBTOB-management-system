@@ -311,7 +311,11 @@ function Get-BrokerRuntimeBinding {
 }
 
 function Read-BrokerBoundedHttpBody {
-    param([Net.Http.HttpContent]$Content, [int]$MaximumBytes)
+    param(
+        [Net.Http.HttpContent]$Content,
+        [int]$MaximumBytes,
+        [Threading.CancellationToken]$CancellationToken
+    )
     if ($null -eq $Content) { Throw-BrokerClientSafe 'Broker HTTP response is malformed' }
     $contentLength = $Content.Headers.ContentLength
     if ($null -ne $contentLength -and [long]$contentLength -gt $MaximumBytes) { Throw-BrokerClientSafe 'Broker HTTP response is malformed' }
@@ -320,7 +324,12 @@ function Read-BrokerBoundedHttpBody {
     try {
         $stream = $Content.ReadAsStreamAsync().GetAwaiter().GetResult()
         $buffer = [byte[]]::new(1024)
-        while (($count = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+        while (($count = $stream.ReadAsync(
+            $buffer,
+            0,
+            $buffer.Length,
+            $CancellationToken
+        ).GetAwaiter().GetResult()) -gt 0) {
             if ($memory.Length + $count -gt $MaximumBytes) { Throw-BrokerClientSafe 'Broker HTTP response is malformed' }
             $memory.Write($buffer, 0, $count)
         }
@@ -332,6 +341,12 @@ function Read-BrokerBoundedHttpBody {
     }
 }
 
+function New-BrokerHttpDeadline {
+    $deadline = [Threading.CancellationTokenSource]::new()
+    $deadline.CancelAfter([TimeSpan]::FromSeconds(30))
+    return $deadline
+}
+
 function Invoke-BrokerIdentityTokenExchange {
     param([string]$AccessToken, [string]$CallerIdentity, [string]$Audience)
     $handler = [Net.Http.HttpClientHandler]::new()
@@ -341,8 +356,10 @@ function Invoke-BrokerIdentityTokenExchange {
     $request = $null
     $content = $null
     $response = $null
+    $deadline = $null
     try {
-        $client.Timeout = [TimeSpan]::FromSeconds(30)
+        $client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
+        $deadline = New-BrokerHttpDeadline
         $encodedIdentity = [Uri]::EscapeDataString($CallerIdentity)
         $request = [Net.Http.HttpRequestMessage]::new(
             [Net.Http.HttpMethod]::Post,
@@ -354,10 +371,11 @@ function Invoke-BrokerIdentityTokenExchange {
         $request.Content = $content
         $response = $client.SendAsync(
             $request,
-            [Net.Http.HttpCompletionOption]::ResponseHeadersRead
+            [Net.Http.HttpCompletionOption]::ResponseHeadersRead,
+            $deadline.Token
         ).GetAwaiter().GetResult()
         if ([int]$response.StatusCode -ne 200) { Throw-BrokerClientSafe 'Broker identity token is unavailable' }
-        return Read-BrokerBoundedHttpBody $response.Content 12288
+        return Read-BrokerBoundedHttpBody $response.Content 12288 $deadline.Token
     }
     catch {
         if ($_.Exception.Message -ceq 'Broker identity token is unavailable') { Throw-BrokerClientSafe 'Broker identity token is unavailable' }
@@ -367,6 +385,7 @@ function Invoke-BrokerIdentityTokenExchange {
         if ($null -ne $response) { $response.Dispose() }
         if ($null -ne $content) { $content.Dispose() }
         if ($null -ne $request) { $request.Dispose() }
+        if ($null -ne $deadline) { $deadline.Dispose() }
         $client.Dispose()
         $handler.Dispose()
         $json = $null
@@ -409,8 +428,10 @@ function Invoke-BrokerHttp {
     $request = $null
     $content = $null
     $response = $null
+    $deadline = $null
     try {
-        $client.Timeout = [TimeSpan]::FromSeconds(30)
+        $client.Timeout = [Threading.Timeout]::InfiniteTimeSpan
+        $deadline = New-BrokerHttpDeadline
         $request = [Net.Http.HttpRequestMessage]::new([Net.Http.HttpMethod]::Post, ($Uri.TrimEnd('/') + '/v1/operations'))
         $request.Headers.Authorization = [Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $Token)
         $json = [ordered]@{ operation = $Operation; operation_id = $OpaqueOperationId } | ConvertTo-Json -Compress
@@ -418,9 +439,10 @@ function Invoke-BrokerHttp {
         $request.Content = $content
         $response = $client.SendAsync(
             $request,
-            [Net.Http.HttpCompletionOption]::ResponseHeadersRead
+            [Net.Http.HttpCompletionOption]::ResponseHeadersRead,
+            $deadline.Token
         ).GetAwaiter().GetResult()
-        $body = Read-BrokerBoundedHttpBody $response.Content 4096
+        $body = Read-BrokerBoundedHttpBody $response.Content 4096 $deadline.Token
         return [pscustomobject]@{ StatusCode = [int]$response.StatusCode; Body = $body }
     }
     catch { Throw-BrokerClientSafe 'Broker operation result is unknown' }
@@ -428,6 +450,7 @@ function Invoke-BrokerHttp {
         if ($null -ne $response) { $response.Dispose() }
         if ($null -ne $content) { $content.Dispose() }
         if ($null -ne $request) { $request.Dispose() }
+        if ($null -ne $deadline) { $deadline.Dispose() }
         $client.Dispose()
         $handler.Dispose()
         $json = $null

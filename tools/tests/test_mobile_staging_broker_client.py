@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import textwrap
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -65,6 +66,8 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
         response_body: bytes,
         redirect: bool = False,
         include_content_length: bool = True,
+        body_delay_seconds: float = 0,
+        deadline_milliseconds: int | None = None,
     ):
         calls: list[str] = []
 
@@ -79,7 +82,12 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
                 else:
                     self.send_header("Connection", "close")
                 self.end_headers()
-                self.wfile.write(response_body)
+                if body_delay_seconds:
+                    time.sleep(body_delay_seconds)
+                try:
+                    self.wfile.write(response_body)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
 
             def log_message(self, _format, *_args):
                 return
@@ -87,9 +95,17 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
+        deadline_override = ""
+        if deadline_milliseconds is not None:
+            deadline_override = (
+                "function New-BrokerHttpDeadline { "
+                "$value=[Threading.CancellationTokenSource]::new();"
+                f"$value.CancelAfter({deadline_milliseconds});return $value }}"
+            )
         try:
             result = self.run_script(
                 f"""
+                {deadline_override}
                 try {{
                     $value=Invoke-BrokerHttp 'http://127.0.0.1:{server.server_port}' ('t'*64) 'grant' 'operation-123456'
                     [pscustomobject]@{{status=$value.StatusCode}}|ConvertTo-Json -Compress
@@ -583,6 +599,8 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
                 "[Net.Http.HttpCompletionOption]::ResponseHeadersRead",
                 block,
             )
+            self.assertIn("New-BrokerHttpDeadline", block)
+            self.assertGreaterEqual(block.count("$deadline.Token"), 2)
             self.assertEqual(block.count("SendAsync("), 1)
         result, calls = self.run_http_case(
             200,
@@ -593,6 +611,19 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "HTTP_REJECTED")
         self.assertEqual(calls, ["/v1/operations"])
         self.assertNotIn("streamed-sentinel", result.stdout + result.stderr)
+
+    def test_stalled_stream_has_one_deadline_and_no_disclosure(self):
+        result, calls = self.run_http_case(
+            200,
+            b"stalled-body-sentinel",
+            include_content_length=False,
+            body_delay_seconds=1,
+            deadline_milliseconds=150,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "HTTP_REJECTED")
+        self.assertEqual(calls, ["/v1/operations"])
+        self.assertNotIn("stalled-body-sentinel", result.stdout + result.stderr)
 
     def test_oversized_external_output_is_rejected_without_echo(self):
         result = self.run_script(

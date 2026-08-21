@@ -29,8 +29,8 @@
 ## Verification
 
 - Direct mocked client suite: 23/23 passed at implementation SHA `583bc969`.
-  The streamed-response correction then passed its affected transport slice
-  3/3 without replaying the unchanged suite. Together these cover strict
+  The streamed-response corrections then passed their affected transport slice
+  4/4 without replaying the unchanged suite. Together these cover strict
   no-payload config,
   unprovisioned short-circuit, exact and drifted service metadata, unconditional
   exact-caller IAM, dedicated caller token exchange, one successful operation
