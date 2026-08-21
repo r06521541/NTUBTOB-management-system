@@ -10,6 +10,7 @@
 
 - claim_id: `task-143-flutter-writer`
 - lease_version: 1
+- state: `revoked_on_merge`
 - actor_id: `01a013a7-7fde-7363-9314-7a255e8206a5`
 - role: `codex-writer`
 - scope: render existing game-detail schedule metadata with the same localized presentation as the game list
@@ -57,3 +58,11 @@ game list.
   duration, and does not expose the raw ISO timestamp as its primary copy.
 - Missing location/duration are omitted cleanly.
 - Existing attendance behavior and focused Flutter tests remain green.
+
+## Main review
+
+- Verdict: accepted; no findings.
+- Accepted implementation: `4067faeff6c1e5f2a9bb76003228bf39ff27ec8b`.
+- Final gate: one change-selected hosted Flutter gate on the delivery PR.
+- The writer lease is revoked when this delivery lands on `main`; no separate
+  closeout PR or Domain review is required.

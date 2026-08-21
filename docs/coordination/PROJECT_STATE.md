@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-21T20:03:00+08:00
+更新時間：2026-08-21T19:41:00+08:00
 
 維護角色：Main Work
 
@@ -30,8 +30,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - TASK-142 已由 PR #168 合併：線上賽事清單支援下拉重新整理，空清單亦可操作；沿用既有 single-flight reload，
   離線仍無 pull action。Focused local verification、Main review與一次 change-selected hosted Flutter gate均通過，
   未使用 emulator／staging／acceptance harness。
-- TASK-143 已啟動為 L1 Flutter game-detail metadata delivery；共用列表／詳情 formatter，僅做本地化顯示與
-  focused verification，不改 API、auth、cache、attendance 或 runtime。
+- TASK-143 已完成 L1 Flutter game-detail metadata delivery：列表與詳情共用同一本地化 formatter，詳情顯示
+  可讀日期／時間及現有地點／時長，缺少 optional 值時省略。Writer focused 64/64、analyze／formatter與 Main
+  review通過；delivery PR只使用一次 change-selected hosted Flutter gate，未使用Domain／emulator／staging／harness。
 
 ## 已確認的 production 狀態
 
