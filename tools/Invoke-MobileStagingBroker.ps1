@@ -41,6 +41,13 @@ function Get-BrokerObjectFieldNames {
     return @($Value.PSObject.Properties.Name)
 }
 
+function Get-BrokerParentItem {
+    param([IO.FileSystemInfo]$Item)
+    $parentPath = [IO.Path]::GetDirectoryName([string]$Item.FullName)
+    if (-not $parentPath) { return $null }
+    return Get-Item -LiteralPath $parentPath -Force
+}
+
 function Assert-BrokerExactProperties {
     param([object]$Value, [string[]]$Expected, [string]$Label)
     if ($null -eq $Value) { Throw-BrokerClientSafe "$Label is malformed" }
@@ -91,7 +98,7 @@ function Load-BrokerClientConfig {
     $pathCursor = Get-Item -LiteralPath $gcloudPath -Force
     for ($depth = 0; $depth -lt 4 -and $null -ne $pathCursor; $depth++) {
         if (($pathCursor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Throw-BrokerClientSafe 'Broker executable is not exact' }
-        $pathCursor = $pathCursor.Parent
+        $pathCursor = Get-BrokerParentItem $pathCursor
     }
     try { $actualGcloudHash = (Get-FileHash -LiteralPath $gcloudPath -Algorithm SHA256).Hash.ToLowerInvariant() }
     catch { Throw-BrokerClientSafe 'Broker executable is unavailable' }
