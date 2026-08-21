@@ -7,11 +7,11 @@
 - `coordination/HANDOFF.yaml`：目前任務、狀態與下一位角色的唯一真實來源。
 - `coordination/PROJECT_STATE.md`：跨任務的系統現況、優先佇列、風險與已完成工作。
 - `coordination/DECISIONS.md`：目前仍有效的產品、技術、授權與安全決策。
-- `coordination/COLLABORATION.md`：Work、Codex 與 Owner 的交棒、PR 及 commit 規則。
-- `coordination/CODEX_SESSION_ANCHOR.md`：建立新 Codex 實作 session 時可直接貼上的固定啟動提示。
+- `coordination/COLLABORATION.md`：Main Work、Domain Work、Codex writer、advisor 與 Owner 的角色、交棒、PR 及 commit 規則。
+- `coordination/CODEX_SESSION_ANCHOR.md`：建立新 Codex writer session 時可直接貼上的固定啟動提示。
 - `coordination/tasks/`：可執行任務規格。
-- `coordination/reports/`：Codex 實作報告。
-- `coordination/reviews/`：Work 驗收報告。
+- `coordination/reports/`：Codex writer 實作報告。
+- `coordination/reviews/`：Main／Domain Work 驗收報告。
 - `coordination/archive/`：已完成階段與舊 governance 歷史；預設不讀，先看 closeout／archive index。
 
 `tasks`、`reports` 與 `reviews` 只放當前或尚未封存的工作；判斷現在輪到誰一律以 `HANDOFF.yaml` 為準。已完成

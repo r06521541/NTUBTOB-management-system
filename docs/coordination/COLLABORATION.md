@@ -40,11 +40,11 @@
 ### Session role claim 與問責
 
 角色是綁定可辨認 session 的責任 lease，不是模型或暱稱；每個 session 同時只持有 `owner`、全域唯一 `main-work`、具名
-`domain-work:<domain>`、work-package-specific `codex-writer` 或 `advisor` 之一。未獲 Main Work 派任時預設 `advisor/read-only`。
-派工 role claim 固定明列 `actor_id`（穩定 thread ID）、role、task/scope、owned paths、write、report target 與 stop conditions；
-正式交棒另帶 from/to role、full HEAD 與 dirty state。角色不從 session title、模型或前一 task 推定。
-Domain Work 固定給同一 session 跨同領域 task 問責，負責 writer、批次 findings、領域接受建議、heartbeat、交回與風險升級；
-writer 每 package 唯一且不得自審，Main／Domain 不寫審查標的，advisor 永遠 read-only。切換前先撤回、記錄 final state 再派任；L1 可省 Domain，不可假造自寫自審。
+`domain-work:<domain>`、work-package-specific `codex-writer` 或 `advisor` 之一。未獲派任時預設 `advisor/read-only`。
+Active task claim 寫在該 task，domain lane/current actor 寫在 `PROJECT_STATE.md`；`HANDOFF.yaml` 只放當前 task、下一 actor 與 claim
+reference。Claim 固定含 `claim_id`、遞增 `lease_version`、`actor_id`、role、scope、owned paths、write、report target 及 stop conditions；跨 session 訊息只通知 repository claim，不取代它。相同 claim/version 重送不得重複 ack、開工或驗證。
+Domain lane 長期問責但承載 session 可輪替；先明確撤回舊 actor，以 full HEAD、dirty state、完成／剩餘事項交棒並更新 registry，再派新 actor，同時只可有一位。Writer 每 package 唯一，必須 self-review／self-test，但不得成為唯一正式 acceptor；Main／Domain
+不寫審查標的，advisor 永遠 read-only。L1 可省 Domain，不新增 L1a，也不可假造自寫自審。
 
 ### 多領域 Work 與次決策核心
 
@@ -146,7 +146,7 @@ Work 先確認：使用者價值、範圍、非目標、已知事實、風險、
 Work 應在此時攔截錯誤設計。沒有 Owner 決策點時，Codex 可直接繼續，不增加儀式性等待。
 平行任務的第 2 行必須包含 owned paths；Main Work 在派工前確認 writer scope 沒有交集。
 
-### C. Codex 實作與自我驗收
+### C. Codex writer 實作與自我驗收
 
 交回前必須：
 
@@ -155,17 +155,17 @@ Work 應在此時攔截錯誤設計。沒有 Owner 決策點時，Codex 可直�
 - 執行最小充分測試、`git diff --check`、`git status --short`。
 - 確認 branch、base、HEAD，且未納入他人既有變更。
 - 更新同一份 Codex report；同一 task 不新增 correction report。
-- 建立描述性 commit、push，將 `HANDOFF.yaml` 交回 `ready_for_review / work`。
+- 建立描述性 commit、push，將 `HANDOFF.yaml` 交回 `ready_for_review / main-work`。
 
 Writer 完成初版 diff 與 invariant self-review 後，先交 architecture／authorization／security boundary review；通過後
 才執行 PostgreSQL matrix、Flutter build、Emulator 或 hosted CI 等昂貴驗證，避免錯誤設計先消耗完整 suite。
 
-### D. Work 風險式驗收
+### D. Main Work 風險式驗收
 
 Work 檢查 branch、commit、dirty state、實際 diff、核心 invariant、權限、資料一致性與 rollback；預設執行少量高價值 targeted tests，不機械重跑 Codex 的全部 suite。
 
 - 接受：更新同一份 Work review。
-- 補正：`changes_requested / codex`。Work 先完成同風險層的整體 review，再一次列完 findings、最小修正與必要
+- 補正：`changes_requested / codex-writer`。Main Work 先完成同風險層的整體 review，再一次列完 findings、最小修正與必要
   regression，避免逐條回送。
 - Codex 只處理 blocker；後續 review 只查 correction diff 與受影響的相鄰 invariant，不重做任務或重跑無關 matrix。
   只有 correction 引入新風險時才新增 finding。
@@ -174,22 +174,23 @@ Correction 預算：低風險最多一輪，中風險最多兩輪；runtime 同�
 
 ### E. Final integration
 
-到 delivery unit 完整時，由 Work 建立唯一 ready PR。Required CI 通過且無 blocker 後，依一般 Git 長期授權 squash
+到 delivery unit 完整時，由 Main Work 建立唯一 ready PR。Required CI 通過且無 blocker 後，依一般 Git 長期授權 squash
 merge。純 handoff、run ID、時間戳或 merge metadata 不另建 commit／PR。
 
 ## 7. HANDOFF
 
-`HANDOFF.yaml` 是現在輪到誰的唯一真實來源。
+`HANDOFF.yaml` 是當前 task／下一 actor 的唯一真實來源；task claim 與 domain registry 分別以 active task、`PROJECT_STATE.md`
+為準，不把完整 session 清冊塞入 singleton handoff。
 
 跨 session handoff 只傳 base/head、changed files、behavior delta、exact test results、remaining limits 與 next
 actor/action。背景規則引用 authoritative path 與 section，不重貼全文；尚未進入權威文件的安全關鍵資訊仍須明列，
 不得為求短而省略。
 
-`next_actor` 使用 `owner`、`main-work`、`domain-work`、`codex-writer`、`advisor`；domain/session 另以 `actor_id`、scope、
-owned paths、write、report target 與 stop conditions 綁定。Archive 的舊 `work`／`codex` 名稱不授權新工作。常用狀態：
+`next_actor` 使用 `owner`、`main-work`、`domain-work`、`codex-writer`、`advisor`，並引用 current `claim_id`／`lease_version`。
+舊 `work`、`codex`、`ready_for_codex` 僅是 archive／backward-compatible status label，不授予角色或 write authority。常用狀態：
 
 - `planning`
-- `ready_for_codex`
+- `ready_for_writer`（legacy alias：`ready_for_codex`）
 - `in_progress`
 - `ready_for_review`
 - `changes_requested`

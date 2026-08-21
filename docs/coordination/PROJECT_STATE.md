@@ -2,9 +2,19 @@
 
 更新時間：2026-08-21T18:15:00+08:00
 
-維護角色：Work
+維護角色：Main Work
 
-Repository 基準：`main` / `311a103a83640d0e61b531332059d51beb3ad787`
+Repository 基準：`main` / `6840561d6d1fd71ea8f2c24068ef9321d48f6efd`
+
+## Active role lanes
+
+| lane | current actor_id | claim_id | lease_version | state |
+| --- | --- | --- | --- | --- |
+| `main-work` | `019fe8ff-b672-7b33-b535-3a325d85124a` | `main-work-20260821` | 2 | active |
+| `domain-work:flutter` | `01a01212-72dc-7132-b2d7-dfaa2f97f184` | `flutter-domain-20260821` | 2 | active |
+
+Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke current actor，以 full HEAD、dirty state、完成／剩餘事項
+交棒，再更新本表。沒有 active task claim 的其他 session 一律為 `advisor/read-only`；通知訊息不得取代本表或 task claim。
 
 ## 目前摘要
 
