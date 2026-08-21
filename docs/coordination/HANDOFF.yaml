@@ -1,25 +1,25 @@
-active_task: null
-status: paused
-next_actor: main-work
+active_task: TASK-144
+status: ready_for_writer
+next_actor: codex-writer
 
-claim_id: task-143-flutter-writer
+claim_id: task-144-flutter-writer
 lease_version: 1
 actor_id: 01a013a7-7fde-7363-9314-7a255e8206a5
 
-base_commit: 8895747502347f86d9611bad103a5680a2759db4
-head_commit: 4067faeff6c1e5f2a9bb76003228bf39ff27ec8b
+base_commit: c3baebddd08a100efafac47b641c129d956f68c7
+head_commit: c3baebddd08a100efafac47b641c129d956f68c7
 
 updated_by: main-work
-updated_at: 2026-08-21T19:41:00+08:00
+updated_at: 2026-08-21T21:22:54+08:00
 
 note: >
-  TASK-143 passed writer self-review and Main acceptance at implementation
-  4067faeff6c1e5f2a9bb76003228bf39ff27ec8b. The delivery PR carries the sole
-  change-selected hosted Flutter gate. On merge, claim task-143-flutter-writer
-  lease 1 is revoked and no active task remains. Domain review, emulator,
-  staging and acceptance-harness dogfood are not gates.
+  TASK-144 replaces the separate development DemoApp entry with a clearly
+  fictional production-shaped composition using current production widgets and
+  deterministic in-memory adapters. Real-mode auth/session/API behavior is out
+  of scope. Main performs one review; Domain is conditional, and staging,
+  login, Secret and acceptance-harness actions are not gates.
 
-worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task143-game-detail
-task: docs/coordination/tasks/TASK-143.md
-report: docs/coordination/reports/TASK-143-FLUTTER-CODEX.md
+worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task144-production-demo
+task: docs/coordination/tasks/TASK-144.md
+report: docs/coordination/reports/TASK-144-FLUTTER-CODEX.md
 review: null

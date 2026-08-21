@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-08-21T19:41:00+08:00
+更新時間：2026-08-21T21:22:54+08:00
 
 維護角色：Main Work
 
@@ -33,6 +33,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - TASK-143 已完成 L1 Flutter game-detail metadata delivery：列表與詳情共用同一本地化 formatter，詳情顯示
   可讀日期／時間及現有地點／時長，缺少 optional 值時省略。Writer focused 64/64、analyze／formatter與 Main
   review通過；delivery PR只使用一次 change-selected hosted Flutter gate，未使用Domain／emulator／staging／harness。
+- TASK-144 已啟動為 production-shaped fake demo：development fake mode 將直接重用目前正式賽事／出席／帳號／
+  Officer報表 widgets與deterministic fictional adapters，讓Owner不需登入、Secret或staging即可查看可信的UI預覽。
 
 ## 已確認的 production 狀態
 
