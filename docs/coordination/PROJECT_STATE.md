@@ -1,12 +1,19 @@
 # 專案狀態
 
-更新時間：2026-08-20T01:20:00+08:00
+更新時間：2026-08-21T16:00:00+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `30b66cd79da0f2442ae3e9f1c2a7e091e82069be`
+Repository 基準：`main` / `f20090cdda5a3b17bd144a83ab8069fd8267df9e`
 
 ## 目前摘要
+
+- TASK-133 repository delivery／hosted CI 證據已接受；E2E staging dogfood 仍為 inconclusive，因 standalone status
+  可 PASS、完整 Resume observation 偶發 `STATUS_UNAVAILABLE`。既有 `await_observation` checkpoint 保留且不再重試。
+  原子 launcher、fictional fixture/operator、no-disclosure broker、固定 redacted JSON 與 checkpoint primitive 繼續作為
+  可重用基礎；完整 acceptance orchestration 與 UIAutomator timing retry 僅供 experimental/manual-on-demand，不作 release gate。
+- TASK-140 啟動 Flutter schedule usability delivery：在不改 API/schema/auth 的前提下加入可讀本地時間、穩定排序與
+  authenticated online refresh，並以 repository tests／hosted CI 為正式 gate。
 
 - TASK-113 isolated mobile staging 已建立並部署；TASK-118 已修復 fictional attendance fixture/recovery，均未觸及
   production。TASK-115 Android emulator 已完成 native LINE callback、Basic API、五態回覆恢復、offline cache 與
