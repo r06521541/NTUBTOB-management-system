@@ -4,6 +4,7 @@ param(
     [string]$Mode,
     [string]$Commit,
     [string]$ConfigPath,
+    [string]$BrokerConfigPath,
     [string]$CheckpointPath,
     [switch]$Resume
 )
@@ -16,6 +17,7 @@ $script:HarnessVocabularyVersion = 'task124-package4-v1'
 $script:HarnessPackage = 'tw.org.ntubtob.portal'
 $script:HarnessShaPattern = '^[0-9a-f]{40}$'
 $script:HarnessFingerprintPattern = '^[A-F0-9]{64}$'
+$script:HarnessBrokerOperationIdPattern = '^[A-Za-z0-9_-]{16,64}$'
 $script:HarnessColdLaunchResults = @('running', 'timeout_but_running')
 $script:HarnessTerminalStatusReasons = @(
     'ADB_UNAVAILABLE', 'ADB_INVALID',
@@ -81,6 +83,10 @@ function Get-HarnessFailureClassification {
     if ($Message -ceq 'Accessibility inventory is malformed') { return 'EVIDENCE_GAP' }
     if ($Message -ceq 'Accessibility foreground state is not exact') { return 'DRIFT' }
     if ($Message -match 'Harness status is unavailable') { return 'EVIDENCE_GAP' }
+    if ($Message -ceq 'Harness broker provisioning is required') { return 'OWNER_ACTION_REQUIRED' }
+    if ($Message -cin @('Harness broker timed out')) { return 'TIMEOUT' }
+    if ($Message -cin @('Harness broker is unavailable', 'Harness broker operation result is unknown')) { return 'EVIDENCE_GAP' }
+    if ($Message -match 'Harness broker') { return 'DRIFT' }
     if ($Message -match '(?i)(timeout|timed out|bounded window)') { return 'TIMEOUT' }
     if ($Message -match '(?i)(drift|mismatch|malformed|missing|stale|lock|ambiguous|unknown|not exact|invalid|reconcile)') { return 'DRIFT' }
     return 'FAILED'
@@ -93,6 +99,12 @@ function Get-HarnessFailureReasonCode {
     if ($Message -ceq 'Accessibility inventory is malformed') { return 'ACCESSIBILITY_INVALID' }
     if ($Message -ceq 'Accessibility foreground state is not exact') { return 'SEMANTIC_DRIFT' }
     if ($Message -match 'Harness status is unavailable') { return 'STATUS_UNAVAILABLE' }
+    if ($Message -ceq 'Harness broker provisioning is required') { return 'BROKER_PROVISIONING' }
+    if ($Message -ceq 'Harness broker timed out') { return 'BROKER_TIMEOUT' }
+    if ($Message -ceq 'Harness broker is unavailable') { return 'BROKER_UNAVAILABLE' }
+    if ($Message -ceq 'Harness broker operation result is unknown') { return 'BROKER_RESULT_UNKNOWN' }
+    if ($Message -ceq 'Harness broker private state is invalid') { return 'BROKER_PRIVATE_STATE_INVALID' }
+    if ($Message -match 'Harness broker') { return 'BROKER_DRIFT' }
     if ($Message -match 'Harness action result is invalid') { return 'ACTION_RESULT_INVALID' }
     if ($Message -match 'Harness artifact inspection is unavailable') { return 'ARTIFACT_UNAVAILABLE' }
     if ($Message -match 'Harness artifact provenance is invalid') { return 'ARTIFACT_INVALID' }
@@ -209,6 +221,85 @@ function Save-HarnessCheckpoint {
     }
 }
 
+function Get-HarnessBindingFingerprint {
+    param([object]$Binding)
+    $canonical = @(
+        [string]$Binding.accepted_sha,
+        [string]$Binding.artifact_sha256,
+        [string]$Binding.signer_sha256,
+        [string]$Binding.package,
+        [string]$Binding.version,
+        [string]$Binding.avd,
+        [string]$Binding.serial,
+        [string]$Binding.vocabulary_version
+    ) -join "`n"
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($canonical)))).Replace('-', '') }
+    finally { $sha.Dispose(); $canonical = $null }
+}
+
+function Get-HarnessBrokerPrivatePath {
+    param([string]$StatePath, [string]$BrokerAction)
+    if ($BrokerAction -notin @('grant', 'restore')) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    return $StatePath + ".broker-$BrokerAction.private.json"
+}
+
+function Save-HarnessBrokerPrivateState {
+    param([string]$StatePath, [string]$BrokerAction, [object]$Binding)
+    $path = Get-HarnessBrokerPrivatePath $StatePath $BrokerAction
+    $directory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path))
+    $directoryItem = Get-Item -LiteralPath $directory -Force
+    if (($directoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    if (Test-Path -LiteralPath $path) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    if (@(Get-ChildItem -LiteralPath $directory -Filter ([IO.Path]::GetFileName($path) + '.*.tmp') -Force).Count -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    $operationId = [Guid]::NewGuid().ToString('N')
+    $value = [ordered]@{
+        schema_version = 1
+        scenario = 'officer-authorization-roundtrip'
+        broker_action = $BrokerAction
+        operation_id = $operationId
+        binding_sha256 = Get-HarnessBindingFingerprint $Binding
+    }
+    $temporaryPath = $path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
+    try {
+        $json = $value | ConvertTo-Json -Depth 3 -Compress
+        Assert-HarnessSafeText $json
+        $bytes = [Text.UTF8Encoding]::new($false).GetBytes($json)
+        $stream = [IO.FileStream]::new($temporaryPath, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None, 4096, [IO.FileOptions]::WriteThrough)
+        try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) }
+        finally { $stream.Dispose() }
+        [IO.File]::Move($temporaryPath, $path)
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) { Remove-Item -LiteralPath $temporaryPath -Force }
+        $json = $null; $bytes = $null; $stream = $null
+    }
+    return $operationId
+}
+
+function Read-HarnessBrokerPrivateState {
+    param([string]$StatePath, [string]$BrokerAction, [object]$Binding)
+    $path = Get-HarnessBrokerPrivatePath $StatePath $BrokerAction
+    $directory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path))
+    $directoryItem = Get-Item -LiteralPath $directory -Force
+    if (($directoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    if (@(Get-ChildItem -LiteralPath $directory -Filter ([IO.Path]::GetFileName($path) + '.*.tmp') -Force).Count -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    try { $value = Get-Content -LiteralPath $path -Encoding UTF8 -Raw | ConvertFrom-Json }
+    catch { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    $expected = @('schema_version', 'scenario', 'broker_action', 'operation_id', 'binding_sha256')
+    $actual = @(Get-HarnessFieldNames $value | Sort-Object)
+    if (
+        ($actual -join "`n") -cne (($expected | Sort-Object) -join "`n") -or
+        $value.schema_version -ne 1 -or
+        [string]$value.scenario -cne 'officer-authorization-roundtrip' -or
+        [string]$value.broker_action -cne $BrokerAction -or
+        [string]$value.operation_id -notmatch $script:HarnessBrokerOperationIdPattern -or
+        [string]$value.binding_sha256 -cne (Get-HarnessBindingFingerprint $Binding)
+    ) { Throw-HarnessSafe 'Harness broker private state is invalid' }
+    return [string]$value.operation_id
+}
+
 function Test-BasicAcceptanceObservation {
     param([object]$Observation, [switch]$Terminal)
     if ($Terminal) { return $Observation.principal -eq 'logged_out' -and $Observation.provenance -eq 'none' -and $Observation.aggregate -eq 'terminal_absent' -and $Observation.report_entry -eq 'absent' }
@@ -239,16 +330,77 @@ function New-MobileAcceptanceTestDependencies {
         [Parameter(Mandatory = $true)][scriptblock]$Action,
         [Parameter(Mandatory = $true)][scriptblock]$Artifact,
         [Parameter(Mandatory = $true)][scriptblock]$Observation,
-        [scriptblock]$BrokerReady = { $false },
-        [scriptblock]$BrokerState = { 'unavailable' },
+        [scriptblock]$BrokerStatus = { [pscustomobject]@{ classification = 'OWNER_ACTION_REQUIRED'; result = 'stopped'; state = 'unavailable'; reason_code = 'BROKER_PROVISIONING' } },
+        [scriptblock]$BrokerOperation = { param($Action, $OperationId) [pscustomobject]@{ classification = 'FAILED'; result = 'stopped'; state = 'unknown'; reason_code = 'BROKER_UNAVAILABLE' } },
         [scriptblock]$NetworkGet = { 'on' },
         [scriptblock]$NetworkSet = { param($State) },
         [scriptblock]$CheckpointPolicy = { param($Path) $true }
     )
     return [ordered]@{
-        Action = $Action; Artifact = $Artifact; Observation = $Observation; BrokerReady = $BrokerReady
-        BrokerState = $BrokerState; NetworkGet = $NetworkGet; NetworkSet = $NetworkSet; CheckpointPolicy = $CheckpointPolicy
+        Action = $Action; Artifact = $Artifact; Observation = $Observation; BrokerStatus = $BrokerStatus
+        BrokerOperation = $BrokerOperation; NetworkGet = $NetworkGet; NetworkSet = $NetworkSet; CheckpointPolicy = $CheckpointPolicy
     }
+}
+
+function New-IsolatedBrokerClientAction {
+    param(
+        [string]$BrokerPath,
+        [string]$BrokerConfigPath,
+        [scriptblock]$InvokeBounded,
+        [string]$HostExecutable
+    )
+    return {
+        param([string]$BrokerAction, [string]$OperationId)
+        if (-not $BrokerConfigPath) {
+            return [pscustomobject]@{ classification = 'OWNER_ACTION_REQUIRED'; result = 'stopped'; state = 'unavailable'; reason_code = 'BROKER_PROVISIONING' }
+        }
+        try {
+            $arguments = @(
+                '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+                '-File', $BrokerPath, '-Action', $BrokerAction, '-ConfigPath', $BrokerConfigPath
+            )
+            if ($BrokerAction -ne 'status') { $arguments += @('-OperationId', $OperationId) }
+            $child = & $InvokeBounded $HostExecutable $arguments 120
+            if ($child.TimedOut) { Throw-HarnessSafe 'Harness broker timed out' }
+            if ([string]$child.Stderr -match '\S') { Throw-HarnessSafe 'Harness broker operation result is unknown' }
+            $raw = [string]$child.Stdout
+            if ($raw.Length -lt 1 -or $raw.Length -gt 4096) { Throw-HarnessSafe 'Harness broker result is invalid' }
+            $lines = @($raw -split "`r?`n" | Where-Object { $_.Trim().Length -gt 0 })
+            if ($lines.Count -ne 1) { Throw-HarnessSafe 'Harness broker result is invalid' }
+            try { $envelope = $lines[0] | ConvertFrom-Json }
+            catch { Throw-HarnessSafe 'Harness broker result is invalid' }
+            $expectedEnvelope = @('action', 'classification', 'operator', 'owner_gate', 'standing_authorization', 'stop_only_on', 'report_to', 'retention_owner', 'details')
+            if (
+                $null -eq $envelope -or $envelope -isnot [System.Management.Automation.PSCustomObject] -or
+                ((@(Get-HarnessFieldNames $envelope | Sort-Object) -join "`n") -cne (($expectedEnvelope | Sort-Object) -join "`n")) -or
+                [string]$envelope.action -cne $BrokerAction -or
+                [string]$envelope.operator -cne 'agent' -or
+                [string]$envelope.standing_authorization -cne 'DEC-098' -or
+                [string]$envelope.report_to -cne 'main-work' -or
+                [string]$envelope.retention_owner -cne 'TASK-134'
+            ) { Throw-HarnessSafe 'Harness broker result is invalid' }
+            $expectedDetails = @('result', 'state', 'reason_code')
+            if ($null -eq $envelope.details -or $envelope.details -isnot [System.Management.Automation.PSCustomObject] -or (@(Get-HarnessFieldNames $envelope.details | Sort-Object) -join "`n") -cne (($expectedDetails | Sort-Object) -join "`n")) { Throw-HarnessSafe 'Harness broker result is invalid' }
+            $classification = [string]$envelope.classification
+            $resultValue = [string]$envelope.details.result
+            $state = [string]$envelope.details.state
+            $reason = [string]$envelope.details.reason_code
+            if (
+                $classification -notin @('PASS', 'OWNER_ACTION_REQUIRED', 'DRIFT', 'TIMEOUT', 'FAILED') -or
+                $resultValue -notin @('available', 'completed', 'stopped') -or
+                $state -notin @('private_exact', 'ready_basic', 'ready_officer', 'reset_required', 'unavailable', 'unchanged', 'unknown') -or
+                $reason -notmatch '^[A-Z][A-Z0-9_]{0,63}$' -or
+                (($classification -eq 'PASS') -ne ($child.ExitCode -eq 0)) -or
+                ($classification -ne 'PASS' -and $child.ExitCode -ne 2)
+            ) { Throw-HarnessSafe 'Harness broker result is invalid' }
+            return [pscustomobject]@{ classification = $classification; result = $resultValue; state = $state; reason_code = $reason }
+        }
+        catch {
+            if ($_.Exception.Message -cin @('Harness broker timed out', 'Harness broker operation result is unknown', 'Harness broker result is invalid')) { Throw-HarnessSafe $_.Exception.Message }
+            Throw-HarnessSafe 'Harness broker operation result is unknown'
+        }
+        finally { $arguments = $null; $child = $null; $raw = $null; $lines = $null; $envelope = $null }
+    }.GetNewClosure()
 }
 
 function Get-AdditionalAcceptanceProducerObservation {
@@ -424,7 +576,7 @@ function New-MobileAcceptanceDependenciesFromConfig {
         [IO.Directory]::CreateDirectory($root) | Out-Null
         return $true
     }.GetNewClosure()
-    return New-MobileAcceptanceTestDependencies -Action $action -Artifact $artifact -Observation $observation -BrokerReady { $false } -CheckpointPolicy $checkpointPolicy
+    return New-MobileAcceptanceTestDependencies -Action $action -Artifact $artifact -Observation $observation -CheckpointPolicy $checkpointPolicy
 }
 
 function New-IsolatedLauncherStatusAction {
@@ -510,8 +662,9 @@ function New-IsolatedLauncherStatusAction {
 }
 
 function New-MobileAcceptanceDependencies {
-    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath)
+    param([string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [string]$BrokerConfigPath)
     $launcherPath = Join-Path $PSScriptRoot 'Invoke-MobileStaging.ps1'
+    $brokerPath = Join-Path $PSScriptRoot 'Invoke-MobileStagingBroker.ps1'
     $launcherModule = New-Module -ArgumentList $launcherPath -ScriptBlock {
         param($Path)
         . $Path
@@ -536,7 +689,11 @@ function New-MobileAcceptanceDependencies {
     }
     if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) { Throw-HarnessSafe 'STATUS_HOST_UNAVAILABLE' }
     $statusAction = New-IsolatedLauncherStatusAction $launcherPath $SelectedMode $ExpectedCommit $LauncherConfigPath $launcherCommands.InvokeBounded $hostExecutable
-    return New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands $statusAction
+    $dependencies = New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands $statusAction
+    $brokerAction = New-IsolatedBrokerClientAction $brokerPath $BrokerConfigPath $launcherCommands.InvokeBounded $hostExecutable
+    $dependencies.BrokerStatus = { & $brokerAction 'status' '' }.GetNewClosure()
+    $dependencies.BrokerOperation = { param($Action, $OperationId) & $brokerAction $Action $OperationId }.GetNewClosure()
+    return $dependencies
 }
 
 function Invoke-HarnessPreparation {
@@ -582,22 +739,71 @@ function Invoke-BasicScenario {
     return New-HarnessEnvelope $SelectedScenario 'PASS' 'none' 'completed' 'accepted' 'NONE'
 }
 
+function Assert-HarnessBrokerResult {
+    param([object]$Value, [string]$ExpectedState)
+    if ($null -ne $Value -and [string]$Value.classification -cne 'PASS') { Throw-HarnessBrokerFailure $Value }
+    if (
+        $null -eq $Value -or
+        [string]$Value.classification -cne 'PASS' -or
+        [string]$Value.result -cne 'completed' -or
+        [string]$Value.state -cne $ExpectedState -or
+        [string]$Value.reason_code -cne 'NONE'
+    ) { Throw-HarnessSafe 'Harness broker result is invalid' }
+}
+
+function Throw-HarnessBrokerFailure {
+    param([object]$Value)
+    if ($null -eq $Value) { Throw-HarnessSafe 'Harness broker is unavailable' }
+    if ([string]$Value.reason_code -ceq 'BROKER_PROVISIONING') { Throw-HarnessSafe 'Harness broker provisioning is required' }
+    if ([string]$Value.reason_code -ceq 'BROKER_TIMEOUT' -or [string]$Value.classification -ceq 'TIMEOUT') { Throw-HarnessSafe 'Harness broker timed out' }
+    if ([string]$Value.reason_code -ceq 'BROKER_RESULT_UNKNOWN') { Throw-HarnessSafe 'Harness broker operation result is unknown' }
+    if ([string]$Value.classification -ceq 'DRIFT') { Throw-HarnessSafe 'Harness broker result is invalid' }
+    Throw-HarnessSafe 'Harness broker is unavailable'
+}
+
+function Invoke-HarnessBrokerReconcile {
+    param([string]$StatePath, [object]$Binding, [hashtable]$Dependencies, [string]$BrokerAction, [string]$ExpectedState)
+    $operationId = Read-HarnessBrokerPrivateState $StatePath $BrokerAction $Binding
+    $value = & $Dependencies.BrokerOperation 'reconcile' $operationId
+    Assert-HarnessBrokerResult $value $ExpectedState
+}
+
 function Resume-OfficerMutation {
     param([string]$SelectedScenario, [string]$StatePath, [object]$Binding, [object]$Checkpoint, [hashtable]$Dependencies)
-    $state = & $Dependencies.BrokerState
-    if ($Checkpoint.step -in @('grant_intent', 'grant_result') -and $state -eq 'granted') { Save-HarnessCheckpoint $StatePath $SelectedScenario 'grant_reconcile' $Binding 'reconciled'; return 'grant_reconcile' }
-    if ($Checkpoint.step -in @('restore_intent', 'restore_result') -and $state -eq 'restored') { Save-HarnessCheckpoint $StatePath $SelectedScenario 'restore_reconcile' $Binding 'reconciled'; return 'restore_reconcile' }
-    if ($Checkpoint.step -in @('logout_intent', 'logout_result') -and $state -eq 'logged_out') { Save-HarnessCheckpoint $StatePath $SelectedScenario 'logout_reconcile' $Binding 'reconciled'; return 'logout_reconcile' }
-    if ($Checkpoint.step -in @('grant_intent', 'grant_result', 'restore_intent', 'restore_result', 'logout_intent', 'logout_result')) { Throw-HarnessSafe 'Harness mutation reconcile is required' }
+    if ($Checkpoint.step -in @('grant_intent', 'grant_result')) {
+        Invoke-HarnessBrokerReconcile $StatePath $Binding $Dependencies 'grant' 'ready_officer'
+        Save-HarnessCheckpoint $StatePath $SelectedScenario 'grant_reconcile' $Binding 'reconciled'
+        return 'grant_reconcile'
+    }
+    if ($Checkpoint.step -in @('restore_intent', 'restore_result')) {
+        Invoke-HarnessBrokerReconcile $StatePath $Binding $Dependencies 'restore' 'ready_basic'
+        Save-HarnessCheckpoint $StatePath $SelectedScenario 'restore_reconcile' $Binding 'reconciled'
+        return 'restore_reconcile'
+    }
+    if ($Checkpoint.step -in @('logout_intent', 'logout_result')) {
+        if (-not (Test-BasicAcceptanceObservation (& $Dependencies.Observation) -Terminal)) { Throw-HarnessSafe 'Harness mutation reconcile is required' }
+        Save-HarnessCheckpoint $StatePath $SelectedScenario 'logout_reconcile' $Binding 'reconciled'
+        return 'logout_reconcile'
+    }
     return [string]$Checkpoint.step
 }
 
-function Invoke-OfficerMutation {
-    param([string]$SelectedScenario, [string]$StatePath, [object]$Binding, [hashtable]$Dependencies, [string]$Intent, [string]$ResultStep, [string]$ActionName, [string]$ExpectedBrokerState)
+function Invoke-OfficerBrokerMutation {
+    param([string]$SelectedScenario, [string]$StatePath, [object]$Binding, [hashtable]$Dependencies, [string]$BrokerAction, [string]$Intent, [string]$ResultStep, [string]$ExpectedState)
+    $operationId = Save-HarnessBrokerPrivateState $StatePath $BrokerAction $Binding
     Save-HarnessCheckpoint $StatePath $SelectedScenario $Intent $Binding 'intent'
-    Invoke-HarnessAction $Dependencies $ActionName @($ExpectedBrokerState) | Out-Null
+    $value = & $Dependencies.BrokerOperation $BrokerAction $operationId
+    Assert-HarnessBrokerResult $value $ExpectedState
     Save-HarnessCheckpoint $StatePath $SelectedScenario $ResultStep $Binding 'mutation_returned'
-    if ((& $Dependencies.BrokerState) -ne $ExpectedBrokerState) { Throw-HarnessSafe 'Harness mutation reconcile is required' }
+    Invoke-HarnessBrokerReconcile $StatePath $Binding $Dependencies $BrokerAction $ExpectedState
+}
+
+function Invoke-OfficerLogoutMutation {
+    param([string]$SelectedScenario, [string]$StatePath, [object]$Binding, [hashtable]$Dependencies)
+    Save-HarnessCheckpoint $StatePath $SelectedScenario 'logout_intent' $Binding 'intent'
+    Invoke-HarnessAction $Dependencies 'logout' @('logged_out') | Out-Null
+    Save-HarnessCheckpoint $StatePath $SelectedScenario 'logout_result' $Binding 'mutation_returned'
+    if (-not (Test-BasicAcceptanceObservation (& $Dependencies.Observation) -Terminal)) { Throw-HarnessSafe 'Harness mutation reconcile is required' }
 }
 
 function Invoke-OfficerScenario {
@@ -611,8 +817,11 @@ function Invoke-OfficerScenario {
     if ($step -in @('start', 'broker_gate')) {
         $baseline = & $Dependencies.Observation
         if (-not (Test-BasicAcceptanceObservation $baseline)) { Save-HarnessCheckpoint $StatePath $SelectedScenario 'stopped' $Binding 'evidence_gap'; return New-HarnessEnvelope $SelectedScenario 'EVIDENCE_GAP' 'none' 'basic_baseline' 'stopped' (Get-HarnessObservationFailure $baseline) }
-        if (-not (& $Dependencies.BrokerReady)) { Save-HarnessCheckpoint $StatePath $SelectedScenario 'broker_gate' $Binding 'owner_action_required'; return New-HarnessEnvelope $SelectedScenario 'OWNER_ACTION_REQUIRED' 'BROKER_PROVISIONING' 'broker_gate' 'stopped' 'BROKER_PROVISIONING' }
-        Invoke-OfficerMutation $SelectedScenario $StatePath $Binding $Dependencies 'grant_intent' 'grant_result' 'broker-grant' 'granted'
+        $brokerStatus = & $Dependencies.BrokerStatus
+        if ([string]$brokerStatus.classification -ceq 'OWNER_ACTION_REQUIRED' -and [string]$brokerStatus.reason_code -ceq 'BROKER_PROVISIONING') { Save-HarnessCheckpoint $StatePath $SelectedScenario 'broker_gate' $Binding 'owner_action_required'; return New-HarnessEnvelope $SelectedScenario 'OWNER_ACTION_REQUIRED' 'BROKER_PROVISIONING' 'broker_gate' 'stopped' 'BROKER_PROVISIONING' }
+        if ([string]$brokerStatus.classification -cne 'PASS') { Throw-HarnessBrokerFailure $brokerStatus }
+        if ([string]$brokerStatus.result -cne 'available' -or [string]$brokerStatus.state -cne 'private_exact' -or [string]$brokerStatus.reason_code -cne 'NONE') { Throw-HarnessSafe 'Harness broker result is invalid' }
+        Invoke-OfficerBrokerMutation $SelectedScenario $StatePath $Binding $Dependencies 'grant' 'grant_intent' 'grant_result' 'ready_officer'
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'grant_reconcile' $Binding 'reconciled'; $step = 'grant_reconcile'
     }
     if ($step -eq 'grant_reconcile') {
@@ -633,7 +842,7 @@ function Invoke-OfficerScenario {
         $step = 'offline_observed'
     }
     if ($step -eq 'offline_observed') {
-        Invoke-OfficerMutation $SelectedScenario $StatePath $Binding $Dependencies 'restore_intent' 'restore_result' 'broker-restore' 'restored'
+        Invoke-OfficerBrokerMutation $SelectedScenario $StatePath $Binding $Dependencies 'restore' 'restore_intent' 'restore_result' 'ready_basic'
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'restore_reconcile' $Binding 'reconciled'; $step = 'restore_reconcile'
     }
     if ($step -eq 'restore_reconcile') {
@@ -643,7 +852,7 @@ function Invoke-OfficerScenario {
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'basic_restored' $Binding 'observed'; $step = 'basic_restored'
     }
     if ($step -eq 'basic_restored') {
-        Invoke-OfficerMutation $SelectedScenario $StatePath $Binding $Dependencies 'logout_intent' 'logout_result' 'logout' 'logged_out'
+        Invoke-OfficerLogoutMutation $SelectedScenario $StatePath $Binding $Dependencies
         Save-HarnessCheckpoint $StatePath $SelectedScenario 'logout_reconcile' $Binding 'reconciled'; $step = 'logout_reconcile'
     }
     if ($step -eq 'logout_reconcile') {
@@ -657,9 +866,9 @@ function Invoke-OfficerScenario {
 }
 
 function Invoke-MobileStagingAcceptanceMain {
-    param([string]$SelectedScenario, [string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [string]$StatePath, [bool]$IsResume, [hashtable]$Dependencies)
+    param([string]$SelectedScenario, [string]$SelectedMode, [string]$ExpectedCommit, [string]$LauncherConfigPath, [string]$StatePath, [bool]$IsResume, [hashtable]$Dependencies, [string]$PrivateBrokerConfigPath = '')
     Assert-HarnessArguments $SelectedScenario $SelectedMode $ExpectedCommit $LauncherConfigPath $StatePath
-    if ($null -eq $Dependencies) { $Dependencies = New-MobileAcceptanceDependencies $SelectedMode $ExpectedCommit $LauncherConfigPath }
+    if ($null -eq $Dependencies) { $Dependencies = New-MobileAcceptanceDependencies $SelectedMode $ExpectedCommit $LauncherConfigPath $PrivateBrokerConfigPath }
     if (-not (& $Dependencies.CheckpointPolicy $StatePath)) { return New-HarnessEnvelope $SelectedScenario 'DRIFT' 'none' 'start' 'stopped' 'CHECKPOINT_PATH_INVALID' }
     $lock = $null
     try {
@@ -686,7 +895,7 @@ function Invoke-MobileStagingAcceptanceMain {
 }
 
 if ($MyInvocation.InvocationName -ne '.') {
-    try { $envelope = Invoke-MobileStagingAcceptanceMain $Scenario $Mode $Commit $ConfigPath $CheckpointPath ([bool]$Resume) $null }
+    try { $envelope = Invoke-MobileStagingAcceptanceMain $Scenario $Mode $Commit $ConfigPath $CheckpointPath ([bool]$Resume) $null $BrokerConfigPath }
     catch { $envelope = New-HarnessEnvelope $Scenario (Get-HarnessFailureClassification $_.Exception.Message) 'none' 'start' 'stopped' (Get-HarnessFailureReasonCode $_.Exception.Message) }
     try { Write-HarnessJson $envelope }
     catch {

@@ -638,8 +638,8 @@ operation ID. Lock acquisition and cleanup are exception-safe; a cleanup
 failure replaces any nominal success with a fixed governed failure rather than
 leaking a path or raw PowerShell exception.
 
-Repository acceptance does not authorize provisioning. The remaining Owner
-gate is to create/version the fictional tester-subject Secret, deploy the
+Repository acceptance does not authorize provisioning. Before first use, an
+Owner-gated rollout must create/version the fictional tester-subject Secret, deploy the
 accepted broker image and migration in the documented TASK-128/TASK-130 order,
 bind the two exact Secret versions to the runtime identity, grant only the
 dedicated caller `roles/run.invoker`, and grant the approved operator account
@@ -660,6 +660,19 @@ config, and a checkpoint beneath the configured task-owned evidence root:
   -Commit <full-accepted-sha> `
   -ConfigPath C:\private\task-123-launcher.json `
   -CheckpointPath E:\codex-evidence\task-123\task-129\basic.json
+```
+
+Officer roundtrip additionally receives the provisioned value-free TASK-134
+client config. The config path is not needed for Basic acceptance:
+
+```powershell
+.\tools\Invoke-MobileStagingAcceptance.ps1 `
+  -Scenario officer-authorization-roundtrip `
+  -Mode staging `
+  -Commit <full-accepted-sha> `
+  -ConfigPath C:\private\task-123-launcher.json `
+  -BrokerConfigPath E:\codex-evidence\task-134\staging\broker-client.private.json `
+  -CheckpointPath E:\codex-evidence\task-123\task-129\officer.json
 ```
 
 The harness emits exactly one deidentified JSON envelope per invocation. Its
@@ -745,16 +758,22 @@ TASK-123 bounded transport extraction rules: exactly one hierarchy element,
 no DTD/external resolver, capped in-memory input, and no retained raw output.
 
 `officer-authorization-roundtrip` first requires an authoritative Basic
-baseline. Until TASK-128's no-disclosure broker and client/network atomic
-integration are provisioned it exits `OWNER_ACTION_REQUIRED/BROKER_PROVISIONING`
-before broker or credential access. Its mocked orchestration contract records
-intent, returned result, and live read-only reconcile states separately for
-grant, restore, and logout. A crash or unknown result resumes only through
-reconciliation; it never reruns that mutation from a checkpoint. The current
-repository's broker-state and network controls are test seams, not real broker
-or offline operations. No repository implementation or review invocation runs
-an emulator, staging, network, broker, cloud, Secret, or Owner login/consent
-flow.
+baseline. Without a provisioned value-free broker config it exits
+`OWNER_ACTION_REQUIRED/BROKER_PROVISIONING` before broker credential access.
+With one, status and each operation run in a bounded isolated TASK-134 client
+process and consume exactly one governed JSON result. The public checkpoint
+continues to contain no operation ID. Each grant/restore ID is generated once
+in a binding-bound, atomic `*.broker-<action>.private.json` sidecar before the
+intent checkpoint and before any request. Normal completion and any
+intent/result crash window use the same ID for explicit read-only `reconcile`;
+the harness never generates a replacement ID or retries the mutation. Missing,
+orphaned, malformed or binding-mismatched private state stops fail closed.
+Logout remains a portal action and never enters the broker vocabulary.
+
+TASK-138 wires the real broker only. Network controls and report navigation
+remain separate acceptance seams; they must be implemented and reviewed before
+claiming a fully automated Officer roundtrip. Repository tests and review do not
+run an emulator, staging mutation, cloud, Secret or Owner login/consent flow.
 
 ## Flutter staging command template
 
