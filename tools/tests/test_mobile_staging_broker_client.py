@@ -495,6 +495,28 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "CONFIG_REJECTED")
         self.assertNotIn("attacker", result.stdout + result.stderr)
 
+    def test_parent_traversal_accepts_fileinfo_on_windows_powershell(self):
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "gcloud.cmd"
+            executable.write_text("@echo off\n", encoding="ascii")
+            result = self.run_script(
+                f"""
+                $item=Get-Item -LiteralPath '{executable.as_posix()}' -Force
+                if($item -isnot [IO.FileInfo]){{exit 9}}
+                $parent=Get-BrokerParentItem $item
+                [pscustomobject]@{{
+                    item_type=$item.GetType().Name
+                    parent_type=$parent.GetType().Name
+                    parent_matches=([string]$parent.FullName -ceq [IO.Path]::GetDirectoryName([string]$item.FullName))
+                }}|ConvertTo-Json -Compress
+                """
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["item_type"], "FileInfo")
+        self.assertEqual(payload["parent_type"], "DirectoryInfo")
+        self.assertTrue(payload["parent_matches"])
+
     def test_public_iam_is_rejected_without_policy_echo(self):
         result = self.run_script(
             """
