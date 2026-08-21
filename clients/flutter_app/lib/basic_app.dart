@@ -639,7 +639,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
         ListTile(
             key: ValueKey('game-${game.id}'),
             title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
-            subtitle: Text(_gameDetails(localizations, game)),
+            subtitle: Text(_formatGameMetadata(localizations, game)),
             trailing: const Icon(Icons.chevron_right),
             onTap: widget.online
                 ? () => Navigator.of(context).push(MaterialPageRoute<void>(
@@ -658,21 +658,21 @@ class _BasicGamesViewState extends State<BasicGamesView> {
         onRefresh: _refresh,
         child: scrollableGamesView);
   }
+}
 
-  static String _gameDetails(MaterialLocalizations localizations, Game game) {
-    final localStart = game.startAt.toLocal();
-    final date = localizations.formatFullDate(localStart);
-    final time =
-        localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
-    final details = <String>['$date $time'];
-    if (game.location != null && game.location!.isNotEmpty) {
-      details.add(game.location!);
-    }
-    if (game.durationMinutes != null) {
-      details.add('${game.durationMinutes} 分鐘');
-    }
-    return details.join('・');
+String _formatGameMetadata(MaterialLocalizations localizations, Game game) {
+  final localStart = game.startAt.toLocal();
+  final date = localizations.formatFullDate(localStart);
+  final time =
+      localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
+  final details = <String>['$date $time'];
+  if (game.location != null && game.location!.isNotEmpty) {
+    details.add(game.location!);
   }
+  if (game.durationMinutes != null) {
+    details.add('${game.durationMinutes} 分鐘');
+  }
+  return details.join('・');
 }
 
 class AccountDataStatusPage extends StatelessWidget {
@@ -1039,6 +1039,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
       );
 
   Widget _content() {
+    final localizations = MaterialLocalizations.of(context);
     final observation = DebugAuthoritativeOwnReplyProjection.canonicalReply(
       reply: authoritativeOwnReply,
       detailReady: state == DetailViewState.ready,
@@ -1050,7 +1051,8 @@ class _GameDetailPageState extends State<GameDetailPage> {
     return ListView(padding: const EdgeInsets.all(16), children: [
       Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
           style: Theme.of(context).textTheme.titleLarge),
-      Text(game!.startAt.toIso8601String()),
+      Text(_formatGameMetadata(localizations, game!),
+          key: const ValueKey('game-detail-metadata')),
       const SizedBox(height: 16),
       if (observation != null &&
           DebugAuthoritativeOwnReplyProjection.shouldRender(
