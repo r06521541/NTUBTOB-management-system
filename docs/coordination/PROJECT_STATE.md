@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-21T21:22:54+08:00
+更新時間：2026-08-21T21:44:56+08:00
 
 維護角色：Main Work
 
-Repository 基準：`main` / `8895747502347f86d9611bad103a5680a2759db4`
+Repository 基準：`main` / `c3baebddd08a100efafac47b641c129d956f68c7`
 
 ## Active role lanes
 
@@ -33,8 +33,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - TASK-143 已完成 L1 Flutter game-detail metadata delivery：列表與詳情共用同一本地化 formatter，詳情顯示
   可讀日期／時間及現有地點／時長，缺少 optional 值時省略。Writer focused 64/64、analyze／formatter與 Main
   review通過；delivery PR只使用一次 change-selected hosted Flutter gate，未使用Domain／emulator／staging／harness。
-- TASK-144 已啟動為 production-shaped fake demo：development fake mode 將直接重用目前正式賽事／出席／帳號／
-  Officer報表 widgets與deterministic fictional adapters，讓Owner不需登入、Secret或staging即可查看可信的UI預覽。
+- TASK-144 production-shaped fake demo 已通過 writer focused gates與 Main cumulative review：development fake mode
+  直接重用正式賽事／出席／帳號／Officer報表 widgets，並提供 Basic／Officer、線上／離線、資料／空白／錯誤等
+  deterministic fictional scenarios；不需帳號、Secret、staging或網路。尚待一次 change-selected hosted Flutter gate與merge。
 
 ## 已確認的 production 狀態
 

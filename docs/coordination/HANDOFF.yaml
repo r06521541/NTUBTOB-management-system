@@ -1,23 +1,23 @@
 active_task: TASK-144
-status: ready_for_writer
-next_actor: codex-writer
+status: ready_for_hosted_ci
+next_actor: main-work
 
 claim_id: task-144-flutter-writer
 lease_version: 1
 actor_id: 01a013a7-7fde-7363-9314-7a255e8206a5
 
 base_commit: c3baebddd08a100efafac47b641c129d956f68c7
-head_commit: c3baebddd08a100efafac47b641c129d956f68c7
+head_commit: 60fb936f4d87026aa518c035f00b76bd04d7b223
 
 updated_by: main-work
-updated_at: 2026-08-21T21:22:54+08:00
+updated_at: 2026-08-21T21:44:56+08:00
 
 note: >
-  TASK-144 replaces the separate development DemoApp entry with a clearly
-  fictional production-shaped composition using current production widgets and
-  deterministic in-memory adapters. Real-mode auth/session/API behavior is out
-  of scope. Main performs one review; Domain is conditional, and staging,
-  login, Secret and acceptance-harness actions are not gates.
+  Main accepted the immutable five-path implementation at 60fb936f. Fake mode
+  now uses current production widgets with deterministic fictional in-memory
+  adapters while real mode remains unchanged. One change-selected hosted
+  Flutter gate and merge remain; Domain, emulator, staging, login, Secret and
+  acceptance-harness actions are not gates.
 
 worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task144-production-demo
 task: docs/coordination/tasks/TASK-144.md

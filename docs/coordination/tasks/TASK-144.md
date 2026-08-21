@@ -74,3 +74,16 @@ fictional adapters.
 - Tests prove fake mode cannot cross into real HTTP/native-login/secure-storage
   composition and that real mode still selects `BasicBootstrapApp`.
 - Existing focused production widget tests remain green.
+
+## Delivery status
+
+- Main review: accepted at `60fb936f4d87026aa518c035f00b76bd04d7b223`.
+- Writer evidence: Flutter 3.47.0 / Dart 3.13.0; formatter clean;
+  `flutter analyze` passed; focused demo 7/7 and existing Basic 64/64 passed.
+- Main independently reviewed the cumulative five-path diff and confirmed the
+  real-mode branch remains `BasicBootstrapApp(config: config)`, the demo reuses
+  the production surfaces, and fake composition has no real transport, native
+  login, secure-storage, staging-config or external-effect path.
+- Status: `ready_for_hosted_ci`. The only remaining product gate is one
+  change-selected hosted Flutter run followed by merge; no Domain or runtime
+  gate is required for this diff.
