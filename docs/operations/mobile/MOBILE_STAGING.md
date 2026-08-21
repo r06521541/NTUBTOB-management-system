@@ -570,7 +570,10 @@ repository's fictional approval remains unchanged. Governed output and the
 retained state contain only the source SHA and normalized artifact hashes; they
 never contain approval fields, Secret references, endpoints, provider subject,
 or private paths. Any dirty source, SHA drift, reparse input, existing output,
-or malformed archive fails before a build or cloud action.
+malformed archive, or mismatch from the independently accepted staging database
+identity fails before a build or cloud action. Original path components and the
+opened approval file identity are checked before use; a failed private partial
+cleanup returns `PRIVATE_CLEANUP_REQUIRED` without disclosing its path.
 
 ```powershell
 python -m tools.mobile_staging_broker_rollout `

@@ -33,10 +33,14 @@ and broker execution remain outside this repository slice.
   approved bytes except for the established CRLF-to-LF normalization, validate
   those final bytes with the shared contract, and require exact candidate/
   staging project/region/mobile API service values.
+- Bind the approval to the independently accepted staging database identity
+  fingerprint; the approval cannot define its own expected fingerprint.
 - Substitute the canonical approval only inside a new task-owned E-drive build
   context. Never modify or commit it to the repository.
 - Reject reparse/symlink inputs, dirty or wrong source, existing/partial output,
-  archive links and malformed paths. Clean partial output in `finally`.
+  archive links and malformed paths. Validate original path components before
+  resolution and bind approval checks to the opened file identity. Clean
+  partial output in `finally`; cleanup failure is a fixed terminal state.
 - Persist and emit only source/artifact hashes, opaque database identity hash,
   project/region and bounded lifecycle metadata; no
   approval fields, Secret references, endpoint, provider subject or path.

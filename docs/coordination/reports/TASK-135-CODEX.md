@@ -12,7 +12,7 @@ existing broker runtime algorithm.
 Direct evidence:
 
 - `python -m unittest tools.tests.test_mobile_staging_broker_rollout -v`:
-  7 cases completed (6 passed, 1 skipped); the skipped case requires Windows
+  13 cases completed (12 passed, 1 skipped); the skipped case requires Windows
   symlink-creation permission that this host denied.
 - `python -m py_compile` for the packager and direct test: passed.
 - `python -m isort --check-only` for the two Python files: passed after one
@@ -27,7 +27,10 @@ Direct evidence:
 The direct suite covers deterministic repeated hashes, exact private
 replacement, dirty/wrong-SHA rejection, approval drift, existing output,
 symlink rejection where supported, partial cleanup and one bounded JSON failure
-without private sentinels. The retained state contains only the source SHA,
+without private sentinels. Correction regressions also cover original path
+component reparse, opened-file replacement identity, hardlinks, exact database
+fingerprint, cleanup failure and the real broker hash exception type. The
+retained state contains only the source SHA,
 packager contract, project/region, opaque database identity hash, normalized
 artifact hashes and private lifecycle marker.
 

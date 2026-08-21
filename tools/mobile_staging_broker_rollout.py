@@ -4,19 +4,25 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
+import stat
 import subprocess
 import tarfile
 import uuid
 from pathlib import Path, PurePosixPath
 
 from apps.mobile_staging_broker.artifacts import APPROVAL_PATH, artifact_hashes
+from apps.mobile_staging_broker.broker import BrokerFailure
 from tools.mobile_staging_contract import StagingContractError, load_approval
 
 EXPECTED_PROJECT = "ntubtob-mobile-staging"
 EXPECTED_REGION = "asia-east1"
 EXPECTED_SERVICE = "mobile-api-staging"
+EXPECTED_DATABASE_IDENTITY_SHA256 = (
+    "5458aab22f538d601725365e26a01d6d585f0e7d07dc32451cd6309d61a40d7c"
+)
 PACKAGER_CONTRACT = "task135-v1"
 MAX_APPROVAL_BYTES = 32768
 TOOL_ROOT = Path(__file__).resolve().parents[1]
@@ -68,12 +74,42 @@ def _is_reparse(path: Path) -> bool:
     return path.is_symlink() or bool(getattr(stat, "st_file_attributes", 0) & 0x400)
 
 
+def _assert_path_chain_no_reparse(path: Path) -> None:
+    absolute = path.absolute()
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.exists() or current.is_symlink():
+            if _is_reparse(current):
+                raise BrokerRolloutError("PATH_INVALID")
+        else:
+            break
+
+
+def _same_file_identity(left: os.stat_result, right: os.stat_result) -> bool:
+    return (
+        left.st_dev == right.st_dev
+        and left.st_ino == right.st_ino
+        and left.st_size == right.st_size
+    )
+
+
 def _read_approval_bytes(approval_path: Path) -> bytes:
     try:
-        if approval_path.stat().st_nlink != 1:
-            raise BrokerRolloutError("APPROVAL_INVALID")
         with approval_path.open("rb") as handle:
+            opened = os.fstat(handle.fileno())
+            named_before = os.stat(approval_path, follow_symlinks=False)
+            if (
+                opened.st_nlink != 1
+                or not stat.S_ISREG(opened.st_mode)
+                or getattr(opened, "st_file_attributes", 0) & 0x400
+                or not _same_file_identity(opened, named_before)
+            ):
+                raise BrokerRolloutError("APPROVAL_INVALID")
             value = handle.read(MAX_APPROVAL_BYTES + 1)
+            named_after = os.stat(approval_path, follow_symlinks=False)
+            if not _same_file_identity(opened, named_after):
+                raise BrokerRolloutError("APPROVAL_INVALID")
     except OSError:
         raise BrokerRolloutError("APPROVAL_INVALID") from None
     if not value or len(value) > MAX_APPROVAL_BYTES or b"\x00" in value:
@@ -90,6 +126,9 @@ def _validate_inputs(
 ) -> bytes:
     if not SHA_PATTERN.fullmatch(commit or ""):
         raise BrokerRolloutError("COMMIT_INVALID")
+    _assert_path_chain_no_reparse(source)
+    _assert_path_chain_no_reparse(approval_path)
+    _assert_path_chain_no_reparse(output.parent)
     if not source.is_dir() or _is_reparse(source):
         raise BrokerRolloutError("SOURCE_INVALID")
     if not approval_path.is_file() or _is_reparse(approval_path):
@@ -136,11 +175,15 @@ def prepare_broker_rollout(
     *, source: Path, approval_path: Path, output: Path, commit: str
 ) -> dict[str, str]:
     try:
+        _assert_path_chain_no_reparse(source)
+        _assert_path_chain_no_reparse(approval_path)
+        _assert_path_chain_no_reparse(output.parent)
         source = source.resolve(strict=True)
         approval_path = approval_path.resolve(strict=True)
+        output_parent = output.parent.resolve(strict=True)
     except OSError:
         raise BrokerRolloutError("PATH_INVALID") from None
-    output = output.absolute()
+    output = output_parent / output.name
     approval_bytes = _validate_inputs(source, approval_path, output, commit)
     partial = output.with_name(f".{output.name}.partial-{uuid.uuid4().hex}")
     archive_path = partial / "source.tar"
@@ -188,9 +231,14 @@ def prepare_broker_rollout(
             or approval["project"] != EXPECTED_PROJECT
             or approval["region"] != EXPECTED_REGION
             or approval["service"] != EXPECTED_SERVICE
+            or approval["database_identity_sha256"]
+            != EXPECTED_DATABASE_IDENTITY_SHA256
         ):
             raise BrokerRolloutError("APPROVAL_DRIFT")
-        hashes = artifact_hashes(context)
+        try:
+            hashes = artifact_hashes(context)
+        except BrokerFailure:
+            raise BrokerRolloutError("HASH_INVALID") from None
         state = {
             "schema_version": 1,
             "packager_contract": PACKAGER_CONTRACT,
@@ -215,7 +263,12 @@ def prepare_broker_rollout(
         raise BrokerRolloutError("PACKAGING_FAILED") from None
     finally:
         if partial.exists():
-            shutil.rmtree(partial, ignore_errors=True)
+            try:
+                shutil.rmtree(partial)
+            except OSError:
+                raise BrokerRolloutError("PRIVATE_CLEANUP_REQUIRED") from None
+            if partial.exists():
+                raise BrokerRolloutError("PRIVATE_CLEANUP_REQUIRED")
 
 
 def _parse_args() -> argparse.Namespace:
@@ -230,6 +283,8 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     try:
+        _assert_path_chain_no_reparse(APPROVED_OUTPUT_ROOT)
+        _assert_path_chain_no_reparse(args.output.parent)
         requested_output = args.output.absolute()
         try:
             requested_output.relative_to(APPROVED_OUTPUT_ROOT)
@@ -249,8 +304,13 @@ def main() -> int:
         )
         envelope = {"classification": "PASS", "details": state}
         exit_code = 0
-    except (BrokerRolloutError, OSError) as error:
-        reason = error.args[0] if isinstance(error, BrokerRolloutError) else "FAILED"
+    except (BrokerRolloutError, BrokerFailure, OSError) as error:
+        if isinstance(error, BrokerRolloutError):
+            reason = error.args[0]
+        elif isinstance(error, BrokerFailure):
+            reason = "HASH_INVALID"
+        else:
+            reason = "FAILED"
         envelope = {
             "classification": "FAILED",
             "details": {"result": "stopped", "reason_code": reason},
