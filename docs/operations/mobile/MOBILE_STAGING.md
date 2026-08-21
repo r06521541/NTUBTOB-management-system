@@ -561,6 +561,57 @@ migration and broker. Cloud Run, IAM, Secret versions and staging execution
 remain separate Owner gates; the checked-in deployment files are static
 contracts only.
 
+## TASK-134 no-disclosure broker client
+
+`tools/Invoke-MobileStagingBroker.ps1` is the repository-side client boundary
+for TASK-128. It is deliberately separate from TASK-129 until cloud
+provisioning and one controlled client dogfood are accepted. The only actions
+are `status`, `inspect`, `reset`, `grant`, `restore`, and `reconcile`.
+Operations require a caller-generated opaque 16–64 character operation ID;
+`status` accepts no ID.
+
+The value-free config has exact fields: schema version 1, `provisioned`, the
+fixed staging project/region/service, active operator account, dedicated caller
+service account, dedicated broker runtime service account, immutable image
+digest, an exact SHA-256 for an absolute `gcloud.cmd` beneath an approved
+standard Google Cloud SDK root, and a task-owned
+`E:\codex-evidence\task-134\...` lock path. It contains no endpoint, Secret
+reference or payload. `provisioned=false` returns
+`OWNER_ACTION_REQUIRED/BROKER_PROVISIONING` before gcloud, token or network
+access.
+
+When provisioned, the client first obtains read-only service and IAM metadata.
+It requires one ready revision at 100% traffic, the exact digest/runtime
+identity, max instances 1, concurrency 1, normal authenticated `run.app`
+ingress, no `allUsers`/`allAuthenticatedUsers`, and exactly one dedicated
+caller service account with one unconditional `roles/run.invoker` binding and
+no additional invoker member. The configured operator obtains one bounded
+gcloud access token, then calls IAM Credentials `generateIdToken` in memory for
+the dedicated caller. The service audience is present only in that bounded
+HTTPS body, never process argv. This requires a separately approved minimal
+Token Creator binding. Tokens, service URL and raw service/broker responses
+remain process-local and are cleared or disposed in `finally`; they are never
+emitted or persisted. Redirects are disabled, and external output and HTTP
+bodies are rejected at fixed byte limits before unbounded strings can form.
+
+One client invocation sends at most one broker request. Timeout, interruption
+or unknown HTTP outcome is terminal and must not be retried. A later caller may
+use the same opaque ID with explicit `reconcile`; the TASK-128 journal decides
+the authoritative outcome. Broker failure responses are reduced to the closed
+reason-code vocabulary, while malformed or mismatched responses fail closed.
+Output is one deidentified governed JSON envelope and never includes the
+operation ID. Lock acquisition and cleanup are exception-safe; a cleanup
+failure replaces any nominal success with a fixed governed failure rather than
+leaking a path or raw PowerShell exception.
+
+Repository acceptance does not authorize provisioning. The remaining Owner
+gate is to create/version the fictional tester-subject Secret, deploy the
+accepted broker image and migration in the documented TASK-128/TASK-130 order,
+bind the two exact Secret versions to the runtime identity, grant only the
+dedicated caller `roles/run.invoker`, and grant the approved operator account
+only the impersonation permission needed for that caller. No production
+project, public invoker, broad Secret access or payload copy/paste is allowed.
+
 ## TASK-129 staging acceptance harness
 
 `tools/Invoke-MobileStagingAcceptance.ps1` is a separate scenario orchestrator;
