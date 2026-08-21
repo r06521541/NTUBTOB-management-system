@@ -52,6 +52,7 @@ from tools.mobile_staging_data import (
 )
 from tools.mobile_staging_operator import (
     OperatorError,
+    _traffic_is_exact,
     build_command,
     deploy_command,
     execute,
@@ -801,6 +802,7 @@ class OperatorTest(unittest.TestCase):
         self.assertNotIn("builds", update_deploy)
         self.assertIn("--no-traffic", update_deploy)
         self.assertNotIn("--no-traffic", bootstrap_deploy)
+        self.assertNotIn("--no-allow-unauthenticated", update_deploy)
         self.assertIn("--no-allow-unauthenticated", bootstrap_deploy)
         self.assertIn("--ingress", bootstrap_deploy)
         self.assertIn("--min-instances", bootstrap_deploy)
@@ -819,6 +821,11 @@ class OperatorTest(unittest.TestCase):
             service("bootstrap"),
         )
         validate_candidate(approval(), revision(), service())
+        update_with_retained_candidate = service()
+        update_with_retained_candidate["status"]["traffic"].append(
+            {"revisionName": "mobile-api-staging-candidate1", "percent": 0}
+        )
+        validate_candidate(approval(), revision(), update_with_retained_candidate)
         with self.assertRaises(OperatorError):
             validate_candidate(approval(), revision(), service(candidate_percent=100))
         with self.assertRaises(OperatorError):
@@ -827,6 +834,36 @@ class OperatorTest(unittest.TestCase):
                 revision(IMAGE + "@" + DIGEST),
                 {**service("bootstrap"), "status": {"traffic": []}},
             )
+
+    def test_traffic_convergence_allows_only_the_known_zero_percent_peer(self):
+        candidate = "mobile-api-staging-candidate1"
+        baseline = "mobile-api-staging-baseline1"
+        self.assertTrue(
+            _traffic_is_exact(
+                [
+                    {"revisionName": candidate, "percent": 100},
+                    {"revisionName": baseline, "percent": 0},
+                ],
+                candidate,
+                {baseline},
+            )
+        )
+        for traffic in (
+            [
+                {"revisionName": candidate, "percent": 100},
+                {"revisionName": baseline, "percent": 1},
+            ],
+            [
+                {"revisionName": candidate, "percent": 100},
+                {"revisionName": "mobile-api-staging-unknown", "percent": 0},
+            ],
+            [
+                {"revisionName": candidate, "percent": 100},
+                {"revisionName": candidate, "percent": 0},
+            ],
+        ):
+            with self.subTest(traffic=traffic):
+                self.assertFalse(_traffic_is_exact(traffic, candidate, {baseline}))
 
     def test_stale_shared_artifact_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

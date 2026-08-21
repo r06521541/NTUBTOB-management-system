@@ -333,6 +333,12 @@ service deletion needs separate approval. Update requires one exact baseline
 revision at 100% before candidate promotion and can roll back to it. Both modes
 reject traffic, digest, ingress, runtime identity or scaling drift outside their
 exact mode contract.
+An update never changes the existing service IAM policy; only bootstrap passes
+`--no-allow-unauthenticated`. Cloud Run may retain the known counterpart
+revision as an explicit zero-percent traffic entry after promotion or rollback.
+The operator accepts only the approved active revision at 100% plus that one
+known counterpart at 0%; an unknown, duplicate or nonzero extra target fails
+closed.
 `recover-candidate` is read-only and never redeploys. Rollback restores 100%
 traffic only in update mode;
 candidate/image deletion and full staging cleanup remain separately approved
