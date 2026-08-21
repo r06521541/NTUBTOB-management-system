@@ -27,9 +27,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   named delivery、incident、migration或rollback調查時讀取。
 - Phase C production schema、跨服務runtime、管理bootstrap與56組可靠LINE identity／active team-player關係已完成；
   管理權限仍以Web Portal runtime allowlist為準。
-- TASK-142 已啟動為 L1 Flutter game-list pull-to-refresh delivery；單一 writer、focused local verification、Main review
-  與一次 hosted Flutter final gate，不使用 emulator／staging／acceptance harness。Production deployment／DB mutation、
-  Secret／IAM／Scheduler、真實通知與 release signing仍需當次明確Owner批准。
+- TASK-142 已由 PR #168 合併：線上賽事清單支援下拉重新整理，空清單亦可操作；沿用既有 single-flight reload，
+  離線仍無 pull action。Focused local verification、Main review與一次 change-selected hosted Flutter gate均通過，
+  未使用 emulator／staging／acceptance harness。
 
 ## 已確認的 production 狀態
 
@@ -78,11 +78,6 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - Attendance 首次載入可能受 Cloud Run／資料庫 cold path 影響；現階段接受延遲，後續應先量測再改架構。
 
 ## 下一階段候選方向
-
-### P1：TASK-142 Flutter game-list pull to refresh
-
-- 以既有 Basic reload callback 提供 online-only 下拉重新整理，保留 refresh button、offline read-only、auth/cache
-  與管理權限邊界；採單一writer與最小hosted gate，不以驗收 harness 作產品 gate。
 
 ### P2：Event 與多元活動
 

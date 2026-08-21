@@ -5,6 +5,8 @@
 - Risk level: L1
 - Base: `6e1e52795e593d736764e29c2819dc62111b1ee4`
 - Owner gate: none
+- Status: complete
+- Merge: `a196a91699374ee020457afa7caa2c63ce4e7f65` (PR #168)
 
 ## Role claim
 
@@ -20,6 +22,7 @@
 - write: true, limited to the owned paths
 - report_to: `main-work`
 - stop_only_on: scope conflict, unrelated dirty state, auth/cache/API behavior change, unavailable exact Flutter toolchain, or a failing invariant that cannot be corrected within one bounded round
+- claim state: revoked on merge
 
 The same `claim_id` and `lease_version` may be acknowledged only once and must
 not restart work or verification. No Domain Work is assigned for this L1 task.
