@@ -275,11 +275,16 @@ void main() {
     expect(find.byKey(const ValueKey('management-report-entry')), findsNothing);
     expect(api.session.api, isA<QueueTransport>());
     expect((api.session.api as QueueTransport).calls, isEmpty);
-    final semantics = tester.getSemantics(
-        find.byKey(const ValueKey('account-data-provenance')));
+    final semantics = tester
+        .getSemantics(find.byKey(const ValueKey('account-data-provenance')));
     expect(semantics.label, contains('伺服器同步資料'));
-    final renderedText = tester.allWidgets.whereType<Text>().map((text) =>
-        text.data ?? text.textSpan?.toPlainText() ?? '').join('\n');
+    final renderedText = tester
+        .widgetList<Text>(find.descendant(
+          of: find.byType(AccountDataStatusPage),
+          matching: find.byType(Text),
+        ))
+        .map((text) => text.data ?? text.textSpan?.toPlainText() ?? '')
+        .join('\n');
     final pageSemantics = [
       tester.getSemantics(find.byKey(const ValueKey('account-display-name'))),
       tester.getSemantics(find.byKey(const ValueKey('account-last-sync'))),
@@ -317,8 +322,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
     await tester.pumpAndSettle();
-    final semantics = tester.getSemantics(
-        find.byKey(const ValueKey('account-data-provenance')));
+    final semantics = tester
+        .getSemantics(find.byKey(const ValueKey('account-data-provenance')));
     expect(semantics.label, contains('離線快取'));
     expect(semantics.label, contains('唯讀'));
     expect(semantics.label, contains('非權威'));
@@ -341,8 +346,8 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
     await tester.pumpAndSettle();
-    final semantics = tester.getSemantics(
-        find.byKey(const ValueKey('account-data-provenance')));
+    final semantics = tester
+        .getSemantics(find.byKey(const ValueKey('account-data-provenance')));
     expect(semantics.label, contains('資料來源未確認，請勿視為權威'));
     expect(semantics.label, isNot(contains('fresh_server')));
     expect(semantics.label, isNot(contains('offline_cache')));

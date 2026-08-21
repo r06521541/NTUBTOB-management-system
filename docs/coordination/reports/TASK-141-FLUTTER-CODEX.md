@@ -20,9 +20,11 @@
   page has no API, refresh, logout, mutation, or management navigation action;
   internal provenance labels are not rendered.
 - Focused privacy scan and `git diff --check`: passed.
-- `flutter test test/basic_app_test.dart`: attempted; `flutter` is unavailable
-  in this Windows environment.
-- Affected full gate (`dart format --output=none --set-exit-if-changed
-  lib/basic_app.dart test/basic_app_test.dart`, `flutter analyze`, `flutter
-  test`): attempted; both `dart` and `flutter` are unavailable. No build or
-  runtime check was performed.
+- Locked Flutter 3.47 / Dart 3.13 formatter: applied to the two affected Dart
+  files; the exact formatted state is retained in the final commit.
+- `flutter analyze --no-pub`: passed with no issues.
+- `flutter test --no-pub test/basic_app_test.dart`: 58/58 passed after the
+  privacy assertion was correctly scoped to the visible status-page subtree.
+- `flutter test --no-pub`: 141/141 passed.
+- No Android/iOS build or runtime check was performed; hosted CI remains the
+  final platform gate.

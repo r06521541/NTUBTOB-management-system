@@ -688,8 +688,7 @@ class AccountDataStatusPage extends StatelessWidget {
     };
     final description = switch (provenance) {
       PrincipalProvenance.freshServer => '目前顯示的是已由伺服器同步的資料。',
-      PrincipalProvenance.offlineCache =>
-        '目前顯示的是本機離線快取；內容僅供查看，唯讀且非權威。',
+      PrincipalProvenance.offlineCache => '目前顯示的是本機離線快取；內容僅供查看，唯讀且非權威。',
       null => '目前無法確認資料來源；內容僅供查看，請勿視為權威。',
     };
     return Scaffold(
