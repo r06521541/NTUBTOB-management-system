@@ -59,7 +59,13 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
                 check=False,
             )
 
-    def run_http_case(self, response_code: int, response_body: bytes, redirect: bool = False):
+    def run_http_case(
+        self,
+        response_code: int,
+        response_body: bytes,
+        redirect: bool = False,
+        include_content_length: bool = True,
+    ):
         calls: list[str] = []
 
         class Handler(BaseHTTPRequestHandler):
@@ -68,7 +74,10 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
                 self.send_response(response_code)
                 if redirect:
                     self.send_header("Location", "/redirected")
-                self.send_header("Content-Length", str(len(response_body)))
+                if include_content_length:
+                    self.send_header("Content-Length", str(len(response_body)))
+                else:
+                    self.send_header("Connection", "close")
                 self.end_headers()
                 self.wfile.write(response_body)
 
@@ -559,6 +568,31 @@ class MobileStagingBrokerClientTest(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "HTTP_REJECTED")
         self.assertEqual(calls, ["/v1/operations"])
         self.assertNotIn("x" * 100, result.stdout + result.stderr)
+
+    def test_streamed_oversized_http_is_bounded_for_both_transports(self):
+        source = CLIENT.read_text(encoding="utf-8")
+        for start, end in (
+            (
+                "function Invoke-BrokerIdentityTokenExchange",
+                "function Get-BrokerIdentityToken",
+            ),
+            ("function Invoke-BrokerHttp", "function ConvertFrom-BrokerResponse"),
+        ):
+            block = source.split(start, 1)[1].split(end, 1)[0]
+            self.assertIn(
+                "[Net.Http.HttpCompletionOption]::ResponseHeadersRead",
+                block,
+            )
+            self.assertEqual(block.count("SendAsync("), 1)
+        result, calls = self.run_http_case(
+            200,
+            b"streamed-sentinel-" * 400,
+            include_content_length=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "HTTP_REJECTED")
+        self.assertEqual(calls, ["/v1/operations"])
+        self.assertNotIn("streamed-sentinel", result.stdout + result.stderr)
 
     def test_oversized_external_output_is_rejected_without_echo(self):
         result = self.run_script(

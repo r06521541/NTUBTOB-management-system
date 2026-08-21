@@ -28,7 +28,10 @@
 
 ## Verification
 
-- Direct mocked client suite: 23/23 passed. It covers strict no-payload config,
+- Direct mocked client suite: 23/23 passed at implementation SHA `583bc969`.
+  The streamed-response correction then passed its affected transport slice
+  3/3 without replaying the unchanged suite. Together these cover strict
+  no-payload config,
   unprovisioned short-circuit, exact and drifted service metadata, unconditional
   exact-caller IAM, dedicated caller token exchange, one successful operation
   request, explicit same-ID reconcile, redirect suppression, bounded external

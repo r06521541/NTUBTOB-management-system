@@ -352,7 +352,10 @@ function Invoke-BrokerIdentityTokenExchange {
         $json = [ordered]@{ audience = $Audience; includeEmail = $true } | ConvertTo-Json -Compress
         $content = [Net.Http.StringContent]::new($json, [Text.Encoding]::UTF8, 'application/json')
         $request.Content = $content
-        $response = $client.SendAsync($request).GetAwaiter().GetResult()
+        $response = $client.SendAsync(
+            $request,
+            [Net.Http.HttpCompletionOption]::ResponseHeadersRead
+        ).GetAwaiter().GetResult()
         if ([int]$response.StatusCode -ne 200) { Throw-BrokerClientSafe 'Broker identity token is unavailable' }
         return Read-BrokerBoundedHttpBody $response.Content 12288
     }
@@ -413,7 +416,10 @@ function Invoke-BrokerHttp {
         $json = [ordered]@{ operation = $Operation; operation_id = $OpaqueOperationId } | ConvertTo-Json -Compress
         $content = [Net.Http.StringContent]::new($json, [Text.Encoding]::UTF8, 'application/json')
         $request.Content = $content
-        $response = $client.SendAsync($request).GetAwaiter().GetResult()
+        $response = $client.SendAsync(
+            $request,
+            [Net.Http.HttpCompletionOption]::ResponseHeadersRead
+        ).GetAwaiter().GetResult()
         $body = Read-BrokerBoundedHttpBody $response.Content 4096
         return [pscustomobject]@{ StatusCode = [int]$response.StatusCode; Body = $body }
     }
