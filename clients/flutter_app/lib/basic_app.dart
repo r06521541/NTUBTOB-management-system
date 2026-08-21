@@ -516,6 +516,9 @@ class _BasicGamesViewState extends State<BasicGamesView> {
     setState(() => _refreshInProgress = true);
     try {
       await refresh();
+    } on Object {
+      // The parent reload owns its canonical error/offline presentation. Keep
+      // the button callback from surfacing a second unhandled UI exception.
     } finally {
       if (mounted) setState(() => _refreshInProgress = false);
     }
@@ -531,79 +534,77 @@ class _BasicGamesViewState extends State<BasicGamesView> {
       });
     return Material(
         child: ListView(children: [
-        if (!widget.online)
-          Semantics(
-              key: const ValueKey('offline-read-only'),
-              label: '離線唯讀，出席回覆已停用',
-              child: const ListTile(
-                  leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
+      if (!widget.online)
+        Semantics(
+            key: const ValueKey('offline-read-only'),
+            label: '離線唯讀，出席回覆已停用',
+            child: const ListTile(
+                leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
+      ListTile(
+          title: Text(widget.person.displayName),
+          subtitle: Text(
+              '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}'),
+          trailing: IconButton(
+            key: const ValueKey('games-refresh'),
+            tooltip: '重新整理賽事',
+            onPressed:
+                widget.online && widget.onRefresh != null && !_refreshInProgress
+                    ? _refresh
+                    : null,
+            icon: _refreshInProgress
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh),
+          )),
+      if (DebugPrincipalProjection.shouldRender(
+          debugBuild: kDebugMode, diagnosticEnabled: widget.diagnosticEnabled))
+        DebugPrincipalProjection(
+            person: widget.person, provenance: widget.principalProvenance),
+      if (widget.person.canReadAttendanceReport)
         ListTile(
-            title: Text(widget.person.displayName),
-            subtitle: Text(
-                '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}'),
-            trailing: IconButton(
-              key: const ValueKey('games-refresh'),
-              tooltip: '重新整理賽事',
-              onPressed: widget.online &&
-                      widget.onRefresh != null &&
-                      !_refreshInProgress
-                  ? _refresh
-                  : null,
-              icon: _refreshInProgress
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.refresh),
-            )),
-        if (DebugPrincipalProjection.shouldRender(
-            debugBuild: kDebugMode, diagnosticEnabled: widget.diagnosticEnabled))
-          DebugPrincipalProjection(
-              person: widget.person, provenance: widget.principalProvenance),
-        if (widget.person.canReadAttendanceReport)
-          ListTile(
-            key: const ValueKey('management-report-entry'),
-            leading: const Icon(Icons.assessment_outlined),
-            title: const Text('出席報表'),
-            subtitle: const Text('Officer／Admin 唯讀'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => CanonicalManagementReportsPage(
-                api: widget.api,
-                person: widget.person,
-                games: widget.games,
-                online: widget.online,
-                cache: widget.reportCache,
-              ),
-            )),
-          ),
-        if (orderedGames.isEmpty)
-          Semantics(
-              key: const ValueKey('games-empty'),
-              label: '目前沒有可顯示的賽事',
-              child: const ListTile(
-                  leading: Icon(Icons.event_busy),
-                  title: Text('目前沒有賽事'),
-                  subtitle: Text('有新賽事時會顯示在這裡。'))),
-        for (final game in orderedGames)
-          ListTile(
-              key: ValueKey('game-${game.id}'),
-              title:
-                  Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
-              subtitle: Text(_gameDetails(localizations, game)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: widget.online
-                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) =>
-                          GameDetailPage(api: widget.api, gameId: game.id)))
-                  : null),
-      ]));
+          key: const ValueKey('management-report-entry'),
+          leading: const Icon(Icons.assessment_outlined),
+          title: const Text('出席報表'),
+          subtitle: const Text('Officer／Admin 唯讀'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => CanonicalManagementReportsPage(
+              api: widget.api,
+              person: widget.person,
+              games: widget.games,
+              online: widget.online,
+              cache: widget.reportCache,
+            ),
+          )),
+        ),
+      if (orderedGames.isEmpty)
+        Semantics(
+            key: const ValueKey('games-empty'),
+            label: '目前沒有可顯示的賽事',
+            child: const ListTile(
+                leading: Icon(Icons.event_busy),
+                title: Text('目前沒有賽事'),
+                subtitle: Text('有新賽事時會顯示在這裡。'))),
+      for (final game in orderedGames)
+        ListTile(
+            key: ValueKey('game-${game.id}'),
+            title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+            subtitle: Text(_gameDetails(localizations, game)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: widget.online
+                ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) =>
+                        GameDetailPage(api: widget.api, gameId: game.id)))
+                : null),
+    ]));
   }
 
   static String _gameDetails(MaterialLocalizations localizations, Game game) {
     final localStart = game.startAt.toLocal();
     final date = localizations.formatFullDate(localStart);
-    final time = localizations
-        .formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
+    final time =
+        localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
     final details = <String>['$date $time'];
     if (game.location != null && game.location!.isNotEmpty) {
       details.add(game.location!);

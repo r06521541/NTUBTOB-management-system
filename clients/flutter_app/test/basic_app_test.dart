@@ -411,7 +411,8 @@ void main() {
     expect(offline, findsOneWidget);
     expect(tester.getSemantics(offline).label, contains('離線唯讀'));
     expect(
-      tester.widget<IconButton>(find.byKey(const ValueKey('games-refresh')))
+      tester
+          .widget<IconButton>(find.byKey(const ValueKey('games-refresh')))
           .onPressed,
       isNull,
     );
@@ -447,9 +448,10 @@ void main() {
     expect(renderedIds, ['game-early', 'game-same-time', 'game-late']);
 
     final earlySubtitle = tester
-        .widget<Text>(find.descendant(
-            of: find.byKey(const ValueKey('game-early')),
-            matching: find.byType(Text))
+        .widget<Text>(find
+            .descendant(
+                of: find.byKey(const ValueKey('game-early')),
+                matching: find.byType(Text))
             .last)
         .data!;
     expect(earlySubtitle, contains('早場球館'));
@@ -504,7 +506,7 @@ void main() {
     final refresh = find.byKey(const ValueKey('games-refresh'));
     await tester.tap(refresh);
     await tester.pump();
-    expect(tester.takeException(), isA<StateError>());
+    expect(tester.takeException(), isNull);
     expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
 
     await tester.tap(refresh);
