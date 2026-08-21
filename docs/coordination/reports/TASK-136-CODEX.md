@@ -7,7 +7,7 @@
 - Candidate, promotion and rollback traffic validation accepts only the active
   approved revision at 100% and its approved counterpart at 0%.
 - Direct regressions cover update/bootstrap command separation, retained-zero
-  acceptance, and unknown/duplicate/nonzero extra traffic rejection.
+  acceptance, and unknown/duplicate/nonzero/tagged extra traffic rejection.
 
 ## Runtime boundary
 

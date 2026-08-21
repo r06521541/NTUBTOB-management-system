@@ -283,7 +283,7 @@ def _traffic_is_exact(
         return False
     targets: dict[str, int] = {}
     for item in traffic:
-        if not isinstance(item, dict):
+        if not isinstance(item, dict) or set(item) != {"revisionName", "percent"}:
             return False
         revision = item.get("revisionName")
         percent = item.get("percent")

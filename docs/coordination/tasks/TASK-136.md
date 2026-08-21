@@ -22,6 +22,7 @@ the existing mobile staging runbook.
 - Promotion/rollback requires the selected revision at 100%; only the opposite
   approved revision may remain at 0%.
 - Unknown, duplicate, malformed or nonzero extra traffic entries fail closed.
+- Tagged URLs, latest-revision aliases and unknown traffic fields fail closed.
 - No image build, deployment, traffic, IAM, Secret, database or broker action is
   part of this repository correction.
 

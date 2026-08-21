@@ -338,7 +338,9 @@ An update never changes the existing service IAM policy; only bootstrap passes
 revision as an explicit zero-percent traffic entry after promotion or rollback.
 The operator accepts only the approved active revision at 100% plus that one
 known counterpart at 0%; an unknown, duplicate or nonzero extra target fails
-closed.
+closed. Each accepted traffic target contains only `revisionName` and `percent`;
+tagged URLs, `latestRevision` aliases and any unknown routing field are rejected
+even at zero percent.
 `recover-candidate` is read-only and never redeploys. Rollback restores 100%
 traffic only in update mode;
 candidate/image deletion and full staging cleanup remain separately approved

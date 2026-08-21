@@ -159,7 +159,6 @@ def service(mode="update", candidate_percent=0):
     traffic = (
         [
             {
-                "latestRevision": True,
                 "revisionName": "mobile-api-staging-candidate1",
                 "percent": 100,
             }
@@ -860,6 +859,30 @@ class OperatorTest(unittest.TestCase):
             [
                 {"revisionName": candidate, "percent": 100},
                 {"revisionName": candidate, "percent": 0},
+            ],
+            [
+                {
+                    "revisionName": candidate,
+                    "percent": 100,
+                    "latestRevision": True,
+                },
+                {"revisionName": baseline, "percent": 0},
+            ],
+            [
+                {
+                    "revisionName": candidate,
+                    "percent": 100,
+                    "tag": "candidate-tag",
+                },
+                {"revisionName": baseline, "percent": 0},
+            ],
+            [
+                {"revisionName": candidate, "percent": 100},
+                {
+                    "revisionName": baseline,
+                    "percent": 0,
+                    "url": "https://tagged.invalid",
+                },
             ],
         ):
             with self.subTest(traffic=traffic):
