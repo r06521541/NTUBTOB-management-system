@@ -410,10 +410,106 @@ void main() {
     final offline = find.byKey(const ValueKey('offline-read-only'));
     expect(offline, findsOneWidget);
     expect(tester.getSemantics(offline).label, contains('離線唯讀'));
+    expect(
+      tester.widget<IconButton>(find.byKey(const ValueKey('games-refresh')))
+          .onPressed,
+      isNull,
+    );
     await tester.tap(find.byKey(const ValueKey('game-g')));
     await tester.pump();
     expect(find.text('賽事與出席'), findsNothing);
     expect(transport.calls, isEmpty);
+  });
+
+  testWidgets('games are copy-safely chronological with readable details',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    final games = [
+      Game('late', DateTime.utc(2026, 8, 20, 12), 90, '晚場球館', 'H', 'A'),
+      Game('early', DateTime.utc(2026, 8, 18, 12), 60, '早場球館', 'H', 'A'),
+      Game('same-time', DateTime.utc(2026, 8, 18, 12), null, null, 'H', 'A'),
+    ];
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: games,
+            online: true,
+            lastSyncedAt: DateTime.utc(2026))));
+
+    expect(games.map((game) => game.id), ['late', 'early', 'same-time']);
+    final renderedIds = tester
+        .widgetList<ListTile>(find.byType(ListTile))
+        .map((tile) => (tile.key as ValueKey<String>?)?.value)
+        .whereType<String>()
+        .where((key) => key.startsWith('game-'))
+        .toList();
+    expect(renderedIds, ['game-early', 'game-same-time', 'game-late']);
+
+    final earlySubtitle = tester
+        .widget<Text>(find.descendant(
+            of: find.byKey(const ValueKey('game-early')),
+            matching: find.byType(Text))
+            .last)
+        .data!;
+    expect(earlySubtitle, contains('早場球館'));
+    expect(earlySubtitle, contains('60 分鐘'));
+    expect(earlySubtitle, isNot(contains('2026-08-18T12:00:00.000Z')));
+  });
+
+  testWidgets('online refresh invokes one existing load while pending',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    final gate = Completer<void>();
+    var refreshes = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            onRefresh: () async {
+              refreshes++;
+              await gate.future;
+            })));
+
+    final refresh = find.byKey(const ValueKey('games-refresh'));
+    await tester.tap(refresh);
+    await tester.tap(refresh);
+    await tester.pump();
+    expect(refreshes, 1);
+    expect(tester.widget<IconButton>(refresh).onPressed, isNull);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+  });
+
+  testWidgets('failed online refresh can be retried', (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            onRefresh: () async {
+              refreshes++;
+              if (refreshes == 1) throw StateError('refresh failed');
+            })));
+
+    final refresh = find.byKey(const ValueKey('games-refresh'));
+    await tester.tap(refresh);
+    await tester.pump();
+    expect(tester.takeException(), isA<StateError>());
+    expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+
+    await tester.tap(refresh);
+    await tester.pumpAndSettle();
+    expect(refreshes, 2);
   });
 
   testWidgets('empty games has recognizable read-state semantics',
