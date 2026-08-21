@@ -1,20 +1,20 @@
-active_task: TASK-124
+active_task: TASK-140
 status: ready_for_hosted_ci
 next_actor: work
 
-base_commit: 3cb18bf67dadab072fb0a24407c4564a185d46db
-head_commit: 66614c6
+base_commit: f20090cdda5a3b17bd144a83ab8069fd8267df9e
+head_commit: 5580d932fe7b95941a89063538f2eb689067d094
 
-updated_by: work
-updated_at: 2026-08-20T22:40:00+08:00
+updated_by: main-work
+updated_at: 2026-08-21T16:45:00+08:00
 
 note: >
-  TASK-124 report, authoritative reply and physical cache/session producers are accepted after targeted review.
-  Package 4 now observes real current-installation storage and terminal logout clears session, Basic cache, Officer
-  cache and pending attendance intents fail closed. Hosted Flutter/final gates remain. No runtime, emulator, network,
-  staging, Secret or cloud action ran. TASK-128 broker core continues independently.
+  TASK-140 source and targeted Flutter Domain review are accepted. Exact-final
+  hosted Flutter format/analyze/full tests/fake APK/final gate remain. Reuse
+  atomic launcher/no-disclosure/checkpoint primitives, but do not resume or gate
+  on the inconclusive TASK-133 full acceptance orchestration.
 
-worktree: C:/Users/USER/.codex/visualizations/2026/08/20/task124-observability-delivery
-task: docs/coordination/tasks/TASK-124.md
-report: docs/coordination/reports/TASK-124-FLUTTER-CODEX.md
-review: docs/coordination/reviews/TASK-124-WORK.md
+worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task140-worktree
+task: docs/coordination/tasks/TASK-140.md
+report: docs/coordination/reports/TASK-140-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-140-FLUTTER-WORK.md

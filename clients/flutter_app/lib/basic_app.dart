@@ -48,6 +48,23 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   return AuthViewState.contractError;
 }
 
+bool canStartLogout(AuthViewState state, {required bool basicLoadInProgress}) =>
+    state == AuthViewState.authenticated && !basicLoadInProgress;
+
+Future<void> runBasicLogoutIfAllowed({
+  required AuthViewState state,
+  required bool basicLoadInProgress,
+  required Future<void> Function() logout,
+}) async {
+  if (!canStartLogout(
+    state,
+    basicLoadInProgress: basicLoadInProgress,
+  )) {
+    return;
+  }
+  await logout();
+}
+
 class AuthStatePanel extends StatelessWidget {
   const AuthStatePanel({super.key, required this.state});
   final AuthViewState state;
@@ -204,6 +221,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   DateTime? lastSyncedAt;
   PrincipalProvenance? principalProvenance;
   CacheSessionAggregate? cacheSessionAggregate;
+  Future<void>? _basicLoadOperation;
+  bool _basicLoadInProgress = false;
 
   @override
   void initState() {
@@ -297,7 +316,28 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     setState(() => state = next);
   }
 
-  Future<void> _loadBasic() async {
+  Future<void> _loadBasic() {
+    final existingOperation = _basicLoadOperation;
+    if (existingOperation != null) return existingOperation;
+
+    _basicLoadInProgress = true;
+    if (mounted) setState(() {});
+    late final Future<void> operation;
+    operation = _loadBasicOnce().whenComplete(() {
+      if (identical(_basicLoadOperation, operation)) {
+        _basicLoadOperation = null;
+        if (mounted) {
+          setState(() => _basicLoadInProgress = false);
+        } else {
+          _basicLoadInProgress = false;
+        }
+      }
+    });
+    _basicLoadOperation = operation;
+    return operation;
+  }
+
+  Future<void> _loadBasicOnce() async {
     try {
       final loadedPerson = await _api!.me();
       final loadedGames = await _api!.games();
@@ -347,7 +387,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     });
   }
 
-  Future<void> _logout() async {
+  Future<void> _logout() => runBasicLogoutIfAllowed(
+        state: state,
+        basicLoadInProgress: _basicLoadInProgress,
+        logout: _performLogout,
+      );
+
+  Future<void> _performLogout() async {
     setState(() {
       state = AuthViewState.logoutPending;
       cacheSessionAggregate = null;
@@ -423,12 +469,18 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                     lastSyncedAt: lastSyncedAt!,
                     principalProvenance: principalProvenance,
                     reportCache: _reportCache,
+                    onRefresh: _loadBasic,
                   )
                 : AuthStatePanel(state: state),
           ),
           floatingActionButton: state == AuthViewState.authenticated
               ? FloatingActionButton(
-                  onPressed: _logout,
+                  onPressed: canStartLogout(
+                    state,
+                    basicLoadInProgress: _basicLoadInProgress,
+                  )
+                      ? _logout
+                      : null,
                   tooltip: '登出',
                   child: const Icon(Icons.logout))
               : LoginActionButton(
@@ -460,7 +512,7 @@ class LoginActionButton extends StatelessWidget {
   }
 }
 
-class BasicGamesView extends StatelessWidget {
+class BasicGamesView extends StatefulWidget {
   const BasicGamesView({
     super.key,
     required this.api,
@@ -470,6 +522,7 @@ class BasicGamesView extends StatelessWidget {
     required this.lastSyncedAt,
     this.principalProvenance,
     this.reportCache,
+    this.onRefresh,
     this.diagnosticEnabled = true,
   });
   final BasicApi api;
@@ -479,6 +532,7 @@ class BasicGamesView extends StatelessWidget {
   final DateTime lastSyncedAt;
   final PrincipalProvenance? principalProvenance;
   final PrincipalOfficerReportCache? reportCache;
+  final Future<void> Function()? onRefresh;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -486,58 +540,116 @@ class BasicGamesView extends StatelessWidget {
   final bool diagnosticEnabled;
 
   @override
-  Widget build(BuildContext context) => Material(
-          child: ListView(children: [
-        if (!online)
-          Semantics(
-              key: const ValueKey('offline-read-only'),
-              label: '離線唯讀，出席回覆已停用',
-              child: const ListTile(
-                  leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
+  State<BasicGamesView> createState() => _BasicGamesViewState();
+}
+
+class _BasicGamesViewState extends State<BasicGamesView> {
+  bool _refreshInProgress = false;
+
+  Future<void> _refresh() async {
+    final refresh = widget.onRefresh;
+    if (!widget.online || refresh == null || _refreshInProgress) return;
+    setState(() => _refreshInProgress = true);
+    try {
+      await refresh();
+    } on Object {
+      // The parent reload owns its canonical error/offline presentation. Keep
+      // the button callback from surfacing a second unhandled UI exception.
+    } finally {
+      if (mounted) setState(() => _refreshInProgress = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final orderedGames = List<Game>.of(widget.games)
+      ..sort((left, right) {
+        final byStart = left.startAt.compareTo(right.startAt);
+        return byStart != 0 ? byStart : left.id.compareTo(right.id);
+      });
+    return Material(
+        child: ListView(children: [
+      if (!widget.online)
+        Semantics(
+            key: const ValueKey('offline-read-only'),
+            label: '離線唯讀，出席回覆已停用',
+            child: const ListTile(
+                leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
+      ListTile(
+          title: Text(widget.person.displayName),
+          subtitle: Text(
+              '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}'),
+          trailing: IconButton(
+            key: const ValueKey('games-refresh'),
+            tooltip: '重新整理賽事',
+            onPressed:
+                widget.online && widget.onRefresh != null && !_refreshInProgress
+                    ? _refresh
+                    : null,
+            icon: _refreshInProgress
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh),
+          )),
+      if (DebugPrincipalProjection.shouldRender(
+          debugBuild: kDebugMode, diagnosticEnabled: widget.diagnosticEnabled))
+        DebugPrincipalProjection(
+            person: widget.person, provenance: widget.principalProvenance),
+      if (widget.person.canReadAttendanceReport)
         ListTile(
-            title: Text(person.displayName),
-            subtitle: Text('最後同步：${lastSyncedAt.toIso8601String()}')),
-        if (DebugPrincipalProjection.shouldRender(
-            debugBuild: kDebugMode, diagnosticEnabled: diagnosticEnabled))
-          DebugPrincipalProjection(
-              person: person, provenance: principalProvenance),
-        if (person.canReadAttendanceReport)
-          ListTile(
-            key: const ValueKey('management-report-entry'),
-            leading: const Icon(Icons.assessment_outlined),
-            title: const Text('出席報表'),
-            subtitle: const Text('Officer／Admin 唯讀'),
-            onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => CanonicalManagementReportsPage(
-                api: api,
-                person: person,
-                games: games,
-                online: online,
-                cache: reportCache,
-              ),
-            )),
-          ),
-        if (games.isEmpty)
-          Semantics(
-              key: const ValueKey('games-empty'),
-              label: '目前沒有可顯示的賽事',
-              child: const ListTile(
-                  leading: Icon(Icons.event_busy),
-                  title: Text('目前沒有賽事'),
-                  subtitle: Text('有新賽事時會顯示在這裡。'))),
-        for (final game in games)
-          ListTile(
-              key: ValueKey('game-${game.id}'),
-              title:
-                  Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
-              subtitle: Text(game.startAt.toIso8601String()),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: online
-                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) =>
-                          GameDetailPage(api: api, gameId: game.id)))
-                  : null),
-      ]));
+          key: const ValueKey('management-report-entry'),
+          leading: const Icon(Icons.assessment_outlined),
+          title: const Text('出席報表'),
+          subtitle: const Text('Officer／Admin 唯讀'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => CanonicalManagementReportsPage(
+              api: widget.api,
+              person: widget.person,
+              games: widget.games,
+              online: widget.online,
+              cache: widget.reportCache,
+            ),
+          )),
+        ),
+      if (orderedGames.isEmpty)
+        Semantics(
+            key: const ValueKey('games-empty'),
+            label: '目前沒有可顯示的賽事',
+            child: const ListTile(
+                leading: Icon(Icons.event_busy),
+                title: Text('目前沒有賽事'),
+                subtitle: Text('有新賽事時會顯示在這裡。'))),
+      for (final game in orderedGames)
+        ListTile(
+            key: ValueKey('game-${game.id}'),
+            title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+            subtitle: Text(_gameDetails(localizations, game)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: widget.online
+                ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) =>
+                        GameDetailPage(api: widget.api, gameId: game.id)))
+                : null),
+    ]));
+  }
+
+  static String _gameDetails(MaterialLocalizations localizations, Game game) {
+    final localStart = game.startAt.toLocal();
+    final date = localizations.formatFullDate(localStart);
+    final time =
+        localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
+    final details = <String>['$date $time'];
+    if (game.location != null && game.location!.isNotEmpty) {
+      details.add(game.location!);
+    }
+    if (game.durationMinutes != null) {
+      details.add('${game.durationMinutes} 分鐘');
+    }
+    return details.join('・');
+  }
 }
 
 class DebugPrincipalProjection extends StatelessWidget {
