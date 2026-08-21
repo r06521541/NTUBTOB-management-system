@@ -533,6 +533,44 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             )["classification"],
         )
 
+    def test_status_real_child_process_equivalence_and_stage_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            fake_launcher = root / "fake-launcher.ps1"
+            fake_launcher.write_text(
+                "[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)\n"
+                "Write-Output '{\"classification\":\"PASS\",\"details\":{\"action\":\"status\",\"result\":\"observed\",\"semantic_state\":\"logged_out\"}}'\n",
+                encoding="utf-8-sig",
+            )
+            result = self.run_harness(
+                f"""
+                . '{(ROOT / 'tools' / 'Invoke-MobileStaging.ps1').as_posix()}'
+                $hostExecutable=Join-Path $PSHOME 'powershell.exe'
+                $invoke=(Get-Command Invoke-BoundedProcess -CommandType Function).ScriptBlock
+                $status=New-IsolatedLauncherStatusAction '{fake_launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invoke $hostExecutable
+                $observed=Get-MobileAcceptanceStatus -InvokeStatus {{& $status}} -Wait {{throw 'must not wait'}}
+                $script:attempts=0
+                $invokeFailure={{param($file,$arguments,$timeout)$script:attempts++;throw 'private-provider-subject-sentinel'}}
+                $failed=New-IsolatedLauncherStatusAction '{fake_launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/value-free.json' $invokeFailure $hostExecutable
+                try{{Get-MobileAcceptanceStatus -InvokeStatus {{& $failed}} -Wait {{throw 'must not wait'}}|Out-Null;$message='unexpected'}}catch{{$message=$_.Exception.Message}}
+                $invalid=New-IsolatedLauncherStatusAction '{fake_launcher.as_posix()}' 'staging' '{FULL_SHA}' 'C:/value-free.json' {{param($file,$arguments,$timeout)[pscustomobject]@{{TimedOut=$false}}}} $hostExecutable
+                try{{Get-MobileAcceptanceStatus -InvokeStatus {{& $invalid}} -Wait {{throw 'must not wait'}}|Out-Null;$invalidMessage='unexpected'}}catch{{$invalidMessage=$_.Exception.Message}}
+                [pscustomobject]@{{result=$observed.result;semantic=$observed.semantic_state;failure=$message;invalid=$invalidMessage;attempts=$script:attempts}}|ConvertTo-Json -Compress
+                """
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {
+                "result": "observed",
+                "semantic": "logged_out",
+                "failure": "STATUS_CHILD_INVOKE_UNAVAILABLE",
+                "invalid": "STATUS_CHILD_TRANSPORT_INVALID",
+                "attempts": 1,
+            },
+        )
+        self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+
     def test_basic_owner_gate_resume_and_artifact_preparation_matrix(self):
         with tempfile.TemporaryDirectory() as directory:
             checkpoint = Path(directory) / "checkpoint.json"

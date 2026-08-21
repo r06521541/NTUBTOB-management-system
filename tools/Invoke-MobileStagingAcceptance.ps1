@@ -23,7 +23,8 @@ $script:HarnessTerminalStatusReasons = @(
     'ADB_UNAVAILABLE', 'ADB_INVALID',
     'PACKAGE_UNAVAILABLE', 'PACKAGE_INVALID',
     'ACTIVITY_UNAVAILABLE', 'ACTIVITY_INVALID',
-    'STATUS_HOST_UNAVAILABLE', 'STATUS_CHILD_TIMEOUT', 'STATUS_CHILD_STDERR',
+    'STATUS_HOST_UNAVAILABLE', 'STATUS_CHILD_INVOKE_UNAVAILABLE',
+    'STATUS_CHILD_TRANSPORT_INVALID', 'STATUS_CHILD_TIMEOUT', 'STATUS_CHILD_STDERR',
     'STATUS_CHILD_OUTPUT_INVALID', 'STATUS_CHILD_ENVELOPE_INVALID',
     'STATUS_CHILD_RESULT_INVALID'
 )
@@ -73,7 +74,8 @@ function Get-HarnessFailureClassification {
     param([string]$Message)
     if ($Message -ceq 'STATUS_CHILD_TIMEOUT') { return 'TIMEOUT' }
     if ($Message -cin @(
-        'STATUS_HOST_UNAVAILABLE', 'STATUS_CHILD_STDERR',
+        'STATUS_HOST_UNAVAILABLE', 'STATUS_CHILD_INVOKE_UNAVAILABLE',
+        'STATUS_CHILD_TRANSPORT_INVALID', 'STATUS_CHILD_STDERR',
         'STATUS_CHILD_OUTPUT_INVALID', 'STATUS_CHILD_ENVELOPE_INVALID',
         'STATUS_CHILD_RESULT_INVALID'
     )) { return 'EVIDENCE_GAP' }
@@ -780,7 +782,15 @@ function New-IsolatedLauncherStatusAction {
                 '-File', $LauncherPath, '-Action', 'status', '-Mode', $SelectedMode,
                 '-Commit', $ExpectedCommit, '-ConfigPath', $LauncherConfigPath
             )
-            $result = & $InvokeBounded $HostExecutable $arguments 45
+            try { $result = & $InvokeBounded $HostExecutable $arguments 45 }
+            catch { Throw-HarnessSafe 'STATUS_CHILD_INVOKE_UNAVAILABLE' }
+            if (
+                $null -eq $result -or
+                $null -eq $result.PSObject.Properties['TimedOut'] -or
+                $null -eq $result.PSObject.Properties['ExitCode'] -or
+                $null -eq $result.PSObject.Properties['Stdout'] -or
+                $null -eq $result.PSObject.Properties['Stderr']
+            ) { Throw-HarnessSafe 'STATUS_CHILD_TRANSPORT_INVALID' }
             if ($result.TimedOut) { Throw-HarnessSafe 'STATUS_CHILD_TIMEOUT' }
             if ([string]$result.Stderr -match '\S') { Throw-HarnessSafe 'STATUS_CHILD_STDERR' }
             $raw = [string]$result.Stdout

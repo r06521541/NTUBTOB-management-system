@@ -681,6 +681,9 @@ signer fingerprint, package/version, AVD/serial, producer vocabulary version,
 and a bounded prior result. Checkpoint replacement is same-directory atomic;
 an existing lock, malformed state, wrong scenario, or changed binding stops
 without replaying a mutation. `-Resume` is mandatory when a checkpoint exists.
+The isolated status child also distinguishes a process invocation failure from
+an invalid transport object with fixed terminal reason codes. Neither condition
+enters the accessibility readiness retry or exposes child output.
 
 Preparation consumes only accepted TASK-123 actions. A matching artifact
 manifest/fingerprint proves the build artifact, not the installed APK, so a
