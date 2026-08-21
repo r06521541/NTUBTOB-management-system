@@ -648,6 +648,14 @@ project, public invoker, broad Secret access or payload copy/paste is allowed.
 
 ## TASK-129 staging acceptance harness
 
+> **Experimental／manual-on-demand／non-release-gating.** The complete scenario
+> orchestrator and its UIAutomator convergence/retry layers are retained for
+> bounded diagnosis only. They must not block a repository merge or be resumed
+> automatically. Prefer the accepted atomic TASK-123 launcher, broker and
+> checkpoint primitives. A runtime invocation requires an explicit task need;
+> one layer split and one source correction are the maximum for the same
+> blocker, after which the result is recorded as inconclusive.
+
 `tools/Invoke-MobileStagingAcceptance.ps1` is a separate scenario orchestrator;
 it does not add a default multi-step launcher action. Invoke exactly one named
 scenario with an explicit staging mode, accepted full SHA, value-free TASK-123

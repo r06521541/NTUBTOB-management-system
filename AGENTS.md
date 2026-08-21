@@ -13,6 +13,7 @@
 - Commit 前同時確認目前 branch；不得在 `main`／default branch 直接建立工作 commit。完整 commit SHA 必須由
   `git rev-parse` 取得，不得手動延伸短 SHA。
 - 搜尋檔案與文字優先使用 `rg --files` 與 `rg`。
+- 一般工作搜尋預設排除 `docs/coordination/archive/**`；只有歷史決策、事故、migration 或 rollback 調查才按需納入。
 - 修改檔案使用 patch，保持 diff 小而聚焦，並沿用附近程式碼的風格。
 - 不得自行 commit、push、建立 PR、部署、變更雲端資源或寫入正式資料；除非使用者明確要求。由 Owner 寫入
   `COLLABORATION.md`、`DECISIONS.md` 或當前 task 的 standing authorization 也屬有效的明確要求，不因更換
@@ -34,6 +35,8 @@
 - Hosted CI 應依實際變更範圍選擇最小充分測試。只有 database schema／migration／受控 SQL／model／workflow 等
   相關變更才需要 PostgreSQL 多版本 matrix；一般純文件變更只需快速文件 gate。CI 尚未實作 change detection 前，
   不得假稱已跳過完整 suite，也不得為純狀態更新額外建立 PR。
+- 驗收依 `docs/coordination/COLLABORATION.md` 第 9 節分為 L1 presentation、L2 state/auth/cache 與
+  L3 API/schema/deploy。L1 預設不派 Domain、不跑 local full 或 runtime；以 focused tests、analyze 與 hosted full 為準。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。
 - 不以「測試通過」推定線上整合正確。無法驗證的部分必須在交付時明說。
 

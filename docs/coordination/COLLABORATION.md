@@ -117,8 +117,8 @@ delivery_group: <stable-name> | none
 requires_independent_pr: true | false
 ```
 
-Task 同時列出 verification budget，預設為：writer 一次 affected-full verification、Domain 一次 targeted review、
-Main 一次 risk review、final hosted CI 一次。預算是節流而非省略安全驗證；新增高風險 diff 時只重置受影響部分。
+Task 同時列出風險等級與 verification budget。Domain review 只有在 task 明列獨立 domain risk 時才加入；小型
+presentation task 不因模板自動增加 reviewer。預算是節流而非省略安全驗證；新增高風險 diff 時只重置受影響部分。
 
 - `planning`：唯讀盤點、產品規則或設計；通常不單獨 commit／PR。
 - `work_package`：大型成果的一段；可 commit／push 到共同 release branch。
@@ -170,6 +170,11 @@ targeted tests，不機械重跑 Codex 的全部 suite。
   regression，避免逐條回送。
 - Codex 只處理 blocker；後續 review 只查 correction diff 與受影響的相鄰 invariant，不重做任務或重跑無關 matrix。
   只有 correction 引入新風險時才新增 finding。
+
+Correction 預算：低風險最多一輪，中風險最多兩輪；runtime 同一 blocker 只允許一次唯讀 layer split 與一次 source
+correction。再次出現即標記 inconclusive／quarantine，另列低優先 follow-up，不得靠新增 retry、reason code 或 task
+無限延長。超過兩個 correction PR、90 分鐘 active elapsed 或兩次相同 runtime variation 時，Main 必須重新判斷阻塞者
+是產品還是驗收工具。
 
 ### E. Final integration
 
@@ -247,8 +252,17 @@ report_to=main-work
 | schema／migration／model／受控 SQL／DB verifier | PostgreSQL 15／16 matrix 與 portal-data gates |
 | auth／authorization／webhook signature／deployment tooling／workflow | 對應完整安全 suite |
 
-證據採分層產生：Codex writer 跑 affected complete suite；Domain reviewer 只跑其專屬風險的 targeted tests；Main Work
-抽查關鍵 regression 與整合邊界；hosted CI 作 final gate。相關 diff 未變時，不同角色不得無理由重跑 PostgreSQL
+驗收分三級：
+
+- L1 小型 UI／presentation：Main review、focused tests、format/analyze、hosted full；不要求 Domain、local full 或 runtime。
+- L2 state／auth／cache／offline／idempotency：writer affected-full、named Domain targeted review、Main risk review、hosted CI；
+  runtime 僅在 task 明列時使用一個原子 smoke，不使用完整 acceptance orchestration。
+- L3 API／schema／deploy／Secret／production：architecture/security review、受影響 full matrix、hosted CI、exact target／artifact、
+  Owner gate 與 post-check／rollback。
+
+證據採分層產生：L2／L3 Codex writer 跑 affected complete suite；L1 writer 跑 focused tests 與 analyze，由 hosted CI
+提供唯一 full suite。Domain reviewer 只跑 task 明列之專屬風險的 targeted tests；Main Work抽查關鍵 regression 與
+整合邊界；hosted CI 作 final gate。相關 diff 未變時，不同角色不得無理由重跑 PostgreSQL
 matrix、Flutter build／Emulator 或同一 suite；重跑時必須記錄新增風險或證據需求。
 
 Evidence reuse key 至少包含 exact full HEAD、exact command／suite、runtime／database matrix 與直接相關 artifact
@@ -276,6 +290,7 @@ Merge 不等於部署或資料操作。Production 固定分為：
 ## 11. 文件生命週期
 
 - 同一 TASK 原則上只有一份 task、一份 report、一份 review。
+- L1 delivery 可使用 task、PR evidence 與 HANDOFF 完成；沒有新外部證據或 review finding 時，不強制另建 report／review。
 - Task 只放需求、scope、invariants、acceptance；report 只記相對 task 的完成 delta 與新證據；review 只記 findings、
   判定與未完成事項；HANDOFF 只放狀態、SHA、下一步與真正 blocker。同一內容不得在這些文件平行維護。
 - 多輪修正更新原檔，不建立 completion／correction／recovery review 變體；不同 production operation 確有獨立安全
@@ -284,6 +299,8 @@ Merge 不等於部署或資料操作。Production 固定分為：
 - `DECISIONS.md` 只放仍有效的規範；完整歷史移入 archive。
 - 階段完成後，task／report／review 移入 `archive/<phase>/`，以一份 closeout 作入口。
 - 純 coordination 文件預設併入 delivery PR；只有必須立即生效的安全、授權或操作邊界才可獨立文件 PR。
+- Merge 後到下一個實質 coordination update 前，Git／PR merge SHA 可作短期 completed 事實來源；不得為只補 run ID、
+  merge時間或 singleton狀態另開PR。下一個實質 delivery 必須先收斂過期 PROJECT_STATE／HANDOFF。
 - `AGENTS.md` 與本文件由 Work 維護；Codex 只有 active task 明確要求時才修改全域規範。
 
 ### 文件預算

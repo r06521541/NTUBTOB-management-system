@@ -1,25 +1,24 @@
 # 專案狀態
 
-更新時間：2026-08-21T17:00:00+08:00
+更新時間：2026-08-21T18:15:00+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `d660bf46356c14cf21c45a08c2797690e5b38209`
+Repository 基準：`main` / `d3ea563b322c5f711d591929509886b556dfff59`
 
 ## 目前摘要
 
 - TASK-140 Flutter schedule usability 已由 PR #162 merge 至 `main`（`d660bf46356c14cf21c45a08c2797690e5b38209`）：
   authenticated refresh具備合併與logout command雙層競態防護，賽事採穩定排序與可讀本地時間；hosted Flutter
   format/analyze/full tests/fake APK/final gate全綠。未執行TASK-133 Resume或staging runtime。
-- TASK-141 啟動帳號與資料狀態頁：只重用現有display name、last sync與fresh/offline provenance，不新增API、權限或設定副作用。
+- TASK-141 Flutter帳號與資料狀態頁已由PR #163 merge至`main`（`d3ea563b322c5f711d591929509886b556dfff59`）：
+  只顯示既有display name、本地last sync與fresh/offline/unknown provenance；offline／unknown為唯讀非權威，無新增API、
+  權限或設定副作用。Hosted Flutter format/analyze/141 tests/fake APK/final gate全綠。
 
 - TASK-133 repository delivery／hosted CI 證據已接受；E2E staging dogfood 仍為 inconclusive，因 standalone status
   可 PASS、完整 Resume observation 偶發 `STATUS_UNAVAILABLE`。既有 `await_observation` checkpoint 保留且不再重試。
   原子 launcher、fictional fixture/operator、no-disclosure broker、固定 redacted JSON 與 checkpoint primitive 繼續作為
   可重用基礎；完整 acceptance orchestration 與 UIAutomator timing retry 僅供 experimental/manual-on-demand，不作 release gate。
-- TASK-140 啟動 Flutter schedule usability delivery：在不改 API/schema/auth 的前提下加入可讀本地時間、穩定排序與
-  authenticated online refresh，並以 repository tests／hosted CI 為正式 gate。
-
 - TASK-113 isolated mobile staging 已建立並部署；TASK-118 已修復 fictional attendance fixture/recovery，均未觸及
   production。TASK-115 Android emulator 已完成 native LINE callback、Basic API、五態回覆恢復、offline cache 與
   logout purge 驗收，並由 PR #129 merge 至 `main`（`d4569577817a18e74758dad61bfaff2b82991f85`）。TASK-119 將補

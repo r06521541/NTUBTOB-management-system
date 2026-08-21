@@ -37,6 +37,17 @@
   check 或同版本 Black formatter API 比對；最終以 hosted CI Black check 補足。
 - 不為 Black CLI 停滯調查本機 multiprocessing、修改 Makefile 或格式化無關檔案。
 
+### Flutter 3.47／Dart 3.13 固定工具鏈
+
+- Windows 不以 PATH 判定 Flutter 不可用。先執行
+  `.\tools\Invoke-FlutterToolchain.ps1 status`；它只解析 TASK-113 核准的 Flutter 3.47／Dart 3.13 toolchain，不下載、
+  安裝或修改全域 PATH。
+- 若一般 `flutter` wrapper 在啟動前無輸出停滯，設定 `FLUTTER_ROOT` 後以該 root 的 Dart 執行
+  `bin\cache\flutter_tools.snapshot`；repository入口為 `.\tools\Invoke-FlutterToolchain.ps1 flutter <args>`，dependency
+  setup 使用 `.\tools\Invoke-FlutterToolchain.ps1 dart pub get --offline`。
+- `dart format --output=none --set-exit-if-changed ...` 只檢查、不寫檔；需要套用格式時必須另執行 `dart format ...`，
+  並只限 owned files。Hosted Flutter 3.47 是最終環境／build gate。
+
 ## 5. YAML 與 workflow
 
 - Bundled runtime 過去沒有 PyYAML，環境也不保證有 `actionlint`。未實際使用 parser／actionlint 或 hosted GitHub
