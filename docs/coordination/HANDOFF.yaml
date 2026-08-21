@@ -1,17 +1,17 @@
 active_task: TASK-141
-status: implementation
-next_actor: codex
+status: ready_for_hosted_ci
+next_actor: main-work
 
 base_commit: d660bf46356c14cf21c45a08c2797690e5b38209
-head_commit: d660bf46356c14cf21c45a08c2797690e5b38209
+head_commit: 3c979e9d5a290f93fe2f605735cc50d1c99dacc4
 
 updated_by: main-work
-updated_at: 2026-08-21T17:00:00+08:00
+updated_at: 2026-08-21T18:15:00+08:00
 
 note: >
-  Deliver a privacy-safe Flutter account/data-status page using only existing
-  display name, last-sync and fresh/offline provenance. Do not invent settings,
-  expose authorization internals or use the quarantined full acceptance harness.
+  Flutter Domain and Main Work accepted the privacy-safe account/data-status
+  page. Local format, analyze, focused 58/58 and full 141/141 tests pass; create
+  one PR and use hosted CI as the final gate. No emulator runtime is required.
 
 worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task141-worktree
 task: docs/coordination/tasks/TASK-141.md
