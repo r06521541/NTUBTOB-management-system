@@ -37,13 +37,14 @@
 - 保持 diff 聚焦，不修改 Work／Owner 的既有變更。
 - 主動回報 blocker，不以 workaround 降低 auth、data、Secret 或 deployment boundary。
 
-每個 work package 只有一位 implementation writer。其他 agent 必須 read-only，且在派工時列出不重疊的專屬審查
-範圍；沒有獨立責任就不加入。Work、Domain Work 與顧問不重做 writer 的一般實作分析。平行 work packages 在
-checkpoint 宣告 owned paths，Main Work 派工前檢查交集；無法避免的交集改由同一 writer 或串行交棒。
+### Session role claim 與問責
 
-Writer 失聯或必須更換時，Main Work 先明確撤回舊 assignment、更新 HANDOFF 與 branch head，再指定新 writer；
-不得讓兩位 writer 同時修改同一 work package。Work 與 Codex 不同時修改相同程式檔案，只有 Owner 最新指示明確
-改變分工時例外。
+角色是綁定可辨認 session 的責任 lease，不是模型或暱稱；每個 session 同時只持有 `owner`、全域唯一 `main-work`、具名
+`domain-work:<domain>`、work-package-specific `codex-writer` 或 `advisor` 之一。未獲 Main Work 派任時預設 `advisor/read-only`。
+派工 role claim 固定明列 `actor_id`（穩定 thread ID）、role、task/scope、owned paths、write、report target 與 stop conditions；
+正式交棒另帶 from/to role、full HEAD 與 dirty state。角色不從 session title、模型或前一 task 推定。
+Domain Work 固定給同一 session 跨同領域 task 問責，負責 writer、批次 findings、領域接受建議、heartbeat、交回與風險升級；
+writer 每 package 唯一且不得自審，Main／Domain 不寫審查標的，advisor 永遠 read-only。切換前先撤回、記錄 final state 再派任；L1 可省 Domain，不可假造自寫自審。
 
 ### 多領域 Work 與次決策核心
 
@@ -54,8 +55,7 @@ Domain Work 數量不預設上限。每新增一個 Domain Work，Main Work 必�
 決策範圍、禁止觸碰範圍、上游契約與交回節點；Domain Work 之間不直接建立互相矛盾的正式契約，所有跨領域依賴與
 衝突均匯入 Main Work，由 Main Work 作唯一核心協調與整合節點。
 
-- Owner 決定產品方向、優先序與重大取捨；Main Work 管理全域 TASK 編號、跨領域契約、依賴順序、現行協作文件、
-  final PR／merge／deployment 與最終驗收。
+- Owner 決定產品方向、優先序與重大取捨；Main Work 管理全域 TASK 編號、跨領域契約、依賴順序、協作文件、final PR／merge／deployment 與最終驗收。
 - Domain Work 可在已核准規格與 task 內，自主與 Owner 收斂領域需求、決定低風險內部設計、拆解候選 work
   packages、指揮領域 Codex、要求 task 內補正並驗收領域測試。
 - Domain Work 可使用獨立 worktree／branch 並行；不得與其他 Work 同時修改同一檔案，也不得自行占用全域
@@ -185,7 +185,8 @@ merge。純 handoff、run ID、時間戳或 merge metadata 不另建 commit／PR
 actor/action。背景規則引用 authoritative path 與 section，不重貼全文；尚未進入權威文件的安全關鍵資訊仍須明列，
 不得為求短而省略。
 
-允許角色：`work`、`codex`、`owner`。常用狀態：
+`next_actor` 使用 `owner`、`main-work`、`domain-work`、`codex-writer`、`advisor`；domain/session 另以 `actor_id`、scope、
+owned paths、write、report target 與 stop conditions 綁定。Archive 的舊 `work`／`codex` 名稱不授權新工作。常用狀態：
 
 - `planning`
 - `ready_for_codex`
