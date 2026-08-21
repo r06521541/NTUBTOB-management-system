@@ -48,6 +48,9 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   return AuthViewState.contractError;
 }
 
+bool canStartLogout(AuthViewState state, {required bool basicLoadInProgress}) =>
+    state == AuthViewState.authenticated && !basicLoadInProgress;
+
 class AuthStatePanel extends StatelessWidget {
   const AuthStatePanel({super.key, required this.state});
   final AuthViewState state;
@@ -205,6 +208,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   PrincipalProvenance? principalProvenance;
   CacheSessionAggregate? cacheSessionAggregate;
   Future<void>? _basicLoadOperation;
+  bool _basicLoadInProgress = false;
 
   @override
   void initState() {
@@ -302,10 +306,17 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     final existingOperation = _basicLoadOperation;
     if (existingOperation != null) return existingOperation;
 
+    _basicLoadInProgress = true;
+    if (mounted) setState(() {});
     late final Future<void> operation;
     operation = _loadBasicOnce().whenComplete(() {
       if (identical(_basicLoadOperation, operation)) {
         _basicLoadOperation = null;
+        if (mounted) {
+          setState(() => _basicLoadInProgress = false);
+        } else {
+          _basicLoadInProgress = false;
+        }
       }
     });
     _basicLoadOperation = operation;
@@ -444,7 +455,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
           ),
           floatingActionButton: state == AuthViewState.authenticated
               ? FloatingActionButton(
-                  onPressed: _logout,
+                  onPressed: canStartLogout(
+                    state,
+                    basicLoadInProgress: _basicLoadInProgress,
+                  )
+                      ? _logout
+                      : null,
                   tooltip: '登出',
                   child: const Icon(Icons.logout))
               : LoginActionButton(

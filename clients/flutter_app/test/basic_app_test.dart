@@ -185,6 +185,30 @@ void main() {
         AuthViewState.sessionExpired);
   });
 
+  test('pending Basic reload disables terminal logout', () {
+    expect(
+      canStartLogout(
+        AuthViewState.authenticated,
+        basicLoadInProgress: false,
+      ),
+      isTrue,
+    );
+    expect(
+      canStartLogout(
+        AuthViewState.authenticated,
+        basicLoadInProgress: true,
+      ),
+      isFalse,
+    );
+    expect(
+      canStartLogout(
+        AuthViewState.offline,
+        basicLoadInProgress: false,
+      ),
+      isFalse,
+    );
+  });
+
   test('native platform mapping accepts only Android and iOS', () {
     expect(nativePlatformName(TargetPlatform.android), 'android');
     expect(nativePlatformName(TargetPlatform.iOS), 'ios');
