@@ -1,0 +1,401 @@
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+
+import 'basic_app.dart';
+import 'foundation.dart';
+import 'integration.dart';
+import 'officer_prereview.dart';
+
+enum ProductionDemoPersona { basic, officer }
+
+enum ProductionDemoConnectivity { online, offline }
+
+enum ProductionDemoDataState { populated, empty, error }
+
+class ProductionDemoProbe {
+  int unexpectedTransportCalls = 0;
+  int gameReads = 0;
+  int attendanceReads = 0;
+  int reportReads = 0;
+  int replyMutations = 0;
+}
+
+class ProductionDemoApp extends DemoApp {
+  const ProductionDemoApp({super.key, required super.flavor, this.probe});
+
+  final ProductionDemoProbe? probe;
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+        title: '虛構產品展示・${flavor.displayLabel}',
+        theme: demoTheme(Brightness.light),
+        darkTheme: demoTheme(Brightness.dark),
+        home: ProductionDemoShell(probe: probe),
+      );
+}
+
+class ProductionDemoShell extends StatefulWidget {
+  const ProductionDemoShell({super.key, this.probe});
+
+  final ProductionDemoProbe? probe;
+
+  @override
+  State<ProductionDemoShell> createState() => _ProductionDemoShellState();
+}
+
+class _ProductionDemoShellState extends State<ProductionDemoShell> {
+  static final _lastSyncedAt = DateTime.utc(2026, 8, 21, 8, 30);
+  static final _games = <Game>[
+    Game(
+      'fictional-game',
+      DateTime.utc(2026, 9, 12, 6, 30),
+      120,
+      '虛構大學棒球場',
+      '虛構校友隊',
+      '範例友隊',
+    ),
+    Game(
+      'fictional-game-empty-replies',
+      DateTime.utc(2026, 9, 19, 7),
+      90,
+      null,
+      '虛構校友隊',
+      '示意來賓隊',
+    ),
+  ];
+  static const _basicPerson = Person('fictional-basic', '虛構一般使用者', [
+    'games:read',
+    'attendance:reply:self',
+  ]);
+  static const _officerPerson = Person(
+      'fictional-officer',
+      '虛構幹部',
+      [
+        'games:read',
+        'attendance:reply:self',
+        'attendance:report:read',
+      ],
+      accessLevel: AccessLevel.officer);
+
+  late final ProductionDemoProbe _probe;
+  late final _ProductionDemoApi _api;
+  late final _ProductionDemoReportCache _reportCache;
+  ProductionDemoPersona _persona = ProductionDemoPersona.basic;
+  ProductionDemoConnectivity _connectivity = ProductionDemoConnectivity.online;
+  ProductionDemoDataState _dataState = ProductionDemoDataState.populated;
+
+  @override
+  void initState() {
+    super.initState();
+    _probe = widget.probe ?? ProductionDemoProbe();
+    _api = _ProductionDemoApi(_probe, _games);
+    _reportCache = _ProductionDemoReportCache(_fictionalReportUiModel);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final person =
+        _persona == ProductionDemoPersona.basic ? _basicPerson : _officerPerson;
+    final online = _connectivity == ProductionDemoConnectivity.online;
+    final games =
+        _dataState == ProductionDemoDataState.empty ? <Game>[] : _games;
+    return Scaffold(
+      appBar: AppBar(title: const Text('虛構產品展示')),
+      body: Column(
+        children: [
+          Semantics(
+            key: const ValueKey('production-demo-fictional-banner'),
+            label: '虛構展示資料，不使用帳號、不連線',
+            child: const MaterialBanner(
+              content: Text('虛構展示資料・不使用帳號・不連線'),
+              actions: [SizedBox.shrink()],
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                const Text('角色：'),
+                ChoiceChip(
+                  key: const ValueKey('demo-persona-basic'),
+                  label: const Text('一般使用者'),
+                  selected: _persona == ProductionDemoPersona.basic,
+                  onSelected: (_) =>
+                      setState(() => _persona = ProductionDemoPersona.basic),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-persona-officer'),
+                  label: const Text('幹部'),
+                  selected: _persona == ProductionDemoPersona.officer,
+                  onSelected: (_) =>
+                      setState(() => _persona = ProductionDemoPersona.officer),
+                ),
+                const SizedBox(width: 12),
+                const Text('連線：'),
+                ChoiceChip(
+                  key: const ValueKey('demo-connectivity-online'),
+                  label: const Text('線上'),
+                  selected: _connectivity == ProductionDemoConnectivity.online,
+                  onSelected: (_) => setState(
+                    () => _connectivity = ProductionDemoConnectivity.online,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-connectivity-offline'),
+                  label: const Text('離線'),
+                  selected: _connectivity == ProductionDemoConnectivity.offline,
+                  onSelected: (_) => setState(
+                    () => _connectivity = ProductionDemoConnectivity.offline,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('資料：'),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-populated'),
+                  label: const Text('有資料'),
+                  selected: _dataState == ProductionDemoDataState.populated,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.populated,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-empty'),
+                  label: const Text('空資料'),
+                  selected: _dataState == ProductionDemoDataState.empty,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.empty,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-error'),
+                  label: const Text('錯誤'),
+                  selected: _dataState == ProductionDemoDataState.error,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _dataState == ProductionDemoDataState.error
+                ? const AuthStatePanel(
+                    key: ValueKey('production-demo-error'),
+                    state: AuthViewState.recoverableError,
+                  )
+                : BasicGamesView(
+                    key: ValueKey(
+                      'production-demo-games-${_persona.name}-'
+                      '${_connectivity.name}-${_dataState.name}',
+                    ),
+                    api: _api,
+                    person: person,
+                    games: games,
+                    online: online,
+                    lastSyncedAt: _lastSyncedAt,
+                    principalProvenance: online
+                        ? PrincipalProvenance.freshServer
+                        : PrincipalProvenance.offlineCache,
+                    reportCache: _reportCache,
+                    onRefresh: () async {},
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RejectingProductionDemoTransport implements ApiTransport {
+  _RejectingProductionDemoTransport(this.probe);
+
+  final ProductionDemoProbe probe;
+
+  @override
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
+    probe.unexpectedTransportCalls++;
+    throw StateError('production demo transport must remain unused');
+  }
+}
+
+class _ProductionDemoApi extends BasicApi {
+  factory _ProductionDemoApi(ProductionDemoProbe probe, List<Game> games) {
+    final store = MemoryStore();
+    final ids = SecureIds(Random(144));
+    final transport = _RejectingProductionDemoTransport(probe);
+    return _ProductionDemoApi._(probe, games, store, ids, transport);
+  }
+
+  _ProductionDemoApi._(
+    this.probe,
+    this._games,
+    MemoryStore store,
+    SecureIds ids,
+    ApiTransport transport,
+  ) : super(
+          SessionController(transport, store, 'fictional-demo', ids),
+          store,
+          'fictional-demo',
+          ids,
+        );
+
+  final ProductionDemoProbe probe;
+  final List<Game> _games;
+  AttendanceReply _ownReply = AttendanceReply.attending;
+
+  Game _findGame(String id) => _games.firstWhere(
+        (game) => game.id == id,
+        orElse: () => throw const ContractException('unknown fictional game'),
+      );
+
+  @override
+  Future<Game> game(String id) async {
+    probe.gameReads++;
+    return _findGame(id);
+  }
+
+  @override
+  Future<AttendanceSnapshot> attendance(String id) async {
+    probe.attendanceReads++;
+    _findGame(id);
+    return AttendanceSnapshot(id, _ownReply, const [
+      RepliedAttendance(
+        'fictional-teammate',
+        '虛構隊友',
+        AttendanceReply.attending,
+        AttendanceQualification.teamPlayer,
+      ),
+    ]);
+  }
+
+  @override
+  Future<AttendanceReport> attendanceReport(
+    String id, {
+    int historyLimit = 12,
+    int minimumResponseRate = 60,
+  }) async {
+    probe.reportReads++;
+    _findGame(id);
+    return AttendanceReport(
+      gameId: id,
+      generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
+      observation: AttendanceReportObservation(
+        8,
+        historyLimit,
+        minimumResponseRate,
+      ),
+      attending: const [
+        AttendanceReportPerson(
+          'fictional-attending',
+          '虛構出席隊員',
+          AttendanceReply.attending,
+        ),
+      ],
+      notAttending: const [
+        AttendanceReportPerson(
+          'fictional-not-attending',
+          '虛構不出席隊員',
+          AttendanceReply.notAttending,
+        ),
+      ],
+      notYetReplied: const [
+        AttendanceReportUnansweredPerson(
+          personId: 'fictional-unanswered',
+          displayName: '虛構尚未回覆隊員',
+          observedReplies: 7,
+          observedGames: 8,
+          responseRate: 88,
+          participationRate: 63,
+          nonparticipationRate: 25,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<MutationResult> reply(
+    String gameId,
+    AttendanceReply reply, {
+    required bool online,
+  }) async {
+    if (!online) throw const OfflineReadOnlyException();
+    probe.replyMutations++;
+    _findGame(gameId);
+    _ownReply = reply;
+    return MutationResult(
+      gameId,
+      reply,
+      true,
+      DateTime.utc(2026, 8, 21, 8, 30),
+      const MutationNotification(NotificationStatus.notRequired, null),
+      false,
+    );
+  }
+}
+
+final _fictionalReportUiModel = SingleGameReportUiModel(
+  gameId: 'fictional-game',
+  gameLabel: '虛構校友隊 vs 範例友隊',
+  generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
+  historyGames: 8,
+  historyLimit: 12,
+  minimumResponseRate: 60,
+  attending: const [
+    ReportParticipantUiModel(id: 'fictional-attending', displayName: '虛構出席隊員'),
+  ],
+  notAttending: const [
+    ReportParticipantUiModel(
+      id: 'fictional-not-attending',
+      displayName: '虛構不出席隊員',
+    ),
+  ],
+  notYetReplied: const [
+    NotYetRepliedUiModel(
+      id: 'fictional-unanswered',
+      displayName: '虛構尚未回覆隊員',
+      observedReplies: 7,
+      observedGames: 8,
+      responseRate: 88,
+      participationRate: 63,
+      nonparticipationRate: 25,
+    ),
+  ],
+);
+
+class _ProductionDemoReportCache implements PrincipalOfficerReportCache {
+  _ProductionDemoReportCache(SingleGameReportUiModel report)
+      : _reports = {'fictional-officer::${report.gameId}': report};
+
+  final Map<String, SingleGameReportUiModel> _reports;
+
+  String _key(String principalId, String gameId) => '$principalId::$gameId';
+
+  @override
+  Future<void> clearPrincipal(String principalId) async {
+    _reports.removeWhere((key, _) => key.startsWith('$principalId::'));
+  }
+
+  @override
+  Future<SingleGameReportUiModel?> read(
+    String principalId,
+    String gameId,
+  ) async =>
+      _reports[_key(principalId, gameId)];
+
+  @override
+  Future<void> write(String principalId, SingleGameReportUiModel report) async {
+    _reports[_key(principalId, report.gameId)] = report;
+  }
+}
