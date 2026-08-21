@@ -10,7 +10,9 @@
   parent reload owns the canonical error/offline presentation; no hidden retry
   was added.
 - Terminal logout is disabled while the shared Basic reload is pending, so a
-  stale refresh cannot race the terminal cache/session purge.
+  stale refresh cannot race the terminal cache/session purge. The same guard is
+  rechecked at the logout command boundary, so a retained pre-rebuild callback
+  cannot bypass the disabled button.
 - Game rendering sorts a copied list by `startAt`, then `id`, and presents the
   local Material date/time with available location and duration details.
 
@@ -28,14 +30,14 @@
 
 - Early targeted run exposed one unhandled refresh-callback exception; the
   bounded same-scope correction was applied before full verification.
-- `flutter test test/basic_app_test.dart`: 54/54 PASS at the final
+- `flutter test test/basic_app_test.dart`: 55/55 PASS at the final
   refresh/logout concurrency delta.
 - Locked Flutter 3.47 gate:
   - `dart format --output=none --set-exit-if-changed .`: PASS, 9 files / 0 changed.
   - `flutter analyze --no-pub`: PASS, no issues.
   - `flutter test --no-pub`: 136/136 PASS.
 - Final concurrency delta reused the preceding full-suite evidence and reran
-  the affected 54-test file plus `flutter analyze`: PASS. Hosted CI remains the
+  the affected 55-test file plus `flutter analyze`: PASS. Hosted CI remains the
   exact-final-HEAD full gate.
 - `git diff --check`: PASS.
 

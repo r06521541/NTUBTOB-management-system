@@ -51,6 +51,20 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
 bool canStartLogout(AuthViewState state, {required bool basicLoadInProgress}) =>
     state == AuthViewState.authenticated && !basicLoadInProgress;
 
+Future<void> runBasicLogoutIfAllowed({
+  required AuthViewState state,
+  required bool basicLoadInProgress,
+  required Future<void> Function() logout,
+}) async {
+  if (!canStartLogout(
+    state,
+    basicLoadInProgress: basicLoadInProgress,
+  )) {
+    return;
+  }
+  await logout();
+}
+
 class AuthStatePanel extends StatelessWidget {
   const AuthStatePanel({super.key, required this.state});
   final AuthViewState state;
@@ -373,7 +387,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     });
   }
 
-  Future<void> _logout() async {
+  Future<void> _logout() => runBasicLogoutIfAllowed(
+        state: state,
+        basicLoadInProgress: _basicLoadInProgress,
+        logout: _performLogout,
+      );
+
+  Future<void> _performLogout() async {
     setState(() {
       state = AuthViewState.logoutPending;
       cacheSessionAggregate = null;

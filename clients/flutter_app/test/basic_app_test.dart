@@ -209,6 +209,26 @@ void main() {
     );
   });
 
+  test('retained logout callback cannot cross a pending Basic reload',
+      () async {
+    var logoutCalls = 0;
+    Future<void> logout() async => logoutCalls++;
+
+    await runBasicLogoutIfAllowed(
+      state: AuthViewState.authenticated,
+      basicLoadInProgress: true,
+      logout: logout,
+    );
+    expect(logoutCalls, 0);
+
+    await runBasicLogoutIfAllowed(
+      state: AuthViewState.authenticated,
+      basicLoadInProgress: false,
+      logout: logout,
+    );
+    expect(logoutCalls, 1);
+  });
+
   test('native platform mapping accepts only Android and iOS', () {
     expect(nativePlatformName(TargetPlatform.android), 'android');
     expect(nativePlatformName(TargetPlatform.iOS), 'ios');
