@@ -210,9 +210,7 @@ class FinalGateTests(unittest.TestCase):
     def test_quick_only_allows_only_legitimate_skips(self):
         self.assertEqual(final_gate_failures(outputs(quick_only=True), results()), [])
         self.assertTrue(
-            final_gate_failures(
-                outputs(quick_only=True), results(flutter="success")
-            )
+            final_gate_failures(outputs(quick_only=True), results(flutter="success"))
         )
 
     def test_selected_jobs_must_succeed(self):
