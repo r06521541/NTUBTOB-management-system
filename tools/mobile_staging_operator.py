@@ -211,7 +211,6 @@ def deploy_command(approval: dict) -> list[str]:
         approval["service_account"],
         "--ingress",
         "all",
-        "--no-allow-unauthenticated",
         "--min-instances",
         "0",
         "--max-instances",
@@ -226,6 +225,10 @@ def deploy_command(approval: dict) -> list[str]:
     ]
     if approval["mode"] == "update":
         arguments.insert(arguments.index("--ingress"), "--no-traffic")
+    else:
+        arguments.insert(
+            arguments.index("--ingress"), "--no-allow-unauthenticated"
+        )
     return arguments
 
 
@@ -271,6 +274,34 @@ def service_inventory_command(approval: dict) -> list[str]:
         REGION,
         "--format=json",
     ]
+
+
+def _traffic_is_exact(
+    traffic: object, active_revision: str, allowed_zero_revisions: set[str]
+) -> bool:
+    if not isinstance(traffic, list):
+        return False
+    targets: dict[str, int] = {}
+    for item in traffic:
+        if not isinstance(item, dict) or set(item) != {"revisionName", "percent"}:
+            return False
+        revision = item.get("revisionName")
+        percent = item.get("percent")
+        if (
+            type(revision) is not str
+            or not revision
+            or type(percent) is not int
+            or revision in targets
+        ):
+            return False
+        targets[revision] = percent
+    if targets.get(active_revision) != 100:
+        return False
+    return all(
+        revision == active_revision
+        or (revision in allowed_zero_revisions and percent == 0)
+        for revision, percent in targets.items()
+    )
 
 
 def validate_candidate(approval: dict, revision: dict, service: dict) -> None:
@@ -328,21 +359,15 @@ def validate_candidate(approval: dict, revision: dict, service: dict) -> None:
     ):
         raise OperatorError("Cloud Run service runtime or scaling drifted")
     traffic = service.get("status", {}).get("traffic", [])
-    targets = [
-        {
-            "revisionName": item.get("revisionName"),
-            "percent": item.get("percent"),
-        }
-        for item in traffic
-        if isinstance(item, dict)
-    ]
-    if approval["mode"] == "bootstrap" and targets != [
-        {"revisionName": approval["candidate_revision"], "percent": 100}
-    ]:
+    if approval["mode"] == "bootstrap" and not _traffic_is_exact(
+        traffic, approval["candidate_revision"], set()
+    ):
         raise OperatorError("Bootstrap candidate traffic topology drifted")
-    if approval["mode"] == "update" and targets != [
-        {"revisionName": approval["rollback_revision"], "percent": 100}
-    ]:
+    if approval["mode"] == "update" and not _traffic_is_exact(
+        traffic,
+        approval["rollback_revision"],
+        {approval["candidate_revision"]},
+    ):
         raise OperatorError("Update baseline traffic topology drifted")
 
 
@@ -466,9 +491,16 @@ def execute(
             root,
         )
         service = json.loads(output(runner, service_inventory_command(approval), root))
-        if service.get("status", {}).get("traffic", []) != [
-            {"revisionName": revision, "percent": 100}
-        ]:
+        zero_revision = (
+            current.rollback_revision
+            if operation == "promote"
+            else current.candidate_revision
+        )
+        if not _traffic_is_exact(
+            service.get("status", {}).get("traffic", []),
+            revision,
+            {zero_revision},
+        ):
             raise OperatorError("Cloud Run traffic did not converge exactly")
         state = OperatorState(
             current.approved_commit,
