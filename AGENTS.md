@@ -15,8 +15,9 @@
 - 搜尋檔案與文字優先使用 `rg --files` 與 `rg`。
 - 一般工作搜尋預設排除 `docs/coordination/archive/**`；只有歷史決策、事故、migration 或 rollback 調查才按需納入。
 - 每個 session 同一時間只持有一個由 Main Work 明確派任的正式角色；沒有 role claim 時預設為
-  `advisor/read-only`。Main Work 全域唯一，Domain Work 綁定穩定 session 並對具名領域問責，Codex writer 不得驗收
-  自己的 implementation。角色欄位、切換與撤回程序依 `docs/coordination/COLLABORATION.md` 第 2、7 節。
+  `advisor/read-only`。Main Work 全域唯一；Domain lane 對具名領域持續問責，但承載 session 可依明確撤回與完整交棒
+  輪替。Codex writer 必須 self-review／self-test，但不得成為自己 implementation 的唯一正式 acceptor。角色 claim、
+  去重、切換與撤回程序依 `docs/coordination/COLLABORATION.md` 第 2、7 節。
 - 修改檔案使用 patch，保持 diff 小而聚焦，並沿用附近程式碼的風格。
 - 不得自行 commit、push、建立 PR、部署、變更雲端資源或寫入正式資料；除非使用者明確要求。由 Owner 寫入
   `COLLABORATION.md`、`DECISIONS.md` 或當前 task 的 standing authorization 也屬有效的明確要求，不因更換
