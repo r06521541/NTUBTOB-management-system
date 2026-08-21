@@ -283,6 +283,7 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     args = _parse_args()
     try:
+        _assert_path_chain_no_reparse(args.source)
         _assert_path_chain_no_reparse(APPROVED_OUTPUT_ROOT)
         _assert_path_chain_no_reparse(args.output.parent)
         requested_output = args.output.absolute()

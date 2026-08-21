@@ -323,6 +323,38 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
         self.assertEqual(payload["details"]["reason_code"], "OUTPUT_INVALID")
         self.assertNotIn(self.sentinel, lines[0])
 
+    def test_cli_rejects_original_source_alias_before_resolution(self):
+        from tools import mobile_staging_broker_rollout as module
+
+        observed = []
+
+        def reject_source(path):
+            observed.append(path)
+            if path == self.source:
+                raise BrokerRolloutError("PATH_INVALID")
+
+        with mock.patch.object(
+            module,
+            "_parse_args",
+            return_value=mock.Mock(
+                source=self.source,
+                approval=self.approval,
+                output=Path("E:/codex-evidence/task-135/output"),
+                commit=self.commit,
+            ),
+        ), mock.patch.object(
+            module, "_assert_path_chain_no_reparse", side_effect=reject_source
+        ), mock.patch.object(module, "prepare_broker_rollout") as prepare:
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = module.main()
+        self.assertEqual(observed, [self.source])
+        prepare.assert_not_called()
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(exit_code, 2)
+        self.assertEqual(payload["details"]["reason_code"], "PATH_INVALID")
+        self.assertNotIn(str(self.source), stdout.getvalue())
+
     def test_real_broker_failure_has_one_governed_json(self):
         from tools import mobile_staging_broker_rollout as module
 

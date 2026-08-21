@@ -12,8 +12,10 @@ existing broker runtime algorithm.
 Direct evidence:
 
 - `python -m unittest tools.tests.test_mobile_staging_broker_rollout -v`:
-  13 cases completed (12 passed, 1 skipped); the skipped case requires Windows
-  symlink-creation permission that this host denied.
+  the four-finding correction suite completed 13 cases (12 passed, 1 skipped);
+  the skipped case requires Windows symlink-creation permission that this host
+  denied. The residual CLI source-alias regression then passed 1/1 without
+  replaying the accepted cases.
 - `python -m py_compile` for the packager and direct test: passed.
 - `python -m isort --check-only` for the two Python files: passed after one
   mechanical import-order correction.
@@ -30,6 +32,8 @@ symlink rejection where supported, partial cleanup and one bounded JSON failure
 without private sentinels. Correction regressions also cover original path
 component reparse, opened-file replacement identity, hardlinks, exact database
 fingerprint, cleanup failure and the real broker hash exception type. The
+CLI regression separately proves the original source argument is checked before
+resolution and cannot alias the accepted tool root through a reparse point. The
 retained state contains only the source SHA,
 packager contract, project/region, opaque database identity hash, normalized
 artifact hashes and private lifecycle marker.
