@@ -41,3 +41,14 @@ artifact hashes and private lifecycle marker.
 This report records only TASK-135 rollout-packaging evidence. Cloud
 provisioning, Secret access, migration, deployment and broker dogfood are not
 part of this repository slice and have not run.
+
+## Controlled packaging dogfood correction
+
+After PR #157 merged as `5177611832fd8b67af8ccf5ca573eb558ec6346b`,
+the first exact packaging invocation stopped safely at `ARCHIVE_UNAVAILABLE`
+before approval substitution, build or cloud access. Read-only source inventory
+showed the fixed archive allowlist contained `tools/__init__.py`, which does not
+exist in the tracked namespace-package layout. The correction removes only that
+nonexistent path and adds a direct regression requiring every allowlisted file
+or directory to resolve to tracked bytes. No manual context was created and the
+packager was not bypassed.

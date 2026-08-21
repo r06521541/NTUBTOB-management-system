@@ -35,7 +35,6 @@ ARCHIVE_PATHS = (
     "migrations/script.py.mako",
     "migrations/versions",
     "shared_lib/shared_module",
-    "tools/__init__.py",
     "tools/mobile_staging_contract.py",
     "tools/mobile_staging_data.py",
     "tools/mobile_staging_seed.py",
