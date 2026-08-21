@@ -561,6 +561,32 @@ migration and broker. Cloud Run, IAM, Secret versions and staging execution
 remain separate Owner gates; the checked-in deployment files are static
 contracts only.
 
+Before a real staging broker build, TASK-135 prepares a private immutable build
+context. The packager requires an exact clean full source SHA, archives only its
+fixed git-tracked allowlist, validates the existing private candidate approval,
+preserves its approved bytes except for CRLF-to-LF normalization, and substitutes
+those same validated bytes only in a new task-owned E-drive context. The
+repository's fictional approval remains unchanged. Governed output and the
+retained state contain only the source SHA and normalized artifact hashes; they
+never contain approval fields, Secret references, endpoints, provider subject,
+or private paths. Any dirty source, SHA drift, reparse input, existing output,
+malformed archive, or mismatch from the independently accepted staging database
+identity fails before a build or cloud action. Original path components and the
+opened approval file identity are checked before use; a failed private partial
+cleanup returns `PRIVATE_CLEANUP_REQUIRED` without disclosing its path.
+
+```powershell
+python -m tools.mobile_staging_broker_rollout `
+  --source <clean-repository-snapshot> `
+  --approval C:\private\candidate-approval.json `
+  --output E:\codex-evidence\task-135\<new-context-id> `
+  --commit <exact-full-sha>
+```
+
+The resulting `context` directory is the only approved root context for the
+subsequent broker image build. Packaging itself does not call `gcloud`, read a
+Secret payload, migrate a database, deploy a service, or invoke the broker.
+
 ## TASK-134 no-disclosure broker client
 
 `tools/Invoke-MobileStagingBroker.ps1` is the repository-side client boundary
