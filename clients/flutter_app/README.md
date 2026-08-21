@@ -10,6 +10,13 @@ Missing, empty, unknown, or mixed configuration fails before the app starts. Dev
 flutter run --dart-define=APP_FLAVOR=development --dart-define=CLIENT_MODE=fake
 ```
 
+This command opens a clearly labelled fictional, production-shaped demo. Its
+in-app controls switch between Basic/Officer, online/offline, and
+populated/empty/error scenarios. The game list, game detail, attendance,
+account-data status, and Officer report are the current production widgets fed
+by deterministic in-memory adapters. Fake mode needs no account or credentials,
+does not call LINE or an API, and does not use platform secure storage.
+
 Staging/production require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, and numeric `LINE_CHANNEL_ID`, supplied by an approved local/runtime configuration mechanism. Never commit those values. Example placeholders are deliberately not provided because a launch must fail closed until real approved values exist.
 
 Android and iOS runners were generated with Flutter 3.47.0. To reproduce them after installing a compatible Flutter SDK and confirming Android/iOS prerequisites, run from this directory:
