@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       docs_only: ${{ steps.changes.outputs.docs_only }}
+      quick_only: ${{ steps.changes.outputs.quick_only }}
       flutter: ${{ steps.changes.outputs.flutter }}
       portal_data: ${{ steps.changes.outputs.portal_data }}
       web_portal: ${{ steps.changes.outputs.web_portal }}
@@ -296,6 +297,7 @@ jobs:
         shell: bash
         env:
           CI_SCOPE_DOCS_ONLY: ${{ needs.classify.outputs.docs_only }}
+          CI_SCOPE_QUICK_ONLY: ${{ needs.classify.outputs.quick_only }}
           CI_SCOPE_FLUTTER: ${{ needs.classify.outputs.flutter }}
           CI_SCOPE_PORTAL_DATA: ${{ needs.classify.outputs.portal_data }}
           CI_SCOPE_WEB_PORTAL: ${{ needs.classify.outputs.web_portal }}
@@ -328,7 +330,7 @@ jobs:
           require_success quick "$CI_RESULT_QUICK"
 
           enabled=0
-          for output in DOCS_ONLY FLUTTER PORTAL_DATA WEB_PORTAL GAME_BROADCAST \
+          for output in DOCS_ONLY QUICK_ONLY FLUTTER PORTAL_DATA WEB_PORTAL GAME_BROADCAST \
             NOTIFY_CRON DEPLOYMENT_TOOLS UPDATE_SCHEDULE LINE_WEBHOOK FULL; do
             variable="CI_SCOPE_$output"
             value="${!variable}"
@@ -349,6 +351,10 @@ jobs:
           fi
           if [[ "$CI_SCOPE_DOCS_ONLY" == "true" && "$enabled" -ne 1 ]]; then
             echo "docs-only classification must be exclusive" >&2
+            failed=1
+          fi
+          if [[ "$CI_SCOPE_QUICK_ONLY" == "true" && "$enabled" -ne 1 ]]; then
+            echo "quick-only classification must be exclusive" >&2
             failed=1
           fi
 

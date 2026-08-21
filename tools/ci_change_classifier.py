@@ -19,13 +19,14 @@ SCOPES = (
     "update_schedule",
     "line_webhook",
 )
-OUTPUTS = ("docs_only", *SCOPES, "full")
+OUTPUTS = ("docs_only", "quick_only", *SCOPES, "full")
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
 
 
 @dataclass(frozen=True)
 class Classification:
     docs_only: bool = False
+    quick_only: bool = False
     flutter: bool = False
     portal_data: bool = False
     web_portal: bool = False
@@ -74,6 +75,11 @@ def _path_scope(path: str) -> Optional[str]:
         "tools/tests/test_ci_workflow_contract.py",
     ):
         return "full"
+    if lower in (
+        "tools/invoke-fluttertoolchain.ps1",
+        "tools/tests/test_ci_flutter_toolchain_contract.py",
+    ):
+        return "quick"
     if lower in (
         "tests/portal_data/test_phase_c_rollout_state.py",
         "tools/phase_c_rollout_preflight.py",
@@ -175,6 +181,8 @@ def classify_paths(paths: Iterable[str]) -> Classification:
 
     if scopes == {"docs"}:
         return Classification(docs_only=True)
+    if scopes.issubset({"docs", "quick"}):
+        return Classification(quick_only=True)
     values = {scope: True for scope in scopes if scope in SCOPES}
     return Classification(**values)
 
@@ -218,6 +226,8 @@ def final_gate_failures(
         failures.append("full classification must be exclusive")
     if "docs_only" in enabled and len(enabled) != 1:
         failures.append("docs-only classification must be exclusive")
+    if "quick_only" in enabled and len(enabled) != 1:
+        failures.append("quick-only classification must be exclusive")
     if not enabled:
         failures.append("classification selected no execution path")
 

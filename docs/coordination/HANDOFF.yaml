@@ -2,18 +2,18 @@ active_task: null
 status: completed
 next_actor: owner
 
-base_commit: d3ea563b322c5f711d591929509886b556dfff59
-head_commit: d3ea563b322c5f711d591929509886b556dfff59
+base_commit: 311a103a83640d0e61b531332059d51beb3ad787
+head_commit: 311a103a83640d0e61b531332059d51beb3ad787
 
 updated_by: main-work
 updated_at: 2026-08-21T18:15:00+08:00
 
 note: >
-  TASK-141 merged through PR #163. No implementation task is active. Completed
-  TASK-123 through TASK-138 and TASK-140/141 evidence is archived under the
-  August 2026 mobile and Flutter closeout; TASK-139 remains outside the archive.
-  The full acceptance harness is experimental and not a release gate. Wait for
-  Owner selection of the next product delivery.
+  No implementation task is active. Completed TASK-088 through TASK-138 and
+  TASK-140/141 evidence is archived under August 2026 closeouts. TASK-139 has
+  no integrated active artifact and is not represented as completed. The full
+  acceptance harness is experimental and not a release gate. Wait for Owner
+  selection of the next product delivery.
 
 worktree: null
 task: null
