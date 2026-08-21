@@ -221,6 +221,145 @@ function Save-HarnessCheckpoint {
     }
 }
 
+function Initialize-HarnessExactFileType {
+    if ('Task138ExactFile' -as [type]) { return }
+    Add-Type -TypeDefinition @'
+using Microsoft.Win32.SafeHandles;
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public sealed class Task138ExactFileSnapshot {
+    public string Text { get; set; }
+    public string Identity { get; set; }
+    public string FinalPath { get; set; }
+}
+
+public static class Task138ExactFile {
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(
+        SafeFileHandle handle,
+        out ByHandleFileInformation information
+    );
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(
+        SafeFileHandle handle,
+        StringBuilder path,
+        uint pathLength,
+        uint flags
+    );
+
+    public static Task138ExactFileSnapshot Read(string path, int maximumBytes) {
+        using (var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            4096,
+            FileOptions.SequentialScan
+        )) {
+            ByHandleFileInformation information;
+            if (!GetFileInformationByHandle(stream.SafeFileHandle, out information)) {
+                throw new IOException("file identity unavailable");
+            }
+            if (information.NumberOfLinks != 1) {
+                throw new IOException("file link count invalid");
+            }
+            var finalPath = new StringBuilder(32768);
+            var finalLength = GetFinalPathNameByHandle(
+                stream.SafeFileHandle,
+                finalPath,
+                (uint)finalPath.Capacity,
+                0
+            );
+            if (finalLength == 0 || finalLength >= finalPath.Capacity) {
+                throw new IOException("final path unavailable");
+            }
+            using (var memory = new MemoryStream()) {
+                var buffer = new byte[1024];
+                int count;
+                while ((count = stream.Read(buffer, 0, buffer.Length)) > 0) {
+                    if (memory.Length + count > maximumBytes) {
+                        throw new IOException("file is oversized");
+                    }
+                    memory.Write(buffer, 0, count);
+                }
+                return new Task138ExactFileSnapshot {
+                    Text = new UTF8Encoding(false, true).GetString(memory.ToArray()),
+                    Identity = information.VolumeSerialNumber.ToString("X8") + ":" +
+                        information.FileIndexHigh.ToString("X8") +
+                        information.FileIndexLow.ToString("X8"),
+                    FinalPath = finalPath.ToString()
+                };
+            }
+        }
+    }
+}
+'@
+}
+
+function Read-HarnessExactFile {
+    param(
+        [string]$Path,
+        [int]$MaximumBytes,
+        [scriptblock]$ReadSnapshot = { param($ExactPath, $Limit) [Task138ExactFile]::Read($ExactPath, $Limit) }
+    )
+    try {
+        $full = [IO.Path]::GetFullPath($Path)
+        $cursor = Get-Item -LiteralPath $full -Force
+        while ($null -ne $cursor) {
+            if (($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Throw-HarnessSafe 'Harness private file is invalid' }
+            $parentPath = [IO.Path]::GetDirectoryName([string]$cursor.FullName)
+            if (-not $parentPath -or $parentPath -ceq [string]$cursor.FullName) { break }
+            $cursor = Get-Item -LiteralPath $parentPath -Force
+        }
+        Initialize-HarnessExactFileType
+        $first = & $ReadSnapshot $full $MaximumBytes
+        $second = & $ReadSnapshot $full $MaximumBytes
+        $expectedFinal = $full
+        $actualFinal = [string]$first.FinalPath
+        if ($actualFinal.StartsWith('\\?\', [StringComparison]::Ordinal)) { $actualFinal = $actualFinal.Substring(4) }
+        if (
+            -not $actualFinal.Equals($expectedFinal, [StringComparison]::OrdinalIgnoreCase) -or
+            [string]$first.Identity -cne [string]$second.Identity -or
+            [string]$first.FinalPath -cne [string]$second.FinalPath -or
+            [string]$first.Text -cne [string]$second.Text
+        ) { Throw-HarnessSafe 'Harness private file is invalid' }
+        return [string]$first.Text
+    }
+    catch {
+        if ($_.Exception.Message -ceq 'Harness private file is invalid') { Throw-HarnessSafe 'Harness private file is invalid' }
+        Throw-HarnessSafe 'Harness private file is invalid'
+    }
+    finally { $cursor = $null; $first = $null; $second = $null; $actualFinal = $null }
+}
+
+function Get-HarnessBrokerConfigFingerprint {
+    param([string]$BrokerConfigPath)
+    if (-not $BrokerConfigPath -or -not [IO.Path]::IsPathRooted($BrokerConfigPath)) { Throw-HarnessSafe 'Harness broker provisioning is required' }
+    $raw = Read-HarnessExactFile $BrokerConfigPath 16384
+    $normalized = $raw.Replace("`r`n", "`n").Replace("`r", "`n")
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($normalized)))).Replace('-', '') }
+    finally { $sha.Dispose(); $raw = $null; $normalized = $null }
+}
+
 function Get-HarnessBindingFingerprint {
     param([object]$Binding)
     $canonical = @(
@@ -245,7 +384,8 @@ function Get-HarnessBrokerPrivatePath {
 }
 
 function Save-HarnessBrokerPrivateState {
-    param([string]$StatePath, [string]$BrokerAction, [object]$Binding)
+    param([string]$StatePath, [string]$BrokerAction, [object]$Binding, [string]$BrokerConfigFingerprint)
+    if ($BrokerConfigFingerprint -notmatch $script:HarnessFingerprintPattern) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     $path = Get-HarnessBrokerPrivatePath $StatePath $BrokerAction
     $directory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path))
     $directoryItem = Get-Item -LiteralPath $directory -Force
@@ -259,6 +399,7 @@ function Save-HarnessBrokerPrivateState {
         broker_action = $BrokerAction
         operation_id = $operationId
         binding_sha256 = Get-HarnessBindingFingerprint $Binding
+        broker_config_sha256 = $BrokerConfigFingerprint
     }
     $temporaryPath = $path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
     try {
@@ -269,6 +410,7 @@ function Save-HarnessBrokerPrivateState {
         try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) }
         finally { $stream.Dispose() }
         [IO.File]::Move($temporaryPath, $path)
+        if ((Read-HarnessExactFile $path 4096) -cne $json) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     }
     finally {
         if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) { Remove-Item -LiteralPath $temporaryPath -Force }
@@ -278,16 +420,16 @@ function Save-HarnessBrokerPrivateState {
 }
 
 function Read-HarnessBrokerPrivateState {
-    param([string]$StatePath, [string]$BrokerAction, [object]$Binding)
+    param([string]$StatePath, [string]$BrokerAction, [object]$Binding, [string]$BrokerConfigFingerprint)
     $path = Get-HarnessBrokerPrivatePath $StatePath $BrokerAction
     $directory = [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($path))
     $directoryItem = Get-Item -LiteralPath $directory -Force
     if (($directoryItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     if (@(Get-ChildItem -LiteralPath $directory -Filter ([IO.Path]::GetFileName($path) + '.*.tmp') -Force).Count -ne 0) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { Throw-HarnessSafe 'Harness broker private state is invalid' }
-    try { $value = Get-Content -LiteralPath $path -Encoding UTF8 -Raw | ConvertFrom-Json }
+    try { $value = (Read-HarnessExactFile $path 4096) | ConvertFrom-Json }
     catch { Throw-HarnessSafe 'Harness broker private state is invalid' }
-    $expected = @('schema_version', 'scenario', 'broker_action', 'operation_id', 'binding_sha256')
+    $expected = @('schema_version', 'scenario', 'broker_action', 'operation_id', 'binding_sha256', 'broker_config_sha256')
     $actual = @(Get-HarnessFieldNames $value | Sort-Object)
     if (
         ($actual -join "`n") -cne (($expected | Sort-Object) -join "`n") -or
@@ -295,7 +437,9 @@ function Read-HarnessBrokerPrivateState {
         [string]$value.scenario -cne 'officer-authorization-roundtrip' -or
         [string]$value.broker_action -cne $BrokerAction -or
         [string]$value.operation_id -notmatch $script:HarnessBrokerOperationIdPattern -or
-        [string]$value.binding_sha256 -cne (Get-HarnessBindingFingerprint $Binding)
+        [string]$value.binding_sha256 -cne (Get-HarnessBindingFingerprint $Binding) -or
+        [string]$value.broker_config_sha256 -cne $BrokerConfigFingerprint -or
+        $BrokerConfigFingerprint -notmatch $script:HarnessFingerprintPattern
     ) { Throw-HarnessSafe 'Harness broker private state is invalid' }
     return [string]$value.operation_id
 }
@@ -332,13 +476,14 @@ function New-MobileAcceptanceTestDependencies {
         [Parameter(Mandatory = $true)][scriptblock]$Observation,
         [scriptblock]$BrokerStatus = { [pscustomobject]@{ classification = 'OWNER_ACTION_REQUIRED'; result = 'stopped'; state = 'unavailable'; reason_code = 'BROKER_PROVISIONING' } },
         [scriptblock]$BrokerOperation = { param($Action, $OperationId) [pscustomobject]@{ classification = 'FAILED'; result = 'stopped'; state = 'unknown'; reason_code = 'BROKER_UNAVAILABLE' } },
+        [scriptblock]$BrokerBinding = { 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' },
         [scriptblock]$NetworkGet = { 'on' },
         [scriptblock]$NetworkSet = { param($State) },
         [scriptblock]$CheckpointPolicy = { param($Path) $true }
     )
     return [ordered]@{
         Action = $Action; Artifact = $Artifact; Observation = $Observation; BrokerStatus = $BrokerStatus
-        BrokerOperation = $BrokerOperation; NetworkGet = $NetworkGet; NetworkSet = $NetworkSet; CheckpointPolicy = $CheckpointPolicy
+        BrokerOperation = $BrokerOperation; BrokerBinding = $BrokerBinding; NetworkGet = $NetworkGet; NetworkSet = $NetworkSet; CheckpointPolicy = $CheckpointPolicy
     }
 }
 
@@ -346,6 +491,7 @@ function New-IsolatedBrokerClientAction {
     param(
         [string]$BrokerPath,
         [string]$BrokerConfigPath,
+        [string]$BrokerConfigFingerprint,
         [scriptblock]$InvokeBounded,
         [string]$HostExecutable
     )
@@ -355,6 +501,7 @@ function New-IsolatedBrokerClientAction {
             return [pscustomobject]@{ classification = 'OWNER_ACTION_REQUIRED'; result = 'stopped'; state = 'unavailable'; reason_code = 'BROKER_PROVISIONING' }
         }
         try {
+            if ((Get-HarnessBrokerConfigFingerprint $BrokerConfigPath) -cne $BrokerConfigFingerprint) { Throw-HarnessSafe 'Harness broker result is invalid' }
             $arguments = @(
                 '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
                 '-File', $BrokerPath, '-Action', $BrokerAction, '-ConfigPath', $BrokerConfigPath
@@ -377,7 +524,9 @@ function New-IsolatedBrokerClientAction {
                 [string]$envelope.operator -cne 'agent' -or
                 [string]$envelope.standing_authorization -cne 'DEC-098' -or
                 [string]$envelope.report_to -cne 'main-work' -or
-                [string]$envelope.retention_owner -cne 'TASK-134'
+                [string]$envelope.retention_owner -cne 'TASK-134' -or
+                [string]$envelope.stop_only_on -cne 'broker-provisioning|identity-or-runtime-drift|unknown-operation-result' -or
+                ([string]$envelope.owner_gate -cne $(if ([string]$envelope.classification -ceq 'OWNER_ACTION_REQUIRED') { 'BROKER_PROVISIONING' } else { 'none' }))
             ) { Throw-HarnessSafe 'Harness broker result is invalid' }
             $expectedDetails = @('result', 'state', 'reason_code')
             if ($null -eq $envelope.details -or $envelope.details -isnot [System.Management.Automation.PSCustomObject] -or (@(Get-HarnessFieldNames $envelope.details | Sort-Object) -join "`n") -cne (($expectedDetails | Sort-Object) -join "`n")) { Throw-HarnessSafe 'Harness broker result is invalid' }
@@ -393,6 +542,7 @@ function New-IsolatedBrokerClientAction {
                 (($classification -eq 'PASS') -ne ($child.ExitCode -eq 0)) -or
                 ($classification -ne 'PASS' -and $child.ExitCode -ne 2)
             ) { Throw-HarnessSafe 'Harness broker result is invalid' }
+            if ((Get-HarnessBrokerConfigFingerprint $BrokerConfigPath) -cne $BrokerConfigFingerprint) { Throw-HarnessSafe 'Harness broker result is invalid' }
             return [pscustomobject]@{ classification = $classification; result = $resultValue; state = $state; reason_code = $reason }
         }
         catch {
@@ -690,9 +840,15 @@ function New-MobileAcceptanceDependencies {
     if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) { Throw-HarnessSafe 'STATUS_HOST_UNAVAILABLE' }
     $statusAction = New-IsolatedLauncherStatusAction $launcherPath $SelectedMode $ExpectedCommit $LauncherConfigPath $launcherCommands.InvokeBounded $hostExecutable
     $dependencies = New-MobileAcceptanceDependenciesFromConfig $SelectedMode $ExpectedCommit $LauncherConfigPath $config $launcherCommands $statusAction
-    $brokerAction = New-IsolatedBrokerClientAction $brokerPath $BrokerConfigPath $launcherCommands.InvokeBounded $hostExecutable
+    $brokerConfigFingerprint = ''
+    if ($BrokerConfigPath) {
+        try { $brokerConfigFingerprint = Get-HarnessBrokerConfigFingerprint $BrokerConfigPath }
+        catch { Throw-HarnessSafe 'Harness broker result is invalid' }
+    }
+    $brokerAction = New-IsolatedBrokerClientAction $brokerPath $BrokerConfigPath $brokerConfigFingerprint $launcherCommands.InvokeBounded $hostExecutable
     $dependencies.BrokerStatus = { & $brokerAction 'status' '' }.GetNewClosure()
     $dependencies.BrokerOperation = { param($Action, $OperationId) & $brokerAction $Action $OperationId }.GetNewClosure()
+    $dependencies.BrokerBinding = { $brokerConfigFingerprint }.GetNewClosure()
     return $dependencies
 }
 
@@ -763,7 +919,8 @@ function Throw-HarnessBrokerFailure {
 
 function Invoke-HarnessBrokerReconcile {
     param([string]$StatePath, [object]$Binding, [hashtable]$Dependencies, [string]$BrokerAction, [string]$ExpectedState)
-    $operationId = Read-HarnessBrokerPrivateState $StatePath $BrokerAction $Binding
+    $brokerConfigFingerprint = & $Dependencies.BrokerBinding
+    $operationId = Read-HarnessBrokerPrivateState $StatePath $BrokerAction $Binding $brokerConfigFingerprint
     $value = & $Dependencies.BrokerOperation 'reconcile' $operationId
     Assert-HarnessBrokerResult $value $ExpectedState
 }
@@ -790,7 +947,8 @@ function Resume-OfficerMutation {
 
 function Invoke-OfficerBrokerMutation {
     param([string]$SelectedScenario, [string]$StatePath, [object]$Binding, [hashtable]$Dependencies, [string]$BrokerAction, [string]$Intent, [string]$ResultStep, [string]$ExpectedState)
-    $operationId = Save-HarnessBrokerPrivateState $StatePath $BrokerAction $Binding
+    $brokerConfigFingerprint = & $Dependencies.BrokerBinding
+    $operationId = Save-HarnessBrokerPrivateState $StatePath $BrokerAction $Binding $brokerConfigFingerprint
     Save-HarnessCheckpoint $StatePath $SelectedScenario $Intent $Binding 'intent'
     $value = & $Dependencies.BrokerOperation $BrokerAction $operationId
     Assert-HarnessBrokerResult $value $ExpectedState

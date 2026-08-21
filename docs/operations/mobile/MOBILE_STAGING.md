@@ -767,7 +767,11 @@ in a binding-bound, atomic `*.broker-<action>.private.json` sidecar before the
 intent checkpoint and before any request. Normal completion and any
 intent/result crash window use the same ID for explicit read-only `reconcile`;
 the harness never generates a replacement ID or retries the mutation. Missing,
-orphaned, malformed or binding-mismatched private state stops fail closed.
+orphaned, malformed or binding-mismatched private state stops fail closed. The
+sidecar also binds the LF-normalized SHA-256 of the exact value-free broker
+config. Reads reject reparse paths, multi-link files, oversized content and
+before/after file-identity changes before invoking the broker child. The child
+envelope must retain TASK-134's exact Owner gate and stop policy.
 Logout remains a portal action and never enters the broker vocabulary.
 
 TASK-138 wires the real broker only. Network controls and report navigation

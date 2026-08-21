@@ -210,24 +210,29 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
                 $hasId=$arguments.Contains('-OperationId')
                 if($action -eq 'status'){$script:statusArgv=(-not $hasId);$details='{"result":"available","state":"private_exact","reason_code":"NONE"}'}
                 elseif($action -eq 'grant'){$script:grantArgv=$hasId;$details='{"result":"completed","state":"ready_officer","reason_code":"NONE"}'}
+                elseif($action -eq 'inspect'){$details='{"result":"completed","state":"ready_basic","reason_code":"NONE"}'}
                 else{return [pscustomobject]@{TimedOut=$false;ExitCode=2;Stdout='private-provider-subject-sentinel';Stderr='private-provider-subject-sentinel'}}
-                $body='{"action":"'+$action+'","classification":"PASS","operator":"agent","owner_gate":"none","standing_authorization":"DEC-098","stop_only_on":"bounded","report_to":"main-work","retention_owner":"TASK-134","details":'+$details+'}'
+                $ownerGate=$(if($action -eq 'inspect'){'BROKER_PROVISIONING'}else{'none'})
+                $body='{"action":"'+$action+'","classification":"PASS","operator":"agent","owner_gate":"'+$ownerGate+'","standing_authorization":"DEC-098","stop_only_on":"broker-provisioning|identity-or-runtime-drift|unknown-operation-result","report_to":"main-work","retention_owner":"TASK-134","details":'+$details+'}'
                 return [pscustomobject]@{TimedOut=$false;ExitCode=0;Stdout=$body;Stderr=''}
             }
-            $broker=New-IsolatedBrokerClientAction 'C:/broker.ps1' 'E:/value-free.json' $invoke 'C:/powershell.exe'
+            function Get-HarnessBrokerConfigFingerprint {param($path)'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'}
+            $broker=New-IsolatedBrokerClientAction 'C:/broker.ps1' 'E:/value-free.json' 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC' $invoke 'C:/powershell.exe'
             $status=& $broker 'status' ''
             $grant=& $broker 'grant' '0123456789abcdef'
+            try{& $broker 'inspect' '0011223344556677'|Out-Null;$governance='unexpected'}catch{$governance=$_.Exception.Message}
             try{& $broker 'restore' 'fedcba9876543210'|Out-Null;$failure='unexpected'}catch{$failure=$_.Exception.Message}
-            [pscustomobject]@{status=$status.state;grant=$grant.state;calls=$script:calls;statusArgv=$script:statusArgv;grantArgv=$script:grantArgv;failure=$failure}|ConvertTo-Json -Compress
+            [pscustomobject]@{status=$status.state;grant=$grant.state;calls=$script:calls;statusArgv=$script:statusArgv;grantArgv=$script:grantArgv;governance=$governance;failure=$failure}|ConvertTo-Json -Compress
             """
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertEqual(payload["status"], "private_exact")
         self.assertEqual(payload["grant"], "ready_officer")
-        self.assertEqual(payload["calls"], 3)
+        self.assertEqual(payload["calls"], 4)
         self.assertTrue(payload["statusArgv"])
         self.assertTrue(payload["grantArgv"])
+        self.assertEqual(payload["governance"], "Harness broker result is invalid")
         self.assertEqual(payload["failure"], "Harness broker operation result is unknown")
         self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
 
@@ -237,16 +242,16 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             result = self.run_harness(
                 f"""
                 $binding={self.binding_ps()}
-                $id=Save-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'grant' $binding
+                $id=Save-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'grant' $binding 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'
                 Save-HarnessCheckpoint '{checkpoint.as_posix()}' 'officer-authorization-roundtrip' 'grant_intent' $binding 'intent'
-                $read=Read-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'grant' $binding
+                $read=Read-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'grant' $binding 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'
                 $checkpointRaw=Get-Content -LiteralPath '{checkpoint.as_posix()}' -Raw
                 $privateRaw=Get-Content -LiteralPath ('{checkpoint.as_posix()}'+'.broker-grant.private.json') -Raw
                 $drift=@{{}}+$binding;$drift.version='2'
-                try{{Read-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'grant' $drift|Out-Null;$bindingFailure='unexpected'}}catch{{$bindingFailure=$_.Exception.Message}}
+                try{{Read-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'grant' $drift 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'|Out-Null;$bindingFailure='unexpected'}}catch{{$bindingFailure=$_.Exception.Message}}
                 $orphan='{checkpoint.as_posix()}'+'.broker-restore.private.json.deadbeef.tmp'
                 Set-Content -LiteralPath $orphan -Value 'sentinel' -Encoding UTF8
-                try{{Save-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'restore' $binding|Out-Null;$orphanFailure='unexpected'}}catch{{$orphanFailure=$_.Exception.Message}}
+                try{{Save-HarnessBrokerPrivateState '{checkpoint.as_posix()}' 'restore' $binding 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC'|Out-Null;$orphanFailure='unexpected'}}catch{{$orphanFailure=$_.Exception.Message}}
                 [pscustomobject]@{{same=($id -ceq $read);idInCheckpoint=$checkpointRaw.Contains($id);idInPrivate=$privateRaw.Contains($id);bindingFailure=$bindingFailure;orphanFailure=$orphanFailure;successTemps=@(Get-ChildItem -LiteralPath '{directory}' -Filter '*.tmp'|Where-Object{{$_.Name -notlike '*deadbeef*'}}).Count}}|ConvertTo-Json -Compress
                 """
             )
@@ -258,6 +263,70 @@ class MobileStagingAcceptanceHarnessTest(unittest.TestCase):
             self.assertEqual(payload["bindingFailure"], "Harness broker private state is invalid")
             self.assertEqual(payload["orphanFailure"], "Harness broker private state is invalid")
             self.assertEqual(payload["successTemps"], 0)
+
+    def test_private_file_identity_rejects_hardlink_reparse_and_replacement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            real = root / "real"
+            real.mkdir()
+            source = real / "state.json"
+            source.write_text("safe", encoding="utf-8")
+            hardlink = root / "hardlink.json"
+            os.link(source, hardlink)
+            junction = root / "junction"
+            linked = subprocess.run(
+                ["cmd.exe", "/c", "mklink", "/J", str(junction), str(real)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(linked.returncode, 0, linked.stdout + linked.stderr)
+            try:
+                result = self.run_harness(
+                    f"""
+                    try{{Read-HarnessExactFile '{hardlink.as_posix()}' 64|Out-Null;$hardlink='unexpected'}}catch{{$hardlink=$_.Exception.Message}}
+                    try{{Read-HarnessExactFile '{(junction / 'state.json').as_posix()}' 64|Out-Null;$reparse='unexpected'}}catch{{$reparse=$_.Exception.Message}}
+                    $script:index=0
+                    $reader={{param($path,$limit)$script:index++;[pscustomobject]@{{Text='safe';Identity=$(if($script:index -eq 1){{'A'}}else{{'B'}});FinalPath=[IO.Path]::GetFullPath($path)}}}}
+                    try{{Read-HarnessExactFile '{source.as_posix()}' 64 $reader|Out-Null;$replacement='unexpected'}}catch{{$replacement=$_.Exception.Message}}
+                    [pscustomobject]@{{hardlink=$hardlink;reparse=$reparse;replacement=$replacement}}|ConvertTo-Json -Compress
+                    """
+                )
+            finally:
+                junction.rmdir()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(result.stdout),
+                {
+                    "hardlink": "Harness private file is invalid",
+                    "reparse": "Harness private file is invalid",
+                    "replacement": "Harness private file is invalid",
+                },
+            )
+
+    def test_broker_config_drift_stops_before_same_id_reconcile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "checkpoint.json"
+            result = self.run_harness(
+                f"""
+                $script:role='basic';$script:fingerprint='CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC';$script:brokerCalls=0
+                $deps=New-MobileAcceptanceTestDependencies -Action {{param($name)$result=@{{preflight='ready';'avd-start'='started';'signer-check'='matched';install='replaced';'cold-launch'='running'}}[$name];@{{classification='PASS';result=$result}}}} -Artifact {{@{{state='matched';binding={self.binding_ps()}}}}} -Observation {{if($script:role -eq 'basic'){{@{{principal='basic';provenance='fresh_server';aggregate='basic_valid';report='absent';report_entry='absent';producer_gap=$false}}}}else{{@{{principal='officer';provenance='fresh_server';aggregate='officer_valid';report='ready';report_entry='present';producer_gap=$false}}}}}} -BrokerStatus {{[pscustomobject]@{{classification='PASS';result='available';state='private_exact';reason_code='NONE'}}}} -BrokerBinding {{$script:fingerprint}} -BrokerOperation {{param($action,$id)$script:brokerCalls++;$script:role='officer';throw 'Harness broker operation result is unknown'}} -CheckpointPolicy {{param($path)$true}}
+                $first=Invoke-MobileStagingAcceptanceMain 'officer-authorization-roundtrip' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $false $deps
+                $script:fingerprint='DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD'
+                $second=Invoke-MobileStagingAcceptanceMain 'officer-authorization-roundtrip' 'staging' '{FULL_SHA}' 'C:/config.json' '{checkpoint.as_posix()}' $true $deps
+                [pscustomobject]@{{first=$first.classification;second=$second.classification;reason=$second.details.reason_code;brokerCalls=$script:brokerCalls}}|ConvertTo-Json -Compress
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                json.loads(result.stdout),
+                {
+                    "first": "EVIDENCE_GAP",
+                    "second": "DRIFT",
+                    "reason": "BROKER_PRIVATE_STATE_INVALID",
+                    "brokerCalls": 1,
+                },
+            )
 
     def test_preaccessibility_status_reasons_are_preserved_without_retry(self):
         reasons = (

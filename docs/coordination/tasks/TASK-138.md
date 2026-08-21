@@ -22,8 +22,8 @@ read-only dependencies.
 - Broker status and operations run through the accepted client as isolated,
   bounded child processes with exactly one governed JSON result.
 - Opaque operation IDs are generated once and retained only in a task-private
-  atomic sidecar. They never enter the public checkpoint, governed output,
-  report or repository.
+  atomic sidecar bound to the exact broker-config fingerprint. They never enter
+  the public checkpoint, governed output, report or repository.
 - The private sidecar is durable before the intent checkpoint. A mutation is
   issued at most once. Intent/result resume performs only same-ID `reconcile`;
   missing, malformed or conflicting state fails closed.
@@ -39,4 +39,3 @@ read-only dependencies.
 - Writer runs one affected complete harness suite plus parser/diff/format.
 - Domain review is targeted to broker/sidecar/no-retry boundaries; hosted CI is
   the final repository gate. Controlled staging dogfood is separate.
-
