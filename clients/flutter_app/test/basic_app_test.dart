@@ -30,11 +30,15 @@ class QueueTransport implements ApiTransport {
   }
 }
 
-Map<String, dynamic> gameJson() => {
+Map<String, dynamic> gameJson({
+  int? durationMinutes = 60,
+  String? location = '球場',
+}) =>
+    {
       'id': 'g',
       'start_at': '2026-08-18T12:00:00Z',
-      'duration_minutes': 60,
-      'location': '球場',
+      'duration_minutes': durationMinutes,
+      'location': location,
       'home_team': 'Home',
       'away_team': 'Away'
     };
@@ -778,6 +782,65 @@ void main() {
     for (final reply in AttendanceReply.values) {
       expect(find.byKey(ValueKey('reply-${reply.wire}')), findsOneWidget);
     }
+  });
+
+  testWidgets('list and detail share readable localized game metadata',
+      (tester) async {
+    final listApi = await apiFor(QueueTransport(), MemoryStore());
+    final game = Game(
+        'g', DateTime.parse('2026-08-18T12:00:00Z'), 60, '球場', 'Home', 'Away');
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: listApi,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: [game],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026))));
+    final listMetadata = tester
+        .widget<Text>(find
+            .descendant(
+                of: find.byKey(const ValueKey('game-g')),
+                matching: find.byType(Text))
+            .last)
+        .data;
+
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+      ]);
+    await tester.pumpWidget(MaterialApp(
+        home: GameDetailPage(
+            api: await apiFor(transport, MemoryStore()), gameId: 'g')));
+    await tester.pumpAndSettle();
+    final detailMetadata = tester
+        .widget<Text>(find.byKey(const ValueKey('game-detail-metadata')))
+        .data;
+
+    expect(detailMetadata, listMetadata);
+    expect(detailMetadata, contains('球場'));
+    expect(detailMetadata, contains('60 分鐘'));
+    expect(detailMetadata, isNot(contains('2026-08-18T12:00:00.000Z')));
+  });
+
+  testWidgets('game detail omits absent optional metadata', (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson(durationMinutes: null, location: null)),
+        ApiResponse(200, attendanceJson()),
+      ]);
+    await tester.pumpWidget(MaterialApp(
+        home: GameDetailPage(
+            api: await apiFor(transport, MemoryStore()), gameId: 'g')));
+    await tester.pumpAndSettle();
+    final metadata = tester
+        .widget<Text>(find.byKey(const ValueKey('game-detail-metadata')))
+        .data!;
+
+    expect(metadata, isNot(contains('球場')));
+    expect(metadata, isNot(contains('分鐘')));
+    expect(metadata, isNot(contains('null')));
+    expect(metadata, isNot(contains('2026-08-18T12:00:00.000Z')));
   });
 
   testWidgets('fresh GET projects every canonical authoritative own reply',
