@@ -1,12 +1,17 @@
 # 專案狀態
 
-更新時間：2026-08-21T16:00:00+08:00
+更新時間：2026-08-21T17:00:00+08:00
 
 維護角色：Work
 
-Repository 基準：`main` / `f20090cdda5a3b17bd144a83ab8069fd8267df9e`
+Repository 基準：`main` / `d660bf46356c14cf21c45a08c2797690e5b38209`
 
 ## 目前摘要
+
+- TASK-140 Flutter schedule usability 已由 PR #162 merge 至 `main`（`d660bf46356c14cf21c45a08c2797690e5b38209`）：
+  authenticated refresh具備合併與logout command雙層競態防護，賽事採穩定排序與可讀本地時間；hosted Flutter
+  format/analyze/full tests/fake APK/final gate全綠。未執行TASK-133 Resume或staging runtime。
+- TASK-141 啟動帳號與資料狀態頁：只重用現有display name、last sync與fresh/offline provenance，不新增API、權限或設定副作用。
 
 - TASK-133 repository delivery／hosted CI 證據已接受；E2E staging dogfood 仍為 inconclusive，因 standalone status
   可 PASS、完整 Resume observation 偶發 `STATUS_UNAVAILABLE`。既有 `await_observation` checkpoint 保留且不再重試。

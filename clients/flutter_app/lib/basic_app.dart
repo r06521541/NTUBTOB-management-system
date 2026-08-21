@@ -594,6 +594,19 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.refresh),
           )),
+      ListTile(
+        key: const ValueKey('account-data-status-entry'),
+        leading: const Icon(Icons.account_circle_outlined),
+        title: const Text('帳號與資料狀態'),
+        subtitle: const Text('查看目前顯示的帳號與資料來源'),
+        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => AccountDataStatusPage(
+            person: widget.person,
+            lastSyncedAt: widget.lastSyncedAt,
+            provenance: widget.principalProvenance,
+          ),
+        )),
+      ),
       if (DebugPrincipalProjection.shouldRender(
           debugBuild: kDebugMode, diagnosticEnabled: widget.diagnosticEnabled))
         DebugPrincipalProjection(
@@ -649,6 +662,79 @@ class _BasicGamesViewState extends State<BasicGamesView> {
       details.add('${game.durationMinutes} 分鐘');
     }
     return details.join('・');
+  }
+}
+
+class AccountDataStatusPage extends StatelessWidget {
+  const AccountDataStatusPage({
+    super.key,
+    required this.person,
+    required this.lastSyncedAt,
+    this.provenance,
+  });
+
+  final Person person;
+  final DateTime lastSyncedAt;
+  final PrincipalProvenance? provenance;
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final localLastSyncedAt = lastSyncedAt.toLocal();
+    final source = switch (provenance) {
+      PrincipalProvenance.freshServer => '資料來源：伺服器同步資料',
+      PrincipalProvenance.offlineCache => '資料來源：離線快取，唯讀且非權威',
+      null => '資料來源未確認，請勿視為權威',
+    };
+    final description = switch (provenance) {
+      PrincipalProvenance.freshServer => '目前顯示的是已由伺服器同步的資料。',
+      PrincipalProvenance.offlineCache => '目前顯示的是本機離線快取；內容僅供查看，唯讀且非權威。',
+      null => '目前無法確認資料來源；內容僅供查看，請勿視為權威。',
+    };
+    return Scaffold(
+      appBar: AppBar(title: const Text('帳號與資料狀態')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Semantics(
+            key: const ValueKey('account-display-name'),
+            label: '目前帳號：${person.displayName}',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.person_outline),
+              title: Text(person.displayName),
+              subtitle: const Text('目前顯示的帳號'),
+            ),
+          ),
+          const Divider(),
+          Semantics(
+            key: const ValueKey('account-last-sync'),
+            label:
+                '最後同步：${localizations.formatFullDate(localLastSyncedAt)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localLastSyncedAt))}',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.schedule_outlined),
+              title: const Text('最後同步'),
+              subtitle: Text(
+                  '${localizations.formatFullDate(localLastSyncedAt)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localLastSyncedAt))}'),
+            ),
+          ),
+          const Divider(),
+          Semantics(
+            key: const ValueKey('account-data-provenance'),
+            label: '$source $description',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(provenance == PrincipalProvenance.freshServer
+                  ? Icons.cloud_done_outlined
+                  : Icons.cloud_off),
+              title: Text(source),
+              subtitle: Text(description),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
