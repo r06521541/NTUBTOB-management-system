@@ -35,6 +35,8 @@
 - Hosted CI 應依實際變更範圍選擇最小充分測試。只有 database schema／migration／受控 SQL／model／workflow 等
   相關變更才需要 PostgreSQL 多版本 matrix；一般純文件變更只需快速文件 gate。CI 尚未實作 change detection 前，
   不得假稱已跳過完整 suite，也不得為純狀態更新額外建立 PR。
+- CI classifier 對純 docs／archive 與明列核准的 repository bootstrap wrapper 只選 quick gate；classifier、workflow、
+  shared boundary、未知 script／設定仍 fail-safe 選 full。不得把一般工具加入 quick allowlist 來規避其直接 suite。
 - 驗收依 `docs/coordination/COLLABORATION.md` 第 9 節分為 L1 presentation、L2 state/auth/cache 與
   L3 API/schema/deploy。L1 預設不派 Domain、不跑 local full 或 runtime；以 focused tests、analyze 與 hosted full 為準。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。

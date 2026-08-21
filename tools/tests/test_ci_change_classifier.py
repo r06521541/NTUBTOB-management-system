@@ -40,6 +40,19 @@ class ChangeClassifierTests(unittest.TestCase):
             "docs_only",
         )
 
+    def test_approved_repository_bootstrap_wrapper_is_quick_only(self):
+        for paths in (
+            ["tools/Invoke-FlutterToolchain.ps1"],
+            ["tools/tests/test_ci_flutter_toolchain_contract.py"],
+            [
+                "AGENTS.md",
+                "docs/coordination/archive/mobile/CLOSEOUT.md",
+                "tools/Invoke-FlutterToolchain.ps1",
+            ],
+        ):
+            with self.subTest(paths=paths):
+                self.assertScopes(paths, "quick_only")
+
     def test_database_artifacts_and_boundaries_are_not_docs_only(self):
         for path, expected in (
             ("docs/operations/sql/inventory.sql", "portal_data"),
@@ -118,6 +131,7 @@ class ChangeClassifierTests(unittest.TestCase):
             "requirements.txt",
             ".github/workflows/python-tests.yml",
             "tools/ci_change_classifier.py",
+            "tools/UnreviewedBootstrap.ps1",
             "unexpected/new-boundary.conf",
         ):
             with self.subTest(path=path):
@@ -193,6 +207,12 @@ class FinalGateTests(unittest.TestCase):
             final_gate_failures(outputs(docs_only=True), results(portal_data="failure"))
         )
 
+    def test_quick_only_allows_only_legitimate_skips(self):
+        self.assertEqual(final_gate_failures(outputs(quick_only=True), results()), [])
+        self.assertTrue(
+            final_gate_failures(outputs(quick_only=True), results(flutter="success"))
+        )
+
     def test_selected_jobs_must_succeed(self):
         selected = outputs(web_portal=True, line_webhook=True)
         successful = results(web_portal="success", line_webhook="success")
@@ -244,6 +264,9 @@ class FinalGateTests(unittest.TestCase):
         )
         self.assertTrue(
             final_gate_failures(outputs(docs_only=True, web_portal=True), results())
+        )
+        self.assertTrue(
+            final_gate_failures(outputs(quick_only=True, web_portal=True), results())
         )
         self.assertTrue(
             final_gate_failures(outputs(docs_only=True), results(classify="failure"))

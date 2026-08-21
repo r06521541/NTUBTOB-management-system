@@ -7,7 +7,6 @@ import subprocess
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "python-tests.yml"
 FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
@@ -52,6 +51,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_classifier_uses_reliable_event_ranges_and_full_fallback(self):
         block = job_block(self.source, "classify")
+        self.assertIn("quick_only: ${{ steps.changes.outputs.quick_only }}", block)
         self.assertIn("fetch-depth: 0", block)
         self.assertIn(
             "github.event.pull_request.base.sha || github.event.before", block
@@ -173,6 +173,7 @@ class WorkflowContractTests(unittest.TestCase):
         base_environment = dict(os.environ)
         for scope in (
             "DOCS_ONLY",
+            "QUICK_ONLY",
             "FLUTTER",
             "PORTAL_DATA",
             "WEB_PORTAL",
@@ -207,6 +208,11 @@ class WorkflowContractTests(unittest.TestCase):
 
         docs_environment = dict(base_environment, CI_SCOPE_DOCS_ONLY="true")
         self.assertEqual(run_script(docs_environment).returncode, 0)
+
+        quick_environment = dict(base_environment, CI_SCOPE_QUICK_ONLY="true")
+        self.assertEqual(run_script(quick_environment).returncode, 0)
+        quick_environment["CI_SCOPE_WEB_PORTAL"] = "true"
+        self.assertNotEqual(run_script(quick_environment).returncode, 0)
 
         full_environment = dict(base_environment, CI_SCOPE_FULL="true")
         for job in (
