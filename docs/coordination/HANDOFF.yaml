@@ -1,23 +1,23 @@
-active_task: null
-status: paused
-next_actor: owner
+active_task: TASK-143
+status: ready_for_writer
+next_actor: codex-writer
 
-claim_id: null
-lease_version: null
-actor_id: null
+claim_id: task-143-flutter-writer
+lease_version: 1
+actor_id: 01a013a7-7fde-7363-9314-7a255e8206a5
 
-base_commit: a196a91699374ee020457afa7caa2c63ce4e7f65
-head_commit: a196a91699374ee020457afa7caa2c63ce4e7f65
+base_commit: 8895747502347f86d9611bad103a5680a2759db4
+head_commit: 8895747502347f86d9611bad103a5680a2759db4
 
 updated_by: main-work
-updated_at: 2026-08-21T19:49:00+08:00
+updated_at: 2026-08-21T20:03:00+08:00
 
 note: >
-  TASK-142 merged through PR #168 after the focused Flutter and quick hosted
-  gates passed. The task-scoped writer lease is revoked and no task is active;
-  work is paused for Owner review.
+  TASK-143 is an L1 Flutter delivery with one task-scoped writer. Localize the
+  existing game-detail schedule metadata through one shared list/detail helper.
+  Domain review, emulator, staging and acceptance-harness dogfood are not gates.
 
-worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task142-pull-refresh
-task: docs/coordination/tasks/TASK-142.md
-report: docs/coordination/reports/TASK-142-FLUTTER-CODEX.md
+worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task143-game-detail
+task: docs/coordination/tasks/TASK-143.md
+report: docs/coordination/reports/TASK-143-FLUTTER-CODEX.md
 review: null
