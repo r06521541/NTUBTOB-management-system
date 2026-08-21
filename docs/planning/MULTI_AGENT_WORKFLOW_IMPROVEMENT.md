@@ -1,6 +1,6 @@
 # Multi-agent workflow improvement proposal
 
-Status: accepted planning rationale; non-authoritative.
+Status: incorporated planning rationale; non-authoritative.
 
 This document proposes a leaner collaboration flow. It does not replace
 `docs/coordination/COLLABORATION.md`. After dogfood and Owner review, only the
@@ -85,12 +85,11 @@ explanatory rather than become a second policy source.
    historical sessions remain advisers and inactive agents are not repeatedly
    awakened.
 
-TASK-123 is the reference example: Shared/Web Codex is the only writer; Flutter
-review covers AVD/ADB, signer, session-preserving install and runtime-stop
-boundaries; Main Work checks cross-domain invariants and final integration;
-the advisory lane proposes architecture/process improvements but is not part of
-formal acceptance. Repository-only work is accepted before one controlled
-dogfood, rather than mixing mock and emulator evidence across review rounds.
+TASK-123 is now a historical example rather than the default workflow. Its
+atomic launcher and no-disclosure boundaries are retained, while the complete
+acceptance orchestration is quarantined after repeated runtime variation. The
+current enforceable risk levels, correction budget and reviewer rules live only
+in `COLLABORATION.md` sections 6 and 9.
 
 ## 例外
 
@@ -134,16 +133,11 @@ reducing defect detection or final-gate coverage.
 
 ## 導入方式
 
-1. Keep this proposal non-authoritative during TASK-123 dogfood. Record only
-   concrete friction: repeated context, repeated suites, manual Owner steps,
-   unclear evidence or unnecessary coordination artifacts.
-2. Apply the proposed roles, batched review and verification budget to the next
-   two suitable work packages. Compare the lightweight closeout metrics with
-   recent TASK-113 through TASK-123 experience.
-3. After Owner review, promote only short, stable, enforceable rules into
-   `COLLABORATION.md`. Link from there to this planning rationale if useful; do
-   not copy the same detailed prose into both locations.
-4. Archive or revise this proposal when its remaining recommendations become
-   implemented tasks. Do not open a coordination-only PR; include accepted
-   planning or policy changes in the next appropriate substantive delivery
-   unless an immediate safety boundary requires otherwise.
+1. Use `COLLABORATION.md` as the only enforceable source; this file explains why
+   its throttling rules exist.
+2. Apply the L1/L2/L3 gate selected by the next real product task; do not create
+   a task merely to exercise the workflow.
+3. Record only correction rounds, duplicate suites, Owner operations and coarse
+   waiting reasons already available in task closeout; create no new ledger.
+4. Revisit the policy only when two real deliveries show the same friction or a
+   safety incident proves the current gate insufficient.
