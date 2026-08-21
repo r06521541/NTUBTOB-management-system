@@ -108,6 +108,31 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
             "mobile_api_audience": "1234567890",
         }
 
+    def test_archive_allowlist_has_tracked_bytes_at_current_source(self):
+        repository = Path(__file__).resolve().parents[2]
+        for relative in ARCHIVE_PATHS:
+            with self.subTest(relative=relative):
+                completed = subprocess.run(
+                    [
+                        "git",
+                        "-c",
+                        f"safe.directory={repository.as_posix()}",
+                        "-C",
+                        str(repository),
+                        "ls-files",
+                        "--",
+                        relative,
+                    ],
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=10,
+                )
+                self.assertEqual(completed.returncode, 0)
+                self.assertTrue(completed.stdout.strip())
+
     def test_prepares_exact_context_and_redacted_state(self):
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
