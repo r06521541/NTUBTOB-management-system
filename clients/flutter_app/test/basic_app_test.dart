@@ -632,6 +632,95 @@ void main() {
     expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
   });
 
+  testWidgets('online non-empty list pulls to invoke existing refresh once',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            onRefresh: () async => refreshes++)));
+
+    final pullRefresh = tester.widget<RefreshIndicator>(
+        find.byKey(const ValueKey('games-pull-refresh')));
+    expect(pullRefresh.semanticsLabel, '下拉重新整理賽事');
+    await tester.fling(find.byType(ListView), const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
+  });
+
+  testWidgets('online empty list remains pull-scrollable', (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            onRefresh: () async => refreshes++)));
+
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+    expect(scrollable.position.physics, isA<AlwaysScrollableScrollPhysics>());
+    await tester.fling(find.byType(ListView), const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
+  });
+
+  testWidgets('pending pull refresh rejects an overlapping gesture',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    final gate = Completer<void>();
+    var refreshes = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            onRefresh: () async {
+              refreshes++;
+              await gate.future;
+            })));
+
+    final list = find.byType(ListView);
+    await tester.fling(list, const Offset(0, 300), 1000);
+    await tester.pump();
+    await tester.fling(list, const Offset(0, 300), 1000);
+    await tester.pump();
+    expect(refreshes, 1);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('offline list exposes no pull refresh or callback',
+      (tester) async {
+    final transport = QueueTransport();
+    final api = await apiFor(transport, MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', ['games:read']),
+            games: const [],
+            online: false,
+            lastSyncedAt: DateTime.utc(2026),
+            onRefresh: () async => refreshes++)));
+
+    expect(find.byKey(const ValueKey('games-pull-refresh')), findsNothing);
+    await tester.fling(find.byType(ListView), const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(refreshes, 0);
+    expect(transport.calls, isEmpty);
+  });
+
   testWidgets('failed online refresh can be retried', (tester) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
     var refreshes = 0;

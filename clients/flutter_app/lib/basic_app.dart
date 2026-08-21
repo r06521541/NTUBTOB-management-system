@@ -568,7 +568,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
         final byStart = left.startAt.compareTo(right.startAt);
         return byStart != 0 ? byStart : left.id.compareTo(right.id);
       });
-    return Material(
+    final content = Material(
         child: ListView(children: [
       if (!widget.online)
         Semantics(
@@ -647,6 +647,16 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                         GameDetailPage(api: widget.api, gameId: game.id)))
                 : null),
     ]));
+    final scrollableGamesView = ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context)
+            .copyWith(physics: const AlwaysScrollableScrollPhysics()),
+        child: content);
+    if (!widget.online || widget.onRefresh == null) return scrollableGamesView;
+    return RefreshIndicator(
+        key: const ValueKey('games-pull-refresh'),
+        semanticsLabel: '下拉重新整理賽事',
+        onRefresh: _refresh,
+        child: scrollableGamesView);
   }
 
   static String _gameDetails(MaterialLocalizations localizations, Game game) {

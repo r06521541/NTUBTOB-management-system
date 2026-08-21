@@ -1,21 +1,24 @@
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-142
+status: ready_for_hosted_ci
+next_actor: main-work
 
-base_commit: 6840561d6d1fd71ea8f2c24068ef9321d48f6efd
-head_commit: 6840561d6d1fd71ea8f2c24068ef9321d48f6efd
+claim_id: task-142-flutter-writer
+lease_version: 1
+actor_id: 01a013a7-7fde-7363-9314-7a255e8206a5
+
+base_commit: 6e1e52795e593d736764e29c2819dc62111b1ee4
+head_commit: e33ff32b1bc2d97339efd952b5ec28c80b9beda9
 
 updated_by: main-work
-updated_at: 2026-08-21T18:15:00+08:00
+updated_at: 2026-08-21T19:02:00+08:00
 
 note: >
-  No implementation task is active. Completed TASK-088 through TASK-138 and
-  TASK-140/141 evidence is archived under August 2026 closeouts. TASK-139 has
-  no integrated active artifact and is not represented as completed. The full
-  acceptance harness is experimental and not a release gate. Wait for Owner
-  selection of the next product delivery.
+  Main accepted the focused TASK-142 implementation after one correction removed
+  unrelated formatter reflow. Create the single PR and run the change-selected
+  hosted Flutter gate. Domain review, emulator, staging and acceptance-harness
+  dogfood are not gates.
 
-worktree: null
-task: null
-report: null
+worktree: C:/Users/USER/.codex/visualizations/2026/08/10/019fe8ff-b672-7b33-b535-3a325d85124a/task142-pull-refresh
+task: docs/coordination/tasks/TASK-142.md
+report: docs/coordination/reports/TASK-142-FLUTTER-CODEX.md
 review: null
