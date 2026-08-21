@@ -9,41 +9,42 @@
 
 ## Implementation
 
-- Wraps an online game list with a localized `RefreshIndicator` only when the
-  existing reload callback is available.
-- Reuses the existing guarded `_refresh` operation, so the pull gesture and the
-  existing button share one in-flight lock and cannot create concurrent reloads.
-- Uses always-scrollable list physics so both empty and short online lists can
-  start the conventional pull gesture.
-- Offline lists do not contain the pull-refresh widget; their existing button
-  and game-detail actions remain disabled.
-- No API route, authentication/session, cache, persistence, background work,
-  attendance mutation, Officer guard, sorting, navigation, or logout behavior
-  changed.
+- Adds a localized `RefreshIndicator` only to online lists with the existing
+  reload callback.
+- The pull gesture and existing refresh button share the same in-flight guard.
+- Always-scrollable list physics keeps empty and short online lists pullable.
+- Offline lists contain no pull-refresh action and remain read-only.
+- No API, auth/session, cache, persistence, mutation, Officer guard, sorting,
+  navigation, or logout behavior changed.
 
 ## Verification
 
 - Exact toolchain: Flutter `3.47.0`, Dart `3.13.0`.
-- `flutter pub get`: passed using the existing task-scoped Pub cache.
-- Exact formatter check for `lib/basic_app.dart` and
-  `test/basic_app_test.dart`: passed, 0 files changed on the final check.
+- Formatter and formatter check were run from `clients/flutter_app` for only
+  `lib/basic_app.dart` and `test/basic_app_test.dart`; final check passed with
+  zero changes.
 - `flutter analyze`: passed with no issues.
 - Focused `flutter test test/basic_app_test.dart`: passed, 62 tests.
-- Added coverage for online non-empty pull, online empty pull, pending
-  gesture/button de-duplication, localized semantics, and offline zero-callback
-  behavior.
+- Coverage includes online non-empty and empty pulls, overlapping gesture/button
+  de-duplication, localized semantics, and offline zero-callback behavior.
 - `git diff --check`: passed before handoff.
 
-The exact Dart 3.13 formatter normalized both owned Dart files beyond the new
-behavioral blocks. Self-review confirmed those additional changes are formatter
-layout only and remain inside the task-owned paths.
+## Correction record
 
-## Limits and side effects
+Main review rejected the initial repository-root formatter run because it
+caused unrelated full-file reflow. The correction safely reversed that commit,
+reapplied the same focused behavior/tests, and formatted from the package
+working directory. The final Dart diff is limited to the pull-refresh blocks
+and their direct tests.
 
-- Per the task verification budget, no local full Flutter suite, emulator,
-  staging, login, acceptance harness, Android/iOS build, PR, or deployment was
-  run.
-- Dependency resolution used only the existing task-scoped Flutter/Pub setup;
-  no project dependency or lockfile was changed.
-- This writer self-reviewed and self-tested the implementation but does not
-  formally accept it; Main Work remains the required reviewer/acceptor.
+Two intermediate focused runs exposed a test-only timing assumption while the
+refresh indicator was entering. The final test asserts the durable invariant—
+two overlapping pull gestures invoke one callback—and the final focused run
+passes all 62 tests.
+
+## Limits
+
+- Per the task budget, no full Flutter suite, emulator, staging, login,
+  acceptance harness, platform build, PR, or Domain dispatch was run.
+- The writer self-reviewed and self-tested but does not formally accept the
+  implementation; Main Work remains the reviewer/acceptor.
