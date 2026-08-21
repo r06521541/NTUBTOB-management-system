@@ -15,9 +15,12 @@ class QueueTransport implements ApiTransport {
   Completer<void>? mutationGate;
   bool networkOnPut = false;
   @override
-  Future<ApiResponse> send(String method, String path,
-      {Map<String, String> headers = const {},
-      Map<String, dynamic>? body}) async {
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
     calls.add((method, path, headers, body));
     if (method == 'PUT' && networkOnPut) {
       networkOnPut = false;
@@ -36,7 +39,7 @@ Map<String, dynamic> gameJson() => {
       'duration_minutes': 60,
       'location': '球場',
       'home_team': 'Home',
-      'away_team': 'Away'
+      'away_team': 'Away',
     };
 
 Map<String, dynamic> attendanceJson({String? ownReply = 'undecided'}) => {
@@ -47,9 +50,9 @@ Map<String, dynamic> attendanceJson({String? ownReply = 'undecided'}) => {
           'person_id': 'p2',
           'display_name': '已回覆隊員',
           'reply': 'attending',
-          'qualification': 'team_player'
-        }
-      ]
+          'qualification': 'team_player',
+        },
+      ],
     };
 
 Map<String, dynamic> errorJson(String code) => {
@@ -59,8 +62,8 @@ Map<String, dynamic> errorJson(String code) => {
         'request_id': 'request',
         'retryable': false,
         'retry_after_seconds': null,
-        'field_errors': []
-      }
+        'field_errors': [],
+      },
     };
 
 Map<String, dynamic> mutationJson() => {
@@ -69,16 +72,19 @@ Map<String, dynamic> mutationJson() => {
       'changed': true,
       'updated_at': '2026-08-18T12:00:00Z',
       'notification': {'status': 'not_required', 'code': null},
-      'idempotent_replay': false
+      'idempotent_replay': false,
     };
 
 Future<BasicApi> apiFor(QueueTransport transport, MemoryStore store) async {
   final session = SessionController(transport, store, 'install', SecureIds());
-  await session.accept(const SessionEnvelope(
+  await session.accept(
+    const SessionEnvelope(
       accessToken: 'access',
       refreshToken: 'refresh-token-with-at-least-32-characters',
       sessionId: 's',
-      expiresIn: 900));
+      expiresIn: 900,
+    ),
+  );
   return BasicApi(session, store, 'install', SecureIds());
 }
 
@@ -102,8 +108,12 @@ Future<
   QueueTransport? transport,
 }) async {
   final actualTransport = transport ?? QueueTransport();
-  final session =
-      SessionController(actualTransport, store, installationId, SecureIds());
+  final session = SessionController(
+    actualTransport,
+    store,
+    installationId,
+    SecureIds(),
+  );
   return (
     session: session,
     basicCache: BasicCache(store, installationId),
@@ -141,93 +151,111 @@ void main() {
   }
 
   testWidgets('unresolved native timeout hides login action', (tester) async {
-    await tester.pumpWidget(const MaterialApp(
+    await tester.pumpWidget(
+      const MaterialApp(
         home: Scaffold(
-            body: AuthStatePanel(state: AuthViewState.timeoutUnresolved),
-            floatingActionButton: LoginActionButton(
-                state: AuthViewState.timeoutUnresolved, onLogin: null))));
+          body: AuthStatePanel(state: AuthViewState.timeoutUnresolved),
+          floatingActionButton: LoginActionButton(
+            state: AuthViewState.timeoutUnresolved,
+            onLogin: null,
+          ),
+        ),
+      ),
+    );
     expect(find.text('LINE 登入已逾時，請關閉既有登入畫面後返回'), findsOneWidget);
     expect(find.byTooltip('LINE 登入'), findsNothing);
   });
 
-  testWidgets('confirmed cancellation re-enables one login action',
-      (tester) async {
+  testWidgets('confirmed cancellation re-enables one login action', (
+    tester,
+  ) async {
     var calls = 0;
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: Scaffold(
-            floatingActionButton: LoginActionButton(
-                state: AuthViewState.cancelled, onLogin: () => calls++))));
+          floatingActionButton: LoginActionButton(
+            state: AuthViewState.cancelled,
+            onLogin: () => calls++,
+          ),
+        ),
+      ),
+    );
     expect(find.byTooltip('LINE 登入'), findsOneWidget);
     await tester.tap(find.byTooltip('LINE 登入'));
     expect(calls, 1);
   });
 
   test('fake versus real composition selects separate roots', () {
-    final fake = entrypoint
-        .composeRoot(AppConfig.parse(flavor: 'development', mode: 'fake'));
-    final real = entrypoint.composeRoot(AppConfig.parse(
+    final fake = entrypoint.composeRoot(
+      AppConfig.parse(flavor: 'development', mode: 'fake'),
+    );
+    final real = entrypoint.composeRoot(
+      AppConfig.parse(
         flavor: 'staging',
         mode: 'real',
         apiBaseUrl: 'https://example.invalid',
-        lineChannelId: '123'));
+        lineChannelId: '123',
+      ),
+    );
     expect(fake, isA<DemoApp>());
     expect(real, isA<BasicBootstrapApp>());
   });
 
   test('only recoverable network plus cache becomes offline', () {
-    expect(classifyFailure(const NetworkException(), hasCache: true),
-        AuthViewState.offline);
-    expect(classifyFailure(const NetworkException(), hasCache: false),
-        AuthViewState.recoverableError);
-    expect(classifyFailure(const ContractException('bad'), hasCache: true),
-        AuthViewState.contractError);
-    expect(classifyFailure(const SessionExpiredException(), hasCache: true),
-        AuthViewState.sessionExpired);
+    expect(
+      classifyFailure(const NetworkException(), hasCache: true),
+      AuthViewState.offline,
+    );
+    expect(
+      classifyFailure(const NetworkException(), hasCache: false),
+      AuthViewState.recoverableError,
+    );
+    expect(
+      classifyFailure(const ContractException('bad'), hasCache: true),
+      AuthViewState.contractError,
+    );
+    expect(
+      classifyFailure(const SessionExpiredException(), hasCache: true),
+      AuthViewState.sessionExpired,
+    );
   });
 
   test('pending Basic reload disables terminal logout', () {
     expect(
-      canStartLogout(
-        AuthViewState.authenticated,
-        basicLoadInProgress: false,
-      ),
+      canStartLogout(AuthViewState.authenticated, basicLoadInProgress: false),
       isTrue,
     );
     expect(
-      canStartLogout(
-        AuthViewState.authenticated,
-        basicLoadInProgress: true,
-      ),
+      canStartLogout(AuthViewState.authenticated, basicLoadInProgress: true),
       isFalse,
     );
     expect(
-      canStartLogout(
-        AuthViewState.offline,
-        basicLoadInProgress: false,
-      ),
+      canStartLogout(AuthViewState.offline, basicLoadInProgress: false),
       isFalse,
     );
   });
 
-  test('retained logout callback cannot cross a pending Basic reload',
-      () async {
-    var logoutCalls = 0;
-    Future<void> logout() async => logoutCalls++;
+  test(
+    'retained logout callback cannot cross a pending Basic reload',
+    () async {
+      var logoutCalls = 0;
+      Future<void> logout() async => logoutCalls++;
 
-    await runBasicLogoutIfAllowed(
-      state: AuthViewState.authenticated,
-      basicLoadInProgress: true,
-      logout: logout,
-    );
-    expect(logoutCalls, 0);
+      await runBasicLogoutIfAllowed(
+        state: AuthViewState.authenticated,
+        basicLoadInProgress: true,
+        logout: logout,
+      );
+      expect(logoutCalls, 0);
 
-    await runBasicLogoutIfAllowed(
-      state: AuthViewState.authenticated,
-      basicLoadInProgress: false,
-      logout: logout,
-    );
-    expect(logoutCalls, 1);
-  });
+      await runBasicLogoutIfAllowed(
+        state: AuthViewState.authenticated,
+        basicLoadInProgress: false,
+        logout: logout,
+      );
+      expect(logoutCalls, 1);
+    },
+  );
 
   test('native platform mapping accepts only Android and iOS', () {
     expect(nativePlatformName(TargetPlatform.android), 'android');
@@ -238,34 +266,49 @@ void main() {
     expect(nativePlatformName(TargetPlatform.fuchsia), isNull);
   });
 
-  testWidgets('Basic-only navigation exposes games and no management',
-      (tester) async {
+  testWidgets('Basic-only navigation exposes games and no management', (
+    tester,
+  ) async {
     final transport = QueueTransport();
     final api = await apiFor(transport, MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('p', 'Basic', ['games:read']),
-            games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
-            online: true,
-            lastSyncedAt: DateTime.utc(2026))));
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+        ),
+      ),
+    );
     expect(find.byKey(const ValueKey('game-g')), findsOneWidget);
     expect(find.text('管理'), findsNothing);
     expect(find.text('系統公告'), findsNothing);
   });
 
-  testWidgets('fresh account status is reachable with safe semantics',
-      (tester) async {
+  testWidgets('fresh account status is reachable with safe semantics', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('hidden-id', '可見名稱', ['hidden-capability'],
-                accessLevel: AccessLevel.admin),
-            games: const [],
-            online: true,
-            lastSyncedAt: DateTime.utc(2026, 8, 20, 1, 2),
-            principalProvenance: PrincipalProvenance.freshServer)));
+          api: api,
+          person: const Person(
+              'hidden-id',
+              '可見名稱',
+              [
+                'hidden-capability',
+              ],
+              accessLevel: AccessLevel.admin),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026, 8, 20, 1, 2),
+          principalProvenance: PrincipalProvenance.freshServer,
+        ),
+      ),
+    );
 
     await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
     await tester.pumpAndSettle();
@@ -275,14 +318,17 @@ void main() {
     expect(find.byKey(const ValueKey('management-report-entry')), findsNothing);
     expect(api.session.api, isA<QueueTransport>());
     expect((api.session.api as QueueTransport).calls, isEmpty);
-    final semantics = tester
-        .getSemantics(find.byKey(const ValueKey('account-data-provenance')));
+    final semantics = tester.getSemantics(
+      find.byKey(const ValueKey('account-data-provenance')),
+    );
     expect(semantics.label, contains('伺服器同步資料'));
     final renderedText = tester
-        .widgetList<Text>(find.descendant(
-          of: find.byType(AccountDataStatusPage),
-          matching: find.byType(Text),
-        ))
+        .widgetList<Text>(
+          find.descendant(
+            of: find.byType(AccountDataStatusPage),
+            matching: find.byType(Text),
+          ),
+        )
         .map((text) => text.data ?? text.textSpan?.toPlainText() ?? '')
         .join('\n');
     final pageSemantics = [
@@ -308,22 +354,28 @@ void main() {
     }
   });
 
-  testWidgets('offline account status is read-only and non-authoritative',
-      (tester) async {
+  testWidgets('offline account status is read-only and non-authoritative', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('offline-id', '離線名稱', ['games:read']),
-            games: const [],
-            online: false,
-            lastSyncedAt: DateTime.utc(2026, 8, 20),
-            principalProvenance: PrincipalProvenance.offlineCache)));
+          api: api,
+          person: const Person('offline-id', '離線名稱', ['games:read']),
+          games: const [],
+          online: false,
+          lastSyncedAt: DateTime.utc(2026, 8, 20),
+          principalProvenance: PrincipalProvenance.offlineCache,
+        ),
+      ),
+    );
 
     await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
     await tester.pumpAndSettle();
-    final semantics = tester
-        .getSemantics(find.byKey(const ValueKey('account-data-provenance')));
+    final semantics = tester.getSemantics(
+      find.byKey(const ValueKey('account-data-provenance')),
+    );
     expect(semantics.label, contains('離線快取'));
     expect(semantics.label, contains('唯讀'));
     expect(semantics.label, contains('非權威'));
@@ -332,30 +384,38 @@ void main() {
     expect((api.session.api as QueueTransport).calls, isEmpty);
   });
 
-  testWidgets('unknown account provenance fails closed without internal labels',
-      (tester) async {
-    final transport = QueueTransport();
-    final api = await apiFor(transport, MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-        home: BasicGamesView(
+  testWidgets(
+    'unknown account provenance fails closed without internal labels',
+    (tester) async {
+      final transport = QueueTransport();
+      final api = await apiFor(transport, MemoryStore());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BasicGamesView(
             api: api,
             person: const Person('unknown-id', '未知來源名稱', ['games:read']),
             games: const [],
             online: true,
-            lastSyncedAt: DateTime.utc(2026, 8, 20))));
+            lastSyncedAt: DateTime.utc(2026, 8, 20),
+          ),
+        ),
+      );
 
-    await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
-    await tester.pumpAndSettle();
-    final semantics = tester
-        .getSemantics(find.byKey(const ValueKey('account-data-provenance')));
-    expect(semantics.label, contains('資料來源未確認，請勿視為權威'));
-    expect(semantics.label, isNot(contains('fresh_server')));
-    expect(semantics.label, isNot(contains('offline_cache')));
-    expect(transport.calls, isEmpty);
-  });
+      await tester.tap(find.byKey(const ValueKey('account-data-status-entry')));
+      await tester.pumpAndSettle();
+      final semantics = tester.getSemantics(
+        find.byKey(const ValueKey('account-data-provenance')),
+      );
+      expect(semantics.label, contains('資料來源未確認，請勿視為權威'));
+      expect(semantics.label, isNot(contains('fresh_server')));
+      expect(semantics.label, isNot(contains('offline_cache')));
+      expect(transport.calls, isEmpty);
+    },
+  );
 
-  testWidgets('debug projection localizes every role and report-read state',
-      (tester) async {
+  testWidgets('debug projection localizes every role and report-read state', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
     final cases = <(AccessLevel, bool, String)>[
       (AccessLevel.basic, false, '一般使用者'),
@@ -366,69 +426,102 @@ void main() {
       (AccessLevel.admin, true, '系統管理者'),
     ];
     for (final (accessLevel, enabled, role) in cases) {
-      await tester.pumpWidget(MaterialApp(
+      await tester.pumpWidget(
+        MaterialApp(
           home: BasicGamesView(
-              api: api,
-              person: Person('p', 'Visible elsewhere',
-                  enabled ? const ['attendance:report:read'] : const [],
-                  accessLevel: accessLevel),
-              games: const [],
-              online: true,
-              lastSyncedAt: DateTime.utc(2026),
-              principalProvenance: PrincipalProvenance.freshServer,
-              diagnosticEnabled: true)));
-      final projection =
-          find.byKey(const ValueKey('debug-principal-projection'));
+            api: api,
+            person: Person(
+              'p',
+              'Visible elsewhere',
+              enabled ? const ['attendance:report:read'] : const [],
+              accessLevel: accessLevel,
+            ),
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            principalProvenance: PrincipalProvenance.freshServer,
+            diagnosticEnabled: true,
+          ),
+        ),
+      );
+      final projection = find.byKey(
+        const ValueKey('debug-principal-projection'),
+      );
       expect(projection, findsOneWidget);
       expect(
-          tester.getSemantics(projection).label,
-          contains(
-              '偵錯權限投影：$role；報表讀取：${enabled && accessLevel != AccessLevel.basic ? '啟用' : '停用'}；來源：fresh_server（伺服器最新驗證）'));
+        tester.getSemantics(projection).label,
+        contains(
+          '偵錯權限投影：$role；報表讀取：${enabled && accessLevel != AccessLevel.basic ? '啟用' : '停用'}；來源：fresh_server（伺服器最新驗證）',
+        ),
+      );
       expect(find.text('attendance:report:read'), findsNothing);
       expect(find.text('p'), findsNothing);
     }
   });
 
-  testWidgets('fresh Basic and Officer projections are authoritative',
-      (tester) async {
+  testWidgets('fresh Basic and Officer projections are authoritative', (
+    tester,
+  ) async {
     final cases = <(Person, String)>[
       (
         const Person('basic-id', 'Basic', ['games:read']),
         '偵錯權限投影：一般使用者；報表讀取：停用；來源：fresh_server（伺服器最新驗證）',
       ),
       (
-        const Person('officer-id', 'Officer', ['attendance:report:read'],
+        const Person(
+            'officer-id',
+            'Officer',
+            [
+              'attendance:report:read',
+            ],
             accessLevel: AccessLevel.officer),
         '偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）',
       ),
     ];
 
     for (final (person, expectedLabel) in cases) {
-      await tester.pumpWidget(MaterialApp(
+      await tester.pumpWidget(
+        MaterialApp(
           home: Material(
-              child: DebugPrincipalProjection(
-                  person: person,
-                  provenance: PrincipalProvenance.freshServer))));
-      final projection =
-          find.byKey(const ValueKey('debug-principal-projection'));
+            child: DebugPrincipalProjection(
+              person: person,
+              provenance: PrincipalProvenance.freshServer,
+            ),
+          ),
+        ),
+      );
+      final projection = find.byKey(
+        const ValueKey('debug-principal-projection'),
+      );
       expect(
-          tester.widget<Semantics>(projection).properties.label, expectedLabel);
+        tester.widget<Semantics>(projection).properties.label,
+        expectedLabel,
+      );
     }
   });
 
-  testWidgets('offline cached Officer is explicitly non-authoritative',
-      (tester) async {
+  testWidgets('offline cached Officer is explicitly non-authoritative', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person(
-                'cached-id', 'Cached Officer', ['attendance:report:read'],
-                accessLevel: AccessLevel.officer),
-            games: const [],
-            online: false,
-            lastSyncedAt: DateTime.utc(2026),
-            principalProvenance: PrincipalProvenance.offlineCache)));
+          api: api,
+          person: const Person(
+              'cached-id',
+              'Cached Officer',
+              [
+                'attendance:report:read',
+              ],
+              accessLevel: AccessLevel.officer),
+          games: const [],
+          online: false,
+          lastSyncedAt: DateTime.utc(2026),
+          principalProvenance: PrincipalProvenance.offlineCache,
+        ),
+      ),
+    );
 
     final projection = find.byKey(const ValueKey('debug-principal-projection'));
     final label = tester.getSemantics(projection).label;
@@ -436,21 +529,32 @@ void main() {
     expect(label, contains('來源：offline_cache（離線快取，非權威）'));
     expect(label, isNot(contains('fresh_server')));
     expect(
-        find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
+      find.byKey(const ValueKey('management-report-entry')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('direct widget injection without provenance fails closed',
-      (tester) async {
+  testWidgets('direct widget injection without provenance fails closed', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person(
-                'injected-id', 'Injected Officer', ['attendance:report:read'],
-                accessLevel: AccessLevel.officer),
-            games: const [],
-            online: true,
-            lastSyncedAt: DateTime.utc(2026))));
+          api: api,
+          person: const Person(
+              'injected-id',
+              'Injected Officer',
+              [
+                'attendance:report:read',
+              ],
+              accessLevel: AccessLevel.officer),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+        ),
+      ),
+    );
 
     final projection = find.byKey(const ValueKey('debug-principal-projection'));
     final label = tester.getSemantics(projection).label;
@@ -458,8 +562,9 @@ void main() {
     expect(label, isNot(contains('fresh_server')));
   });
 
-  testWidgets('debug projection excludes sensitive principal material',
-      (tester) async {
+  testWidgets('debug projection excludes sensitive principal material', (
+    tester,
+  ) async {
     const sensitive = [
       'person-sensitive-id',
       'Sensitive Display Name',
@@ -469,13 +574,23 @@ void main() {
       'body-sensitive',
       'storage-sensitive',
     ];
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: Material(
-            child: DebugPrincipalProjection(
-                person: Person(
-                    sensitive[0], sensitive[1], [sensitive[2], sensitive[3]],
-                    accessLevel: AccessLevel.officer),
-                provenance: PrincipalProvenance.offlineCache))));
+          child: DebugPrincipalProjection(
+            person: Person(
+                sensitive[0],
+                sensitive[1],
+                [
+                  sensitive[2],
+                  sensitive[3],
+                ],
+                accessLevel: AccessLevel.officer),
+            provenance: PrincipalProvenance.offlineCache,
+          ),
+        ),
+      ),
+    );
 
     final projection = find.byKey(const ValueKey('debug-principal-projection'));
     final label = tester.getSemantics(projection).label;
@@ -484,73 +599,115 @@ void main() {
     }
   });
 
-  testWidgets('release-mode hard gate hides projection without changing guard',
-      (tester) async {
-    final api = await apiFor(QueueTransport(), MemoryStore());
-    const person = Person('p', 'Officer', ['attendance:report:read'],
-        accessLevel: AccessLevel.officer);
-    await tester.pumpWidget(MaterialApp(
-        home: BasicGamesView(
+  testWidgets(
+    'release-mode hard gate hides projection without changing guard',
+    (tester) async {
+      final api = await apiFor(QueueTransport(), MemoryStore());
+      const person = Person(
+          'p',
+          'Officer',
+          [
+            'attendance:report:read',
+          ],
+          accessLevel: AccessLevel.officer);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BasicGamesView(
             api: api,
             person: person,
             games: const [],
             online: true,
             lastSyncedAt: DateTime.utc(2026),
-            diagnosticEnabled: false)));
-    expect(
-        find.byKey(const ValueKey('debug-principal-projection')), findsNothing);
-    expect(
-        find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
-  });
+            diagnosticEnabled: false,
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('debug-principal-projection')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('management-report-entry')),
+        findsOneWidget,
+      );
+    },
+  );
 
   test('release hard gate cannot be overridden by an injected flag', () {
     expect(
-        DebugPrincipalProjection.shouldRender(
-            debugBuild: false, diagnosticEnabled: true),
-        isFalse);
+      DebugPrincipalProjection.shouldRender(
+        debugBuild: false,
+        diagnosticEnabled: true,
+      ),
+      isFalse,
+    );
     expect(
-        DebugPrincipalProjection.shouldRender(
-            debugBuild: true, diagnosticEnabled: false),
-        isFalse);
+      DebugPrincipalProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: false,
+      ),
+      isFalse,
+    );
     expect(
-        DebugPrincipalProjection.shouldRender(
-            debugBuild: true, diagnosticEnabled: true),
-        isTrue);
+      DebugPrincipalProjection.shouldRender(
+        debugBuild: true,
+        diagnosticEnabled: true,
+      ),
+      isTrue,
+    );
   });
 
-  testWidgets('server report grant exposes only the read-only management route',
-      (tester) async {
-    final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-        home: BasicGamesView(
+  testWidgets(
+    'server report grant exposes only the read-only management route',
+    (tester) async {
+      final api = await apiFor(QueueTransport(), MemoryStore());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BasicGamesView(
             api: api,
             person: const Person(
-                'p', 'Officer', ['games:read', 'attendance:report:read'],
+                'p',
+                'Officer',
+                [
+                  'games:read',
+                  'attendance:report:read',
+                ],
                 accessLevel: AccessLevel.officer),
             games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
             online: true,
-            lastSyncedAt: DateTime.utc(2026))));
-    expect(
-        find.byKey(const ValueKey('management-report-entry')), findsOneWidget);
-    expect(find.text('通知廣播'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('management-report-entry')));
-    await tester.pumpAndSettle();
-    expect(find.text('出席報表'), findsOneWidget);
-    expect(find.text('唯讀出席報表'), findsOneWidget);
-    expect(find.text('送出回覆'), findsNothing);
-  });
+            lastSyncedAt: DateTime.utc(2026),
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('management-report-entry')),
+        findsOneWidget,
+      );
+      expect(find.text('通知廣播'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('management-report-entry')));
+      await tester.pumpAndSettle();
+      expect(find.text('出席報表'), findsOneWidget);
+      expect(find.text('唯讀出席報表'), findsOneWidget);
+      expect(find.text('送出回覆'), findsNothing);
+    },
+  );
 
-  testWidgets('offline Basic list disables detail and attendance reply',
-      (tester) async {
+  testWidgets('offline Basic list disables detail and attendance reply', (
+    tester,
+  ) async {
     final transport = QueueTransport();
     final api = await apiFor(transport, MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('p', 'Basic', ['games:read']),
-            games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
-            online: false,
-            lastSyncedAt: DateTime.utc(2026))));
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
+          online: false,
+          lastSyncedAt: DateTime.utc(2026),
+        ),
+      ),
+    );
     final offline = find.byKey(const ValueKey('offline-read-only'));
     expect(offline, findsOneWidget);
     expect(tester.getSemantics(offline).label, contains('離線唯讀'));
@@ -566,21 +723,26 @@ void main() {
     expect(transport.calls, isEmpty);
   });
 
-  testWidgets('games are copy-safely chronological with readable details',
-      (tester) async {
+  testWidgets('games are copy-safely chronological with readable details', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
     final games = [
       Game('late', DateTime.utc(2026, 8, 20, 12), 90, '晚場球館', 'H', 'A'),
       Game('early', DateTime.utc(2026, 8, 18, 12), 60, '早場球館', 'H', 'A'),
       Game('same-time', DateTime.utc(2026, 8, 18, 12), null, null, 'H', 'A'),
     ];
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('p', 'Basic', ['games:read']),
-            games: games,
-            online: true,
-            lastSyncedAt: DateTime.utc(2026))));
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: games,
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+        ),
+      ),
+    );
 
     expect(games.map((game) => game.id), ['late', 'early', 'same-time']);
     final renderedIds = tester
@@ -592,33 +754,41 @@ void main() {
     expect(renderedIds, ['game-early', 'game-same-time', 'game-late']);
 
     final earlySubtitle = tester
-        .widget<Text>(find
-            .descendant(
+        .widget<Text>(
+          find
+              .descendant(
                 of: find.byKey(const ValueKey('game-early')),
-                matching: find.byType(Text))
-            .last)
+                matching: find.byType(Text),
+              )
+              .last,
+        )
         .data!;
     expect(earlySubtitle, contains('早場球館'));
     expect(earlySubtitle, contains('60 分鐘'));
     expect(earlySubtitle, isNot(contains('2026-08-18T12:00:00.000Z')));
   });
 
-  testWidgets('online refresh invokes one existing load while pending',
-      (tester) async {
+  testWidgets('online refresh invokes one existing load while pending', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
     final gate = Completer<void>();
     var refreshes = 0;
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('p', 'Basic', ['games:read']),
-            games: const [],
-            online: true,
-            lastSyncedAt: DateTime.utc(2026),
-            onRefresh: () async {
-              refreshes++;
-              await gate.future;
-            })));
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+          onRefresh: () async {
+            refreshes++;
+            await gate.future;
+          },
+        ),
+      ),
+    );
 
     final refresh = find.byKey(const ValueKey('games-refresh'));
     await tester.tap(refresh);
@@ -632,20 +802,151 @@ void main() {
     expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
   });
 
+  testWidgets('online non-empty list pulls to invoke existing refresh once', (
+    tester,
+  ) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BasicGamesView(
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+          onRefresh: () async => refreshes++,
+        ),
+      ),
+    );
+
+    final pullRefresh = tester.widget<RefreshIndicator>(
+      find.byKey(const ValueKey('games-pull-refresh')),
+    );
+    expect(pullRefresh.semanticsLabel, '下拉重新整理賽事');
+    await tester.fling(
+      find.byKey(const ValueKey('games-list')),
+      const Offset(0, 300),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
+  });
+
+  testWidgets('online empty list remains pull-scrollable', (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BasicGamesView(
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+          onRefresh: () async => refreshes++,
+        ),
+      ),
+    );
+
+    final list = tester.widget<ListView>(
+      find.byKey(const ValueKey('games-list')),
+    );
+    expect(list.physics, isA<AlwaysScrollableScrollPhysics>());
+    await tester.fling(
+      find.byKey(const ValueKey('games-list')),
+      const Offset(0, 300),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
+  });
+
+  testWidgets('pending pull refresh rejects gesture and button overlap', (
+    tester,
+  ) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    final gate = Completer<void>();
+    var refreshes = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BasicGamesView(
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+          onRefresh: () async {
+            refreshes++;
+            await gate.future;
+          },
+        ),
+      ),
+    );
+
+    final list = find.byKey(const ValueKey('games-list'));
+    await tester.fling(list, const Offset(0, 300), 1000);
+    await tester.pump();
+    await tester.fling(list, const Offset(0, 300), 1000);
+    await tester.tap(
+      find.byKey(const ValueKey('games-refresh')),
+      warnIfMissed: false,
+    );
+    await tester.pump();
+    expect(refreshes, 1);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('offline list exposes no pull refresh or callback', (
+    tester,
+  ) async {
+    final transport = QueueTransport();
+    final api = await apiFor(transport, MemoryStore());
+    var refreshes = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BasicGamesView(
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: false,
+          lastSyncedAt: DateTime.utc(2026),
+          onRefresh: () async => refreshes++,
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('games-pull-refresh')), findsNothing);
+    await tester.fling(
+      find.byKey(const ValueKey('games-list')),
+      const Offset(0, 300),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(refreshes, 0);
+    expect(transport.calls, isEmpty);
+  });
+
   testWidgets('failed online refresh can be retried', (tester) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
     var refreshes = 0;
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('p', 'Basic', ['games:read']),
-            games: const [],
-            online: true,
-            lastSyncedAt: DateTime.utc(2026),
-            onRefresh: () async {
-              refreshes++;
-              if (refreshes == 1) throw StateError('refresh failed');
-            })));
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+          onRefresh: () async {
+            refreshes++;
+            if (refreshes == 1) throw StateError('refresh failed');
+          },
+        ),
+      ),
+    );
 
     final refresh = find.byKey(const ValueKey('games-refresh'));
     await tester.tap(refresh);
@@ -658,31 +959,40 @@ void main() {
     expect(refreshes, 2);
   });
 
-  testWidgets('empty games has recognizable read-state semantics',
-      (tester) async {
+  testWidgets('empty games has recognizable read-state semantics', (
+    tester,
+  ) async {
     final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(
+      MaterialApp(
         home: BasicGamesView(
-            api: api,
-            person: const Person('p', 'Basic', ['games:read']),
-            games: const [],
-            online: true,
-            lastSyncedAt: DateTime.utc(2026))));
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+        ),
+      ),
+    );
     final empty = find.byKey(const ValueKey('games-empty'));
     expect(empty, findsOneWidget);
     expect(tester.getSemantics(empty).label, contains('目前沒有可顯示的賽事'));
   });
 
-  testWidgets('game detail reads attendance and exposes five reply controls',
-      (tester) async {
+  testWidgets('game detail reads attendance and exposes five reply controls', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.addAll([
         ApiResponse(200, gameJson()),
         ApiResponse(200, attendanceJson()),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('已回覆隊員'), findsNWidgets(2));
     expect(find.text('未回覆'), findsNothing);
@@ -691,8 +1001,9 @@ void main() {
     }
   });
 
-  testWidgets('fresh GET projects every canonical authoritative own reply',
-      (tester) async {
+  testWidgets('fresh GET projects every canonical authoritative own reply', (
+    tester,
+  ) async {
     for (final reply in AttendanceReply.values) {
       final transport = QueueTransport()
         ..responses.addAll([
@@ -700,13 +1011,20 @@ void main() {
           ApiResponse(200, attendanceJson(ownReply: reply.wire)),
         ]);
       final api = await apiFor(transport, MemoryStore());
-      await tester.pumpWidget(MaterialApp(
+      await tester.pumpWidget(
+        MaterialApp(
           home: GameDetailPage(
-              key: ValueKey('detail-${reply.wire}'), api: api, gameId: 'g')));
+            key: ValueKey('detail-${reply.wire}'),
+            api: api,
+            gameId: 'g',
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      final projection = find
-          .byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+      final projection = find.byKey(
+        const ValueKey('debug-authoritative-own-reply-projection'),
+      );
       expect(projection, findsOneWidget);
       expect(
         tester.widget<Semantics>(projection).properties.label,
@@ -715,20 +1033,25 @@ void main() {
     }
   });
 
-  testWidgets('fresh GET projects authoritative not-yet-replied as none',
-      (tester) async {
+  testWidgets('fresh GET projects authoritative not-yet-replied as none', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.addAll([
         ApiResponse(200, gameJson()),
         ApiResponse(200, attendanceJson(ownReply: null)),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
 
-    final projection =
-        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    final projection = find.byKey(
+      const ValueKey('debug-authoritative-own-reply-projection'),
+    );
     expect(projection, findsOneWidget);
     expect(
       tester.widget<Semantics>(projection).properties.label,
@@ -736,22 +1059,27 @@ void main() {
     );
   });
 
-  testWidgets('local chip selection does not change authoritative projection',
-      (tester) async {
+  testWidgets('local chip selection does not change authoritative projection', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.addAll([
         ApiResponse(200, gameJson()),
         ApiResponse(200, attendanceJson()),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('reply-attending')));
     await tester.pump();
-    final projection =
-        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    final projection = find.byKey(
+      const ValueKey('debug-authoritative-own-reply-projection'),
+    );
     expect(
       tester.widget<Semantics>(projection).properties.label,
       '偵錯權威出席回覆：undecided；來源：fresh_server_get',
@@ -765,63 +1093,78 @@ void main() {
   });
 
   testWidgets(
-      'successful reply applies authoritative own reply over local selection',
-      (tester) async {
-    final transport = QueueTransport()
-      ..responses.addAll([
-        ApiResponse(200, gameJson()),
-        ApiResponse(200, attendanceJson()),
-        ApiResponse(200, mutationJson()),
-        ApiResponse(200, {
-          'game_id': 'g',
-          'own_reply': 'not_attending',
-          'replied': [],
-        }),
-      ]);
-    final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
-    await tester.pumpAndSettle();
+    'successful reply applies authoritative own reply over local selection',
+    (tester) async {
+      final transport = QueueTransport()
+        ..responses.addAll([
+          ApiResponse(200, gameJson()),
+          ApiResponse(200, attendanceJson()),
+          ApiResponse(200, mutationJson()),
+          ApiResponse(200, {
+            'game_id': 'g',
+            'own_reply': 'not_attending',
+            'replied': [],
+          }),
+        ]);
+      final api = await apiFor(transport, MemoryStore());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GameDetailPage(api: api, gameId: 'g'),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('reply-attending')));
-    await tester.tap(find.text('送出回覆'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reply-attending')));
+      await tester.tap(find.text('送出回覆'));
+      await tester.pumpAndSettle();
 
-    expect(
+      expect(
         tester
             .widget<ChoiceChip>(find.byKey(const ValueKey('reply-attending')))
             .selected,
-        isFalse);
-    expect(
+        isFalse,
+      );
+      expect(
         tester
             .widget<ChoiceChip>(
-                find.byKey(const ValueKey('reply-not_attending')))
+              find.byKey(const ValueKey('reply-not_attending')),
+            )
             .selected,
-        isTrue);
-    expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
-    final projection =
-        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
-    expect(
-      tester.widget<Semantics>(projection).properties.label,
-      '偵錯權威出席回覆：not_attending；來源：mutation_readback',
-    );
-  });
+        isTrue,
+      );
+      expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
+      final projection = find.byKey(
+        const ValueKey('debug-authoritative-own-reply-projection'),
+      );
+      expect(
+        tester.widget<Semantics>(projection).properties.label,
+        '偵錯權威出席回覆：not_attending；來源：mutation_readback',
+      );
+    },
+  );
 
-  testWidgets('uncertain conflicting reply has recognizable UX',
-      (tester) async {
+  testWidgets('uncertain conflicting reply has recognizable UX', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.addAll([
         ApiResponse(200, gameJson()),
         ApiResponse(200, attendanceJson()),
-        ApiResponse(
-            200, {'game_id': 'g', 'own_reply': 'undecided', 'replied': []}),
+        ApiResponse(200, {
+          'game_id': 'g',
+          'own_reply': 'undecided',
+          'replied': [],
+        }),
       ]);
     final store = MemoryStore()
       ..values['mutation:install:g'] =
           '{"key":"same-key-value-1234","reply":"attending","uncertain":true}';
     final api = await apiFor(transport, store);
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reply-not_attending')));
     await tester.tap(find.text('送出回覆'));
@@ -835,8 +1178,9 @@ void main() {
     );
   });
 
-  testWidgets('PUT Network ambiguity displays uncertain instead of error',
-      (tester) async {
+  testWidgets('PUT Network ambiguity displays uncertain instead of error', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..networkOnPut = true
       ..responses.addAll([
@@ -845,8 +1189,11 @@ void main() {
         ApiResponse(200, {'game_id': 'g', 'own_reply': null, 'replied': []}),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reply-attending')));
     await tester.tap(find.text('送出回覆'));
@@ -857,12 +1204,17 @@ void main() {
       find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
       findsNothing,
     );
-    expect(
-        transport.calls.map((call) => call.$1), ['GET', 'GET', 'PUT', 'GET']);
+    expect(transport.calls.map((call) => call.$1), [
+      'GET',
+      'GET',
+      'PUT',
+      'GET',
+    ]);
   });
 
-  testWidgets('mutation pending disables submit then returns ready',
-      (tester) async {
+  testWidgets('mutation pending disables submit then returns ready', (
+    tester,
+  ) async {
     final gate = Completer<void>();
     final transport = QueueTransport()
       ..mutationGate = gate
@@ -873,8 +1225,11 @@ void main() {
         ApiResponse(200, attendanceJson()),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reply-attending')));
     await tester.tap(find.text('送出回覆'));
@@ -884,15 +1239,20 @@ void main() {
       find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
       findsNothing,
     );
-    expect(tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-        isNull);
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
     gate.complete();
     await tester.pumpAndSettle();
     expect(find.text('送出回覆'), findsOneWidget);
     expect(
       tester
-          .widget<Semantics>(find.byKey(
-              const ValueKey('debug-authoritative-own-reply-projection')))
+          .widget<Semantics>(
+            find.byKey(
+              const ValueKey('debug-authoritative-own-reply-projection'),
+            ),
+          )
           .properties
           .label,
       '偵錯權威出席回覆：undecided；來源：mutation_readback',
@@ -950,21 +1310,24 @@ void main() {
     );
   });
 
-  testWidgets('reply diagnostic gate and output exclude sensitive material',
-      (tester) async {
+  testWidgets('reply diagnostic gate and output exclude sensitive material', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.addAll([
         ApiResponse(200, gameJson()),
         ApiResponse(200, attendanceJson(ownReply: 'attending')),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-      home: GameDetailPage(
-        api: api,
-        gameId: 'sensitive-game-id',
-        diagnosticEnabled: false,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(
+          api: api,
+          gameId: 'sensitive-game-id',
+          diagnosticEnabled: false,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     expect(
       find.byKey(const ValueKey('debug-authoritative-own-reply-projection')),
@@ -990,15 +1353,18 @@ void main() {
         ApiResponse(200, gameJson()),
         ApiResponse(200, attendanceJson(ownReply: 'attending')),
       ]);
-    await tester.pumpWidget(MaterialApp(
-      home: GameDetailPage(
-        api: await apiFor(visibleTransport, MemoryStore()),
-        gameId: 'g',
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(
+          api: await apiFor(visibleTransport, MemoryStore()),
+          gameId: 'g',
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
-    final projection =
-        find.byKey(const ValueKey('debug-authoritative-own-reply-projection'));
+    final projection = find.byKey(
+      const ValueKey('debug-authoritative-own-reply-projection'),
+    );
     final label = tester.widget<Semantics>(projection).properties.label!;
     for (final prohibited in [
       'sensitive-game-id',
@@ -1013,19 +1379,23 @@ void main() {
     }
   });
 
-  testWidgets('cache/session projection is bounded and release-gated',
-      (tester) async {
+  testWidgets('cache/session projection is bounded and release-gated', (
+    tester,
+  ) async {
     const aggregate = CacheSessionAggregate(
       sessionPresent: false,
       basicCachePresent: false,
       officerReportCachePresent: false,
       pendingAttendanceIntentPresent: false,
     );
-    await tester.pumpWidget(const MaterialApp(
-      home: DebugCacheSessionProjection(aggregate: aggregate),
-    ));
-    final projection =
-        find.byKey(const ValueKey('debug-cache-session-projection'));
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: DebugCacheSessionProjection(aggregate: aggregate),
+      ),
+    );
+    final projection = find.byKey(
+      const ValueKey('debug-cache-session-projection'),
+    );
     final label = tester.widget<Semantics>(projection).properties.label!;
     expect(label, contains('session absent'));
     expect(label, contains('basic_cache absent'));
@@ -1057,8 +1427,9 @@ void main() {
     );
   });
 
-  testWidgets('real composition projects aggregate from physical storage',
-      (tester) async {
+  testWidgets('real composition projects aggregate from physical storage', (
+    tester,
+  ) async {
     final store = MemoryStore()
       ..values['refresh:install'] = 'not-observed'
       ..values['cache-index:v1:install'] = 'not-output'
@@ -1073,14 +1444,17 @@ void main() {
       api: components.api,
     );
 
-    await tester.pumpWidget(MaterialApp(
-      home: DebugCacheSessionComposition(
-        aggregate: aggregate,
-        child: const Text('content'),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DebugCacheSessionComposition(
+          aggregate: aggregate,
+          child: const Text('content'),
+        ),
       ),
-    ));
-    final projection =
-        find.byKey(const ValueKey('debug-cache-session-projection'));
+    );
+    final projection = find.byKey(
+      const ValueKey('debug-cache-session-projection'),
+    );
     expect(projection, findsOneWidget);
     final label = tester.getSemantics(projection).label;
     expect(label, contains('session present'));
@@ -1109,161 +1483,180 @@ void main() {
   });
 
   testWidgets(
-      'storage failure hides projection and cold logged-out is observable',
-      (tester) async {
-    final failingComponents =
-        await aggregateComponents(ObservationFailingMemoryStore());
-    final failed = await CacheSessionAggregateProducer.observe(
-      session: failingComponents.session,
-      basicCache: failingComponents.basicCache,
-      reportCache: failingComponents.reportCache,
-      api: failingComponents.api,
-    );
-    expect(failed, isNull);
-    await tester.pumpWidget(MaterialApp(
-      home: DebugCacheSessionComposition(
-        aggregate: failed,
-        child: const AuthStatePanel(state: AuthViewState.logoutPending),
-      ),
-    ));
-    expect(
-      find.byKey(const ValueKey('debug-cache-session-projection')),
-      findsNothing,
-    );
+    'storage failure hides projection and cold logged-out is observable',
+    (tester) async {
+      final failingComponents = await aggregateComponents(
+        ObservationFailingMemoryStore(),
+      );
+      final failed = await CacheSessionAggregateProducer.observe(
+        session: failingComponents.session,
+        basicCache: failingComponents.basicCache,
+        reportCache: failingComponents.reportCache,
+        api: failingComponents.api,
+      );
+      expect(failed, isNull);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DebugCacheSessionComposition(
+            aggregate: failed,
+            child: const AuthStatePanel(state: AuthViewState.logoutPending),
+          ),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('debug-cache-session-projection')),
+        findsNothing,
+      );
 
-    final coldComponents = await aggregateComponents(MemoryStore());
-    final cold = await CacheSessionAggregateProducer.observe(
-      session: coldComponents.session,
-      basicCache: coldComponents.basicCache,
-      reportCache: coldComponents.reportCache,
-      api: coldComponents.api,
-    );
-    await tester.pumpWidget(MaterialApp(
-      home: DebugCacheSessionComposition(
-        aggregate: cold,
-        child: const AuthStatePanel(state: AuthViewState.loggedOut),
-      ),
-    ));
-    final projection =
-        find.byKey(const ValueKey('debug-cache-session-projection'));
-    expect(projection, findsOneWidget);
-    expect(tester.getSemantics(projection).label, contains('session absent'));
-    expect(tester.getSemantics(projection).label,
-        contains('pending_attendance_intent absent'));
-  });
+      final coldComponents = await aggregateComponents(MemoryStore());
+      final cold = await CacheSessionAggregateProducer.observe(
+        session: coldComponents.session,
+        basicCache: coldComponents.basicCache,
+        reportCache: coldComponents.reportCache,
+        api: coldComponents.api,
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DebugCacheSessionComposition(
+            aggregate: cold,
+            child: const AuthStatePanel(state: AuthViewState.loggedOut),
+          ),
+        ),
+      );
+      final projection = find.byKey(
+        const ValueKey('debug-cache-session-projection'),
+      );
+      expect(projection, findsOneWidget);
+      expect(tester.getSemantics(projection).label, contains('session absent'));
+      expect(
+        tester.getSemantics(projection).label,
+        contains('pending_attendance_intent absent'),
+      );
+    },
+  );
 
-  test('fresh Basic downgrade physically removes Officer cache evidence',
-      () async {
-    final store = MemoryStore()..values['refresh:install'] = 'refresh';
-    final components = await aggregateComponents(store);
-    const previous = Person(
-      'same',
-      'Officer',
-      ['attendance:report:read'],
-      accessLevel: AccessLevel.officer,
-    );
-    const current = Person('same', 'Basic', ['games:read']);
-    await components.basicCache.save(current, const [], DateTime.utc(2026));
-    await components.reportCache.write(
-      previous.id,
-      DeterministicFakeOfficerReportRepository.fictionalReport,
-    );
-    await reconcileFreshReportPrincipal(
-      cache: components.reportCache,
-      previous: previous,
-      current: current,
-    );
+  test(
+    'fresh Basic downgrade physically removes Officer cache evidence',
+    () async {
+      final store = MemoryStore()..values['refresh:install'] = 'refresh';
+      final components = await aggregateComponents(store);
+      const previous = Person(
+          'same',
+          'Officer',
+          [
+            'attendance:report:read',
+          ],
+          accessLevel: AccessLevel.officer);
+      const current = Person('same', 'Basic', ['games:read']);
+      await components.basicCache.save(current, const [], DateTime.utc(2026));
+      await components.reportCache.write(
+        previous.id,
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      await reconcileFreshReportPrincipal(
+        cache: components.reportCache,
+        previous: previous,
+        current: current,
+      );
 
-    final aggregate = await CacheSessionAggregateProducer.observe(
-      session: components.session,
-      basicCache: components.basicCache,
-      reportCache: components.reportCache,
-      api: components.api,
-    );
-    expect(aggregate!.sessionPresent, isTrue);
-    expect(aggregate.basicCachePresent, isTrue);
-    expect(aggregate.officerReportCachePresent, isFalse);
-    expect(aggregate.pendingAttendanceIntentPresent, isFalse);
-  });
-
-  test('terminal logout purges only current installation and observes absent',
-      () async {
-    final transport = QueueTransport()
-      ..responses.add(const ApiResponse(204, null));
-    final store = MemoryStore()..values['installation:v1'] = 'install';
-    final components = await aggregateComponents(store, transport: transport);
-    await components.session.accept(const SessionEnvelope(
-      accessToken: 'access',
-      refreshToken: 'refresh',
-      sessionId: 'session',
-      expiresIn: 900,
-    ));
-    store.values['refresh-attempt:install'] = 'attempt';
-    await components.basicCache.save(
-      const Person('person', 'Basic', ['games:read']),
-      const [],
-      DateTime.utc(2026),
-    );
-    await components.reportCache.write(
-      'person',
-      DeterministicFakeOfficerReportRepository.fictionalReport,
-    );
-    store.values['mutation:install:first-game'] = 'intent';
-    store.values['mutation:install:second-game'] = 'intent';
-    store.values['refresh:other'] = 'keep';
-    store.values['refresh-attempt:other'] = 'keep';
-    store.values['logout-pending:other'] = 'keep';
-    store.values['cache-index:v1:other'] = 'other-person';
-    store.values['cache:v1:other:other-person'] = 'keep';
-    store.values['officer-report-cache:v1:other:other-person'] = 'keep';
-    store.values['mutation:other:game'] = 'keep';
-
-    expect(
-      await CacheSessionAggregateProducer.observe(
+      final aggregate = await CacheSessionAggregateProducer.observe(
         session: components.session,
         basicCache: components.basicCache,
         reportCache: components.reportCache,
         api: components.api,
-      ),
-      isNull,
-    );
+      );
+      expect(aggregate!.sessionPresent, isTrue);
+      expect(aggregate.basicCachePresent, isTrue);
+      expect(aggregate.officerReportCachePresent, isFalse);
+      expect(aggregate.pendingAttendanceIntentPresent, isFalse);
+    },
+  );
 
-    final aggregate = await completeTerminalLogout(
-      session: components.session,
-      basicCache: components.basicCache,
-      reportCache: components.reportCache,
-      api: components.api,
-      line: LogoutLine(),
-    );
-    expect(
-      aggregate,
-      const CacheSessionAggregate(
-        sessionPresent: false,
-        basicCachePresent: false,
-        officerReportCachePresent: false,
-        pendingAttendanceIntentPresent: false,
-      ),
-    );
-    expect(store.values['installation:v1'], 'install');
-    expect(
-      store.values.keys.where((key) => key.contains(':other')),
-      hasLength(7),
-    );
-  });
+  test(
+    'terminal logout purges only current installation and observes absent',
+    () async {
+      final transport = QueueTransport()
+        ..responses.add(const ApiResponse(204, null));
+      final store = MemoryStore()..values['installation:v1'] = 'install';
+      final components = await aggregateComponents(store, transport: transport);
+      await components.session.accept(
+        const SessionEnvelope(
+          accessToken: 'access',
+          refreshToken: 'refresh',
+          sessionId: 'session',
+          expiresIn: 900,
+        ),
+      );
+      store.values['refresh-attempt:install'] = 'attempt';
+      await components.basicCache.save(
+        const Person('person', 'Basic', ['games:read']),
+        const [],
+        DateTime.utc(2026),
+      );
+      await components.reportCache.write(
+        'person',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      store.values['mutation:install:first-game'] = 'intent';
+      store.values['mutation:install:second-game'] = 'intent';
+      store.values['refresh:other'] = 'keep';
+      store.values['refresh-attempt:other'] = 'keep';
+      store.values['logout-pending:other'] = 'keep';
+      store.values['cache-index:v1:other'] = 'other-person';
+      store.values['cache:v1:other:other-person'] = 'keep';
+      store.values['officer-report-cache:v1:other:other-person'] = 'keep';
+      store.values['mutation:other:game'] = 'keep';
 
-  testWidgets('purge failure stays fail closed with no projection',
-      (tester) async {
+      expect(
+        await CacheSessionAggregateProducer.observe(
+          session: components.session,
+          basicCache: components.basicCache,
+          reportCache: components.reportCache,
+          api: components.api,
+        ),
+        isNull,
+      );
+
+      final aggregate = await completeTerminalLogout(
+        session: components.session,
+        basicCache: components.basicCache,
+        reportCache: components.reportCache,
+        api: components.api,
+        line: LogoutLine(),
+      );
+      expect(
+        aggregate,
+        const CacheSessionAggregate(
+          sessionPresent: false,
+          basicCachePresent: false,
+          officerReportCachePresent: false,
+          pendingAttendanceIntentPresent: false,
+        ),
+      );
+      expect(store.values['installation:v1'], 'install');
+      expect(
+        store.values.keys.where((key) => key.contains(':other')),
+        hasLength(7),
+      );
+    },
+  );
+
+  testWidgets('purge failure stays fail closed with no projection', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.add(const ApiResponse(204, null));
     final store = PurgeFailingMemoryStore()
       ..values['mutation:install:game'] = 'intent';
     final components = await aggregateComponents(store, transport: transport);
-    await components.session.accept(const SessionEnvelope(
-      accessToken: 'access',
-      refreshToken: 'refresh',
-      sessionId: 'session',
-      expiresIn: 900,
-    ));
+    await components.session.accept(
+      const SessionEnvelope(
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        sessionId: 'session',
+        expiresIn: 900,
+      ),
+    );
 
     final aggregate = await completeTerminalLogout(
       session: components.session,
@@ -1274,12 +1667,14 @@ void main() {
     );
     expect(aggregate, isNull);
     expect(store.values['logout-pending:install'], 'true');
-    await tester.pumpWidget(MaterialApp(
-      home: DebugCacheSessionComposition(
-        aggregate: aggregate,
-        child: const AuthStatePanel(state: AuthViewState.logoutPending),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DebugCacheSessionComposition(
+          aggregate: aggregate,
+          child: const AuthStatePanel(state: AuthViewState.logoutPending),
+        ),
       ),
-    ));
+    );
     expect(find.text('請使用 LINE 安全登入'), findsNothing);
     expect(
       find.byKey(const ValueKey('debug-cache-session-projection')),
@@ -1306,8 +1701,11 @@ void main() {
         ApiResponse(409, errorJson('idempotency_conflict')),
       ]);
     final api = await apiFor(transport, MemoryStore());
-    await tester
-        .pumpWidget(MaterialApp(home: GameDetailPage(api: api, gameId: 'g')));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: GameDetailPage(api: api, gameId: 'g'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('reply-attending')));
     await tester.tap(find.text('送出回覆'));
