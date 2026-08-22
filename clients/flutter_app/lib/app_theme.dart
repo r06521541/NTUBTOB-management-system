@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+const appBrandNavy = Color(0xff102a43);
+
 abstract final class AppSpacing {
   static const double compact = 8;
   static const double regular = 16;
@@ -8,7 +10,7 @@ abstract final class AppSpacing {
 
 ThemeData appTheme(Brightness brightness) {
   final colors = ColorScheme.fromSeed(
-    seedColor: const Color(0xff0d5c63),
+    seedColor: appBrandNavy,
     brightness: brightness,
   );
   return ThemeData(
