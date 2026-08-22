@@ -88,9 +88,11 @@ class FakeNotificationClient implements NotificationClient {
 
 class DelayedNotificationClient extends FakeNotificationClient {
   final loads = <Completer<List<MobileNotification>>>[];
+  final filters = <bool>[];
 
   @override
   Future<List<MobileNotification>> notifications({bool unreadOnly = false}) {
+    filters.add(unreadOnly);
     final load = Completer<List<MobileNotification>>();
     loads.add(load);
     return load.future;
@@ -286,6 +288,25 @@ void main() {
     await pending;
     expect(controller.state, NotificationCenterState.unauthorized);
     expect(controller.items, isEmpty);
+  });
+
+  test('filter change invalidates an older in-flight list result', () async {
+    final client = DelayedNotificationClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    final all = controller.load(online: true);
+    final unread = controller.setUnreadOnly(true, online: true);
+    expect(client.filters, [false, true]);
+    client.loads[1].complete([makeNotification(id: 'notification_2')]);
+    await unread;
+    client.loads[0].complete([makeNotification(id: 'notification_3')]);
+    await all;
+    expect(controller.items.single.id, 'notification_2');
+    expect(controller.unreadOnly, isTrue);
   });
 
   test('offline without valid cache is explicitly non-authoritative', () async {
