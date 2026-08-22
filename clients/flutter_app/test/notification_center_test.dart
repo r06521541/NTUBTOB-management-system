@@ -88,12 +88,28 @@ class FakeNotificationClient implements NotificationClient {
 
 class DelayedNotificationClient extends FakeNotificationClient {
   final loads = <Completer<List<MobileNotification>>>[];
+  final filters = <bool>[];
 
   @override
   Future<List<MobileNotification>> notifications({bool unreadOnly = false}) {
+    filters.add(unreadOnly);
     final load = Completer<List<MobileNotification>>();
     loads.add(load);
     return load.future;
+  }
+}
+
+class ScriptedPagedClient extends FakeNotificationClient
+    implements PagedNotificationClient {
+  final pages = <Completer<NotificationPage>>[];
+  final filters = <bool>[];
+
+  @override
+  Future<NotificationPage> page({String? cursor, bool unreadOnly = false}) {
+    filters.add(unreadOnly);
+    final result = Completer<NotificationPage>();
+    pages.add(result);
+    return result.future;
   }
 }
 
@@ -224,6 +240,22 @@ void main() {
     expect(store.values, isEmpty);
   });
 
+  test('stale A capability reconciliation cannot clear indexed B cache',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    const b = Person('person_99', 'B', ['notifications:read']);
+    await cache.save(b, [makeNotification()], now);
+
+    await cache.reconcileFreshPrincipal(
+      const Person('person_23', 'A', ['notifications:read']),
+      const Person('person_23', 'A', ['games:read']),
+    );
+
+    expect((await cache.loadFor(b, now, sessionPresent: true))?.personId,
+        'person_99');
+  });
+
   test(
     'offline centre is read-only and makes zero notification calls',
     () async {
@@ -286,6 +318,92 @@ void main() {
     await pending;
     expect(controller.state, NotificationCenterState.unauthorized);
     expect(controller.items, isEmpty);
+  });
+
+  test('filter change invalidates an older in-flight list result', () async {
+    final client = DelayedNotificationClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    final all = controller.load(online: true);
+    final unread = controller.setUnreadOnly(true, online: true);
+    expect(client.filters, [false, true]);
+    client.loads[1].complete([makeNotification(id: 'notification_2')]);
+    await unread;
+    client.loads[0].complete([makeNotification(id: 'notification_3')]);
+    await all;
+    expect(controller.items.single.id, 'notification_2');
+    expect(controller.unreadOnly, isTrue);
+  });
+
+  test('unread presentation and pagination never replace canonical all cache',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    final client = ScriptedPagedClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: cache,
+      principal: principal,
+      clock: () => now,
+    );
+    final read = makeNotification(
+      id: 'notification_1',
+      readAt: '2026-08-22T11:30:00Z',
+    );
+    final unread = makeNotification(id: 'notification_2');
+    final all = controller.load(online: true);
+    client.pages[0].complete(NotificationPage([read, unread], null));
+    await all;
+    final filtered = controller.setUnreadOnly(true, online: true);
+    client.pages[1].complete(NotificationPage([unread], 'more'));
+    await filtered;
+    final more = controller.loadMore(online: true);
+    client.pages[2].complete(const NotificationPage([], null));
+    await more;
+
+    final offlineAll = NotificationCenterController(
+      client: FakeNotificationClient(),
+      cache: cache,
+      principal: principal,
+      clock: () => now,
+    );
+    await offlineAll.load(online: false);
+    expect(offlineAll.items.map((item) => item.id),
+        ['notification_1', 'notification_2']);
+    final offlineUnread = NotificationCenterController(
+      client: FakeNotificationClient(),
+      cache: cache,
+      principal: principal,
+      clock: () => now,
+    );
+    await offlineUnread.setUnreadOnly(true, online: false);
+    expect(offlineUnread.items.map((item) => item.id), ['notification_2']);
+  });
+
+  test('stale generic failure cannot overwrite newer filter success', () async {
+    final cache = NotificationCache(MemoryStore(), 'install');
+    final client = ScriptedPagedClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: cache,
+      principal: principal,
+      clock: () => now,
+    );
+    final all = controller.load(online: true);
+    final unread = controller.setUnreadOnly(true, online: true);
+    client.pages[1].complete(
+      NotificationPage([makeNotification(id: 'notification_2')], null),
+    );
+    await unread;
+    client.pages[0].completeError(StateError('old failure'));
+    await all;
+    expect(controller.unreadOnly, isTrue);
+    expect(controller.state, NotificationCenterState.online);
+    expect(controller.items.single.id, 'notification_2');
   });
 
   test('offline without valid cache is explicitly non-authoritative', () async {

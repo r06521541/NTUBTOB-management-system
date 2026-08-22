@@ -6,8 +6,10 @@ import 'app_theme.dart';
 import 'basic_app.dart';
 import 'foundation.dart';
 import 'integration.dart';
+import 'local_preferences.dart';
 import 'officer_prereview.dart';
 import 'notification_center.dart';
+import 'pending_review.dart';
 
 enum ProductionDemoPersona { basic, officer }
 
@@ -87,6 +89,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   late final _ProductionDemoReportCache _reportCache;
   late final NotificationCache _notificationCache;
   late final _ProductionDemoNotificationClient _notificationClient;
+  late final LocalPreferences _preferences;
   final _notificationControllers = <String, NotificationCenterController>{};
   ProductionDemoPersona _persona = ProductionDemoPersona.basic;
   ProductionDemoConnectivity _connectivity = ProductionDemoConnectivity.online;
@@ -100,6 +103,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     _reportCache = _ProductionDemoReportCache(_fictionalReportUiModel);
     _notificationCache = NotificationCache(MemoryStore(), 'fictional-demo');
     _notificationClient = _ProductionDemoNotificationClient();
+    _preferences = LocalPreferences(MemoryStore(), 'fictional-demo');
     _seedNotifications();
   }
 
@@ -220,6 +224,40 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
               ],
             ),
           ),
+          Wrap(children: [
+            TextButton(
+              key: const ValueKey('demo-pending-review'),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => PendingReviewPage(
+                    client: PendingReviewClient(_DemoReviewTransport(),
+                        'fictional-review', SecureIds(Random(149)))),
+              )),
+              child: const Text('待審核情境'),
+            ),
+            TextButton(
+              key: const ValueKey('demo-settings'),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => LocalPreferencesPage(
+                  preferences: _preferences,
+                  permissions: const NotificationPermissionActions(
+                      UnsupportedNotificationPermissionPort()),
+                  onThemeChanged: (_) {},
+                ),
+              )),
+              child: const Text('設定情境'),
+            ),
+            TextButton(
+              key: const ValueKey('demo-onboarding'),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (routeContext) => OnboardingPage(
+                    onComplete: () async => Navigator.of(routeContext).pop()),
+              )),
+              child: const Text('新手引導情境'),
+            ),
+          ]),
           const Divider(height: 1),
           Expanded(
             child: _dataState == ProductionDemoDataState.error
@@ -251,6 +289,26 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   }
 }
 
+class _DemoReviewTransport implements ApiTransport {
+  @override
+  Future<ApiResponse> send(String method, String path,
+      {Map<String, String> headers = const {},
+      Map<String, dynamic>? body}) async {
+    return const ApiResponse(200, {
+      'status': 'pending',
+      'messages': [
+        {
+          'id': 'message_1',
+          'sender': 'admin',
+          'body': '請補充球隊屆別。',
+          'created_at': '2026-08-22T01:00:00Z',
+          'redacted': false
+        }
+      ]
+    });
+  }
+}
+
 class _RejectingProductionDemoTransport implements ApiTransport {
   _RejectingProductionDemoTransport(this.probe);
 
@@ -268,7 +326,8 @@ class _RejectingProductionDemoTransport implements ApiTransport {
   }
 }
 
-class _ProductionDemoNotificationClient implements NotificationClient {
+class _ProductionDemoNotificationClient
+    implements NotificationClient, PagedNotificationClient {
   List<MobileNotification> values = [
     MobileNotification.fromJson({
       'id': 'notification_901',
@@ -303,6 +362,17 @@ class _ProductionDemoNotificationClient implements NotificationClient {
   Future<List<MobileNotification>> notifications(
           {bool unreadOnly = false}) async =>
       unreadOnly ? values.where((item) => !item.isRead).toList() : values;
+
+  @override
+  Future<NotificationPage> page(
+      {String? cursor, bool unreadOnly = false}) async {
+    final filtered =
+        unreadOnly ? values.where((item) => !item.isRead).toList() : values;
+    final index = cursor == null ? 0 : 1;
+    if (index >= filtered.length) return const NotificationPage([], null);
+    return NotificationPage([filtered[index]],
+        index + 1 < filtered.length ? 'fictional-next' : null);
+  }
 
   @override
   Future<int> unreadCount() async =>

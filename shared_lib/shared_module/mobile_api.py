@@ -36,6 +36,10 @@ class PermissionDenied(MobileApiError):
 class IdentityPending(PermissionDenied):
     code = "identity_pending"
 
+    def __init__(self, message: str, identity_id: int | None = None):
+        super().__init__(message)
+        self.identity_id = identity_id
+
 
 class AccountUnavailable(PermissionDenied):
     code = "account_unavailable"
@@ -125,6 +129,13 @@ class TokenPair:
     refresh_token: str
     session_id: str
     expires_in: int
+
+
+@dataclass(frozen=True)
+class PendingReviewEnvelope:
+    review_credential: str
+    expires_in: int
+    status: str = "pending"
 
 
 class AssertionVerifier(Protocol):
@@ -218,6 +229,29 @@ class HmacAccessTokenCodec:
         ):
             raise AuthenticationError("invalid access token") from None
 
+    def issue_review(self, identity_id: int, now: datetime) -> tuple[str, int]:
+        expires = now + timedelta(minutes=10)
+        payload = {
+            "purpose": "pending_review",
+            "iid": identity_id,
+            "exp": int(expires.timestamp()),
+        }
+        body = base64.urlsafe_b64encode(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        ).rstrip(b"=")
+        signature = hmac.new(self._key, body, hashlib.sha256).digest()
+        return b".".join((body, base64.urlsafe_b64encode(signature).rstrip(b"="))).decode(), 600
+
+    def verify_review(self, token: str, now: datetime) -> int:
+        payload = self.verify(token, now)
+        if (
+            set(payload) != {"purpose", "iid", "exp"}
+            or payload["purpose"] != "pending_review"
+            or type(payload["iid"]) is not int
+        ):
+            raise AuthenticationError("invalid review credential")
+        return payload["iid"]
+
 
 class MobileAuthService:
     def __init__(
@@ -264,16 +298,22 @@ class MobileAuthService:
         ):
             raise AuthenticationError("invalid provider assertion")
         refresh = self.token_factory()
-        principal = self.repository.exchange(
-            provider=verified.provider,
-            subject=verified.subject,
-            assertion_hash=secret_hash(assertion),
-            login_attempt_hash=secret_hash(login_attempt_id),
-            installation_id_hash=secret_hash(installation_id),
-            platform=platform,
-            refresh_hash=secret_hash(refresh),
-            now=now,
-        )
+        try:
+            principal = self.repository.exchange(
+                provider=verified.provider,
+                subject=verified.subject,
+                assertion_hash=secret_hash(assertion),
+                login_attempt_hash=secret_hash(login_attempt_id),
+                installation_id_hash=secret_hash(installation_id),
+                platform=platform,
+                refresh_hash=secret_hash(refresh),
+                now=now,
+            )
+        except IdentityPending as error:
+            if error.identity_id is None:
+                raise
+            credential, expires = self.token_codec.issue_review(error.identity_id, now)
+            return PendingReviewEnvelope(credential, expires)
         access, expires = self.token_codec.issue(principal, now)
         return TokenPair(access, refresh, principal.session_id, expires)
 
@@ -305,6 +345,8 @@ class MobileAuthService:
     def authenticate(self, token: str) -> MobilePrincipal:
         now = self.clock()
         payload = self.token_codec.verify(token, now)
+        if set(payload) != {"sid", "sub", "iid", "ep", "exp"}:
+            raise AuthenticationError("invalid access token")
         principal = self.repository.principal(
             payload["sid"],
             int(payload["sub"]),
@@ -340,6 +382,63 @@ class BasicApiService:
 
     def games(self, principal: MobilePrincipal):
         return self.data.scoped_games(principal.person_id, self.clock())
+
+    def update_profile(self, principal: MobilePrincipal, display_name: str, key: str):
+        if not isinstance(key, str) or not 16 <= len(key) <= 200:
+            raise InvalidArgument("Idempotency-Key required")
+        if not isinstance(display_name, str):
+            raise InvalidArgument("display_name is malformed")
+        cleaned = display_name.strip()
+        if not 1 <= len(cleaned) <= 120:
+            raise InvalidArgument("display_name must contain 1 to 120 characters")
+        request_hash = canonical_hash({"display_name": cleaned})
+        def mutation():
+            try:
+                person = self.data.update_profile(
+                    principal.person_id,
+                    principal.person_id,
+                    cleaned,
+                    f"mobile-profile-{secret_hash(principal.session_id + ':' + key)}",
+                )
+            except Exception as error:
+                from .portal_data.domain import AuthorizationError, ConflictError, ValidationError
+                if isinstance(error, AuthorizationError):
+                    raise PermissionDenied(str(error)) from None
+                if isinstance(error, ConflictError):
+                    raise Conflict(str(error)) from None
+                if isinstance(error, ValidationError):
+                    raise InvalidArgument(str(error)) from None
+                raise
+            changed = principal.display_name != person.display_name
+            refreshed = MobilePrincipal(
+                principal.session_id,
+                person.id,
+                principal.identity_id,
+                person.access_level,
+                person.display_name,
+                principal.access_epoch,
+            )
+            return 200, {
+                "person": {
+                    "id": f"person_{person.id}",
+                    "display_name": person.display_name,
+                    "access_level": person.access_level,
+                    "capabilities": list(mobile_capabilities(refreshed)),
+                },
+                "changed": changed,
+            }
+
+        return self.auth.idempotent(
+            session_id=principal.session_id,
+            person_id=principal.person_id,
+            method="PATCH",
+            route="/api/v1/me",
+            key_hash=secret_hash(key),
+            request_hash=request_hash,
+            mutation=mutation,
+            now=self.clock(),
+        )
+
 
     @staticmethod
     def _notification_cursor(value: str | None) -> tuple[datetime, int] | None:
@@ -723,3 +822,63 @@ class BasicApiService:
             reconcile=reconcile,
             now=self.clock(),
         )
+
+
+class PendingReviewService:
+    def __init__(
+        self,
+        lifecycle,
+        token_codec: HmacAccessTokenCodec,
+        *,
+        clock: Callable[[], datetime] = utc_now,
+    ):
+        self.lifecycle, self.token_codec, self.clock = lifecycle, token_codec, clock
+
+    def authenticate(self, token: str) -> int:
+        identity_id = self.token_codec.verify_review(token, self.clock())
+        if self.lifecycle.identity_status_for_id(identity_id) != "pending":
+            raise AuthenticationError("review expired; repeat normal authentication")
+        return identity_id
+
+    def status(self, identity_id: int) -> dict:
+        if self.lifecycle.identity_status_for_id(identity_id) != "pending":
+            raise AuthenticationError("review unavailable; repeat normal authentication")
+        messages = self.lifecycle.review_messages(identity_id)
+        return {
+            "status": "pending",
+            "messages": [
+                {
+                    "id": f"message_{message.id}",
+                    "sender": message.sender_role,
+                    "body": message.body,
+                    "created_at": message.created_at.astimezone(timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    "redacted": message.body_redacted,
+                }
+                for message in messages
+            ],
+        }
+
+    def append(self, identity_id: int, body: str, key: str) -> dict:
+        if not isinstance(key, str) or not 16 <= len(key) <= 200:
+            raise InvalidArgument("Idempotency-Key required")
+        try:
+            self.lifecycle.post_review_message(
+                identity_id,
+                body,
+                f"mobile-review-{secret_hash(str(identity_id) + ':' + key)}",
+                now=self.clock(),
+            )
+        except Exception as error:
+            from .portal_data.domain import AuthorizationError, ConflictError, ValidationError
+            if isinstance(error, AuthorizationError):
+                raise AuthenticationError(
+                    "review unavailable; repeat normal authentication"
+                ) from None
+            if isinstance(error, ConflictError):
+                raise Conflict(str(error)) from None
+            if isinstance(error, ValidationError):
+                raise InvalidArgument(str(error)) from None
+            raise
+        return self.status(identity_id)

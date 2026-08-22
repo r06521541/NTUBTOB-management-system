@@ -607,6 +607,143 @@ void main() {
     );
   });
 
+  test('pending review belongs only to its 202 login attempt', () async {
+    final api = ScriptedTransport()
+      ..responses.addAll([
+        const ApiResponse(202, {
+          'review_credential': 'review-A',
+          'expires_in': 600,
+          'status': 'pending',
+        }),
+        ApiResponse(201, {
+          'access_token': 'access-B',
+          'refresh_token': 'refresh-token-with-at-least-32-characters',
+          'session_id': 'session-B',
+          'expires_in': 900,
+        }),
+        ApiResponse(409, apiError('identity_pending')),
+      ]);
+    final sessions =
+        SessionController(api, MemoryStore(), 'install', SecureIds());
+    final login =
+        LoginCoordinator(FakeLine(), api, sessions, SecureIds(), 'install');
+
+    await login.login('android');
+    expect(login.pendingReview?.credential, 'review-A');
+    await login.login('android');
+    expect(login.state, LoginState.authenticated);
+    expect(login.pendingReview, isNull);
+    await login.login('android');
+    expect(login.state, LoginState.identityPending);
+    expect(login.pendingReview, isNull);
+  });
+
+  test('profile retry key is scoped to person and session generation',
+      () async {
+    final transport = NetworkScriptTransport([
+      const NetworkException(),
+      ApiResponse(200, {
+        'person': {
+          'id': 'person-B',
+          'display_name': 'B',
+          'access_level': 'basic',
+          'capabilities': ['games:read'],
+        },
+        'changed': true,
+        'idempotent_replay': false,
+      }),
+    ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'access-A',
+      refreshToken: 'refresh-token-with-at-least-32-characters',
+      sessionId: 'session-A',
+      expiresIn: 900,
+    ));
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+    await expectLater(
+      api.updateDisplayName('A', personId: 'person-A'),
+      throwsA(isA<ProfileMutationUncertainException>()),
+    );
+    final firstKey = transport.calls.single.$3['Idempotency-Key'];
+    await sessions.clear();
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'access-B',
+      refreshToken: 'refresh-token-with-at-least-32-characters',
+      sessionId: 'session-B',
+      expiresIn: 900,
+    ));
+    await api.updateDisplayName('B', personId: 'person-B');
+    expect(transport.calls.last.$3['Idempotency-Key'], isNot(firstKey));
+  });
+
+  test('profile uncertain retry reuses key only for same person and session',
+      () async {
+    final transport = NetworkScriptTransport([
+      const NetworkException(),
+      const NetworkException(),
+      const NetworkException(),
+    ]);
+    final sessions =
+        SessionController(transport, MemoryStore(), 'install', SecureIds());
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh-token-with-at-least-32-characters',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+    final api = BasicApi(sessions, sessions.store, 'install', SecureIds());
+    for (var i = 0; i < 2; i++) {
+      await expectLater(api.updateDisplayName('A', personId: 'person-A'),
+          throwsA(isA<ProfileMutationUncertainException>()));
+    }
+    expect(transport.calls[0].$3['Idempotency-Key'],
+        transport.calls[1].$3['Idempotency-Key']);
+    await expectLater(api.updateDisplayName('B', personId: 'person-B'),
+        throwsA(isA<ProfileMutationUncertainException>()));
+    expect(transport.calls[2].$3['Idempotency-Key'],
+        isNot(transport.calls[1].$3['Idempotency-Key']));
+  });
+
+  test('profile key survives 401 refresh rotation and uncertain PATCH retry',
+      () async {
+    final transport = NetworkScriptTransport([
+      const ApiResponse(401, null),
+      ApiResponse(200, {
+        'access_token': 'rotated-access',
+        'refresh_token': 'rotated-refresh-token-with-at-least-32-characters',
+        'session_id': 'same-login-session',
+        'expires_in': 900,
+      }),
+      const NetworkException(),
+      const NetworkException(),
+    ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'initial-access',
+      refreshToken: 'initial-refresh-token-with-at-least-32-characters',
+      sessionId: 'same-login-session',
+      expiresIn: 900,
+    ));
+    final generation = sessions.generation;
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+    await expectLater(api.updateDisplayName('A', personId: 'person-A'),
+        throwsA(isA<ProfileMutationUncertainException>()));
+    expect(sessions.generation, generation);
+    await expectLater(api.updateDisplayName('A', personId: 'person-A'),
+        throwsA(isA<ProfileMutationUncertainException>()));
+    final patchKeys = transport.calls
+        .where((call) => call.$1 == 'PATCH')
+        .map((call) => call.$3['Idempotency-Key'])
+        .toList();
+    expect(patchKeys, hasLength(3));
+    expect(patchKeys.toSet(), hasLength(1));
+  });
+
   test('canonical identity states and native cancel are classified', () async {
     for (final entry in {
       'identity_pending': LoginState.identityPending,

@@ -112,14 +112,14 @@ void main() {
     expect(find.byKey(const ValueKey('game-detail-metadata')), findsOneWidget);
     expect(find.byType(ChoiceChip), findsNWidgets(5));
     expect(probe.gameReads, 1);
-    expect(probe.attendanceReads, 1);
+    expect(probe.attendanceReads, 2);
     expect(probe.unexpectedTransportCalls, 0);
 
     await tester.tap(find.byKey(const ValueKey('reply-undecided')));
     await tester.tap(find.text('送出回覆'));
     await tester.pumpAndSettle();
     expect(probe.replyMutations, 1);
-    expect(probe.attendanceReads, 2);
+    expect(probe.attendanceReads, 3);
     expect(probe.unexpectedTransportCalls, 0);
   });
 
@@ -180,13 +180,16 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
     await tester.pumpAndSettle();
 
+    expect(find.text('虛構場地異動'), findsNothing);
+    await tester.tap(find.text('載入更多'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('虛構場地異動'));
     await tester.pumpAndSettle();
 
     expect(find.byType(GameDetailPage), findsOneWidget);
     expect(find.byKey(const ValueKey('game-detail-metadata')), findsOneWidget);
     expect(probe.gameReads, 1);
-    expect(probe.attendanceReads, 1);
+    expect(probe.attendanceReads, 2);
     expect(probe.unexpectedTransportCalls, 0);
   });
 

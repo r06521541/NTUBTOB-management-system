@@ -35,6 +35,25 @@ class MobileApiRouteTest(unittest.TestCase):
             clock=Mock(),
         )
         self.basic = SimpleNamespace(
+            update_profile=Mock(
+                return_value=(
+                    200,
+                    {
+                        "person": {
+                            "id": "person_23",
+                            "display_name": "新名稱",
+                            "access_level": "basic",
+                            "capabilities": [
+                                "games:read",
+                                "attendance:reply:self",
+                                "notifications:read",
+                            ],
+                        },
+                        "changed": True,
+                    },
+                    False,
+                )
+            ),
             games=Mock(return_value=()),
             games_page=Mock(return_value={"items": [], "next_cursor": None}),
             game=Mock(return_value={"id": 44, "home_team": "A", "away_team": "B"}),
@@ -101,9 +120,14 @@ class MobileApiRouteTest(unittest.TestCase):
             ),
             revoke_device=Mock(return_value={"status": "revoked", "changed": True}),
         )
+        self.review = SimpleNamespace(
+            authenticate=Mock(return_value=7),
+            status=Mock(return_value={"status": "pending", "messages": []}),
+            append=Mock(return_value={"status": "pending", "messages": []}),
+        )
         self.revision = Mock(return_value=True)
         self.client = create_app(
-            Dependencies(self.auth, self.basic, self.publishing, self.revision)
+            Dependencies(self.auth, self.basic, self.publishing, self.revision, self.review)
         ).test_client()
 
     def test_revision_mismatch_fails_before_auth_or_data_read(self):
@@ -365,6 +389,44 @@ class MobileApiRouteTest(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 422)
         self.publishing.preview.assert_not_called()
+
+    def test_profile_update_returns_replay_truth(self):
+        response = self.client.patch(
+            "/api/v1/me",
+            headers={
+                "Authorization": "Bearer token",
+                "Idempotency-Key": "profile-change-0001",
+            },
+            json={"display_name": "新名稱"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.get_json()["idempotent_replay"])
+
+    def test_review_credential_cannot_be_used_as_normal_session(self):
+        self.auth.authenticate.side_effect = AuthenticationError("invalid access token")
+        response = self.client.get(
+            "/api/v1/me", headers={"Authorization": "Bearer review-token"}
+        )
+        self.assertEqual(response.status_code, 401)
+        self.review.authenticate.assert_not_called()
+
+    def test_review_routes_are_credential_scoped(self):
+        read = self.client.get(
+            "/api/v1/auth/line/review",
+            headers={"Authorization": "Bearer review-token"},
+        )
+        sent = self.client.post(
+            "/api/v1/auth/line/review/messages",
+            headers={
+                "Authorization": "Bearer review-token",
+                "Idempotency-Key": "review-message-0001",
+            },
+            json={"body": "請協助確認"},
+        )
+        self.assertEqual(read.status_code, 200)
+        self.assertEqual(sent.status_code, 200)
+        self.review.status.assert_called_once_with(7)
+        self.review.append.assert_called_once_with(7, "請協助確認", "review-message-0001")
 
 
 if __name__ == "__main__":

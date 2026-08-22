@@ -31,6 +31,10 @@ class NotificationCenterController extends ChangeNotifier {
   List<MobileNotification> items = const [];
   DateTime? lastSyncedAt;
   int unreadCount = 0;
+  String? nextCursor;
+  bool unreadOnly = false;
+  List<MobileNotification> _canonicalItems = const [];
+  bool _canonicalComplete = false;
   Future<void>? _loadOperation;
   Future<void>? _mutationOperation;
   Future<void> _cacheTail = Future.value();
@@ -58,7 +62,9 @@ class NotificationCenterController extends ChangeNotifier {
     required int nextUnreadCount,
   }) async {
     await _enqueueCache(() async {
-      if (epoch != _epoch) return;
+      if (epoch != _epoch) {
+        return;
+      }
       await cache.save(
         principal,
         nextItems,
@@ -101,14 +107,26 @@ class NotificationCenterController extends ChangeNotifier {
       return;
     }
     try {
-      final fresh = await client.notifications();
+      final pageClient = client is PagedNotificationClient
+          ? client as PagedNotificationClient
+          : null;
+      final page = pageClient == null
+          ? null
+          : await pageClient.page(unreadOnly: unreadOnly);
+      final fresh =
+          page?.items ?? await client.notifications(unreadOnly: unreadOnly);
       final serverUnreadCount = await client.unreadCount();
       if (epoch != _epoch) return;
       final now = clock().toUtc();
-      await _saveIfCurrent(epoch, fresh, now,
-          nextUnreadCount: serverUnreadCount);
+      if (!unreadOnly && page?.nextCursor == null) {
+        _canonicalItems = List.unmodifiable(fresh);
+        _canonicalComplete = true;
+        await _saveIfCurrent(epoch, _canonicalItems, now,
+            nextUnreadCount: serverUnreadCount);
+      }
       if (epoch != _epoch) return;
       items = List.unmodifiable(fresh);
+      nextCursor = page?.nextCursor;
       unreadCount = serverUnreadCount;
       lastSyncedAt = now;
       state = fresh.isEmpty
@@ -116,7 +134,7 @@ class NotificationCenterController extends ChangeNotifier {
           : NotificationCenterState.online;
       notifyListeners();
     } on AuthorizedRequestNetworkException {
-      await _loadCache();
+      if (epoch == _epoch) await _loadCache(epoch: epoch);
     } on SessionExpiredException {
       await invalidate();
       onTerminalSession?.call();
@@ -128,28 +146,103 @@ class NotificationCenterController extends ChangeNotifier {
         await invalidate();
         onTerminalSession?.call();
       } else {
+        if (epoch == _epoch) {
+          state = NotificationCenterState.error;
+          notifyListeners();
+        }
+      }
+    } on Object {
+      if (epoch == _epoch) {
         state = NotificationCenterState.error;
         notifyListeners();
       }
-    } on Object {
-      state = NotificationCenterState.error;
-      notifyListeners();
     }
   }
 
-  Future<void> _loadCache() async {
+  Future<void> setUnreadOnly(bool value, {required bool online}) async {
+    if (unreadOnly == value) return;
+    _epoch++;
+    _loadOperation = null;
+    unreadOnly = value;
+    nextCursor = null;
+    await load(online: online);
+  }
+
+  Future<void> loadMore({required bool online}) async {
+    if (!online ||
+        nextCursor == null ||
+        busy ||
+        client is! PagedNotificationClient) {
+      return;
+    }
     final epoch = _epoch;
+    final cursor = nextCursor;
+    late final Future<void> operation;
+    operation = _loadMoreOnce(epoch, cursor!).whenComplete(() {
+      if (identical(_loadOperation, operation)) {
+        _loadOperation = null;
+        notifyListeners();
+      }
+    });
+    _loadOperation = operation;
+    await _loadOperation;
+  }
+
+  Future<void> _loadMoreOnce(int epoch, String cursor) async {
+    try {
+      final page = await (client as PagedNotificationClient)
+          .page(cursor: cursor, unreadOnly: unreadOnly);
+      if (epoch != _epoch) return;
+      final ids = items.map((item) => item.id).toSet();
+      if (page.items.any((item) => !ids.add(item.id))) {
+        throw const ContractException('duplicate notification page item');
+      }
+      items = List.unmodifiable([...items, ...page.items]);
+      nextCursor = page.nextCursor;
+      if (!unreadOnly && nextCursor == null) {
+        _canonicalItems = items;
+        _canonicalComplete = true;
+        await _saveIfCurrent(
+          epoch,
+          _canonicalItems,
+          lastSyncedAt ?? clock().toUtc(),
+          nextUnreadCount: unreadCount,
+        );
+      }
+      if (epoch == _epoch) notifyListeners();
+    } on SessionExpiredException {
+      await invalidate();
+      onTerminalSession?.call();
+    } on ApiError catch (error) {
+      if (error.code == ApiErrorCode.unauthenticated ||
+          error.code == ApiErrorCode.sessionExpired) {
+        await invalidate();
+        onTerminalSession?.call();
+      } else if (error.code == ApiErrorCode.forbidden) {
+        await invalidate();
+      } else {
+        rethrow;
+      }
+    }
+  }
+
+  Future<void> _loadCache({int? epoch}) async {
+    final operationEpoch = epoch ?? _epoch;
     final cached = await cache.loadFor(
       principal,
       clock().toUtc(),
       sessionPresent: true,
     );
-    if (epoch != _epoch) return;
+    if (operationEpoch != _epoch) return;
     if (cached == null) {
       _set(NotificationCenterState.offlineEvidenceUnavailable, const [], null);
       return;
     }
-    items = List.unmodifiable(cached.items);
+    _canonicalItems = List.unmodifiable(cached.items);
+    _canonicalComplete = true;
+    items = unreadOnly
+        ? List.unmodifiable(_canonicalItems.where((item) => !item.isRead))
+        : _canonicalItems;
     unreadCount = cached.unreadCount;
     lastSyncedAt = cached.lastSyncedAt;
     state = NotificationCenterState.offline;
@@ -196,9 +289,15 @@ class NotificationCenterController extends ChangeNotifier {
       for (final item in items)
         if (item.id == id) item.markRead(result.readAt) else item,
     ]);
+    _canonicalItems = List.unmodifiable([
+      for (final item in _canonicalItems)
+        if (item.id == id) item.markRead(result.readAt) else item,
+    ]);
     if (result.changed && unreadCount > 0) unreadCount--;
-    await _saveIfCurrent(epoch, items, lastSyncedAt ?? clock(),
-        nextUnreadCount: unreadCount);
+    if (_canonicalComplete) {
+      await _saveIfCurrent(epoch, _canonicalItems, lastSyncedAt ?? clock(),
+          nextUnreadCount: unreadCount);
+    }
     if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
@@ -231,9 +330,14 @@ class NotificationCenterController extends ChangeNotifier {
     items = List.unmodifiable(
       items.map((item) => item.markRead(readAt)).toList(growable: false),
     );
+    _canonicalItems = List.unmodifiable(
+      _canonicalItems.map((item) => item.markRead(readAt)),
+    );
     unreadCount = result.unreadCount;
-    await _saveIfCurrent(epoch, items, lastSyncedAt ?? readAt,
-        nextUnreadCount: unreadCount);
+    if (_canonicalComplete) {
+      await _saveIfCurrent(epoch, _canonicalItems, lastSyncedAt ?? readAt,
+          nextUnreadCount: unreadCount);
+    }
     if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
@@ -334,6 +438,18 @@ class NotificationCenter extends StatelessWidget {
     }
     return Column(
       children: [
+        if (online)
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('全部')),
+              ButtonSegment(value: true, label: Text('未讀'))
+            ],
+            selected: {controller.unreadOnly},
+            onSelectionChanged: controller.busy
+                ? null
+                : (value) =>
+                    controller.setUnreadOnly(value.single, online: true),
+          ),
         if (controller.readOnly)
           const MaterialBanner(
             content: Text('離線模式：顯示上次同步內容，無法變更已讀狀態。'),
@@ -365,6 +481,12 @@ class NotificationCenter extends StatelessWidget {
             },
           ),
         ),
+        if (online && controller.nextCursor != null)
+          TextButton(
+              onPressed: controller.busy
+                  ? null
+                  : () => controller.loadMore(online: true),
+              child: const Text('載入更多')),
       ],
     );
   }

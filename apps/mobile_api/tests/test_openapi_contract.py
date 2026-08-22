@@ -15,6 +15,8 @@ class OpenApiContractTest(unittest.TestCase):
             set(self.contract["paths"]),
             {
                 "/auth/line/exchange",
+                "/auth/line/review",
+                "/auth/line/review/messages",
                 "/auth/refresh",
                 "/auth/logout",
                 "/me",
@@ -33,6 +35,17 @@ class OpenApiContractTest(unittest.TestCase):
                 "/devices/current",
             },
         )
+
+    def test_pending_review_and_profile_contracts_are_bounded(self):
+        paths = self.contract["paths"]
+        self.assertIn("202", paths["/auth/line/exchange"]["post"]["responses"])
+        envelope = self.contract["components"]["schemas"]["PendingReviewEnvelope"]
+        self.assertNotIn("access_token", envelope["properties"])
+        self.assertNotIn("refresh_token", envelope["properties"])
+        self.assertEqual(envelope["properties"]["expires_in"]["const"], 600)
+        self.assertEqual(set(paths["/auth/line/review"]), {"get"})
+        self.assertEqual(set(paths["/auth/line/review/messages"]), {"post"})
+        self.assertIn("patch", paths["/me"])
 
     def test_public_reply_enum_and_error_codes_are_exact(self):
         schemas = self.contract["components"]["schemas"]

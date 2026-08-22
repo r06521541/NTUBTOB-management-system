@@ -204,6 +204,18 @@ class SessionEnvelope {
   final int expiresIn;
 }
 
+class PendingReviewEnvelope {
+  const PendingReviewEnvelope(this.credential);
+  factory PendingReviewEnvelope.fromJson(Map<String, dynamic> json) {
+    if (_required<int>(json, 'expires_in') != 600 ||
+        _required<String>(json, 'status') != 'pending') {
+      throw const ContractException('invalid review envelope');
+    }
+    return PendingReviewEnvelope(_required<String>(json, 'review_credential'));
+  }
+  final String credential;
+}
+
 enum AccessLevel { basic, officer, admin }
 
 class Person {
@@ -430,10 +442,14 @@ class CachedBasicData {
 }
 
 class BasicCache {
-  const BasicCache(this.store, this.installationId);
+  BasicCache(this.store, this.installationId);
   final DurableStore store;
   final String installationId;
+  int _latestGeneration = -1;
+  String? _latestPointer;
   String _key(String personId) => 'cache:v1:$installationId:$personId';
+  String _generationKey(String personId, int generation) =>
+      '${_key(personId)}:generation:$generation';
   String get _indexKey => 'cache-index:v1:$installationId';
   Future<void> save(Person person, List<Game> games, DateTime now) async {
     await store.write(
@@ -448,10 +464,64 @@ class BasicCache {
     await store.write(_indexKey, person.id);
   }
 
+  Future<bool> saveFenced(
+    Person person,
+    List<Game> games,
+    DateTime now, {
+    required int generation,
+    required bool Function() isCurrent,
+  }) async {
+    final dataKey = _generationKey(person.id, generation);
+    final pointer = '${person.id}:generation:$generation';
+    if (isCurrent() && generation >= _latestGeneration) {
+      _latestGeneration = generation;
+    }
+    await store.write(
+      dataKey,
+      jsonEncode({
+        'version': 1,
+        'person': person.toJson(),
+        'games': games.map((game) => game.toJson()).toList(),
+        'last_synced_at': now.toUtc().toIso8601String(),
+      }),
+    );
+    if (!isCurrent()) {
+      await store.delete(dataKey);
+      return false;
+    }
+    final previousPointer = await store.read(_indexKey);
+    await store.write(_indexKey, pointer);
+    if (isCurrent()) {
+      _latestPointer = pointer;
+      if (previousPointer != null && previousPointer != pointer) {
+        await store.delete(_dataKeyForPointer(previousPointer));
+      }
+      return true;
+    }
+    if (await store.read(_indexKey) == pointer) {
+      final restorePointer =
+          _latestGeneration > generation ? _latestPointer : null;
+      if (restorePointer == null) {
+        await store.delete(_indexKey);
+      } else {
+        await store.write(_indexKey, restorePointer);
+      }
+    }
+    await store.delete(dataKey);
+    return false;
+  }
+
+  String _dataKeyForPointer(String pointer) {
+    final parts = pointer.split(':generation:');
+    return parts.length == 2
+        ? _generationKey(parts.first, int.parse(parts.last))
+        : _key(pointer);
+  }
+
   Future<CachedBasicData?> load() async {
     final personId = await store.read(_indexKey);
     if (personId == null) return null;
-    final raw = await store.read(_key(personId));
+    final raw = await store.read(_dataKeyForPointer(personId));
     if (raw == null) return null;
     try {
       final value = jsonDecode(raw) as Map<String, dynamic>;
@@ -849,11 +919,14 @@ class NotificationCache {
   }
 
   Future<void> reconcileFreshPrincipal(Person? previous, Person current) async {
-    final indexedPerson = await store.read(_indexKey);
-    if (!current.canReadNotifications ||
-        previous != null && previous.id != current.id ||
-        indexedPerson != null && indexedPerson != current.id) {
-      await clear();
+    final targets = <String>{};
+    if (!current.canReadNotifications) targets.add(current.id);
+    if (previous != null && previous.id != current.id) targets.add(previous.id);
+    for (final target in targets) {
+      await store.delete(_key(target));
+      if (await store.read(_indexKey) == target) {
+        await store.delete(_indexKey);
+      }
     }
   }
 }
@@ -1244,10 +1317,13 @@ class LoginCoordinator extends ChangeNotifier {
   String? _active;
   String? _nativeAttempt;
   bool _disposed = false;
+  PendingReviewEnvelope? pendingReview;
+  String? _pendingReviewAttempt;
   final Set<String> _completed = {};
   bool get nativeFlowUnresolved => _nativeAttempt != null;
 
   Future<void> login(String platform) async {
+    _retirePendingReview();
     if (platform != 'android' && platform != 'ios') {
       state = LoginState.unavailable;
       _notifyListeners();
@@ -1340,10 +1416,12 @@ class LoginCoordinator extends ChangeNotifier {
     required String platform,
   }) async {
     if (_active != attempt) {
+      _retirePendingReview();
       state = LoginState.stale;
       return;
     }
     if (!_completed.add(attempt)) {
+      _retirePendingReview();
       state = LoginState.duplicate;
       return;
     }
@@ -1360,6 +1438,13 @@ class LoginCoordinator extends ChangeNotifier {
         'platform': platform,
       },
     );
+    if (response.status == 202 && response.body != null) {
+      pendingReview = PendingReviewEnvelope.fromJson(response.body!);
+      _pendingReviewAttempt = attempt;
+      state = LoginState.identityPending;
+      return;
+    }
+    _retirePendingReview();
     if (response.status != 201 || response.body == null) {
       if (response.body == null) {
         throw const ContractException('missing login error body');
@@ -1374,6 +1459,16 @@ class LoginCoordinator extends ChangeNotifier {
     }
     await sessions.accept(SessionEnvelope.fromJson(response.body!));
     state = LoginState.authenticated;
+  }
+
+  bool ownsPendingReview(String attempt) =>
+      pendingReview != null && _pendingReviewAttempt == attempt;
+
+  void retirePendingReview() => _retirePendingReview();
+
+  void _retirePendingReview() {
+    pendingReview = null;
+    _pendingReviewAttempt = null;
   }
 }
 
@@ -1391,6 +1486,8 @@ class SessionController {
   final SecureIds ids;
   final Future<void> Function()? terminalPurge;
   String? _access;
+  int _generation = 0;
+  int get generation => _generation;
   Future<String>? _refreshing;
   String? get accessToken => _access;
   Future<bool?> observePresence() async {
@@ -1402,11 +1499,12 @@ class SessionController {
     return refreshPresent;
   }
 
-  Future<void> accept(SessionEnvelope session) async {
+  Future<void> accept(SessionEnvelope session, {bool newLogin = true}) async {
     try {
       await store.write('refresh:$installationId', session.refreshToken);
       await store.delete('refresh-attempt:$installationId');
       _access = session.accessToken;
+      if (newLogin) _generation++;
     } on Object {
       _access = null;
       await store.delete('refresh:$installationId');
@@ -1436,7 +1534,7 @@ class SessionController {
       throw StateError('refresh uncertain');
     }
     final session = SessionEnvelope.fromJson(response.body!);
-    await accept(session);
+    await accept(session, newLogin: false);
     return session.accessToken;
   }
 
@@ -1501,6 +1599,7 @@ class SessionController {
   }
 
   Future<void> clear() async {
+    _generation++;
     _access = null;
     await store.delete('refresh:$installationId');
     await store.delete('refresh-attempt:$installationId');
@@ -1550,6 +1649,10 @@ class MutationUncertainException implements Exception {
   final AttendanceReply reply;
 }
 
+class ProfileMutationUncertainException implements Exception {
+  const ProfileMutationUncertainException();
+}
+
 class OfflineReadOnlyException implements Exception {
   const OfflineReadOnlyException();
 }
@@ -1560,6 +1663,10 @@ abstract interface class NotificationClient {
   Future<int> unreadCount();
   Future<NotificationReadResult> markRead(String id);
   Future<NotificationReadAllResult> markAllRead();
+}
+
+abstract interface class PagedNotificationClient {
+  Future<NotificationPage> page({String? cursor, bool unreadOnly = false});
 }
 
 abstract interface class NotificationPublishingClient {
@@ -1667,7 +1774,7 @@ class OfficerNotificationPublisher implements NotificationPublishingClient {
   }
 }
 
-class NotificationApi implements NotificationClient {
+class NotificationApi implements NotificationClient, PagedNotificationClient {
   const NotificationApi(this.session);
   final SessionController session;
 
@@ -1676,6 +1783,7 @@ class NotificationApi implements NotificationClient {
     throw ContractException('missing $operation response body');
   }
 
+  @override
   Future<NotificationPage> page({
     String? cursor,
     bool unreadOnly = false,
@@ -1787,6 +1895,8 @@ class BasicApi {
 
   Future<void> clearPendingAttendanceIntents() =>
       store.deleteKeysWithPrefix('mutation:$installationId:');
+  Future<void> clearPendingProfileIntents() =>
+      store.deleteKeysWithPrefix('profile-mutation:$installationId:');
   Never _failure(ApiResponse response, String operation) {
     if (response.body != null) throw ApiError.fromJson(response.body!);
     throw ContractException('missing $operation response body');
@@ -1796,6 +1906,61 @@ class BasicApi {
     final r = await session.authorized('GET', '/me');
     if (r.status != 200 || r.body == null) _failure(r, 'me');
     return Person.fromJson(r.body!);
+  }
+
+  /// A profile intent keeps its key until a definitive server response.  This
+  /// makes a timeout retry the same logical edit rather than create a second
+  /// mutation.  The key is deliberately never exposed by this API.
+  Future<ProfileMutation> updateDisplayName(
+    String displayName, {
+    required String personId,
+  }) async {
+    final normalized = displayName.trim();
+    if (normalized.isEmpty || normalized.length > 120) {
+      throw const ContractException('invalid display name');
+    }
+    final generation = session.generation;
+    final keyName = 'profile-mutation:$installationId';
+    final intentKey = '$keyName:$personId:$generation';
+    final retained = await store.read(intentKey);
+    await store.deleteKeysWithPrefix(keyName);
+    if (retained != null) await store.write(intentKey, retained);
+    final storedIntent = await store.read(intentKey);
+    String key;
+    if (storedIntent == null) {
+      key = ids.next();
+      await store.write(
+        intentKey,
+        jsonEncode({
+          'key': key,
+          'display_name': normalized,
+          'person_id': personId,
+          'generation': generation,
+        }),
+      );
+    } else {
+      final intent = jsonDecode(storedIntent) as Map<String, dynamic>;
+      if (_required<String>(intent, 'display_name') != normalized) {
+        throw const ContractException('pending profile mutation');
+      }
+      key = _required<String>(intent, 'key');
+    }
+    try {
+      final response = await session.authorized(
+        'PATCH',
+        '/me',
+        headers: {'Idempotency-Key': key},
+        body: {'display_name': normalized},
+      );
+      if (response.status != 200 || response.body == null) {
+        _failure(response, 'profile mutation');
+      }
+      final result = ProfileMutation.fromJson(response.body!);
+      if (session.generation == generation) await store.delete(intentKey);
+      return result;
+    } on AuthorizedRequestNetworkException {
+      throw const ProfileMutationUncertainException();
+    }
   }
 
   Future<GamePage> gamePage({String? cursor}) async {
@@ -1937,4 +2102,16 @@ class BasicApi {
     }
     throw MutationUncertainException(reply);
   }
+}
+
+class ProfileMutation {
+  const ProfileMutation(this.person, this.changed, this.idempotentReplay);
+  factory ProfileMutation.fromJson(Map<String, dynamic> json) =>
+      ProfileMutation(
+        Person.fromJson(_required<Map<String, dynamic>>(json, 'person')),
+        _required<bool>(json, 'changed'),
+        _required<bool>(json, 'idempotent_replay'),
+      );
+  final Person person;
+  final bool changed, idempotentReplay;
 }
