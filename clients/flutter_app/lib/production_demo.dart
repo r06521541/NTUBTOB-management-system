@@ -15,7 +15,7 @@ enum ProductionDemoPersona { basic, officer }
 
 enum ProductionDemoConnectivity { online, offline }
 
-enum ProductionDemoDataState { populated, empty, error }
+enum ProductionDemoDataState { populated, resolved, actionError, empty, error }
 
 class ProductionDemoProbe {
   int unexpectedTransportCalls = 0;
@@ -155,6 +155,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     final person =
         _persona == ProductionDemoPersona.basic ? _basicPerson : _officerPerson;
     final online = _connectivity == ProductionDemoConnectivity.online;
+    _api.actionScenario = _dataState;
     final games =
         _dataState == ProductionDemoDataState.empty ? <Game>[] : _games;
     return Scaffold(
@@ -226,6 +227,24 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                   selected: _dataState == ProductionDemoDataState.empty,
                   onSelected: (_) => setState(
                     () => _dataState = ProductionDemoDataState.empty,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-resolved'),
+                  label: const Text('待辦已處理'),
+                  selected: _dataState == ProductionDemoDataState.resolved,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.resolved,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-action-error'),
+                  label: const Text('待辦錯誤'),
+                  selected: _dataState == ProductionDemoDataState.actionError,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.actionError,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -438,7 +457,8 @@ class _ProductionDemoApi extends BasicApi {
 
   final ProductionDemoProbe probe;
   final List<Game> _games;
-  AttendanceReply _ownReply = AttendanceReply.attending;
+  ProductionDemoDataState actionScenario = ProductionDemoDataState.populated;
+  AttendanceReply _ownReply = AttendanceReply.undecided;
 
   Game _findGame(String id) => _games.firstWhere(
         (game) => game.id == id,
@@ -455,7 +475,18 @@ class _ProductionDemoApi extends BasicApi {
   Future<AttendanceSnapshot> attendance(String id) async {
     probe.attendanceReads++;
     _findGame(id);
-    return AttendanceSnapshot(id, _ownReply, const [
+    if (actionScenario == ProductionDemoDataState.actionError) {
+      throw const NetworkException();
+    }
+    final actionReply = actionScenario == ProductionDemoDataState.resolved
+        ? AttendanceReply.attending
+        : switch (id) {
+            'game_901' => _ownReply,
+            'game_902' => AttendanceReply.attending,
+            'game_903' => null,
+            _ => AttendanceReply.notAttending,
+          };
+    return AttendanceSnapshot(id, actionReply, const [
       RepliedAttendance(
         'fictional-teammate',
         '虛構隊友',

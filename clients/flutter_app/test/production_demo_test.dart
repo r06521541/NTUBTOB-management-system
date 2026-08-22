@@ -104,6 +104,7 @@ void main() {
   ) async {
     final probe = ProductionDemoProbe();
     await pumpDemo(tester, probe: probe);
+    final initialAttendanceReads = probe.attendanceReads;
 
     await tester.tap(find.byKey(const ValueKey('game-game_901')));
     await tester.pumpAndSettle();
@@ -112,14 +113,49 @@ void main() {
     expect(find.byKey(const ValueKey('game-detail-metadata')), findsOneWidget);
     expect(find.byType(ChoiceChip), findsNWidgets(5));
     expect(probe.gameReads, 1);
-    expect(probe.attendanceReads, 2);
+    expect(probe.attendanceReads, initialAttendanceReads + 1);
     expect(probe.unexpectedTransportCalls, 0);
 
     await tester.tap(find.byKey(const ValueKey('reply-undecided')));
     await tester.tap(find.text('送出回覆'));
     await tester.pumpAndSettle();
     expect(probe.replyMutations, 1);
-    expect(probe.attendanceReads, 3);
+    expect(probe.attendanceReads, initialAttendanceReads + 2);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('production demo composes bounded member action scenarios',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    expect(
+        find.byKey(const ValueKey('action-home-actionable')), findsOneWidget);
+    expect(find.textContaining('未來最多 5 場'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('demo-data-resolved')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('action-home-resolved')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('demo-data-action-error')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('action-home-retryableError')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('demo-data-populated')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('demo-connectivity-offline')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('action-home-partialUnknown')),
+      findsOneWidget,
+    );
+    expect(find.textContaining('未知不列為待處理'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('demo-data-empty')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('action-home-empty')), findsOneWidget);
     expect(probe.unexpectedTransportCalls, 0);
   });
 
@@ -131,8 +167,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(ScheduleDiscoveryPage), findsOneWidget);
-    expect(find.byKey(const ValueKey('schedule-game-game_901')), findsOneWidget);
-    expect(find.byKey(const ValueKey('schedule-game-game_903')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('schedule-game-game_901')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('schedule-game-game_903')), findsOneWidget);
     expect(find.byKey(const ValueKey('schedule-date-2026-10-03T00:00:00.000')),
         findsOneWidget);
 
@@ -140,7 +178,8 @@ void main() {
       find.byKey(const ValueKey('schedule-filter-withLocation')),
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('schedule-game-game_901')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('schedule-game-game_901')), findsOneWidget);
     expect(find.byKey(const ValueKey('schedule-game-game_903')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('schedule-filter-all')));
     await tester.pumpAndSettle();
@@ -150,7 +189,8 @@ void main() {
       '猛虎',
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('schedule-game-game_903')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('schedule-game-game_903')), findsOneWidget);
     expect(find.byKey(const ValueKey('schedule-game-game_901')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('schedule-game-game_903')));
@@ -159,7 +199,8 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(
-      tester.widget<TextField>(find.byKey(const ValueKey('schedule-search')))
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('schedule-search')))
           .controller!
           .text,
       '猛虎',
@@ -259,6 +300,7 @@ void main() {
   ) async {
     final probe = ProductionDemoProbe();
     await pumpDemo(tester, probe: probe);
+    final initialAttendanceReads = probe.attendanceReads;
     await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
     await tester.pumpAndSettle();
 
@@ -271,7 +313,7 @@ void main() {
     expect(find.byType(GameDetailPage), findsOneWidget);
     expect(find.byKey(const ValueKey('game-detail-metadata')), findsOneWidget);
     expect(probe.gameReads, 1);
-    expect(probe.attendanceReads, 2);
+    expect(probe.attendanceReads, initialAttendanceReads + 1);
     expect(probe.unexpectedTransportCalls, 0);
   });
 
@@ -296,7 +338,8 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
-  testWidgets('Officer report opens the session-local Lineup Lab only from attendees',
+  testWidgets(
+      'Officer report opens the session-local Lineup Lab only from attendees',
       (tester) async {
     final probe = ProductionDemoProbe();
     await pumpDemo(tester, probe: probe);
@@ -311,8 +354,7 @@ void main() {
     expect(find.textContaining('可出席 1 人'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    expect(find.text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
-        findsOneWidget);
+    expect(find.text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'), findsOneWidget);
     expect(find.byKey(const ValueKey('lineup-starter-fictional-attending')),
         findsOneWidget);
     expect(find.text('虛構不出席隊員'), findsNothing);

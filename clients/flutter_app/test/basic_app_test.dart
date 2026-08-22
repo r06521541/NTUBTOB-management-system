@@ -2425,4 +2425,261 @@ void main() {
     expect(error, findsOneWidget);
     expect(tester.getSemantics(error).label, contains('出席回覆失敗'));
   });
+
+  List<Game> actionGames(int count) => List.generate(
+        count,
+        (index) => Game(
+          'action-$index',
+          DateTime.utc(2026, 9, 1 + index),
+          60,
+          '場地 $index',
+          '主隊 $index',
+          '客隊 $index',
+        ),
+      );
+
+  test('member action selects next five and defines pending truthfully',
+      () async {
+    final games = actionGames(7);
+    final replies = <String, AttendanceReply?>{
+      'action-0': null,
+      'action-1': AttendanceReply.undecided,
+      'action-2': AttendanceReply.attending,
+      'action-3': AttendanceReply.notAttending,
+      'action-4': AttendanceReply.arrivingLate,
+    };
+    final controller = MemberActionController(
+      (id) async => AttendanceSnapshot(id, replies[id], const []),
+      clock: () => DateTime.utc(2026, 8, 23),
+    );
+    await controller.load(principalScope: 'A', games: games, online: true);
+
+    expect(controller.window.map((game) => game.id),
+        ['action-0', 'action-1', 'action-2', 'action-3', 'action-4']);
+    expect(controller.pending.map((game) => game.id), ['action-0', 'action-1']);
+    expect(controller.nearestAction!.id, 'action-0');
+    expect(controller.state, MemberActionState.actionable);
+    expect(controller.message(online: true), contains('最近待處理'));
+  });
+
+  test('member action bounds concurrency and deduplicates in-flight reads',
+      () async {
+    final gates = <String, Completer<void>>{};
+    final calls = <String, int>{};
+    var active = 0;
+    var maximumActive = 0;
+    final controller = MemberActionController((id) async {
+      calls[id] = (calls[id] ?? 0) + 1;
+      active++;
+      maximumActive = maximumActive < active ? active : maximumActive;
+      final gate = gates.putIfAbsent(id, Completer<void>.new);
+      await gate.future;
+      active--;
+      return AttendanceSnapshot(id, AttendanceReply.attending, const []);
+    }, clock: () => DateTime.utc(2026, 8, 23));
+    final games = actionGames(7);
+    final first =
+        controller.load(principalScope: 'A', games: games, online: true);
+    final duplicate =
+        controller.load(principalScope: 'A', games: games, online: true);
+    await Future<void>.delayed(Duration.zero);
+    expect(active, 3);
+    for (final id in ['action-0', 'action-1', 'action-2']) {
+      gates[id]!.complete();
+    }
+    await Future<void>.delayed(Duration.zero);
+    for (final id in ['action-3', 'action-4']) {
+      gates[id]!.complete();
+    }
+    await Future.wait([first, duplicate]);
+    expect(maximumActive, 3);
+    expect(calls.values, everyElement(1));
+    expect(calls, hasLength(5));
+  });
+
+  test('offline unknown is not inferred pending and performs zero reads',
+      () async {
+    var reads = 0;
+    final controller = MemberActionController((id) async {
+      reads++;
+      return AttendanceSnapshot(id, null, const []);
+    }, clock: () => DateTime.utc(2026, 8, 23));
+    await controller.load(
+      principalScope: 'A',
+      games: const [],
+      online: false,
+    );
+    controller.remember('action-0', AttendanceReply.attending);
+    await controller.load(
+      principalScope: 'A',
+      games: actionGames(3),
+      online: false,
+    );
+    expect(reads, 0);
+    expect(controller.pending, isEmpty);
+    expect(controller.unknown, hasLength(2));
+    expect(controller.state, MemberActionState.partialUnknown);
+    expect(controller.message(online: false), contains('未知不列為待處理'));
+  });
+
+  test('member action principal switch clears same-game observations offline',
+      () async {
+    var reads = 0;
+    final games = actionGames(1);
+    final controller = MemberActionController((id) async {
+      reads++;
+      return AttendanceSnapshot(id, AttendanceReply.undecided, const []);
+    }, clock: () => DateTime.utc(2026, 8, 23));
+    await controller.load(principalScope: 'A', games: games, online: true);
+    expect(controller.pending.single.id, 'action-0');
+
+    await controller.load(principalScope: 'B', games: games, online: false);
+    expect(reads, 1);
+    expect(controller.pending, isEmpty);
+    expect(controller.unknown.single.id, 'action-0');
+    expect(controller.state, MemberActionState.partialUnknown);
+  });
+
+  test(
+      'member action ignores stale online completion after offline window switch',
+      () async {
+    final gate = Completer<void>();
+    var reads = 0;
+    final controller = MemberActionController((id) async {
+      reads++;
+      await gate.future;
+      return AttendanceSnapshot(id, AttendanceReply.undecided, const []);
+    }, clock: () => DateTime.utc(2026, 8, 23));
+    final oldLoad = controller.load(
+      principalScope: 'A',
+      games: actionGames(1),
+      online: true,
+    );
+    await Future<void>.delayed(Duration.zero);
+    final newWindow = [
+      Game(
+        'new-game',
+        DateTime.utc(2026, 10, 1),
+        60,
+        '新場地',
+        '新主隊',
+        '新客隊',
+      ),
+    ];
+    await controller.load(
+      principalScope: 'A',
+      games: newWindow,
+      online: false,
+    );
+    gate.complete();
+    await oldLoad;
+
+    expect(reads, 1);
+    expect(controller.window.single.id, 'new-game');
+    expect(controller.pending, isEmpty);
+    expect(controller.unknown.single.id, 'new-game');
+    expect(controller.state, MemberActionState.partialUnknown);
+  });
+
+  testWidgets('action dashboard renders states and refreshes only opened game',
+      (tester) async {
+    final games = actionGames(2);
+    final reads = <String>[];
+    final controller = MemberActionController((id) async {
+      reads.add(id);
+      return AttendanceSnapshot(
+        id,
+        id == 'action-0' && reads.where((value) => value == id).length == 1
+            ? AttendanceReply.undecided
+            : AttendanceReply.attending,
+        const [],
+      );
+    }, clock: () => DateTime.utc(2026, 8, 23));
+    await controller.load(principalScope: 'A', games: games, online: true);
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var scheduleOpened = false;
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MemberActionHome(
+          api: api,
+          principalScope: 'A',
+          games: games,
+          online: true,
+          controller: controller,
+          onOpenGame: (_) async {},
+          onOpenSchedule: () => scheduleOpened = true,
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(
+        find.byKey(const ValueKey('action-home-actionable')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('action-home-open-nearest')));
+    await tester.pumpAndSettle();
+    expect(reads.where((id) => id == 'action-0'), hasLength(2));
+    expect(reads.where((id) => id == 'action-1'), hasLength(1));
+    expect(find.byKey(const ValueKey('action-home-resolved')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('action-home-schedule')));
+    expect(scheduleOpened, isTrue);
+  });
+
+  testWidgets('action dashboard renders loading before observations settle',
+      (tester) async {
+    final gate = Completer<void>();
+    final controller = MemberActionController((id) async {
+      await gate.future;
+      return AttendanceSnapshot(id, AttendanceReply.attending, const []);
+    }, clock: () => DateTime.utc(2026, 8, 23));
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: MemberActionHome(
+          api: api,
+          principalScope: 'A',
+          games: actionGames(1),
+          online: true,
+          controller: controller,
+          onOpenGame: (_) async {},
+          onOpenSchedule: () {},
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('action-home-loading')), findsOneWidget);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('action-home-resolved')), findsOneWidget);
+  });
+
+  test('member action distinguishes empty resolved partial and error states',
+      () async {
+    final empty = MemberActionController(
+      (id) async => AttendanceSnapshot(id, null, const []),
+      clock: () => DateTime.utc(2026, 8, 23),
+    );
+    await empty.load(principalScope: 'A', games: const [], online: true);
+    expect(empty.state, MemberActionState.empty);
+
+    final resolved = MemberActionController(
+      (id) async => AttendanceSnapshot(id, AttendanceReply.attending, const []),
+      clock: () => DateTime.utc(2026, 8, 23),
+    );
+    await resolved.load(
+      principalScope: 'A',
+      games: actionGames(1),
+      online: true,
+    );
+    expect(resolved.state, MemberActionState.resolved);
+
+    final failed = MemberActionController(
+      (id) async => throw const NetworkException(),
+      clock: () => DateTime.utc(2026, 8, 23),
+    );
+    await failed.load(
+      principalScope: 'A',
+      games: actionGames(1),
+      online: true,
+    );
+    expect(failed.state, MemberActionState.retryableError);
+  });
 }

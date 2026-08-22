@@ -1182,9 +1182,8 @@ class _BasicGamesViewState extends State<BasicGamesView> {
               key: const ValueKey('schedule-discovery-entry'),
               leading: const Icon(Icons.calendar_month_outlined),
               title: const Text('賽程探索'),
-              subtitle: Text(widget.online
-                  ? '依日期、球隊或場地尋找已載入賽事'
-                  : '離線唯讀・可能不是最新賽程'),
+              subtitle:
+                  Text(widget.online ? '依日期、球隊或場地尋找已載入賽事' : '離線唯讀・可能不是最新賽程'),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => ScheduleDiscoveryPage(
@@ -1206,6 +1205,27 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 message: '有新賽事時會顯示在這裡。',
               ),
             ),
+          MemberActionHome(
+            api: widget.api,
+            principalScope: widget.person.id,
+            games: orderedGames,
+            online: widget.online,
+            onOpenGame: (game) async => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => widget.online
+                    ? GameDetailPage(api: widget.api, gameId: game.id)
+                    : CachedGameDetailPage(game: game),
+              ),
+            ),
+            onOpenSchedule: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ScheduleDiscoveryPage(
+                    api: widget.api,
+                    games: widget.games,
+                    online: widget.online),
+              ),
+            ),
+          ),
           if (orderedGames.isNotEmpty)
             NextAuthorizedGameCard(
               api: widget.api,
@@ -1412,7 +1432,8 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
                   padding: const EdgeInsets.only(top: AppSpacing.compact),
                   child: Text(
                     localizations.formatFullDate(entry.key),
-                    key: ValueKey('schedule-date-${entry.key.toIso8601String()}'),
+                    key: ValueKey(
+                        'schedule-date-${entry.key.toIso8601String()}'),
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                 ),
@@ -1451,6 +1472,240 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
         return '未定場地';
     }
   }
+}
+
+class MemberActionHome extends StatefulWidget {
+  const MemberActionHome(
+      {super.key,
+      required this.api,
+      required this.principalScope,
+      required this.games,
+      required this.online,
+      required this.onOpenGame,
+      required this.onOpenSchedule,
+      this.controller});
+  final BasicApi api;
+  final String principalScope;
+  final List<Game> games;
+  final bool online;
+  final Future<void> Function(Game) onOpenGame;
+  final VoidCallback onOpenSchedule;
+  final MemberActionController? controller;
+  @override
+  State<MemberActionHome> createState() => _MemberActionHomeState();
+}
+
+class _MemberActionHomeState extends State<MemberActionHome> {
+  late final MemberActionController _controller;
+  late final bool _ownsController;
+  @override
+  void initState() {
+    super.initState();
+    _ownsController = widget.controller == null;
+    _controller =
+        widget.controller ?? MemberActionController(widget.api.attendance);
+    _controller.load(
+      principalScope: widget.principalScope,
+      games: widget.games,
+      online: widget.online,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant MemberActionHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.games != widget.games ||
+        oldWidget.online != widget.online ||
+        oldWidget.principalScope != widget.principalScope) {
+      _controller.load(
+        principalScope: widget.principalScope,
+        games: widget.games,
+        online: widget.online,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => AppSurfaceCard(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('行動首頁'),
+            Text('僅評估已載入未來最多 5 場：已確認待處理 ${_controller.pending.length} 場'),
+            Text(_controller.message(online: widget.online),
+                key: ValueKey('action-home-${_controller.state.name}')),
+            if (_controller.nearestAction case final game?)
+              TextButton(
+                  key: const ValueKey('action-home-open-nearest'),
+                  onPressed: () async {
+                    await widget.onOpenGame(game);
+                    await _controller.refreshGame(game, online: widget.online);
+                  },
+                  child: const Text('查看並回覆')),
+            if (_controller.state == MemberActionState.retryableError)
+              TextButton(
+                key: const ValueKey('action-home-retry'),
+                onPressed: () => _controller.load(
+                  principalScope: widget.principalScope,
+                  games: widget.games,
+                  online: widget.online,
+                ),
+                child: const Text('重試確認'),
+              ),
+            TextButton(
+                key: const ValueKey('action-home-schedule'),
+                onPressed: widget.onOpenSchedule,
+                child: const Text('完整賽程')),
+          ]),
+        ),
+      );
+}
+
+enum MemberActionState {
+  loading,
+  actionable,
+  resolved,
+  partialUnknown,
+  empty,
+  retryableError
+}
+
+class MemberActionController extends ChangeNotifier {
+  MemberActionController(this._read, {DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now;
+  final Future<AttendanceSnapshot> Function(String) _read;
+  final DateTime Function() _clock;
+  final Map<String, AttendanceReply?> _known = {};
+  final Map<String, Future<void>> _inFlight = {};
+  String? _principalScope;
+  String? _contextKey;
+  int _generation = 0;
+  List<Game> window = const [];
+  MemberActionState state = MemberActionState.loading;
+  List<Game> get pending => window
+      .where((game) =>
+          _known.containsKey(game.id) &&
+          (_known[game.id] == null ||
+              _known[game.id] == AttendanceReply.undecided))
+      .toList();
+  List<Game> get unknown =>
+      window.where((game) => !_known.containsKey(game.id)).toList();
+  Game? get nearestAction => pending.isEmpty ? null : pending.first;
+  static List<Game> selectWindow(List<Game> games, DateTime now) =>
+      (List<Game>.of(games)..sort((a, b) => a.startAt.compareTo(b.startAt)))
+          .where((game) => game.startAt.isAfter(now.toUtc()))
+          .take(5)
+          .toList(growable: false);
+  Future<void> load({
+    required String principalScope,
+    required List<Game> games,
+    required bool online,
+  }) async {
+    final nextWindow = selectWindow(games, _clock());
+    final nextContext =
+        '$principalScope|$online|${nextWindow.map((game) => game.id).join(',')}';
+    if (_contextKey != nextContext) {
+      _generation++;
+      _contextKey = nextContext;
+      if (_principalScope != principalScope) {
+        _known.clear();
+        _inFlight.clear();
+        _principalScope = principalScope;
+      }
+    }
+    final generation = _generation;
+    window = nextWindow;
+    if (window.isEmpty) {
+      state = MemberActionState.empty;
+      notifyListeners();
+      return;
+    }
+    if (!online) {
+      _project(online: false);
+      return;
+    }
+    state = MemberActionState.loading;
+    notifyListeners();
+    var failed = false;
+    final missing =
+        window.where((game) => !_known.containsKey(game.id)).toList();
+    for (var start = 0; start < missing.length; start += 3) {
+      try {
+        await Future.wait(
+          missing.skip(start).take(3).map(
+                (game) => _readOnce(game, generation),
+              ),
+        );
+      } on Object {
+        failed = true;
+      }
+    }
+    if (generation != _generation) return;
+    if (failed && unknown.isNotEmpty) {
+      state = MemberActionState.retryableError;
+      notifyListeners();
+    } else {
+      _project(online: true);
+    }
+  }
+
+  Future<void> _readOnce(Game game, int generation) {
+    final key = '$generation:${game.id}';
+    return _inFlight.putIfAbsent(key, () async {
+      try {
+        final reply = (await _read(game.id)).ownReply;
+        if (generation == _generation) _known[game.id] = reply;
+      } finally {
+        _inFlight.remove(key);
+      }
+    });
+  }
+
+  Future<void> refreshGame(Game game, {required bool online}) async {
+    if (!online || !window.any((item) => item.id == game.id)) return;
+    _known.remove(game.id);
+    try {
+      final generation = _generation;
+      await _readOnce(game, generation);
+      if (generation != _generation) return;
+      _project(online: true);
+    } on Object {
+      state = MemberActionState.retryableError;
+      notifyListeners();
+    }
+  }
+
+  void remember(String gameId, AttendanceReply? reply) {
+    _known[gameId] = reply;
+  }
+
+  void _project({required bool online}) {
+    state = unknown.isNotEmpty
+        ? MemberActionState.partialUnknown
+        : pending.isNotEmpty
+            ? MemberActionState.actionable
+            : MemberActionState.resolved;
+    notifyListeners();
+  }
+
+  String message({required bool online}) => switch (state) {
+        MemberActionState.loading => '正在確認近期待辦…',
+        MemberActionState.actionable =>
+          '最近待處理：${nearestAction!.homeTeam ?? '主隊'} vs ${nearestAction!.awayTeam ?? '客隊'}',
+        MemberActionState.resolved => '近期待辦皆已確認。',
+        MemberActionState.partialUnknown => online
+            ? '部分賽事尚無法確認回覆狀態。'
+            : '離線時無法確認 ${unknown.length} 場的回覆狀態；未知不列為待處理。',
+        MemberActionState.empty => '目前沒有已載入的未來賽事。',
+        MemberActionState.retryableError => '暫時無法確認部分回覆，可稍後重試。',
+      };
 }
 
 class NextAuthorizedGameCard extends StatefulWidget {
