@@ -50,7 +50,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   static final _lastSyncedAt = DateTime.utc(2026, 8, 21, 8, 30);
   static final _games = <Game>[
     Game(
-      'fictional-game',
+      'game_901',
       DateTime.utc(2026, 9, 12, 6, 30),
       120,
       '虛構大學棒球場',
@@ -58,7 +58,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
       '範例友隊',
     ),
     Game(
-      'fictional-game-empty-replies',
+      'game_902',
       DateTime.utc(2026, 9, 19, 7),
       90,
       null,
@@ -278,6 +278,10 @@ class _ProductionDemoNotificationClient implements NotificationClient {
       'created_at': '2026-08-21T08:30:00Z',
       'visible_until': '2026-11-19T08:30:00Z',
       'read_at': null,
+      'destination': {
+        'type': 'notification',
+        'notification_id': 'notification_901',
+      },
     }),
     MobileNotification.fromJson({
       'id': 'notification_902',
@@ -287,6 +291,7 @@ class _ProductionDemoNotificationClient implements NotificationClient {
       'created_at': '2026-08-20T08:30:00Z',
       'visible_until': '2026-11-18T08:30:00Z',
       'read_at': '2026-08-20T09:00:00Z',
+      'destination': {'type': 'game', 'game_id': 'game_901'},
     }),
   ];
 
@@ -440,7 +445,7 @@ class _ProductionDemoApi extends BasicApi {
 }
 
 final _fictionalReportUiModel = SingleGameReportUiModel(
-  gameId: 'fictional-game',
+  gameId: 'game_901',
   gameLabel: '虛構校友隊 vs 範例友隊',
   generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
   historyGames: 8,
