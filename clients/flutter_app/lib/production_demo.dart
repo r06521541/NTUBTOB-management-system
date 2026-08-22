@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
 import 'basic_app.dart';
 import 'foundation.dart';
 import 'integration.dart';
@@ -29,8 +30,8 @@ class ProductionDemoApp extends DemoApp {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: '虛構產品展示・${flavor.displayLabel}',
-        theme: demoTheme(Brightness.light),
-        darkTheme: demoTheme(Brightness.dark),
+        theme: appTheme(Brightness.light),
+        darkTheme: appTheme(Brightness.dark),
         home: ProductionDemoShell(probe: probe),
       );
 }
@@ -204,7 +205,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                         ? PrincipalProvenance.freshServer
                         : PrincipalProvenance.offlineCache,
                     reportCache: _reportCache,
-                    onRefresh: () async {},
+                    onRefresh: () async => true,
                   ),
           ),
         ],

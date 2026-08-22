@@ -56,10 +56,54 @@ class MobileApiRouteTest(unittest.TestCase):
                     False,
                 )
             ),
+            notifications_page=Mock(return_value={"items": [], "next_cursor": None}),
+            notification=Mock(
+                return_value={
+                    "id": "notification_41",
+                    "type": "game_change",
+                    "title": "場地異動",
+                    "body": "比賽改到第二球場。",
+                    "created_at": "2026-08-22T12:00:00Z",
+                    "visible_until": "2026-11-20T12:00:00Z",
+                    "read_at": None,
+                }
+            ),
+            notification_unread_count=Mock(return_value=2),
+            mark_notification_read=Mock(
+                return_value={
+                    "notification_id": "notification_41",
+                    "read_at": "2026-08-22T12:01:00Z",
+                    "changed": True,
+                }
+            ),
+            mark_all_notifications_read=Mock(
+                return_value={"changed_count": 2, "unread_count": 0}
+            ),
+        )
+        self.publishing = SimpleNamespace(
+            preview=Mock(
+                return_value={
+                    "recipient_count": 2,
+                    "revision": "a" * 64,
+                    "confirmation_text": "PUBLISH 2",
+                }
+            ),
+            confirm=Mock(
+                return_value={
+                    "notification_id": "notification_81",
+                    "recipient_count": 2,
+                    "deliveries": [],
+                    "idempotent_replay": False,
+                }
+            ),
+            register_device=Mock(
+                return_value={"registration_id": "device_5", "status": "active"}
+            ),
+            revoke_device=Mock(return_value={"status": "revoked", "changed": True}),
         )
         self.revision = Mock(return_value=True)
         self.client = create_app(
-            Dependencies(self.auth, self.basic, self.revision)
+            Dependencies(self.auth, self.basic, self.publishing, self.revision)
         ).test_client()
 
     def test_revision_mismatch_fails_before_auth_or_data_read(self):
@@ -120,9 +164,7 @@ class MobileApiRouteTest(unittest.TestCase):
         headers = {"Authorization": "Bearer token"}
         for game_key in ("game_0", "game_nope", "fixture_-112001"):
             with self.subTest(game_key=game_key):
-                response = self.client.get(
-                    f"/api/v1/games/{game_key}", headers=headers
-                )
+                response = self.client.get(f"/api/v1/games/{game_key}", headers=headers)
                 self.assertEqual(response.status_code, 400)
 
     def test_attendance_requires_idempotency_key_and_reports_saved_notification_failure(
@@ -206,6 +248,123 @@ class MobileApiRouteTest(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 401)
         self.basic.attendance_report.assert_not_called()
+
+    def test_notification_routes_are_principal_scoped_and_mutations_are_empty_puts(
+        self,
+    ):
+        headers = {"Authorization": "Bearer token"}
+        listed = self.client.get(
+            "/api/v1/notifications?limit=10&unread_only=true", headers=headers
+        )
+        detail = self.client.get(
+            "/api/v1/notifications/notification_41", headers=headers
+        )
+        count = self.client.get("/api/v1/notifications/unread-count", headers=headers)
+        read = self.client.put(
+            "/api/v1/notifications/notification_41/read", headers=headers, json={}
+        )
+        read_all = self.client.put(
+            "/api/v1/notifications/read-all", headers=headers, json={}
+        )
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(count.get_json(), {"unread_count": 2})
+        self.assertTrue(read.get_json()["changed"])
+        self.assertEqual(read_all.get_json()["changed_count"], 2)
+        self.basic.notifications_page.assert_called_once_with(
+            self.principal, None, 10, True
+        )
+        self.basic.notification.assert_called_once_with(self.principal, 41)
+        self.basic.mark_notification_read.assert_called_once_with(self.principal, 41)
+
+    def test_notification_transport_rejects_malformed_ids_queries_and_bodies(self):
+        headers = {"Authorization": "Bearer token"}
+        responses = (
+            self.client.get("/api/v1/notifications?unread_only=maybe", headers=headers),
+            self.client.get(
+                "/api/v1/notifications/not-a-notification", headers=headers
+            ),
+            self.client.get(
+                "/api/v1/notifications/notification_9223372036854775808",
+                headers=headers,
+            ),
+            self.client.get(
+                "/api/v1/notifications/notification_1111111111111111111111111111111111111111",
+                headers=headers,
+            ),
+            self.client.put(
+                "/api/v1/notifications/read-all",
+                headers=headers,
+                json={"unexpected": True},
+            ),
+        )
+        self.assertTrue(
+            all(response.status_code in {400, 422} for response in responses)
+        )
+        self.basic.notifications_page.assert_not_called()
+        self.basic.notification.assert_not_called()
+        self.basic.mark_all_notifications_read.assert_not_called()
+
+    def test_officer_preview_confirm_and_fake_device_routes_are_typed(self):
+        self.principal = MobilePrincipal("session", 23, 7, "officer", "Officer", 1)
+        self.auth.authenticate.return_value = self.principal
+        headers = {"Authorization": "Bearer token"}
+        draft = {
+            "type": "officer_team_broadcast",
+            "title": "集合提醒",
+            "body": "請準時抵達。",
+            "audience": {"type": "team"},
+            "destination": {"type": "notification"},
+        }
+        preview = self.client.post(
+            "/api/v1/officer/notifications/preview", headers=headers, json=draft
+        )
+        confirm = self.client.post(
+            "/api/v1/officer/notifications/confirm",
+            headers={**headers, "Idempotency-Key": "publish-command-0001"},
+            json={
+                "draft": draft,
+                "preview_revision": "a" * 64,
+                "typed_confirmation": "PUBLISH 2",
+            },
+        )
+        registered = self.client.put(
+            "/api/v1/devices/current",
+            headers=headers,
+            json={
+                "installation_id": "fictional-installation-001",
+                "platform": "android",
+                "provider": "fake",
+                "token": "fake-device-token-obvious-test-only-0001",
+            },
+        )
+        revoked = self.client.delete(
+            "/api/v1/devices/current",
+            headers=headers,
+            json={"installation_id": "fictional-installation-001"},
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(confirm.status_code, 201)
+        self.assertEqual(registered.get_json()["status"], "active")
+        self.assertTrue(revoked.get_json()["changed"])
+        self.publishing.preview.assert_called_once_with(self.principal, draft)
+        self.publishing.confirm.assert_called_once_with(
+            self.principal,
+            draft,
+            preview_revision="a" * 64,
+            typed_confirmation="PUBLISH 2",
+            idempotency_key="publish-command-0001",
+        )
+
+    def test_publish_transport_rejects_unknown_fields_before_service(self):
+        response = self.client.post(
+            "/api/v1/officer/notifications/preview",
+            headers={"Authorization": "Bearer token"},
+            json={"title": "x", "unexpected": "private"},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.publishing.preview.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'foundation.dart';
+import 'app_theme.dart';
 import 'integration.dart';
 import 'officer_prereview.dart';
 
@@ -27,7 +27,7 @@ enum AuthViewState {
   timeoutUnresolved,
   logoutPending,
   offline,
-  authenticated
+  authenticated,
 }
 
 enum PrincipalProvenance { freshServer, offlineCache }
@@ -56,10 +56,7 @@ Future<void> runBasicLogoutIfAllowed({
   required bool basicLoadInProgress,
   required Future<void> Function() logout,
 }) async {
-  if (!canStartLogout(
-    state,
-    basicLoadInProgress: basicLoadInProgress,
-  )) {
+  if (!canStartLogout(state, basicLoadInProgress: basicLoadInProgress)) {
     return;
   }
   await logout();
@@ -84,7 +81,7 @@ class AuthStatePanel extends StatelessWidget {
       AuthViewState.unavailable => (Icons.mobile_off, '此裝置無法使用 LINE 登入'),
       AuthViewState.timeoutUnresolved => (
           Icons.hourglass_disabled,
-          'LINE 登入已逾時，請關閉既有登入畫面後返回'
+          'LINE 登入已逾時，請關閉既有登入畫面後返回',
         ),
       AuthViewState.logoutPending => (Icons.logout, '登出同步中，暫停操作'),
       AuthViewState.offline => (Icons.cloud_off, '離線唯讀模式'),
@@ -94,15 +91,16 @@ class AuthStatePanel extends StatelessWidget {
       label: label,
       liveRegion: true,
       child: Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (state == AuthViewState.booting ||
-              state == AuthViewState.exchanging)
-            const CircularProgressIndicator()
-          else
-            Icon(icon),
-          const SizedBox(height: 12),
-          Text(label),
-        ]),
+        child: SizedBox(
+          width: 320,
+          child: AppStatusPanel(
+            icon: icon,
+            title: label,
+            loading: state == AuthViewState.booting ||
+                state == AuthViewState.exchanging,
+            liveRegion: true,
+          ),
+        ),
       ),
     );
   }
@@ -156,16 +154,19 @@ class CacheSessionAggregateProducer {
 Future<CacheSessionAggregate?> completeTerminalLogout({
   required SessionController session,
   required BasicCache basicCache,
+  required NotificationCache notificationCache,
   required DurablePrincipalOfficerReportCache reportCache,
   required BasicApi api,
   required LineLoginPort line,
 }) async {
   if (!CacheSessionAggregateProducer.matches(
-    session: session,
-    basicCache: basicCache,
-    reportCache: reportCache,
-    api: api,
-  )) {
+        session: session,
+        basicCache: basicCache,
+        reportCache: reportCache,
+        api: api,
+      ) ||
+      !identical(session.store, notificationCache.store) ||
+      session.installationId != notificationCache.installationId) {
     return null;
   }
   CacheSessionAggregate? aggregate;
@@ -174,6 +175,7 @@ Future<CacheSessionAggregate?> completeTerminalLogout({
       line,
       purgeLocal: () async {
         await basicCache.clear();
+        await notificationCache.clear();
         await reportCache.clearInstallation();
         await api.clearPendingAttendanceIntents();
         aggregate = await CacheSessionAggregateProducer.observe(
@@ -215,13 +217,14 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   BasicCache? _cache;
+  NotificationCache? _notificationCache;
   DurablePrincipalOfficerReportCache? _reportCache;
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
   PrincipalProvenance? principalProvenance;
   CacheSessionAggregate? cacheSessionAggregate;
-  Future<void>? _basicLoadOperation;
+  Future<bool>? _basicLoadOperation;
   bool _basicLoadInProgress = false;
 
   @override
@@ -235,13 +238,20 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     try {
       final installationId = await _installationId();
       final transport = HttpApiTransport(widget.config.apiBaseUrl!, _http);
-      final session =
-          SessionController(transport, _store, installationId, _ids);
+      final notificationCache = NotificationCache(_store, installationId);
+      final session = SessionController(
+        transport,
+        _store,
+        installationId,
+        _ids,
+        terminalPurge: notificationCache.clear,
+      );
       final line = NativeLineLogin(widget.config.lineChannelId!);
       _session = session;
       _line = line;
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
+      _notificationCache = notificationCache;
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       _login!.addListener(_onLoginStateChanged);
@@ -253,6 +263,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         final aggregate = await completeTerminalLogout(
           session: session,
           basicCache: _cache!,
+          notificationCache: notificationCache,
           reportCache: _reportCache!,
           api: _api!,
           line: line,
@@ -316,13 +327,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     setState(() => state = next);
   }
 
-  Future<void> _loadBasic() {
+  Future<bool> _loadBasic() {
     final existingOperation = _basicLoadOperation;
     if (existingOperation != null) return existingOperation;
 
     _basicLoadInProgress = true;
     if (mounted) setState(() {});
-    late final Future<void> operation;
+    late final Future<bool> operation;
     operation = _loadBasicOnce().whenComplete(() {
       if (identical(_basicLoadOperation, operation)) {
         _basicLoadOperation = null;
@@ -337,7 +348,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     return operation;
   }
 
-  Future<void> _loadBasicOnce() async {
+  Future<bool> _loadBasicOnce() async {
     try {
       final loadedPerson = await _api!.me();
       final loadedGames = await _api!.games();
@@ -348,9 +359,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         previous: previous?.person,
         current: loadedPerson,
       );
+      await _notificationCache!.reconcileFreshPrincipal(
+        previous?.person,
+        loadedPerson,
+      );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       final aggregate = await _observeCacheSessionAggregate();
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         person = loadedPerson;
         games = loadedGames;
@@ -359,8 +374,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         cacheSessionAggregate = aggregate;
         state = AuthViewState.authenticated;
       });
+      return true;
     } on Object catch (error) {
       await _showFailure(error);
+      return false;
     }
   }
 
@@ -369,6 +386,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     final classified = classifyFailure(error, hasCache: cached != null);
     if (classified == AuthViewState.sessionExpired && cached != null) {
       await _reportCache?.clearPrincipal(cached.person.id);
+    }
+    if (classified == AuthViewState.sessionExpired) {
+      await _notificationCache?.clear();
     }
     final aggregate = await _observeCacheSessionAggregate();
     if (!mounted) return;
@@ -401,6 +421,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     final aggregate = await completeTerminalLogout(
       session: _session!,
       basicCache: _cache!,
+      notificationCache: _notificationCache!,
       reportCache: _reportCache!,
       api: _api!,
       line: _line!,
@@ -452,8 +473,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: '北商乙組籃球隊',
-        theme: demoTheme(Brightness.light),
-        darkTheme: demoTheme(Brightness.dark),
+        theme: appTheme(Brightness.light),
+        darkTheme: appTheme(Brightness.dark),
         home: Scaffold(
           appBar: AppBar(title: const Text('隊務系統')),
           body: DebugCacheSessionComposition(
@@ -482,16 +503,22 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                       ? _logout
                       : null,
                   tooltip: '登出',
-                  child: const Icon(Icons.logout))
+                  child: const Icon(Icons.logout),
+                )
               : LoginActionButton(
-                  state: state, onLogin: _login == null ? null : _signIn),
+                  state: state,
+                  onLogin: _login == null ? null : _signIn,
+                ),
         ),
       );
 }
 
 class LoginActionButton extends StatelessWidget {
-  const LoginActionButton(
-      {super.key, required this.state, required this.onLogin});
+  const LoginActionButton({
+    super.key,
+    required this.state,
+    required this.onLogin,
+  });
   final AuthViewState state;
   final VoidCallback? onLogin;
 
@@ -508,7 +535,10 @@ class LoginActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!_retryableStates.contains(state)) return const SizedBox.shrink();
     return FloatingActionButton(
-        onPressed: onLogin, tooltip: 'LINE 登入', child: const Icon(Icons.login));
+      onPressed: onLogin,
+      tooltip: 'LINE 登入',
+      child: const Icon(Icons.login),
+    );
   }
 }
 
@@ -522,6 +552,7 @@ class BasicGamesView extends StatefulWidget {
     required this.lastSyncedAt,
     this.principalProvenance,
     this.reportCache,
+    this.publishingClient,
     this.onRefresh,
     this.diagnosticEnabled = true,
   });
@@ -532,7 +563,8 @@ class BasicGamesView extends StatefulWidget {
   final DateTime lastSyncedAt;
   final PrincipalProvenance? principalProvenance;
   final PrincipalOfficerReportCache? reportCache;
-  final Future<void> Function()? onRefresh;
+  final NotificationPublishingClient? publishingClient;
+  final Future<bool> Function()? onRefresh;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -544,20 +576,44 @@ class BasicGamesView extends StatefulWidget {
 }
 
 class _BasicGamesViewState extends State<BasicGamesView> {
+  final _scrollController = ScrollController();
   bool _refreshInProgress = false;
+  String? _refreshResult;
 
   Future<void> _refresh() async {
     final refresh = widget.onRefresh;
     if (!widget.online || refresh == null || _refreshInProgress) return;
-    setState(() => _refreshInProgress = true);
+    setState(() {
+      _refreshInProgress = true;
+      _refreshResult = null;
+    });
     try {
-      await refresh();
+      final succeeded = await refresh();
+      if (!mounted) return;
+      if (succeeded) {
+        await _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+        if (!mounted) return;
+        setState(() => _refreshResult = '重新整理完成，已回到賽事列表開頭');
+      } else {
+        setState(() => _refreshResult = '重新整理失敗，仍顯示上次成功同步資料');
+      }
     } on Object {
-      // The parent reload owns its canonical error/offline presentation. Keep
-      // the button callback from surfacing a second unhandled UI exception.
+      if (mounted) {
+        setState(() => _refreshResult = '重新整理失敗，仍顯示上次成功同步資料');
+      }
     } finally {
       if (mounted) setState(() => _refreshInProgress = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -569,102 +625,433 @@ class _BasicGamesViewState extends State<BasicGamesView> {
         return byStart != 0 ? byStart : left.id.compareTo(right.id);
       });
     final content = Material(
-        child: ListView(children: [
-      if (!widget.online)
-        Semantics(
-            key: const ValueKey('offline-read-only'),
-            label: '離線唯讀，出席回覆已停用',
-            child: const ListTile(
-                leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
-      ListTile(
-          title: Text(widget.person.displayName),
-          subtitle: Text(
-              '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}'),
-          trailing: IconButton(
-            key: const ValueKey('games-refresh'),
-            tooltip: '重新整理賽事',
-            onPressed:
-                widget.online && widget.onRefresh != null && !_refreshInProgress
-                    ? _refresh
-                    : null,
-            icon: _refreshInProgress
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.refresh),
-          )),
-      ListTile(
-        key: const ValueKey('account-data-status-entry'),
-        leading: const Icon(Icons.account_circle_outlined),
-        title: const Text('帳號與資料狀態'),
-        subtitle: const Text('查看目前顯示的帳號與資料來源'),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-          builder: (_) => AccountDataStatusPage(
-            person: widget.person,
-            lastSyncedAt: widget.lastSyncedAt,
-            provenance: widget.principalProvenance,
-          ),
-        )),
-      ),
-      if (DebugPrincipalProjection.shouldRender(
-          debugBuild: kDebugMode, diagnosticEnabled: widget.diagnosticEnabled))
-        DebugPrincipalProjection(
-            person: widget.person, provenance: widget.principalProvenance),
-      if (widget.person.canReadAttendanceReport)
-        ListTile(
-          key: const ValueKey('management-report-entry'),
-          leading: const Icon(Icons.assessment_outlined),
-          title: const Text('出席報表'),
-          subtitle: const Text('Officer／Admin 唯讀'),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => CanonicalManagementReportsPage(
-              api: widget.api,
-              person: widget.person,
-              games: widget.games,
-              online: widget.online,
-              cache: widget.reportCache,
+      child: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(AppSpacing.regular),
+        children: [
+          if (!widget.online)
+            Semantics(
+              key: const ValueKey('offline-read-only'),
+              label: '離線唯讀，出席回覆已停用',
+              child: const AppStatusPanel(
+                icon: Icons.cloud_off,
+                title: '離線唯讀模式',
+                message: '目前顯示上次成功同步的資料，無法重新整理或回覆出席。',
+              ),
             ),
-          )),
-        ),
-      if (orderedGames.isEmpty)
-        Semantics(
-            key: const ValueKey('games-empty'),
-            label: '目前沒有可顯示的賽事',
-            child: const ListTile(
-                leading: Icon(Icons.event_busy),
-                title: Text('目前沒有賽事'),
-                subtitle: Text('有新賽事時會顯示在這裡。'))),
-      for (final game in orderedGames)
-        ListTile(
-            key: ValueKey('game-${game.id}'),
-            title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
-            subtitle: Text(_formatGameMetadata(localizations, game)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: widget.online
-                ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) =>
-                        GameDetailPage(api: widget.api, gameId: game.id)))
-                : null),
-    ]));
+          AppSurfaceCard(
+            child: Semantics(
+              key: const ValueKey('games-last-sync'),
+              label:
+                  '最後成功同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}',
+              child: ListTile(
+                title: Text(widget.person.displayName),
+                subtitle: Text(
+                  '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}',
+                ),
+                trailing: IconButton(
+                  key: const ValueKey('games-refresh'),
+                  tooltip: '重新整理賽事',
+                  onPressed: widget.online &&
+                          widget.onRefresh != null &&
+                          !_refreshInProgress
+                      ? _refresh
+                      : null,
+                  icon: _refreshInProgress
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                ),
+              ),
+            ),
+          ),
+          if (_refreshInProgress || _refreshResult != null)
+            Semantics(
+              key: const ValueKey('games-refresh-result'),
+              label: _refreshInProgress ? '正在重新整理賽事' : _refreshResult,
+              liveRegion: true,
+              child: ExcludeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: AppSpacing.compact,
+                  ),
+                  child: Row(
+                    children: [
+                      if (_refreshInProgress)
+                        const SizedBox(
+                          key: ValueKey('games-refresh-progress'),
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      else
+                        Icon(
+                          _refreshResult!.startsWith('重新整理完成')
+                              ? Icons.check_circle_outline
+                              : Icons.error_outline,
+                        ),
+                      const SizedBox(width: AppSpacing.compact),
+                      Expanded(
+                        child: Text(
+                          _refreshInProgress ? '正在重新整理賽事…' : _refreshResult!,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          AppSurfaceCard(
+            child: ListTile(
+              key: const ValueKey('account-data-status-entry'),
+              leading: const Icon(Icons.account_circle_outlined),
+              title: const Text('帳號與資料狀態'),
+              subtitle: const Text('查看目前顯示的帳號與資料來源'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => AccountDataStatusPage(
+                    person: widget.person,
+                    lastSyncedAt: widget.lastSyncedAt,
+                    provenance: widget.principalProvenance,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (DebugPrincipalProjection.shouldRender(
+            debugBuild: kDebugMode,
+            diagnosticEnabled: widget.diagnosticEnabled,
+          ))
+            DebugPrincipalProjection(
+              person: widget.person,
+              provenance: widget.principalProvenance,
+            ),
+          if (widget.person.canReadAttendanceReport)
+            AppSurfaceCard(
+              child: ListTile(
+                key: const ValueKey('management-report-entry'),
+                leading: const Icon(Icons.assessment_outlined),
+                title: const Text('出席報表'),
+                subtitle: const Text('Officer／Admin 唯讀'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => CanonicalManagementReportsPage(
+                      api: widget.api,
+                      person: widget.person,
+                      games: widget.games,
+                      online: widget.online,
+                      cache: widget.reportCache,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (widget.online && widget.person.canPublishNotifications)
+            AppSurfaceCard(
+              child: ListTile(
+                key: const ValueKey('notification-publishing-entry'),
+                leading: const Icon(Icons.campaign_outlined),
+                title: const Text('發布隊務通知'),
+                subtitle: const Text('先預覽收件人，再輸入確認文字發布'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => OfficerNotificationPublishingPage(
+                      client: widget.publishingClient ??
+                          OfficerNotificationPublisher(
+                            widget.api.session,
+                            widget.person,
+                          ),
+                      games: widget.games,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          if (orderedGames.isEmpty)
+            Semantics(
+              key: const ValueKey('games-empty'),
+              label: '目前沒有可顯示的賽事',
+              child: const AppStatusPanel(
+                icon: Icons.event_busy,
+                title: '目前沒有賽事',
+                message: '有新賽事時會顯示在這裡。',
+              ),
+            ),
+          for (final game in orderedGames)
+            AppSurfaceCard(
+              child: ListTile(
+                key: ValueKey('game-${game.id}'),
+                title: Text(
+                  '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}',
+                ),
+                subtitle: Text(_formatGameMetadata(localizations, game)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: widget.online
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => GameDetailPage(
+                                api: widget.api, gameId: game.id),
+                          ),
+                        )
+                    : null,
+              ),
+            ),
+        ],
+      ),
+    );
     final scrollableGamesView = ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context)
-            .copyWith(physics: const AlwaysScrollableScrollPhysics()),
-        child: content);
+      behavior: ScrollConfiguration.of(context)
+          .copyWith(physics: const AlwaysScrollableScrollPhysics()),
+      child: content,
+    );
     if (!widget.online || widget.onRefresh == null) return scrollableGamesView;
     return RefreshIndicator(
-        key: const ValueKey('games-pull-refresh'),
-        semanticsLabel: '下拉重新整理賽事',
-        onRefresh: _refresh,
-        child: scrollableGamesView);
+      key: const ValueKey('games-pull-refresh'),
+      semanticsLabel: '下拉重新整理賽事',
+      onRefresh: _refresh,
+      child: scrollableGamesView,
+    );
   }
+}
+
+enum PublishingAudience { individual, game, team }
+
+class OfficerNotificationPublishingPage extends StatefulWidget {
+  const OfficerNotificationPublishingPage({
+    super.key,
+    required this.client,
+    required this.games,
+    this.ids,
+  });
+  final NotificationPublishingClient client;
+  final List<Game> games;
+  final SecureIds? ids;
+  @override
+  State<OfficerNotificationPublishingPage> createState() =>
+      _OfficerNotificationPublishingPageState();
+}
+
+class _OfficerNotificationPublishingPageState
+    extends State<OfficerNotificationPublishingPage> {
+  final _title = TextEditingController();
+  final _body = TextEditingController();
+  final _personId = TextEditingController();
+  final _confirmation = TextEditingController();
+  PublishingAudience audience = PublishingAudience.team;
+  String? gameId;
+  Map<String, dynamic>? preview;
+  Map<String, dynamic>? draft;
+  String? commandKey;
+  String? outcome;
+  bool busy = false;
+  late final SecureIds _ids;
+
+  @override
+  void initState() {
+    super.initState();
+    _ids = widget.ids ?? SecureIds();
+    if (widget.games.isNotEmpty) gameId = widget.games.first.id;
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _body.dispose();
+    _personId.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  Map<String, dynamic> _draft() {
+    final audienceValue = switch (audience) {
+      PublishingAudience.individual => {
+          'type': 'individual',
+          'person_id': _personId.text.trim(),
+        },
+      PublishingAudience.game => {'type': 'game', 'game_id': gameId},
+      PublishingAudience.team => {'type': 'team'},
+    };
+    return {
+      'type': switch (audience) {
+        PublishingAudience.individual => 'officer_personal',
+        PublishingAudience.game => 'officer_game_broadcast',
+        PublishingAudience.team => 'officer_team_broadcast',
+      },
+      'title': _title.text.trim(),
+      'body': _body.text.trim(),
+      'audience': audienceValue,
+      'destination': audience == PublishingAudience.game
+          ? {'type': 'game', 'game_id': gameId}
+          : {'type': 'notification'},
+    };
+  }
+
+  Future<void> _preview() async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      preview = null;
+      commandKey = null;
+      outcome = null;
+    });
+    try {
+      final nextDraft = _draft();
+      final nextPreview = await widget.client.preview(nextDraft);
+      if (!mounted) return;
+      setState(() {
+        draft = nextDraft;
+        preview = nextPreview;
+        commandKey = _ids.next();
+        _confirmation.clear();
+      });
+    } on Object {
+      if (mounted) setState(() => outcome = '預覽失敗，未發布任何通知');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _confirm() async {
+    final currentPreview = preview;
+    final currentDraft = draft;
+    final currentKey = commandKey;
+    if (busy ||
+        currentPreview == null ||
+        currentDraft == null ||
+        currentKey == null) {
+      return;
+    }
+    if (_confirmation.text != currentPreview['confirmation_text']) return;
+    setState(() => busy = true);
+    try {
+      await widget.client.confirm(currentDraft, currentPreview, currentKey);
+      if (!mounted) return;
+      setState(() {
+        preview = null;
+        draft = null;
+        commandKey = null;
+        outcome = '通知已保存；外部推播結果不影響 App 內通知紀錄';
+      });
+    } on Object {
+      if (mounted) setState(() => outcome = '發布失敗；請重新預覽收件人');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('發布隊務通知')),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          children: [
+            DropdownButtonFormField<PublishingAudience>(
+              key: const ValueKey('publishing-audience'),
+              initialValue: audience,
+              decoration: const InputDecoration(labelText: '收件範圍'),
+              items: const [
+                DropdownMenuItem(
+                  value: PublishingAudience.individual,
+                  child: Text('個人'),
+                ),
+                DropdownMenuItem(
+                  value: PublishingAudience.game,
+                  child: Text('賽事成員'),
+                ),
+                DropdownMenuItem(
+                    value: PublishingAudience.team, child: Text('全隊')),
+              ],
+              onChanged: busy
+                  ? null
+                  : (value) => setState(() {
+                        audience = value ?? PublishingAudience.team;
+                        preview = null;
+                      }),
+            ),
+            if (audience == PublishingAudience.individual)
+              TextField(
+                key: const ValueKey('publishing-person-id'),
+                controller: _personId,
+                decoration: const InputDecoration(labelText: 'Person ID'),
+              ),
+            if (audience == PublishingAudience.game)
+              DropdownButtonFormField<String>(
+                key: const ValueKey('publishing-game-id'),
+                initialValue: gameId,
+                decoration: const InputDecoration(labelText: '賽事'),
+                items: [
+                  for (final game in widget.games)
+                    DropdownMenuItem(value: game.id, child: Text(game.id)),
+                ],
+                onChanged: busy
+                    ? null
+                    : (value) => setState(() {
+                          gameId = value;
+                          preview = null;
+                        }),
+              ),
+            TextField(
+              key: const ValueKey('publishing-title'),
+              controller: _title,
+              maxLength: 120,
+              decoration: const InputDecoration(labelText: '標題'),
+            ),
+            TextField(
+              key: const ValueKey('publishing-body'),
+              controller: _body,
+              maxLength: 500,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: '純文字內容'),
+            ),
+            FilledButton(
+              key: const ValueKey('publishing-preview'),
+              onPressed: busy ? null : _preview,
+              child: const Text('預覽收件人'),
+            ),
+            if (preview != null) ...[
+              Semantics(
+                key: const ValueKey('publishing-preview-result'),
+                liveRegion: true,
+                label: '預覽收件人 ${preview!['recipient_count']} 人',
+                child: Text('預覽收件人：${preview!['recipient_count']} 人'),
+              ),
+              TextField(
+                key: const ValueKey('publishing-confirmation'),
+                controller: _confirmation,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                  labelText: '請輸入 ${preview!['confirmation_text']}',
+                ),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey('publishing-confirm'),
+                onPressed:
+                    !busy && _confirmation.text == preview!['confirmation_text']
+                        ? _confirm
+                        : null,
+                child: const Text('確認發布'),
+              ),
+            ],
+            if (outcome != null)
+              Semantics(
+                key: const ValueKey('publishing-outcome'),
+                liveRegion: true,
+                child: Text(outcome!),
+              ),
+          ],
+        ),
+      );
 }
 
 String _formatGameMetadata(MaterialLocalizations localizations, Game game) {
   final localStart = game.startAt.toLocal();
   final date = localizations.formatFullDate(localStart);
-  final time =
-      localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
+  final time = localizations.formatTimeOfDay(
+    TimeOfDay.fromDateTime(localStart),
+  );
   final details = <String>['$date $time'];
   if (game.location != null && game.location!.isNotEmpty) {
     details.add(game.location!);
@@ -726,7 +1113,8 @@ class AccountDataStatusPage extends StatelessWidget {
               leading: const Icon(Icons.schedule_outlined),
               title: const Text('最後同步'),
               subtitle: Text(
-                  '${localizations.formatFullDate(localLastSyncedAt)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localLastSyncedAt))}'),
+                '${localizations.formatFullDate(localLastSyncedAt)} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localLastSyncedAt))}',
+              ),
             ),
           ),
           const Divider(),
@@ -735,9 +1123,11 @@ class AccountDataStatusPage extends StatelessWidget {
             label: '$source $description',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: Icon(provenance == PrincipalProvenance.freshServer
-                  ? Icons.cloud_done_outlined
-                  : Icons.cloud_off),
+              leading: Icon(
+                provenance == PrincipalProvenance.freshServer
+                    ? Icons.cloud_done_outlined
+                    : Icons.cloud_off,
+              ),
               title: Text(source),
               subtitle: Text(description),
             ),
@@ -749,14 +1139,19 @@ class AccountDataStatusPage extends StatelessWidget {
 }
 
 class DebugPrincipalProjection extends StatelessWidget {
-  const DebugPrincipalProjection(
-      {super.key, required this.person, required this.provenance});
+  const DebugPrincipalProjection({
+    super.key,
+    required this.person,
+    required this.provenance,
+  });
 
   final Person person;
   final PrincipalProvenance? provenance;
 
-  static bool shouldRender(
-          {required bool debugBuild, required bool diagnosticEnabled}) =>
+  static bool shouldRender({
+    required bool debugBuild,
+    required bool diagnosticEnabled,
+  }) =>
       debugBuild && diagnosticEnabled;
 
   static String localizedRole(AccessLevel accessLevel) => switch (accessLevel) {
@@ -766,7 +1161,8 @@ class DebugPrincipalProjection extends StatelessWidget {
       };
 
   static (String, String) localizedProvenance(
-          PrincipalProvenance? provenance) =>
+    PrincipalProvenance? provenance,
+  ) =>
       switch (provenance) {
         PrincipalProvenance.freshServer => ('fresh_server', '伺服器最新驗證'),
         PrincipalProvenance.offlineCache => ('offline_cache', '離線快取，非權威'),
@@ -785,8 +1181,9 @@ class DebugPrincipalProjection extends StatelessWidget {
       child: ListTile(
         leading: const Icon(Icons.bug_report_outlined),
         title: Text(role),
-        subtitle:
-            Text('報表讀取：$reportRead；來源：$provenanceToken（$provenanceLabel）'),
+        subtitle: Text(
+          '報表讀取：$reportRead；來源：$provenanceToken（$provenanceLabel）',
+        ),
       ),
     );
   }
@@ -800,7 +1197,7 @@ enum DetailViewState {
   mutationError,
   uncertain,
   contractError,
-  sessionExpired
+  sessionExpired,
 }
 
 class DebugCacheSessionProjection extends StatelessWidget {
@@ -902,7 +1299,9 @@ enum CanonicalOwnReplyObservation {
 
   final String token;
 
-  static CanonicalOwnReplyObservation fromReply(AttendanceReply? reply) =>
+  static CanonicalOwnReplyObservation fromReply(
+    AttendanceReply? reply,
+  ) =>
       switch (reply) {
         null => CanonicalOwnReplyObservation.none,
         AttendanceReply.undecided => CanonicalOwnReplyObservation.undecided,
@@ -1022,18 +1421,40 @@ class _GameDetailPageState extends State<GameDetailPage> {
         appBar: AppBar(title: const Text('賽事與出席')),
         body: switch (state) {
           DetailViewState.loading => const Center(
-              child: CircularProgressIndicator(semanticsLabel: '載入賽事與出席')),
-          DetailViewState.error =>
-            const AuthStatePanel(state: AuthViewState.recoverableError),
+              child: SizedBox(
+                width: 320,
+                child: AppStatusPanel(
+                  icon: Icons.sports_basketball_outlined,
+                  title: '正在載入賽事與出席',
+                  loading: true,
+                ),
+              ),
+            ),
+          DetailViewState.error => const AuthStatePanel(
+              state: AuthViewState.recoverableError,
+            ),
           DetailViewState.mutationError => Semantics(
               key: const ValueKey('mutation-error'),
               label: '出席回覆失敗，未變更目前結果',
               liveRegion: true,
-              child: const Center(child: Text('出席回覆失敗，請確認狀態後重試。'))),
-          DetailViewState.contractError =>
-            const AuthStatePanel(state: AuthViewState.contractError),
-          DetailViewState.sessionExpired =>
-            const AuthStatePanel(state: AuthViewState.sessionExpired),
+              child: const Center(
+                child: SizedBox(
+                  width: 320,
+                  child: AppStatusPanel(
+                    icon: Icons.error_outline,
+                    title: '出席回覆失敗',
+                    message: '請確認狀態後重試。',
+                    liveRegion: true,
+                  ),
+                ),
+              ),
+            ),
+          DetailViewState.contractError => const AuthStatePanel(
+              state: AuthViewState.contractError,
+            ),
+          DetailViewState.sessionExpired => const AuthStatePanel(
+              state: AuthViewState.sessionExpired,
+            ),
           _ => _content(),
         },
       );
@@ -1048,50 +1469,82 @@ class _GameDetailPageState extends State<GameDetailPage> {
       mutationReadback: authoritativeOwnReplySource ==
           AuthoritativeOwnReplySource.mutationReadback,
     );
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
-          style: Theme.of(context).textTheme.titleLarge),
-      Text(_formatGameMetadata(localizations, game!),
-          key: const ValueKey('game-detail-metadata')),
-      const SizedBox(height: 16),
-      if (observation != null &&
-          DebugAuthoritativeOwnReplyProjection.shouldRender(
-            debugBuild: kDebugMode,
-            diagnosticEnabled: widget.diagnosticEnabled,
-          ))
-        DebugAuthoritativeOwnReplyProjection(
-          observation: observation.$1,
-          source: observation.$2,
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.regular),
+      children: [
+        AppSurfaceCard(
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: AppSpacing.compact),
+              Text(
+                _formatGameMetadata(localizations, game!),
+                key: const ValueKey('game-detail-metadata'),
+              ),
+            ],
+          ),
         ),
-      const Text('我的出席回覆'),
-      if (state == DetailViewState.uncertain)
-        Semantics(
-            key: const ValueKey('mutation-uncertain'),
-            label: '回覆結果待確認，已保留同一操作識別碼',
-            liveRegion: true,
-            child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
-      Wrap(
-          spacing: 8,
-          children: AttendanceReply.values
-              .map((reply) => ChoiceChip(
-                  key: ValueKey('reply-${reply.wire}'),
-                  label: Text(_replyLabel(reply)),
-                  selected: selected == reply,
-                  onSelected: state == DetailViewState.mutating
-                      ? null
-                      : (_) => setState(() => selected = reply)))
-              .toList()),
-      FilledButton(
-          onPressed: state == DetailViewState.mutating ? null : _submit,
-          child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
-      const Divider(),
-      const Text('已回覆隊員'),
-      for (final reply in attendance!.replied)
-        ListTile(
-            title: Text(reply.displayName),
-            subtitle: Text(
-                '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
-    ]);
+        const SizedBox(height: AppSpacing.regular),
+        if (observation != null &&
+            DebugAuthoritativeOwnReplyProjection.shouldRender(
+              debugBuild: kDebugMode,
+              diagnosticEnabled: widget.diagnosticEnabled,
+            ))
+          DebugAuthoritativeOwnReplyProjection(
+            observation: observation.$1,
+            source: observation.$2,
+          ),
+        AppSurfaceCard(
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('我的出席回覆'),
+              if (state == DetailViewState.uncertain)
+                Semantics(
+                  key: const ValueKey('mutation-uncertain'),
+                  label: '回覆結果待確認，已保留同一操作識別碼',
+                  liveRegion: true,
+                  child: const Text('回覆結果待確認，請稍後以同一回覆重試。'),
+                ),
+              Wrap(
+                spacing: 8,
+                children: AttendanceReply.values
+                    .map(
+                      (reply) => ChoiceChip(
+                        key: ValueKey('reply-${reply.wire}'),
+                        label: Text(_replyLabel(reply)),
+                        selected: selected == reply,
+                        onSelected: state == DetailViewState.mutating
+                            ? null
+                            : (_) => setState(() => selected = reply),
+                      ),
+                    )
+                    .toList(),
+              ),
+              FilledButton(
+                onPressed: state == DetailViewState.mutating ? null : _submit,
+                child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆'),
+              ),
+              const Divider(),
+              const Text('已回覆隊員'),
+              for (final reply in attendance!.replied)
+                ListTile(
+                  title: Text(reply.displayName),
+                  subtitle: Text(
+                    '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}',
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 

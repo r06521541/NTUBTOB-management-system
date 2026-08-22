@@ -25,6 +25,8 @@ EXPECTED_REVISIONS = (
     "0004_phase_c_identity_lifecycle",
     "0005_mobile_auth_api_foundation",
     "0006_staging_broker_operation_journal",
+    "0007_mobile_notifications",
+    "0008_mobile_notification_delivery",
 )
 EXPECTED_TABLES = {
     "access_audit",

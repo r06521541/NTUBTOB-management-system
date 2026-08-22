@@ -171,7 +171,7 @@ class BasicApiServiceTest(unittest.TestCase):
         admin = MobilePrincipal("s", 1, 2, "admin", "Admin", 1)
         self.assertEqual(
             mobile_capabilities(basic),
-            ("games:read", "attendance:reply:self"),
+            ("games:read", "attendance:reply:self", "notifications:read"),
         )
         for principal in (officer, admin):
             self.assertIn("attendance:report:read", mobile_capabilities(principal))

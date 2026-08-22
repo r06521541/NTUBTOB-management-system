@@ -204,7 +204,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             ):
                 verify_migration_artifact()
 
-    def test_migration_verifier_accepts_the_broker_journal_head(self):
+    def test_migration_verifier_accepts_the_mobile_notification_delivery_head(self):
         verify_migration_artifact()
 
 

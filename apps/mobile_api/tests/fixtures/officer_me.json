@@ -3,7 +3,9 @@
   "capabilities": [
     "games:read",
     "attendance:reply:self",
-    "attendance:report:read"
+    "notifications:read",
+    "attendance:report:read",
+    "notifications:publish"
   ],
   "display_name": "Officer",
   "id": "person_23"

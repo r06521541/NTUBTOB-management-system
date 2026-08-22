@@ -14,22 +14,28 @@ enum ClientMode { fake, real }
 
 class AppConfig {
   const AppConfig._(
-      this.flavor, this.mode, this.apiBaseUrl, this.lineChannelId);
+    this.flavor,
+    this.mode,
+    this.apiBaseUrl,
+    this.lineChannelId,
+  );
   final AppFlavor flavor;
   final ClientMode mode;
   final Uri? apiBaseUrl;
   final String? lineChannelId;
 
-  static AppConfig parse(
-      {required String flavor,
-      required String mode,
-      String apiBaseUrl = '',
-      String lineChannelId = ''}) {
+  static AppConfig parse({
+    required String flavor,
+    required String mode,
+    String apiBaseUrl = '',
+    String lineChannelId = '',
+  }) {
     final parsedFlavor = FlavorConfig.parse(flavor).flavor;
     if (parsedFlavor == AppFlavor.development) {
       if (mode != 'fake' || apiBaseUrl.isNotEmpty || lineChannelId.isNotEmpty) {
         throw const FormatException(
-            'development requires an explicit isolated fake mode');
+          'development requires an explicit isolated fake mode',
+        );
       }
       return AppConfig._(parsedFlavor, ClientMode.fake, null, null);
     }
@@ -75,7 +81,7 @@ enum ApiErrorCode {
   validationFailed,
   rateLimited,
   serviceUnavailable,
-  serverError
+  serverError,
 }
 
 class ApiError implements Exception {
@@ -86,24 +92,25 @@ class ApiError implements Exception {
     _required<String>(error, 'request_id');
     _required<List<dynamic>>(error, 'field_errors');
     return ApiError(
-        switch (_required<String>(error, 'code')) {
-          'malformed_request' => ApiErrorCode.malformedRequest,
-          'unauthenticated' => ApiErrorCode.unauthenticated,
-          'session_expired' => ApiErrorCode.sessionExpired,
-          'identity_pending' => ApiErrorCode.identityPending,
-          'account_unavailable' => ApiErrorCode.accountUnavailable,
-          'forbidden' => ApiErrorCode.forbidden,
-          'resource_not_found' => ApiErrorCode.resourceNotFound,
-          'idempotency_conflict' => ApiErrorCode.idempotencyConflict,
-          'state_conflict' => ApiErrorCode.stateConflict,
-          'validation_failed' => ApiErrorCode.validationFailed,
-          'rate_limited' => ApiErrorCode.rateLimited,
-          'service_unavailable' => ApiErrorCode.serviceUnavailable,
-          'server_error' => ApiErrorCode.serverError,
-          _ => throw const ContractException('unknown API error code'),
-        },
-        _required<bool>(error, 'retryable'),
-        _nullable<int>(error, 'retry_after_seconds'));
+      switch (_required<String>(error, 'code')) {
+        'malformed_request' => ApiErrorCode.malformedRequest,
+        'unauthenticated' => ApiErrorCode.unauthenticated,
+        'session_expired' => ApiErrorCode.sessionExpired,
+        'identity_pending' => ApiErrorCode.identityPending,
+        'account_unavailable' => ApiErrorCode.accountUnavailable,
+        'forbidden' => ApiErrorCode.forbidden,
+        'resource_not_found' => ApiErrorCode.resourceNotFound,
+        'idempotency_conflict' => ApiErrorCode.idempotencyConflict,
+        'state_conflict' => ApiErrorCode.stateConflict,
+        'validation_failed' => ApiErrorCode.validationFailed,
+        'rate_limited' => ApiErrorCode.rateLimited,
+        'service_unavailable' => ApiErrorCode.serviceUnavailable,
+        'server_error' => ApiErrorCode.serverError,
+        _ => throw const ContractException('unknown API error code'),
+      },
+      _required<bool>(error, 'retryable'),
+      _nullable<int>(error, 'retry_after_seconds'),
+    );
   }
   final ApiErrorCode code;
   final bool retryable;
@@ -153,7 +160,7 @@ enum AttendanceReply {
   notAttending,
   arrivingLate,
   leavingEarly,
-  undecided
+  undecided,
 }
 
 extension AttendanceReplyWire on AttendanceReply {
@@ -175,21 +182,23 @@ extension AttendanceReplyWire on AttendanceReply {
 }
 
 class SessionEnvelope {
-  const SessionEnvelope(
-      {required this.accessToken,
-      required this.refreshToken,
-      required this.sessionId,
-      required this.expiresIn});
+  const SessionEnvelope({
+    required this.accessToken,
+    required this.refreshToken,
+    required this.sessionId,
+    required this.expiresIn,
+  });
   factory SessionEnvelope.fromJson(Map<String, dynamic> json) {
     final expires = _required<int>(json, 'expires_in');
     if (expires != 900) {
       throw const ContractException('invalid access lifetime');
     }
     return SessionEnvelope(
-        accessToken: _required(json, 'access_token'),
-        refreshToken: _required(json, 'refresh_token'),
-        sessionId: _required(json, 'session_id'),
-        expiresIn: expires);
+      accessToken: _required(json, 'access_token'),
+      refreshToken: _required(json, 'refresh_token'),
+      sessionId: _required(json, 'session_id'),
+      expiresIn: expires,
+    );
   }
   final String accessToken, refreshToken, sessionId;
   final int expiresIn;
@@ -198,8 +207,12 @@ class SessionEnvelope {
 enum AccessLevel { basic, officer, admin }
 
 class Person {
-  const Person(this.id, this.displayName, this.capabilities,
-      {this.accessLevel = AccessLevel.basic});
+  const Person(
+    this.id,
+    this.displayName,
+    this.capabilities, {
+    this.accessLevel = AccessLevel.basic,
+  });
   factory Person.fromJson(Map<String, dynamic> json) {
     final accessLevel = switch (json['access_level']) {
       'basic' => AccessLevel.basic,
@@ -211,14 +224,19 @@ class Person {
     const allowed = {
       'games:read',
       'attendance:reply:self',
+      'notifications:read',
       'attendance:report:read',
+      'notifications:publish',
     };
     if (caps.any((e) => e is! String || !allowed.contains(e))) {
       throw const ContractException('unknown capability');
     }
-    return Person(_required(json, 'id'), _required(json, 'display_name'),
-        caps.cast<String>(),
-        accessLevel: accessLevel);
+    return Person(
+      _required(json, 'id'),
+      _required(json, 'display_name'),
+      caps.cast<String>(),
+      accessLevel: accessLevel,
+    );
   }
   final String id, displayName;
   final AccessLevel accessLevel;
@@ -226,6 +244,9 @@ class Person {
   bool get canReadAttendanceReport =>
       accessLevel != AccessLevel.basic &&
       capabilities.contains('attendance:report:read');
+  bool get canReadNotifications => capabilities.contains('notifications:read');
+  bool get canPublishNotifications =>
+      capabilities.contains('notifications:publish');
   Map<String, dynamic> toJson() => {
         'id': id,
         'display_name': displayName,
@@ -291,7 +312,10 @@ bool _percentage(int value) => value >= 0 && value <= 100;
 
 class AttendanceReportObservation {
   const AttendanceReportObservation(
-      this.historyGames, this.historyLimit, this.minimumResponseRate);
+    this.historyGames,
+    this.historyLimit,
+    this.minimumResponseRate,
+  );
   factory AttendanceReportObservation.fromJson(Map<String, dynamic> json) {
     final historyGames = _required<int>(json, 'history_games');
     final historyLimit = _required<int>(json, 'history_limit');
@@ -303,7 +327,10 @@ class AttendanceReportObservation {
       throw const ContractException('invalid report bounds');
     }
     return AttendanceReportObservation(
-        historyGames, historyLimit, minimumResponseRate);
+      historyGames,
+      historyLimit,
+      minimumResponseRate,
+    );
   }
   final int historyGames, historyLimit, minimumResponseRate;
 }
@@ -322,12 +349,16 @@ class AttendanceReport {
         gameId: _required(json, 'game_id'),
         generatedAt: _utcDate(json, 'generated_at'),
         observation: AttendanceReportObservation.fromJson(
-            _required<Map<String, dynamic>>(json, 'observation')),
+          _required<Map<String, dynamic>>(json, 'observation'),
+        ),
         attending: _reportPeople(json, 'attending'),
         notAttending: _reportPeople(json, 'not_attending'),
         notYetReplied: _required<List<dynamic>>(json, 'not_yet_replied')
-            .map((item) => AttendanceReportUnansweredPerson.fromJson(
-                item as Map<String, dynamic>))
+            .map(
+              (item) => AttendanceReportUnansweredPerson.fromJson(
+                item as Map<String, dynamic>,
+              ),
+            )
             .toList(growable: false),
       );
   final String gameId;
@@ -338,22 +369,33 @@ class AttendanceReport {
 }
 
 List<AttendanceReportPerson> _reportPeople(
-        Map<String, dynamic> json, String key) =>
+  Map<String, dynamic> json,
+  String key,
+) =>
     _required<List<dynamic>>(json, key)
-        .map((item) =>
-            AttendanceReportPerson.fromJson(item as Map<String, dynamic>))
+        .map(
+          (item) =>
+              AttendanceReportPerson.fromJson(item as Map<String, dynamic>),
+        )
         .toList(growable: false);
 
 class Game {
-  const Game(this.id, this.startAt, this.durationMinutes, this.location,
-      this.homeTeam, this.awayTeam);
+  const Game(
+    this.id,
+    this.startAt,
+    this.durationMinutes,
+    this.location,
+    this.homeTeam,
+    this.awayTeam,
+  );
   factory Game.fromJson(Map<String, dynamic> json) => Game(
-      _required(json, 'id'),
-      _utcDate(json, 'start_at'),
-      _nullable(json, 'duration_minutes'),
-      _nullable(json, 'location'),
-      _nullable(json, 'home_team'),
-      _nullable(json, 'away_team'));
+        _required(json, 'id'),
+        _utcDate(json, 'start_at'),
+        _nullable(json, 'duration_minutes'),
+        _nullable(json, 'location'),
+        _nullable(json, 'home_team'),
+        _nullable(json, 'away_team'),
+      );
   final String id;
   final DateTime startAt;
   final int? durationMinutes;
@@ -371,10 +413,11 @@ class Game {
 class GamePage {
   const GamePage(this.items, this.nextCursor);
   factory GamePage.fromJson(Map<String, dynamic> json) => GamePage(
-      _required<List<dynamic>>(json, 'items')
-          .map((item) => Game.fromJson(item as Map<String, dynamic>))
-          .toList(growable: false),
-      _nullable<String>(json, 'next_cursor'));
+        _required<List<dynamic>>(json, 'items')
+            .map((item) => Game.fromJson(item as Map<String, dynamic>))
+            .toList(growable: false),
+        _nullable<String>(json, 'next_cursor'),
+      );
   final List<Game> items;
   final String? nextCursor;
 }
@@ -394,13 +437,14 @@ class BasicCache {
   String get _indexKey => 'cache-index:v1:$installationId';
   Future<void> save(Person person, List<Game> games, DateTime now) async {
     await store.write(
-        _key(person.id),
-        jsonEncode({
-          'version': 1,
-          'person': person.toJson(),
-          'games': games.map((game) => game.toJson()).toList(),
-          'last_synced_at': now.toUtc().toIso8601String(),
-        }));
+      _key(person.id),
+      jsonEncode({
+        'version': 1,
+        'person': person.toJson(),
+        'games': games.map((game) => game.toJson()).toList(),
+        'last_synced_at': now.toUtc().toIso8601String(),
+      }),
+    );
     await store.write(_indexKey, person.id);
   }
 
@@ -438,6 +482,379 @@ class BasicCache {
     if (!indexPresent && dataCount == 0) return false;
     if (indexPresent && dataCount == 1) return true;
     return null;
+  }
+}
+
+enum MobileNotificationType {
+  gameReminder,
+  attendanceReminder,
+  gameChange,
+  officerPersonal,
+  officerGameBroadcast,
+  officerTeamBroadcast,
+  adminSystemAnnouncement,
+}
+
+const notificationRetention = Duration(days: 90);
+final _maximumNotificationId = BigInt.parse('9223372036854775807');
+
+bool _validNotificationId(String value) {
+  if (value.length > 32 ||
+      !RegExp(r'^notification_[1-9][0-9]*$').hasMatch(value)) {
+    return false;
+  }
+  final parsed = BigInt.tryParse(value.substring(13));
+  return parsed != null && parsed <= _maximumNotificationId;
+}
+
+extension MobileNotificationTypeWire on MobileNotificationType {
+  String get wire => switch (this) {
+        MobileNotificationType.gameReminder => 'game_reminder',
+        MobileNotificationType.attendanceReminder => 'attendance_reminder',
+        MobileNotificationType.gameChange => 'game_change',
+        MobileNotificationType.officerPersonal => 'officer_personal',
+        MobileNotificationType.officerGameBroadcast => 'officer_game_broadcast',
+        MobileNotificationType.officerTeamBroadcast => 'officer_team_broadcast',
+        MobileNotificationType.adminSystemAnnouncement =>
+          'admin_system_announcement',
+      };
+
+  static MobileNotificationType parse(Object? value) => switch (value) {
+        'game_reminder' => MobileNotificationType.gameReminder,
+        'attendance_reminder' => MobileNotificationType.attendanceReminder,
+        'game_change' => MobileNotificationType.gameChange,
+        'officer_personal' => MobileNotificationType.officerPersonal,
+        'officer_game_broadcast' => MobileNotificationType.officerGameBroadcast,
+        'officer_team_broadcast' => MobileNotificationType.officerTeamBroadcast,
+        'admin_system_announcement' =>
+          MobileNotificationType.adminSystemAnnouncement,
+        _ => throw const ContractException('unknown notification type'),
+      };
+}
+
+enum NotificationDestinationType { notificationList, notification, game }
+
+class NotificationDestination {
+  const NotificationDestination._(this.type, this.id);
+  const NotificationDestination.listFallback()
+      : this._(NotificationDestinationType.notificationList, null);
+  const NotificationDestination.notification(String id)
+      : this._(NotificationDestinationType.notification, id);
+  const NotificationDestination.game(String id)
+      : this._(NotificationDestinationType.game, id);
+
+  static bool _hasExactKeys(Map<String, dynamic> value, Set<String> expected) =>
+      value.length == expected.length && value.keys.every(expected.contains);
+
+  static bool _isCanonicalGameId(Object? value) {
+    if (value is! String || value.length > 25) return false;
+    if (!RegExp(r'^game_-?[1-9][0-9]*$').hasMatch(value)) return false;
+    final parsed = BigInt.tryParse(value.substring(5));
+    return parsed != null &&
+        parsed >= BigInt.parse('-9223372036854775808') &&
+        parsed <= BigInt.parse('9223372036854775807');
+  }
+
+  factory NotificationDestination.parseOrFallback(
+    Object? value,
+    String notificationId,
+  ) {
+    if (value is! Map<String, dynamic>) {
+      return const NotificationDestination.listFallback();
+    }
+    return switch (value['type']) {
+      'notification'
+          when _hasExactKeys(value, {'type', 'notification_id'}) &&
+              _validNotificationId(notificationId) &&
+              value['notification_id'] == notificationId =>
+        NotificationDestination.notification(notificationId),
+      'game'
+          when _hasExactKeys(value, {'type', 'game_id'}) &&
+              _isCanonicalGameId(value['game_id']) =>
+        NotificationDestination.game(value['game_id'] as String),
+      _ => const NotificationDestination.listFallback(),
+    };
+  }
+
+  final NotificationDestinationType type;
+  final String? id;
+
+  String safeRoute({
+    required bool notificationVisible,
+    Set<String> authorizedGameIds = const {},
+  }) {
+    if (!notificationVisible) return '/notifications';
+    return switch (type) {
+      NotificationDestinationType.notification => '/notifications/$id',
+      NotificationDestinationType.game when authorizedGameIds.contains(id) =>
+        '/games/$id',
+      _ => '/notifications',
+    };
+  }
+
+  Map<String, dynamic> toJson() => switch (type) {
+        NotificationDestinationType.notification => {
+            'type': 'notification',
+            'notification_id': id,
+          },
+        NotificationDestinationType.game => {'type': 'game', 'game_id': id},
+        NotificationDestinationType.notificationList => {
+            'type': 'notification_list',
+          },
+      };
+}
+
+class MobileNotification {
+  const MobileNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.visibleUntil,
+    required this.readAt,
+    this.destination = const NotificationDestination.listFallback(),
+  });
+
+  factory MobileNotification.fromJson(Map<String, dynamic> json) {
+    final id = _required<String>(json, 'id');
+    final title = _required<String>(json, 'title');
+    final body = _required<String>(json, 'body');
+    final createdAt = _utcDate(json, 'created_at');
+    final visibleUntil = _utcDate(json, 'visible_until');
+    final rawReadAt = _nullable<String>(json, 'read_at');
+    final readAt =
+        rawReadAt == null ? null : _utcDate({'read_at': rawReadAt}, 'read_at');
+    if (!_validNotificationId(id) ||
+        title.trim().isEmpty ||
+        title.length > 120 ||
+        body.trim().isEmpty ||
+        body.length > 500 ||
+        visibleUntil != createdAt.add(notificationRetention) ||
+        (readAt != null && readAt.isBefore(createdAt))) {
+      throw const ContractException('invalid notification');
+    }
+    return MobileNotification(
+      id: id,
+      type: MobileNotificationTypeWire.parse(json['type']),
+      title: title,
+      body: body,
+      createdAt: createdAt,
+      visibleUntil: visibleUntil,
+      readAt: readAt,
+      destination: NotificationDestination.parseOrFallback(
+        json['destination'],
+        id,
+      ),
+    );
+  }
+
+  final String id, title, body;
+  final MobileNotificationType type;
+  final DateTime createdAt, visibleUntil;
+  final DateTime? readAt;
+  final NotificationDestination destination;
+  bool get isRead => readAt != null;
+  bool visibleAt(DateTime now) =>
+      !createdAt.isAfter(now.toUtc()) && visibleUntil.isAfter(now.toUtc());
+
+  MobileNotification markRead(DateTime value) => MobileNotification(
+        id: id,
+        type: type,
+        title: title,
+        body: body,
+        createdAt: createdAt,
+        visibleUntil: visibleUntil,
+        readAt: readAt ?? value.toUtc(),
+        destination: destination,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type.wire,
+        'title': title,
+        'body': body,
+        'created_at': createdAt.toUtc().toIso8601String(),
+        'visible_until': visibleUntil.toUtc().toIso8601String(),
+        'read_at': readAt?.toUtc().toIso8601String(),
+        'destination': destination.toJson(),
+      };
+}
+
+class NotificationPage {
+  const NotificationPage(this.items, this.nextCursor);
+  factory NotificationPage.fromJson(Map<String, dynamic> json) =>
+      NotificationPage(
+        _required<List<dynamic>>(json, 'items')
+            .map(
+              (item) =>
+                  MobileNotification.fromJson(item as Map<String, dynamic>),
+            )
+            .toList(growable: false),
+        _nullable<String>(json, 'next_cursor'),
+      );
+  final List<MobileNotification> items;
+  final String? nextCursor;
+}
+
+class NotificationReadResult {
+  const NotificationReadResult(this.notificationId, this.readAt, this.changed);
+  factory NotificationReadResult.fromJson(Map<String, dynamic> json) {
+    final notificationId = _required<String>(json, 'notification_id');
+    if (!_validNotificationId(notificationId)) {
+      throw const ContractException('invalid notification read id');
+    }
+    return NotificationReadResult(
+      notificationId,
+      _utcDate(json, 'read_at'),
+      _required(json, 'changed'),
+    );
+  }
+  final String notificationId;
+  final DateTime readAt;
+  final bool changed;
+}
+
+class NotificationReadAllResult {
+  const NotificationReadAllResult(this.changedCount, this.unreadCount);
+  factory NotificationReadAllResult.fromJson(Map<String, dynamic> json) {
+    final changed = _required<int>(json, 'changed_count');
+    final unread = _required<int>(json, 'unread_count');
+    if (changed < 0 || unread < 0) {
+      throw const ContractException('invalid mark-all result');
+    }
+    return NotificationReadAllResult(changed, unread);
+  }
+  final int changedCount, unreadCount;
+}
+
+class CachedNotificationData {
+  const CachedNotificationData(
+    this.personId,
+    this.items,
+    this.unreadCount,
+    this.lastSyncedAt,
+  );
+  final String personId;
+  final List<MobileNotification> items;
+  final int unreadCount;
+  final DateTime lastSyncedAt;
+}
+
+class NotificationCache {
+  const NotificationCache(this.store, this.installationId);
+  final DurableStore store;
+  final String installationId;
+  String get _prefix => 'notification-cache:v1:$installationId:';
+  String get _indexKey => 'notification-cache-index:v1:$installationId';
+  String _key(String personId) => '$_prefix$personId';
+
+  Future<void> save(
+    Person principal,
+    List<MobileNotification> items,
+    DateTime now, {
+    int? unreadCount,
+  }) async {
+    if (!principal.canReadNotifications) {
+      await clear();
+      throw const ContractException('notification capability required');
+    }
+    final previous = await store.read(_indexKey);
+    if (previous != null && previous != principal.id) await clear();
+    if (items.map((item) => item.id).toSet().length != items.length) {
+      await clear();
+      throw const ContractException('duplicate notification');
+    }
+    final visibleUnread = items.where((item) => !item.isRead).length;
+    final storedUnread = unreadCount ?? visibleUnread;
+    if (storedUnread < visibleUnread) {
+      await clear();
+      throw const ContractException('invalid notification unread count');
+    }
+    await store.write(
+      _key(principal.id),
+      jsonEncode({
+        'version': 1,
+        'person_id': principal.id,
+        'capability': 'notifications:read',
+        'items': items.map((item) => item.toJson()).toList(),
+        'unread_count': storedUnread,
+        'last_synced_at': now.toUtc().toIso8601String(),
+      }),
+    );
+    await store.write(_indexKey, principal.id);
+  }
+
+  Future<CachedNotificationData?> loadFor(
+    Person principal,
+    DateTime now, {
+    required bool sessionPresent,
+  }) async {
+    if (!sessionPresent || !principal.canReadNotifications) {
+      await clear();
+      return null;
+    }
+    final indexedPerson = await store.read(_indexKey);
+    if (indexedPerson == null) {
+      if (await store.countKeysWithPrefix(_prefix, maximum: 0) != 0) {
+        await clear();
+      }
+      return null;
+    }
+    if (indexedPerson != principal.id) {
+      await clear();
+      return null;
+    }
+    final raw = await store.read(_key(principal.id));
+    if (raw == null) {
+      await clear();
+      return null;
+    }
+    try {
+      final value = jsonDecode(raw) as Map<String, dynamic>;
+      if (value['version'] != 1 ||
+          value['person_id'] != principal.id ||
+          value['capability'] != 'notifications:read') {
+        throw const ContractException('notification cache scope mismatch');
+      }
+      final items = (value['items'] as List<dynamic>)
+          .map(
+            (item) => MobileNotification.fromJson(item as Map<String, dynamic>),
+          )
+          .where((item) => item.visibleAt(now))
+          .toList(growable: false);
+      if (items.map((item) => item.id).toSet().length != items.length) {
+        throw const ContractException('duplicate cached notification');
+      }
+      final storedUnreadCount = value['unread_count'];
+      final visibleUnreadCount = items.where((item) => !item.isRead).length;
+      if (storedUnreadCount is! int || storedUnreadCount < visibleUnreadCount) {
+        throw const ContractException('invalid cached unread count');
+      }
+      return CachedNotificationData(
+        principal.id,
+        items,
+        visibleUnreadCount,
+        _utcDate(value, 'last_synced_at'),
+      );
+    } on Object {
+      await clear();
+      return null;
+    }
+  }
+
+  Future<void> clear() async {
+    await store.deleteKeysWithPrefix(_prefix);
+    await store.delete(_indexKey);
+  }
+
+  Future<void> reconcileFreshPrincipal(Person? previous, Person current) async {
+    final indexedPerson = await store.read(_indexKey);
+    if (!current.canReadNotifications ||
+        previous != null && previous.id != current.id ||
+        indexedPerson != null && indexedPerson != current.id) {
+      await clear();
+    }
   }
 }
 
@@ -501,18 +918,24 @@ enum AttendanceQualification { teamPlayer, guestPlayer }
 
 class RepliedAttendance {
   const RepliedAttendance(
-      this.personId, this.displayName, this.reply, this.qualification);
+    this.personId,
+    this.displayName,
+    this.reply,
+    this.qualification,
+  );
   factory RepliedAttendance.fromJson(Map<String, dynamic> json) =>
       RepliedAttendance(
-          _required(json, 'person_id'),
-          _required(json, 'display_name'),
-          AttendanceReplyWire.parse(json['reply']),
-          switch (json['qualification']) {
-            'team_player' => AttendanceQualification.teamPlayer,
-            'guest_player' => AttendanceQualification.guestPlayer,
-            _ =>
-              throw const ContractException('unknown attendance qualification'),
-          });
+        _required(json, 'person_id'),
+        _required(json, 'display_name'),
+        AttendanceReplyWire.parse(json['reply']),
+        switch (json['qualification']) {
+          'team_player' => AttendanceQualification.teamPlayer,
+          'guest_player' => AttendanceQualification.guestPlayer,
+          _ => throw const ContractException(
+              'unknown attendance qualification',
+            ),
+        },
+      );
   final String personId, displayName;
   final AttendanceReply reply;
   final AttendanceQualification qualification;
@@ -523,12 +946,14 @@ class AttendanceSnapshot {
   factory AttendanceSnapshot.fromJson(Map<String, dynamic> json) {
     final own = _nullable<String>(json, 'own_reply');
     return AttendanceSnapshot(
-        _required(json, 'game_id'),
-        own == null ? null : AttendanceReplyWire.parse(own),
-        _required<List<dynamic>>(json, 'replied')
-            .map((item) =>
-                RepliedAttendance.fromJson(item as Map<String, dynamic>))
-            .toList(growable: false));
+      _required(json, 'game_id'),
+      own == null ? null : AttendanceReplyWire.parse(own),
+      _required<List<dynamic>>(json, 'replied')
+          .map(
+            (item) => RepliedAttendance.fromJson(item as Map<String, dynamic>),
+          )
+          .toList(growable: false),
+    );
   }
   final String gameId;
   final AttendanceReply? ownReply;
@@ -554,16 +979,24 @@ class MutationNotification {
 }
 
 class MutationResult {
-  const MutationResult(this.gameId, this.reply, this.changed, this.updatedAt,
-      this.notification, this.idempotentReplay);
+  const MutationResult(
+    this.gameId,
+    this.reply,
+    this.changed,
+    this.updatedAt,
+    this.notification,
+    this.idempotentReplay,
+  );
   factory MutationResult.fromJson(Map<String, dynamic> json) => MutationResult(
-      _required(json, 'game_id'),
-      AttendanceReplyWire.parse(json['reply']),
-      _nullable(json, 'changed'),
-      _utcDate(json, 'updated_at'),
-      MutationNotification.fromJson(
-          _required<Map<String, dynamic>>(json, 'notification')),
-      _required(json, 'idempotent_replay'));
+        _required(json, 'game_id'),
+        AttendanceReplyWire.parse(json['reply']),
+        _nullable(json, 'changed'),
+        _utcDate(json, 'updated_at'),
+        MutationNotification.fromJson(
+          _required<Map<String, dynamic>>(json, 'notification'),
+        ),
+        _required(json, 'idempotent_replay'),
+      );
   final String gameId;
   final AttendanceReply reply;
   final bool? changed;
@@ -579,25 +1012,35 @@ class ApiResponse {
 }
 
 abstract interface class ApiTransport {
-  Future<ApiResponse> send(String method, String path,
-      {Map<String, String> headers = const {}, Map<String, dynamic>? body});
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  });
 }
 
 class HttpApiTransport implements ApiTransport {
-  HttpApiTransport(this.baseUrl, this.client,
-      {this.timeout = const Duration(seconds: 15)});
+  HttpApiTransport(
+    this.baseUrl,
+    this.client, {
+    this.timeout = const Duration(seconds: 15),
+  });
   final Uri baseUrl;
   final http.Client client;
   final Duration timeout;
   @override
-  Future<ApiResponse> send(String method, String path,
-      {Map<String, String> headers = const {},
-      Map<String, dynamic>? body}) async {
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
     final request = http.Request(method, baseUrl.resolve('/api/v1$path'))
       ..headers.addAll({
         'Accept': 'application/json',
         if (body != null) 'Content-Type': 'application/json',
-        ...headers
+        ...headers,
       });
     if (body != null) request.body = jsonEncode(body);
     late final http.StreamedResponse response;
@@ -676,11 +1119,14 @@ class MemoryStore implements DurableStore {
 class SecureStore implements DurableStore {
   SecureStore()
       : storage = const FlutterSecureStorage(
-            aOptions: AndroidOptions(
-                storageNamespace: 'ntubtob_mobile_v1',
-                migrateWithBackup: false),
-            iOptions: IOSOptions(
-                accessibility: KeychainAccessibility.first_unlock_this_device));
+          aOptions: AndroidOptions(
+            storageNamespace: 'ntubtob_mobile_v1',
+            migrateWithBackup: false,
+          ),
+          iOptions: IOSOptions(
+            accessibility: KeychainAccessibility.first_unlock_this_device,
+          ),
+        );
   final FlutterSecureStorage storage;
   @override
   Future<String?> read(String key) => storage.read(key: key);
@@ -745,8 +1191,10 @@ class NativeLineLogin implements LineLoginPort {
   Future<String> login(String nonce) async {
     await _setup();
     final option = LoginOption(false, 'normal')..idTokenNonce = nonce;
-    final result =
-        await LineSDK.instance.login(scopes: const ['openid'], option: option);
+    final result = await LineSDK.instance.login(
+      scopes: const ['openid'],
+      option: option,
+    );
     final token = result.accessToken.idTokenRaw;
     if (token == null || token.isEmpty || result.idTokenNonce != nonce) {
       throw const ContractException('LINE login result was not nonce-bound');
@@ -774,13 +1222,18 @@ enum LoginState {
   timeoutUnresolved,
   timeoutResolved,
   stale,
-  duplicate
+  duplicate,
 }
 
 class LoginCoordinator extends ChangeNotifier {
   LoginCoordinator(
-      this.line, this.api, this.sessions, this.ids, this.installationId,
-      {this.loginTimeout = const Duration(seconds: 35)});
+    this.line,
+    this.api,
+    this.sessions,
+    this.ids,
+    this.installationId, {
+    this.loginTimeout = const Duration(seconds: 35),
+  });
   final LineLoginPort line;
   final ApiTransport api;
   final SessionController sessions;
@@ -820,7 +1273,11 @@ class LoginCoordinator extends ChangeNotifier {
       }
       _nativeAttempt = null;
       await completeAttemptForTesting(
-          attempt: attempt, nonce: nonce, token: token, platform: platform);
+        attempt: attempt,
+        nonce: nonce,
+        token: token,
+        platform: platform,
+      );
     } on PlatformException catch (error) {
       if (_nativeAttempt == attempt) _nativeAttempt = null;
       state = error.code.toLowerCase().contains('cancel')
@@ -844,7 +1301,9 @@ class LoginCoordinator extends ChangeNotifier {
   }
 
   Future<void> _settleTimedOutNativeFlow(
-      String attempt, Future<String> nativeLogin) async {
+    String attempt,
+    Future<String> nativeLogin,
+  ) async {
     LoginState resolvedState;
     try {
       await nativeLogin;
@@ -874,11 +1333,12 @@ class LoginCoordinator extends ChangeNotifier {
   }
 
   @visibleForTesting
-  Future<void> completeAttemptForTesting(
-      {required String attempt,
-      required String nonce,
-      required String token,
-      required String platform}) async {
+  Future<void> completeAttemptForTesting({
+    required String attempt,
+    required String nonce,
+    required String token,
+    required String platform,
+  }) async {
     if (_active != attempt) {
       state = LoginState.stale;
       return;
@@ -889,13 +1349,17 @@ class LoginCoordinator extends ChangeNotifier {
     }
     state = LoginState.exchanging;
     _notifyListeners();
-    final response = await api.send('POST', '/auth/line/exchange', body: {
-      'id_token': token,
-      'nonce': nonce,
-      'login_attempt_id': attempt,
-      'installation_id': installationId,
-      'platform': platform
-    });
+    final response = await api.send(
+      'POST',
+      '/auth/line/exchange',
+      body: {
+        'id_token': token,
+        'nonce': nonce,
+        'login_attempt_id': attempt,
+        'installation_id': installationId,
+        'platform': platform,
+      },
+    );
     if (response.status != 201 || response.body == null) {
       if (response.body == null) {
         throw const ContractException('missing login error body');
@@ -914,18 +1378,26 @@ class LoginCoordinator extends ChangeNotifier {
 }
 
 class SessionController {
-  SessionController(this.api, this.store, this.installationId, this.ids);
+  SessionController(
+    this.api,
+    this.store,
+    this.installationId,
+    this.ids, {
+    this.terminalPurge,
+  });
   final ApiTransport api;
   final DurableStore store;
   final String installationId;
   final SecureIds ids;
+  final Future<void> Function()? terminalPurge;
   String? _access;
   Future<String>? _refreshing;
   String? get accessToken => _access;
   Future<bool?> observePresence() async {
     final refreshPresent = await store.containsKey('refresh:$installationId');
-    final attemptPresent =
-        await store.containsKey('refresh-attempt:$installationId');
+    final attemptPresent = await store.containsKey(
+      'refresh-attempt:$installationId',
+    );
     if (!refreshPresent && attemptPresent) return null;
     return refreshPresent;
   }
@@ -950,9 +1422,12 @@ class SessionController {
     final attemptKey = 'refresh-attempt:$installationId';
     final attempt = await store.read(attemptKey) ?? ids.next();
     await store.write(attemptKey, attempt);
-    final response = await api.send('POST', '/auth/refresh',
-        headers: {'Refresh-Attempt-ID': attempt},
-        body: {'refresh_token': refresh, 'installation_id': installationId});
+    final response = await api.send(
+      'POST',
+      '/auth/refresh',
+      headers: {'Refresh-Attempt-ID': attempt},
+      body: {'refresh_token': refresh, 'installation_id': installationId},
+    );
     if (response.status == 401) {
       await clear();
       throw const SessionExpiredException();
@@ -965,19 +1440,32 @@ class SessionController {
     return session.accessToken;
   }
 
-  Future<ApiResponse> authorized(String method, String path,
-      {Map<String, dynamic>? body,
-      Map<String, String> headers = const {}}) async {
+  Future<ApiResponse> authorized(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, String> headers = const {},
+  }) async {
     var token = _access ?? await refresh();
     final failedToken = token;
-    var result = await _sendAuthorizedRequest(method, path, token,
-        headers: headers, body: body);
+    var result = await _sendAuthorizedRequest(
+      method,
+      path,
+      token,
+      headers: headers,
+      body: body,
+    );
     if (result.status == 401) {
       token = _access != null && _access != failedToken
           ? _access!
           : await refresh();
-      result = await _sendAuthorizedRequest(method, path, token,
-          headers: headers, body: body);
+      result = await _sendAuthorizedRequest(
+        method,
+        path,
+        token,
+        headers: headers,
+        body: body,
+      );
       if (result.status == 401) {
         await clear();
         if (result.body != null) {
@@ -994,12 +1482,19 @@ class SessionController {
   }
 
   Future<ApiResponse> _sendAuthorizedRequest(
-      String method, String path, String token,
-      {Map<String, dynamic>? body,
-      Map<String, String> headers = const {}}) async {
+    String method,
+    String path,
+    String token, {
+    Map<String, dynamic>? body,
+    Map<String, String> headers = const {},
+  }) async {
     try {
-      return await api.send(method, path,
-          headers: {...headers, 'Authorization': 'Bearer $token'}, body: body);
+      return await api.send(
+        method,
+        path,
+        headers: {...headers, 'Authorization': 'Bearer $token'},
+        body: body,
+      );
     } on NetworkException {
       throw const AuthorizedRequestNetworkException();
     }
@@ -1009,6 +1504,7 @@ class SessionController {
     _access = null;
     await store.delete('refresh:$installationId');
     await store.delete('refresh-attempt:$installationId');
+    await terminalPurge?.call();
   }
 
   Future<void> logout(
@@ -1016,8 +1512,9 @@ class SessionController {
     Future<void> Function()? purgeLocal,
   }) async {
     await store.write('logout-pending:$installationId', 'true');
-    final durableSessionPresent =
-        await store.containsKey('refresh:$installationId');
+    final durableSessionPresent = await store.containsKey(
+      'refresh:$installationId',
+    );
     if (_access != null || durableSessionPresent) {
       ApiResponse response;
       try {
@@ -1035,7 +1532,9 @@ class SessionController {
     await clear();
     try {
       await line.logout();
-    } catch (_) {/* backend session is already closed */}
+    } catch (_) {
+      /* backend session is already closed */
+    }
     await purgeLocal?.call();
     await store.delete('logout-pending:$installationId');
   }
@@ -1055,6 +1554,228 @@ class OfflineReadOnlyException implements Exception {
   const OfflineReadOnlyException();
 }
 
+abstract interface class NotificationClient {
+  Future<List<MobileNotification>> notifications({bool unreadOnly = false});
+  Future<MobileNotification> notification(String id);
+  Future<int> unreadCount();
+  Future<NotificationReadResult> markRead(String id);
+  Future<NotificationReadAllResult> markAllRead();
+}
+
+abstract interface class NotificationPublishingClient {
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft);
+  Future<Map<String, dynamic>> confirm(
+    Map<String, dynamic> draft,
+    Map<String, dynamic> preview,
+    String key,
+  );
+}
+
+class OfficerNotificationPublisher implements NotificationPublishingClient {
+  const OfficerNotificationPublisher(this.session, this.principal);
+  final SessionController session;
+  final Person principal;
+
+  void _requireCapability() {
+    if (!principal.canPublishNotifications) {
+      throw const ContractException(
+        'notification publishing capability required',
+      );
+    }
+  }
+
+  Never _failure(ApiResponse response) {
+    if (response.body != null) throw ApiError.fromJson(response.body!);
+    throw const ContractException('notification publishing response missing');
+  }
+
+  @override
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft) async {
+    _requireCapability();
+    final response = await session.authorized(
+      'POST',
+      '/officer/notifications/preview',
+      body: draft,
+    );
+    if (response.status != 200 || response.body == null) _failure(response);
+    final body = response.body!;
+    final count = _required<int>(body, 'recipient_count');
+    final revision = _required<String>(body, 'revision');
+    final confirmation = _required<String>(body, 'confirmation_text');
+    if (count < 1 ||
+        count > 500 ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(revision) ||
+        confirmation != 'PUBLISH $count') {
+      throw const ContractException('invalid notification preview');
+    }
+    return Map.unmodifiable(body);
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirm(
+    Map<String, dynamic> draft,
+    Map<String, dynamic> preview,
+    String key,
+  ) async {
+    _requireCapability();
+    if (key.length < 16 || key.length > 200) {
+      throw const ContractException('invalid publishing idempotency key');
+    }
+    final response = await session.authorized(
+      'POST',
+      '/officer/notifications/confirm',
+      headers: {'Idempotency-Key': key},
+      body: {
+        'draft': draft,
+        'preview_revision': _required<String>(preview, 'revision'),
+        'typed_confirmation': _required<String>(preview, 'confirmation_text'),
+      },
+    );
+    if (!{200, 201}.contains(response.status) || response.body == null) {
+      _failure(response);
+    }
+    return Map.unmodifiable(response.body!);
+  }
+
+  Future<Map<String, dynamic>> registerFakeDevice({
+    required String installationId,
+    required String platform,
+    required String fakeToken,
+  }) async {
+    final response = await session.authorized(
+      'PUT',
+      '/devices/current',
+      body: {
+        'installation_id': installationId,
+        'platform': platform,
+        'provider': 'fake',
+        'token': fakeToken,
+      },
+    );
+    if (response.status != 200 || response.body == null) _failure(response);
+    return Map.unmodifiable(response.body!);
+  }
+
+  Future<Map<String, dynamic>> revokeDevice(String installationId) async {
+    final response = await session.authorized(
+      'DELETE',
+      '/devices/current',
+      body: {'installation_id': installationId},
+    );
+    if (response.status != 200 || response.body == null) _failure(response);
+    return Map.unmodifiable(response.body!);
+  }
+}
+
+class NotificationApi implements NotificationClient {
+  const NotificationApi(this.session);
+  final SessionController session;
+
+  Never _failure(ApiResponse response, String operation) {
+    if (response.body != null) throw ApiError.fromJson(response.body!);
+    throw ContractException('missing $operation response body');
+  }
+
+  Future<NotificationPage> page({
+    String? cursor,
+    bool unreadOnly = false,
+  }) async {
+    final query = <String>['limit=100'];
+    if (cursor != null) {
+      query.add('cursor=${Uri.encodeQueryComponent(cursor)}');
+    }
+    if (unreadOnly) query.add('unread_only=true');
+    final result = await session.authorized(
+      'GET',
+      '/notifications?${query.join('&')}',
+    );
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notifications');
+    }
+    return NotificationPage.fromJson(result.body!);
+  }
+
+  @override
+  Future<List<MobileNotification>> notifications({
+    bool unreadOnly = false,
+  }) async {
+    final items = <MobileNotification>[];
+    final ids = <String>{};
+    final cursors = <String>{};
+    String? cursor;
+    do {
+      final result = await page(cursor: cursor, unreadOnly: unreadOnly);
+      for (final item in result.items) {
+        if (!ids.add(item.id)) {
+          throw const ContractException('duplicate notification page item');
+        }
+        items.add(item);
+      }
+      cursor = result.nextCursor;
+      if (cursor != null && !cursors.add(cursor)) {
+        throw const ContractException('repeated notification cursor');
+      }
+    } while (cursor != null);
+    return List.unmodifiable(items);
+  }
+
+  @override
+  Future<MobileNotification> notification(String id) async {
+    final result = await session.authorized(
+      'GET',
+      '/notifications/${Uri.encodeComponent(id)}',
+    );
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification');
+    }
+    return MobileNotification.fromJson(result.body!);
+  }
+
+  @override
+  Future<int> unreadCount() async {
+    final result = await session.authorized(
+      'GET',
+      '/notifications/unread-count',
+    );
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification unread count');
+    }
+    final count = _required<int>(result.body!, 'unread_count');
+    if (count < 0) throw const ContractException('invalid unread count');
+    return count;
+  }
+
+  @override
+  Future<NotificationReadResult> markRead(String id) async {
+    final result = await session.authorized(
+      'PUT',
+      '/notifications/${Uri.encodeComponent(id)}/read',
+      body: const {},
+    );
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification mark read');
+    }
+    final parsed = NotificationReadResult.fromJson(result.body!);
+    if (parsed.notificationId != id) {
+      throw const ContractException('notification read id mismatch');
+    }
+    return parsed;
+  }
+
+  @override
+  Future<NotificationReadAllResult> markAllRead() async {
+    final result = await session.authorized(
+      'PUT',
+      '/notifications/read-all',
+      body: const {},
+    );
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification mark all read');
+    }
+    return NotificationReadAllResult.fromJson(result.body!);
+  }
+}
+
 class BasicApi {
   BasicApi(this.session, this.store, this.installationId, this.ids);
   final SessionController session;
@@ -1062,10 +1783,7 @@ class BasicApi {
   final String installationId;
   final SecureIds ids;
   Future<int> observePendingAttendanceIntentCount() =>
-      store.countKeysWithPrefix(
-        'mutation:$installationId:',
-        maximum: 1,
-      );
+      store.countKeysWithPrefix('mutation:$installationId:', maximum: 1);
 
   Future<void> clearPendingAttendanceIntents() =>
       store.deleteKeysWithPrefix('mutation:$installationId:');
@@ -1105,23 +1823,30 @@ class BasicApi {
   }
 
   Future<Game> game(String id) async {
-    final r =
-        await session.authorized('GET', '/games/${Uri.encodeComponent(id)}');
+    final r = await session.authorized(
+      'GET',
+      '/games/${Uri.encodeComponent(id)}',
+    );
     if (r.status != 200 || r.body == null) _failure(r, 'game');
     return Game.fromJson(r.body!);
   }
 
   Future<AttendanceSnapshot> attendance(String id) async {
     final r = await session.authorized(
-        'GET', '/games/${Uri.encodeComponent(id)}/attendance');
+      'GET',
+      '/games/${Uri.encodeComponent(id)}/attendance',
+    );
     if (r.status != 200 || r.body == null) {
       _failure(r, 'attendance');
     }
     return AttendanceSnapshot.fromJson(r.body!);
   }
 
-  Future<AttendanceReport> attendanceReport(String id,
-      {int historyLimit = 12, int minimumResponseRate = 60}) async {
+  Future<AttendanceReport> attendanceReport(
+    String id, {
+    int historyLimit = 12,
+    int minimumResponseRate = 60,
+  }) async {
     if (!const {5, 8, 12, 20}.contains(historyLimit) ||
         !_percentage(minimumResponseRate) ||
         minimumResponseRate % 10 != 0) {
@@ -1135,8 +1860,11 @@ class BasicApi {
     return AttendanceReport.fromJson(r.body!);
   }
 
-  Future<MutationResult> reply(String gameId, AttendanceReply reply,
-      {required bool online}) async {
+  Future<MutationResult> reply(
+    String gameId,
+    AttendanceReply reply, {
+    required bool online,
+  }) async {
     if (!online) throw const OfflineReadOnlyException();
     final keyName = 'mutation:$installationId:$gameId';
     final existing = await store.read(keyName);
@@ -1157,13 +1885,18 @@ class BasicApi {
         }
       }
     }
-    await store.write(keyName,
-        jsonEncode({'key': key, 'reply': reply.wire, 'uncertain': true}));
+    await store.write(
+      keyName,
+      jsonEncode({'key': key, 'reply': reply.wire, 'uncertain': true}),
+    );
     late final ApiResponse r;
     try {
       r = await session.authorized(
-          'PUT', '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
-          headers: {'Idempotency-Key': key}, body: {'reply': reply.wire});
+        'PUT',
+        '/games/${Uri.encodeComponent(gameId)}/attendance-reply',
+        headers: {'Idempotency-Key': key},
+        body: {'reply': reply.wire},
+      );
     } on AuthorizedRequestNetworkException {
       return _reconcileUncertainMutation(gameId, reply, keyName);
     }
@@ -1177,19 +1910,25 @@ class BasicApi {
   }
 
   Future<MutationResult> _reconcileUncertainMutation(
-      String gameId, AttendanceReply reply, String keyName) async {
+    String gameId,
+    AttendanceReply reply,
+    String keyName,
+  ) async {
     try {
       final snapshot = await attendance(gameId);
       if (snapshot.ownReply == reply) {
         await store.delete(keyName);
         return MutationResult(
-            gameId,
-            reply,
-            null,
-            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-            const MutationNotification(
-                NotificationStatus.unknown, 'outcome_unknown'),
-            true);
+          gameId,
+          reply,
+          null,
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+          const MutationNotification(
+            NotificationStatus.unknown,
+            'outcome_unknown',
+          ),
+          true,
+        );
       }
     } on MutationUncertainException {
       rethrow;

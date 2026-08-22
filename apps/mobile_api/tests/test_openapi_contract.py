@@ -23,6 +23,14 @@ class OpenApiContractTest(unittest.TestCase):
                 "/games/{game_id}/attendance",
                 "/games/{game_id}/attendance-report",
                 "/games/{game_id}/attendance-reply",
+                "/notifications",
+                "/notifications/unread-count",
+                "/notifications/{notification_id}",
+                "/notifications/{notification_id}/read",
+                "/notifications/read-all",
+                "/officer/notifications/preview",
+                "/officer/notifications/confirm",
+                "/devices/current",
             },
         )
 
@@ -108,6 +116,117 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertIn("cryptography==43.0.3", requirements)
         self.assertIn(".env.yaml", ignored)
         self.assertNotIn("gcloud", dockerfile + (root / "cloudbuild.yaml").read_text())
+
+    def test_notification_contract_freezes_visibility_cursor_and_idempotent_reads(self):
+        schemas = self.contract["components"]["schemas"]
+        self.assertEqual(
+            schemas["NotificationType"]["enum"],
+            [
+                "game_reminder",
+                "attendance_reminder",
+                "game_change",
+                "officer_personal",
+                "officer_game_broadcast",
+                "officer_team_broadcast",
+                "admin_system_announcement",
+            ],
+        )
+        self.assertEqual(
+            schemas["Notification"]["properties"]["body"]["maxLength"], 500
+        )
+        notification_id = self.contract["components"]["parameters"]["NotificationId"][
+            "schema"
+        ]
+        self.assertEqual(notification_id["maxLength"], 32)
+        self.assertEqual(schemas["Notification"]["properties"]["id"]["maxLength"], 32)
+        self.assertIn(
+            "exactly created_at plus 90 days",
+            schemas["Notification"]["properties"]["visible_until"][
+                "description"
+            ].lower(),
+        )
+        person_capabilities = schemas["Person"]["properties"]["capabilities"]["items"][
+            "enum"
+        ]
+        self.assertIn("notifications:read", person_capabilities)
+        self.assertIn("notifications:publish", person_capabilities)
+        encoded = json.dumps(
+            {
+                key: self.contract["paths"][key]
+                for key in self.contract["paths"]
+                if key.startswith("/notifications")
+            },
+            sort_keys=True,
+        )
+        for required in (
+            "90 days",
+            "created_at and notification_id descending",
+            "server-derived Person principal",
+            "idempotent",
+            "unread",
+        ):
+            self.assertIn(required.lower(), encoded.lower())
+
+    def test_publishing_device_and_deep_link_contracts_are_inert_and_typed(self):
+        schemas = self.contract["components"]["schemas"]
+        self.assertEqual(
+            schemas["DeviceRegistrationRequest"]["properties"]["provider"]["const"],
+            "fake",
+        )
+        publishing = json.dumps(
+            {
+                key: self.contract["paths"][key]
+                for key in (
+                    "/officer/notifications/preview",
+                    "/officer/notifications/confirm",
+                    "/devices/current",
+                )
+            },
+            sort_keys=True,
+        ).lower()
+        devices_current = self.contract["paths"]["/devices/current"]
+        for method in ("put", "delete"):
+            self.assertEqual(
+                devices_current[method]["responses"]["409"],
+                {"$ref": "#/components/responses/Conflict"},
+            )
+        for required in (
+            "notifications:publish",
+            "preview is not authorization",
+            "one transaction",
+            "no real provider",
+            "fake provider token",
+        ):
+            self.assertIn(required, publishing)
+        destination = json.dumps(schemas["NotificationDestination"], sort_keys=True)
+        self.assertNotIn("url", destination.lower())
+        self.assertIn("safely fall back", destination.lower())
+        game_destination = next(
+            item
+            for item in schemas["NotificationDestination"]["oneOf"]
+            if item["properties"]["type"].get("const") == "game"
+        )
+        self.assertEqual(
+            game_destination["properties"]["game_id"]["maxLength"], 25
+        )
+        game_audience = next(
+            item
+            for item in schemas["NotificationAudience"]["oneOf"]
+            if item["properties"]["type"].get("const") == "game"
+        )
+        draft_game_destination = next(
+            item
+            for item in schemas["NotificationDraft"]["properties"]["destination"][
+                "oneOf"
+            ]
+            if item["properties"]["type"].get("const") == "game"
+        )
+        self.assertEqual(
+            game_audience["properties"]["game_id"]["maxLength"], 25
+        )
+        self.assertEqual(
+            draft_game_destination["properties"]["game_id"]["maxLength"], 25
+        )
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from shared_module.mobile_api import (
     BasicApiService,
     InvalidArgument,
     MalformedRequest,
+    MAX_POSTGRESQL_BIGINT,
     MobileApiError,
     MobileAuthService,
     mobile_capabilities,
@@ -21,6 +22,7 @@ from shared_module.mobile_api import (
 class Dependencies:
     auth: MobileAuthService
     basic: BasicApiService
+    publishing: object
     revision_check: Callable[[], bool]
 
 
@@ -127,6 +129,22 @@ def create_app(dependencies: Dependencies) -> Flask:
             raise MalformedRequest("game_id is malformed")
         return parsed
 
+    def notification_id(value):
+        if not isinstance(value, str) or not 14 <= len(value) <= 32:
+            raise MalformedRequest("notification_id is malformed")
+        if not value.startswith("notification_"):
+            raise MalformedRequest("notification_id is malformed")
+        suffix = value[13:]
+        if not suffix.isascii() or not suffix.isdigit() or suffix.startswith("0"):
+            raise MalformedRequest("notification_id is malformed")
+        try:
+            parsed = int(suffix)
+        except ValueError:
+            raise MalformedRequest("notification_id is malformed") from None
+        if parsed > MAX_POSTGRESQL_BIGINT:
+            raise MalformedRequest("notification_id is malformed")
+        return parsed
+
     @app.post("/api/v1/auth/line/exchange")
     def exchange():
         body = json_body(
@@ -181,6 +199,100 @@ def create_app(dependencies: Dependencies) -> Flask:
         return jsonify(
             dependencies.basic.games_page(
                 authenticate(), request.args.get("cursor"), limit
+            )
+        )
+
+    @app.get("/api/v1/notifications")
+    def notifications():
+        raw_limit = request.args.get("limit", "20")
+        try:
+            limit = int(raw_limit)
+        except ValueError:
+            raise InvalidArgument("limit must be an integer") from None
+        raw_unread = request.args.get("unread_only", "false")
+        if raw_unread not in {"true", "false"}:
+            raise InvalidArgument("unread_only must be true or false")
+        return jsonify(
+            dependencies.basic.notifications_page(
+                authenticate(),
+                request.args.get("cursor"),
+                limit,
+                raw_unread == "true",
+            )
+        )
+
+    @app.get("/api/v1/notifications/unread-count")
+    def notification_unread_count():
+        return jsonify(
+            {
+                "unread_count": dependencies.basic.notification_unread_count(
+                    authenticate()
+                )
+            }
+        )
+
+    @app.put("/api/v1/notifications/read-all")
+    def mark_all_notifications_read():
+        principal = authenticate()
+        json_body(set())
+        return jsonify(dependencies.basic.mark_all_notifications_read(principal))
+
+    @app.get("/api/v1/notifications/<notification_key>")
+    def notification(notification_key):
+        return jsonify(
+            dependencies.basic.notification(
+                authenticate(), notification_id(notification_key)
+            )
+        )
+
+    @app.put("/api/v1/notifications/<notification_key>/read")
+    def mark_notification_read(notification_key):
+        principal = authenticate()
+        json_body(set())
+        return jsonify(
+            dependencies.basic.mark_notification_read(
+                principal, notification_id(notification_key)
+            )
+        )
+
+    @app.post("/api/v1/officer/notifications/preview")
+    def preview_notification():
+        draft = json_body({"type", "title", "body", "audience", "destination"})
+        return jsonify(dependencies.publishing.preview(authenticate(), draft))
+
+    @app.post("/api/v1/officer/notifications/confirm")
+    def confirm_notification():
+        body = json_body(
+            {"draft", "preview_revision", "typed_confirmation"}
+        )
+        key = request.headers.get("Idempotency-Key", "")
+        result = dependencies.publishing.confirm(
+            authenticate(),
+            body.get("draft"),
+            preview_revision=body.get("preview_revision"),
+            typed_confirmation=body.get("typed_confirmation"),
+            idempotency_key=key,
+        )
+        return jsonify(result), 200 if result["idempotent_replay"] else 201
+
+    @app.put("/api/v1/devices/current")
+    def register_device():
+        body = json_body({"installation_id", "platform", "provider", "token"})
+        result = dependencies.publishing.register_device(
+            authenticate(),
+            installation_id=body.get("installation_id"),
+            platform=body.get("platform"),
+            provider=body.get("provider"),
+            token=body.get("token"),
+        )
+        return jsonify(result)
+
+    @app.delete("/api/v1/devices/current")
+    def revoke_device():
+        body = json_body({"installation_id"})
+        return jsonify(
+            dependencies.publishing.revoke_device(
+                authenticate(), installation_id=body.get("installation_id")
             )
         )
 

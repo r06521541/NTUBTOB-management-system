@@ -50,7 +50,7 @@ class StagingBrokerJournalIntegrationTest(unittest.TestCase):
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0006_staging_broker_operation_journal",
+                "0008_mobile_notification_delivery",
             )
             self.assertEqual(
                 connection.scalar(

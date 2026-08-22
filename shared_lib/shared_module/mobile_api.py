@@ -97,8 +97,17 @@ class MobilePrincipal:
     access_epoch: int
 
 
-BASIC_CAPABILITIES = ("games:read", "attendance:reply:self")
-OFFICER_READ_CAPABILITIES = ("attendance:report:read",)
+BASIC_CAPABILITIES = (
+    "games:read",
+    "attendance:reply:self",
+    "notifications:read",
+)
+OFFICER_READ_CAPABILITIES = (
+    "attendance:report:read",
+    "notifications:publish",
+)
+MAX_POSTGRESQL_BIGINT = 9_223_372_036_854_775_807
+NOTIFICATION_RETENTION = timedelta(days=90)
 
 
 def mobile_capabilities(principal: MobilePrincipal) -> tuple[str, ...]:
@@ -331,6 +340,159 @@ class BasicApiService:
 
     def games(self, principal: MobilePrincipal):
         return self.data.scoped_games(principal.person_id, self.clock())
+
+    @staticmethod
+    def _notification_cursor(value: str | None) -> tuple[datetime, int] | None:
+        if value is None:
+            return None
+        if not value or len(value) > 256:
+            raise InvalidArgument("cursor is malformed")
+        try:
+            decoded = json.loads(
+                base64.urlsafe_b64decode(value + "=" * (-len(value) % 4)).decode(
+                    "utf-8"
+                )
+            )
+            if set(decoded) != {"created_at", "notification_id"}:
+                raise ValueError
+            created_at = datetime.fromisoformat(
+                decoded["created_at"].replace("Z", "+00:00")
+            )
+            notification_id = decoded["notification_id"]
+            if (
+                created_at.tzinfo is None
+                or type(notification_id) is not int
+                or notification_id <= 0
+                or notification_id > MAX_POSTGRESQL_BIGINT
+            ):
+                raise ValueError
+            return created_at.astimezone(timezone.utc), notification_id
+        except (
+            binascii.Error,
+            json.JSONDecodeError,
+            KeyError,
+            TypeError,
+            UnicodeError,
+            ValueError,
+        ):
+            raise InvalidArgument("cursor is malformed") from None
+
+    @staticmethod
+    def _encode_notification_cursor(row: dict) -> str:
+        created_at = row["_cursor_created_at"].astimezone(timezone.utc)
+        value = json.dumps(
+            {
+                "created_at": created_at.isoformat().replace("+00:00", "Z"),
+                "notification_id": row["id"],
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return base64.urlsafe_b64encode(value).rstrip(b"=").decode("ascii")
+
+    @staticmethod
+    def _public_notification(row: dict) -> dict:
+        def utc(value):
+            return (
+                None
+                if value is None
+                else value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            )
+
+        notification_id = BasicApiService._notification_id(row["id"])
+        if row["visible_until"] != row["created_at"] + NOTIFICATION_RETENTION:
+            raise InvalidArgument("stored notification visibility is malformed")
+        return {
+            "id": f"notification_{notification_id}",
+            "type": row["type"],
+            "title": row["title"],
+            "body": row["body"],
+            "created_at": utc(row["created_at"]),
+            "visible_until": utc(row["visible_until"]),
+            "read_at": utc(row["read_at"]),
+            "destination": (
+                {
+                    "type": "notification",
+                    "notification_id": f"notification_{notification_id}",
+                }
+                if row.get("destination_type", "notification") == "notification"
+                else {
+                    "type": "game",
+                    "game_id": f"game_{row['destination_game_id']}",
+                }
+            ),
+        }
+
+    @staticmethod
+    def _notification_id(value: int) -> int:
+        if type(value) is not int or not 1 <= value <= MAX_POSTGRESQL_BIGINT:
+            raise InvalidArgument("notification_id is malformed")
+        return value
+
+    def notifications_page(
+        self,
+        principal: MobilePrincipal,
+        cursor: str | None,
+        limit: int,
+        unread_only: bool,
+    ) -> dict:
+        if not 1 <= limit <= 100:
+            raise InvalidArgument("limit must be between 1 and 100")
+        decoded_cursor = self._notification_cursor(cursor)
+        rows = self.auth.notification_page(
+            principal.person_id,
+            self.clock(),
+            decoded_cursor,
+            limit + 1,
+            unread_only,
+        )
+        has_more = len(rows) > limit
+        page = rows[:limit]
+        return {
+            "items": [self._public_notification(row) for row in page],
+            "next_cursor": (
+                self._encode_notification_cursor(page[-1])
+                if has_more and page
+                else None
+            ),
+        }
+
+    def notification(self, principal: MobilePrincipal, notification_id: int) -> dict:
+        notification_id = self._notification_id(notification_id)
+        row = self.auth.notification_detail(
+            principal.person_id, notification_id, self.clock()
+        )
+        if row is None:
+            raise NotFound("notification not found")
+        return self._public_notification(row)
+
+    def notification_unread_count(self, principal: MobilePrincipal) -> int:
+        return self.auth.notification_unread_count(principal.person_id, self.clock())
+
+    def mark_notification_read(
+        self, principal: MobilePrincipal, notification_id: int
+    ) -> dict:
+        notification_id = self._notification_id(notification_id)
+        result = self.auth.mark_notification_read(
+            principal.person_id, notification_id, self.clock()
+        )
+        if result is None:
+            raise NotFound("notification not found")
+        read_at, changed = result
+        return {
+            "notification_id": f"notification_{notification_id}",
+            "read_at": read_at.astimezone(timezone.utc)
+            .isoformat()
+            .replace("+00:00", "Z"),
+            "changed": changed,
+        }
+
+    def mark_all_notifications_read(self, principal: MobilePrincipal) -> dict:
+        now = self.clock()
+        changed, unread = self.auth.mark_all_notifications_read(
+            principal.person_id, now
+        )
+        return {"changed_count": changed, "unread_count": unread}
 
     def games_page(
         self, principal: MobilePrincipal, cursor: str | None, limit: int
