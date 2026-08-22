@@ -1,26 +1,25 @@
-active_task: TASK-149
-status: ready_for_pr
-next_actor: main-work
+active_task: TASK-150
+status: ready_for_writer
+next_actor: codex-writer
 
 claim_id: main-work-20260822
-lease_version: 6
+lease_version: 7
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 598f522475bfb9102ff21bb697eb5cc4ea9eb03b
-head_commit: f34af0153e78433604575738c2039ac6da4b44e2
+base_commit: 36fcd195d960d3d65e3e393923538e98aeb0b787
+head_commit: 16393cc8e14cd41cf47090a9122b7ae331959f30
 
 updated_by: main-work
-updated_at: 2026-08-22T21:18:00+08:00
+updated_at: 2026-08-22T22:00:00+08:00
 
 note: >
-  TASK-148 merged via PR #176 at 598f522475bfb9102ff21bb697eb5cc4ea9eb03b.
-  TASK-149 is one no-schema phase-one parity delivery with sequential Mobile API
-  and Flutter slices. Both slices are Main-accepted and integrated at
-  f34af0153e78433604575738c2039ac6da4b44e2. Flutter Domain accepted the final
-  lifecycle closure with no residual P1/P2. Unique final PR and Hosted CI are
-  next. No schema/provider/deploy authority.
+  TASK-149 merged via PR #177 at 36fcd195d960d3d65e3e393923538e98aeb0b787.
+  TASK-150 starts the Owner-approved Flutter product incubation mode on shared
+  branch codex/flutter-incubator-member-experience. This checkpoint requires
+  focused local evidence and no per-task PR/hosted CI. Auth, backend contract,
+  shared boundary, data, schema, provider and deployment remain outside scope.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-149.md
-report: docs/coordination/reports/TASK-149B-FLUTTER-CODEX.md
-review: docs/coordination/reviews/TASK-149-WORK.md
+task: docs/coordination/tasks/TASK-150.md
+report: docs/coordination/reports/TASK-150-FLUTTER-CODEX.md
+review: none
