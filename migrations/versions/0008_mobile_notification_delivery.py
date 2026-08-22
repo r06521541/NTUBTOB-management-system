@@ -91,6 +91,9 @@ def upgrade() -> None:
       CONSTRAINT ck_mobile_device_provider CHECK (provider = 'fake'),
       CONSTRAINT ck_mobile_device_status CHECK (status IN ('active', 'revoked'))
     );
+    CREATE UNIQUE INDEX uq_mobile_device_active_provider_token
+      ON ntubtob.mobile_device_registrations(provider, token_hash)
+      WHERE status = 'active';
 
     CREATE FUNCTION ntubtob.reject_mobile_notification_audit_mutation()
     RETURNS trigger LANGUAGE plpgsql AS $$

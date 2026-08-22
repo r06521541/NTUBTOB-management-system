@@ -605,46 +605,88 @@ class MobileRepository:
             raise IdempotencyConflict("idempotency key body mismatch")
         return {**record.response_body, "idempotent_replay": True}
 
+    @staticmethod
+    def _lock_current_device_session(
+        session: Session, values: dict, *, verify_platform: bool
+    ) -> MobileSessionRecord:
+        device = session.scalar(
+            select(MobileSessionRecord)
+            .where(MobileSessionRecord.id == values["session_id"])
+            .with_for_update()
+        )
+        if (
+            device is None
+            or device.status != "active"
+            or device.person_id != values["person_id"]
+            or device.installation_id_hash != values["installation_id_hash"]
+            or device.refresh_family_expires_at <= values["now"]
+            or (verify_platform and device.platform != values["platform"])
+        ):
+            raise Conflict("device registration is unavailable")
+        return device
+
     def register_fake_device(self, **values) -> dict:
-        with Session(self.engine) as session, session.begin():
-            registration = session.scalar(
-                select(MobileDeviceRegistrationRecord)
-                .where(
-                    MobileDeviceRegistrationRecord.person_id == values["person_id"],
-                    MobileDeviceRegistrationRecord.installation_id_hash
-                    == values["installation_id_hash"],
+        try:
+            with Session(self.engine) as session, session.begin():
+                self._lock_current_device_session(session, values, verify_platform=True)
+                registration = session.scalar(
+                    select(MobileDeviceRegistrationRecord)
+                    .where(
+                        MobileDeviceRegistrationRecord.person_id
+                        == values["person_id"],
+                        MobileDeviceRegistrationRecord.installation_id_hash
+                        == values["installation_id_hash"],
+                    )
+                    .with_for_update()
                 )
-                .with_for_update()
-            )
-            if registration is None:
-                registration = MobileDeviceRegistrationRecord(
-                    person_id=values["person_id"],
-                    session_id=values["session_id"],
-                    installation_id_hash=values["installation_id_hash"],
-                    platform=values["platform"],
-                    provider="fake",
-                    token_hash=values["token_hash"],
-                    status="active",
-                    created_at=values["now"],
-                    updated_at=values["now"],
+                token_owner = session.scalar(
+                    select(MobileDeviceRegistrationRecord)
+                    .where(
+                        MobileDeviceRegistrationRecord.provider == "fake",
+                        MobileDeviceRegistrationRecord.token_hash
+                        == values["token_hash"],
+                        MobileDeviceRegistrationRecord.status == "active",
+                    )
+                    .with_for_update()
                 )
-                session.add(registration)
+                if token_owner is not None and token_owner is not registration:
+                    raise Conflict("device registration is unavailable")
+                if registration is None:
+                    registration = MobileDeviceRegistrationRecord(
+                        person_id=values["person_id"],
+                        session_id=values["session_id"],
+                        installation_id_hash=values["installation_id_hash"],
+                        platform=values["platform"],
+                        provider="fake",
+                        token_hash=values["token_hash"],
+                        status="active",
+                        created_at=values["now"],
+                        updated_at=values["now"],
+                    )
+                    session.add(registration)
+                else:
+                    registration.session_id = values["session_id"]
+                    registration.platform = values["platform"]
+                    registration.token_hash = values["token_hash"]
+                    registration.status = "active"
+                    registration.revoked_at = None
+                    registration.updated_at = values["now"]
                 session.flush()
-            else:
-                registration.session_id = values["session_id"]
-                registration.platform = values["platform"]
-                registration.token_hash = values["token_hash"]
-                registration.status = "active"
-                registration.revoked_at = None
-                registration.updated_at = values["now"]
-            return {"registration_id": registration.id, "status": registration.status}
+                return {
+                    "registration_id": registration.id,
+                    "status": registration.status,
+                }
+        except IntegrityError:
+            raise Conflict("device registration is unavailable") from None
 
     def revoke_fake_device(self, **values) -> bool:
         with Session(self.engine) as session, session.begin():
+            self._lock_current_device_session(session, values, verify_platform=False)
             registration = session.scalar(
                 select(MobileDeviceRegistrationRecord)
                 .where(
                     MobileDeviceRegistrationRecord.person_id == values["person_id"],
+                    MobileDeviceRegistrationRecord.session_id == values["session_id"],
                     MobileDeviceRegistrationRecord.installation_id_hash
                     == values["installation_id_hash"],
                 )

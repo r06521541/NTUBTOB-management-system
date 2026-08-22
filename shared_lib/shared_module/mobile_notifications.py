@@ -76,8 +76,9 @@ class NotificationPublishingService:
         except (TypeError, ValueError):
             raise InvalidArgument("game_id is malformed") from None
         if (
-            parsed == 0
-            or abs(parsed) > 9_223_372_036_854_775_807
+            parsed < -9_223_372_036_854_775_808
+            or parsed > 9_223_372_036_854_775_807
+            or parsed == 0
             or str(parsed) != suffix
         ):
             raise InvalidArgument("game_id is malformed")

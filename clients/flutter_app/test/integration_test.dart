@@ -1040,6 +1040,17 @@ void main() {
     final unknown = NotificationDestination.parseOrFallback(
         {'type': 'url', 'url': 'https://example.invalid/private'},
         notificationId);
+    final minimum = NotificationDestination.parseOrFallback(
+        {'type': 'game', 'game_id': 'game_-9223372036854775808'},
+        notificationId);
+    final malformed = [
+      {'type': 'notification', 'notification_id': notificationId, 'extra': true},
+      {'type': 'game', 'game_id': 'game_01'},
+      {'type': 'game', 'game_id': 'game_-9223372036854775809'},
+      {'type': 'game', 'game_id': 'game_9223372036854775808'},
+      {'type': 'game', 'game_id': 'game_1', 'url': 'https://example.invalid'},
+    ].map((value) =>
+        NotificationDestination.parseOrFallback(value, notificationId));
     expect(notification.safeRoute(notificationVisible: true),
         '/notifications/notification_41');
     expect(
@@ -1049,6 +1060,14 @@ void main() {
         '/games/game_-112001');
     expect(game.safeRoute(notificationVisible: true), '/notifications');
     expect(unknown.safeRoute(notificationVisible: true), '/notifications');
+    expect(
+        minimum.safeRoute(
+            notificationVisible: true,
+            authorizedGameIds: const {'game_-9223372036854775808'}),
+        '/games/game_-9223372036854775808');
+    for (final destination in malformed) {
+      expect(destination.safeRoute(notificationVisible: true), '/notifications');
+    }
     expect(notification.safeRoute(notificationVisible: false), '/notifications');
   });
 

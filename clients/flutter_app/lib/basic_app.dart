@@ -785,9 +785,10 @@ enum PublishingAudience { individual, game, team }
 
 class OfficerNotificationPublishingPage extends StatefulWidget {
   const OfficerNotificationPublishingPage(
-      {super.key, required this.client, required this.games});
+      {super.key, required this.client, required this.games, this.ids});
   final NotificationPublishingClient client;
   final List<Game> games;
+  final SecureIds? ids;
   @override
   State<OfficerNotificationPublishingPage> createState() =>
       _OfficerNotificationPublishingPageState();
@@ -803,12 +804,15 @@ class _OfficerNotificationPublishingPageState
   String? gameId;
   Map<String, dynamic>? preview;
   Map<String, dynamic>? draft;
+  String? commandKey;
   String? outcome;
   bool busy = false;
+  late final SecureIds _ids;
 
   @override
   void initState() {
     super.initState();
+    _ids = widget.ids ?? SecureIds();
     if (widget.games.isNotEmpty) gameId = widget.games.first.id;
   }
 
@@ -848,6 +852,7 @@ class _OfficerNotificationPublishingPageState
     setState(() {
       busy = true;
       preview = null;
+      commandKey = null;
       outcome = null;
     });
     try {
@@ -857,6 +862,7 @@ class _OfficerNotificationPublishingPageState
       setState(() {
         draft = nextDraft;
         preview = nextPreview;
+        commandKey = _ids.next();
         _confirmation.clear();
       });
     } on Object {
@@ -869,16 +875,22 @@ class _OfficerNotificationPublishingPageState
   Future<void> _confirm() async {
     final currentPreview = preview;
     final currentDraft = draft;
-    if (busy || currentPreview == null || currentDraft == null) return;
+    final currentKey = commandKey;
+    if (busy ||
+        currentPreview == null ||
+        currentDraft == null ||
+        currentKey == null) {
+      return;
+    }
     if (_confirmation.text != currentPreview['confirmation_text']) return;
     setState(() => busy = true);
     try {
-      await widget.client.confirm(currentDraft, currentPreview,
-          'publish-${currentPreview['revision']}');
+      await widget.client.confirm(currentDraft, currentPreview, currentKey);
       if (!mounted) return;
       setState(() {
         preview = null;
         draft = null;
+        commandKey = null;
         outcome = '通知已保存；外部推播結果不影響 App 內通知紀錄';
       });
     } on Object {

@@ -14,8 +14,9 @@ contains no credential and no deploy target.
 Officer publishing uses the exact `notifications:publish` capability. Preview
 recipient expansion and confirmation remain server-owned; confirmation writes
 the immutable notification, recipients, append-only audit, in-app success and
-retryable push outbox result in one transaction. Device registration accepts
-only explicit `fake` provider tokens in this delivery. The only delivery adapter
+retryable push outbox result in one transaction. Device registration is locked
+to the current active Person/session/installation and accepts only uniquely
+owned, explicit `fake` provider tokens in this delivery. The only delivery adapter
 is deterministic and rejecting; no LINE, Discord, APNs or FCM provider is
 configured or invoked.
 

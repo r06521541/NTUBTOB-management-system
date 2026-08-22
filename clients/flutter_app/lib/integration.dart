@@ -508,18 +508,34 @@ class NotificationDestination {
   const NotificationDestination.game(String id)
       : this._(NotificationDestinationType.game, id);
 
+  static bool _hasExactKeys(
+          Map<String, dynamic> value, Set<String> expected) =>
+      value.length == expected.length &&
+      value.keys.every(expected.contains);
+
+  static bool _isCanonicalGameId(Object? value) {
+    if (value is! String || value.length > 25) return false;
+    if (!RegExp(r'^game_-?[1-9][0-9]*$').hasMatch(value)) return false;
+    final parsed = BigInt.tryParse(value.substring(5));
+    return parsed != null &&
+        parsed >= BigInt.parse('-9223372036854775808') &&
+        parsed <= BigInt.parse('9223372036854775807');
+  }
+
   factory NotificationDestination.parseOrFallback(
       Object? value, String notificationId) {
     if (value is! Map<String, dynamic>) {
       return const NotificationDestination.listFallback();
     }
     return switch (value['type']) {
-      'notification' when value['notification_id'] == notificationId =>
+      'notification'
+          when _hasExactKeys(value, {'type', 'notification_id'}) &&
+              _validNotificationId(notificationId) &&
+              value['notification_id'] == notificationId =>
         NotificationDestination.notification(notificationId),
       'game'
-          when value['game_id'] is String &&
-              RegExp(r'^game_-?[1-9][0-9]*$')
-                  .hasMatch(value['game_id'] as String) =>
+          when _hasExactKeys(value, {'type', 'game_id'}) &&
+              _isCanonicalGameId(value['game_id']) =>
         NotificationDestination.game(value['game_id'] as String),
       _ => const NotificationDestination.listFallback(),
     };

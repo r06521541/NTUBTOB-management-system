@@ -5,7 +5,7 @@
 - Delivery: exact `notifications:publish` authorization; server-expanded individual/game/team previews; recipient-count revision plus typed confirmation; atomic idempotent notification, recipient, immutable audit, in-app result and push-outbox commit; fake-only device lifecycle; rejecting provider seam; typed notification/game destinations with list fallback; and an Officer-only Flutter preview/confirm path. Basic receives no publishing entry or recipient preview and the client fails before transport without the exact capability.
 - External boundary: no deploy, cloud, Secret/IAM, staging/database mutation, emulator, real token, real provider adapter or real notification was used. Push remains pending until the explicit rejecting adapter records the bounded retryable `provider_not_configured` result; in-app history is independent.
 
-## Verification
+## Initial submission verification (`840c2d457919c6eddd495851b4d0d63b71bf628e`)
 
 - Flutter focused tests: `flutter test test/basic_app_test.dart test/integration_test.dart test/notification_center_test.dart` — 122 passed.
 - Flutter focused analysis: `flutter analyze lib/basic_app.dart lib/integration.dart test/basic_app_test.dart test/integration_test.dart` — no issues.
@@ -13,6 +13,23 @@
 - Flask route suite: `apps.mobile_api.tests.test_app` — 15 passed using a temporary Flask 3.0.3 install.
 - Affected Python compile and OpenAPI JSON parse passed; `git diff --check` passed.
 - PostgreSQL-backed migration/atomicity evidence remains for hosted CI on the exact submitted HEAD. No local database was contacted.
+
+## Batched review correction
+
+The authoritative umbrella `73d1ec831f1d8d6d5e74c860b46a53b713517ace` was merged without rebasing or dropping the original implementation history. The three requested findings were corrected without scope expansion:
+
+- Device register/revoke now locks the referenced `MobileSessionRecord` and verifies current active status, Person, session, installation hash and family expiry; registration also verifies platform. Revocation is limited to the exact current session. A partial unique index enforces one active owner per provider/token hash, and collisions or race-time integrity failures return only the bounded `device registration is unavailable` conflict.
+- Flutter creates a cryptographically random command key after each successful preview. It retains that key across uncertain confirmation retries, clears it only when a new preview starts or publication succeeds, and therefore permits identical-content separate intents to publish independently.
+- Typed destinations require exact key sets. Game identifiers use canonical signed PostgreSQL bigint bounds, including `-9223372036854775808`; extra keys, leading-zero, malformed and out-of-range values fall back to the notification list. OpenAPI applies `maxLength: 25` to each typed game identifier.
+
+Correction verification intentionally covered only affected behavior:
+
+- Flutter deep-link regression: 1 passed.
+- Flutter Officer intent regressions: 2 passed (separate identical intents use different keys; uncertain retry reuses one key).
+- Python publishing service/model/OpenAPI correction set: 9 passed.
+- Focused Flutter analyze over the four affected Dart files: no issues.
+- Affected Python compile, OpenAPI JSON parse and `git diff --check`: passed.
+- The focused PostgreSQL device ownership test was collected but skipped because `PORTAL_DATA_TEST_DATABASE_URL` was unavailable. Hosted CI remains the database-backed gate; no local or remote database was contacted.
 
 ## Self-review and formatter note
 

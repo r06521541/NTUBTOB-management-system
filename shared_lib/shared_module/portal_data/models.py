@@ -716,6 +716,15 @@ class MobileDeviceRegistrationRecord(PortalDataBase):
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
+Index(
+    "uq_mobile_device_active_provider_token",
+    MobileDeviceRegistrationRecord.provider,
+    MobileDeviceRegistrationRecord.token_hash,
+    unique=True,
+    postgresql_where=text("status = 'active'"),
+)
+
+
 class MobileNotificationRecipientRecord(PortalDataBase):
     __tablename__ = "mobile_notification_recipients"
     __table_args__ = (

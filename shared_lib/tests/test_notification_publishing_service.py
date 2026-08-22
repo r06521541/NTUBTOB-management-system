@@ -28,7 +28,7 @@ class FakePublishingRepository:
         return list(self.recipients)
 
     def notification_game_exists(self, game_id):
-        return game_id == 44
+        return game_id in {44, -9_223_372_036_854_775_808}
 
     def commit_notification_publish(self, **values):
         self.commits.append(values)
@@ -124,6 +124,31 @@ class NotificationPublishingServiceTest(unittest.TestCase):
         with self.assertRaises(InvalidArgument):
             self.service.preview(OFFICER, invalid)
 
+    def test_game_identifiers_are_canonical_signed_bigints(self):
+        minimum = draft()
+        minimum["type"] = "officer_game_broadcast"
+        minimum["audience"] = {
+            "type": "game",
+            "game_id": "game_-9223372036854775808",
+        }
+        minimum["destination"] = {
+            "type": "game",
+            "game_id": "game_-9223372036854775808",
+        }
+        self.assertEqual(self.service.preview(OFFICER, minimum)["recipient_count"], 2)
+        for malformed in (
+            "game_01",
+            "game_-9223372036854775809",
+            "game_9223372036854775808",
+        ):
+            invalid = {
+                **minimum,
+                "audience": {"type": "game", "game_id": malformed},
+                "destination": {"type": "game", "game_id": malformed},
+            }
+            with self.assertRaises(InvalidArgument):
+                self.service.preview(OFFICER, invalid)
+
     def test_device_lifecycle_accepts_only_explicit_fake_provider_tokens(self):
         active = self.service.register_device(
             OFFICER,
@@ -134,6 +159,16 @@ class NotificationPublishingServiceTest(unittest.TestCase):
         )
         self.assertEqual(active, {"registration_id": "device_5", "status": "active"})
         self.assertNotIn("token", self.repository.registrations[0])
+        self.assertEqual(self.repository.registrations[0]["session_id"], "session")
+        self.assertNotEqual(
+            self.repository.registrations[0]["installation_id_hash"],
+            "fictional-installation-001",
+        )
+        revoked = self.service.revoke_device(
+            OFFICER, installation_id="fictional-installation-001"
+        )
+        self.assertEqual(revoked, {"status": "revoked", "changed": True})
+        self.assertEqual(self.repository.registrations[1]["session_id"], "session")
         with self.assertRaises(InvalidArgument):
             self.service.register_device(
                 OFFICER,

@@ -143,6 +143,8 @@ class ObservationFailingMemoryStore extends MemoryStore {
 }
 
 class FakePublishingClient implements NotificationPublishingClient {
+  FakePublishingClient({this.confirmFailuresRemaining = 0});
+  int confirmFailuresRemaining;
   final List<Map<String, dynamic>> previews = [];
   final List<Map<String, dynamic>> confirms = [];
   @override
@@ -160,6 +162,10 @@ class FakePublishingClient implements NotificationPublishingClient {
   Future<Map<String, dynamic>> confirm(Map<String, dynamic> draft,
       Map<String, dynamic> preview, String key) async {
     confirms.add({'draft': draft, 'preview': preview, 'key': key});
+    if (confirmFailuresRemaining > 0) {
+      confirmFailuresRemaining -= 1;
+      throw StateError('fictional uncertain response');
+    }
     return {
       'notification_id': 'notification_81',
       'recipient_count': 2,
@@ -650,6 +656,59 @@ void main() {
     await tester.pumpAndSettle();
     expect(fake.confirms, hasLength(1));
     expect(find.text('通知已保存；外部推播結果不影響 App 內通知紀錄'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('publishing-preview')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-confirmation')), 'PUBLISH 2');
+    await tester.pump();
+    final secondConfirm = find.byKey(const ValueKey('publishing-confirm'));
+    await tester.ensureVisible(secondConfirm);
+    await tester.tap(secondConfirm);
+    await tester.pumpAndSettle();
+    expect(fake.confirms, hasLength(2));
+    expect(fake.confirms[1]['key'], isNot(fake.confirms[0]['key']));
+  });
+
+  testWidgets('uncertain publishing retry retains the random intent key',
+      (tester) async {
+    final fake = FakePublishingClient(confirmFailuresRemaining: 1);
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Officer', [
+              'games:read',
+              'attendance:reply:self',
+              'notifications:read',
+              'attendance:report:read',
+              'notifications:publish',
+            ], accessLevel: AccessLevel.officer),
+            games: const [],
+            online: true,
+            publishingClient: fake,
+            lastSyncedAt: DateTime.utc(2026))));
+    final entry = find.byKey(const ValueKey('notification-publishing-entry'));
+    await tester.scrollUntilVisible(entry, 100);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-title')), '集合提醒');
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-body')), '請準時抵達。');
+    await tester.tap(find.byKey(const ValueKey('publishing-preview')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-confirmation')), 'PUBLISH 2');
+    await tester.pump();
+    final confirm = find.byKey(const ValueKey('publishing-confirm'));
+    await tester.ensureVisible(confirm);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(fake.confirms, hasLength(2));
+    expect(fake.confirms[1]['key'], fake.confirms[0]['key']);
   });
 
   testWidgets('offline Basic list disables detail and attendance reply',

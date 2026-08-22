@@ -195,6 +195,32 @@ class OpenApiContractTest(unittest.TestCase):
         destination = json.dumps(schemas["NotificationDestination"], sort_keys=True)
         self.assertNotIn("url", destination.lower())
         self.assertIn("safely fall back", destination.lower())
+        game_destination = next(
+            item
+            for item in schemas["NotificationDestination"]["oneOf"]
+            if item["properties"]["type"].get("const") == "game"
+        )
+        self.assertEqual(
+            game_destination["properties"]["game_id"]["maxLength"], 25
+        )
+        game_audience = next(
+            item
+            for item in schemas["NotificationAudience"]["oneOf"]
+            if item["properties"]["type"].get("const") == "game"
+        )
+        draft_game_destination = next(
+            item
+            for item in schemas["NotificationDraft"]["properties"]["destination"][
+                "oneOf"
+            ]
+            if item["properties"]["type"].get("const") == "game"
+        )
+        self.assertEqual(
+            game_audience["properties"]["game_id"]["maxLength"], 25
+        )
+        self.assertEqual(
+            draft_game_destination["properties"]["game_id"]["maxLength"], 25
+        )
 
 
 if __name__ == "__main__":

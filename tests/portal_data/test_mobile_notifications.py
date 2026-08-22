@@ -12,10 +12,10 @@ if str(SHARED_LIB_ROOT) not in sys.path:
 
 from alembic import command
 from alembic.config import Config
+from shared_module.mobile_api import Conflict, MobilePrincipal, secret_hash
+from shared_module.mobile_notifications import NotificationPublishingService
 from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
-from shared_module.mobile_api import MobilePrincipal
-from shared_module.mobile_notifications import NotificationPublishingService
 from sqlalchemy import create_engine, text
 
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
@@ -37,6 +37,19 @@ class MobileNotificationModelContractTest(unittest.TestCase):
         self.assertEqual(
             constraints["ck_mobile_notification_visibility"],
             "visible_until = created_at + interval '90 days'",
+        )
+        device = PortalDataBase.metadata.tables[
+            "ntubtob.mobile_device_registrations"
+        ]
+        active_token = next(
+            index
+            for index in device.indexes
+            if index.name == "uq_mobile_device_active_provider_token"
+        )
+        self.assertTrue(active_token.unique)
+        self.assertIn(
+            "status = 'active'",
+            str(active_token.dialect_options["postgresql"]["where"]),
         )
 
 
@@ -94,7 +107,32 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                 {
                     "identity": identity_id,
                     "person": self.people[0],
-                    "installation": "1" * 64,
+                    "installation": secret_hash("fictional-installation-001"),
+                    "expires": NOW + timedelta(days=30),
+                    "now": NOW,
+                },
+            )
+            other_identity_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('line', 'fictional-other-device', :person, 'linked', :now, :now) "
+                    "RETURNING id"
+                ),
+                {"person": self.people[1], "now": NOW},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.mobile_sessions "
+                    "(id, auth_identity_id, person_id, installation_id_hash, platform, "
+                    "status, access_epoch, refresh_family_expires_at, created_at, updated_at) "
+                    "VALUES ('other-device-session', :identity, :person, :installation, "
+                    "'android', 'active', 1, :expires, :now, :now)"
+                ),
+                {
+                    "identity": other_identity_id,
+                    "person": self.people[1],
+                    "installation": secret_hash("fictional-installation-002"),
                     "expires": NOW + timedelta(days=30),
                     "now": NOW,
                 },
@@ -316,6 +354,68 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                         "SET recipient_count=1"
                     )
                 )
+
+    def test_device_registration_is_current_session_bound_and_token_unique(self):
+        service = NotificationPublishingService(self.repository, clock=lambda: NOW)
+        officer = MobilePrincipal(
+            "publishing-session", self.people[0], 1, "officer", "Officer", 1
+        )
+        other = MobilePrincipal(
+            "other-device-session", self.people[1], 2, "basic", "Other", 1
+        )
+        token = "fake-device-token-obvious-test-only-0001"
+        active = service.register_device(
+            officer,
+            installation_id="fictional-installation-001",
+            platform="android",
+            provider="fake",
+            token=token,
+        )
+        self.assertEqual(active["status"], "active")
+        with self.assertRaisesRegex(Conflict, "device registration is unavailable"):
+            service.register_device(
+                officer,
+                installation_id="fictional-installation-wrong",
+                platform="android",
+                provider="fake",
+                token="fake-device-token-obvious-test-only-0002",
+            )
+        with self.assertRaisesRegex(Conflict, "device registration is unavailable"):
+            service.register_device(
+                other,
+                installation_id="fictional-installation-002",
+                platform="android",
+                provider="fake",
+                token=token,
+            )
+        forged = MobilePrincipal(
+            "other-device-session", self.people[0], 1, "officer", "Officer", 1
+        )
+        with self.assertRaisesRegex(Conflict, "device registration is unavailable"):
+            service.revoke_device(
+                forged, installation_id="fictional-installation-001"
+            )
+        self.assertTrue(
+            service.revoke_device(
+                officer, installation_id="fictional-installation-001"
+            )["changed"]
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.mobile_sessions SET status='revoked', "
+                    "revoked_at=:now, updated_at=:now WHERE id='publishing-session'"
+                ),
+                {"now": NOW},
+            )
+        with self.assertRaisesRegex(Conflict, "device registration is unavailable"):
+            service.register_device(
+                officer,
+                installation_id="fictional-installation-001",
+                platform="android",
+                provider="fake",
+                token="fake-device-token-obvious-test-only-0003",
+            )
 
 
 if __name__ == "__main__":
