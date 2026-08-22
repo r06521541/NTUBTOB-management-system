@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-import 'foundation.dart';
+import 'app_theme.dart';
 import 'integration.dart';
 import 'officer_prereview.dart';
 
@@ -94,15 +94,16 @@ class AuthStatePanel extends StatelessWidget {
       label: label,
       liveRegion: true,
       child: Center(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (state == AuthViewState.booting ||
-              state == AuthViewState.exchanging)
-            const CircularProgressIndicator()
-          else
-            Icon(icon),
-          const SizedBox(height: 12),
-          Text(label),
-        ]),
+        child: SizedBox(
+          width: 320,
+          child: AppStatusPanel(
+            icon: icon,
+            title: label,
+            loading: state == AuthViewState.booting ||
+                state == AuthViewState.exchanging,
+            liveRegion: true,
+          ),
+        ),
       ),
     );
   }
@@ -221,7 +222,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   DateTime? lastSyncedAt;
   PrincipalProvenance? principalProvenance;
   CacheSessionAggregate? cacheSessionAggregate;
-  Future<void>? _basicLoadOperation;
+  Future<bool>? _basicLoadOperation;
   bool _basicLoadInProgress = false;
 
   @override
@@ -316,13 +317,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     setState(() => state = next);
   }
 
-  Future<void> _loadBasic() {
+  Future<bool> _loadBasic() {
     final existingOperation = _basicLoadOperation;
     if (existingOperation != null) return existingOperation;
 
     _basicLoadInProgress = true;
     if (mounted) setState(() {});
-    late final Future<void> operation;
+    late final Future<bool> operation;
     operation = _loadBasicOnce().whenComplete(() {
       if (identical(_basicLoadOperation, operation)) {
         _basicLoadOperation = null;
@@ -337,7 +338,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     return operation;
   }
 
-  Future<void> _loadBasicOnce() async {
+  Future<bool> _loadBasicOnce() async {
     try {
       final loadedPerson = await _api!.me();
       final loadedGames = await _api!.games();
@@ -350,7 +351,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       final aggregate = await _observeCacheSessionAggregate();
-      if (!mounted) return;
+      if (!mounted) return false;
       setState(() {
         person = loadedPerson;
         games = loadedGames;
@@ -359,8 +360,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         cacheSessionAggregate = aggregate;
         state = AuthViewState.authenticated;
       });
+      return true;
     } on Object catch (error) {
       await _showFailure(error);
+      return false;
     }
   }
 
@@ -452,8 +455,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: '北商乙組籃球隊',
-        theme: demoTheme(Brightness.light),
-        darkTheme: demoTheme(Brightness.dark),
+        theme: appTheme(Brightness.light),
+        darkTheme: appTheme(Brightness.dark),
         home: Scaffold(
           appBar: AppBar(title: const Text('隊務系統')),
           body: DebugCacheSessionComposition(
@@ -532,7 +535,7 @@ class BasicGamesView extends StatefulWidget {
   final DateTime lastSyncedAt;
   final PrincipalProvenance? principalProvenance;
   final PrincipalOfficerReportCache? reportCache;
-  final Future<void> Function()? onRefresh;
+  final Future<bool> Function()? onRefresh;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -544,20 +547,44 @@ class BasicGamesView extends StatefulWidget {
 }
 
 class _BasicGamesViewState extends State<BasicGamesView> {
+  final _scrollController = ScrollController();
   bool _refreshInProgress = false;
+  String? _refreshResult;
 
   Future<void> _refresh() async {
     final refresh = widget.onRefresh;
     if (!widget.online || refresh == null || _refreshInProgress) return;
-    setState(() => _refreshInProgress = true);
+    setState(() {
+      _refreshInProgress = true;
+      _refreshResult = null;
+    });
     try {
-      await refresh();
+      final succeeded = await refresh();
+      if (!mounted) return;
+      if (succeeded) {
+        await _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+        if (!mounted) return;
+        setState(() => _refreshResult = '重新整理完成，已回到賽事列表開頭');
+      } else {
+        setState(() => _refreshResult = '重新整理失敗，仍顯示上次成功同步資料');
+      }
     } on Object {
-      // The parent reload owns its canonical error/offline presentation. Keep
-      // the button callback from surfacing a second unhandled UI exception.
+      if (mounted) {
+        setState(() => _refreshResult = '重新整理失敗，仍顯示上次成功同步資料');
+      }
     } finally {
       if (mounted) setState(() => _refreshInProgress = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -569,84 +596,139 @@ class _BasicGamesViewState extends State<BasicGamesView> {
         return byStart != 0 ? byStart : left.id.compareTo(right.id);
       });
     final content = Material(
-        child: ListView(children: [
-      if (!widget.online)
-        Semantics(
-            key: const ValueKey('offline-read-only'),
-            label: '離線唯讀，出席回覆已停用',
-            child: const ListTile(
-                leading: Icon(Icons.cloud_off), title: Text('離線唯讀模式'))),
-      ListTile(
-          title: Text(widget.person.displayName),
-          subtitle: Text(
-              '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}'),
-          trailing: IconButton(
-            key: const ValueKey('games-refresh'),
-            tooltip: '重新整理賽事',
-            onPressed:
-                widget.online && widget.onRefresh != null && !_refreshInProgress
-                    ? _refresh
-                    : null,
-            icon: _refreshInProgress
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.refresh),
-          )),
-      ListTile(
-        key: const ValueKey('account-data-status-entry'),
-        leading: const Icon(Icons.account_circle_outlined),
-        title: const Text('帳號與資料狀態'),
-        subtitle: const Text('查看目前顯示的帳號與資料來源'),
-        onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-          builder: (_) => AccountDataStatusPage(
-            person: widget.person,
-            lastSyncedAt: widget.lastSyncedAt,
-            provenance: widget.principalProvenance,
-          ),
-        )),
-      ),
-      if (DebugPrincipalProjection.shouldRender(
-          debugBuild: kDebugMode, diagnosticEnabled: widget.diagnosticEnabled))
-        DebugPrincipalProjection(
-            person: widget.person, provenance: widget.principalProvenance),
-      if (widget.person.canReadAttendanceReport)
-        ListTile(
-          key: const ValueKey('management-report-entry'),
-          leading: const Icon(Icons.assessment_outlined),
-          title: const Text('出席報表'),
-          subtitle: const Text('Officer／Admin 唯讀'),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-            builder: (_) => CanonicalManagementReportsPage(
-              api: widget.api,
-              person: widget.person,
-              games: widget.games,
-              online: widget.online,
-              cache: widget.reportCache,
+        child: ListView(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            children: [
+          if (!widget.online)
+            Semantics(
+              key: const ValueKey('offline-read-only'),
+              label: '離線唯讀，出席回覆已停用',
+              child: const AppStatusPanel(
+                icon: Icons.cloud_off,
+                title: '離線唯讀模式',
+                message: '目前顯示上次成功同步的資料，無法重新整理或回覆出席。',
+              ),
             ),
-          )),
-        ),
-      if (orderedGames.isEmpty)
-        Semantics(
-            key: const ValueKey('games-empty'),
-            label: '目前沒有可顯示的賽事',
-            child: const ListTile(
-                leading: Icon(Icons.event_busy),
-                title: Text('目前沒有賽事'),
-                subtitle: Text('有新賽事時會顯示在這裡。'))),
-      for (final game in orderedGames)
-        ListTile(
-            key: ValueKey('game-${game.id}'),
-            title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
-            subtitle: Text(_formatGameMetadata(localizations, game)),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: widget.online
-                ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                    builder: (_) =>
-                        GameDetailPage(api: widget.api, gameId: game.id)))
-                : null),
-    ]));
+          AppSurfaceCard(
+            child: Semantics(
+              key: const ValueKey('games-last-sync'),
+              label:
+                  '最後成功同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}',
+              child: ListTile(
+                title: Text(widget.person.displayName),
+                subtitle: Text(
+                    '最後同步：${localizations.formatFullDate(widget.lastSyncedAt.toLocal())} ${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(widget.lastSyncedAt.toLocal()))}'),
+                trailing: IconButton(
+                  key: const ValueKey('games-refresh'),
+                  tooltip: '重新整理賽事',
+                  onPressed: widget.online &&
+                          widget.onRefresh != null &&
+                          !_refreshInProgress
+                      ? _refresh
+                      : null,
+                  icon: _refreshInProgress
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.refresh),
+                ),
+              ),
+            ),
+          ),
+          if (_refreshInProgress || _refreshResult != null)
+            Semantics(
+              key: const ValueKey('games-refresh-result'),
+              label: _refreshInProgress ? '正在重新整理賽事' : _refreshResult,
+              liveRegion: true,
+              child: ExcludeSemantics(
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: AppSpacing.compact),
+                  child: Row(children: [
+                    if (_refreshInProgress)
+                      const SizedBox(
+                        key: ValueKey('games-refresh-progress'),
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      Icon(
+                        _refreshResult!.startsWith('重新整理完成')
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                      ),
+                    const SizedBox(width: AppSpacing.compact),
+                    Expanded(
+                        child: Text(_refreshInProgress
+                            ? '正在重新整理賽事…'
+                            : _refreshResult!)),
+                  ]),
+                ),
+              ),
+            ),
+          AppSurfaceCard(
+            child: ListTile(
+              key: const ValueKey('account-data-status-entry'),
+              leading: const Icon(Icons.account_circle_outlined),
+              title: const Text('帳號與資料狀態'),
+              subtitle: const Text('查看目前顯示的帳號與資料來源'),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => AccountDataStatusPage(
+                  person: widget.person,
+                  lastSyncedAt: widget.lastSyncedAt,
+                  provenance: widget.principalProvenance,
+                ),
+              )),
+            ),
+          ),
+          if (DebugPrincipalProjection.shouldRender(
+              debugBuild: kDebugMode,
+              diagnosticEnabled: widget.diagnosticEnabled))
+            DebugPrincipalProjection(
+                person: widget.person, provenance: widget.principalProvenance),
+          if (widget.person.canReadAttendanceReport)
+            AppSurfaceCard(
+                child: ListTile(
+              key: const ValueKey('management-report-entry'),
+              leading: const Icon(Icons.assessment_outlined),
+              title: const Text('出席報表'),
+              subtitle: const Text('Officer／Admin 唯讀'),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => CanonicalManagementReportsPage(
+                  api: widget.api,
+                  person: widget.person,
+                  games: widget.games,
+                  online: widget.online,
+                  cache: widget.reportCache,
+                ),
+              )),
+            )),
+          if (orderedGames.isEmpty)
+            Semantics(
+                key: const ValueKey('games-empty'),
+                label: '目前沒有可顯示的賽事',
+                child: const AppStatusPanel(
+                    icon: Icons.event_busy,
+                    title: '目前沒有賽事',
+                    message: '有新賽事時會顯示在這裡。')),
+          for (final game in orderedGames)
+            AppSurfaceCard(
+                child: ListTile(
+                    key: ValueKey('game-${game.id}'),
+                    title: Text(
+                        '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+                    subtitle: Text(_formatGameMetadata(localizations, game)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: widget.online
+                        ? () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                                builder: (_) => GameDetailPage(
+                                    api: widget.api, gameId: game.id)))
+                        : null)),
+        ]));
     final scrollableGamesView = ScrollConfiguration(
         behavior: ScrollConfiguration.of(context)
             .copyWith(physics: const AlwaysScrollableScrollPhysics()),
@@ -1022,14 +1104,31 @@ class _GameDetailPageState extends State<GameDetailPage> {
         appBar: AppBar(title: const Text('賽事與出席')),
         body: switch (state) {
           DetailViewState.loading => const Center(
-              child: CircularProgressIndicator(semanticsLabel: '載入賽事與出席')),
+                child: SizedBox(
+              width: 320,
+              child: AppStatusPanel(
+                icon: Icons.sports_basketball_outlined,
+                title: '正在載入賽事與出席',
+                loading: true,
+              ),
+            )),
           DetailViewState.error =>
             const AuthStatePanel(state: AuthViewState.recoverableError),
           DetailViewState.mutationError => Semantics(
               key: const ValueKey('mutation-error'),
               label: '出席回覆失敗，未變更目前結果',
               liveRegion: true,
-              child: const Center(child: Text('出席回覆失敗，請確認狀態後重試。'))),
+              child: const Center(
+                child: SizedBox(
+                  width: 320,
+                  child: AppStatusPanel(
+                    icon: Icons.error_outline,
+                    title: '出席回覆失敗',
+                    message: '請確認狀態後重試。',
+                    liveRegion: true,
+                  ),
+                ),
+              )),
           DetailViewState.contractError =>
             const AuthStatePanel(state: AuthViewState.contractError),
           DetailViewState.sessionExpired =>
@@ -1048,50 +1147,66 @@ class _GameDetailPageState extends State<GameDetailPage> {
       mutationReadback: authoritativeOwnReplySource ==
           AuthoritativeOwnReplySource.mutationReadback,
     );
-    return ListView(padding: const EdgeInsets.all(16), children: [
-      Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
-          style: Theme.of(context).textTheme.titleLarge),
-      Text(_formatGameMetadata(localizations, game!),
-          key: const ValueKey('game-detail-metadata')),
-      const SizedBox(height: 16),
-      if (observation != null &&
-          DebugAuthoritativeOwnReplyProjection.shouldRender(
-            debugBuild: kDebugMode,
-            diagnosticEnabled: widget.diagnosticEnabled,
-          ))
-        DebugAuthoritativeOwnReplyProjection(
-          observation: observation.$1,
-          source: observation.$2,
-        ),
-      const Text('我的出席回覆'),
-      if (state == DetailViewState.uncertain)
-        Semantics(
-            key: const ValueKey('mutation-uncertain'),
-            label: '回覆結果待確認，已保留同一操作識別碼',
-            liveRegion: true,
-            child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
-      Wrap(
-          spacing: 8,
-          children: AttendanceReply.values
-              .map((reply) => ChoiceChip(
-                  key: ValueKey('reply-${reply.wire}'),
-                  label: Text(_replyLabel(reply)),
-                  selected: selected == reply,
-                  onSelected: state == DetailViewState.mutating
-                      ? null
-                      : (_) => setState(() => selected = reply)))
-              .toList()),
-      FilledButton(
-          onPressed: state == DetailViewState.mutating ? null : _submit,
-          child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
-      const Divider(),
-      const Text('已回覆隊員'),
-      for (final reply in attendance!.replied)
-        ListTile(
-            title: Text(reply.displayName),
-            subtitle: Text(
-                '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
-    ]);
+    return ListView(
+        padding: const EdgeInsets.all(AppSpacing.regular),
+        children: [
+          AppSurfaceCard(
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.compact),
+              Text(_formatGameMetadata(localizations, game!),
+                  key: const ValueKey('game-detail-metadata')),
+            ]),
+          ),
+          const SizedBox(height: AppSpacing.regular),
+          if (observation != null &&
+              DebugAuthoritativeOwnReplyProjection.shouldRender(
+                debugBuild: kDebugMode,
+                diagnosticEnabled: widget.diagnosticEnabled,
+              ))
+            DebugAuthoritativeOwnReplyProjection(
+              observation: observation.$1,
+              source: observation.$2,
+            ),
+          AppSurfaceCard(
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('我的出席回覆'),
+              if (state == DetailViewState.uncertain)
+                Semantics(
+                    key: const ValueKey('mutation-uncertain'),
+                    label: '回覆結果待確認，已保留同一操作識別碼',
+                    liveRegion: true,
+                    child: const Text('回覆結果待確認，請稍後以同一回覆重試。')),
+              Wrap(
+                  spacing: 8,
+                  children: AttendanceReply.values
+                      .map((reply) => ChoiceChip(
+                          key: ValueKey('reply-${reply.wire}'),
+                          label: Text(_replyLabel(reply)),
+                          selected: selected == reply,
+                          onSelected: state == DetailViewState.mutating
+                              ? null
+                              : (_) => setState(() => selected = reply)))
+                      .toList()),
+              FilledButton(
+                  onPressed: state == DetailViewState.mutating ? null : _submit,
+                  child:
+                      Text(state == DetailViewState.mutating ? '送出中' : '送出回覆')),
+              const Divider(),
+              const Text('已回覆隊員'),
+              for (final reply in attendance!.replied)
+                ListTile(
+                    title: Text(reply.displayName),
+                    subtitle: Text(
+                        '${_qualificationLabel(reply.qualification)}・${_replyLabel(reply.reply)}')),
+            ]),
+          ),
+        ]);
   }
 }
 
