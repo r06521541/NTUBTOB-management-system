@@ -161,4 +161,5 @@ durable in-app history.
   session/device ownership, per-intent idempotency and exact bounded deep links.
 - 2026-08-22: those three findings closed; writer lease transferred after the
   original actor's usage limit for one residual device-409 OpenAPI parity fix.
-- Current unit: 145C lease-2 correction.
+- 2026-08-22: 145C correction and OpenAPI parity accepted and integrated.
+- Current unit: final change-selected hosted CI and delivery integration.
