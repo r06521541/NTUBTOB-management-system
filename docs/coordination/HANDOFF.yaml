@@ -1,4 +1,4 @@
-active_task: TASK-147
+active_task: TASK-148
 status: ready_for_review
 next_actor: main-work
 
@@ -6,18 +6,18 @@ claim_id: main-work-20260822
 lease_version: 3
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 4c6993ed5dbbde3919643ffa56bd5ae419e7f0fc
-head_commit: a0dc8d2e19576e9aad2c27f9ba5361b400910856
+base_commit: 9b1c52eeb9445887ad2ff9ab3b37b650e6fe8dd1
+head_commit: f7aabf070376599f487ef2073ec63737a81e3969
 
 updated_by: main-work
-updated_at: 2026-08-22T18:03:00+08:00
+updated_at: 2026-08-22T18:44:00+08:00
 
 note: >
-  TASK-147 source accepted after Main review of exact Writer HEAD
-  d8d736a072db664cee06ef0ec491bb46c5e9bce8. Hosted Flutter CI is the sole
-  remaining full gate. No OS push, backend/schema/provider/deploy scope.
+  TASK-148 source accepted after Main review of exact Writer HEAD
+  cb157ab9c75a9d25f2e0a338c5f7edf0c19f4c96. Hosted Flutter CI is the sole
+  remaining full gate. No backend/schema/provider/permission/deploy scope.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-147.md
-report: docs/coordination/reports/TASK-147-FLUTTER-CODEX.md
-review: docs/coordination/reviews/TASK-147-WORK.md
+task: docs/coordination/tasks/TASK-148.md
+report: docs/coordination/reports/TASK-148-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-148-WORK.md

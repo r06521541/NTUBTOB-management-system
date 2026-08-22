@@ -58,6 +58,8 @@ void main() {
       find.byKey(const ValueKey('account-data-status-entry')),
       findsOneWidget,
     );
+    expect(
+        find.byKey(const ValueKey('support-app-info-entry')), findsOneWidget);
     expect(find.byKey(const ValueKey('management-report-entry')), findsNothing);
   });
 
@@ -152,6 +154,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(NotificationDetailPage), findsOneWidget);
     expect(find.text('這是展示用的未讀通知。'), findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('production demo opens the shared support page without transport',
+      (
+    tester,
+  ) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+
+    await tester.tap(find.byKey(const ValueKey('support-app-info-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('支援與 App 資訊'), findsOneWidget);
+    expect(find.byKey(const ValueKey('app-version-metadata')), findsOneWidget);
     expect(probe.unexpectedTransportCalls, 0);
   });
 

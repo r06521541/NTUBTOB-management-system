@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'app_theme.dart';
 import 'integration.dart';
 import 'notification_center.dart';
+import 'support_app_info.dart';
 import 'officer_prereview.dart';
 
 String? nativePlatformName(TargetPlatform platform) => switch (platform) {
@@ -756,6 +757,19 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                     lastSyncedAt: widget.lastSyncedAt,
                     provenance: widget.principalProvenance,
                   ),
+                ),
+              ),
+            ),
+          ),
+          AppSurfaceCard(
+            child: ListTile(
+              key: const ValueKey('support-app-info-entry'),
+              leading: const Icon(Icons.support_agent_outlined),
+              title: const Text('支援與 App 資訊'),
+              subtitle: const Text('帳號協助、資料使用與版本資訊'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const SupportAppInfoPage(),
                 ),
               ),
             ),
