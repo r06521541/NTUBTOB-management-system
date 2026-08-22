@@ -127,4 +127,8 @@ the same slice stops for Main/Owner scope decision.
 ## Status
 
 - 2026-08-22: expanded and authorized by Owner with all four product decisions.
-- Current: Slice A ready for Backend Writer claim.
+- 2026-08-22: Slice A claimed by Backend Writer
+  `01a0293a-968c-7ba0-ae88-53b6d1b6d097` on
+  `codex/task-149a-profile-pending-api-writer` from exact base
+  `d15cb46cae0cea60ac5eb9a3703c9f80529bda03`.
+- Current: Slice A implementation in progress.
