@@ -64,12 +64,13 @@ durable in-app history.
 ### 145C — Officer publishing, outbox, device registration and deep links (L3)
 
 - claim_id: `task-145c-notification-publishing-writer`
-- lease_version: 1
-- actor_id: `01a02766-813a-7333-a233-1ad01fd63353`
+- lease_version: 2
+- actor_id: `01a02839-794a-79f3-b5bf-26635823c478`
 - role: `codex-writer`
 - write: true, limited to the owned paths
 - report_to: `main-work`
-- owned paths:
+- owned paths (lease 1 implementation; lease 2 is limited to OpenAPI parity,
+  its direct contract test and the existing report):
   - `migrations/versions/0008_mobile_notification_delivery.py` (new)
   - `shared_lib/shared_module/portal_data/models.py`
   - `shared_lib/shared_module/portal_data/mobile_repository.py`
@@ -158,4 +159,6 @@ durable in-app history.
   to the registered sole writer.
 - 2026-08-22: 145C Domain review requested one batched correction for active
   session/device ownership, per-intent idempotency and exact bounded deep links.
-- Current unit: 145C correction by the same writer.
+- 2026-08-22: those three findings closed; writer lease transferred after the
+  original actor's usage limit for one residual device-409 OpenAPI parity fix.
+- Current unit: 145C lease-2 correction.
