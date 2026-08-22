@@ -1850,9 +1850,11 @@ class IdentityLifecycleRepository:
                 .where(AuthIdentityRecord.id == identity_id)
                 .with_for_update()
             )
-            if identity is None or (
-                actor_person_id is None and identity.status != "pending"
-            ) or identity.status == "blocked":
+            if (
+                identity is None
+                or (actor_person_id is None and identity.status != "pending")
+                or identity.status == "blocked"
+            ):
                 raise AuthorizationError("open pending identity required")
             role = "applicant" if actor_person_id is None else "admin"
             if actor_person_id is not None:
