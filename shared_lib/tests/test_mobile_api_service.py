@@ -12,6 +12,8 @@ from shared_module.mobile_api import (
     MobilePrincipal,
     NotFound,
     PermissionDenied,
+    PendingReviewEnvelope,
+    PendingReviewService,
     TokenPair,
     VerifiedAssertion,
     mobile_capabilities,
@@ -137,6 +139,23 @@ class MobileAuthServiceTest(unittest.TestCase):
                     platform="ios",
                 )
 
+    def test_pending_exchange_issues_review_only_without_refresh_or_session(self):
+        from shared_module.mobile_api import IdentityPending
+        self.repository.exchange = Mock(side_effect=IdentityPending("pending", 77))
+        result = self.service.exchange(
+            assertion="raw-line-token",
+            nonce="fake-nonce-123456",
+            login_attempt_id="attempt-123456789",
+            installation_id="installation-1234",
+            platform="ios",
+        )
+        self.assertIsInstance(result, PendingReviewEnvelope)
+        self.assertEqual(result.status, "pending")
+        self.assertFalse(hasattr(result, "refresh_token"))
+        with self.assertRaises(AuthenticationError):
+            self.service.authenticate(result.review_credential)
+
+
     def test_refresh_passes_only_hash_and_encrypted_successor(self):
         result = self.service.refresh(
             refresh_token="raw-refresh-token-12345678901234567890",
@@ -164,7 +183,56 @@ class MobileAuthServiceTest(unittest.TestCase):
         self.assertNotIn("attendance:report:read", mobile_capabilities(principal))
 
 
+class PendingReviewServiceTest(unittest.TestCase):
+    def test_credential_is_self_scoped_and_terminal_state_fails_closed(self):
+        codec = HmacAccessTokenCodec(b"x" * 32)
+        token, _ = codec.issue_review(77, NOW)
+        lifecycle = SimpleNamespace(
+            identity_status_for_id=Mock(return_value="pending"),
+            review_messages=Mock(return_value=[]),
+        )
+        service = PendingReviewService(lifecycle, codec, clock=lambda: NOW)
+        self.assertEqual(service.authenticate(token), 77)
+        lifecycle.identity_status_for_id.return_value = "linked"
+        with self.assertRaises(AuthenticationError):
+            service.authenticate(token)
+
+
 class BasicApiServiceTest(unittest.TestCase):
+    def test_profile_update_hashes_key_and_replays_exactly(self):
+        repository = FakeAuthRepository()
+        data = SimpleNamespace(
+            update_profile=Mock(
+                return_value=SimpleNamespace(
+                    id=23,
+                    display_name="新名稱",
+                    access_level="basic",
+                    status="active",
+                )
+            )
+        )
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+        first = service.update_profile(repository.device, " 新名稱 ", "raw-key-123456789")
+        replay = service.update_profile(repository.device, " 新名稱 ", "raw-key-123456789")
+        self.assertFalse(first[2])
+        self.assertTrue(replay[2])
+        self.assertNotIn("raw-key-123456789", str(repository.records))
+        data.update_profile.assert_called_once()
+
+    def test_profile_same_key_different_payload_conflicts(self):
+        repository = FakeAuthRepository()
+        data = SimpleNamespace(
+            update_profile=Mock(
+                return_value=SimpleNamespace(
+                    id=23, display_name="一", access_level="basic", status="active"
+                )
+            )
+        )
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+        service.update_profile(repository.device, "一", "same-key-1234567")
+        with self.assertRaises(Conflict):
+            service.update_profile(repository.device, "二", "same-key-1234567")
+
     def test_capabilities_are_projected_from_fresh_access_level(self):
         basic = MobilePrincipal("s", 1, 2, "basic", "Basic", 1)
         officer = MobilePrincipal("s", 1, 2, "officer", "Officer", 1)

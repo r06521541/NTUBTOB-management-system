@@ -24,6 +24,7 @@ class Dependencies:
     basic: BasicApiService
     publishing: object
     revision_check: Callable[[], bool]
+    review: object | None = None
 
 
 def create_app(dependencies: Dependencies) -> Flask:
@@ -118,6 +119,14 @@ def create_app(dependencies: Dependencies) -> Flask:
             raise AuthenticationError("Bearer token required")
         return dependencies.auth.authenticate(value[7:])
 
+    def authenticate_review():
+        if dependencies.review is None:
+            raise AuthenticationError("review unavailable")
+        value = request.headers.get("Authorization", "")
+        if not value.startswith("Bearer ") or len(value) > 4103:
+            raise AuthenticationError("Bearer token required")
+        return dependencies.review.authenticate(value[7:])
+
     def game_id(value):
         if not value.startswith("game_"):
             raise MalformedRequest("game_id is malformed")
@@ -157,7 +166,7 @@ def create_app(dependencies: Dependencies) -> Flask:
             installation_id=body.get("installation_id"),
             platform=body.get("platform"),
         )
-        return jsonify(result.__dict__), 201
+        return jsonify(result.__dict__), 202 if hasattr(result, "review_credential") else 201
 
     @app.post("/api/v1/auth/refresh")
     def refresh():
@@ -187,6 +196,33 @@ def create_app(dependencies: Dependencies) -> Flask:
                 "access_level": principal.access_level,
                 "capabilities": list(mobile_capabilities(principal)),
             }
+        )
+
+    @app.patch("/api/v1/me")
+    def update_me():
+        principal = authenticate()
+        body = json_body({"display_name"})
+        status, result, replayed = dependencies.basic.update_profile(
+            principal,
+            body.get("display_name"),
+            request.headers.get("Idempotency-Key", ""),
+        )
+        return jsonify({**result, "idempotent_replay": replayed}), status
+
+    @app.get("/api/v1/auth/line/review")
+    def pending_review():
+        return jsonify(dependencies.review.status(authenticate_review()))
+
+    @app.post("/api/v1/auth/line/review/messages")
+    def pending_review_message():
+        identity_id = authenticate_review()
+        body = json_body({"body"})
+        return jsonify(
+            dependencies.review.append(
+                identity_id,
+                body.get("body"),
+                request.headers.get("Idempotency-Key", ""),
+            )
         )
 
     @app.get("/api/v1/games")
