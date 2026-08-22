@@ -2,25 +2,25 @@ active_task: TASK-149
 status: in_progress
 next_actor: codex-writer
 
-claim_id: task-149a-backend-writer-20260822
-lease_version: 4
-actor_id: 01a0293a-968c-7ba0-ae88-53b6d1b6d097
+claim_id: task-149b-flutter-writer-20260822
+lease_version: 5
+actor_id: 01a0294c-7074-7a22-a941-3637701f4f28
 
 base_commit: 598f522475bfb9102ff21bb697eb5cc4ea9eb03b
-head_commit: d15cb46cae0cea60ac5eb9a3703c9f80529bda03
+head_commit: f724a9b7a15d0f5eec5916d3b35165113b61b790
 
 updated_by: main-work
-updated_at: 2026-08-22T19:12:00+08:00
+updated_at: 2026-08-22T20:00:00+08:00
 
 note: >
   TASK-148 merged via PR #176 at 598f522475bfb9102ff21bb697eb5cc4ea9eb03b.
   TASK-149 is one no-schema phase-one parity delivery with sequential Mobile API
-  and Flutter slices. Slice A Backend Writer is active on
-  codex/task-149a-profile-pending-api-writer from exact planning HEAD
-  d15cb46cae0cea60ac5eb9a3703c9f80529bda03. No schema/provider/deploy
-  authority.
+  and Flutter slices. Slice A is Main-accepted and integrated at
+  f724a9b7a15d0f5eec5916d3b35165113b61b790. Slice B Flutter Writer is active
+  on codex/task-149b-flutter-parity-writer from that exact base. No
+  schema/provider/deploy authority.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-149.md
-report: docs/coordination/reports/TASK-149A-BACKEND-CODEX.md
+report: docs/coordination/reports/TASK-149B-FLUTTER-CODEX.md
 review: docs/coordination/reviews/TASK-149-WORK.md

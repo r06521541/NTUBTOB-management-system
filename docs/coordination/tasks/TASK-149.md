@@ -131,4 +131,9 @@ the same slice stops for Main/Owner scope decision.
   `01a0293a-968c-7ba0-ae88-53b6d1b6d097` on
   `codex/task-149a-profile-pending-api-writer` from exact base
   `d15cb46cae0cea60ac5eb9a3703c9f80529bda03`.
-- Current: Slice A implementation in progress.
+- 2026-08-22: Slice A accepted by Main and integrated at
+  `f724a9b7a15d0f5eec5916d3b35165113b61b790`.
+- 2026-08-22: Slice B claimed by Flutter Writer
+  `01a0294c-7074-7a22-a941-3637701f4f28` on
+  `codex/task-149b-flutter-parity-writer` from that exact integration base.
+- Current: Slice B implementation in progress.
