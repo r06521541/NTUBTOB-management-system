@@ -796,6 +796,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                         builder: (_) => NotificationCenter(
                           controller: controller,
                           online: widget.online,
+                          onOpen: _openNotificationDestination,
                         ),
                       ),
                     );
@@ -889,6 +890,44 @@ class _BasicGamesViewState extends State<BasicGamesView> {
       onRefresh: _refresh,
       child: scrollableGamesView,
     );
+  }
+
+  void _openNotificationDestination(MobileNotification item) {
+    switch (item.destination.type) {
+      case NotificationDestinationType.notification:
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NotificationDetailPage(notification: item),
+          ),
+        );
+      case NotificationDestinationType.game:
+        Game? game;
+        for (final candidate in widget.games) {
+          if (candidate.id == item.destination.id) {
+            game = candidate;
+            break;
+          }
+        }
+        if (game == null) {
+          _showDestinationFeedback('找不到可查看的賽事，仍停留在通知中心。');
+          return;
+        }
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => widget.online
+                ? GameDetailPage(api: widget.api, gameId: game!.id)
+                : CachedGameDetailPage(game: game!),
+          ),
+        );
+      case NotificationDestinationType.notificationList:
+        _showDestinationFeedback('此通知沒有可開啟的內容，仍停留在通知中心。');
+    }
+  }
+
+  void _showDestinationFeedback(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -1402,6 +1441,46 @@ class GameDetailPage extends StatefulWidget {
   final bool diagnosticEnabled;
   @override
   State<GameDetailPage> createState() => _GameDetailPageState();
+}
+
+class CachedGameDetailPage extends StatelessWidget {
+  const CachedGameDetailPage({super.key, required this.game});
+
+  final Game game;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('賽事')),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          children: [
+            const AppStatusPanel(
+              icon: Icons.cloud_off,
+              title: '離線唯讀模式',
+              message: '離線快取賽事，僅供查看。',
+            ),
+            const SizedBox(height: AppSpacing.regular),
+            AppSurfaceCard(
+              padding: const EdgeInsets.all(AppSpacing.regular),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.compact),
+                  Text(
+                    _formatGameMetadata(
+                        MaterialLocalizations.of(context), game),
+                    key: const ValueKey('cached-game-detail-metadata'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
 }
 
 class _GameDetailPageState extends State<GameDetailPage> {

@@ -4,6 +4,7 @@ import 'package:ntubtob_portal/basic_app.dart';
 import 'package:ntubtob_portal/foundation.dart';
 import 'package:ntubtob_portal/integration.dart';
 import 'package:ntubtob_portal/main.dart' as entrypoint;
+import 'package:ntubtob_portal/notification_center.dart';
 import 'package:ntubtob_portal/officer_prereview.dart';
 import 'package:ntubtob_portal/production_demo.dart';
 
@@ -52,7 +53,7 @@ void main() {
     );
     expect(find.text('虛構展示資料・不使用帳號・不連線'), findsOneWidget);
     expect(find.byType(BasicGamesView), findsOneWidget);
-    expect(find.byKey(const ValueKey('game-fictional-game')), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-game_901')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('account-data-status-entry')),
       findsOneWidget,
@@ -77,7 +78,7 @@ void main() {
       expect(find.byKey(const ValueKey('offline-read-only')), findsOneWidget);
       expect(
         tester
-            .widget<ListTile>(find.byKey(const ValueKey('game-fictional-game')))
+            .widget<ListTile>(find.byKey(const ValueKey('game-game_901')))
             .onTap,
         isNull,
       );
@@ -102,7 +103,7 @@ void main() {
     final probe = ProductionDemoProbe();
     await pumpDemo(tester, probe: probe);
 
-    await tester.tap(find.byKey(const ValueKey('game-fictional-game')));
+    await tester.tap(find.byKey(const ValueKey('game-game_901')));
     await tester.pumpAndSettle();
 
     expect(find.byType(GameDetailPage), findsOneWidget);
@@ -137,7 +138,8 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
-  testWidgets('production demo opens the same notification centre', (
+  testWidgets(
+      'production demo opens loaded notification detail without transport', (
     tester,
   ) async {
     final probe = ProductionDemoProbe();
@@ -146,6 +148,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('通知中心 (1)'), findsOneWidget);
+    await tester.tap(find.text('虛構賽事提醒'));
+    await tester.pumpAndSettle();
+    expect(find.byType(NotificationDetailPage), findsOneWidget);
+    expect(find.text('這是展示用的未讀通知。'), findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('production demo resolves an authorized game destination', (
+    tester,
+  ) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('虛構場地異動'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(GameDetailPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('game-detail-metadata')), findsOneWidget);
+    expect(probe.gameReads, 1);
+    expect(probe.attendanceReads, 1);
     expect(probe.unexpectedTransportCalls, 0);
   });
 
@@ -161,7 +185,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CanonicalManagementReportsPage), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('report-game-fictional-game')));
+    await tester.tap(find.byKey(const ValueKey('report-game-game_901')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('officer-report-ready')), findsOneWidget);
@@ -181,7 +205,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('management-report-entry')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('report-game-fictional-game')));
+    await tester.tap(find.byKey(const ValueKey('report-game-game_901')));
     await tester.pumpAndSettle();
 
     expect(

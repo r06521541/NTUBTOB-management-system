@@ -7,6 +7,7 @@ import 'package:ntubtob_portal/basic_app.dart';
 import 'package:ntubtob_portal/foundation.dart';
 import 'package:ntubtob_portal/integration.dart';
 import 'package:ntubtob_portal/main.dart' as entrypoint;
+import 'package:ntubtob_portal/notification_center.dart';
 import 'package:ntubtob_portal/officer_prereview.dart';
 
 class QueueTransport implements ApiTransport {
@@ -187,6 +188,59 @@ class FakePublishingClient implements NotificationPublishingClient {
   }
 }
 
+class DestinationNotificationClient implements NotificationClient {
+  DestinationNotificationClient(this.values);
+
+  List<MobileNotification> values;
+  int detailReads = 0;
+  int listReads = 0;
+  int readMutations = 0;
+
+  @override
+  Future<MobileNotification> notification(String id) async {
+    detailReads++;
+    return values.singleWhere((item) => item.id == id);
+  }
+
+  @override
+  Future<List<MobileNotification>> notifications(
+      {bool unreadOnly = false}) async {
+    listReads++;
+    return values;
+  }
+
+  @override
+  Future<int> unreadCount() async =>
+      values.where((item) => !item.isRead).length;
+
+  @override
+  Future<NotificationReadResult> markRead(String id) async {
+    readMutations++;
+    final readAt = DateTime.utc(2026, 8, 22, 12);
+    values = [
+      for (final item in values)
+        if (item.id == id) item.markRead(readAt) else item
+    ];
+    return NotificationReadResult(id, readAt, true);
+  }
+
+  @override
+  Future<NotificationReadAllResult> markAllRead() async =>
+      const NotificationReadAllResult(0, 0);
+}
+
+MobileNotification destinationNotification(Map<String, dynamic> destination) =>
+    MobileNotification.fromJson({
+      'id': 'notification_147',
+      'type': 'game_change',
+      'title': '場地異動',
+      'body': '比賽改到第二球場。',
+      'created_at': '2026-08-22T11:00:00Z',
+      'visible_until': '2026-11-20T11:00:00Z',
+      'read_at': null,
+      'destination': destination,
+    });
+
 void main() {
   test('app theme reserves the global primary for team navy', () {
     expect(appBrandNavy, const Color(0xff102a43));
@@ -319,6 +373,124 @@ void main() {
     expect(nativePlatformName(TargetPlatform.linux), isNull);
     expect(nativePlatformName(TargetPlatform.macOS), isNull);
     expect(nativePlatformName(TargetPlatform.fuchsia), isNull);
+  });
+
+  testWidgets(
+      'real Basic composition opens loaded notification detail without fetch',
+      (tester) async {
+    final item = destinationNotification({
+      'type': 'notification',
+      'notification_id': 'notification_147',
+    });
+    final client = DestinationNotificationClient([item]);
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: const Person('p', 'Basic', ['notifications:read']),
+    );
+    await controller.load(online: true);
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: controller.principal,
+        games: const [],
+        online: true,
+        lastSyncedAt: DateTime.utc(2026),
+        notificationController: controller,
+      ),
+    ));
+
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('場地異動'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NotificationDetailPage), findsOneWidget);
+    expect(find.text('比賽改到第二球場。'), findsOneWidget);
+    expect(client.detailReads, 0);
+    expect(client.readMutations, 1);
+  });
+
+  testWidgets('unauthorized game destination stays in centre without I/O',
+      (tester) async {
+    final item = destinationNotification({
+      'type': 'game',
+      'game_id': 'game_147',
+    });
+    final client = DestinationNotificationClient([item]);
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: const Person('p', 'Basic', ['notifications:read']),
+    );
+    await controller.load(online: true);
+    final transport = QueueTransport();
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: controller.principal,
+        games: const [],
+        online: true,
+        lastSyncedAt: DateTime.utc(2026),
+        notificationController: controller,
+      ),
+    ));
+
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('場地異動'));
+    await tester.pump();
+
+    expect(find.byType(NotificationCenter), findsOneWidget);
+    expect(find.text('找不到可查看的賽事，仍停留在通知中心。'), findsOneWidget);
+    expect(transport.calls, isEmpty);
+    expect(client.detailReads, 0);
+  });
+
+  testWidgets(
+      'offline authorized game destination opens cached read-only detail',
+      (tester) async {
+    final item = destinationNotification({
+      'type': 'game',
+      'game_id': 'game_147',
+    });
+    final cache = NotificationCache(MemoryStore(), 'install');
+    const person = Person('p', 'Basic', ['notifications:read']);
+    await cache.save(person, [item], DateTime.utc(2026, 8, 22));
+    final client = DestinationNotificationClient([item]);
+    final controller = NotificationCenterController(
+      client: client,
+      cache: cache,
+      principal: person,
+      clock: () => DateTime.utc(2026, 8, 22, 12),
+    );
+    await controller.load(online: false);
+    final transport = QueueTransport();
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: person,
+        games: [
+          Game('game_147', DateTime.utc(2026, 9), 60, null, 'Home', 'Away')
+        ],
+        online: false,
+        lastSyncedAt: DateTime.utc(2026),
+        notificationController: controller,
+      ),
+    ));
+
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('場地異動'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CachedGameDetailPage), findsOneWidget);
+    expect(find.text('離線快取賽事，僅供查看。'), findsOneWidget);
+    expect(transport.calls, isEmpty);
+    expect(client.readMutations, 0);
   });
 
   testWidgets('Basic-only navigation exposes games and no management', (
