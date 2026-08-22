@@ -110,7 +110,8 @@ class AttendanceInsights {
   int get total => attending + unavailable + unanswered;
   int get responded => attending + unavailable;
   int get responsePercent => total == 0 ? 0 : (responded * 100 ~/ total);
-  int get availabilityPercent => responded == 0 ? 0 : (attending * 100 ~/ responded);
+  int get availabilityPercent =>
+      responded == 0 ? 0 : (attending * 100 ~/ responded);
   bool get isSmallSample => total < 5;
 
   String callout({required bool offline}) {
@@ -142,7 +143,12 @@ class LineupDraft {
   List<ReportParticipantUiModel> get pool => List.unmodifiable(_pool);
 
   void moveStarter(int from, int to) {
-    if (from < 0 || from >= starters.length || to < 0 || to >= starters.length) return;
+    if (from < 0 ||
+        from >= starters.length ||
+        to < 0 ||
+        to >= starters.length) {
+      return;
+    }
     final player = starters.removeAt(from);
     starters.insert(to, player);
   }
@@ -1017,53 +1023,55 @@ class _ReportContentsState extends State<_ReportContents> {
     final report = widget.report;
     final insights = AttendanceInsights(report);
     return Material(
-        child: ListView(
-          children: [
-            Text(report.gameLabel),
-            Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
-            Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
-            Text('最低回覆率：${report.minimumResponseRate}%'),
-            if (widget.offline) const Text('目前為離線快取，僅供讀取'),
-            _InsightsCard(insights: insights, offline: widget.offline),
+      child: ListView(
+        children: [
+          Text(report.gameLabel),
+          Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
+          Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
+          Text('最低回覆率：${report.minimumResponseRate}%'),
+          if (widget.offline) const Text('目前為離線快取，僅供讀取'),
+          _InsightsCard(insights: insights, offline: widget.offline),
+          ListTile(
+            key: const ValueKey('lineup-lab-entry'),
+            leading: const Icon(Icons.groups_outlined),
+            title: const Text('Lineup Lab'),
+            subtitle: const Text('僅供本次規劃，不會提交或儲存'),
+            onTap: report.attending.isEmpty
+                ? null
+                : () async {
+                    final updated = await Navigator.of(context)
+                        .push<LineupDraft>(MaterialPageRoute(
+                      builder: (_) => _LineupLabPage(
+                        draft: _draft,
+                        offline: widget.offline,
+                      ),
+                    ));
+                    if (updated != null && mounted) {
+                      setState(() => _draft = updated);
+                    }
+                  },
+          ),
+          const Text('出席'),
+          for (final participant in report.attending)
+            Text(participant.displayName),
+          const Text('不出席'),
+          for (final participant in report.notAttending)
+            Text(participant.displayName),
+          const Text('尚未回覆'),
+          for (final participant in report.notYetReplied)
             ListTile(
-              key: const ValueKey('lineup-lab-entry'),
-              leading: const Icon(Icons.groups_outlined),
-              title: const Text('Lineup Lab'),
-              subtitle: const Text('僅供本次規劃，不會提交或儲存'),
-              onTap: report.attending.isEmpty
-                  ? null
-                  : () async {
-                      final updated = await Navigator.of(context)
-                          .push<LineupDraft>(MaterialPageRoute(
-                        builder: (_) => _LineupLabPage(
-                          draft: _draft,
-                          offline: widget.offline,
-                        ),
-                      ));
-                      if (updated != null && mounted) setState(() => _draft = updated);
-                    },
-            ),
-            const Text('出席'),
-            for (final participant in report.attending)
-              Text(participant.displayName),
-            const Text('不出席'),
-            for (final participant in report.notAttending)
-              Text(participant.displayName),
-            const Text('尚未回覆'),
-            for (final participant in report.notYetReplied)
-              ListTile(
-                title: Text(participant.displayName),
-                subtitle: Text(
-                  '已觀察 ${participant.observedGames} 場、'
-                  '已回覆 ${participant.observedReplies} 場；'
-                  '回覆率 ${participant.responseRate}%；'
-                  '出席率 ${participant.participationRate}%；'
-                  '不出席率 ${participant.nonparticipationRate}%',
-                ),
+              title: Text(participant.displayName),
+              subtitle: Text(
+                '已觀察 ${participant.observedGames} 場、'
+                '已回覆 ${participant.observedReplies} 場；'
+                '回覆率 ${participant.responseRate}%；'
+                '出席率 ${participant.participationRate}%；'
+                '不出席率 ${participant.nonparticipationRate}%',
               ),
-          ],
-        ),
-      );
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1077,10 +1085,13 @@ class _InsightsCard extends StatelessWidget {
         key: const ValueKey('attendance-insights'),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('出席洞察'),
-            Text('可出席 ${insights.attending} 人・不出席 ${insights.unavailable} 人・未回覆 ${insights.unanswered} 人'),
-            Text('回覆率 ${insights.responsePercent}%・已回覆者可出席比例 ${insights.availabilityPercent}%'),
+            Text(
+                '可出席 ${insights.attending} 人・不出席 ${insights.unavailable} 人・未回覆 ${insights.unanswered} 人'),
+            Text(
+                '回覆率 ${insights.responsePercent}%・已回覆者可出席比例 ${insights.availabilityPercent}%'),
             if (insights.isSmallSample) const Text('樣本很少，僅供目前回覆的整理。'),
             Text(insights.callout(offline: offline)),
           ]),
@@ -1119,45 +1130,50 @@ class _LineupLabPageState extends State<_LineupLabPage> {
                 BackButton(onPressed: () => Navigator.of(context).pop(_draft)),
           ),
           body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
-            if (widget.offline) const Text('離線快取來源可能過期；草稿仍只存在此畫面。'),
-            const SizedBox(height: 12),
-            Text('先發／棒次（${_draft.starters.length}）'),
-            for (var index = 0; index < _draft.starters.length; index++)
-              ListTile(
-                key: ValueKey('lineup-starter-${_draft.starters[index].id}'),
-                title: Text('${index + 1}. ${_draft.starters[index].displayName}'),
-                leading: IconButton(
-                  key: ValueKey('lineup-up-${_draft.starters[index].id}'),
-                  icon: const Icon(Icons.arrow_upward),
-                  onPressed: index == 0 ? null : () => setState(() => _draft.moveStarter(index, index - 1)),
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
+              if (widget.offline) const Text('離線快取來源可能過期；草稿仍只存在此畫面。'),
+              const SizedBox(height: 12),
+              Text('先發／棒次（${_draft.starters.length}）'),
+              for (var index = 0; index < _draft.starters.length; index++)
+                ListTile(
+                  key: ValueKey('lineup-starter-${_draft.starters[index].id}'),
+                  title: Text(
+                      '${index + 1}. ${_draft.starters[index].displayName}'),
+                  leading: IconButton(
+                    key: ValueKey('lineup-up-${_draft.starters[index].id}'),
+                    icon: const Icon(Icons.arrow_upward),
+                    onPressed: index == 0
+                        ? null
+                        : () => setState(
+                            () => _draft.moveStarter(index, index - 1)),
+                  ),
+                  trailing: IconButton(
+                    key: ValueKey('lineup-bench-${_draft.starters[index].id}'),
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () => setState(
+                        () => _draft.moveToBench(_draft.starters[index])),
+                  ),
                 ),
-                trailing: IconButton(
-                  key: ValueKey('lineup-bench-${_draft.starters[index].id}'),
-                  icon: const Icon(Icons.remove_circle_outline),
-                  onPressed: () => setState(() => _draft.moveToBench(_draft.starters[index])),
+              const Divider(),
+              Text('候補（${_draft.bench.length}）'),
+              for (final player in _draft.bench)
+                ListTile(
+                  key: ValueKey('lineup-add-${player.id}'),
+                  title: Text(player.displayName),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: () => setState(() => _draft.addStarter(player)),
+                  ),
                 ),
+              TextButton.icon(
+                key: const ValueKey('lineup-reset'),
+                onPressed: () => setState(_draft.reset),
+                icon: const Icon(Icons.restart_alt),
+                label: const Text('重設草稿'),
               ),
-            const Divider(),
-            Text('候補（${_draft.bench.length}）'),
-            for (final player in _draft.bench)
-              ListTile(
-                key: ValueKey('lineup-add-${player.id}'),
-                title: Text(player.displayName),
-                trailing: IconButton(
-                  icon: const Icon(Icons.add_circle_outline),
-                  onPressed: () => setState(() => _draft.addStarter(player)),
-                ),
-              ),
-            TextButton.icon(
-              key: const ValueKey('lineup-reset'),
-              onPressed: () => setState(_draft.reset),
-              icon: const Icon(Icons.restart_alt),
-              label: const Text('重設草稿'),
-            ),
-          ],
+            ],
           ),
         ),
       );

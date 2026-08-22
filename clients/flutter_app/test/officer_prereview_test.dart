@@ -137,7 +137,8 @@ OfficerReportController controllerFor({
     );
 
 void main() {
-  test('attendance insights use only loaded report counts and honest labels', () {
+  test('attendance insights use only loaded report counts and honest labels',
+      () {
     final report = DeterministicFakeOfficerReportRepository.fictionalReport;
     final insights = AttendanceInsights(report);
 
@@ -151,7 +152,8 @@ void main() {
     expect(insights.callout(offline: false), contains('樣本很少'));
   });
 
-  test('lineup draft uses attending only and can reorder, bench, add and reset', () {
+  test('lineup draft uses attending only and can reorder, bench, add and reset',
+      () {
     final report = SingleGameReportUiModel(
       gameId: 'lineup',
       gameLabel: 'Lineup',
@@ -184,7 +186,8 @@ void main() {
     final draft = LineupDraft.fromReport(report);
     expect(draft.starters, hasLength(9));
     expect(draft.bench.single.id, 'attending-9');
-    expect(draft.pool.map((player) => player.id), isNot(contains('unavailable')));
+    expect(
+        draft.pool.map((player) => player.id), isNot(contains('unavailable')));
     draft.moveStarter(0, 1);
     expect(draft.starters.first.id, 'attending-1');
     draft.moveToBench(draft.starters.first);
@@ -196,7 +199,8 @@ void main() {
     expect(draft.bench.single.id, 'attending-9');
   });
 
-  testWidgets('Lineup Lab retains draft after system back and resets for another report',
+  testWidgets(
+      'Lineup Lab retains draft after system back and resets for another report',
       (tester) async {
     SingleGameReportUiModel report(String id, String prefix) =>
         SingleGameReportUiModel(
@@ -224,7 +228,8 @@ void main() {
     controller
       ..report = report('first', 'first')
       ..state = OfficerReportViewState.ready;
-    await tester.pumpWidget(MaterialApp(home: OfficerReportPanel(controller: controller)));
+    await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)));
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('lineup-bench-first-0')));
@@ -243,10 +248,12 @@ void main() {
     controller
       ..report = report('second', 'second')
       ..state = OfficerReportViewState.ready;
-    await tester.pumpWidget(MaterialApp(home: OfficerReportPanel(controller: controller)));
+    await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)));
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
     expect(find.byKey(const ValueKey('lineup-add-first-0')), findsNothing);
     await tester.pageBack();
     await tester.pumpWidget(
@@ -254,7 +261,8 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
     expect(find.byKey(const ValueKey('lineup-add-first-0')), findsNothing);
   });
 
