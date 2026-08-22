@@ -36,6 +36,18 @@ enum AuthViewState {
 
 enum PrincipalProvenance { freshServer, offlineCache }
 
+class AuthOperationContext {
+  const AuthOperationContext(this.epoch, this.personId);
+  final int epoch;
+  final String? personId;
+
+  bool matches({
+    required int currentEpoch,
+    required String? currentPersonId,
+  }) =>
+      epoch == currentEpoch && personId == currentPersonId;
+}
+
 AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   if (error is NetworkException) {
     return hasCache ? AuthViewState.offline : AuthViewState.recoverableError;
@@ -182,6 +194,7 @@ Future<CacheSessionAggregate?> completeTerminalLogout({
         await notificationCache.clear();
         await reportCache.clearInstallation();
         await api.clearPendingAttendanceIntents();
+        await api.clearPendingProfileIntents();
         aggregate = await CacheSessionAggregateProducer.observe(
           session: session,
           basicCache: basicCache,
@@ -236,6 +249,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Future<bool>? _basicLoadOperation;
   bool _basicLoadInProgress = false;
   int _authEpoch = 0;
+  final _navigatorKey = GlobalKey<NavigatorState>();
+  PendingReviewClient? _pendingReviewClient;
   LocalPreferences? _preferences;
   LocalThemePreference _themePreference = LocalThemePreference.system;
   bool? _onboardingComplete;
@@ -315,6 +330,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   Future<void> _signIn() async {
+    _authEpoch++;
+    _basicLoadOperation = null;
+    _basicLoadInProgress = false;
+    _retirePendingReview();
     final platform = nativePlatformName(Theme.of(context).platform);
     if (platform == null) {
       setState(() => state = AuthViewState.unavailable);
@@ -348,21 +367,34 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       LoginState.idle => state,
     };
     setState(() => state = next);
-    if (next == AuthViewState.identityPending) _openPendingReview();
+    if (next == AuthViewState.identityPending && login.pendingReview != null) {
+      _openPendingReview();
+    } else if (next != AuthViewState.identityPending) {
+      _retirePendingReview();
+    }
   }
 
   void _openPendingReview() {
     final credential = _login?.pendingReview?.credential;
     if (credential == null || !mounted) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    final client = PendingReviewClient(
+      HttpApiTransport(widget.config.apiBaseUrl!, _http),
+      credential,
+      _ids,
+    );
+    _pendingReviewClient = client;
+    _navigatorKey.currentState?.push(MaterialPageRoute<void>(
       builder: (_) => PendingReviewPage(
-        client: PendingReviewClient(
-          HttpApiTransport(widget.config.apiBaseUrl!, _http),
-          credential,
-          _ids,
-        ),
+        client: client,
       ),
     ));
+  }
+
+  void _retirePendingReview() {
+    _login?.retirePendingReview();
+    _pendingReviewClient?.retire();
+    _pendingReviewClient = null;
+    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
   }
 
   Future<bool> _loadBasic() {
@@ -387,20 +419,42 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   Future<bool> _loadBasicOnce() async {
+    final epoch = _authEpoch;
+    final operation = AuthOperationContext(epoch, person?.id);
     try {
       final loadedPerson = await _api!.me();
+      if (!operation.matches(
+        currentEpoch: _authEpoch,
+        currentPersonId: person?.id,
+      )) {
+        return false;
+      }
       final loadedGames = await _api!.games();
+      if (epoch != _authEpoch) return false;
       final syncedAt = DateTime.now().toUtc();
       final previous = await _cache!.load();
+      if (epoch != _authEpoch) return false;
+      if (previous != null &&
+          (previous.person.id != loadedPerson.id ||
+              previous.person.accessLevel != loadedPerson.accessLevel ||
+              previous.person.capabilities.length !=
+                  loadedPerson.capabilities.length ||
+              previous.person.capabilities.any((capability) =>
+                  !loadedPerson.capabilities.contains(capability)))) {
+        await _api!.clearPendingProfileIntents();
+        if (epoch != _authEpoch) return false;
+      }
       await reconcileFreshReportPrincipal(
         cache: _reportCache!,
         previous: previous?.person,
         current: loadedPerson,
       );
+      if (epoch != _authEpoch) return false;
       await _notificationCache!.reconcileFreshPrincipal(
         previous?.person,
         loadedPerson,
       );
+      if (epoch != _authEpoch) return false;
       if (_notificationController?.principal.id != loadedPerson.id) {
         await _notificationController?.invalidate();
         _notificationController = null;
@@ -410,8 +464,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         _notificationController = null;
       }
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
+      if (epoch != _authEpoch) {
+        await _cache!.clear();
+        return false;
+      }
       final aggregate = await _observeCacheSessionAggregate();
-      if (!mounted) return false;
+      if (!mounted || epoch != _authEpoch) return false;
       setState(() {
         person = loadedPerson;
         games = loadedGames;
@@ -422,6 +480,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       });
       return true;
     } on Object catch (error) {
+      if (epoch != _authEpoch) return false;
       await _showFailure(error);
       return false;
     }
@@ -430,6 +489,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Future<void> _showFailure(Object error) async {
     final cached = _cache == null ? null : await _cache!.load();
     final classified = classifyFailure(error, hasCache: cached != null);
+    if (classified == AuthViewState.sessionExpired) {
+      _authEpoch++;
+      _retirePendingReview();
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      await _api?.clearPendingProfileIntents();
+    }
     if (classified == AuthViewState.sessionExpired && cached != null) {
       await _reportCache?.clearPrincipal(cached.person.id);
     }
@@ -463,6 +528,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   Future<void> _performLogout() async {
     _authEpoch++;
+    _retirePendingReview();
     await _notificationController?.invalidate();
     _notificationController = null;
     setState(() {
@@ -523,6 +589,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+        navigatorKey: _navigatorKey,
         title: '北商乙組籃球隊',
         theme: appTheme(Brightness.light),
         darkTheme: appTheme(Brightness.dark),
@@ -623,27 +690,44 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       previous: current,
       current: refreshed,
     );
+    if (!_profileContextMatches(epoch, current.id)) return;
     await _notificationCache!.reconcileFreshPrincipal(current, refreshed);
+    if (!_profileContextMatches(epoch, current.id)) return;
     final capabilityChanged = current.accessLevel != refreshed.accessLevel ||
         current.capabilities.length != refreshed.capabilities.length ||
         current.capabilities
             .any((capability) => !refreshed.capabilities.contains(capability));
     if (!refreshed.canReadNotifications || capabilityChanged) {
+      await _api!.clearPendingProfileIntents();
+      if (!_profileContextMatches(epoch, current.id)) return;
       await _notificationController?.invalidate();
       _notificationController = null;
+      if (!_profileContextMatches(epoch, current.id)) return;
     }
     await _cache!.save(refreshed, games, lastSyncedAt!);
     if (!mounted ||
         epoch != _authEpoch ||
         state != AuthViewState.authenticated ||
         person?.id != refreshed.id) {
+      await _cache!.clear();
       return;
     }
     setState(() => person = refreshed);
   }
 
+  bool _profileContextMatches(int epoch, String personId) =>
+      mounted &&
+      AuthOperationContext(epoch, personId).matches(
+        currentEpoch: _authEpoch,
+        currentPersonId: person?.id,
+      ) &&
+      state == AuthViewState.authenticated &&
+      person?.id == personId;
+
   void _handleNotificationTerminalSession() {
     _authEpoch++;
+    _retirePendingReview();
+    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
     _showFailure(const SessionExpiredException());
   }
 }
@@ -713,7 +797,10 @@ class _DisplayNamePageState extends State<DisplayNamePage> {
       _message = null;
     });
     try {
-      final result = await widget.api.updateDisplayName(value);
+      final result = await widget.api.updateDisplayName(
+        value,
+        personId: widget.person.id,
+      );
       await widget.onUpdated?.call(result.person);
       if (mounted) Navigator.of(context).pop();
     } on ProfileMutationUncertainException {

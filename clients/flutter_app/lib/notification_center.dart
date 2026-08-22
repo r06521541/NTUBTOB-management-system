@@ -33,6 +33,8 @@ class NotificationCenterController extends ChangeNotifier {
   int unreadCount = 0;
   String? nextCursor;
   bool unreadOnly = false;
+  List<MobileNotification> _canonicalItems = const [];
+  bool _canonicalComplete = false;
   Future<void>? _loadOperation;
   Future<void>? _mutationOperation;
   Future<void> _cacheTail = Future.value();
@@ -116,8 +118,12 @@ class NotificationCenterController extends ChangeNotifier {
       final serverUnreadCount = await client.unreadCount();
       if (epoch != _epoch) return;
       final now = clock().toUtc();
-      await _saveIfCurrent(epoch, fresh, now,
-          nextUnreadCount: serverUnreadCount);
+      if (!unreadOnly && page?.nextCursor == null) {
+        _canonicalItems = List.unmodifiable(fresh);
+        _canonicalComplete = true;
+        await _saveIfCurrent(epoch, _canonicalItems, now,
+            nextUnreadCount: serverUnreadCount);
+      }
       if (epoch != _epoch) return;
       items = List.unmodifiable(fresh);
       nextCursor = page?.nextCursor;
@@ -128,7 +134,7 @@ class NotificationCenterController extends ChangeNotifier {
           : NotificationCenterState.online;
       notifyListeners();
     } on AuthorizedRequestNetworkException {
-      await _loadCache();
+      if (epoch == _epoch) await _loadCache(epoch: epoch);
     } on SessionExpiredException {
       await invalidate();
       onTerminalSession?.call();
@@ -140,12 +146,16 @@ class NotificationCenterController extends ChangeNotifier {
         await invalidate();
         onTerminalSession?.call();
       } else {
+        if (epoch == _epoch) {
+          state = NotificationCenterState.error;
+          notifyListeners();
+        }
+      }
+    } on Object {
+      if (epoch == _epoch) {
         state = NotificationCenterState.error;
         notifyListeners();
       }
-    } on Object {
-      state = NotificationCenterState.error;
-      notifyListeners();
     }
   }
 
@@ -189,8 +199,16 @@ class NotificationCenterController extends ChangeNotifier {
       }
       items = List.unmodifiable([...items, ...page.items]);
       nextCursor = page.nextCursor;
-      await _saveIfCurrent(epoch, items, lastSyncedAt ?? clock().toUtc(),
-          nextUnreadCount: unreadCount);
+      if (!unreadOnly && nextCursor == null) {
+        _canonicalItems = items;
+        _canonicalComplete = true;
+        await _saveIfCurrent(
+          epoch,
+          _canonicalItems,
+          lastSyncedAt ?? clock().toUtc(),
+          nextUnreadCount: unreadCount,
+        );
+      }
       if (epoch == _epoch) notifyListeners();
     } on SessionExpiredException {
       await invalidate();
@@ -208,19 +226,23 @@ class NotificationCenterController extends ChangeNotifier {
     }
   }
 
-  Future<void> _loadCache() async {
-    final epoch = _epoch;
+  Future<void> _loadCache({int? epoch}) async {
+    final operationEpoch = epoch ?? _epoch;
     final cached = await cache.loadFor(
       principal,
       clock().toUtc(),
       sessionPresent: true,
     );
-    if (epoch != _epoch) return;
+    if (operationEpoch != _epoch) return;
     if (cached == null) {
       _set(NotificationCenterState.offlineEvidenceUnavailable, const [], null);
       return;
     }
-    items = List.unmodifiable(cached.items);
+    _canonicalItems = List.unmodifiable(cached.items);
+    _canonicalComplete = true;
+    items = unreadOnly
+        ? List.unmodifiable(_canonicalItems.where((item) => !item.isRead))
+        : _canonicalItems;
     unreadCount = cached.unreadCount;
     lastSyncedAt = cached.lastSyncedAt;
     state = NotificationCenterState.offline;
@@ -267,9 +289,15 @@ class NotificationCenterController extends ChangeNotifier {
       for (final item in items)
         if (item.id == id) item.markRead(result.readAt) else item,
     ]);
+    _canonicalItems = List.unmodifiable([
+      for (final item in _canonicalItems)
+        if (item.id == id) item.markRead(result.readAt) else item,
+    ]);
     if (result.changed && unreadCount > 0) unreadCount--;
-    await _saveIfCurrent(epoch, items, lastSyncedAt ?? clock(),
-        nextUnreadCount: unreadCount);
+    if (_canonicalComplete) {
+      await _saveIfCurrent(epoch, _canonicalItems, lastSyncedAt ?? clock(),
+          nextUnreadCount: unreadCount);
+    }
     if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
@@ -302,9 +330,14 @@ class NotificationCenterController extends ChangeNotifier {
     items = List.unmodifiable(
       items.map((item) => item.markRead(readAt)).toList(growable: false),
     );
+    _canonicalItems = List.unmodifiable(
+      _canonicalItems.map((item) => item.markRead(readAt)),
+    );
     unreadCount = result.unreadCount;
-    await _saveIfCurrent(epoch, items, lastSyncedAt ?? readAt,
-        nextUnreadCount: unreadCount);
+    if (_canonicalComplete) {
+      await _saveIfCurrent(epoch, _canonicalItems, lastSyncedAt ?? readAt,
+          nextUnreadCount: unreadCount);
+    }
     if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty

@@ -48,11 +48,14 @@ class PendingReviewClient {
   final SecureIds ids;
   String? _pendingBody;
   String? _pendingKey;
+  bool _active = true;
   Map<String, String> get _headers => {'Authorization': 'Bearer $credential'};
 
   Future<PendingReview> read() async {
+    _ensureActive();
     final response =
         await transport.send('GET', '/auth/line/review', headers: _headers);
+    _ensureActive();
     if (response.status != 200 || response.body == null) {
       throw const ContractException('pending review unavailable');
     }
@@ -60,6 +63,7 @@ class PendingReviewClient {
   }
 
   Future<PendingReview> append(String body) async {
+    _ensureActive();
     final normalized = body.trim();
     if (normalized.isEmpty || normalized.length > 1000) {
       throw const ContractException('invalid pending review message');
@@ -73,6 +77,7 @@ class PendingReviewClient {
     final response = await transport.send('POST', '/auth/line/review/messages',
         headers: {..._headers, 'Idempotency-Key': key},
         body: {'body': normalized});
+    _ensureActive();
     if (response.status != 200 || response.body == null) {
       throw const ContractException('pending review message unavailable');
     }
@@ -80,6 +85,16 @@ class PendingReviewClient {
     _pendingBody = null;
     _pendingKey = null;
     return review;
+  }
+
+  void retire() {
+    _active = false;
+    _pendingBody = null;
+    _pendingKey = null;
+  }
+
+  void _ensureActive() {
+    if (!_active) throw const ContractException('pending review retired');
   }
 }
 

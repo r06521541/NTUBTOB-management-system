@@ -1257,10 +1257,12 @@ class LoginCoordinator extends ChangeNotifier {
   String? _nativeAttempt;
   bool _disposed = false;
   PendingReviewEnvelope? pendingReview;
+  String? _pendingReviewAttempt;
   final Set<String> _completed = {};
   bool get nativeFlowUnresolved => _nativeAttempt != null;
 
   Future<void> login(String platform) async {
+    _retirePendingReview();
     if (platform != 'android' && platform != 'ios') {
       state = LoginState.unavailable;
       _notifyListeners();
@@ -1353,10 +1355,12 @@ class LoginCoordinator extends ChangeNotifier {
     required String platform,
   }) async {
     if (_active != attempt) {
+      _retirePendingReview();
       state = LoginState.stale;
       return;
     }
     if (!_completed.add(attempt)) {
+      _retirePendingReview();
       state = LoginState.duplicate;
       return;
     }
@@ -1375,9 +1379,11 @@ class LoginCoordinator extends ChangeNotifier {
     );
     if (response.status == 202 && response.body != null) {
       pendingReview = PendingReviewEnvelope.fromJson(response.body!);
+      _pendingReviewAttempt = attempt;
       state = LoginState.identityPending;
       return;
     }
+    _retirePendingReview();
     if (response.status != 201 || response.body == null) {
       if (response.body == null) {
         throw const ContractException('missing login error body');
@@ -1392,6 +1398,16 @@ class LoginCoordinator extends ChangeNotifier {
     }
     await sessions.accept(SessionEnvelope.fromJson(response.body!));
     state = LoginState.authenticated;
+  }
+
+  bool ownsPendingReview(String attempt) =>
+      pendingReview != null && _pendingReviewAttempt == attempt;
+
+  void retirePendingReview() => _retirePendingReview();
+
+  void _retirePendingReview() {
+    pendingReview = null;
+    _pendingReviewAttempt = null;
   }
 }
 
@@ -1409,6 +1425,8 @@ class SessionController {
   final SecureIds ids;
   final Future<void> Function()? terminalPurge;
   String? _access;
+  int _generation = 0;
+  int get generation => _generation;
   Future<String>? _refreshing;
   String? get accessToken => _access;
   Future<bool?> observePresence() async {
@@ -1425,6 +1443,7 @@ class SessionController {
       await store.write('refresh:$installationId', session.refreshToken);
       await store.delete('refresh-attempt:$installationId');
       _access = session.accessToken;
+      _generation++;
     } on Object {
       _access = null;
       await store.delete('refresh:$installationId');
@@ -1519,6 +1538,7 @@ class SessionController {
   }
 
   Future<void> clear() async {
+    _generation++;
     _access = null;
     await store.delete('refresh:$installationId');
     await store.delete('refresh-attempt:$installationId');
@@ -1814,6 +1834,8 @@ class BasicApi {
 
   Future<void> clearPendingAttendanceIntents() =>
       store.deleteKeysWithPrefix('mutation:$installationId:');
+  Future<void> clearPendingProfileIntents() =>
+      store.deleteKeysWithPrefix('profile-mutation:$installationId:');
   Never _failure(ApiResponse response, String operation) {
     if (response.body != null) throw ApiError.fromJson(response.body!);
     throw ContractException('missing $operation response body');
@@ -1828,19 +1850,32 @@ class BasicApi {
   /// A profile intent keeps its key until a definitive server response.  This
   /// makes a timeout retry the same logical edit rather than create a second
   /// mutation.  The key is deliberately never exposed by this API.
-  Future<ProfileMutation> updateDisplayName(String displayName) async {
+  Future<ProfileMutation> updateDisplayName(
+    String displayName, {
+    required String personId,
+  }) async {
     final normalized = displayName.trim();
     if (normalized.isEmpty || normalized.length > 120) {
       throw const ContractException('invalid display name');
     }
-    const keyName = 'profile-mutation';
-    final storedIntent = await store.read('$keyName:$installationId');
+    final generation = session.generation;
+    final keyName = 'profile-mutation:$installationId';
+    final intentKey = '$keyName:$personId:$generation';
+    final retained = await store.read(intentKey);
+    await store.deleteKeysWithPrefix(keyName);
+    if (retained != null) await store.write(intentKey, retained);
+    final storedIntent = await store.read(intentKey);
     String key;
     if (storedIntent == null) {
       key = ids.next();
       await store.write(
-        '$keyName:$installationId',
-        jsonEncode({'key': key, 'display_name': normalized}),
+        intentKey,
+        jsonEncode({
+          'key': key,
+          'display_name': normalized,
+          'person_id': personId,
+          'generation': generation,
+        }),
       );
     } else {
       final intent = jsonDecode(storedIntent) as Map<String, dynamic>;
@@ -1860,7 +1895,7 @@ class BasicApi {
         _failure(response, 'profile mutation');
       }
       final result = ProfileMutation.fromJson(response.body!);
-      await store.delete('$keyName:$installationId');
+      if (session.generation == generation) await store.delete(intentKey);
       return result;
     } on AuthorizedRequestNetworkException {
       throw const ProfileMutationUncertainException();

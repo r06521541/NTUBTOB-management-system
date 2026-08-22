@@ -79,6 +79,12 @@ void main() {
       expect(call.$3['Authorization'], 'Bearer review-only-secret');
     }
     expect(transport.calls.last.$3, contains('Idempotency-Key'));
+    client.retire();
+    await expectLater(client.read(), throwsA(isA<ContractException>()));
+    await expectLater(
+      client.append('retired'),
+      throwsA(isA<ContractException>()),
+    );
   });
 
   test('profile mutation parses refreshed root person', () {
