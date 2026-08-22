@@ -369,3 +369,32 @@ class NotificationCenter extends StatelessWidget {
     );
   }
 }
+
+class NotificationDetailPage extends StatelessWidget {
+  const NotificationDetailPage({super.key, required this.notification});
+
+  final MobileNotification notification;
+
+  @override
+  Widget build(BuildContext context) {
+    final localCreatedAt = notification.createdAt.toLocal();
+    final localizations = MaterialLocalizations.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('通知內容')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text(notification.title,
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
+          Text(
+            '${localizations.formatFullDate(localCreatedAt)} '
+            '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localCreatedAt))}',
+          ),
+          const Divider(height: 32),
+          Text(notification.body),
+        ],
+      ),
+    );
+  }
+}
