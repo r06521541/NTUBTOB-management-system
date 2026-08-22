@@ -12,7 +12,7 @@ import 'package:ntubtob_portal/officer_prereview.dart';
 class QueueTransport implements ApiTransport {
   final List<ApiResponse> responses = [];
   final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
-  calls = [];
+      calls = [];
   Completer<void>? mutationGate;
   bool networkOnPut = false;
   @override
@@ -37,47 +37,48 @@ class QueueTransport implements ApiTransport {
 Map<String, dynamic> gameJson({
   int? durationMinutes = 60,
   String? location = '球場',
-}) => {
-  'id': 'g',
-  'start_at': '2026-08-18T12:00:00Z',
-  'duration_minutes': durationMinutes,
-  'location': location,
-  'home_team': 'Home',
-  'away_team': 'Away',
-};
+}) =>
+    {
+      'id': 'g',
+      'start_at': '2026-08-18T12:00:00Z',
+      'duration_minutes': durationMinutes,
+      'location': location,
+      'home_team': 'Home',
+      'away_team': 'Away',
+    };
 
 Map<String, dynamic> attendanceJson({String? ownReply = 'undecided'}) => {
-  'game_id': 'g',
-  'own_reply': ownReply,
-  'replied': [
-    {
-      'person_id': 'p2',
-      'display_name': '已回覆隊員',
-      'reply': 'attending',
-      'qualification': 'team_player',
-    },
-  ],
-};
+      'game_id': 'g',
+      'own_reply': ownReply,
+      'replied': [
+        {
+          'person_id': 'p2',
+          'display_name': '已回覆隊員',
+          'reply': 'attending',
+          'qualification': 'team_player',
+        },
+      ],
+    };
 
 Map<String, dynamic> errorJson(String code) => {
-  'error': {
-    'code': code,
-    'message': 'safe',
-    'request_id': 'request',
-    'retryable': false,
-    'retry_after_seconds': null,
-    'field_errors': [],
-  },
-};
+      'error': {
+        'code': code,
+        'message': 'safe',
+        'request_id': 'request',
+        'retryable': false,
+        'retry_after_seconds': null,
+        'field_errors': [],
+      },
+    };
 
 Map<String, dynamic> mutationJson() => {
-  'game_id': 'g',
-  'reply': 'attending',
-  'changed': true,
-  'updated_at': '2026-08-18T12:00:00Z',
-  'notification': {'status': 'not_required', 'code': null},
-  'idempotent_replay': false,
-};
+      'game_id': 'g',
+      'reply': 'attending',
+      'changed': true,
+      'updated_at': '2026-08-18T12:00:00Z',
+      'notification': {'status': 'not_required', 'code': null},
+      'idempotent_replay': false,
+    };
 
 Future<BasicApi> apiFor(QueueTransport transport, MemoryStore store) async {
   final session = SessionController(transport, store, 'install', SecureIds());
@@ -101,15 +102,13 @@ class LogoutLine implements LineLoginPort {
 }
 
 Future<
-  ({
-    SessionController session,
-    BasicCache basicCache,
-    NotificationCache notificationCache,
-    DurablePrincipalOfficerReportCache reportCache,
-    BasicApi api,
-  })
->
-aggregateComponents(
+    ({
+      SessionController session,
+      BasicCache basicCache,
+      NotificationCache notificationCache,
+      DurablePrincipalOfficerReportCache reportCache,
+      BasicApi api,
+    })> aggregateComponents(
   MemoryStore store, {
   String installationId = 'install',
   QueueTransport? transport,
@@ -351,9 +350,13 @@ void main() {
       MaterialApp(
         home: BasicGamesView(
           api: api,
-          person: const Person('hidden-id', '可見名稱', [
-            'hidden-capability',
-          ], accessLevel: AccessLevel.admin),
+          person: const Person(
+              'hidden-id',
+              '可見名稱',
+              [
+                'hidden-capability',
+              ],
+              accessLevel: AccessLevel.admin),
           games: const [],
           online: true,
           lastSyncedAt: DateTime.utc(2026, 8, 20, 1, 2),
@@ -520,9 +523,13 @@ void main() {
         '偵錯權限投影：一般使用者；報表讀取：停用；來源：fresh_server（伺服器最新驗證）',
       ),
       (
-        const Person('officer-id', 'Officer', [
-          'attendance:report:read',
-        ], accessLevel: AccessLevel.officer),
+        const Person(
+            'officer-id',
+            'Officer',
+            [
+              'attendance:report:read',
+            ],
+            accessLevel: AccessLevel.officer),
         '偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）',
       ),
     ];
@@ -556,9 +563,13 @@ void main() {
       MaterialApp(
         home: BasicGamesView(
           api: api,
-          person: const Person('cached-id', 'Cached Officer', [
-            'attendance:report:read',
-          ], accessLevel: AccessLevel.officer),
+          person: const Person(
+              'cached-id',
+              'Cached Officer',
+              [
+                'attendance:report:read',
+              ],
+              accessLevel: AccessLevel.officer),
           games: const [],
           online: false,
           lastSyncedAt: DateTime.utc(2026),
@@ -586,9 +597,13 @@ void main() {
       MaterialApp(
         home: BasicGamesView(
           api: api,
-          person: const Person('injected-id', 'Injected Officer', [
-            'attendance:report:read',
-          ], accessLevel: AccessLevel.officer),
+          person: const Person(
+              'injected-id',
+              'Injected Officer',
+              [
+                'attendance:report:read',
+              ],
+              accessLevel: AccessLevel.officer),
           games: const [],
           online: true,
           lastSyncedAt: DateTime.utc(2026),
@@ -618,10 +633,14 @@ void main() {
       MaterialApp(
         home: Material(
           child: DebugPrincipalProjection(
-            person: Person(sensitive[0], sensitive[1], [
-              sensitive[2],
-              sensitive[3],
-            ], accessLevel: AccessLevel.officer),
+            person: Person(
+                sensitive[0],
+                sensitive[1],
+                [
+                  sensitive[2],
+                  sensitive[3],
+                ],
+                accessLevel: AccessLevel.officer),
             provenance: PrincipalProvenance.offlineCache,
           ),
         ),
@@ -639,9 +658,13 @@ void main() {
     'release-mode hard gate hides projection without changing guard',
     (tester) async {
       final api = await apiFor(QueueTransport(), MemoryStore());
-      const person = Person('p', 'Officer', [
-        'attendance:report:read',
-      ], accessLevel: AccessLevel.officer);
+      const person = Person(
+          'p',
+          'Officer',
+          [
+            'attendance:report:read',
+          ],
+          accessLevel: AccessLevel.officer);
       await tester.pumpWidget(
         MaterialApp(
           home: BasicGamesView(
@@ -697,10 +720,14 @@ void main() {
         MaterialApp(
           home: BasicGamesView(
             api: api,
-            person: const Person('p', 'Officer', [
-              'games:read',
-              'attendance:report:read',
-            ], accessLevel: AccessLevel.officer),
+            person: const Person(
+                'p',
+                'Officer',
+                [
+                  'games:read',
+                  'attendance:report:read',
+                ],
+                accessLevel: AccessLevel.officer),
             games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
             online: true,
             lastSyncedAt: DateTime.utc(2026),
@@ -757,13 +784,17 @@ void main() {
       MaterialApp(
         home: BasicGamesView(
           api: api,
-          person: const Person('p', 'Officer', [
-            'games:read',
-            'attendance:reply:self',
-            'notifications:read',
-            'attendance:report:read',
-            'notifications:publish',
-          ], accessLevel: AccessLevel.officer),
+          person: const Person(
+              'p',
+              'Officer',
+              [
+                'games:read',
+                'attendance:reply:self',
+                'notifications:read',
+                'attendance:report:read',
+                'notifications:publish',
+              ],
+              accessLevel: AccessLevel.officer),
           games: const [],
           online: true,
           publishingClient: fake,
@@ -823,13 +854,17 @@ void main() {
       MaterialApp(
         home: BasicGamesView(
           api: api,
-          person: const Person('p', 'Officer', [
-            'games:read',
-            'attendance:reply:self',
-            'notifications:read',
-            'attendance:report:read',
-            'notifications:publish',
-          ], accessLevel: AccessLevel.officer),
+          person: const Person(
+              'p',
+              'Officer',
+              [
+                'games:read',
+                'attendance:reply:self',
+                'notifications:read',
+                'attendance:report:read',
+                'notifications:publish',
+              ],
+              accessLevel: AccessLevel.officer),
           games: const [],
           online: true,
           publishingClient: fake,
@@ -1912,9 +1947,13 @@ void main() {
     () async {
       final store = MemoryStore()..values['refresh:install'] = 'refresh';
       final components = await aggregateComponents(store);
-      const previous = Person('same', 'Officer', [
-        'attendance:report:read',
-      ], accessLevel: AccessLevel.officer);
+      const previous = Person(
+          'same',
+          'Officer',
+          [
+            'attendance:report:read',
+          ],
+          accessLevel: AccessLevel.officer);
       const current = Person('same', 'Basic', ['games:read']);
       await components.basicCache.save(current, const [], DateTime.utc(2026));
       await components.reportCache.write(

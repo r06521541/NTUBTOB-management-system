@@ -9,7 +9,7 @@ import 'package:ntubtob_portal/integration.dart';
 class ScriptedTransport implements ApiTransport {
   final List<ApiResponse> responses = [];
   final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
-  calls = [];
+      calls = [];
   Completer<void>? gate;
   @override
   Future<ApiResponse> send(
@@ -28,7 +28,7 @@ class NetworkScriptTransport implements ApiTransport {
   final List<Object> outcomes;
   NetworkScriptTransport(this.outcomes);
   final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
-  calls = [];
+      calls = [];
   @override
   Future<ApiResponse> send(
     String method,
@@ -91,11 +91,11 @@ class SequenceIds extends SecureIds {
   int index = 0;
   @override
   String next() => [
-    'expired-attempt',
-    'expired-nonce',
-    'fresh-attempt',
-    'fresh-nonce',
-  ][index++];
+        'expired-attempt',
+        'expired-nonce',
+        'fresh-attempt',
+        'fresh-nonce',
+      ][index++];
 }
 
 class FailingWriteStore extends MemoryStore {
@@ -149,40 +149,40 @@ class Concurrent401Transport implements ApiTransport {
 }
 
 Map<String, dynamic> apiError(String code, {bool retryable = false}) => {
-  'error': {
-    'code': code,
-    'message': 'safe message',
-    'request_id': 'request',
-    'retryable': retryable,
-    'retry_after_seconds': null,
-    'field_errors': [],
-  },
-};
+      'error': {
+        'code': code,
+        'message': 'safe message',
+        'request_id': 'request',
+        'retryable': retryable,
+        'retry_after_seconds': null,
+        'field_errors': [],
+      },
+    };
 
 Map<String, dynamic> gameJson(String id) => {
-  'id': id,
-  'start_at': '2026-08-18T12:00:00Z',
-  'duration_minutes': 60,
-  'location': null,
-  'home_team': 'Home',
-  'away_team': 'Away',
-};
+      'id': id,
+      'start_at': '2026-08-18T12:00:00Z',
+      'duration_minutes': 60,
+      'location': null,
+      'home_team': 'Home',
+      'away_team': 'Away',
+    };
 
 Map<String, dynamic> mutationJson(String reply) => {
-  'game_id': 'g',
-  'reply': reply,
-  'changed': true,
-  'updated_at': '2026-08-18T12:00:00Z',
-  'notification': {'status': 'not_required', 'code': null},
-  'idempotent_replay': false,
-};
+      'game_id': 'g',
+      'reply': reply,
+      'changed': true,
+      'updated_at': '2026-08-18T12:00:00Z',
+      'notification': {'status': 'not_required', 'code': null},
+      'idempotent_replay': false,
+    };
 
 SessionEnvelope session(String access, String refresh) => SessionEnvelope(
-  accessToken: access,
-  refreshToken: refresh,
-  sessionId: 'session',
-  expiresIn: 900,
-);
+      accessToken: access,
+      refreshToken: refresh,
+      sessionId: 'session',
+      expiresIn: 900,
+    );
 
 void main() {
   group('configuration', () {
@@ -1187,9 +1187,12 @@ void main() {
     final store = MemoryStore();
     final cache = BasicCache(store, 'install-a');
     final at = DateTime.utc(2026, 8, 18, 12);
-    await cache.save(const Person('p', 'Basic', ['games:read']), [
-      Game('g', at, 60, null, null, null),
-    ], at);
+    await cache.save(
+        const Person('p', 'Basic', ['games:read']),
+        [
+          Game('g', at, 60, null, null, null),
+        ],
+        at);
     final loaded = await cache.load();
     expect(loaded!.person.displayName, 'Basic');
     expect(loaded.games.single.id, 'g');
@@ -1274,25 +1277,23 @@ void main() {
       'type': 'game',
       'game_id': 'game_-9223372036854775808',
     }, notificationId);
-    final malformed =
-        [
-          {
-            'type': 'notification',
-            'notification_id': notificationId,
-            'extra': true,
-          },
-          {'type': 'game', 'game_id': 'game_01'},
-          {'type': 'game', 'game_id': 'game_-9223372036854775809'},
-          {'type': 'game', 'game_id': 'game_9223372036854775808'},
-          {
-            'type': 'game',
-            'game_id': 'game_1',
-            'url': 'https://example.invalid',
-          },
-        ].map(
-          (value) =>
-              NotificationDestination.parseOrFallback(value, notificationId),
-        );
+    final malformed = [
+      {
+        'type': 'notification',
+        'notification_id': notificationId,
+        'extra': true,
+      },
+      {'type': 'game', 'game_id': 'game_01'},
+      {'type': 'game', 'game_id': 'game_-9223372036854775809'},
+      {'type': 'game', 'game_id': 'game_9223372036854775808'},
+      {
+        'type': 'game',
+        'game_id': 'game_1',
+        'url': 'https://example.invalid',
+      },
+    ].map(
+      (value) => NotificationDestination.parseOrFallback(value, notificationId),
+    );
     expect(
       notification.safeRoute(notificationVisible: true),
       '/notifications/notification_41',
@@ -1379,13 +1380,17 @@ void main() {
       await sessions.accept(session('access', 'refresh'));
       final publisher = OfficerNotificationPublisher(
         sessions,
-        const Person('person_1', 'Officer', [
-          'games:read',
-          'attendance:reply:self',
-          'notifications:read',
-          'attendance:report:read',
-          'notifications:publish',
-        ], accessLevel: AccessLevel.officer),
+        const Person(
+            'person_1',
+            'Officer',
+            [
+              'games:read',
+              'attendance:reply:self',
+              'notifications:read',
+              'attendance:report:read',
+              'notifications:publish',
+            ],
+            accessLevel: AccessLevel.officer),
       );
       final draft = <String, dynamic>{
         'type': 'officer_team_broadcast',
