@@ -13,6 +13,17 @@ Give signed-in Flutter users one understandable place to learn how to contact
 the team administrator, how the app uses their data and notifications, and
 which app build they are viewing.
 
+## Writer claim
+
+- claim_id: `task-148-flutter-support-app-info-writer`
+- lease_version: 1
+- actor_id: `01a02907-0f8e-7fd3-a2a5-faad4beef47b`
+- role: `codex-writer`
+- write: true, limited to the task's Flutter implementation, affected tests and
+  `docs/coordination/reports/TASK-148-FLUTTER-CODEX.md`
+- report_to: `main-work`
+- implementation branch: `codex/task-148-support-app-info-writer`
+
 ## Scope
 
 - Add a `支援與 App 資訊` entry to the real account/home experience and use
