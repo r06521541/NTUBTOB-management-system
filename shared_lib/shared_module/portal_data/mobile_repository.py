@@ -22,13 +22,19 @@ from sqlalchemy.orm import Session
 from .identity_lifecycle import IdentityLifecycleRepository
 from .models import (
     AuthIdentityRecord,
+    LegacyGameRecord,
     MobileAuthExchangeRecord,
+    MobileDeviceRegistrationRecord,
     MobileIdempotencyRecord,
+    MobileNotificationDeliveryRecord,
+    MobileNotificationPublishAuditRecord,
     MobileNotificationRecipientRecord,
     MobileNotificationRecord,
     MobileRefreshAttemptRecord,
     MobileRefreshTokenRecord,
     MobileSessionRecord,
+    PersonQualificationRecord,
+    PersonRecord,
 )
 
 
@@ -259,6 +265,8 @@ class MobileRepository:
             "created_at": notification.created_at,
             "visible_until": notification.visible_until,
             "read_at": read_at,
+            "destination_type": notification.destination_type,
+            "destination_game_id": notification.destination_game_id,
             "_cursor_created_at": cursor_created_at,
         }
 
@@ -426,6 +434,261 @@ class MobileRepository:
             )
             return result.rowcount, int(unread or 0)
 
+    @staticmethod
+    def _active_team_recipient_ids(session: Session, now: datetime) -> tuple[int, ...]:
+        return tuple(
+            session.scalars(
+                select(PersonRecord.id)
+                .join(
+                    PersonQualificationRecord,
+                    PersonQualificationRecord.person_id == PersonRecord.id,
+                )
+                .where(
+                    PersonRecord.portal_status == "active",
+                    PersonQualificationRecord.qualification == "team_player",
+                    PersonQualificationRecord.status == "active",
+                    or_(
+                        PersonQualificationRecord.valid_from.is_(None),
+                        PersonQualificationRecord.valid_from <= now,
+                    ),
+                    or_(
+                        PersonQualificationRecord.valid_until.is_(None),
+                        PersonQualificationRecord.valid_until > now,
+                    ),
+                )
+                .order_by(PersonRecord.id)
+            )
+        )
+
+    @classmethod
+    def _expand_notification_recipients(
+        cls, session: Session, audience: dict, now: datetime
+    ) -> tuple[int, ...]:
+        if audience["type"] == "individual":
+            person_id = session.scalar(
+                select(PersonRecord.id).where(
+                    PersonRecord.id == audience["person_id"],
+                    PersonRecord.portal_status == "active",
+                )
+            )
+            return () if person_id is None else (person_id,)
+        if audience["type"] == "game" and session.get(
+            LegacyGameRecord, audience["game_id"]
+        ) is None:
+            return ()
+        return cls._active_team_recipient_ids(session, now)
+
+    def expand_notification_recipients(self, audience: dict, now: datetime) -> tuple[int, ...]:
+        with Session(self.engine) as session:
+            return self._expand_notification_recipients(session, audience, now)
+
+    def notification_game_exists(self, game_id: int) -> bool:
+        with Session(self.engine) as session:
+            return session.get(LegacyGameRecord, game_id) is not None
+
+    def commit_notification_publish(self, **values) -> dict:
+        route = "/api/v1/officer/notifications/confirm"
+        try:
+            with Session(self.engine) as session, session.begin():
+                existing = session.scalar(
+                    select(MobileIdempotencyRecord)
+                    .where(
+                        MobileIdempotencyRecord.session_id == values["session_id"],
+                        MobileIdempotencyRecord.method == "POST",
+                        MobileIdempotencyRecord.route == route,
+                        MobileIdempotencyRecord.key_hash == values["key_hash"],
+                    )
+                    .with_for_update()
+                )
+                if existing is not None:
+                    return self._published_replay(existing, values["request_hash"])
+
+                draft, now = values["draft"], values["now"]
+                current_recipients = self._expand_notification_recipients(
+                    session, draft["audience"], now
+                )
+                if current_recipients != values["recipient_ids"]:
+                    raise IdempotencyConflict("notification preview revision changed")
+                destination = draft["destination"]
+                notification = MobileNotificationRecord(
+                    notification_type=draft["type"],
+                    title=draft["title"],
+                    body=draft["body"],
+                    destination_type=destination["type"],
+                    destination_game_id=destination.get("game_id"),
+                    created_at=now,
+                    visible_until=now + timedelta(days=90),
+                )
+                session.add(notification)
+                session.flush()
+                session.add_all(
+                    MobileNotificationRecipientRecord(
+                        notification_id=notification.id,
+                        person_id=person_id,
+                        created_at=now,
+                    )
+                    for person_id in values["recipient_ids"]
+                )
+                audience = draft["audience"]
+                session.add(
+                    MobileNotificationPublishAuditRecord(
+                        notification_id=notification.id,
+                        actor_person_id=values["actor_person_id"],
+                        audience_type=audience["type"],
+                        audience_reference_id=audience.get("person_id", audience.get("game_id")),
+                        preview_revision=values["preview_revision"],
+                        recipient_count=len(values["recipient_ids"]),
+                        request_hash=values["request_hash"],
+                        created_at=now,
+                    )
+                )
+                deliveries = (
+                    {
+                        "channel": "in_app",
+                        "status": "succeeded",
+                        "retryable": False,
+                    },
+                    {"channel": "push", "status": "pending", "retryable": True},
+                )
+                session.add_all(
+                    MobileNotificationDeliveryRecord(
+                        notification_id=notification.id,
+                        channel=delivery["channel"],
+                        status=delivery["status"],
+                        attempt_count=0,
+                        retryable=delivery["retryable"],
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    for delivery in deliveries
+                )
+                response = {
+                    "notification_id": notification.id,
+                    "recipient_count": len(values["recipient_ids"]),
+                    "deliveries": list(deliveries),
+                    "idempotent_replay": False,
+                }
+                session.add(
+                    MobileIdempotencyRecord(
+                        session_id=values["session_id"],
+                        person_id=values["actor_person_id"],
+                        method="POST",
+                        route=route,
+                        key_hash=values["key_hash"],
+                        request_hash=values["request_hash"],
+                        state="completed",
+                        response_status=201,
+                        response_body=response,
+                        expires_at=now + timedelta(hours=24),
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                return response
+        except IntegrityError:
+            with Session(self.engine) as session:
+                existing = session.scalar(
+                    select(MobileIdempotencyRecord).where(
+                        MobileIdempotencyRecord.session_id == values["session_id"],
+                        MobileIdempotencyRecord.method == "POST",
+                        MobileIdempotencyRecord.route == route,
+                        MobileIdempotencyRecord.key_hash == values["key_hash"],
+                    )
+                )
+                if existing is None:
+                    raise
+                return self._published_replay(existing, values["request_hash"])
+
+    @staticmethod
+    def _published_replay(record, request_hash: str) -> dict:
+        if record.request_hash != request_hash or record.state != "completed":
+            raise IdempotencyConflict("idempotency key body mismatch")
+        return {**record.response_body, "idempotent_replay": True}
+
+    def register_fake_device(self, **values) -> dict:
+        with Session(self.engine) as session, session.begin():
+            registration = session.scalar(
+                select(MobileDeviceRegistrationRecord)
+                .where(
+                    MobileDeviceRegistrationRecord.person_id == values["person_id"],
+                    MobileDeviceRegistrationRecord.installation_id_hash
+                    == values["installation_id_hash"],
+                )
+                .with_for_update()
+            )
+            if registration is None:
+                registration = MobileDeviceRegistrationRecord(
+                    person_id=values["person_id"],
+                    session_id=values["session_id"],
+                    installation_id_hash=values["installation_id_hash"],
+                    platform=values["platform"],
+                    provider="fake",
+                    token_hash=values["token_hash"],
+                    status="active",
+                    created_at=values["now"],
+                    updated_at=values["now"],
+                )
+                session.add(registration)
+                session.flush()
+            else:
+                registration.session_id = values["session_id"]
+                registration.platform = values["platform"]
+                registration.token_hash = values["token_hash"]
+                registration.status = "active"
+                registration.revoked_at = None
+                registration.updated_at = values["now"]
+            return {"registration_id": registration.id, "status": registration.status}
+
+    def revoke_fake_device(self, **values) -> bool:
+        with Session(self.engine) as session, session.begin():
+            registration = session.scalar(
+                select(MobileDeviceRegistrationRecord)
+                .where(
+                    MobileDeviceRegistrationRecord.person_id == values["person_id"],
+                    MobileDeviceRegistrationRecord.installation_id_hash
+                    == values["installation_id_hash"],
+                )
+                .with_for_update()
+            )
+            if registration is None or registration.status == "revoked":
+                return False
+            registration.status = "revoked"
+            registration.revoked_at = values["now"]
+            registration.updated_at = values["now"]
+            return True
+
+    def attempt_rejecting_delivery(self, **values) -> dict:
+        with Session(self.engine) as session, session.begin():
+            delivery = session.scalar(
+                select(MobileNotificationDeliveryRecord)
+                .where(
+                    MobileNotificationDeliveryRecord.id == values["delivery_id"],
+                    MobileNotificationDeliveryRecord.channel == "push",
+                    MobileNotificationDeliveryRecord.retryable.is_(True),
+                )
+                .with_for_update()
+            )
+            if delivery is None:
+                raise Conflict("retryable push delivery is unavailable")
+            outcome = values["adapter"].deliver({"delivery_id": delivery.id})
+            if outcome != {
+                "status": "failed",
+                "error_code": "provider_not_configured",
+                "retryable": True,
+            }:
+                raise Conflict("rejecting provider returned an invalid result")
+            delivery.status = outcome["status"]
+            delivery.error_code = outcome["error_code"]
+            delivery.retryable = outcome["retryable"]
+            delivery.attempt_count += 1
+            delivery.updated_at = values["now"]
+            return {
+                "delivery_id": delivery.id,
+                "channel": delivery.channel,
+                **outcome,
+                "attempt_count": delivery.attempt_count,
+            }
+
     def idempotent(self, **values) -> tuple[int, dict, bool]:
         """Claim durably, serialize execution, and reconcile a saved mutation.
 
@@ -546,4 +809,12 @@ class MobileRepository:
                 MobileRefreshTokenRecord.status != "revoked",
             )
             .values(status="revoked", revoked_at=now)
+        )
+        session.execute(
+            update(MobileDeviceRegistrationRecord)
+            .where(
+                MobileDeviceRegistrationRecord.session_id == device.id,
+                MobileDeviceRegistrationRecord.status == "active",
+            )
+            .values(status="revoked", revoked_at=now, updated_at=now)
         )

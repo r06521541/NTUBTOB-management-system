@@ -15,6 +15,7 @@ from shared_module.mobile_api import (
     MobileApiError,
     MobileAuthService,
 )
+from shared_module.mobile_notifications import NotificationPublishingService
 from shared_module.models.db import engine
 from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
 from shared_module.portal_data.mobile_repository import MobileRepository
@@ -72,6 +73,9 @@ data = IdentityLifecycleRepository(engine)
 attendance = AttendanceReplyService(data, unavailable_notifier)
 app = create_app(
     Dependencies(
-        auth, BasicApiService(data, attendance, repository), revision_is_current
+        auth,
+        BasicApiService(data, attendance, repository),
+        NotificationPublishingService(repository),
+        revision_is_current,
     )
 )

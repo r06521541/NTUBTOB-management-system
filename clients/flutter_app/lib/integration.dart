@@ -213,6 +213,7 @@ class Person {
       'attendance:reply:self',
       'notifications:read',
       'attendance:report:read',
+      'notifications:publish',
     };
     if (caps.any((e) => e is! String || !allowed.contains(e))) {
       throw const ContractException('unknown capability');
@@ -228,6 +229,8 @@ class Person {
       accessLevel != AccessLevel.basic &&
       capabilities.contains('attendance:report:read');
   bool get canReadNotifications => capabilities.contains('notifications:read');
+  bool get canPublishNotifications =>
+      capabilities.contains('notifications:publish');
   Map<String, dynamic> toJson() => {
         'id': id,
         'display_name': displayName,
@@ -494,6 +497,59 @@ extension MobileNotificationTypeWire on MobileNotificationType {
       };
 }
 
+enum NotificationDestinationType { notificationList, notification, game }
+
+class NotificationDestination {
+  const NotificationDestination._(this.type, this.id);
+  const NotificationDestination.listFallback()
+      : this._(NotificationDestinationType.notificationList, null);
+  const NotificationDestination.notification(String id)
+      : this._(NotificationDestinationType.notification, id);
+  const NotificationDestination.game(String id)
+      : this._(NotificationDestinationType.game, id);
+
+  factory NotificationDestination.parseOrFallback(
+      Object? value, String notificationId) {
+    if (value is! Map<String, dynamic>) {
+      return const NotificationDestination.listFallback();
+    }
+    return switch (value['type']) {
+      'notification' when value['notification_id'] == notificationId =>
+        NotificationDestination.notification(notificationId),
+      'game'
+          when value['game_id'] is String &&
+              RegExp(r'^game_-?[1-9][0-9]*$')
+                  .hasMatch(value['game_id'] as String) =>
+        NotificationDestination.game(value['game_id'] as String),
+      _ => const NotificationDestination.listFallback(),
+    };
+  }
+
+  final NotificationDestinationType type;
+  final String? id;
+
+  String safeRoute({
+    required bool notificationVisible,
+    Set<String> authorizedGameIds = const {},
+  }) {
+    if (!notificationVisible) return '/notifications';
+    return switch (type) {
+      NotificationDestinationType.notification => '/notifications/$id',
+      NotificationDestinationType.game when authorizedGameIds.contains(id) =>
+        '/games/$id',
+      _ => '/notifications',
+    };
+  }
+
+  Map<String, dynamic> toJson() => switch (type) {
+        NotificationDestinationType.notification =>
+          {'type': 'notification', 'notification_id': id},
+        NotificationDestinationType.game => {'type': 'game', 'game_id': id},
+        NotificationDestinationType.notificationList =>
+          {'type': 'notification_list'},
+      };
+}
+
 class MobileNotification {
   const MobileNotification({
     required this.id,
@@ -503,6 +559,7 @@ class MobileNotification {
     required this.createdAt,
     required this.visibleUntil,
     required this.readAt,
+    this.destination = const NotificationDestination.listFallback(),
   });
 
   factory MobileNotification.fromJson(Map<String, dynamic> json) {
@@ -532,6 +589,8 @@ class MobileNotification {
       createdAt: createdAt,
       visibleUntil: visibleUntil,
       readAt: readAt,
+      destination:
+          NotificationDestination.parseOrFallback(json['destination'], id),
     );
   }
 
@@ -539,6 +598,7 @@ class MobileNotification {
   final MobileNotificationType type;
   final DateTime createdAt, visibleUntil;
   final DateTime? readAt;
+  final NotificationDestination destination;
   bool get isRead => readAt != null;
   bool visibleAt(DateTime now) =>
       !createdAt.isAfter(now.toUtc()) && visibleUntil.isAfter(now.toUtc());
@@ -551,6 +611,7 @@ class MobileNotification {
         createdAt: createdAt,
         visibleUntil: visibleUntil,
         readAt: readAt ?? value.toUtc(),
+        destination: destination,
       );
 
   Map<String, dynamic> toJson() => {
@@ -561,6 +622,7 @@ class MobileNotification {
         'created_at': createdAt.toUtc().toIso8601String(),
         'visible_until': visibleUntil.toUtc().toIso8601String(),
         'read_at': readAt?.toUtc().toIso8601String(),
+        'destination': destination.toJson(),
       };
 }
 
@@ -1351,6 +1413,90 @@ abstract interface class NotificationClient {
   Future<int> unreadCount();
   Future<NotificationReadResult> markRead(String id);
   Future<NotificationReadAllResult> markAllRead();
+}
+
+abstract interface class NotificationPublishingClient {
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft);
+  Future<Map<String, dynamic>> confirm(
+      Map<String, dynamic> draft, Map<String, dynamic> preview, String key);
+}
+
+class OfficerNotificationPublisher implements NotificationPublishingClient {
+  const OfficerNotificationPublisher(this.session, this.principal);
+  final SessionController session;
+  final Person principal;
+
+  void _requireCapability() {
+    if (!principal.canPublishNotifications) {
+      throw const ContractException('notification publishing capability required');
+    }
+  }
+
+  Never _failure(ApiResponse response) {
+    if (response.body != null) throw ApiError.fromJson(response.body!);
+    throw const ContractException('notification publishing response missing');
+  }
+
+  @override
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft) async {
+    _requireCapability();
+    final response = await session.authorized(
+        'POST', '/officer/notifications/preview', body: draft);
+    if (response.status != 200 || response.body == null) _failure(response);
+    final body = response.body!;
+    final count = _required<int>(body, 'recipient_count');
+    final revision = _required<String>(body, 'revision');
+    final confirmation = _required<String>(body, 'confirmation_text');
+    if (count < 1 || count > 500 ||
+        !RegExp(r'^[0-9a-f]{64}$').hasMatch(revision) ||
+        confirmation != 'PUBLISH $count') {
+      throw const ContractException('invalid notification preview');
+    }
+    return Map.unmodifiable(body);
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirm(
+      Map<String, dynamic> draft, Map<String, dynamic> preview, String key) async {
+    _requireCapability();
+    if (key.length < 16 || key.length > 200) {
+      throw const ContractException('invalid publishing idempotency key');
+    }
+    final response = await session.authorized(
+        'POST', '/officer/notifications/confirm',
+        headers: {'Idempotency-Key': key},
+        body: {
+          'draft': draft,
+          'preview_revision': _required<String>(preview, 'revision'),
+          'typed_confirmation': _required<String>(preview, 'confirmation_text'),
+        });
+    if (!{200, 201}.contains(response.status) || response.body == null) {
+      _failure(response);
+    }
+    return Map.unmodifiable(response.body!);
+  }
+
+  Future<Map<String, dynamic>> registerFakeDevice({
+    required String installationId,
+    required String platform,
+    required String fakeToken,
+  }) async {
+    final response = await session.authorized('PUT', '/devices/current', body: {
+      'installation_id': installationId,
+      'platform': platform,
+      'provider': 'fake',
+      'token': fakeToken,
+    });
+    if (response.status != 200 || response.body == null) _failure(response);
+    return Map.unmodifiable(response.body!);
+  }
+
+  Future<Map<String, dynamic>> revokeDevice(String installationId) async {
+    final response = await session.authorized('DELETE', '/devices/current',
+        body: {'installation_id': installationId});
+    if (response.status != 200 || response.body == null) _failure(response);
+    return Map.unmodifiable(response.body!);
+  }
 }
 
 class NotificationApi implements NotificationClient {

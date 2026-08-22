@@ -1029,4 +1029,87 @@ void main() {
       isNull,
     );
   });
+
+  test('notification destinations are typed and fail safely to the list', () {
+    const notificationId = 'notification_41';
+    final notification = NotificationDestination.parseOrFallback(
+        {'type': 'notification', 'notification_id': notificationId},
+        notificationId);
+    final game = NotificationDestination.parseOrFallback(
+        {'type': 'game', 'game_id': 'game_-112001'}, notificationId);
+    final unknown = NotificationDestination.parseOrFallback(
+        {'type': 'url', 'url': 'https://example.invalid/private'},
+        notificationId);
+    expect(notification.safeRoute(notificationVisible: true),
+        '/notifications/notification_41');
+    expect(
+        game.safeRoute(
+            notificationVisible: true,
+            authorizedGameIds: const {'game_-112001'}),
+        '/games/game_-112001');
+    expect(game.safeRoute(notificationVisible: true), '/notifications');
+    expect(unknown.safeRoute(notificationVisible: true), '/notifications');
+    expect(notification.safeRoute(notificationVisible: false), '/notifications');
+  });
+
+  test('basic publishing fails locally with zero recipient or transport access',
+      () async {
+    final transport = ScriptedTransport();
+    final sessions =
+        SessionController(transport, MemoryStore(), 'installation', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    final publisher = OfficerNotificationPublisher(
+        sessions,
+        const Person('person_1', 'Basic', [
+          'games:read',
+          'attendance:reply:self',
+          'notifications:read',
+        ]));
+    await expectLater(
+        publisher.preview(const {}), throwsA(isA<ContractException>()));
+    expect(transport.calls, isEmpty);
+  });
+
+  test('officer publishing carries exact revision confirmation and key',
+      () async {
+    final revision = List.filled(64, 'a').join();
+    final transport = ScriptedTransport()
+      ..responses.addAll([
+        ApiResponse(200, {
+          'recipient_count': 2,
+          'revision': revision,
+          'confirmation_text': 'PUBLISH 2',
+        }),
+        ApiResponse(201, {
+          'notification_id': 'notification_81',
+          'recipient_count': 2,
+          'deliveries': const [],
+          'idempotent_replay': false,
+        }),
+      ]);
+    final sessions =
+        SessionController(transport, MemoryStore(), 'installation', SecureIds());
+    await sessions.accept(session('access', 'refresh'));
+    final publisher = OfficerNotificationPublisher(
+        sessions,
+        const Person('person_1', 'Officer', [
+          'games:read',
+          'attendance:reply:self',
+          'notifications:read',
+          'attendance:report:read',
+          'notifications:publish',
+        ], accessLevel: AccessLevel.officer));
+    final draft = <String, dynamic>{
+      'type': 'officer_team_broadcast',
+      'title': '集合提醒',
+      'body': '請準時抵達。',
+      'audience': {'type': 'team'},
+      'destination': {'type': 'notification'},
+    };
+    final preview = await publisher.preview(draft);
+    await publisher.confirm(draft, preview, 'publish-command-0001');
+    expect(transport.calls[1].$3['Idempotency-Key'], 'publish-command-0001');
+    expect(transport.calls[1].$4!['preview_revision'], revision);
+    expect(transport.calls[1].$4!['typed_confirmation'], 'PUBLISH 2');
+  });
 }

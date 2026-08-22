@@ -579,6 +579,11 @@ class MobileNotificationRecord(PortalDataBase):
             "visible_until = created_at + interval '90 days'",
             name="ck_mobile_notification_visibility",
         ),
+        CheckConstraint(
+            "(destination_type = 'notification' AND destination_game_id IS NULL) OR "
+            "(destination_type = 'game' AND destination_game_id IS NOT NULL)",
+            name="ck_mobile_notification_destination",
+        ),
         {"schema": SCHEMA},
     )
 
@@ -586,6 +591,10 @@ class MobileNotificationRecord(PortalDataBase):
     notification_type: Mapped[str] = mapped_column(String(40), nullable=False)
     title: Mapped[str] = mapped_column(String(120), nullable=False)
     body: Mapped[str] = mapped_column(String(500), nullable=False)
+    destination_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    destination_game_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )
@@ -599,6 +608,112 @@ Index(
     MobileNotificationRecord.created_at.desc(),
     MobileNotificationRecord.id.desc(),
 )
+
+
+class MobileNotificationPublishAuditRecord(PortalDataBase):
+    __tablename__ = "mobile_notification_publish_audits"
+    __table_args__ = (
+        UniqueConstraint("notification_id", name="uq_mobile_notification_publish_audit"),
+        CheckConstraint(
+            "audience_type IN ('individual', 'game', 'team')",
+            name="ck_mobile_notification_audit_audience",
+        ),
+        CheckConstraint(
+            "recipient_count BETWEEN 1 AND 500",
+            name="ck_mobile_notification_audit_recipient_count",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    notification_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.mobile_notifications.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    actor_person_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"), nullable=False
+    )
+    audience_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    audience_reference_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    preview_revision: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    recipient_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class MobileNotificationDeliveryRecord(PortalDataBase):
+    __tablename__ = "mobile_notification_deliveries"
+    __table_args__ = (
+        UniqueConstraint(
+            "notification_id", "channel", name="uq_mobile_notification_delivery"
+        ),
+        CheckConstraint(
+            "channel IN ('in_app', 'push')", name="ck_mobile_notification_delivery_channel"
+        ),
+        CheckConstraint(
+            "status IN ('pending', 'succeeded', 'failed')",
+            name="ck_mobile_notification_delivery_status",
+        ),
+        CheckConstraint("attempt_count >= 0", name="ck_mobile_notification_attempt_count"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    notification_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.mobile_notifications.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    channel: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    error_code: Mapped[Optional[str]] = mapped_column(String(80))
+    retryable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+Index(
+    "ix_mobile_notification_delivery_outbox",
+    MobileNotificationDeliveryRecord.status,
+    MobileNotificationDeliveryRecord.channel,
+    MobileNotificationDeliveryRecord.id,
+    postgresql_where=text("status IN ('pending', 'failed') AND retryable IS TRUE"),
+)
+
+
+class MobileDeviceRegistrationRecord(PortalDataBase):
+    __tablename__ = "mobile_device_registrations"
+    __table_args__ = (
+        UniqueConstraint(
+            "person_id", "installation_id_hash", name="uq_mobile_device_installation"
+        ),
+        CheckConstraint("platform IN ('ios', 'android')", name="ck_mobile_device_platform"),
+        CheckConstraint("provider = 'fake'", name="ck_mobile_device_provider"),
+        CheckConstraint(
+            "status IN ('active', 'revoked')", name="ck_mobile_device_status"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    person_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"), nullable=False
+    )
+    session_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey(f"{SCHEMA}.mobile_sessions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    installation_id_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    platform: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider: Mapped[str] = mapped_column(String(20), nullable=False)
+    token_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
 class MobileNotificationRecipientRecord(PortalDataBase):

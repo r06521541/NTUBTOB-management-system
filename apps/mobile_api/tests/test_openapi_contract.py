@@ -28,6 +28,9 @@ class OpenApiContractTest(unittest.TestCase):
                 "/notifications/{notification_id}",
                 "/notifications/{notification_id}/read",
                 "/notifications/read-all",
+                "/officer/notifications/preview",
+                "/officer/notifications/confirm",
+                "/devices/current",
             },
         )
 
@@ -146,6 +149,7 @@ class OpenApiContractTest(unittest.TestCase):
             "enum"
         ]
         self.assertIn("notifications:read", person_capabilities)
+        self.assertIn("notifications:publish", person_capabilities)
         encoded = json.dumps(
             {
                 key: self.contract["paths"][key]
@@ -162,6 +166,35 @@ class OpenApiContractTest(unittest.TestCase):
             "unread",
         ):
             self.assertIn(required.lower(), encoded.lower())
+
+    def test_publishing_device_and_deep_link_contracts_are_inert_and_typed(self):
+        schemas = self.contract["components"]["schemas"]
+        self.assertEqual(
+            schemas["DeviceRegistrationRequest"]["properties"]["provider"]["const"],
+            "fake",
+        )
+        publishing = json.dumps(
+            {
+                key: self.contract["paths"][key]
+                for key in (
+                    "/officer/notifications/preview",
+                    "/officer/notifications/confirm",
+                    "/devices/current",
+                )
+            },
+            sort_keys=True,
+        ).lower()
+        for required in (
+            "notifications:publish",
+            "preview is not authorization",
+            "one transaction",
+            "no real provider",
+            "fake provider token",
+        ):
+            self.assertIn(required, publishing)
+        destination = json.dumps(schemas["NotificationDestination"], sort_keys=True)
+        self.assertNotIn("url", destination.lower())
+        self.assertIn("safely fall back", destination.lower())
 
 
 if __name__ == "__main__":

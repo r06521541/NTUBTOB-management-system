@@ -546,6 +546,7 @@ class BasicGamesView extends StatefulWidget {
     required this.lastSyncedAt,
     this.principalProvenance,
     this.reportCache,
+    this.publishingClient,
     this.onRefresh,
     this.diagnosticEnabled = true,
   });
@@ -556,6 +557,7 @@ class BasicGamesView extends StatefulWidget {
   final DateTime lastSyncedAt;
   final PrincipalProvenance? principalProvenance;
   final PrincipalOfficerReportCache? reportCache;
+  final NotificationPublishingClient? publishingClient;
   final Future<bool> Function()? onRefresh;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
@@ -727,6 +729,22 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 ),
               )),
             )),
+          if (widget.online && widget.person.canPublishNotifications)
+            AppSurfaceCard(
+                child: ListTile(
+              key: const ValueKey('notification-publishing-entry'),
+              leading: const Icon(Icons.campaign_outlined),
+              title: const Text('發布隊務通知'),
+              subtitle: const Text('先預覽收件人，再輸入確認文字發布'),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => OfficerNotificationPublishingPage(
+                  client: widget.publishingClient ??
+                      OfficerNotificationPublisher(
+                          widget.api.session, widget.person),
+                  games: widget.games,
+                ),
+              )),
+            )),
           if (orderedGames.isEmpty)
             Semantics(
                 key: const ValueKey('games-empty'),
@@ -761,6 +779,211 @@ class _BasicGamesViewState extends State<BasicGamesView> {
         onRefresh: _refresh,
         child: scrollableGamesView);
   }
+}
+
+enum PublishingAudience { individual, game, team }
+
+class OfficerNotificationPublishingPage extends StatefulWidget {
+  const OfficerNotificationPublishingPage(
+      {super.key, required this.client, required this.games});
+  final NotificationPublishingClient client;
+  final List<Game> games;
+  @override
+  State<OfficerNotificationPublishingPage> createState() =>
+      _OfficerNotificationPublishingPageState();
+}
+
+class _OfficerNotificationPublishingPageState
+    extends State<OfficerNotificationPublishingPage> {
+  final _title = TextEditingController();
+  final _body = TextEditingController();
+  final _personId = TextEditingController();
+  final _confirmation = TextEditingController();
+  PublishingAudience audience = PublishingAudience.team;
+  String? gameId;
+  Map<String, dynamic>? preview;
+  Map<String, dynamic>? draft;
+  String? outcome;
+  bool busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.games.isNotEmpty) gameId = widget.games.first.id;
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _body.dispose();
+    _personId.dispose();
+    _confirmation.dispose();
+    super.dispose();
+  }
+
+  Map<String, dynamic> _draft() {
+    final audienceValue = switch (audience) {
+      PublishingAudience.individual =>
+        {'type': 'individual', 'person_id': _personId.text.trim()},
+      PublishingAudience.game => {'type': 'game', 'game_id': gameId},
+      PublishingAudience.team => {'type': 'team'},
+    };
+    return {
+      'type': switch (audience) {
+        PublishingAudience.individual => 'officer_personal',
+        PublishingAudience.game => 'officer_game_broadcast',
+        PublishingAudience.team => 'officer_team_broadcast',
+      },
+      'title': _title.text.trim(),
+      'body': _body.text.trim(),
+      'audience': audienceValue,
+      'destination': audience == PublishingAudience.game
+          ? {'type': 'game', 'game_id': gameId}
+          : {'type': 'notification'},
+    };
+  }
+
+  Future<void> _preview() async {
+    if (busy) return;
+    setState(() {
+      busy = true;
+      preview = null;
+      outcome = null;
+    });
+    try {
+      final nextDraft = _draft();
+      final nextPreview = await widget.client.preview(nextDraft);
+      if (!mounted) return;
+      setState(() {
+        draft = nextDraft;
+        preview = nextPreview;
+        _confirmation.clear();
+      });
+    } on Object {
+      if (mounted) setState(() => outcome = '預覽失敗，未發布任何通知');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> _confirm() async {
+    final currentPreview = preview;
+    final currentDraft = draft;
+    if (busy || currentPreview == null || currentDraft == null) return;
+    if (_confirmation.text != currentPreview['confirmation_text']) return;
+    setState(() => busy = true);
+    try {
+      await widget.client.confirm(currentDraft, currentPreview,
+          'publish-${currentPreview['revision']}');
+      if (!mounted) return;
+      setState(() {
+        preview = null;
+        draft = null;
+        outcome = '通知已保存；外部推播結果不影響 App 內通知紀錄';
+      });
+    } on Object {
+      if (mounted) setState(() => outcome = '發布失敗；請重新預覽收件人');
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('發布隊務通知')),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          children: [
+            DropdownButtonFormField<PublishingAudience>(
+              key: const ValueKey('publishing-audience'),
+              initialValue: audience,
+              decoration: const InputDecoration(labelText: '收件範圍'),
+              items: const [
+                DropdownMenuItem(
+                    value: PublishingAudience.individual, child: Text('個人')),
+                DropdownMenuItem(
+                    value: PublishingAudience.game, child: Text('賽事成員')),
+                DropdownMenuItem(
+                    value: PublishingAudience.team, child: Text('全隊')),
+              ],
+              onChanged: busy
+                  ? null
+                  : (value) => setState(() {
+                        audience = value ?? PublishingAudience.team;
+                        preview = null;
+                      }),
+            ),
+            if (audience == PublishingAudience.individual)
+              TextField(
+                key: const ValueKey('publishing-person-id'),
+                controller: _personId,
+                decoration: const InputDecoration(labelText: 'Person ID'),
+              ),
+            if (audience == PublishingAudience.game)
+              DropdownButtonFormField<String>(
+                key: const ValueKey('publishing-game-id'),
+                initialValue: gameId,
+                decoration: const InputDecoration(labelText: '賽事'),
+                items: [
+                  for (final game in widget.games)
+                    DropdownMenuItem(value: game.id, child: Text(game.id)),
+                ],
+                onChanged: busy
+                    ? null
+                    : (value) => setState(() {
+                          gameId = value;
+                          preview = null;
+                        }),
+              ),
+            TextField(
+              key: const ValueKey('publishing-title'),
+              controller: _title,
+              maxLength: 120,
+              decoration: const InputDecoration(labelText: '標題'),
+            ),
+            TextField(
+              key: const ValueKey('publishing-body'),
+              controller: _body,
+              maxLength: 500,
+              maxLines: 5,
+              decoration: const InputDecoration(labelText: '純文字內容'),
+            ),
+            FilledButton(
+              key: const ValueKey('publishing-preview'),
+              onPressed: busy ? null : _preview,
+              child: const Text('預覽收件人'),
+            ),
+            if (preview != null) ...[
+              Semantics(
+                key: const ValueKey('publishing-preview-result'),
+                liveRegion: true,
+                label: '預覽收件人 ${preview!['recipient_count']} 人',
+                child: Text('預覽收件人：${preview!['recipient_count']} 人'),
+              ),
+              TextField(
+                key: const ValueKey('publishing-confirmation'),
+                controller: _confirmation,
+                onChanged: (_) => setState(() {}),
+                decoration: InputDecoration(
+                    labelText: '請輸入 ${preview!['confirmation_text']}'),
+              ),
+              FilledButton.tonal(
+                key: const ValueKey('publishing-confirm'),
+                onPressed: !busy &&
+                        _confirmation.text == preview!['confirmation_text']
+                    ? _confirm
+                    : null,
+                child: const Text('確認發布'),
+              ),
+            ],
+            if (outcome != null)
+              Semantics(
+                  key: const ValueKey('publishing-outcome'),
+                  liveRegion: true,
+                  child: Text(outcome!)),
+          ],
+        ),
+      );
 }
 
 String _formatGameMetadata(MaterialLocalizations localizations, Game game) {

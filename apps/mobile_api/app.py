@@ -22,6 +22,7 @@ from shared_module.mobile_api import (
 class Dependencies:
     auth: MobileAuthService
     basic: BasicApiService
+    publishing: object
     revision_check: Callable[[], bool]
 
 
@@ -251,6 +252,47 @@ def create_app(dependencies: Dependencies) -> Flask:
         return jsonify(
             dependencies.basic.mark_notification_read(
                 principal, notification_id(notification_key)
+            )
+        )
+
+    @app.post("/api/v1/officer/notifications/preview")
+    def preview_notification():
+        draft = json_body({"type", "title", "body", "audience", "destination"})
+        return jsonify(dependencies.publishing.preview(authenticate(), draft))
+
+    @app.post("/api/v1/officer/notifications/confirm")
+    def confirm_notification():
+        body = json_body(
+            {"draft", "preview_revision", "typed_confirmation"}
+        )
+        key = request.headers.get("Idempotency-Key", "")
+        result = dependencies.publishing.confirm(
+            authenticate(),
+            body.get("draft"),
+            preview_revision=body.get("preview_revision"),
+            typed_confirmation=body.get("typed_confirmation"),
+            idempotency_key=key,
+        )
+        return jsonify(result), 200 if result["idempotent_replay"] else 201
+
+    @app.put("/api/v1/devices/current")
+    def register_device():
+        body = json_body({"installation_id", "platform", "provider", "token"})
+        result = dependencies.publishing.register_device(
+            authenticate(),
+            installation_id=body.get("installation_id"),
+            platform=body.get("platform"),
+            provider=body.get("provider"),
+            token=body.get("token"),
+        )
+        return jsonify(result)
+
+    @app.delete("/api/v1/devices/current")
+    def revoke_device():
+        body = json_body({"installation_id"})
+        return jsonify(
+            dependencies.publishing.revoke_device(
+                authenticate(), installation_id=body.get("installation_id")
             )
         )
 

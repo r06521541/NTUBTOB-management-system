@@ -102,7 +102,10 @@ BASIC_CAPABILITIES = (
     "attendance:reply:self",
     "notifications:read",
 )
-OFFICER_READ_CAPABILITIES = ("attendance:report:read",)
+OFFICER_READ_CAPABILITIES = (
+    "attendance:report:read",
+    "notifications:publish",
+)
 MAX_POSTGRESQL_BIGINT = 9_223_372_036_854_775_807
 NOTIFICATION_RETENTION = timedelta(days=90)
 
@@ -407,6 +410,17 @@ class BasicApiService:
             "created_at": utc(row["created_at"]),
             "visible_until": utc(row["visible_until"]),
             "read_at": utc(row["read_at"]),
+            "destination": (
+                {
+                    "type": "notification",
+                    "notification_id": f"notification_{notification_id}",
+                }
+                if row.get("destination_type", "notification") == "notification"
+                else {
+                    "type": "game",
+                    "game_id": f"game_{row['destination_game_id']}",
+                }
+            ),
         }
 
     @staticmethod

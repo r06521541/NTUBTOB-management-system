@@ -4,12 +4,8 @@ import socket
 
 from sqlalchemy import text
 
-EXPECTED_REVISION = "0005_mobile_auth_api_foundation"
-ACCEPTED_REVISIONS = (
-    EXPECTED_REVISION,
-    "0006_staging_broker_operation_journal",
-    "0007_mobile_notifications",
-)
+EXPECTED_REVISION = "0008_mobile_notification_delivery"
+ACCEPTED_REVISIONS = (EXPECTED_REVISION,)
 
 
 def _safe_error_category(error: Exception) -> tuple[str, str]:

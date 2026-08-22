@@ -4,7 +4,8 @@
     "games:read",
     "attendance:reply:self",
     "notifications:read",
-    "attendance:report:read"
+    "attendance:report:read",
+    "notifications:publish"
   ],
   "display_name": "Officer",
   "id": "person_23"

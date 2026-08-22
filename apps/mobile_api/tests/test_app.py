@@ -80,9 +80,30 @@ class MobileApiRouteTest(unittest.TestCase):
                 return_value={"changed_count": 2, "unread_count": 0}
             ),
         )
+        self.publishing = SimpleNamespace(
+            preview=Mock(
+                return_value={
+                    "recipient_count": 2,
+                    "revision": "a" * 64,
+                    "confirmation_text": "PUBLISH 2",
+                }
+            ),
+            confirm=Mock(
+                return_value={
+                    "notification_id": "notification_81",
+                    "recipient_count": 2,
+                    "deliveries": [],
+                    "idempotent_replay": False,
+                }
+            ),
+            register_device=Mock(
+                return_value={"registration_id": "device_5", "status": "active"}
+            ),
+            revoke_device=Mock(return_value={"status": "revoked", "changed": True}),
+        )
         self.revision = Mock(return_value=True)
         self.client = create_app(
-            Dependencies(self.auth, self.basic, self.revision)
+            Dependencies(self.auth, self.basic, self.publishing, self.revision)
         ).test_client()
 
     def test_revision_mismatch_fails_before_auth_or_data_read(self):
@@ -284,6 +305,66 @@ class MobileApiRouteTest(unittest.TestCase):
         self.basic.notifications_page.assert_not_called()
         self.basic.notification.assert_not_called()
         self.basic.mark_all_notifications_read.assert_not_called()
+
+    def test_officer_preview_confirm_and_fake_device_routes_are_typed(self):
+        self.principal = MobilePrincipal("session", 23, 7, "officer", "Officer", 1)
+        self.auth.authenticate.return_value = self.principal
+        headers = {"Authorization": "Bearer token"}
+        draft = {
+            "type": "officer_team_broadcast",
+            "title": "集合提醒",
+            "body": "請準時抵達。",
+            "audience": {"type": "team"},
+            "destination": {"type": "notification"},
+        }
+        preview = self.client.post(
+            "/api/v1/officer/notifications/preview", headers=headers, json=draft
+        )
+        confirm = self.client.post(
+            "/api/v1/officer/notifications/confirm",
+            headers={**headers, "Idempotency-Key": "publish-command-0001"},
+            json={
+                "draft": draft,
+                "preview_revision": "a" * 64,
+                "typed_confirmation": "PUBLISH 2",
+            },
+        )
+        registered = self.client.put(
+            "/api/v1/devices/current",
+            headers=headers,
+            json={
+                "installation_id": "fictional-installation-001",
+                "platform": "android",
+                "provider": "fake",
+                "token": "fake-device-token-obvious-test-only-0001",
+            },
+        )
+        revoked = self.client.delete(
+            "/api/v1/devices/current",
+            headers=headers,
+            json={"installation_id": "fictional-installation-001"},
+        )
+        self.assertEqual(preview.status_code, 200)
+        self.assertEqual(confirm.status_code, 201)
+        self.assertEqual(registered.get_json()["status"], "active")
+        self.assertTrue(revoked.get_json()["changed"])
+        self.publishing.preview.assert_called_once_with(self.principal, draft)
+        self.publishing.confirm.assert_called_once_with(
+            self.principal,
+            draft,
+            preview_revision="a" * 64,
+            typed_confirmation="PUBLISH 2",
+            idempotency_key="publish-command-0001",
+        )
+
+    def test_publish_transport_rejects_unknown_fields_before_service(self):
+        response = self.client.post(
+            "/api/v1/officer/notifications/preview",
+            headers={"Authorization": "Bearer token"},
+            json={"title": "x", "unexpected": "private"},
+        )
+        self.assertEqual(response.status_code, 422)
+        self.publishing.preview.assert_not_called()
 
 
 if __name__ == "__main__":

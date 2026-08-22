@@ -142,6 +142,36 @@ class ObservationFailingMemoryStore extends MemoryStore {
   }
 }
 
+class FakePublishingClient implements NotificationPublishingClient {
+  final List<Map<String, dynamic>> previews = [];
+  final List<Map<String, dynamic>> confirms = [];
+  @override
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft) async {
+    previews.add(draft);
+    return {
+      'draft': draft,
+      'recipient_count': 2,
+      'revision': List.filled(64, 'a').join(),
+      'confirmation_text': 'PUBLISH 2',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirm(Map<String, dynamic> draft,
+      Map<String, dynamic> preview, String key) async {
+    confirms.add({'draft': draft, 'preview': preview, 'key': key});
+    return {
+      'notification_id': 'notification_81',
+      'recipient_count': 2,
+      'deliveries': const [
+        {'channel': 'in_app', 'status': 'succeeded', 'retryable': false},
+        {'channel': 'push', 'status': 'pending', 'retryable': true},
+      ],
+      'idempotent_replay': false,
+    };
+  }
+}
+
 void main() {
   test('app theme reserves the global primary for team navy', () {
     expect(appBrandNavy, const Color(0xff102a43));
@@ -558,6 +588,68 @@ void main() {
     expect(find.text('出席報表'), findsOneWidget);
     expect(find.text('唯讀出席報表'), findsOneWidget);
     expect(find.text('送出回覆'), findsNothing);
+  });
+
+  testWidgets('Basic has no publishing route or recipient preview',
+      (tester) async {
+    final fake = FakePublishingClient();
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Basic', [
+              'games:read',
+              'attendance:reply:self',
+              'notifications:read',
+            ]),
+            games: const [],
+            online: true,
+            publishingClient: fake,
+            lastSyncedAt: DateTime.utc(2026))));
+    expect(find.byKey(const ValueKey('notification-publishing-entry')),
+        findsNothing);
+    expect(fake.previews, isEmpty);
+  });
+
+  testWidgets('authorized Officer previews typed count then confirms',
+      (tester) async {
+    final fake = FakePublishingClient();
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+        home: BasicGamesView(
+            api: api,
+            person: const Person('p', 'Officer', [
+              'games:read',
+              'attendance:reply:self',
+              'notifications:read',
+              'attendance:report:read',
+              'notifications:publish',
+            ], accessLevel: AccessLevel.officer),
+            games: const [],
+            online: true,
+            publishingClient: fake,
+            lastSyncedAt: DateTime.utc(2026))));
+    final entry = find.byKey(const ValueKey('notification-publishing-entry'));
+    await tester.scrollUntilVisible(entry, 100);
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-title')), '集合提醒');
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-body')), '請準時抵達。');
+    await tester.tap(find.byKey(const ValueKey('publishing-preview')));
+    await tester.pumpAndSettle();
+    expect(find.text('預覽收件人：2 人'), findsOneWidget);
+    expect(fake.previews.single['audience'], {'type': 'team'});
+    await tester.enterText(
+        find.byKey(const ValueKey('publishing-confirmation')), 'PUBLISH 2');
+    await tester.pump();
+    final confirm = find.byKey(const ValueKey('publishing-confirm'));
+    await tester.ensureVisible(confirm);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(fake.confirms, hasLength(1));
+    expect(find.text('通知已保存；外部推播結果不影響 App 內通知紀錄'), findsOneWidget);
   });
 
   testWidgets('offline Basic list disables detail and attendance reply',

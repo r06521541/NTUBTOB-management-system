@@ -14,6 +14,8 @@ from alembic import command
 from alembic.config import Config
 from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
+from shared_module.mobile_api import MobilePrincipal
+from shared_module.mobile_notifications import NotificationPublishingService
 from sqlalchemy import create_engine, text
 
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
@@ -63,14 +65,48 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                     {"now": NOW},
                 )
             )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.person_qualifications "
+                    "(person_id, qualification, status, created_at, updated_at) "
+                    "VALUES (:first, 'team_player', 'active', :now, :now), "
+                    "(:second, 'team_player', 'active', :now, :now)"
+                ),
+                {"first": self.people[0], "second": self.people[1], "now": NOW},
+            )
+            identity_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('line', 'fictional-publisher', :person, 'linked', :now, :now) "
+                    "RETURNING id"
+                ),
+                {"person": self.people[0], "now": NOW},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.mobile_sessions "
+                    "(id, auth_identity_id, person_id, installation_id_hash, platform, "
+                    "status, access_epoch, refresh_family_expires_at, created_at, updated_at) "
+                    "VALUES ('publishing-session', :identity, :person, :installation, "
+                    "'android', 'active', 1, :expires, :now, :now)"
+                ),
+                {
+                    "identity": identity_id,
+                    "person": self.people[0],
+                    "installation": "1" * 64,
+                    "expires": NOW + timedelta(days=30),
+                    "now": NOW,
+                },
+            )
             self.notification_ids = []
             for offset in (1, 2, 91):
                 created = NOW - timedelta(days=offset)
                 notification_id = connection.scalar(
                     text(
                         "INSERT INTO ntubtob.mobile_notifications "
-                        "(notification_type, title, body, created_at, visible_until) "
-                        "VALUES ('game_reminder', :title, :body, :created, :visible_until) RETURNING id"
+                        "(notification_type, title, body, destination_type, created_at, visible_until) "
+                        "VALUES ('game_reminder', :title, :body, 'notification', :created, :visible_until) RETURNING id"
                     ),
                     {
                         "title": f"Reminder {offset}",
@@ -107,13 +143,19 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
         self.repository = MobileRepository(self.engine)
 
     def test_migration_models_constraints_and_rls_are_exact(self):
-        expected = {"mobile_notifications", "mobile_notification_recipients"}
+        expected = {
+            "mobile_notifications",
+            "mobile_notification_recipients",
+            "mobile_notification_publish_audits",
+            "mobile_notification_deliveries",
+            "mobile_device_registrations",
+        }
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0007_mobile_notifications",
+                "0008_mobile_notification_delivery",
             )
             rls = set(
                 connection.scalars(
@@ -156,8 +198,8 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                         connection.execute(
                             text(
                                 "INSERT INTO ntubtob.mobile_notifications "
-                                "(notification_type, title, body, created_at, visible_until) "
-                                "VALUES (:notification_type, 'title', 'body', :now, :until)"
+                                "(notification_type, title, body, destination_type, created_at, visible_until) "
+                                "VALUES (:notification_type, 'title', 'body', 'notification', :now, :until)"
                             ),
                             {
                                 "notification_type": notification_type,
@@ -205,6 +247,75 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
         self.assertEqual(
             self.repository.notification_unread_count(self.people[0], NOW), 0
         )
+
+    def test_publish_is_atomic_idempotent_audited_and_provider_independent(self):
+        service = NotificationPublishingService(self.repository, clock=lambda: NOW)
+        principal = MobilePrincipal(
+            "publishing-session", self.people[0], 1, "officer", "Officer", 1
+        )
+        draft = {
+            "type": "officer_team_broadcast",
+            "title": "集合提醒",
+            "body": "請準時抵達。",
+            "audience": {"type": "team"},
+            "destination": {"type": "notification"},
+        }
+        preview = service.preview(principal, draft)
+        first = service.confirm(
+            principal,
+            draft,
+            preview_revision=preview["revision"],
+            typed_confirmation=preview["confirmation_text"],
+            idempotency_key="publishing-command-0001",
+        )
+        replay = service.confirm(
+            principal,
+            draft,
+            preview_revision=preview["revision"],
+            typed_confirmation=preview["confirmation_text"],
+            idempotency_key="publishing-command-0001",
+        )
+        self.assertFalse(first["idempotent_replay"])
+        self.assertTrue(replay["idempotent_replay"])
+        self.assertEqual(first["notification_id"], replay["notification_id"])
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT count(*) FROM ntubtob.mobile_notification_publish_audits")
+                ),
+                1,
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.mobile_notification_deliveries "
+                        "WHERE status='pending' AND channel='push'"
+                    )
+                ),
+                1,
+            )
+            delivery_id = connection.scalar(
+                text(
+                    "SELECT id FROM ntubtob.mobile_notification_deliveries "
+                    "WHERE channel='push'"
+                )
+            )
+        failure = service.reject_delivery(delivery_id)
+        self.assertEqual(failure["error_code"], "provider_not_configured")
+        self.assertTrue(failure["retryable"])
+        self.assertIsNotNone(
+            self.repository.notification_detail(
+                self.people[1], int(first["notification_id"].split("_")[1]), NOW
+            )
+        )
+        with self.assertRaises(Exception):
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE ntubtob.mobile_notification_publish_audits "
+                        "SET recipient_count=1"
+                    )
+                )
 
 
 if __name__ == "__main__":
