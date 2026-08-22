@@ -102,14 +102,16 @@ durable in-app history.
 
 #### Final CI correction lanes
 
-- claim_id: `task-145-flutter-format-correction`; lease_version: 1;
+- claim_id: `task-145-flutter-format-correction`; lease_version: 2;
   actor_id: `01a02843-0e92-7093-9af7-c5a9211ee5e9`; role: `codex-writer`;
   write: true; report_to: `main-work`; owned paths: the four Flutter files
   named by hosted formatter output only.
-- claim_id: `task-145-migration-verifier-correction`; lease_version: 1;
+- claim_id: `task-145-migration-verifier-correction`; lease_version: 2;
   actor_id: `01a02843-1047-7fa0-953d-6456ddbc105b`; role: `codex-writer`;
-  write: true; report_to: `main-work`; owned paths: Phase-C migration verifier,
-  its direct tests and existing checksummed artifact metadata only if required.
+  write: true; report_to: `main-work`; owned paths: migration readiness verifier,
+  `tests/portal_data/test_migration_readiness.py`,
+  `tests/portal_data/test_mobile_api_foundation.py`, and
+  `tests/portal_data/test_staging_broker_journal.py`; no migration or SQL changes.
 
 ## Frozen product contract
 
