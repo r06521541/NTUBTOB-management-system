@@ -607,6 +607,10 @@ void main() {
         ),
       ),
     );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('game-g')),
+      100,
+    );
     expect(find.byKey(const ValueKey('game-g')), findsOneWidget);
     expect(find.text('管理'), findsNothing);
     expect(find.text('系統公告'), findsNothing);
@@ -1221,6 +1225,10 @@ void main() {
           .onPressed,
       isNull,
     );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('game-g')),
+      100,
+    );
     await tester.tap(find.byKey(const ValueKey('game-g')));
     await tester.pump();
     expect(find.text('賽事與出席'), findsNothing);
@@ -1230,6 +1238,8 @@ void main() {
   testWidgets('games are copy-safely chronological with readable details', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 5000);
+    addTearDown(tester.view.resetPhysicalSize);
     final api = await apiFor(QueueTransport(), MemoryStore());
     final games = [
       Game('late', DateTime.utc(2026, 8, 20, 12), 90, '晚場球館', 'H', 'A'),
@@ -1642,6 +1652,10 @@ void main() {
           lastSyncedAt: DateTime.utc(2026),
         ),
       ),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('game-g')),
+      100,
     );
     final listMetadata = tester
         .widget<Text>(
