@@ -38,8 +38,7 @@ def upgrade() -> None:
         length(btrim(body)) BETWEEN 1 AND 500
       ),
       CONSTRAINT ck_mobile_notification_visibility CHECK (
-        visible_until > created_at
-        AND visible_until <= created_at + interval '90 days'
+        visible_until = created_at + interval '90 days'
       )
     );
     CREATE INDEX ix_mobile_notifications_created

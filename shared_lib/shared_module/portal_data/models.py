@@ -576,8 +576,7 @@ class MobileNotificationRecord(PortalDataBase):
             name="ck_mobile_notification_body",
         ),
         CheckConstraint(
-            "visible_until > created_at AND "
-            "visible_until <= created_at + interval '90 days'",
+            "visible_until = created_at + interval '90 days'",
             name="ck_mobile_notification_visibility",
         ),
         {"schema": SCHEMA},

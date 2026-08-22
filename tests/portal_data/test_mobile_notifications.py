@@ -24,6 +24,20 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 NOW = datetime(2026, 8, 22, 12, tzinfo=timezone.utc)
 
 
+class MobileNotificationModelContractTest(unittest.TestCase):
+    def test_model_requires_exact_fixed_retention(self):
+        table = PortalDataBase.metadata.tables["ntubtob.mobile_notifications"]
+        constraints = {
+            constraint.name: str(constraint.sqltext)
+            for constraint in table.constraints
+            if hasattr(constraint, "sqltext")
+        }
+        self.assertEqual(
+            constraints["ck_mobile_notification_visibility"],
+            "visible_until = created_at + interval '90 days'",
+        )
+
+
 @unittest.skipUnless(DATABASE_URL, "portal-data PostgreSQL URL is required")
 class MobileNotificationIntegrationTest(unittest.TestCase):
     @classmethod
@@ -50,7 +64,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                 )
             )
             self.notification_ids = []
-            for offset, visible in ((1, True), (2, True), (91, False)):
+            for offset in (1, 2, 91):
                 created = NOW - timedelta(days=offset)
                 notification_id = connection.scalar(
                     text(
@@ -62,11 +76,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                         "title": f"Reminder {offset}",
                         "body": f"Body {offset}",
                         "created": created,
-                        "visible_until": (
-                            NOW + timedelta(days=1)
-                            if visible
-                            else created + timedelta(days=90)
-                        ),
+                        "visible_until": created + timedelta(days=90),
                     },
                 )
                 self.notification_ids.append(notification_id)
@@ -136,16 +146,25 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                 for table in expected
             },
         )
-        with self.assertRaises(Exception):
-            with self.engine.begin() as connection:
-                connection.execute(
-                    text(
-                        "INSERT INTO ntubtob.mobile_notifications "
-                        "(notification_type, title, body, created_at, visible_until) "
-                        "VALUES ('unknown', 'title', 'body', :now, :until)"
-                    ),
-                    {"now": NOW, "until": NOW + timedelta(days=1)},
-                )
+        for notification_type, visible_until in (
+            ("unknown", NOW + timedelta(days=90)),
+            ("game_reminder", NOW + timedelta(days=90) - timedelta(seconds=1)),
+        ):
+            with self.subTest(notification_type=notification_type):
+                with self.assertRaises(Exception):
+                    with self.engine.begin() as connection:
+                        connection.execute(
+                            text(
+                                "INSERT INTO ntubtob.mobile_notifications "
+                                "(notification_type, title, body, created_at, visible_until) "
+                                "VALUES (:notification_type, 'title', 'body', :now, :until)"
+                            ),
+                            {
+                                "notification_type": notification_type,
+                                "now": NOW,
+                                "until": visible_until,
+                            },
+                        )
 
     def test_visibility_recipient_scope_keyset_and_atomic_idempotent_reads(self):
         first = self.repository.notification_page(self.people[0], NOW, None, 1, False)

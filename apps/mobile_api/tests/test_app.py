@@ -264,6 +264,14 @@ class MobileApiRouteTest(unittest.TestCase):
             self.client.get(
                 "/api/v1/notifications/not-a-notification", headers=headers
             ),
+            self.client.get(
+                "/api/v1/notifications/notification_9223372036854775808",
+                headers=headers,
+            ),
+            self.client.get(
+                "/api/v1/notifications/notification_1111111111111111111111111111111111111111",
+                headers=headers,
+            ),
             self.client.put(
                 "/api/v1/notifications/read-all",
                 headers=headers,
@@ -274,6 +282,7 @@ class MobileApiRouteTest(unittest.TestCase):
             all(response.status_code in {400, 422} for response in responses)
         )
         self.basic.notifications_page.assert_not_called()
+        self.basic.notification.assert_not_called()
         self.basic.mark_all_notifications_read.assert_not_called()
 
 

@@ -157,16 +157,19 @@ class CacheSessionAggregateProducer {
 Future<CacheSessionAggregate?> completeTerminalLogout({
   required SessionController session,
   required BasicCache basicCache,
+  required NotificationCache notificationCache,
   required DurablePrincipalOfficerReportCache reportCache,
   required BasicApi api,
   required LineLoginPort line,
 }) async {
   if (!CacheSessionAggregateProducer.matches(
-    session: session,
-    basicCache: basicCache,
-    reportCache: reportCache,
-    api: api,
-  )) {
+        session: session,
+        basicCache: basicCache,
+        reportCache: reportCache,
+        api: api,
+      ) ||
+      !identical(session.store, notificationCache.store) ||
+      session.installationId != notificationCache.installationId) {
     return null;
   }
   CacheSessionAggregate? aggregate;
@@ -175,6 +178,7 @@ Future<CacheSessionAggregate?> completeTerminalLogout({
       line,
       purgeLocal: () async {
         await basicCache.clear();
+        await notificationCache.clear();
         await reportCache.clearInstallation();
         await api.clearPendingAttendanceIntents();
         aggregate = await CacheSessionAggregateProducer.observe(
@@ -216,6 +220,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   BasicCache? _cache;
+  NotificationCache? _notificationCache;
   DurablePrincipalOfficerReportCache? _reportCache;
   Person? person;
   List<Game> games = const [];
@@ -236,13 +241,20 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     try {
       final installationId = await _installationId();
       final transport = HttpApiTransport(widget.config.apiBaseUrl!, _http);
-      final session =
-          SessionController(transport, _store, installationId, _ids);
+      final notificationCache = NotificationCache(_store, installationId);
+      final session = SessionController(
+        transport,
+        _store,
+        installationId,
+        _ids,
+        terminalPurge: notificationCache.clear,
+      );
       final line = NativeLineLogin(widget.config.lineChannelId!);
       _session = session;
       _line = line;
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
+      _notificationCache = notificationCache;
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       _login!.addListener(_onLoginStateChanged);
@@ -254,6 +266,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         final aggregate = await completeTerminalLogout(
           session: session,
           basicCache: _cache!,
+          notificationCache: notificationCache,
           reportCache: _reportCache!,
           api: _api!,
           line: line,
@@ -349,6 +362,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         previous: previous?.person,
         current: loadedPerson,
       );
+      await _notificationCache!.reconcileFreshPrincipal(
+        previous?.person,
+        loadedPerson,
+      );
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       final aggregate = await _observeCacheSessionAggregate();
       if (!mounted) return false;
@@ -372,6 +389,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     final classified = classifyFailure(error, hasCache: cached != null);
     if (classified == AuthViewState.sessionExpired && cached != null) {
       await _reportCache?.clearPrincipal(cached.person.id);
+    }
+    if (classified == AuthViewState.sessionExpired) {
+      await _notificationCache?.clear();
     }
     final aggregate = await _observeCacheSessionAggregate();
     if (!mounted) return;
@@ -404,6 +424,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     final aggregate = await completeTerminalLogout(
       session: _session!,
       basicCache: _cache!,
+      notificationCache: _notificationCache!,
       reportCache: _reportCache!,
       api: _api!,
       line: _line!,

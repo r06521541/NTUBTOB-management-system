@@ -12,22 +12,31 @@ final now = DateTime.utc(2026, 8, 22, 12);
 Map<String, dynamic> notificationJson({
   String id = 'notification_3',
   String? readAt,
+  String createdAt = '2026-08-22T11:00:00Z',
+  String visibleUntil = '2026-11-20T11:00:00Z',
 }) =>
     {
       'id': id,
       'type': 'game_change',
       'title': '場地異動',
       'body': '比賽改到第二球場。',
-      'created_at': '2026-08-22T11:00:00Z',
-      'visible_until': '2026-11-20T11:00:00Z',
+      'created_at': createdAt,
+      'visible_until': visibleUntil,
       'read_at': readAt,
     };
 
 MobileNotification makeNotification({
   String id = 'notification_3',
   String? readAt,
+  String createdAt = '2026-08-22T11:00:00Z',
+  String visibleUntil = '2026-11-20T11:00:00Z',
 }) =>
-    MobileNotification.fromJson(notificationJson(id: id, readAt: readAt));
+    MobileNotification.fromJson(notificationJson(
+      id: id,
+      readAt: readAt,
+      createdAt: createdAt,
+      visibleUntil: visibleUntil,
+    ));
 
 class FakeNotificationClient implements NotificationClient {
   List<MobileNotification> values = [makeNotification()];
@@ -93,7 +102,7 @@ class ScriptedTransport implements ApiTransport {
 }
 
 void main() {
-  test('notification wire model is strict and bounded to 90 days', () {
+  test('notification wire model requires exactly 90 days', () {
     expect(makeNotification().type, MobileNotificationType.gameChange);
     expect(
       () => MobileNotification.fromJson({
@@ -109,6 +118,51 @@ void main() {
       }),
       throwsA(isA<ContractException>()),
     );
+    expect(
+      () => MobileNotification.fromJson({
+        ...notificationJson(),
+        'visible_until': '2026-11-20T10:59:59Z',
+      }),
+      throwsA(isA<ContractException>()),
+    );
+    for (final id in [
+      'notification_9223372036854775808',
+      'notification_1111111111111111111111111111111111111111',
+    ]) {
+      expect(
+        () => MobileNotification.fromJson({...notificationJson(), 'id': id}),
+        throwsA(isA<ContractException>()),
+      );
+    }
+  });
+
+  test('offline unread count is recomputed from still-visible cached rows',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    final expiring = makeNotification(
+      id: 'notification_2',
+      createdAt: '2026-05-24T11:00:00Z',
+      visibleUntil: '2026-08-22T11:00:00Z',
+    );
+    final retained = makeNotification(
+      createdAt: '2026-05-25T11:00:00Z',
+      visibleUntil: '2026-08-23T11:00:00Z',
+    );
+    await cache.save(
+      principal,
+      [retained, expiring],
+      DateTime.utc(2026, 8, 22, 10),
+      unreadCount: 2,
+    );
+
+    final loaded = await cache.loadFor(
+      principal,
+      now,
+      sessionPresent: true,
+    );
+    expect(loaded!.items.map((item) => item.id), ['notification_3']);
+    expect(loaded.unreadCount, 1);
   });
 
   test(
@@ -145,6 +199,17 @@ void main() {
       expect(store.values, isEmpty);
     },
   );
+
+  test('fresh person change purges the prior notification partition', () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    await cache.save(principal, [makeNotification()], now);
+
+    const next = Person('person_99', 'Other', ['notifications:read']);
+    await cache.reconcileFreshPrincipal(principal, next);
+
+    expect(store.values, isEmpty);
+  });
 
   test(
     'offline centre is read-only and makes zero notification calls',
@@ -212,6 +277,39 @@ void main() {
       expect(store.values, isEmpty);
     },
   );
+
+  test('terminal authorized 401 purges notification cache and session',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    await cache.save(principal, [makeNotification()], now);
+    final transport = ScriptedTransport()
+      ..responses.addAll([
+        const ApiResponse(401, null),
+        const ApiResponse(401, null),
+      ]);
+    final sessions = SessionController(
+      transport,
+      store,
+      'install',
+      SecureIds(),
+      terminalPurge: cache.clear,
+    );
+    await sessions.accept(
+      const SessionEnvelope(
+        accessToken: 'access',
+        refreshToken: 'refresh-token-with-more-than-32-characters',
+        sessionId: 'session',
+        expiresIn: 900,
+      ),
+    );
+
+    await expectLater(
+      sessions.authorized('GET', '/me'),
+      throwsA(isA<SessionExpiredException>()),
+    );
+    expect(store.values, isEmpty);
+  });
 
   test(
     'transport paginates deterministically and sends empty idempotent puts',

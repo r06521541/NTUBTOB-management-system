@@ -1,3 +1,5 @@
+import base64
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -21,7 +23,7 @@ class FakeNotificationRepository:
                 "title": "場地異動",
                 "body": "比賽改到第二球場。",
                 "created_at": NOW - timedelta(minutes=1),
-                "visible_until": NOW + timedelta(days=89),
+                "visible_until": NOW - timedelta(minutes=1) + timedelta(days=90),
                 "read_at": None,
             },
             {
@@ -30,7 +32,7 @@ class FakeNotificationRepository:
                 "title": "比賽提醒",
                 "body": "明天上午集合。",
                 "created_at": NOW - timedelta(minutes=2),
-                "visible_until": NOW + timedelta(days=89),
+                "visible_until": NOW - timedelta(minutes=2) + timedelta(days=90),
                 "read_at": NOW - timedelta(seconds=30),
             },
             {
@@ -39,7 +41,7 @@ class FakeNotificationRepository:
                 "title": "請回覆出席",
                 "body": "請在今晚前回覆。",
                 "created_at": NOW - timedelta(minutes=3),
-                "visible_until": NOW + timedelta(days=89),
+                "visible_until": NOW - timedelta(minutes=3) + timedelta(days=90),
                 "read_at": None,
             },
         ]
@@ -109,7 +111,20 @@ class NotificationApiServiceTest(unittest.TestCase):
         )
 
     def test_cursor_and_bounds_fail_before_repository_read(self):
-        for cursor, limit in (("not-a-cursor", 20), (None, 0), (None, 101)):
+        oversized_id_cursor = base64.urlsafe_b64encode(
+            json.dumps(
+                {
+                    "created_at": NOW.isoformat(),
+                    "notification_id": 9_223_372_036_854_775_808,
+                }
+            ).encode("utf-8")
+        ).decode("ascii")
+        for cursor, limit in (
+            ("not-a-cursor", 20),
+            (oversized_id_cursor, 20),
+            (None, 0),
+            (None, 101),
+        ):
             with self.subTest(cursor=cursor, limit=limit):
                 with self.assertRaises(InvalidArgument):
                     self.service.notifications_page(PRINCIPAL, cursor, limit, False)
@@ -143,6 +158,28 @@ class NotificationApiServiceTest(unittest.TestCase):
             self.service.notification(PRINCIPAL, 999)
         with self.assertRaises(NotFound):
             self.service.mark_notification_read(PRINCIPAL, 999)
+
+    def test_early_expiry_is_rejected_by_service_dto(self):
+        self.repository.rows[0]["visible_until"] -= timedelta(seconds=1)
+        with self.assertRaisesRegex(
+            InvalidArgument, "stored notification visibility is malformed"
+        ):
+            self.service.notification(PRINCIPAL, 3)
+
+    def test_notification_ids_are_bounded_before_repository(self):
+        for operation in (
+            self.service.notification,
+            self.service.mark_notification_read,
+        ):
+            for notification_id in (0, 9_223_372_036_854_775_808):
+                with self.subTest(
+                    operation=operation.__name__, notification_id=notification_id
+                ):
+                    with self.assertRaisesRegex(
+                        InvalidArgument, "notification_id is malformed"
+                    ):
+                        operation(PRINCIPAL, notification_id)
+        self.assertEqual(self.repository.calls, [])
 
 
 if __name__ == "__main__":

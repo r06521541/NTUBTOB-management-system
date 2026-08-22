@@ -11,6 +11,7 @@ from shared_module.mobile_api import (
     BasicApiService,
     InvalidArgument,
     MalformedRequest,
+    MAX_POSTGRESQL_BIGINT,
     MobileApiError,
     MobileAuthService,
     mobile_capabilities,
@@ -128,13 +129,18 @@ def create_app(dependencies: Dependencies) -> Flask:
         return parsed
 
     def notification_id(value):
+        if not isinstance(value, str) or not 14 <= len(value) <= 32:
+            raise MalformedRequest("notification_id is malformed")
         if not value.startswith("notification_"):
             raise MalformedRequest("notification_id is malformed")
+        suffix = value[13:]
+        if not suffix.isascii() or not suffix.isdigit() or suffix.startswith("0"):
+            raise MalformedRequest("notification_id is malformed")
         try:
-            parsed = int(value[13:])
+            parsed = int(suffix)
         except ValueError:
             raise MalformedRequest("notification_id is malformed") from None
-        if parsed <= 0:
+        if parsed > MAX_POSTGRESQL_BIGINT:
             raise MalformedRequest("notification_id is malformed")
         return parsed
 

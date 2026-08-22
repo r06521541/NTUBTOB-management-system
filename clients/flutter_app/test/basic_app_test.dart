@@ -99,6 +99,7 @@ Future<
     ({
       SessionController session,
       BasicCache basicCache,
+      NotificationCache notificationCache,
       DurablePrincipalOfficerReportCache reportCache,
       BasicApi api,
     })> aggregateComponents(
@@ -107,11 +108,18 @@ Future<
   QueueTransport? transport,
 }) async {
   final actualTransport = transport ?? QueueTransport();
-  final session =
-      SessionController(actualTransport, store, installationId, SecureIds());
+  final notificationCache = NotificationCache(store, installationId);
+  final session = SessionController(
+    actualTransport,
+    store,
+    installationId,
+    SecureIds(),
+    terminalPurge: notificationCache.clear,
+  );
   return (
     session: session,
     basicCache: BasicCache(store, installationId),
+    notificationCache: notificationCache,
     reportCache: DurablePrincipalOfficerReportCache(store, installationId),
     api: BasicApi(session, store, installationId, SecureIds()),
   );
@@ -1487,6 +1495,11 @@ void main() {
     );
     store.values['mutation:install:first-game'] = 'intent';
     store.values['mutation:install:second-game'] = 'intent';
+    await components.notificationCache.save(
+      const Person('person', 'Basic', ['notifications:read']),
+      const [],
+      DateTime.utc(2026),
+    );
     store.values['refresh:other'] = 'keep';
     store.values['refresh-attempt:other'] = 'keep';
     store.values['logout-pending:other'] = 'keep';
@@ -1494,6 +1507,8 @@ void main() {
     store.values['cache:v1:other:other-person'] = 'keep';
     store.values['officer-report-cache:v1:other:other-person'] = 'keep';
     store.values['mutation:other:game'] = 'keep';
+    store.values['notification-cache-index:v1:other'] = 'other-person';
+    store.values['notification-cache:v1:other:other-person'] = 'keep';
 
     expect(
       await CacheSessionAggregateProducer.observe(
@@ -1508,6 +1523,7 @@ void main() {
     final aggregate = await completeTerminalLogout(
       session: components.session,
       basicCache: components.basicCache,
+      notificationCache: components.notificationCache,
       reportCache: components.reportCache,
       api: components.api,
       line: LogoutLine(),
@@ -1524,7 +1540,7 @@ void main() {
     expect(store.values['installation:v1'], 'install');
     expect(
       store.values.keys.where((key) => key.contains(':other')),
-      hasLength(7),
+      hasLength(9),
     );
   });
 
@@ -1545,6 +1561,7 @@ void main() {
     final aggregate = await completeTerminalLogout(
       session: components.session,
       basicCache: components.basicCache,
+      notificationCache: components.notificationCache,
       reportCache: components.reportCache,
       api: components.api,
       line: LogoutLine(),

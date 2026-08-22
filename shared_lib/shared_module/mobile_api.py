@@ -103,6 +103,8 @@ BASIC_CAPABILITIES = (
     "notifications:read",
 )
 OFFICER_READ_CAPABILITIES = ("attendance:report:read",)
+MAX_POSTGRESQL_BIGINT = 9_223_372_036_854_775_807
+NOTIFICATION_RETENTION = timedelta(days=90)
 
 
 def mobile_capabilities(principal: MobilePrincipal) -> tuple[str, ...]:
@@ -358,6 +360,7 @@ class BasicApiService:
                 created_at.tzinfo is None
                 or type(notification_id) is not int
                 or notification_id <= 0
+                or notification_id > MAX_POSTGRESQL_BIGINT
             ):
                 raise ValueError
             return created_at.astimezone(timezone.utc), notification_id
@@ -393,8 +396,11 @@ class BasicApiService:
                 else value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
             )
 
+        notification_id = BasicApiService._notification_id(row["id"])
+        if row["visible_until"] != row["created_at"] + NOTIFICATION_RETENTION:
+            raise InvalidArgument("stored notification visibility is malformed")
         return {
-            "id": f"notification_{row['id']}",
+            "id": f"notification_{notification_id}",
             "type": row["type"],
             "title": row["title"],
             "body": row["body"],
@@ -402,6 +408,12 @@ class BasicApiService:
             "visible_until": utc(row["visible_until"]),
             "read_at": utc(row["read_at"]),
         }
+
+    @staticmethod
+    def _notification_id(value: int) -> int:
+        if type(value) is not int or not 1 <= value <= MAX_POSTGRESQL_BIGINT:
+            raise InvalidArgument("notification_id is malformed")
+        return value
 
     def notifications_page(
         self,
@@ -432,6 +444,7 @@ class BasicApiService:
         }
 
     def notification(self, principal: MobilePrincipal, notification_id: int) -> dict:
+        notification_id = self._notification_id(notification_id)
         row = self.auth.notification_detail(
             principal.person_id, notification_id, self.clock()
         )
@@ -445,6 +458,7 @@ class BasicApiService:
     def mark_notification_read(
         self, principal: MobilePrincipal, notification_id: int
     ) -> dict:
+        notification_id = self._notification_id(notification_id)
         result = self.auth.mark_notification_read(
             principal.person_id, notification_id, self.clock()
         )

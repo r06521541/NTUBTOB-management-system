@@ -453,6 +453,18 @@ enum MobileNotificationType {
   adminSystemAnnouncement
 }
 
+const notificationRetention = Duration(days: 90);
+final _maximumNotificationId = BigInt.parse('9223372036854775807');
+
+bool _validNotificationId(String value) {
+  if (value.length > 32 ||
+      !RegExp(r'^notification_[1-9][0-9]*$').hasMatch(value)) {
+    return false;
+  }
+  final parsed = BigInt.tryParse(value.substring(13));
+  return parsed != null && parsed <= _maximumNotificationId;
+}
+
 extension MobileNotificationTypeWire on MobileNotificationType {
   String get wire => switch (this) {
         MobileNotificationType.gameReminder => 'game_reminder',
@@ -503,13 +515,12 @@ class MobileNotification {
     final readAt = rawReadAt == null
         ? null
         : _utcDate({'read_at': rawReadAt}, 'read_at');
-    if (!RegExp(r'^notification_[1-9][0-9]*$').hasMatch(id) ||
+    if (!_validNotificationId(id) ||
         title.trim().isEmpty ||
         title.length > 120 ||
         body.trim().isEmpty ||
         body.length > 500 ||
-        !visibleUntil.isAfter(createdAt) ||
-        visibleUntil.difference(createdAt) > const Duration(days: 90) ||
+        visibleUntil != createdAt.add(notificationRetention) ||
         (readAt != null && readAt.isBefore(createdAt))) {
       throw const ContractException('invalid notification');
     }
@@ -569,12 +580,17 @@ class NotificationPage {
 
 class NotificationReadResult {
   const NotificationReadResult(this.notificationId, this.readAt, this.changed);
-  factory NotificationReadResult.fromJson(Map<String, dynamic> json) =>
-      NotificationReadResult(
-        _required(json, 'notification_id'),
-        _utcDate(json, 'read_at'),
-        _required(json, 'changed'),
-      );
+  factory NotificationReadResult.fromJson(Map<String, dynamic> json) {
+    final notificationId = _required<String>(json, 'notification_id');
+    if (!_validNotificationId(notificationId)) {
+      throw const ContractException('invalid notification read id');
+    }
+    return NotificationReadResult(
+      notificationId,
+      _utcDate(json, 'read_at'),
+      _required(json, 'changed'),
+    );
+  }
   final String notificationId;
   final DateTime readAt;
   final bool changed;
@@ -680,13 +696,17 @@ class NotificationCache {
       if (items.map((item) => item.id).toSet().length != items.length) {
         throw const ContractException('duplicate cached notification');
       }
-      final unreadCount = value['unread_count'];
-      if (unreadCount is! int ||
-          unreadCount < items.where((item) => !item.isRead).length) {
+      final storedUnreadCount = value['unread_count'];
+      final visibleUnreadCount = items.where((item) => !item.isRead).length;
+      if (storedUnreadCount is! int || storedUnreadCount < visibleUnreadCount) {
         throw const ContractException('invalid cached unread count');
       }
       return CachedNotificationData(
-          principal.id, items, unreadCount, _utcDate(value, 'last_synced_at'));
+        principal.id,
+        items,
+        visibleUnreadCount,
+        _utcDate(value, 'last_synced_at'),
+      );
     } on Object {
       await clear();
       return null;
@@ -696,6 +716,15 @@ class NotificationCache {
   Future<void> clear() async {
     await store.deleteKeysWithPrefix(_prefix);
     await store.delete(_indexKey);
+  }
+
+  Future<void> reconcileFreshPrincipal(Person? previous, Person current) async {
+    final indexedPerson = await store.read(_indexKey);
+    if (!current.canReadNotifications ||
+        previous != null && previous.id != current.id ||
+        indexedPerson != null && indexedPerson != current.id) {
+      await clear();
+    }
   }
 }
 

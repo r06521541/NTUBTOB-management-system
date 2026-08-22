@@ -131,6 +131,17 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(
             schemas["Notification"]["properties"]["body"]["maxLength"], 500
         )
+        notification_id = self.contract["components"]["parameters"]["NotificationId"][
+            "schema"
+        ]
+        self.assertEqual(notification_id["maxLength"], 32)
+        self.assertEqual(schemas["Notification"]["properties"]["id"]["maxLength"], 32)
+        self.assertIn(
+            "exactly created_at plus 90 days",
+            schemas["Notification"]["properties"]["visible_until"][
+                "description"
+            ].lower(),
+        )
         person_capabilities = schemas["Person"]["properties"]["capabilities"]["items"][
             "enum"
         ]

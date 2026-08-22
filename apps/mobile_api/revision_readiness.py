@@ -8,6 +8,7 @@ EXPECTED_REVISION = "0005_mobile_auth_api_foundation"
 ACCEPTED_REVISIONS = (
     EXPECTED_REVISION,
     "0006_staging_broker_operation_journal",
+    "0007_mobile_notifications",
 )
 
 
