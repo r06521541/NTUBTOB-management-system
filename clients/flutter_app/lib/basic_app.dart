@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
 import 'integration.dart';
+import 'notification_center.dart';
 import 'officer_prereview.dart';
 
 String? nativePlatformName(TargetPlatform platform) => switch (platform) {
@@ -219,6 +220,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicCache? _cache;
   NotificationCache? _notificationCache;
   DurablePrincipalOfficerReportCache? _reportCache;
+  NotificationCenterController? _notificationController;
   Person? person;
   List<Game> games = const [];
   DateTime? lastSyncedAt;
@@ -363,6 +365,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         previous?.person,
         loadedPerson,
       );
+      if (_notificationController?.principal.id != loadedPerson.id) {
+        _notificationController = null;
+      }
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
       final aggregate = await _observeCacheSessionAggregate();
       if (!mounted) return false;
@@ -490,6 +495,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                     lastSyncedAt: lastSyncedAt!,
                     principalProvenance: principalProvenance,
                     reportCache: _reportCache,
+                    notificationController: _notificationControllerFor(person!),
                     onRefresh: _loadBasic,
                   )
                 : AuthStatePanel(state: state),
@@ -511,6 +517,23 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                 ),
         ),
       );
+
+  NotificationCenterController? _notificationControllerFor(Person principal) {
+    if (!principal.canReadNotifications ||
+        _session == null ||
+        _notificationCache == null) {
+      return null;
+    }
+    final existing = _notificationController;
+    if (existing != null && existing.principal.id == principal.id) {
+      return existing;
+    }
+    return _notificationController = NotificationCenterController(
+      client: NotificationApi(_session!),
+      cache: _notificationCache!,
+      principal: principal,
+    );
+  }
 }
 
 class LoginActionButton extends StatelessWidget {
@@ -553,6 +576,7 @@ class BasicGamesView extends StatefulWidget {
     this.principalProvenance,
     this.reportCache,
     this.publishingClient,
+    this.notificationController,
     this.onRefresh,
     this.diagnosticEnabled = true,
   });
@@ -564,6 +588,7 @@ class BasicGamesView extends StatefulWidget {
   final PrincipalProvenance? principalProvenance;
   final PrincipalOfficerReportCache? reportCache;
   final NotificationPublishingClient? publishingClient;
+  final NotificationCenterController? notificationController;
   final Future<bool> Function()? onRefresh;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
@@ -728,6 +753,42 @@ class _BasicGamesViewState extends State<BasicGamesView> {
             DebugPrincipalProjection(
               person: widget.person,
               provenance: widget.principalProvenance,
+            ),
+          if (widget.person.canReadNotifications &&
+              widget.notificationController != null)
+            AnimatedBuilder(
+              animation: widget.notificationController!,
+              builder: (context, _) => AppSurfaceCard(
+                child: ListTile(
+                  key: const ValueKey('notification-center-entry'),
+                  leading: const Icon(Icons.notifications_outlined),
+                  title: const Text('通知中心'),
+                  subtitle: Text(
+                    widget.notificationController!.unreadCount == 0
+                        ? '查看隊務通知'
+                        : '${widget.notificationController!.unreadCount} 則未讀通知',
+                  ),
+                  trailing: widget.notificationController!.unreadCount == 0
+                      ? null
+                      : Badge(
+                          label: Text(
+                            '${widget.notificationController!.unreadCount}',
+                          ),
+                        ),
+                  onTap: () {
+                    final controller = widget.notificationController!;
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => NotificationCenter(
+                          controller: controller,
+                          online: widget.online,
+                        ),
+                      ),
+                    );
+                    controller.load(online: widget.online);
+                  },
+                ),
+              ),
             ),
           if (widget.person.canReadAttendanceReport)
             AppSurfaceCard(

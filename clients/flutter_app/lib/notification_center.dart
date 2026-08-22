@@ -28,9 +28,30 @@ class NotificationCenterController extends ChangeNotifier {
   List<MobileNotification> items = const [];
   DateTime? lastSyncedAt;
   int unreadCount = 0;
+  Future<void>? _loadOperation;
+  Future<void>? _mutationOperation;
   bool get readOnly => state == NotificationCenterState.offline;
+  bool get busy => _loadOperation != null || _mutationOperation != null;
 
-  Future<void> load({required bool online, bool sessionPresent = true}) async {
+  Future<void> load({required bool online, bool sessionPresent = true}) {
+    final existing = _loadOperation;
+    if (existing != null) return existing;
+    late final Future<void> operation;
+    operation = _loadOnce(online: online, sessionPresent: sessionPresent)
+        .whenComplete(() {
+      if (identical(_loadOperation, operation)) {
+        _loadOperation = null;
+        notifyListeners();
+      }
+    });
+    _loadOperation = operation;
+    return operation;
+  }
+
+  Future<void> _loadOnce({
+    required bool online,
+    required bool sessionPresent,
+  }) async {
     state = NotificationCenterState.loading;
     notifyListeners();
     if (!sessionPresent || !principal.canReadNotifications) {
@@ -109,6 +130,21 @@ class NotificationCenterController extends ChangeNotifier {
 
   Future<void> markRead(String id, {required bool online}) async {
     if (!online) throw const OfflineReadOnlyException();
+    final existing = _mutationOperation;
+    if (existing != null) return existing;
+    late final Future<void> operation;
+    operation = _markReadOnce(id).whenComplete(() {
+      if (identical(_mutationOperation, operation)) {
+        _mutationOperation = null;
+        notifyListeners();
+      }
+    });
+    _mutationOperation = operation;
+    notifyListeners();
+    return operation;
+  }
+
+  Future<void> _markReadOnce(String id) async {
     final result = await client.markRead(id);
     items = List.unmodifiable([
       for (final item in items)
@@ -125,6 +161,21 @@ class NotificationCenterController extends ChangeNotifier {
 
   Future<void> markAllRead({required bool online}) async {
     if (!online) throw const OfflineReadOnlyException();
+    final existing = _mutationOperation;
+    if (existing != null) return existing;
+    late final Future<void> operation;
+    operation = _markAllReadOnce().whenComplete(() {
+      if (identical(_mutationOperation, operation)) {
+        _mutationOperation = null;
+        notifyListeners();
+      }
+    });
+    _mutationOperation = operation;
+    notifyListeners();
+    return operation;
+  }
+
+  Future<void> _markAllReadOnce() async {
     final result = await client.markAllRead();
     final readAt = clock().toUtc();
     items = List.unmodifiable(
@@ -171,10 +222,19 @@ class NotificationCenter extends StatelessWidget {
           appBar: AppBar(
             title: Text('通知中心 (${controller.unreadCount})'),
             actions: [
+              IconButton(
+                key: const ValueKey('notification-refresh'),
+                tooltip: '重新整理通知',
+                onPressed: controller.busy
+                    ? null
+                    : () => controller.load(online: online),
+                icon: const Icon(Icons.refresh),
+              ),
               TextButton(
-                onPressed: online && controller.unreadCount > 0
-                    ? () => controller.markAllRead(online: true)
-                    : null,
+                onPressed:
+                    online && controller.unreadCount > 0 && !controller.busy
+                        ? () => controller.markAllRead(online: true)
+                        : null,
                 child: const Text('全部已讀'),
               ),
             ],
@@ -218,12 +278,14 @@ class NotificationCenter extends StatelessWidget {
                 title: Text(item.title),
                 subtitle: Text(item.body),
                 selected: !item.isRead,
-                onTap: () {
-                  onOpen?.call(item);
-                  if (online && !item.isRead) {
-                    controller.markRead(item.id, online: true);
-                  }
-                },
+                onTap: controller.busy
+                    ? null
+                    : () {
+                        onOpen?.call(item);
+                        if (online && !item.isRead) {
+                          controller.markRead(item.id, online: true);
+                        }
+                      },
               );
             },
           ),

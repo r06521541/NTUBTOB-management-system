@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ntubtob_portal/integration.dart';
@@ -81,6 +83,17 @@ class FakeNotificationClient implements NotificationClient {
     _check();
     values = [for (final item in values) item.markRead(now)];
     return const NotificationReadAllResult(1, 0);
+  }
+}
+
+class DelayedNotificationClient extends FakeNotificationClient {
+  final loads = <Completer<List<MobileNotification>>>[];
+
+  @override
+  Future<List<MobileNotification>> notifications({bool unreadOnly = false}) {
+    final load = Completer<List<MobileNotification>>();
+    loads.add(load);
+    return load.future;
   }
 }
 
@@ -238,6 +251,25 @@ void main() {
       expect(client.calls, 0);
     },
   );
+
+  test('rapid notification loads share one in-flight request', () async {
+    final client = DelayedNotificationClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+
+    final first = controller.load(online: true);
+    final second = controller.load(online: true);
+    expect(client.loads, hasLength(1));
+    client.loads.single.complete([makeNotification()]);
+    await Future.wait([first, second]);
+
+    expect(controller.unreadCount, 1);
+    expect(controller.state, NotificationCenterState.online);
+  });
 
   test(
     'authorization loss and terminal session clear purge notification cache',
