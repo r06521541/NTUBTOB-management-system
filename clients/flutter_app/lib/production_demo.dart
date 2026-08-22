@@ -512,6 +512,7 @@ class _ProductionDemoApi extends BasicApi {
   }) async {
     probe.reportReads++;
     _findGame(id);
+    final completeLineup = id == 'game_902';
     return AttendanceReport(
       gameId: id,
       generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
@@ -520,13 +521,24 @@ class _ProductionDemoApi extends BasicApi {
         historyLimit,
         minimumResponseRate,
       ),
-      attending: const [
-        AttendanceReportPerson(
-          'fictional-attending',
-          '虛構出席隊員',
-          AttendanceReply.attending,
-        ),
-      ],
+      attending: completeLineup
+          ? List.generate(
+              10,
+              (index) => AttendanceReportPerson(
+                'fictional-ready-$index',
+                '虛構齊備隊員 ${index + 1}',
+                index == 8
+                    ? AttendanceReply.leavingEarly
+                    : AttendanceReply.attending,
+              ),
+            )
+          : const [
+              AttendanceReportPerson(
+                'fictional-attending',
+                '虛構出席隊員',
+                AttendanceReply.arrivingLate,
+              ),
+            ],
       notAttending: const [
         AttendanceReportPerson(
           'fictional-not-attending',
@@ -534,17 +546,19 @@ class _ProductionDemoApi extends BasicApi {
           AttendanceReply.notAttending,
         ),
       ],
-      notYetReplied: const [
-        AttendanceReportUnansweredPerson(
-          personId: 'fictional-unanswered',
-          displayName: '虛構尚未回覆隊員',
-          observedReplies: 7,
-          observedGames: 8,
-          responseRate: 88,
-          participationRate: 63,
-          nonparticipationRate: 25,
-        ),
-      ],
+      notYetReplied: completeLineup
+          ? const []
+          : const [
+              AttendanceReportUnansweredPerson(
+                personId: 'fictional-unanswered',
+                displayName: '虛構尚未回覆隊員',
+                observedReplies: 7,
+                observedGames: 8,
+                responseRate: 88,
+                participationRate: 63,
+                nonparticipationRate: 25,
+              ),
+            ],
     );
   }
 
@@ -577,7 +591,11 @@ final _fictionalReportUiModel = SingleGameReportUiModel(
   historyLimit: 12,
   minimumResponseRate: 60,
   attending: const [
-    ReportParticipantUiModel(id: 'fictional-attending', displayName: '虛構出席隊員'),
+    ReportParticipantUiModel(
+      id: 'fictional-attending',
+      displayName: '虛構出席隊員',
+      reply: AttendanceReply.arrivingLate,
+    ),
   ],
   notAttending: const [
     ReportParticipantUiModel(

@@ -451,9 +451,37 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
     expect(find.text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'), findsOneWidget);
-    expect(find.byKey(const ValueKey('lineup-starter-fictional-attending')),
-        findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
+    expect(find.text('先發 0/9・缺 9 人・候補／未安排 1 人・尚未回覆 1 人'), findsOneWidget);
+    await tester.tap(find.text('細排'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-empty-slot-9')), findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-empty-slot-1')), findsOneWidget);
     expect(find.text('虛構不出席隊員'), findsNothing);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('production Lineup Lab composes ten-player empty fine draft',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    await tester.tap(find.byKey(const ValueKey('demo-persona-officer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('management-report-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('report-game-game_902')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
+    expect(find.text('先發 0/9・缺 9 人・候補／未安排 10 人・尚未回覆 0 人'), findsOneWidget);
+    await tester.tap(find.text('細排'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('候補／未安排 10'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-reserve-fictional-ready-9')),
+        findsOneWidget);
     expect(probe.unexpectedTransportCalls, 0);
   });
 
@@ -476,6 +504,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('目前為離線快取，僅供讀取'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('離線唯讀來源可能過期'), findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
     expect(probe.reportReads, 0);
     expect(probe.unexpectedTransportCalls, 0);
   });

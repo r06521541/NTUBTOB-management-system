@@ -106,6 +106,43 @@ SingleGameReportUiModel emptyReport() => SingleGameReportUiModel(
       notYetReplied: const [],
     );
 
+SingleGameReportUiModel lineupReport({
+  String gameId = 'lineup-quality',
+  int attending = 10,
+  int unanswered = 1,
+}) =>
+    SingleGameReportUiModel(
+      gameId: gameId,
+      gameLabel: 'Lineup quality',
+      generatedAt: DateTime.utc(2026),
+      historyGames: 1,
+      historyLimit: 12,
+      minimumResponseRate: 60,
+      attending: List.generate(
+        attending,
+        (index) => ReportParticipantUiModel(
+          id: 'quality-$index',
+          displayName: 'Quality $index',
+          reply: index == attending - 1
+              ? AttendanceReply.leavingEarly
+              : AttendanceReply.attending,
+        ),
+      ),
+      notAttending: const [],
+      notYetReplied: List.generate(
+        unanswered,
+        (index) => NotYetRepliedUiModel(
+          id: 'unanswered-$index',
+          displayName: 'Unanswered $index',
+          observedReplies: 0,
+          observedGames: 1,
+          responseRate: 0,
+          participationRate: 0,
+          nonparticipationRate: 0,
+        ),
+      ),
+    );
+
 SingleGameReportUiModel largeBoundedReport() {
   final source = DeterministicFakeOfficerReportRepository.fictionalReport;
   return SingleGameReportUiModel(
@@ -130,11 +167,53 @@ SingleGameReportUiModel largeBoundedReport() {
 OfficerReportController controllerFor({
   OfficerReportPresentationPort? repository,
   InMemoryPrincipalOfficerReportCache? cache,
+  LineupSummaryCopyPort? copyPort,
 }) =>
     OfficerReportController(
       repository: repository ?? DeterministicFakeOfficerReportRepository(),
       cache: cache ?? InMemoryPrincipalOfficerReportCache(),
+      lineupSummaryCopyPort: copyPort ?? RecordingLineupCopyPort(),
     );
+
+Future<OfficerReportController> pumpLineupLab(
+  WidgetTester tester,
+  SingleGameReportUiModel report, {
+  bool offline = false,
+  bool fine = true,
+  LineupSummaryCopyPort? copyPort,
+}) async {
+  tester.view.physicalSize = const Size(1600, 2200);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  final controller = controllerFor(copyPort: copyPort);
+  await controller.applyFreshPrincipal(
+    principalId: 'officer',
+    reportReadGrant: const ManagementReportReadGrant.granted(),
+  );
+  controller
+    ..report = report
+    ..state = offline
+        ? OfficerReportViewState.offlineCached
+        : OfficerReportViewState.ready;
+  await tester.pumpWidget(
+    MaterialApp(home: OfficerReportPanel(controller: controller)),
+  );
+  await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+  await tester.pumpAndSettle();
+  if (fine) {
+    await tester.tap(find.text('細排'));
+    await tester.pumpAndSettle();
+  }
+  return controller;
+}
+
+class RecordingLineupCopyPort implements LineupSummaryCopyPort {
+  final summaries = <String>[];
+
+  @override
+  Future<void> copy(String summary) async => summaries.add(summary);
+}
 
 void main() {
   test('attendance insights use only loaded report counts and honest labels',
@@ -152,7 +231,7 @@ void main() {
     expect(insights.callout(offline: false), contains('樣本很少'));
   });
 
-  test('lineup draft uses attending only and can reorder, bench, add and reset',
+  test('lineup draft starts fine empty and enforces Web assignment invariants',
       () {
     final report = SingleGameReportUiModel(
       gameId: 'lineup',
@@ -184,19 +263,293 @@ void main() {
       ],
     );
     final draft = LineupDraft.fromReport(report);
-    expect(draft.starters, hasLength(9));
-    expect(draft.bench.single.id, 'attending-9');
+    expect(draft.battingOrder, isEmpty);
+    expect(draft.reserves, hasLength(10));
+    expect(draft.missingStarterCount, 9);
+    expect(draft.unansweredCount, 1);
+    expect(draft.isReady, isFalse);
     expect(
         draft.pool.map((player) => player.id), isNot(contains('unavailable')));
-    draft.moveStarter(0, 1);
-    expect(draft.starters.first.id, 'attending-1');
-    draft.moveToBench(draft.starters.first);
-    expect(draft.bench, hasLength(2));
-    draft.addStarter(draft.bench.last);
-    expect(draft.starters, hasLength(9));
-    draft.reset();
-    expect(draft.starters.first.id, 'attending-0');
-    expect(draft.bench.single.id, 'attending-9');
+
+    final ready = LineupDraft.fromReport(
+      lineupReport(attending: 10, unanswered: 0),
+    );
+    expect(ready.isReady, isFalse);
+    expect(ready.missingStarterCount, 9);
+    expect(ready.reserves, hasLength(10));
+    ready.assignFieldPosition(LineupFieldPosition.pitcher, ready.pool[0]);
+    ready.assignFieldPosition(LineupFieldPosition.catcher, ready.pool[0]);
+    expect(ready.fieldAssignments[LineupFieldPosition.pitcher], isNull);
+    expect(
+        ready.fieldAssignments[LineupFieldPosition.catcher]!.id, 'quality-0');
+    expect(ready.hasUniqueFieldAssignments, isTrue);
+    ready.assignBattingSlot(1, ready.pool[0]);
+    ready.assignBattingSlot(2, ready.pool[0]);
+    expect(ready.battingOrder[1], isNull);
+    expect(ready.battingOrder[2]!.id, 'quality-0');
+    expect(ready.hasUniqueBattingOrder, isTrue);
+    ready.assignFieldPosition(LineupFieldPosition.catcher, null);
+    expect(ready.battingOrder, isEmpty);
+    ready.assignFieldPosition(LineupFieldPosition.pitcher, ready.pool[1]);
+    ready.assignBattingSlot(1, ready.pool[1]);
+    ready.assignFieldPosition(
+        LineupFieldPosition.designatedHitter, ready.pool[2]);
+    expect(ready.nonBattingPitcher!.id, 'quality-1');
+    expect(ready.battingOrder, isEmpty);
+    expect(ready.hasUniqueFieldAssignments, isTrue);
+    expect(ready.hasUniqueBattingOrder, isTrue);
+
+    final complete = LineupDraft.fromReport(
+      lineupReport(attending: 10, unanswered: 0),
+    );
+    for (var index = 0; index < 9; index++) {
+      complete.assignFieldPosition(
+          LineupFieldPosition.values[index], complete.pool[index]);
+      complete.assignBattingSlot(index + 1, complete.pool[index]);
+    }
+    expect(complete.battingOrder, hasLength(9));
+    expect(complete.isReady, isTrue);
+    expect(complete.hasUniqueFieldAssignments, isTrue);
+    expect(complete.hasUniqueBattingOrder, isTrue);
+  });
+
+  testWidgets(
+      'Lineup Lab starts fine empty with nine independently selectable slots',
+      (tester) async {
+    await pumpLineupLab(
+      tester,
+      lineupReport(attending: 8, unanswered: 2),
+    );
+
+    expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
+    expect(find.text('先發 0/9・缺 9 人・候補／未安排 8 人・尚未回覆 2 人'), findsOneWidget);
+    for (var slot = 1; slot <= 9; slot++) {
+      expect(find.byKey(ValueKey('lineup-slot-$slot')), findsOneWidget);
+    }
+    expect(find.byKey(const ValueKey('lineup-empty-slot-9')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('lineup-batting-select-1')), findsOneWidget);
+  });
+
+  test('coarse fine and all resets have isolated Web parity boundaries', () {
+    final draft = LineupDraft.fromReport(
+      lineupReport(attending: 3, unanswered: 0),
+    );
+    draft.assignCoarseRole(draft.pool[0], CoarseLineupRole.pitcher);
+    draft.assignFieldPosition(LineupFieldPosition.catcher, draft.pool[0]);
+    draft.assignBattingSlot(1, draft.pool[0]);
+
+    draft.resetCoarse();
+    expect(draft.coarseRoles, isEmpty);
+    expect(draft.fieldAssignments, isNotEmpty);
+    expect(draft.battingOrder[1]!.id, 'quality-0');
+
+    draft.assignCoarseRole(draft.pool[1], CoarseLineupRole.infield);
+    draft.resetFine();
+    expect(draft.coarseRoles['quality-1'], CoarseLineupRole.infield);
+    expect(draft.fieldAssignments, isEmpty);
+    expect(draft.battingOrder, isEmpty);
+
+    draft.assignFieldPosition(LineupFieldPosition.firstBase, draft.pool[1]);
+    draft.assignBattingSlot(3, draft.pool[1]);
+    draft.clearAll();
+    expect(draft.coarseRoles, isEmpty);
+    expect(draft.fieldAssignments, isEmpty);
+    expect(draft.battingOrder, isEmpty);
+
+    final late = ReportParticipantUiModel(
+      id: 'late',
+      displayName: 'Late',
+      reply: AttendanceReply.arrivingLate,
+    );
+    final lateDraft = LineupDraft.fromReport(SingleGameReportUiModel(
+      gameId: 'late',
+      gameLabel: 'late',
+      generatedAt: DateTime.utc(2026),
+      historyGames: 1,
+      historyLimit: 12,
+      minimumResponseRate: 60,
+      attending: [late],
+      notAttending: const [],
+      notYetReplied: const [],
+    ));
+    lateDraft.assignCoarseRole(late, CoarseLineupRole.outfield);
+    lateDraft.assignFieldPosition(LineupFieldPosition.leftField, late);
+    expect(lateDraft.coarseRoles['late'], CoarseLineupRole.outfield);
+    expect(lateDraft.fieldAssignments, isEmpty);
+  });
+
+  testWidgets('coarse reset confirmation cancel preserves and confirm clears',
+      (tester) async {
+    await pumpLineupLab(
+      tester,
+      lineupReport(attending: 3, unanswered: 0),
+      fine: false,
+    );
+    final role = find.byKey(
+      const ValueKey('lineup-coarse-quality-0-pitcher'),
+    );
+    await tester.tap(role);
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(role).selected, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-coarse')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-cancel')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(role).selected, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-coarse')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-confirm')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<ChoiceChip>(role).selected, isFalse);
+  });
+
+  testWidgets('fine reset and clear-all confirmations keep exact scopes',
+      (tester) async {
+    final report = lineupReport(attending: 3, unanswered: 0);
+    final controller = await pumpLineupLab(tester, report, fine: false);
+    final draft = controller.lineupDraftFor(report);
+    draft.assignCoarseRole(draft.pool[0], CoarseLineupRole.catcher);
+    draft.assignFieldPosition(LineupFieldPosition.firstBase, draft.pool[0]);
+    draft.assignBattingSlot(1, draft.pool[0]);
+
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-fine')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-cancel')));
+    await tester.pumpAndSettle();
+    expect(draft.fieldAssignments, isNotEmpty);
+    expect(draft.battingOrder, isNotEmpty);
+
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-fine')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-confirm')));
+    await tester.pumpAndSettle();
+    expect(draft.fieldAssignments, isEmpty);
+    expect(draft.battingOrder, isEmpty);
+    expect(draft.coarseRoles, isNotEmpty);
+
+    draft.assignFieldPosition(LineupFieldPosition.firstBase, draft.pool[0]);
+    draft.assignBattingSlot(1, draft.pool[0]);
+    await tester.tap(find.byKey(const ValueKey('lineup-clear-all')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-cancel')));
+    await tester.pumpAndSettle();
+    expect(draft.coarseRoles, isNotEmpty);
+    expect(draft.fieldAssignments, isNotEmpty);
+
+    await tester.tap(find.byKey(const ValueKey('lineup-clear-all')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-reset-confirm')));
+    await tester.pumpAndSettle();
+    expect(draft.coarseRoles, isEmpty);
+    expect(draft.fieldAssignments, isEmpty);
+    expect(draft.battingOrder, isEmpty);
+  });
+
+  testWidgets(
+      'Lineup Lab coarse fine field DH annotations and copy use local ports',
+      (tester) async {
+    final copyPort = RecordingLineupCopyPort();
+    final report = lineupReport(attending: 3, unanswered: 0);
+    final controller = await pumpLineupLab(
+      tester,
+      report,
+      fine: false,
+      copyPort: copyPort,
+    );
+
+    expect(
+        find.byKey(const ValueKey('lineup-coach-unavailable')), findsOneWidget);
+    expect(find.text('Quality 2（早走）'), findsWidgets);
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-coarse-quality-0-pitcher')),
+    );
+    await tester.pumpAndSettle();
+    expect(copyPort.summaries, isEmpty);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('lineup-copy-summary')),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-copy-summary')));
+    await tester.pumpAndSettle();
+    expect(copyPort.summaries.single, contains('投手：Quality 0'));
+
+    await tester.ensureVisible(find.text('細排'));
+    await tester.tap(find.text('細排'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('目前沒有已安排守位且符合細排資格的球員。'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('lineup-batting-clear-1')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('lineup-position-P')),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-position-P')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-position-P-player-quality-0')),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, 1600));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('lineup-batting-select-1')),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
+        findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-position-DH')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-position-DH-player-quality-1')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-non-batting-pitcher')),
+        findsOneWidget);
+    final draft = controller.lineupDraftFor(report);
+    expect(draft.battingOrder, isEmpty);
+    expect(draft.nonBattingPitcher!.id, 'quality-0');
+
+    await tester.drag(find.byType(ListView).last, const Offset(0, 1600));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('lineup-batting-select-1')),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
+        findsNothing);
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-batting-1-player-quality-1')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-2')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-batting-2-player-quality-1')),
+    );
+    await tester.pumpAndSettle();
+    expect(draft.battingOrder[1], isNull);
+    expect(draft.battingOrder[2]!.id, 'quality-1');
+
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1600));
+    await tester.pumpAndSettle();
+    await tester
+        .ensureVisible(find.byKey(const ValueKey('lineup-position-DH')));
+    await tester.tap(find.byKey(const ValueKey('lineup-position-DH')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-position-clear')));
+    await tester.pumpAndSettle();
+    expect(draft.battingOrder, isEmpty);
   });
 
   testWidgets(
@@ -232,17 +585,21 @@ void main() {
         MaterialApp(home: OfficerReportPanel(controller: controller)));
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('lineup-bench-first-0')));
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
+    );
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('lineup-add-first-0')),
-      200,
+    expect(
+      tester
+          .widget<ChoiceChip>(
+              find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')))
+          .selected,
+      isTrue,
     );
-    expect(find.byKey(const ValueKey('lineup-add-first-0')), findsOneWidget);
 
     await tester.pageBack();
     controller
@@ -252,18 +609,20 @@ void main() {
         MaterialApp(home: OfficerReportPanel(controller: controller)));
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    expect(
-        find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('lineup-add-first-0')), findsNothing);
+    expect(find.byKey(const ValueKey('lineup-coarse-second-0-pitcher')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
+        findsNothing);
     await tester.pageBack();
     await tester.pumpWidget(
       MaterialApp(home: OfficerReportPanel(controller: controller)),
     );
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
-    expect(
-        find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
-    expect(find.byKey(const ValueKey('lineup-add-first-0')), findsNothing);
+    expect(find.byKey(const ValueKey('lineup-coarse-second-0-pitcher')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
+        findsNothing);
   });
 
   test('canonical adapter uses exact read path and default bounded query',
