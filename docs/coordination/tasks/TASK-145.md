@@ -100,6 +100,17 @@ durable in-app history.
 - report_to: `main-work`
 - scope: authorization, server recipient expansion/revision, transaction and idempotency, immutable audit/outbox separation, device-token isolation and typed deep-link fail-closed behavior only.
 
+#### Final CI correction lanes
+
+- claim_id: `task-145-flutter-format-correction`; lease_version: 1;
+  actor_id: `01a02843-0e92-7093-9af7-c5a9211ee5e9`; role: `codex-writer`;
+  write: true; report_to: `main-work`; owned paths: the four Flutter files
+  named by hosted formatter output only.
+- claim_id: `task-145-migration-verifier-correction`; lease_version: 1;
+  actor_id: `01a02843-1047-7fa0-953d-6456ddbc105b`; role: `codex-writer`;
+  write: true; report_to: `main-work`; owned paths: Phase-C migration verifier,
+  its direct tests and existing checksummed artifact metadata only if required.
+
 ## Frozen product contract
 
 - Types: game reminder, attendance reminder, game change, Officer personal,
@@ -162,4 +173,6 @@ durable in-app history.
 - 2026-08-22: those three findings closed; writer lease transferred after the
   original actor's usage limit for one residual device-409 OpenAPI parity fix.
 - 2026-08-22: 145C correction and OpenAPI parity accepted and integrated.
-- Current unit: final change-selected hosted CI and delivery integration.
+- 2026-08-22: PR #172 first hosted run found only Flutter canonical-format and
+  legacy migration-head verifier integration gaps; two disjoint lanes assigned.
+- Current unit: final CI correction, then one retry on the corrected SHA.
