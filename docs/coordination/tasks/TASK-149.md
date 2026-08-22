@@ -136,4 +136,7 @@ the same slice stops for Main/Owner scope decision.
 - 2026-08-22: Slice B claimed by Flutter Writer
   `01a0294c-7074-7a22-a941-3637701f4f28` on
   `codex/task-149b-flutter-parity-writer` from that exact integration base.
-- Current: Slice B implementation in progress.
+- 2026-08-22: Slice B accepted after one batched correction and one
+  Owner-approved final lifecycle closure; Flutter Domain reported no residual
+  P1/P2 at `6ff072d095f7f552bd84fa659df44d5314bda554`.
+- Current: both slices integrated; unique final PR and Hosted CI pending.

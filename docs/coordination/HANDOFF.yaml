@@ -1,24 +1,24 @@
 active_task: TASK-149
-status: in_progress
-next_actor: codex-writer
+status: ready_for_pr
+next_actor: main-work
 
-claim_id: task-149b-flutter-writer-20260822
-lease_version: 5
-actor_id: 01a0294c-7074-7a22-a941-3637701f4f28
+claim_id: main-work-20260822
+lease_version: 6
+actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
 base_commit: 598f522475bfb9102ff21bb697eb5cc4ea9eb03b
-head_commit: f724a9b7a15d0f5eec5916d3b35165113b61b790
+head_commit: f34af0153e78433604575738c2039ac6da4b44e2
 
 updated_by: main-work
-updated_at: 2026-08-22T20:00:00+08:00
+updated_at: 2026-08-22T21:18:00+08:00
 
 note: >
   TASK-148 merged via PR #176 at 598f522475bfb9102ff21bb697eb5cc4ea9eb03b.
   TASK-149 is one no-schema phase-one parity delivery with sequential Mobile API
-  and Flutter slices. Slice A is Main-accepted and integrated at
-  f724a9b7a15d0f5eec5916d3b35165113b61b790. Slice B Flutter Writer is active
-  on codex/task-149b-flutter-parity-writer from that exact base. No
-  schema/provider/deploy authority.
+  and Flutter slices. Both slices are Main-accepted and integrated at
+  f34af0153e78433604575738c2039ac6da4b44e2. Flutter Domain accepted the final
+  lifecycle closure with no residual P1/P2. Unique final PR and Hosted CI are
+  next. No schema/provider/deploy authority.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-149.md
