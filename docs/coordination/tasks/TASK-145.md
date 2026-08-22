@@ -177,4 +177,7 @@ durable in-app history.
 - 2026-08-22: 145C correction and OpenAPI parity accepted and integrated.
 - 2026-08-22: PR #172 first hosted run found only Flutter canonical-format and
   legacy migration-head verifier integration gaps; two disjoint lanes assigned.
-- Current unit: final CI correction, then one retry on the corrected SHA.
+- 2026-08-22: final corrections passed hosted run 32559518555; PR #172 merged
+  as `c4016dce924a1fa3e1edfaab7b9581ec968e04eb`. Repository delivery is complete.
+  No deployment, staging, Secret/IAM, real provider/data mutation, signing or
+  store action was performed or authorized.

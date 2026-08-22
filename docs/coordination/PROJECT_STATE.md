@@ -4,13 +4,13 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `9cd006cf93c61185c868d5d571230953b4e72b35`
+Repository 基準：`main` / `c4016dce924a1fa3e1edfaab7b9581ec968e04eb`
 
 ## Active role lanes
 
 | lane | current actor_id | claim_id | lease_version | state |
 | --- | --- | --- | --- | --- |
-| `main-work` | `019fe8ff-b672-7b33-b535-3a325d85124a` | `main-work-20260821` | 2 | active |
+| `main-work` | `01a02871-a907-7023-8324-3cde5c194f6a` | `main-work-20260822` | 3 | active |
 | `domain-work:flutter` | `01a01212-72dc-7132-b2d7-dfaa2f97f184` | `flutter-domain-20260821` | 2 | active |
 
 Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke current actor，以 full HEAD、dirty state、完成／剩餘事項
@@ -23,8 +23,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - Isolated fictional mobile staging、fixture/operator、no-disclosure broker、固定redacted JSON、atomic launcher及checkpoint
   primitive可重用，且未觸及production。完整acceptance orchestration／UIAutomator timing retry僅供
   experimental/manual-on-demand，不作merge或release gate；其E2E dogfood結論仍為inconclusive。
-- TASK-088～122及TASK-123～138、140、141已移入phase closeout archive；active task目錄目前為空。歷史task只在
-  named delivery、incident、migration或rollback調查時讀取。
+- TASK-088～122及TASK-123～138、140、141已移入phase closeout archive；TASK-142～145的完成文件尚待下一次
+  phase closeout批次封存。歷史task只在named delivery、incident、migration或rollback調查時讀取。
 - Phase C production schema、跨服務runtime、管理bootstrap與56組可靠LINE identity／active team-player關係已完成；
   管理權限仍以Web Portal runtime allowlist為準。
 - TASK-142 已由 PR #168 合併：線上賽事清單支援下拉重新整理，空清單亦可操作；沿用既有 single-flight reload，
@@ -35,8 +35,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   review通過；delivery PR只使用一次 change-selected hosted Flutter gate，未使用Domain／emulator／staging／harness。
 - TASK-144 production-shaped fake demo 已由 PR #171 合併；development fake mode直接重用正式賽事／出席／帳號／
   Officer報表 widgets，並提供 deterministic fictional scenarios，不需帳號、Secret、staging或網路。
-- TASK-145 已啟動，分三個 delivery unit：Flutter 視覺與 refresh feedback、持久通知讀取模型／中心、Officer
-  publishing／outbox／device/deep-link。Repository implementation 已授權；部署、Secret/IAM、真實通知與 store 仍未授權。
+- TASK-145 三個 delivery unit 已由 PR #172 合併為 `c4016dce924a1fa3e1edfaab7b9581ec968e04eb`：Flutter 視覺與
+  refresh feedback、持久通知讀取模型／中心、Officer publishing／outbox／device/deep-link repository foundation。
+  Final hosted run 32559518555 通過；未執行 deployment、staging、Secret/IAM、真實 provider／資料操作。Production、
+  真實通知、release signing 與 stores 仍未授權。
 
 ## 已確認的 production 狀態
 
