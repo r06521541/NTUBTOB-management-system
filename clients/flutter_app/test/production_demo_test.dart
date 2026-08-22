@@ -296,6 +296,29 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
+  testWidgets('Officer report opens the session-local Lineup Lab only from attendees',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    await tester.tap(find.byKey(const ValueKey('demo-persona-officer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('management-report-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('report-game-game_901')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('attendance-insights')), findsOneWidget);
+    expect(find.textContaining('可出席 1 人'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-starter-fictional-attending')),
+        findsOneWidget);
+    expect(find.text('虛構不出席隊員'), findsNothing);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
   testWidgets('Officer offline report uses preloaded in-memory cache', (
     tester,
   ) async {

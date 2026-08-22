@@ -137,6 +137,127 @@ OfficerReportController controllerFor({
     );
 
 void main() {
+  test('attendance insights use only loaded report counts and honest labels', () {
+    final report = DeterministicFakeOfficerReportRepository.fictionalReport;
+    final insights = AttendanceInsights(report);
+
+    expect(insights.attending, 1);
+    expect(insights.unavailable, 0);
+    expect(insights.unanswered, 1);
+    expect(insights.responsePercent, 50);
+    expect(insights.availabilityPercent, 100);
+    expect(insights.isSmallSample, isTrue);
+    expect(insights.callout(offline: true), contains('可能過期'));
+    expect(insights.callout(offline: false), contains('樣本很少'));
+  });
+
+  test('lineup draft uses attending only and can reorder, bench, add and reset', () {
+    final report = SingleGameReportUiModel(
+      gameId: 'lineup',
+      gameLabel: 'Lineup',
+      generatedAt: DateTime.utc(2026),
+      historyGames: 1,
+      historyLimit: 12,
+      minimumResponseRate: 60,
+      attending: List.generate(
+        10,
+        (index) => ReportParticipantUiModel(
+          id: 'attending-$index',
+          displayName: '出席 $index',
+        ),
+      ),
+      notAttending: const [
+        ReportParticipantUiModel(id: 'unavailable', displayName: '不出席'),
+      ],
+      notYetReplied: const [
+        NotYetRepliedUiModel(
+          id: 'unanswered',
+          displayName: '未回覆',
+          observedReplies: 0,
+          observedGames: 1,
+          responseRate: 0,
+          participationRate: 0,
+          nonparticipationRate: 0,
+        ),
+      ],
+    );
+    final draft = LineupDraft.fromReport(report);
+    expect(draft.starters, hasLength(9));
+    expect(draft.bench.single.id, 'attending-9');
+    expect(draft.pool.map((player) => player.id), isNot(contains('unavailable')));
+    draft.moveStarter(0, 1);
+    expect(draft.starters.first.id, 'attending-1');
+    draft.moveToBench(draft.starters.first);
+    expect(draft.bench, hasLength(2));
+    draft.addStarter(draft.bench.last);
+    expect(draft.starters, hasLength(9));
+    draft.reset();
+    expect(draft.starters.first.id, 'attending-0');
+    expect(draft.bench.single.id, 'attending-9');
+  });
+
+  testWidgets('Lineup Lab retains draft after system back and resets for another report',
+      (tester) async {
+    SingleGameReportUiModel report(String id, String prefix) =>
+        SingleGameReportUiModel(
+          gameId: id,
+          gameLabel: id,
+          generatedAt: DateTime.utc(2026),
+          historyGames: 1,
+          historyLimit: 12,
+          minimumResponseRate: 60,
+          attending: List.generate(
+            10,
+            (index) => ReportParticipantUiModel(
+              id: '$prefix-$index',
+              displayName: '$prefix $index',
+            ),
+          ),
+          notAttending: const [],
+          notYetReplied: const [],
+        );
+    final controller = controllerFor();
+    await controller.applyFreshPrincipal(
+      principalId: 'officer',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    controller
+      ..report = report('first', 'first')
+      ..state = OfficerReportViewState.ready;
+    await tester.pumpWidget(MaterialApp(home: OfficerReportPanel(controller: controller)));
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-bench-first-0')));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('lineup-add-first-0')),
+      200,
+    );
+    expect(find.byKey(const ValueKey('lineup-add-first-0')), findsOneWidget);
+
+    await tester.pageBack();
+    controller
+      ..report = report('second', 'second')
+      ..state = OfficerReportViewState.ready;
+    await tester.pumpWidget(MaterialApp(home: OfficerReportPanel(controller: controller)));
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-add-first-0')), findsNothing);
+    await tester.pageBack();
+    await tester.pumpWidget(
+      MaterialApp(home: OfficerReportPanel(controller: controller)),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-starter-second-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('lineup-add-first-0')), findsNothing);
+  });
+
   test('canonical adapter uses exact read path and default bounded query',
       () async {
     final transport = ReportTransport();

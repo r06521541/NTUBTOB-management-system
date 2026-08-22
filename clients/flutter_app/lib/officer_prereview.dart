@@ -99,6 +99,74 @@ class SingleGameReportUiModel {
   final List<NotYetRepliedUiModel> notYetReplied;
 }
 
+class AttendanceInsights {
+  const AttendanceInsights(this.report);
+
+  final SingleGameReportUiModel report;
+
+  int get attending => report.attending.length;
+  int get unavailable => report.notAttending.length;
+  int get unanswered => report.notYetReplied.length;
+  int get total => attending + unavailable + unanswered;
+  int get responded => attending + unavailable;
+  int get responsePercent => total == 0 ? 0 : (responded * 100 ~/ total);
+  int get availabilityPercent => responded == 0 ? 0 : (attending * 100 ~/ responded);
+  bool get isSmallSample => total < 5;
+
+  String callout({required bool offline}) {
+    if (total == 0) return '尚無回覆資料，暫時無法形成名單建議。';
+    final source = offline ? '離線快取，可能過期；' : '';
+    final sample = isSmallSample ? '樣本很少，' : '';
+    if (unanswered > 0) {
+      return '$source$sample尚有 $unanswered 人未回覆，先以目前已回覆名單規劃。';
+    }
+    return '$source$sample目前 $attending 人表示可出席；這僅是已載入回覆的整理。';
+  }
+}
+
+class LineupDraft {
+  LineupDraft.fromReport(SingleGameReportUiModel report)
+      : starters = List.of(report.attending.take(9)),
+        bench = List.of(report.attending.skip(9)),
+        _pool = List.of(report.attending);
+
+  LineupDraft.copy(LineupDraft other)
+      : starters = List.of(other.starters),
+        bench = List.of(other.bench),
+        _pool = List.of(other._pool);
+
+  final List<ReportParticipantUiModel> starters;
+  final List<ReportParticipantUiModel> bench;
+  final List<ReportParticipantUiModel> _pool;
+
+  List<ReportParticipantUiModel> get pool => List.unmodifiable(_pool);
+
+  void moveStarter(int from, int to) {
+    if (from < 0 || from >= starters.length || to < 0 || to >= starters.length) return;
+    final player = starters.removeAt(from);
+    starters.insert(to, player);
+  }
+
+  void moveToBench(ReportParticipantUiModel player) {
+    if (starters.remove(player) && !bench.contains(player)) bench.add(player);
+  }
+
+  void addStarter(ReportParticipantUiModel player) {
+    if (!pool.contains(player)) return;
+    bench.remove(player);
+    if (!starters.contains(player)) starters.add(player);
+  }
+
+  void reset() {
+    starters
+      ..clear()
+      ..addAll(_pool.take(9));
+    bench
+      ..clear()
+      ..addAll(_pool.skip(9));
+  }
+}
+
 abstract interface class OfficerReportPresentationPort {
   Future<SingleGameReportUiModel> readSingleGame({
     required String principalId,
@@ -483,11 +551,21 @@ class OfficerReportController extends ChangeNotifier {
   SingleGameReportUiModel? report;
   DateTime? lastSyncedAt;
   OfficerReportLoadProvenance? _loadProvenance;
+  LineupDraft? _lineupDraft;
+  String? _lineupDraftGameId;
 
   String? get principalId => _principalId;
   ManagementPresentationRoute get route => _route;
   RealModePresentationPolicy get policy => RealModePresentationPolicy(_grant);
   bool get mutationsEnabled => false;
+
+  LineupDraft lineupDraftFor(SingleGameReportUiModel report) {
+    if (_lineupDraft == null || _lineupDraftGameId != report.gameId) {
+      _lineupDraft = LineupDraft.fromReport(report);
+      _lineupDraftGameId = report.gameId;
+    }
+    return _lineupDraft!;
+  }
 
   Future<void> applyFreshPrincipal({
     required String principalId,
@@ -582,6 +660,8 @@ class OfficerReportController extends ChangeNotifier {
   void _revokePresentation() {
     _route = ManagementPresentationRoute.home;
     report = null;
+    _lineupDraft = null;
+    _lineupDraftGameId = null;
     lastSyncedAt = null;
     _loadProvenance = null;
   }
@@ -807,6 +887,7 @@ class OfficerReportPanel extends StatelessWidget {
         _ReportContents(
           report: controller.report!,
           offline: controller.state == OfficerReportViewState.offlineCached,
+          controller: controller,
         ),
       _ => Center(child: Text(semantics)),
     };
@@ -899,21 +980,69 @@ class DebugOfficerReportProjection extends StatelessWidget {
       );
 }
 
-class _ReportContents extends StatelessWidget {
-  const _ReportContents({required this.report, required this.offline});
+class _ReportContents extends StatefulWidget {
+  const _ReportContents({
+    required this.report,
+    required this.offline,
+    required this.controller,
+  });
 
   final SingleGameReportUiModel report;
   final bool offline;
+  final OfficerReportController controller;
 
   @override
-  Widget build(BuildContext context) => Material(
+  State<_ReportContents> createState() => _ReportContentsState();
+}
+
+class _ReportContentsState extends State<_ReportContents> {
+  late LineupDraft _draft;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.controller.lineupDraftFor(widget.report);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReportContents oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.report.gameId != widget.report.gameId) {
+      _draft = widget.controller.lineupDraftFor(widget.report);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final report = widget.report;
+    final insights = AttendanceInsights(report);
+    return Material(
         child: ListView(
           children: [
             Text(report.gameLabel),
             Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
             Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
             Text('最低回覆率：${report.minimumResponseRate}%'),
-            if (offline) const Text('目前為離線快取，僅供讀取'),
+            if (widget.offline) const Text('目前為離線快取，僅供讀取'),
+            _InsightsCard(insights: insights, offline: widget.offline),
+            ListTile(
+              key: const ValueKey('lineup-lab-entry'),
+              leading: const Icon(Icons.groups_outlined),
+              title: const Text('Lineup Lab'),
+              subtitle: const Text('僅供本次規劃，不會提交或儲存'),
+              onTap: report.attending.isEmpty
+                  ? null
+                  : () async {
+                      final updated = await Navigator.of(context)
+                          .push<LineupDraft>(MaterialPageRoute(
+                        builder: (_) => _LineupLabPage(
+                          draft: _draft,
+                          offline: widget.offline,
+                        ),
+                      ));
+                      if (updated != null && mounted) setState(() => _draft = updated);
+                    },
+            ),
             const Text('出席'),
             for (final participant in report.attending)
               Text(participant.displayName),
@@ -933,6 +1062,103 @@ class _ReportContents extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      );
+  }
+}
+
+class _InsightsCard extends StatelessWidget {
+  const _InsightsCard({required this.insights, required this.offline});
+  final AttendanceInsights insights;
+  final bool offline;
+
+  @override
+  Widget build(BuildContext context) => Card(
+        key: const ValueKey('attendance-insights'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('出席洞察'),
+            Text('可出席 ${insights.attending} 人・不出席 ${insights.unavailable} 人・未回覆 ${insights.unanswered} 人'),
+            Text('回覆率 ${insights.responsePercent}%・已回覆者可出席比例 ${insights.availabilityPercent}%'),
+            if (insights.isSmallSample) const Text('樣本很少，僅供目前回覆的整理。'),
+            Text(insights.callout(offline: offline)),
+          ]),
+        ),
+      );
+}
+
+class _LineupLabPage extends StatefulWidget {
+  const _LineupLabPage({required this.draft, required this.offline});
+  final LineupDraft draft;
+  final bool offline;
+
+  @override
+  State<_LineupLabPage> createState() => _LineupLabPageState();
+}
+
+class _LineupLabPageState extends State<_LineupLabPage> {
+  late LineupDraft _draft;
+
+  @override
+  void initState() {
+    super.initState();
+    _draft = widget.draft;
+  }
+
+  @override
+  Widget build(BuildContext context) => PopScope<LineupDraft>(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) Navigator.of(context).pop(_draft);
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Lineup Lab'),
+            leading:
+                BackButton(onPressed: () => Navigator.of(context).pop(_draft)),
+          ),
+          body: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
+            if (widget.offline) const Text('離線快取來源可能過期；草稿仍只存在此畫面。'),
+            const SizedBox(height: 12),
+            Text('先發／棒次（${_draft.starters.length}）'),
+            for (var index = 0; index < _draft.starters.length; index++)
+              ListTile(
+                key: ValueKey('lineup-starter-${_draft.starters[index].id}'),
+                title: Text('${index + 1}. ${_draft.starters[index].displayName}'),
+                leading: IconButton(
+                  key: ValueKey('lineup-up-${_draft.starters[index].id}'),
+                  icon: const Icon(Icons.arrow_upward),
+                  onPressed: index == 0 ? null : () => setState(() => _draft.moveStarter(index, index - 1)),
+                ),
+                trailing: IconButton(
+                  key: ValueKey('lineup-bench-${_draft.starters[index].id}'),
+                  icon: const Icon(Icons.remove_circle_outline),
+                  onPressed: () => setState(() => _draft.moveToBench(_draft.starters[index])),
+                ),
+              ),
+            const Divider(),
+            Text('候補（${_draft.bench.length}）'),
+            for (final player in _draft.bench)
+              ListTile(
+                key: ValueKey('lineup-add-${player.id}'),
+                title: Text(player.displayName),
+                trailing: IconButton(
+                  icon: const Icon(Icons.add_circle_outline),
+                  onPressed: () => setState(() => _draft.addStarter(player)),
+                ),
+              ),
+            TextButton.icon(
+              key: const ValueKey('lineup-reset'),
+              onPressed: () => setState(_draft.reset),
+              icon: const Icon(Icons.restart_alt),
+              label: const Text('重設草稿'),
+            ),
+          ],
+          ),
         ),
       );
 }
