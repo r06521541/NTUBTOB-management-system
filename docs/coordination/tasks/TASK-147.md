@@ -14,6 +14,17 @@ capable signed-in user can open a notification and reach its notification
 detail or an already-authorized game, while unknown or unauthorized targets
 fail safely inside the notification centre.
 
+## Writer claim
+
+- claim_id: `task-147-flutter-notification-destinations-writer`
+- lease_version: 1
+- actor_id: `01a028df-f8d8-7d23-b91f-6fe97c4ad395`
+- role: `codex-writer`
+- write: true, limited to the task's Flutter implementation, affected tests and
+  `docs/coordination/reports/TASK-147-FLUTTER-CODEX.md`
+- report_to: `main-work`
+- implementation branch: `codex/task-147-notification-destinations-writer`
+
 ## Scope
 
 - Wire `NotificationCenter.onOpen` through the real `BasicGamesView`
