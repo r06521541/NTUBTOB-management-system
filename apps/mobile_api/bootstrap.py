@@ -14,6 +14,7 @@ from shared_module.mobile_api import (
     HmacAccessTokenCodec,
     MobileApiError,
     MobileAuthService,
+    PendingReviewService,
 )
 from shared_module.mobile_notifications import NotificationPublishingService
 from shared_module.models.db import engine
@@ -77,5 +78,6 @@ app = create_app(
         BasicApiService(data, attendance, repository),
         NotificationPublishingService(repository),
         revision_is_current,
+        PendingReviewService(data, auth.token_codec),
     )
 )

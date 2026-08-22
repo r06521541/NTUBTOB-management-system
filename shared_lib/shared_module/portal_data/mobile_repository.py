@@ -56,7 +56,7 @@ class MobileRepository:
                     )
                 )
             if identity is not None and identity.status == "pending":
-                raise IdentityPending("identity approval is pending")
+                raise IdentityPending("identity approval is pending", identity.id)
             raise AccountUnavailable("linked active account is unavailable")
         now, session_id = values["now"], secrets.token_urlsafe(24)
         session_row = MobileSessionRecord(
