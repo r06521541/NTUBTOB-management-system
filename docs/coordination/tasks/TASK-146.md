@@ -96,4 +96,7 @@ delta plus adjacent lifecycle invariants only.
 ## Status
 
 - 2026-08-22: planned by Main Work and authorized for repository execution.
-- Current: `ready_for_writer` on lease 1.
+- 2026-08-22: Writer implementation and focused verification completed; Main
+  and Flutter Domain lifecycle review findings were corrected on exact HEAD
+  `ba52e21caa181ba456cdb72bc729c981e7b9c3af`.
+- Current: source accepted; hosted Flutter gate pending.

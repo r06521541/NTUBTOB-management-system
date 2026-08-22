@@ -1,23 +1,22 @@
 active_task: TASK-146
-status: ready_for_writer
-next_actor: codex-writer
+status: ready_for_review
+next_actor: main-work
 
-claim_id: task-146-flutter-notification-centre-writer
-lease_version: 1
-actor_id: 01a028ae-041c-7313-b917-417a0932e12d
+claim_id: main-work-20260822
+lease_version: 3
+actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
 base_commit: 1bb2417cac7b18d58bf4a453ad4bdb8607ef1894
-head_commit: 1bb2417cac7b18d58bf4a453ad4bdb8607ef1894
+head_commit: ba52e21caa181ba456cdb72bc729c981e7b9c3af
 
 updated_by: main-work
-updated_at: 2026-08-22T16:56:20+08:00
+updated_at: 2026-08-22T17:40:25+08:00
 
 note: >
-  TASK-146 wires the existing TASK-145 notification read model and centre into
-  the real Flutter home lifecycle. No backend/schema/provider/deploy scope.
-  Writer evidence is focused Flutter only; hosted CI is the sole full gate.
+  TASK-146 source and lifecycle review accepted at exact HEAD ba52e21caa181ba456cdb72bc729c981e7b9c3af.
+  Hosted CI is the sole remaining full Flutter gate. No backend/schema/provider/deploy scope.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-146.md
-report: null
-review: null
+report: docs/coordination/reports/TASK-146-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-146-WORK.md
