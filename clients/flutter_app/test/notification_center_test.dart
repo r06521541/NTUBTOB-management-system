@@ -240,6 +240,22 @@ void main() {
     expect(store.values, isEmpty);
   });
 
+  test('stale A capability reconciliation cannot clear indexed B cache',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    const b = Person('person_99', 'B', ['notifications:read']);
+    await cache.save(b, [makeNotification()], now);
+
+    await cache.reconcileFreshPrincipal(
+      const Person('person_23', 'A', ['notifications:read']),
+      const Person('person_23', 'A', ['games:read']),
+    );
+
+    expect((await cache.loadFor(b, now, sessionPresent: true))?.personId,
+        'person_99');
+  });
+
   test(
     'offline centre is read-only and makes zero notification calls',
     () async {

@@ -10,6 +10,20 @@ import 'package:ntubtob_portal/main.dart' as entrypoint;
 import 'package:ntubtob_portal/notification_center.dart';
 import 'package:ntubtob_portal/officer_prereview.dart';
 
+class _DelayedIndexStore extends MemoryStore {
+  final aIndexStarted = Completer<void>();
+  final releaseA = Completer<void>();
+
+  @override
+  Future<void> write(String key, String value) async {
+    if (key == 'cache-index:v1:install' && value.startsWith('person-A:')) {
+      if (!aIndexStarted.isCompleted) aIndexStarted.complete();
+      await releaseA.future;
+    }
+    await super.write(key, value);
+  }
+}
+
 class QueueTransport implements ApiTransport {
   final List<ApiResponse> responses = [];
   final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
@@ -251,6 +265,80 @@ void main() {
     expect(operation.matches(currentEpoch: 4, currentPersonId: 'person-B'),
         isFalse);
     expect(operation.matches(currentEpoch: 5, currentPersonId: null), isFalse);
+  });
+
+  test('fenced basic cache cannot let delayed A replace completed B', () async {
+    final store = _DelayedIndexStore();
+    final cache = BasicCache(store, 'install');
+    var generation = 1;
+    final a = cache.saveFenced(
+      const Person('person-A', 'A', ['games:read']),
+      const [],
+      DateTime.utc(2026),
+      generation: 1,
+      isCurrent: () => generation == 1,
+    );
+    await store.aIndexStarted.future;
+    generation = 2;
+    await cache.saveFenced(
+      const Person('person-B', 'B', ['games:read']),
+      const [],
+      DateTime.utc(2026, 1, 2),
+      generation: 2,
+      isCurrent: () => generation == 2,
+    );
+    store.releaseA.complete();
+    expect(await a, isFalse);
+    expect((await cache.load())!.person.id, 'person-B');
+    expect(store.values.keys.any((key) => key.contains('person-A')), isFalse);
+  });
+
+  testWidgets('terminal profile mutation invokes canonical route reset',
+      (tester) async {
+    final transport = QueueTransport()
+      ..responses.addAll([
+        const ApiResponse(401, null),
+        const ApiResponse(401, null),
+      ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh-token-with-at-least-32-characters',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+    var terminals = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+          builder: (rootContext) => Scaffold(
+                body: FilledButton(
+                  onPressed: () =>
+                      Navigator.of(rootContext).push(MaterialPageRoute<void>(
+                    builder: (_) => DisplayNamePage(
+                      api: api,
+                      person: const Person('person-A', 'A', ['games:read']),
+                      onTerminalSession: () async {
+                        terminals++;
+                        Navigator.of(rootContext)
+                            .popUntil((route) => route.isFirst);
+                      },
+                    ),
+                  )),
+                  child: const Text('open'),
+                ),
+              )),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Updated');
+    await tester.tap(find.byType(FilledButton));
+    await tester.pumpAndSettle();
+    expect(terminals, 1);
+    expect(find.byType(DisplayNamePage), findsNothing);
+    expect(await sessions.observePresence(), isFalse);
   });
   test('app theme reserves the global primary for team navy', () {
     expect(appBrandNavy, const Color(0xff102a43));

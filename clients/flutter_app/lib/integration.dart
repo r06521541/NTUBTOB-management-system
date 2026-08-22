@@ -442,10 +442,14 @@ class CachedBasicData {
 }
 
 class BasicCache {
-  const BasicCache(this.store, this.installationId);
+  BasicCache(this.store, this.installationId);
   final DurableStore store;
   final String installationId;
+  int _latestGeneration = -1;
+  String? _latestPointer;
   String _key(String personId) => 'cache:v1:$installationId:$personId';
+  String _generationKey(String personId, int generation) =>
+      '${_key(personId)}:generation:$generation';
   String get _indexKey => 'cache-index:v1:$installationId';
   Future<void> save(Person person, List<Game> games, DateTime now) async {
     await store.write(
@@ -460,10 +464,64 @@ class BasicCache {
     await store.write(_indexKey, person.id);
   }
 
+  Future<bool> saveFenced(
+    Person person,
+    List<Game> games,
+    DateTime now, {
+    required int generation,
+    required bool Function() isCurrent,
+  }) async {
+    final dataKey = _generationKey(person.id, generation);
+    final pointer = '${person.id}:generation:$generation';
+    if (isCurrent() && generation >= _latestGeneration) {
+      _latestGeneration = generation;
+    }
+    await store.write(
+      dataKey,
+      jsonEncode({
+        'version': 1,
+        'person': person.toJson(),
+        'games': games.map((game) => game.toJson()).toList(),
+        'last_synced_at': now.toUtc().toIso8601String(),
+      }),
+    );
+    if (!isCurrent()) {
+      await store.delete(dataKey);
+      return false;
+    }
+    final previousPointer = await store.read(_indexKey);
+    await store.write(_indexKey, pointer);
+    if (isCurrent()) {
+      _latestPointer = pointer;
+      if (previousPointer != null && previousPointer != pointer) {
+        await store.delete(_dataKeyForPointer(previousPointer));
+      }
+      return true;
+    }
+    if (await store.read(_indexKey) == pointer) {
+      final restorePointer =
+          _latestGeneration > generation ? _latestPointer : null;
+      if (restorePointer == null) {
+        await store.delete(_indexKey);
+      } else {
+        await store.write(_indexKey, restorePointer);
+      }
+    }
+    await store.delete(dataKey);
+    return false;
+  }
+
+  String _dataKeyForPointer(String pointer) {
+    final parts = pointer.split(':generation:');
+    return parts.length == 2
+        ? _generationKey(parts.first, int.parse(parts.last))
+        : _key(pointer);
+  }
+
   Future<CachedBasicData?> load() async {
     final personId = await store.read(_indexKey);
     if (personId == null) return null;
-    final raw = await store.read(_key(personId));
+    final raw = await store.read(_dataKeyForPointer(personId));
     if (raw == null) return null;
     try {
       final value = jsonDecode(raw) as Map<String, dynamic>;
@@ -861,11 +919,14 @@ class NotificationCache {
   }
 
   Future<void> reconcileFreshPrincipal(Person? previous, Person current) async {
-    final indexedPerson = await store.read(_indexKey);
-    if (!current.canReadNotifications ||
-        previous != null && previous.id != current.id ||
-        indexedPerson != null && indexedPerson != current.id) {
-      await clear();
+    final targets = <String>{};
+    if (!current.canReadNotifications) targets.add(current.id);
+    if (previous != null && previous.id != current.id) targets.add(previous.id);
+    for (final target in targets) {
+      await store.delete(_key(target));
+      if (await store.read(_indexKey) == target) {
+        await store.delete(_indexKey);
+      }
     }
   }
 }
@@ -1438,12 +1499,12 @@ class SessionController {
     return refreshPresent;
   }
 
-  Future<void> accept(SessionEnvelope session) async {
+  Future<void> accept(SessionEnvelope session, {bool newLogin = true}) async {
     try {
       await store.write('refresh:$installationId', session.refreshToken);
       await store.delete('refresh-attempt:$installationId');
       _access = session.accessToken;
-      _generation++;
+      if (newLogin) _generation++;
     } on Object {
       _access = null;
       await store.delete('refresh:$installationId');
@@ -1473,7 +1534,7 @@ class SessionController {
       throw StateError('refresh uncertain');
     }
     final session = SessionEnvelope.fromJson(response.body!);
-    await accept(session);
+    await accept(session, newLogin: false);
     return session.accessToken;
   }
 

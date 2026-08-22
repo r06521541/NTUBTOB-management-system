@@ -463,11 +463,14 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         await _notificationController?.invalidate();
         _notificationController = null;
       }
-      await _cache!.save(loadedPerson, loadedGames, syncedAt);
-      if (epoch != _authEpoch) {
-        await _cache!.clear();
-        return false;
-      }
+      final committed = await _cache!.saveFenced(
+        loadedPerson,
+        loadedGames,
+        syncedAt,
+        generation: epoch,
+        isCurrent: () => epoch == _authEpoch,
+      );
+      if (!committed) return false;
       final aggregate = await _observeCacheSessionAggregate();
       if (!mounted || epoch != _authEpoch) return false;
       setState(() {
@@ -494,6 +497,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _retirePendingReview();
       _navigatorKey.currentState?.popUntil((route) => route.isFirst);
       await _api?.clearPendingProfileIntents();
+      await _cache?.clear();
     }
     if (classified == AuthViewState.sessionExpired && cached != null) {
       await _reportCache?.clearPrincipal(cached.person.id);
@@ -513,6 +517,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         principalProvenance = PrincipalProvenance.offlineCache;
         state = AuthViewState.offline;
       } else {
+        person = null;
+        games = const [];
+        lastSyncedAt = null;
         principalProvenance = null;
         state = classified;
       }
@@ -615,6 +622,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                               _notificationControllerFor(person!),
                           onRefresh: _loadBasic,
                           onPersonUpdated: _profileUpdateCallback(),
+                          onProfileTerminalSession:
+                              _handleProfileTerminalSession,
                           onOpenSettings: _openSettings,
                         )
                       : AuthStatePanel(state: state),
@@ -704,12 +713,18 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _notificationController = null;
       if (!_profileContextMatches(epoch, current.id)) return;
     }
-    await _cache!.save(refreshed, games, lastSyncedAt!);
+    final committed = await _cache!.saveFenced(
+      refreshed,
+      games,
+      lastSyncedAt!,
+      generation: epoch,
+      isCurrent: () => _profileContextMatches(epoch, current.id),
+    );
+    if (!committed) return;
     if (!mounted ||
         epoch != _authEpoch ||
         state != AuthViewState.authenticated ||
         person?.id != refreshed.id) {
-      await _cache!.clear();
       return;
     }
     setState(() => person = refreshed);
@@ -730,6 +745,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     _navigatorKey.currentState?.popUntil((route) => route.isFirst);
     _showFailure(const SessionExpiredException());
   }
+
+  Future<void> _handleProfileTerminalSession() =>
+      _showFailure(const SessionExpiredException());
 }
 
 class LoginActionButton extends StatelessWidget {
@@ -767,10 +785,12 @@ class DisplayNamePage extends StatefulWidget {
     required this.api,
     required this.person,
     this.onUpdated,
+    this.onTerminalSession,
   });
   final BasicApi api;
   final Person person;
   final Future<void> Function(Person person)? onUpdated;
+  final Future<void> Function()? onTerminalSession;
   @override
   State<DisplayNamePage> createState() => _DisplayNamePageState();
 }
@@ -805,6 +825,15 @@ class _DisplayNamePageState extends State<DisplayNamePage> {
       if (mounted) Navigator.of(context).pop();
     } on ProfileMutationUncertainException {
       if (mounted) setState(() => _message = '結果尚未確認；請使用相同名稱重試。');
+    } on SessionExpiredException {
+      await widget.onTerminalSession?.call();
+    } on ApiError catch (error) {
+      if (error.code == ApiErrorCode.unauthenticated ||
+          error.code == ApiErrorCode.sessionExpired) {
+        await widget.onTerminalSession?.call();
+      } else if (mounted) {
+        setState(() => _message = '無法更新顯示名稱，請稍後重試。');
+      }
     } on Object {
       if (mounted) setState(() => _message = '無法更新顯示名稱，請稍後重試。');
     } finally {
@@ -847,6 +876,7 @@ class BasicGamesView extends StatefulWidget {
     this.notificationController,
     this.onRefresh,
     this.onPersonUpdated,
+    this.onProfileTerminalSession,
     this.onOpenSettings,
     this.diagnosticEnabled = true,
   });
@@ -861,6 +891,7 @@ class BasicGamesView extends StatefulWidget {
   final NotificationCenterController? notificationController;
   final Future<bool> Function()? onRefresh;
   final Future<void> Function(Person person)? onPersonUpdated;
+  final Future<void> Function()? onProfileTerminalSession;
   final VoidCallback? onOpenSettings;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
@@ -1041,6 +1072,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                       api: widget.api,
                       person: widget.person,
                       onUpdated: widget.onPersonUpdated,
+                      onTerminalSession: widget.onProfileTerminalSession,
                     ),
                   ),
                 ),
