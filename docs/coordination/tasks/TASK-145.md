@@ -50,7 +50,10 @@ durable in-app history.
   - `shared_lib/shared_module/mobile_api.py`
   - `apps/mobile_api/app.py`
   - `apps/mobile_api/openapi.json`
+  - `apps/mobile_api/revision_readiness.py`
+  - `apps/mobile_api/README.md`
   - directly affected backend tests
+  - `clients/flutter_app/lib/basic_app.dart` (correction round lifecycle wiring after 145A integration)
   - `clients/flutter_app/lib/notification_center.dart` (new)
   - `clients/flutter_app/lib/integration.dart`
   - notification-centre focused Flutter tests
