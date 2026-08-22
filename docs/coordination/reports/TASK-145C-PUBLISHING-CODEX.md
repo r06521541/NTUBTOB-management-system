@@ -38,3 +38,9 @@ Whole-file Dart formatting initially exposed the repository's known authority-la
 The bundled Windows Black CLI/API repeatedly stalled as documented by the repository guidance, including on a single affected file, so it was terminated rather than allowed to normalize or block unrelated authority. Python compile, focused tests and diff checks passed; hosted CI remains the final formatter gate.
 
 This implementation is self-reviewed and handed off for independent acceptance; the writer does not self-accept.
+
+## TASK-145C residual OpenAPI correction
+
+- Added the existing `Conflict` 409 response reference to both `PUT /devices/current` and `DELETE /devices/current`.
+- Added direct contract assertions for both method response definitions.
+- Verification is limited to OpenAPI JSON parsing, the affected contract test, and `git diff --check`; no runtime, cloud, or other test was used.

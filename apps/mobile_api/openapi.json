@@ -107,12 +107,12 @@
       "put": {
         "description": "Locks and verifies the current active Person/session/installation, then idempotently registers only a uniquely owned explicit fake provider token hash; ownership conflicts are bounded and real APNs/FCM tokens are rejected.",
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeviceRegistrationRequest"}}}},
-        "responses": {"200": {"description": "Active fake registration", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeviceRegistration"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+        "responses": {"200": {"description": "Active fake registration", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/DeviceRegistration"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/Unavailable"}}
       },
       "delete": {
         "description": "Idempotently revokes the current Person installation registration.",
         "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["installation_id"], "properties": {"installation_id": {"type": "string", "minLength": 16, "maxLength": 200}}}}}},
-        "responses": {"200": {"description": "Revocation result"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+        "responses": {"200": {"description": "Revocation result"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/Unavailable"}}
       }
     }
   },

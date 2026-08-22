@@ -184,6 +184,12 @@ class OpenApiContractTest(unittest.TestCase):
             },
             sort_keys=True,
         ).lower()
+        devices_current = self.contract["paths"]["/devices/current"]
+        for method in ("put", "delete"):
+            self.assertEqual(
+                devices_current[method]["responses"]["409"],
+                {"$ref": "#/components/responses/Conflict"},
+            )
         for required in (
             "notifications:publish",
             "preview is not authorization",
