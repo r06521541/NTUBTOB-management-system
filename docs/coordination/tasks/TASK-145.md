@@ -20,7 +20,10 @@ durable in-app history.
 
 - claim_id: `task-145a-flutter-visual-writer`
 - lease_version: 1
-- actor: one `codex-writer`, assigned by Main
+- actor_id: `01a0271c-5337-7b41-9c3f-353b5bf12c57`
+- role: `codex-writer`
+- write: true, limited to the owned paths
+- report_to: `main-work`
 - owned paths:
   - `clients/flutter_app/lib/app_theme.dart` (new)
   - `clients/flutter_app/lib/basic_app.dart`
@@ -36,7 +39,10 @@ durable in-app history.
 
 - claim_id: `task-145b-notification-read-model-writer`
 - lease_version: 1
-- actor: one `codex-writer`, assigned by Main
+- actor_id: `01a0271c-54d0-7470-9f45-8bc232f87d74`
+- role: `codex-writer`
+- write: true, limited to the owned paths
+- report_to: `main-work`
 - owned paths:
   - `migrations/versions/0007_mobile_notifications.py` (new)
   - `shared_lib/shared_module/portal_data/models.py`
@@ -44,7 +50,10 @@ durable in-app history.
   - `shared_lib/shared_module/mobile_api.py`
   - `apps/mobile_api/app.py`
   - `apps/mobile_api/openapi.json`
+  - `apps/mobile_api/revision_readiness.py`
+  - `apps/mobile_api/README.md`
   - directly affected backend tests
+  - `clients/flutter_app/lib/basic_app.dart` (correction round lifecycle wiring after 145A integration)
   - `clients/flutter_app/lib/notification_center.dart` (new)
   - `clients/flutter_app/lib/integration.dart`
   - notification-centre focused Flutter tests
