@@ -119,16 +119,12 @@ class NotificationCenterController extends ChangeNotifier {
       await _loadCache();
     } on SessionExpiredException {
       await invalidate();
-      if (epoch != _epoch) return;
-      _set(NotificationCenterState.unauthorized, const [], null);
       onTerminalSession?.call();
     } on ApiError catch (error) {
       if (error.code == ApiErrorCode.forbidden ||
           error.code == ApiErrorCode.unauthenticated ||
           error.code == ApiErrorCode.sessionExpired) {
         await invalidate();
-        if (epoch != _epoch) return;
-        _set(NotificationCenterState.unauthorized, const [], null);
         onTerminalSession?.call();
       } else {
         state = NotificationCenterState.error;

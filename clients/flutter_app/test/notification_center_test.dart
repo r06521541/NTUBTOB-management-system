@@ -301,6 +301,32 @@ void main() {
     expect(controller.items, isEmpty);
   });
 
+  test('terminal list failures invalidate and notify root exactly once',
+      () async {
+    for (final failure in <Object>[
+      const SessionExpiredException(),
+      const ApiError(ApiErrorCode.unauthenticated, false, null),
+    ]) {
+      final store = MemoryStore();
+      final cache = NotificationCache(store, 'install');
+      await cache.save(principal, [makeNotification()], now);
+      var terminalCalls = 0;
+      final controller = NotificationCenterController(
+        client: FakeNotificationClient()..failure = failure,
+        cache: cache,
+        principal: principal,
+        clock: () => now,
+        onTerminalSession: () => terminalCalls++,
+      );
+
+      await controller.load(online: true);
+      expect(terminalCalls, 1);
+      expect(controller.state, NotificationCenterState.unauthorized);
+      expect(controller.items, isEmpty);
+      expect(store.values, isEmpty);
+    }
+  });
+
   test(
     'authorization loss and terminal session clear purge notification cache',
     () async {
