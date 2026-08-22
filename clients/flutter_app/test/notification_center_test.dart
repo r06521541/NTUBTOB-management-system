@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ntubtob_portal/integration.dart';
@@ -81,6 +83,17 @@ class FakeNotificationClient implements NotificationClient {
     _check();
     values = [for (final item in values) item.markRead(now)];
     return const NotificationReadAllResult(1, 0);
+  }
+}
+
+class DelayedNotificationClient extends FakeNotificationClient {
+  final loads = <Completer<List<MobileNotification>>>[];
+
+  @override
+  Future<List<MobileNotification>> notifications({bool unreadOnly = false}) {
+    final load = Completer<List<MobileNotification>>();
+    loads.add(load);
+    return load.future;
   }
 }
 
@@ -238,6 +251,103 @@ void main() {
       expect(client.calls, 0);
     },
   );
+
+  test('rapid notification loads share one in-flight request', () async {
+    final client = DelayedNotificationClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+
+    final first = controller.load(online: true);
+    final second = controller.load(online: true);
+    expect(client.loads, hasLength(1));
+    client.loads.single.complete([makeNotification()]);
+    await Future.wait([first, second]);
+
+    expect(controller.unreadCount, 1);
+    expect(controller.state, NotificationCenterState.online);
+  });
+
+  test('invalidation prevents a pending load from restoring notification state',
+      () async {
+    final client = DelayedNotificationClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    final pending = controller.load(online: true);
+    controller.invalidate();
+    client.loads.single.complete([makeNotification()]);
+    await pending;
+    expect(controller.state, NotificationCenterState.unauthorized);
+    expect(controller.items, isEmpty);
+  });
+
+  test('offline without valid cache is explicitly non-authoritative', () async {
+    final controller = NotificationCenterController(
+      client: FakeNotificationClient(),
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    await controller.load(online: false);
+    expect(
+        controller.state, NotificationCenterState.offlineEvidenceUnavailable);
+    expect(controller.items, isEmpty);
+  });
+
+  test('terminal list failures invalidate and notify root exactly once',
+      () async {
+    for (final failure in <Object>[
+      const SessionExpiredException(),
+      const ApiError(ApiErrorCode.unauthenticated, false, null),
+    ]) {
+      final store = MemoryStore();
+      final cache = NotificationCache(store, 'install');
+      await cache.save(principal, [makeNotification()], now);
+      var terminalCalls = 0;
+      final controller = NotificationCenterController(
+        client: FakeNotificationClient()..failure = failure,
+        cache: cache,
+        principal: principal,
+        clock: () => now,
+        onTerminalSession: () => terminalCalls++,
+      );
+
+      await controller.load(online: true);
+      expect(terminalCalls, 1);
+      expect(controller.state, NotificationCenterState.unauthorized);
+      expect(controller.items, isEmpty);
+      expect(store.values, isEmpty);
+    }
+  });
+
+  test(
+      'forbidden list failure clears notification state without ending session',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    await cache.save(principal, [makeNotification()], now);
+    var terminalCalls = 0;
+    final controller = NotificationCenterController(
+      client: FakeNotificationClient()
+        ..failure = const ApiError(ApiErrorCode.forbidden, false, null),
+      cache: cache,
+      principal: principal,
+      clock: () => now,
+      onTerminalSession: () => terminalCalls++,
+    );
+
+    await controller.load(online: true);
+    expect(terminalCalls, 0);
+    expect(controller.state, NotificationCenterState.unauthorized);
+    expect(store.values, isEmpty);
+  });
 
   test(
     'authorization loss and terminal session clear purge notification cache',

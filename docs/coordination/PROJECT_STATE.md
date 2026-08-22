@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `c4016dce924a1fa3e1edfaab7b9581ec968e04eb`
+Repository 基準：`main` / `1bb2417cac7b18d58bf4a453ad4bdb8607ef1894`
 
 ## Active role lanes
 
@@ -39,6 +39,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   refresh feedback、持久通知讀取模型／中心、Officer publishing／outbox／device/deep-link repository foundation。
   Final hosted run 32559518555 通過；未執行 deployment、staging、Secret/IAM、真實 provider／資料操作。Production、
   真實通知、release signing 與 stores 仍未授權。
+- TASK-146 已啟動為第一個新流程 L2 pilot：將既有通知中心接入正式 Flutter 首頁、badge、session/capability 與
+  offline cache lifecycle。範圍限 Flutter repository integration；不改 backend/schema，不使用 emulator/staging/provider。
 
 ## 已確認的 production 狀態
 

@@ -7,6 +7,7 @@ enum NotificationCenterState {
   loading,
   online,
   offline,
+  offlineEvidenceUnavailable,
   empty,
   unauthorized,
   error,
@@ -17,6 +18,7 @@ class NotificationCenterController extends ChangeNotifier {
     required this.client,
     required this.cache,
     required this.principal,
+    this.onTerminalSession,
     DateTime Function()? clock,
   }) : clock = clock ?? DateTime.now;
 
@@ -24,17 +26,73 @@ class NotificationCenterController extends ChangeNotifier {
   final NotificationCache cache;
   final Person principal;
   final DateTime Function() clock;
+  final VoidCallback? onTerminalSession;
   NotificationCenterState state = NotificationCenterState.initial;
   List<MobileNotification> items = const [];
   DateTime? lastSyncedAt;
   int unreadCount = 0;
+  Future<void>? _loadOperation;
+  Future<void>? _mutationOperation;
+  Future<void> _cacheTail = Future.value();
+  int _epoch = 0;
   bool get readOnly => state == NotificationCenterState.offline;
+  bool get busy => _loadOperation != null || _mutationOperation != null;
 
-  Future<void> load({required bool online, bool sessionPresent = true}) async {
+  Future<void> invalidate() {
+    _epoch++;
+    _loadOperation = null;
+    _mutationOperation = null;
+    _set(NotificationCenterState.unauthorized, const [], null);
+    return _enqueueCache(cache.clear);
+  }
+
+  Future<void> _enqueueCache(Future<void> Function() operation) {
+    _cacheTail = _cacheTail.catchError((_) {}).then((_) => operation());
+    return _cacheTail;
+  }
+
+  Future<void> _saveIfCurrent(
+    int epoch,
+    List<MobileNotification> nextItems,
+    DateTime syncedAt, {
+    required int nextUnreadCount,
+  }) async {
+    await _enqueueCache(() async {
+      if (epoch != _epoch) return;
+      await cache.save(
+        principal,
+        nextItems,
+        syncedAt,
+        unreadCount: nextUnreadCount,
+      );
+    });
+  }
+
+  Future<void> load({required bool online, bool sessionPresent = true}) {
+    final existing = _loadOperation;
+    if (existing != null) return existing;
+    late final Future<void> operation;
+    operation = _loadOnce(online: online, sessionPresent: sessionPresent)
+        .whenComplete(() {
+      if (identical(_loadOperation, operation)) {
+        _loadOperation = null;
+        notifyListeners();
+      }
+    });
+    _loadOperation = operation;
+    return operation;
+  }
+
+  Future<void> _loadOnce({
+    required bool online,
+    required bool sessionPresent,
+  }) async {
+    final epoch = _epoch;
     state = NotificationCenterState.loading;
     notifyListeners();
     if (!sessionPresent || !principal.canReadNotifications) {
-      await cache.clear();
+      await invalidate();
+      if (epoch != _epoch) return;
       _set(NotificationCenterState.unauthorized, const [], null);
       return;
     }
@@ -45,8 +103,11 @@ class NotificationCenterController extends ChangeNotifier {
     try {
       final fresh = await client.notifications();
       final serverUnreadCount = await client.unreadCount();
+      if (epoch != _epoch) return;
       final now = clock().toUtc();
-      await cache.save(principal, fresh, now, unreadCount: serverUnreadCount);
+      await _saveIfCurrent(epoch, fresh, now,
+          nextUnreadCount: serverUnreadCount);
+      if (epoch != _epoch) return;
       items = List.unmodifiable(fresh);
       unreadCount = serverUnreadCount;
       lastSyncedAt = now;
@@ -57,14 +118,15 @@ class NotificationCenterController extends ChangeNotifier {
     } on AuthorizedRequestNetworkException {
       await _loadCache();
     } on SessionExpiredException {
-      await cache.clear();
-      _set(NotificationCenterState.unauthorized, const [], null);
+      await invalidate();
+      onTerminalSession?.call();
     } on ApiError catch (error) {
-      if (error.code == ApiErrorCode.forbidden ||
-          error.code == ApiErrorCode.unauthenticated ||
+      if (error.code == ApiErrorCode.forbidden) {
+        await invalidate();
+      } else if (error.code == ApiErrorCode.unauthenticated ||
           error.code == ApiErrorCode.sessionExpired) {
-        await cache.clear();
-        _set(NotificationCenterState.unauthorized, const [], null);
+        await invalidate();
+        onTerminalSession?.call();
       } else {
         state = NotificationCenterState.error;
         notifyListeners();
@@ -76,13 +138,15 @@ class NotificationCenterController extends ChangeNotifier {
   }
 
   Future<void> _loadCache() async {
+    final epoch = _epoch;
     final cached = await cache.loadFor(
       principal,
       clock().toUtc(),
       sessionPresent: true,
     );
+    if (epoch != _epoch) return;
     if (cached == null) {
-      _set(NotificationCenterState.empty, const [], null);
+      _set(NotificationCenterState.offlineEvidenceUnavailable, const [], null);
       return;
     }
     items = List.unmodifiable(cached.items);
@@ -109,14 +173,33 @@ class NotificationCenterController extends ChangeNotifier {
 
   Future<void> markRead(String id, {required bool online}) async {
     if (!online) throw const OfflineReadOnlyException();
-    final result = await client.markRead(id);
+    final existing = _mutationOperation;
+    if (existing != null) return existing;
+    late final Future<void> operation;
+    operation = _markReadOnce(id).whenComplete(() {
+      if (identical(_mutationOperation, operation)) {
+        _mutationOperation = null;
+        notifyListeners();
+      }
+    });
+    _mutationOperation = operation;
+    notifyListeners();
+    return operation;
+  }
+
+  Future<void> _markReadOnce(String id) async {
+    final epoch = _epoch;
+    final result = await _terminalAware(() => client.markRead(id));
+    if (result == null) return;
+    if (epoch != _epoch) return;
     items = List.unmodifiable([
       for (final item in items)
         if (item.id == id) item.markRead(result.readAt) else item,
     ]);
     if (result.changed && unreadCount > 0) unreadCount--;
-    await cache.save(principal, items, lastSyncedAt ?? clock(),
-        unreadCount: unreadCount);
+    await _saveIfCurrent(epoch, items, lastSyncedAt ?? clock(),
+        nextUnreadCount: unreadCount);
+    if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
         : NotificationCenterState.online;
@@ -125,14 +208,33 @@ class NotificationCenterController extends ChangeNotifier {
 
   Future<void> markAllRead({required bool online}) async {
     if (!online) throw const OfflineReadOnlyException();
-    final result = await client.markAllRead();
+    final existing = _mutationOperation;
+    if (existing != null) return existing;
+    late final Future<void> operation;
+    operation = _markAllReadOnce().whenComplete(() {
+      if (identical(_mutationOperation, operation)) {
+        _mutationOperation = null;
+        notifyListeners();
+      }
+    });
+    _mutationOperation = operation;
+    notifyListeners();
+    return operation;
+  }
+
+  Future<void> _markAllReadOnce() async {
+    final epoch = _epoch;
+    final result = await _terminalAware(() => client.markAllRead());
+    if (result == null) return;
+    if (epoch != _epoch) return;
     final readAt = clock().toUtc();
     items = List.unmodifiable(
       items.map((item) => item.markRead(readAt)).toList(growable: false),
     );
     unreadCount = result.unreadCount;
-    await cache.save(principal, items, lastSyncedAt ?? readAt,
-        unreadCount: unreadCount);
+    await _saveIfCurrent(epoch, items, lastSyncedAt ?? readAt,
+        nextUnreadCount: unreadCount);
+    if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
         : NotificationCenterState.online;
@@ -149,6 +251,24 @@ class NotificationCenterController extends ChangeNotifier {
     unreadCount = nextItems.where((item) => !item.isRead).length;
     lastSyncedAt = syncedAt;
     notifyListeners();
+  }
+
+  Future<T?> _terminalAware<T>(Future<T> Function() operation) async {
+    try {
+      return await operation();
+    } on SessionExpiredException {
+      await invalidate();
+      onTerminalSession?.call();
+      return null;
+    } on ApiError catch (error) {
+      if (error.code == ApiErrorCode.unauthenticated ||
+          error.code == ApiErrorCode.sessionExpired) {
+        await invalidate();
+        onTerminalSession?.call();
+        return null;
+      }
+      rethrow;
+    }
   }
 }
 
@@ -171,10 +291,19 @@ class NotificationCenter extends StatelessWidget {
           appBar: AppBar(
             title: Text('通知中心 (${controller.unreadCount})'),
             actions: [
+              IconButton(
+                key: const ValueKey('notification-refresh'),
+                tooltip: '重新整理通知',
+                onPressed: controller.busy
+                    ? null
+                    : () => controller.load(online: online),
+                icon: const Icon(Icons.refresh),
+              ),
               TextButton(
-                onPressed: online && controller.unreadCount > 0
-                    ? () => controller.markAllRead(online: true)
-                    : null,
+                onPressed:
+                    online && controller.unreadCount > 0 && !controller.busy
+                        ? () => controller.markAllRead(online: true)
+                        : null,
                 child: const Text('全部已讀'),
               ),
             ],
@@ -193,6 +322,12 @@ class NotificationCenter extends StatelessWidget {
     }
     if (controller.state == NotificationCenterState.error) {
       return const Center(child: Text('通知載入失敗，請稍後再試。'));
+    }
+    if (controller.state ==
+        NotificationCenterState.offlineEvidenceUnavailable) {
+      return const Center(
+        child: Text('離線時沒有可驗證的通知快取，無法顯示通知。'),
+      );
     }
     if (controller.items.isEmpty) {
       return const Center(child: Text('目前沒有通知'));
@@ -218,12 +353,14 @@ class NotificationCenter extends StatelessWidget {
                 title: Text(item.title),
                 subtitle: Text(item.body),
                 selected: !item.isRead,
-                onTap: () {
-                  onOpen?.call(item);
-                  if (online && !item.isRead) {
-                    controller.markRead(item.id, online: true);
-                  }
-                },
+                onTap: controller.busy
+                    ? null
+                    : () {
+                        onOpen?.call(item);
+                        if (online && !item.isRead) {
+                          controller.markRead(item.id, online: true);
+                        }
+                      },
               );
             },
           ),

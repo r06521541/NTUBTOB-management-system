@@ -7,6 +7,7 @@ import 'basic_app.dart';
 import 'foundation.dart';
 import 'integration.dart';
 import 'officer_prereview.dart';
+import 'notification_center.dart';
 
 enum ProductionDemoPersona { basic, officer }
 
@@ -68,6 +69,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   static const _basicPerson = Person('fictional-basic', '虛構一般使用者', [
     'games:read',
     'attendance:reply:self',
+    'notifications:read',
   ]);
   static const _officerPerson = Person(
       'fictional-officer',
@@ -76,12 +78,16 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
         'games:read',
         'attendance:reply:self',
         'attendance:report:read',
+        'notifications:read',
       ],
       accessLevel: AccessLevel.officer);
 
   late final ProductionDemoProbe _probe;
   late final _ProductionDemoApi _api;
   late final _ProductionDemoReportCache _reportCache;
+  late final NotificationCache _notificationCache;
+  late final _ProductionDemoNotificationClient _notificationClient;
+  final _notificationControllers = <String, NotificationCenterController>{};
   ProductionDemoPersona _persona = ProductionDemoPersona.basic;
   ProductionDemoConnectivity _connectivity = ProductionDemoConnectivity.online;
   ProductionDemoDataState _dataState = ProductionDemoDataState.populated;
@@ -92,7 +98,37 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     _probe = widget.probe ?? ProductionDemoProbe();
     _api = _ProductionDemoApi(_probe, _games);
     _reportCache = _ProductionDemoReportCache(_fictionalReportUiModel);
+    _notificationCache = NotificationCache(MemoryStore(), 'fictional-demo');
+    _notificationClient = _ProductionDemoNotificationClient();
+    _seedNotifications();
   }
+
+  Future<void> _seedNotifications() async {
+    final notifications = _notificationClient.values;
+    await _notificationCache.save(
+      _basicPerson,
+      notifications,
+      _lastSyncedAt,
+      unreadCount: notifications.where((item) => !item.isRead).length,
+    );
+    await _notificationCache.save(
+      _officerPerson,
+      notifications,
+      _lastSyncedAt,
+      unreadCount: notifications.where((item) => !item.isRead).length,
+    );
+  }
+
+  NotificationCenterController _notificationController(Person person) =>
+      _notificationControllers.putIfAbsent(
+        person.id,
+        () => NotificationCenterController(
+          client: _notificationClient,
+          cache: _notificationCache,
+          principal: person,
+          clock: () => _lastSyncedAt,
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +241,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                         ? PrincipalProvenance.freshServer
                         : PrincipalProvenance.offlineCache,
                     reportCache: _reportCache,
+                    notificationController: _notificationController(person),
                     onRefresh: () async => true,
                   ),
           ),
@@ -228,6 +265,62 @@ class _RejectingProductionDemoTransport implements ApiTransport {
   }) async {
     probe.unexpectedTransportCalls++;
     throw StateError('production demo transport must remain unused');
+  }
+}
+
+class _ProductionDemoNotificationClient implements NotificationClient {
+  List<MobileNotification> values = [
+    MobileNotification.fromJson({
+      'id': 'notification_901',
+      'type': 'game_reminder',
+      'title': '虛構賽事提醒',
+      'body': '這是展示用的未讀通知。',
+      'created_at': '2026-08-21T08:30:00Z',
+      'visible_until': '2026-11-19T08:30:00Z',
+      'read_at': null,
+    }),
+    MobileNotification.fromJson({
+      'id': 'notification_902',
+      'type': 'game_change',
+      'title': '虛構場地異動',
+      'body': '這是展示用的已讀通知。',
+      'created_at': '2026-08-20T08:30:00Z',
+      'visible_until': '2026-11-18T08:30:00Z',
+      'read_at': '2026-08-20T09:00:00Z',
+    }),
+  ];
+
+  @override
+  Future<MobileNotification> notification(String id) async =>
+      values.firstWhere((item) => item.id == id);
+
+  @override
+  Future<List<MobileNotification>> notifications(
+          {bool unreadOnly = false}) async =>
+      unreadOnly ? values.where((item) => !item.isRead).toList() : values;
+
+  @override
+  Future<int> unreadCount() async =>
+      values.where((item) => !item.isRead).length;
+
+  @override
+  Future<NotificationReadResult> markRead(String id) async {
+    const readAt = '2026-08-21T08:30:00Z';
+    values = [
+      for (final item in values)
+        if (item.id == id)
+          item.markRead(DateTime.parse(readAt).toUtc())
+        else
+          item,
+    ];
+    return NotificationReadResult(id, DateTime.parse(readAt).toUtc(), true);
+  }
+
+  @override
+  Future<NotificationReadAllResult> markAllRead() async {
+    final readAt = DateTime.utc(2026, 8, 21, 8, 30);
+    values = [for (final item in values) item.markRead(readAt)];
+    return const NotificationReadAllResult(1, 0);
   }
 }
 

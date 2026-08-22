@@ -1,24 +1,22 @@
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-146
+status: ready_for_review
+next_actor: main-work
 
 claim_id: main-work-20260822
 lease_version: 3
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: c4016dce924a1fa3e1edfaab7b9581ec968e04eb
-head_commit: c4016dce924a1fa3e1edfaab7b9581ec968e04eb
+base_commit: 1bb2417cac7b18d58bf4a453ad4bdb8607ef1894
+head_commit: ba52e21caa181ba456cdb72bc729c981e7b9c3af
 
 updated_by: main-work
-updated_at: 2026-08-22T16:37:46+08:00
+updated_at: 2026-08-22T17:40:25+08:00
 
 note: >
-  Owner appointed actor 01a02871-a907-7023-8324-3cde5c194f6a as Main Work;
-  predecessor 019fe8ff-b672-7b33-b535-3a325d85124a formally withdrew with no
-  unwritten blocker. TASK-145 PR #172 and hosted run 32559518555 completed.
-  Deployment, Secret/IAM, real providers/data, signing and stores remain Owner gates.
+  TASK-146 source and lifecycle review accepted at exact HEAD ba52e21caa181ba456cdb72bc729c981e7b9c3af.
+  Hosted CI is the sole remaining full Flutter gate. No backend/schema/provider/deploy scope.
 
-worktree: C:/Users/USER/.codex/worktrees/1824/NTUBTOB-management-system
-task: null
-report: null
-review: null
+worktree: C:/Users/USER/Repos/NTUBTOB-management-system
+task: docs/coordination/tasks/TASK-146.md
+report: docs/coordination/reports/TASK-146-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-146-WORK.md

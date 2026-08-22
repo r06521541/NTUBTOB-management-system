@@ -137,6 +137,18 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
+  testWidgets('production demo opens the same notification centre', (
+    tester,
+  ) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('通知中心 (1)'), findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
   testWidgets('Officer reaches online production report with fake data only', (
     tester,
   ) async {
