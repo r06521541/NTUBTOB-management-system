@@ -1,25 +1,25 @@
-active_task: TASK-152
-status: ready_for_hosted_ci
-next_actor: main-work
+active_task: TASK-153
+status: ready_for_writer
+next_actor: codex-writer
 
 claim_id: main-work-20260822
-lease_version: 10
+lease_version: 11
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 710bf371e5616e47ef17e753809c3f5dd165eb3f
-head_commit: 8f13309d672eb5dfc02d327438c9da4b46c5270a
+base_commit: 22b5f0e4ac50dfc45745763a24430e9cd6b90634
+head_commit: 22b5f0e4ac50dfc45745763a24430e9cd6b90634
 
 updated_by: main-work
-updated_at: 2026-08-23T00:40:00+08:00
+updated_at: 2026-08-23T01:20:00+08:00
 
 note: >
-  TASK-150/151/152 product checkpoints are accepted through
-  8f13309d672eb5dfc02d327438c9da4b46c5270a. The incubator milestone is reached.
-  Main now creates the delivery group's single final PR and uses hosted Flutter
-  CI for formal integration acceptance. No deployment or external runtime is
-  authorized by this handoff.
+  TASK-150/151/152 checkpoints are accepted through 22b5f0e. Owner extended
+  incubation until a deployment-adjacent/release-candidate gate; PR #178 was
+  closed without merge and its useful formatter/scroll-aware test corrections
+  remain on the shared branch. TASK-153 adds local Month/Week/Agenda calendar
+  presentations only; no API, persistence, device calendar or deep link.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-152.md
-report: docs/coordination/reports/TASK-152-FLUTTER-CODEX.md
+task: docs/coordination/tasks/TASK-153.md
+report: docs/coordination/reports/TASK-153-FLUTTER-CODEX.md
 review: none

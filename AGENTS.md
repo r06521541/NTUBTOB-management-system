@@ -44,8 +44,8 @@
 - 驗收依 `docs/coordination/COLLABORATION.md` 第 9 節分為 L1 presentation、L2 state/auth/cache 與
   L3 API/schema/deploy。L1 預設不派 Domain、不跑 local full 或 runtime；以 focused tests、analyze 與 hosted full 為準。
 - 例外：active task 若依 `COLLABORATION.md` 明列為 Flutter 產品孵化 work package，可在共同 incubator branch 以
-  描述性 commit 與 focused local evidence 累積，不必每 task 建 PR／跑 hosted CI；到 task 明列的 delivery milestone
-  才做唯一 final PR 與正式 gate。登入／授權／安全／後端契約／shared boundary／正式資料／Secret／schema／真實通知／
+  描述性 commit 與 focused local evidence 累積，不必每 task 建 PR／跑 hosted CI；只有 Owner 宣告接近部署／正式發布候選，
+  或 Main 因安全與整合風險要求提早收斂時，才做唯一 final PR 與正式 gate。登入／授權／安全／後端契約／shared boundary／正式資料／Secret／schema／真實通知／
   部署不適用此例外，必須立即恢復 L2／L3 與 Owner gate。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。
 - 不以「測試通過」推定線上整合正確。無法驗證的部分必須在交付時明說。

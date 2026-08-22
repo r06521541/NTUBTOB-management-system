@@ -137,8 +137,9 @@ delivery milestone，但安全、資料及跨系統契約變更不適用此豁�
   commit 只表示進度已保存，不表示已整合、hosted CI 已通過或可發布。
 - 平日最小 evidence 為 focused tests、`flutter analyze` 或等價 affected analyze、必要 compile check、formatter、
   `git diff --check` 與 clean/known `git status`。Main 做輕量 diff／risk review，不機械重跑完整 suite。
-- Milestone 以先到者為準：完成 task 明列的一個完整使用者流程、累積約 3–6 個實質 commits、或一週。Main 可因風險
-  提前 milestone；到點建立該 delivery group 唯一 final PR，執行 change-selected hosted CI 與正式驗收。
+- 完整流程、3–6 個實質 commits 與一週只作 Main 的 checkpoint／整理提示，不自動觸發 PR 或 hosted CI。孵化 branch
+  可繼續累積，直到 Owner 宣告接近部署／正式發布候選；Main 只有發現安全、難以隔離的跨功能整合風險或 branch 已不再
+  可驗證時，才可要求提早收斂。屆時建立該 delivery group 唯一 final PR，執行 change-selected hosted CI 與正式驗收。
 - UI、導覽、local state、fixture 與 prototype model 可在 milestone 前較大幅調整或短期不相容；task 仍須維持可測、
   可接續且不誤稱 production-ready。
 - 一旦觸及登入／授權／安全、後端 API contract、shared boundary、正式資料、Secret、schema、真實通知、部署、簽署或
