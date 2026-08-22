@@ -581,6 +581,31 @@ void main() {
     }
   });
 
+  testWidgets('support and app information is reachable without transport', (
+    tester,
+  ) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BasicGamesView(
+          api: api,
+          person: const Person('person-id', '名稱', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026, 8, 20),
+          principalProvenance: PrincipalProvenance.freshServer,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('support-app-info-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('支援與 App 資訊'), findsOneWidget);
+    expect(find.text('未提供'), findsNWidgets(2));
+    expect((api.session.api as QueueTransport).calls, isEmpty);
+  });
+
   testWidgets('offline account status is read-only and non-authoritative', (
     tester,
   ) async {
