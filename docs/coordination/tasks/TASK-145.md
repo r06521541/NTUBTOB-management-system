@@ -89,6 +89,16 @@ durable in-app history.
 - scope: capability-gated individual/game/team recipient preview; exact preview revision and typed confirmation; at-most-one command via idempotency key; immutable audit and per-channel delivery result/outbox; device registration lifecycle; typed in-app/push destinations for notification detail or game detail.
 - invariants: Flutter holds no LINE/Discord/provider secret and never expands recipients; durable notification commit is independent of provider success; provider failure remains a truthful retryable delivery result and cannot erase in-app history; no real provider adapter is enabled, invoked or provisioned in this task; all fictional dispatch tests use rejecting/fake adapters.
 
+#### 145C Data/Auth review lane
+
+- claim_id: `task-145c-data-auth-domain-review`
+- lease_version: 1
+- actor_id: `01a0273e-9587-72e3-ade3-1466bc67b8a5`
+- role: `domain-work`
+- write: false
+- report_to: `main-work`
+- scope: authorization, server recipient expansion/revision, transaction and idempotency, immutable audit/outbox separation, device-token isolation and typed deep-link fail-closed behavior only.
+
 ## Frozen product contract
 
 - Types: game reminder, attendance reminder, game change, Officer personal,
