@@ -65,8 +65,27 @@ durable in-app history.
 
 - claim_id: `task-145c-notification-publishing-writer`
 - lease_version: 1
-- actor: assigned only after 145B contract is frozen
-- owned paths: declared at assignment and must not overlap an active writer
+- actor_id: `01a02766-813a-7333-a233-1ad01fd63353`
+- role: `codex-writer`
+- write: true, limited to the owned paths
+- report_to: `main-work`
+- owned paths:
+  - `migrations/versions/0008_mobile_notification_delivery.py` (new)
+  - `shared_lib/shared_module/portal_data/models.py`
+  - `shared_lib/shared_module/portal_data/mobile_repository.py`
+  - `shared_lib/shared_module/mobile_api.py`
+  - `shared_lib/shared_module/mobile_notifications.py` (new, if needed)
+  - `apps/mobile_api/app.py`
+  - `apps/mobile_api/bootstrap.py`
+  - `apps/mobile_api/openapi.json`
+  - `apps/mobile_api/revision_readiness.py`
+  - `apps/mobile_api/README.md`
+  - directly affected backend tests
+  - `clients/flutter_app/lib/basic_app.dart`
+  - `clients/flutter_app/lib/integration.dart`
+  - `clients/flutter_app/lib/notification_center.dart`
+  - directly affected Flutter tests
+  - `docs/coordination/reports/TASK-145C-PUBLISHING-CODEX.md`
 - scope: capability-gated individual/game/team recipient preview; exact preview revision and typed confirmation; at-most-one command via idempotency key; immutable audit and per-channel delivery result/outbox; device registration lifecycle; typed in-app/push destinations for notification detail or game detail.
 - invariants: Flutter holds no LINE/Discord/provider secret and never expands recipients; durable notification commit is independent of provider success; provider failure remains a truthful retryable delivery result and cannot erase in-app history; no real provider adapter is enabled, invoked or provisioned in this task; all fictional dispatch tests use rejecting/fake adapters.
 
@@ -125,5 +144,6 @@ durable in-app history.
 ## Status
 
 - 2026-08-22: planned and authorized for repository implementation.
-- Current unit: 145A and 145B contract/implementation may proceed in parallel;
-  145C waits for 145B contract freeze.
+- 2026-08-22: 145A and 145B accepted and integrated; 145C contract released
+  to the registered sole writer.
+- Current unit: 145C implementation.
