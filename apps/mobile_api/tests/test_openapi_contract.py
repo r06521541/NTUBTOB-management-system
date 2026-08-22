@@ -23,6 +23,11 @@ class OpenApiContractTest(unittest.TestCase):
                 "/games/{game_id}/attendance",
                 "/games/{game_id}/attendance-report",
                 "/games/{game_id}/attendance-reply",
+                "/notifications",
+                "/notifications/unread-count",
+                "/notifications/{notification_id}",
+                "/notifications/{notification_id}/read",
+                "/notifications/read-all",
             },
         )
 
@@ -108,6 +113,44 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertIn("cryptography==43.0.3", requirements)
         self.assertIn(".env.yaml", ignored)
         self.assertNotIn("gcloud", dockerfile + (root / "cloudbuild.yaml").read_text())
+
+    def test_notification_contract_freezes_visibility_cursor_and_idempotent_reads(self):
+        schemas = self.contract["components"]["schemas"]
+        self.assertEqual(
+            schemas["NotificationType"]["enum"],
+            [
+                "game_reminder",
+                "attendance_reminder",
+                "game_change",
+                "officer_personal",
+                "officer_game_broadcast",
+                "officer_team_broadcast",
+                "admin_system_announcement",
+            ],
+        )
+        self.assertEqual(
+            schemas["Notification"]["properties"]["body"]["maxLength"], 500
+        )
+        person_capabilities = schemas["Person"]["properties"]["capabilities"]["items"][
+            "enum"
+        ]
+        self.assertIn("notifications:read", person_capabilities)
+        encoded = json.dumps(
+            {
+                key: self.contract["paths"][key]
+                for key in self.contract["paths"]
+                if key.startswith("/notifications")
+            },
+            sort_keys=True,
+        )
+        for required in (
+            "90 days",
+            "created_at and notification_id descending",
+            "server-derived Person principal",
+            "idempotent",
+            "unread",
+        ):
+            self.assertIn(required.lower(), encoded.lower())
 
 
 if __name__ == "__main__":

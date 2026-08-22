@@ -3,6 +3,7 @@
   "capabilities": [
     "games:read",
     "attendance:reply:self",
+    "notifications:read",
     "attendance:report:read"
   ],
   "display_name": "Officer",

@@ -127,6 +127,17 @@ def create_app(dependencies: Dependencies) -> Flask:
             raise MalformedRequest("game_id is malformed")
         return parsed
 
+    def notification_id(value):
+        if not value.startswith("notification_"):
+            raise MalformedRequest("notification_id is malformed")
+        try:
+            parsed = int(value[13:])
+        except ValueError:
+            raise MalformedRequest("notification_id is malformed") from None
+        if parsed <= 0:
+            raise MalformedRequest("notification_id is malformed")
+        return parsed
+
     @app.post("/api/v1/auth/line/exchange")
     def exchange():
         body = json_body(
@@ -181,6 +192,59 @@ def create_app(dependencies: Dependencies) -> Flask:
         return jsonify(
             dependencies.basic.games_page(
                 authenticate(), request.args.get("cursor"), limit
+            )
+        )
+
+    @app.get("/api/v1/notifications")
+    def notifications():
+        raw_limit = request.args.get("limit", "20")
+        try:
+            limit = int(raw_limit)
+        except ValueError:
+            raise InvalidArgument("limit must be an integer") from None
+        raw_unread = request.args.get("unread_only", "false")
+        if raw_unread not in {"true", "false"}:
+            raise InvalidArgument("unread_only must be true or false")
+        return jsonify(
+            dependencies.basic.notifications_page(
+                authenticate(),
+                request.args.get("cursor"),
+                limit,
+                raw_unread == "true",
+            )
+        )
+
+    @app.get("/api/v1/notifications/unread-count")
+    def notification_unread_count():
+        return jsonify(
+            {
+                "unread_count": dependencies.basic.notification_unread_count(
+                    authenticate()
+                )
+            }
+        )
+
+    @app.put("/api/v1/notifications/read-all")
+    def mark_all_notifications_read():
+        principal = authenticate()
+        json_body(set())
+        return jsonify(dependencies.basic.mark_all_notifications_read(principal))
+
+    @app.get("/api/v1/notifications/<notification_key>")
+    def notification(notification_key):
+        return jsonify(
+            dependencies.basic.notification(
+                authenticate(), notification_id(notification_key)
+            )
+        )
+
+    @app.put("/api/v1/notifications/<notification_key>/read")
+    def mark_notification_read(notification_key):
+        principal = authenticate()
+        json_body(set())
+        return jsonify(
+            dependencies.basic.mark_notification_read(
+                principal, notification_id(notification_key)
             )
         )
 

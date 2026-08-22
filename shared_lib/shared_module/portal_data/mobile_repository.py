@@ -15,7 +15,7 @@ from shared_module.mobile_api import (
     MobilePrincipal,
     TokenPair,
 )
-from sqlalchemy import Engine, select, update
+from sqlalchemy import Engine, and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -24,6 +24,8 @@ from .models import (
     AuthIdentityRecord,
     MobileAuthExchangeRecord,
     MobileIdempotencyRecord,
+    MobileNotificationRecipientRecord,
+    MobileNotificationRecord,
     MobileRefreshAttemptRecord,
     MobileRefreshTokenRecord,
     MobileSessionRecord,
@@ -246,6 +248,183 @@ class MobileRepository:
             )
             if device is not None:
                 self._revoke_family(session, device, now)
+
+    @staticmethod
+    def _notification_row(notification, read_at, cursor_created_at) -> dict:
+        return {
+            "id": notification.id,
+            "type": notification.notification_type,
+            "title": notification.title,
+            "body": notification.body,
+            "created_at": notification.created_at,
+            "visible_until": notification.visible_until,
+            "read_at": read_at,
+            "_cursor_created_at": cursor_created_at,
+        }
+
+    @staticmethod
+    def _visible_notification(now: datetime):
+        return and_(
+            MobileNotificationRecord.created_at <= now,
+            MobileNotificationRecord.visible_until > now,
+        )
+
+    def notification_page(
+        self,
+        person_id: int,
+        now: datetime,
+        cursor: tuple[datetime, int] | None,
+        limit: int,
+        unread_only: bool,
+    ) -> list[dict]:
+        statement = (
+            select(
+                MobileNotificationRecord,
+                MobileNotificationRecipientRecord.read_at,
+                MobileNotificationRecord.created_at,
+            )
+            .join(
+                MobileNotificationRecipientRecord,
+                MobileNotificationRecipientRecord.notification_id
+                == MobileNotificationRecord.id,
+            )
+            .where(
+                MobileNotificationRecipientRecord.person_id == person_id,
+                MobileNotificationRecipientRecord.created_at <= now,
+                self._visible_notification(now),
+            )
+            .order_by(
+                MobileNotificationRecord.created_at.desc(),
+                MobileNotificationRecord.id.desc(),
+            )
+            .limit(limit)
+        )
+        if unread_only:
+            statement = statement.where(
+                MobileNotificationRecipientRecord.read_at.is_(None)
+            )
+        if cursor is not None:
+            created_at, notification_id = cursor
+            statement = statement.where(
+                or_(
+                    MobileNotificationRecord.created_at < created_at,
+                    and_(
+                        MobileNotificationRecord.created_at == created_at,
+                        MobileNotificationRecord.id < notification_id,
+                    ),
+                )
+            )
+        with Session(self.engine) as session:
+            rows = session.execute(statement).all()
+        return [self._notification_row(*row) for row in rows]
+
+    def notification_detail(
+        self, person_id: int, notification_id: int, now: datetime
+    ) -> dict | None:
+        statement = (
+            select(
+                MobileNotificationRecord,
+                MobileNotificationRecipientRecord.read_at,
+                MobileNotificationRecord.created_at,
+            )
+            .join(
+                MobileNotificationRecipientRecord,
+                MobileNotificationRecipientRecord.notification_id
+                == MobileNotificationRecord.id,
+            )
+            .where(
+                MobileNotificationRecord.id == notification_id,
+                MobileNotificationRecipientRecord.person_id == person_id,
+                MobileNotificationRecipientRecord.created_at <= now,
+                self._visible_notification(now),
+            )
+        )
+        with Session(self.engine) as session:
+            row = session.execute(statement).one_or_none()
+        return None if row is None else self._notification_row(*row)
+
+    def notification_unread_count(self, person_id: int, now: datetime) -> int:
+        statement = (
+            select(func.count())
+            .select_from(MobileNotificationRecipientRecord)
+            .join(
+                MobileNotificationRecord,
+                MobileNotificationRecord.id
+                == MobileNotificationRecipientRecord.notification_id,
+            )
+            .where(
+                MobileNotificationRecipientRecord.person_id == person_id,
+                MobileNotificationRecipientRecord.read_at.is_(None),
+                MobileNotificationRecipientRecord.created_at <= now,
+                self._visible_notification(now),
+            )
+        )
+        with Session(self.engine) as session:
+            return int(session.scalar(statement) or 0)
+
+    def mark_notification_read(
+        self, person_id: int, notification_id: int, now: datetime
+    ) -> tuple[datetime, bool] | None:
+        visible_ids = select(MobileNotificationRecord.id).where(
+            MobileNotificationRecord.id == notification_id,
+            self._visible_notification(now),
+        )
+        with Session(self.engine) as session, session.begin():
+            read_at = session.scalar(
+                update(MobileNotificationRecipientRecord)
+                .where(
+                    MobileNotificationRecipientRecord.person_id == person_id,
+                    MobileNotificationRecipientRecord.notification_id.in_(visible_ids),
+                    MobileNotificationRecipientRecord.created_at <= now,
+                    MobileNotificationRecipientRecord.read_at.is_(None),
+                )
+                .values(read_at=now)
+                .returning(MobileNotificationRecipientRecord.read_at)
+            )
+            if read_at is not None:
+                return read_at, True
+            existing = session.scalar(
+                select(MobileNotificationRecipientRecord.read_at).where(
+                    MobileNotificationRecipientRecord.person_id == person_id,
+                    MobileNotificationRecipientRecord.notification_id.in_(visible_ids),
+                    MobileNotificationRecipientRecord.created_at <= now,
+                )
+            )
+            return None if existing is None else (existing, False)
+
+    def mark_all_notifications_read(
+        self, person_id: int, now: datetime
+    ) -> tuple[int, int]:
+        visible_ids = select(MobileNotificationRecord.id).where(
+            self._visible_notification(now)
+        )
+        with Session(self.engine) as session, session.begin():
+            result = session.execute(
+                update(MobileNotificationRecipientRecord)
+                .where(
+                    MobileNotificationRecipientRecord.person_id == person_id,
+                    MobileNotificationRecipientRecord.notification_id.in_(visible_ids),
+                    MobileNotificationRecipientRecord.created_at <= now,
+                    MobileNotificationRecipientRecord.read_at.is_(None),
+                )
+                .values(read_at=now)
+            )
+            unread = session.scalar(
+                select(func.count())
+                .select_from(MobileNotificationRecipientRecord)
+                .join(
+                    MobileNotificationRecord,
+                    MobileNotificationRecord.id
+                    == MobileNotificationRecipientRecord.notification_id,
+                )
+                .where(
+                    MobileNotificationRecipientRecord.person_id == person_id,
+                    MobileNotificationRecipientRecord.read_at.is_(None),
+                    MobileNotificationRecipientRecord.created_at <= now,
+                    self._visible_notification(now),
+                )
+            )
+            return result.rowcount, int(unread or 0)
 
     def idempotent(self, **values) -> tuple[int, dict, bool]:
         """Claim durably, serialize execution, and reconcile a saved mutation.

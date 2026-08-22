@@ -211,6 +211,7 @@ class Person {
     const allowed = {
       'games:read',
       'attendance:reply:self',
+      'notifications:read',
       'attendance:report:read',
     };
     if (caps.any((e) => e is! String || !allowed.contains(e))) {
@@ -226,6 +227,7 @@ class Person {
   bool get canReadAttendanceReport =>
       accessLevel != AccessLevel.basic &&
       capabilities.contains('attendance:report:read');
+  bool get canReadNotifications => capabilities.contains('notifications:read');
   Map<String, dynamic> toJson() => {
         'id': id,
         'display_name': displayName,
@@ -438,6 +440,262 @@ class BasicCache {
     if (!indexPresent && dataCount == 0) return false;
     if (indexPresent && dataCount == 1) return true;
     return null;
+  }
+}
+
+enum MobileNotificationType {
+  gameReminder,
+  attendanceReminder,
+  gameChange,
+  officerPersonal,
+  officerGameBroadcast,
+  officerTeamBroadcast,
+  adminSystemAnnouncement
+}
+
+extension MobileNotificationTypeWire on MobileNotificationType {
+  String get wire => switch (this) {
+        MobileNotificationType.gameReminder => 'game_reminder',
+        MobileNotificationType.attendanceReminder => 'attendance_reminder',
+        MobileNotificationType.gameChange => 'game_change',
+        MobileNotificationType.officerPersonal => 'officer_personal',
+        MobileNotificationType.officerGameBroadcast =>
+          'officer_game_broadcast',
+        MobileNotificationType.officerTeamBroadcast =>
+          'officer_team_broadcast',
+        MobileNotificationType.adminSystemAnnouncement =>
+          'admin_system_announcement',
+      };
+
+  static MobileNotificationType parse(Object? value) => switch (value) {
+        'game_reminder' => MobileNotificationType.gameReminder,
+        'attendance_reminder' => MobileNotificationType.attendanceReminder,
+        'game_change' => MobileNotificationType.gameChange,
+        'officer_personal' => MobileNotificationType.officerPersonal,
+        'officer_game_broadcast' =>
+          MobileNotificationType.officerGameBroadcast,
+        'officer_team_broadcast' =>
+          MobileNotificationType.officerTeamBroadcast,
+        'admin_system_announcement' =>
+          MobileNotificationType.adminSystemAnnouncement,
+        _ => throw const ContractException('unknown notification type'),
+      };
+}
+
+class MobileNotification {
+  const MobileNotification({
+    required this.id,
+    required this.type,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.visibleUntil,
+    required this.readAt,
+  });
+
+  factory MobileNotification.fromJson(Map<String, dynamic> json) {
+    final id = _required<String>(json, 'id');
+    final title = _required<String>(json, 'title');
+    final body = _required<String>(json, 'body');
+    final createdAt = _utcDate(json, 'created_at');
+    final visibleUntil = _utcDate(json, 'visible_until');
+    final rawReadAt = _nullable<String>(json, 'read_at');
+    final readAt = rawReadAt == null
+        ? null
+        : _utcDate({'read_at': rawReadAt}, 'read_at');
+    if (!RegExp(r'^notification_[1-9][0-9]*$').hasMatch(id) ||
+        title.trim().isEmpty ||
+        title.length > 120 ||
+        body.trim().isEmpty ||
+        body.length > 500 ||
+        !visibleUntil.isAfter(createdAt) ||
+        visibleUntil.difference(createdAt) > const Duration(days: 90) ||
+        (readAt != null && readAt.isBefore(createdAt))) {
+      throw const ContractException('invalid notification');
+    }
+    return MobileNotification(
+      id: id,
+      type: MobileNotificationTypeWire.parse(json['type']),
+      title: title,
+      body: body,
+      createdAt: createdAt,
+      visibleUntil: visibleUntil,
+      readAt: readAt,
+    );
+  }
+
+  final String id, title, body;
+  final MobileNotificationType type;
+  final DateTime createdAt, visibleUntil;
+  final DateTime? readAt;
+  bool get isRead => readAt != null;
+  bool visibleAt(DateTime now) =>
+      !createdAt.isAfter(now.toUtc()) && visibleUntil.isAfter(now.toUtc());
+
+  MobileNotification markRead(DateTime value) => MobileNotification(
+        id: id,
+        type: type,
+        title: title,
+        body: body,
+        createdAt: createdAt,
+        visibleUntil: visibleUntil,
+        readAt: readAt ?? value.toUtc(),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'type': type.wire,
+        'title': title,
+        'body': body,
+        'created_at': createdAt.toUtc().toIso8601String(),
+        'visible_until': visibleUntil.toUtc().toIso8601String(),
+        'read_at': readAt?.toUtc().toIso8601String(),
+      };
+}
+
+class NotificationPage {
+  const NotificationPage(this.items, this.nextCursor);
+  factory NotificationPage.fromJson(Map<String, dynamic> json) =>
+      NotificationPage(
+        _required<List<dynamic>>(json, 'items')
+            .map((item) => MobileNotification.fromJson(
+                item as Map<String, dynamic>))
+            .toList(growable: false),
+        _nullable<String>(json, 'next_cursor'),
+      );
+  final List<MobileNotification> items;
+  final String? nextCursor;
+}
+
+class NotificationReadResult {
+  const NotificationReadResult(this.notificationId, this.readAt, this.changed);
+  factory NotificationReadResult.fromJson(Map<String, dynamic> json) =>
+      NotificationReadResult(
+        _required(json, 'notification_id'),
+        _utcDate(json, 'read_at'),
+        _required(json, 'changed'),
+      );
+  final String notificationId;
+  final DateTime readAt;
+  final bool changed;
+}
+
+class NotificationReadAllResult {
+  const NotificationReadAllResult(this.changedCount, this.unreadCount);
+  factory NotificationReadAllResult.fromJson(Map<String, dynamic> json) {
+    final changed = _required<int>(json, 'changed_count');
+    final unread = _required<int>(json, 'unread_count');
+    if (changed < 0 || unread < 0) {
+      throw const ContractException('invalid mark-all result');
+    }
+    return NotificationReadAllResult(changed, unread);
+  }
+  final int changedCount, unreadCount;
+}
+
+class CachedNotificationData {
+  const CachedNotificationData(
+      this.personId, this.items, this.unreadCount, this.lastSyncedAt);
+  final String personId;
+  final List<MobileNotification> items;
+  final int unreadCount;
+  final DateTime lastSyncedAt;
+}
+
+class NotificationCache {
+  const NotificationCache(this.store, this.installationId);
+  final DurableStore store;
+  final String installationId;
+  String get _prefix => 'notification-cache:v1:$installationId:';
+  String get _indexKey => 'notification-cache-index:v1:$installationId';
+  String _key(String personId) => '$_prefix$personId';
+
+  Future<void> save(
+      Person principal, List<MobileNotification> items, DateTime now,
+      {int? unreadCount}) async {
+    if (!principal.canReadNotifications) {
+      await clear();
+      throw const ContractException('notification capability required');
+    }
+    final previous = await store.read(_indexKey);
+    if (previous != null && previous != principal.id) await clear();
+    if (items.map((item) => item.id).toSet().length != items.length) {
+      await clear();
+      throw const ContractException('duplicate notification');
+    }
+    final visibleUnread = items.where((item) => !item.isRead).length;
+    final storedUnread = unreadCount ?? visibleUnread;
+    if (storedUnread < visibleUnread) {
+      await clear();
+      throw const ContractException('invalid notification unread count');
+    }
+    await store.write(
+        _key(principal.id),
+        jsonEncode({
+          'version': 1,
+          'person_id': principal.id,
+          'capability': 'notifications:read',
+          'items': items.map((item) => item.toJson()).toList(),
+          'unread_count': storedUnread,
+          'last_synced_at': now.toUtc().toIso8601String(),
+        }));
+    await store.write(_indexKey, principal.id);
+  }
+
+  Future<CachedNotificationData?> loadFor(
+      Person principal, DateTime now,
+      {required bool sessionPresent}) async {
+    if (!sessionPresent || !principal.canReadNotifications) {
+      await clear();
+      return null;
+    }
+    final indexedPerson = await store.read(_indexKey);
+    if (indexedPerson == null) {
+      if (await store.countKeysWithPrefix(_prefix, maximum: 0) != 0) {
+        await clear();
+      }
+      return null;
+    }
+    if (indexedPerson != principal.id) {
+      await clear();
+      return null;
+    }
+    final raw = await store.read(_key(principal.id));
+    if (raw == null) {
+      await clear();
+      return null;
+    }
+    try {
+      final value = jsonDecode(raw) as Map<String, dynamic>;
+      if (value['version'] != 1 ||
+          value['person_id'] != principal.id ||
+          value['capability'] != 'notifications:read') {
+        throw const ContractException('notification cache scope mismatch');
+      }
+      final items = (value['items'] as List<dynamic>)
+          .map((item) => MobileNotification.fromJson(
+              item as Map<String, dynamic>))
+          .where((item) => item.visibleAt(now))
+          .toList(growable: false);
+      if (items.map((item) => item.id).toSet().length != items.length) {
+        throw const ContractException('duplicate cached notification');
+      }
+      final unreadCount = value['unread_count'];
+      if (unreadCount is! int ||
+          unreadCount < items.where((item) => !item.isRead).length) {
+        throw const ContractException('invalid cached unread count');
+      }
+      return CachedNotificationData(
+          principal.id, items, unreadCount, _utcDate(value, 'last_synced_at'));
+    } on Object {
+      await clear();
+      return null;
+    }
+  }
+
+  Future<void> clear() async {
+    await store.deleteKeysWithPrefix(_prefix);
+    await store.delete(_indexKey);
   }
 }
 
@@ -914,11 +1172,13 @@ class LoginCoordinator extends ChangeNotifier {
 }
 
 class SessionController {
-  SessionController(this.api, this.store, this.installationId, this.ids);
+  SessionController(this.api, this.store, this.installationId, this.ids,
+      {this.terminalPurge});
   final ApiTransport api;
   final DurableStore store;
   final String installationId;
   final SecureIds ids;
+  final Future<void> Function()? terminalPurge;
   String? _access;
   Future<String>? _refreshing;
   String? get accessToken => _access;
@@ -1009,6 +1269,7 @@ class SessionController {
     _access = null;
     await store.delete('refresh:$installationId');
     await store.delete('refresh-attempt:$installationId');
+    await terminalPurge?.call();
   }
 
   Future<void> logout(
@@ -1053,6 +1314,109 @@ class MutationUncertainException implements Exception {
 
 class OfflineReadOnlyException implements Exception {
   const OfflineReadOnlyException();
+}
+
+abstract interface class NotificationClient {
+  Future<List<MobileNotification>> notifications({bool unreadOnly = false});
+  Future<MobileNotification> notification(String id);
+  Future<int> unreadCount();
+  Future<NotificationReadResult> markRead(String id);
+  Future<NotificationReadAllResult> markAllRead();
+}
+
+class NotificationApi implements NotificationClient {
+  const NotificationApi(this.session);
+  final SessionController session;
+
+  Never _failure(ApiResponse response, String operation) {
+    if (response.body != null) throw ApiError.fromJson(response.body!);
+    throw ContractException('missing $operation response body');
+  }
+
+  Future<NotificationPage> page(
+      {String? cursor, bool unreadOnly = false}) async {
+    final query = <String>['limit=100'];
+    if (cursor != null) {
+      query.add('cursor=${Uri.encodeQueryComponent(cursor)}');
+    }
+    if (unreadOnly) query.add('unread_only=true');
+    final result = await session.authorized(
+        'GET', '/notifications?${query.join('&')}');
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notifications');
+    }
+    return NotificationPage.fromJson(result.body!);
+  }
+
+  @override
+  Future<List<MobileNotification>> notifications(
+      {bool unreadOnly = false}) async {
+    final items = <MobileNotification>[];
+    final ids = <String>{};
+    final cursors = <String>{};
+    String? cursor;
+    do {
+      final result = await page(cursor: cursor, unreadOnly: unreadOnly);
+      for (final item in result.items) {
+        if (!ids.add(item.id)) {
+          throw const ContractException('duplicate notification page item');
+        }
+        items.add(item);
+      }
+      cursor = result.nextCursor;
+      if (cursor != null && !cursors.add(cursor)) {
+        throw const ContractException('repeated notification cursor');
+      }
+    } while (cursor != null);
+    return List.unmodifiable(items);
+  }
+
+  @override
+  Future<MobileNotification> notification(String id) async {
+    final result = await session.authorized(
+        'GET', '/notifications/${Uri.encodeComponent(id)}');
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification');
+    }
+    return MobileNotification.fromJson(result.body!);
+  }
+
+  @override
+  Future<int> unreadCount() async {
+    final result =
+        await session.authorized('GET', '/notifications/unread-count');
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification unread count');
+    }
+    final count = _required<int>(result.body!, 'unread_count');
+    if (count < 0) throw const ContractException('invalid unread count');
+    return count;
+  }
+
+  @override
+  Future<NotificationReadResult> markRead(String id) async {
+    final result = await session.authorized(
+        'PUT', '/notifications/${Uri.encodeComponent(id)}/read',
+        body: const {});
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification mark read');
+    }
+    final parsed = NotificationReadResult.fromJson(result.body!);
+    if (parsed.notificationId != id) {
+      throw const ContractException('notification read id mismatch');
+    }
+    return parsed;
+  }
+
+  @override
+  Future<NotificationReadAllResult> markAllRead() async {
+    final result = await session.authorized(
+        'PUT', '/notifications/read-all', body: const {});
+    if (result.status != 200 || result.body == null) {
+      _failure(result, 'notification mark all read');
+    }
+    return NotificationReadAllResult.fromJson(result.body!);
+  }
 }
 
 class BasicApi {

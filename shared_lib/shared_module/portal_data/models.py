@@ -4,10 +4,10 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
+    CHAR,
     JSON,
     BigInteger,
     Boolean,
-    CHAR,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -555,6 +555,96 @@ class MobileIdempotencyRecord(PortalDataBase):
 
 
 Index("ix_mobile_idempotency_expiry", MobileIdempotencyRecord.expires_at)
+
+
+class MobileNotificationRecord(PortalDataBase):
+    __tablename__ = "mobile_notifications"
+    __table_args__ = (
+        CheckConstraint(
+            "notification_type IN ("
+            "'game_reminder', 'attendance_reminder', 'game_change', "
+            "'officer_personal', 'officer_game_broadcast', "
+            "'officer_team_broadcast', 'admin_system_announcement')",
+            name="ck_mobile_notification_type",
+        ),
+        CheckConstraint(
+            "length(btrim(title)) BETWEEN 1 AND 120",
+            name="ck_mobile_notification_title",
+        ),
+        CheckConstraint(
+            "length(btrim(body)) BETWEEN 1 AND 500",
+            name="ck_mobile_notification_body",
+        ),
+        CheckConstraint(
+            "visible_until > created_at AND "
+            "visible_until <= created_at + interval '90 days'",
+            name="ck_mobile_notification_visibility",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    notification_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    title: Mapped[str] = mapped_column(String(120), nullable=False)
+    body: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    visible_until: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_mobile_notifications_created",
+    MobileNotificationRecord.created_at.desc(),
+    MobileNotificationRecord.id.desc(),
+)
+
+
+class MobileNotificationRecipientRecord(PortalDataBase):
+    __tablename__ = "mobile_notification_recipients"
+    __table_args__ = (
+        UniqueConstraint(
+            "notification_id",
+            "person_id",
+            name="uq_mobile_notification_recipient",
+        ),
+        CheckConstraint(
+            "read_at IS NULL OR read_at >= created_at",
+            name="ck_mobile_notification_read_time",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    notification_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.mobile_notifications.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+Index(
+    "ix_mobile_notification_recipient_page",
+    MobileNotificationRecipientRecord.person_id,
+    MobileNotificationRecipientRecord.notification_id.desc(),
+)
+Index(
+    "ix_mobile_notification_recipient_unread",
+    MobileNotificationRecipientRecord.person_id,
+    MobileNotificationRecipientRecord.notification_id,
+    postgresql_where=text("read_at IS NULL"),
+)
 
 
 class MobileAuthExchangeRecord(PortalDataBase):
