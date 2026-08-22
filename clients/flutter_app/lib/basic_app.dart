@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
 import 'integration.dart';
+import 'local_preferences.dart';
 import 'notification_center.dart';
+import 'pending_review.dart';
 import 'support_app_info.dart';
 import 'officer_prereview.dart';
 
@@ -202,15 +204,19 @@ class BasicBootstrapApp extends StatefulWidget {
     super.key,
     required this.config,
     this.diagnosticEnabled = true,
+    this.store,
+    this.permissionPort = const UnsupportedNotificationPermissionPort(),
   });
   final AppConfig config;
   final bool diagnosticEnabled;
+  final DurableStore? store;
+  final NotificationPermissionPort permissionPort;
   @override
   State<BasicBootstrapApp> createState() => _BasicBootstrapAppState();
 }
 
 class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
-  final _store = SecureStore();
+  late final DurableStore _store;
   final _ids = SecureIds();
   AuthViewState state = AuthViewState.booting;
   late final http.Client _http;
@@ -229,10 +235,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   CacheSessionAggregate? cacheSessionAggregate;
   Future<bool>? _basicLoadOperation;
   bool _basicLoadInProgress = false;
+  int _authEpoch = 0;
+  LocalPreferences? _preferences;
+  LocalThemePreference _themePreference = LocalThemePreference.system;
+  bool? _onboardingComplete;
 
   @override
   void initState() {
     super.initState();
+    _store = widget.store ?? SecureStore();
     _http = http.Client();
     _boot();
   }
@@ -240,6 +251,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Future<void> _boot() async {
     try {
       final installationId = await _installationId();
+      final preferences = LocalPreferences(_store, installationId);
+      final themePreference = await preferences.theme();
+      final onboardingComplete = await preferences.onboardingComplete();
+      if (!mounted) return;
+      setState(() {
+        _preferences = preferences;
+        _themePreference = themePreference;
+        _onboardingComplete = onboardingComplete;
+      });
       final transport = HttpApiTransport(widget.config.apiBaseUrl!, _http);
       final notificationCache = NotificationCache(_store, installationId);
       final session = SessionController(
@@ -328,6 +348,21 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       LoginState.idle => state,
     };
     setState(() => state = next);
+    if (next == AuthViewState.identityPending) _openPendingReview();
+  }
+
+  void _openPendingReview() {
+    final credential = _login?.pendingReview?.credential;
+    if (credential == null || !mounted) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => PendingReviewPage(
+        client: PendingReviewClient(
+          HttpApiTransport(widget.config.apiBaseUrl!, _http),
+          credential,
+          _ids,
+        ),
+      ),
+    ));
   }
 
   Future<bool> _loadBasic() {
@@ -427,6 +462,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       );
 
   Future<void> _performLogout() async {
+    _authEpoch++;
     await _notificationController?.invalidate();
     _notificationController = null;
     setState(() {
@@ -490,43 +526,64 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         title: '北商乙組籃球隊',
         theme: appTheme(Brightness.light),
         darkTheme: appTheme(Brightness.dark),
-        home: Scaffold(
-          appBar: AppBar(title: const Text('隊務系統')),
-          body: DebugCacheSessionComposition(
-            aggregate: cacheSessionAggregate,
-            diagnosticEnabled: widget.diagnosticEnabled,
-            child: state == AuthViewState.authenticated ||
-                    state == AuthViewState.offline
-                ? BasicGamesView(
-                    api: _api!,
-                    person: person!,
-                    games: games,
-                    online: state == AuthViewState.authenticated,
-                    lastSyncedAt: lastSyncedAt!,
-                    principalProvenance: principalProvenance,
-                    reportCache: _reportCache,
-                    notificationController: _notificationControllerFor(person!),
-                    onRefresh: _loadBasic,
-                  )
-                : AuthStatePanel(state: state),
-          ),
-          floatingActionButton: state == AuthViewState.authenticated
-              ? FloatingActionButton(
-                  onPressed: canStartLogout(
-                    state,
-                    basicLoadInProgress: _basicLoadInProgress,
-                  )
-                      ? _logout
-                      : null,
-                  tooltip: '登出',
-                  child: const Icon(Icons.logout),
-                )
-              : LoginActionButton(
-                  state: state,
-                  onLogin: _login == null ? null : _signIn,
+        themeMode: _themePreference.themeMode,
+        home: _onboardingComplete == false
+            ? OnboardingPage(onComplete: _completeOnboarding)
+            : Scaffold(
+                appBar: AppBar(title: const Text('隊務系統')),
+                body: DebugCacheSessionComposition(
+                  aggregate: cacheSessionAggregate,
+                  diagnosticEnabled: widget.diagnosticEnabled,
+                  child: state == AuthViewState.authenticated ||
+                          state == AuthViewState.offline
+                      ? BasicGamesView(
+                          api: _api!,
+                          person: person!,
+                          games: games,
+                          online: state == AuthViewState.authenticated,
+                          lastSyncedAt: lastSyncedAt!,
+                          principalProvenance: principalProvenance,
+                          reportCache: _reportCache,
+                          notificationController:
+                              _notificationControllerFor(person!),
+                          onRefresh: _loadBasic,
+                          onPersonUpdated: _profileUpdateCallback(),
+                          onOpenSettings: _openSettings,
+                        )
+                      : AuthStatePanel(state: state),
                 ),
-        ),
+                floatingActionButton: state == AuthViewState.authenticated
+                    ? FloatingActionButton(
+                        onPressed: canStartLogout(
+                          state,
+                          basicLoadInProgress: _basicLoadInProgress,
+                        )
+                            ? _logout
+                            : null,
+                        tooltip: '登出',
+                        child: const Icon(Icons.logout),
+                      )
+                    : LoginActionButton(
+                        state: state,
+                        onLogin: _login == null ? null : _signIn,
+                      ),
+              ),
       );
+
+  Future<void> _completeOnboarding() async {
+    await _preferences!.completeOnboarding();
+    if (mounted) setState(() => _onboardingComplete = true);
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => LocalPreferencesPage(
+        preferences: _preferences!,
+        permissions: NotificationPermissionActions(widget.permissionPort),
+        onThemeChanged: (value) => setState(() => _themePreference = value),
+      ),
+    ));
+  }
 
   NotificationCenterController? _notificationControllerFor(Person principal) {
     if (!principal.canReadNotifications ||
@@ -546,7 +603,47 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     );
   }
 
+  Future<void> Function(Person) _profileUpdateCallback() {
+    final epoch = _authEpoch;
+    return (refreshed) => _applyProfileMutation(refreshed, epoch);
+  }
+
+  Future<void> _applyProfileMutation(Person refreshed, int epoch) async {
+    final current = person;
+    if (epoch != _authEpoch ||
+        state != AuthViewState.authenticated ||
+        current == null ||
+        current.id != refreshed.id ||
+        !mounted) {
+      return;
+    }
+    // Reconcile the root projection and its principal-scoped cache together.
+    await reconcileFreshReportPrincipal(
+      cache: _reportCache!,
+      previous: current,
+      current: refreshed,
+    );
+    await _notificationCache!.reconcileFreshPrincipal(current, refreshed);
+    final capabilityChanged = current.accessLevel != refreshed.accessLevel ||
+        current.capabilities.length != refreshed.capabilities.length ||
+        current.capabilities
+            .any((capability) => !refreshed.capabilities.contains(capability));
+    if (!refreshed.canReadNotifications || capabilityChanged) {
+      await _notificationController?.invalidate();
+      _notificationController = null;
+    }
+    await _cache!.save(refreshed, games, lastSyncedAt!);
+    if (!mounted ||
+        epoch != _authEpoch ||
+        state != AuthViewState.authenticated ||
+        person?.id != refreshed.id) {
+      return;
+    }
+    setState(() => person = refreshed);
+  }
+
   void _handleNotificationTerminalSession() {
+    _authEpoch++;
     _showFailure(const SessionExpiredException());
   }
 }
@@ -580,6 +677,75 @@ class LoginActionButton extends StatelessWidget {
   }
 }
 
+class DisplayNamePage extends StatefulWidget {
+  const DisplayNamePage({
+    super.key,
+    required this.api,
+    required this.person,
+    this.onUpdated,
+  });
+  final BasicApi api;
+  final Person person;
+  final Future<void> Function(Person person)? onUpdated;
+  @override
+  State<DisplayNamePage> createState() => _DisplayNamePageState();
+}
+
+class _DisplayNamePageState extends State<DisplayNamePage> {
+  late final TextEditingController _name =
+      TextEditingController(text: widget.person.displayName);
+  bool _saving = false;
+  String? _message;
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final value = _name.text.trim();
+    if (value.isEmpty || value.length > 120) {
+      setState(() => _message = '顯示名稱必須為 1 到 120 個字元。');
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _message = null;
+    });
+    try {
+      final result = await widget.api.updateDisplayName(value);
+      await widget.onUpdated?.call(result.person);
+      if (mounted) Navigator.of(context).pop();
+    } on ProfileMutationUncertainException {
+      if (mounted) setState(() => _message = '結果尚未確認；請使用相同名稱重試。');
+    } on Object {
+      if (mounted) setState(() => _message = '無法更新顯示名稱，請稍後重試。');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('編輯顯示名稱')),
+        body: Padding(
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          child: Column(children: [
+            TextField(
+                controller: _name,
+                maxLength: 120,
+                autofocus: true,
+                decoration: const InputDecoration(labelText: '顯示名稱')),
+            if (_message != null) Text(_message!),
+            const SizedBox(height: AppSpacing.regular),
+            FilledButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? '儲存中…' : '儲存')),
+          ]),
+        ),
+      );
+}
+
 class BasicGamesView extends StatefulWidget {
   const BasicGamesView({
     super.key,
@@ -593,6 +759,8 @@ class BasicGamesView extends StatefulWidget {
     this.publishingClient,
     this.notificationController,
     this.onRefresh,
+    this.onPersonUpdated,
+    this.onOpenSettings,
     this.diagnosticEnabled = true,
   });
   final BasicApi api;
@@ -605,6 +773,8 @@ class BasicGamesView extends StatefulWidget {
   final NotificationPublishingClient? publishingClient;
   final NotificationCenterController? notificationController;
   final Future<bool> Function()? onRefresh;
+  final Future<void> Function(Person person)? onPersonUpdated;
+  final VoidCallback? onOpenSettings;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -761,6 +931,34 @@ class _BasicGamesViewState extends State<BasicGamesView> {
               ),
             ),
           ),
+          if (widget.onOpenSettings != null)
+            AppSurfaceCard(
+              child: ListTile(
+                key: const ValueKey('local-preferences-entry'),
+                leading: const Icon(Icons.settings_outlined),
+                title: const Text('App 偏好設定'),
+                subtitle: const Text('主題、通知權限與系統設定'),
+                onTap: widget.onOpenSettings,
+              ),
+            ),
+          if (widget.online)
+            AppSurfaceCard(
+              child: ListTile(
+                key: const ValueKey('edit-display-name-entry'),
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('編輯顯示名稱'),
+                subtitle: const Text('只會更新目前登入帳號的顯示名稱'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => DisplayNamePage(
+                      api: widget.api,
+                      person: widget.person,
+                      onUpdated: widget.onPersonUpdated,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           AppSurfaceCard(
             child: ListTile(
               key: const ValueKey('support-app-info-entry'),
@@ -870,7 +1068,19 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 message: '有新賽事時會顯示在這裡。',
               ),
             ),
-          for (final game in orderedGames)
+          if (orderedGames.isNotEmpty)
+            NextAuthorizedGameCard(
+              api: widget.api,
+              game: orderedGames.first,
+              online: widget.online,
+              onOpen: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => widget.online
+                    ? GameDetailPage(
+                        api: widget.api, gameId: orderedGames.first.id)
+                    : CachedGameDetailPage(game: orderedGames.first),
+              )),
+            ),
+          for (final game in orderedGames.skip(1))
             AppSurfaceCard(
               child: ListTile(
                 key: ValueKey('game-${game.id}'),
@@ -943,6 +1153,55 @@ class _BasicGamesViewState extends State<BasicGamesView> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+class NextAuthorizedGameCard extends StatefulWidget {
+  const NextAuthorizedGameCard(
+      {super.key,
+      required this.api,
+      required this.game,
+      required this.online,
+      required this.onOpen});
+  final BasicApi api;
+  final Game game;
+  final bool online;
+  final VoidCallback onOpen;
+  @override
+  State<NextAuthorizedGameCard> createState() => _NextAuthorizedGameCardState();
+}
+
+class _NextAuthorizedGameCardState extends State<NextAuthorizedGameCard> {
+  Future<AttendanceSnapshot>? _attendance;
+  @override
+  void initState() {
+    super.initState();
+    if (widget.online) _attendance = widget.api.attendance(widget.game.id);
+  }
+
+  @override
+  Widget build(BuildContext context) => AppSurfaceCard(
+        child: ListTile(
+          key: ValueKey('game-${widget.game.id}'),
+          title:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+                '${widget.game.homeTeam ?? '主隊'} vs ${widget.game.awayTeam ?? '客隊'}'),
+            if (widget.online)
+              FutureBuilder<AttendanceSnapshot>(
+                future: _attendance,
+                builder: (_, snapshot) => Text(snapshot.hasData
+                    ? '我的回覆：${snapshot.data!.ownReply?.wire ?? '尚未回覆'}'
+                    : '出席載入中'),
+              )
+            else
+              const Text('離線・非最新'),
+          ]),
+          subtitle: Text(_formatGameMetadata(
+              MaterialLocalizations.of(context), widget.game)),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: widget.online ? widget.onOpen : null,
+        ),
+      );
 }
 
 enum PublishingAudience { individual, game, team }

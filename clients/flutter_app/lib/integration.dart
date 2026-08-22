@@ -204,6 +204,18 @@ class SessionEnvelope {
   final int expiresIn;
 }
 
+class PendingReviewEnvelope {
+  const PendingReviewEnvelope(this.credential);
+  factory PendingReviewEnvelope.fromJson(Map<String, dynamic> json) {
+    if (_required<int>(json, 'expires_in') != 600 ||
+        _required<String>(json, 'status') != 'pending') {
+      throw const ContractException('invalid review envelope');
+    }
+    return PendingReviewEnvelope(_required<String>(json, 'review_credential'));
+  }
+  final String credential;
+}
+
 enum AccessLevel { basic, officer, admin }
 
 class Person {
@@ -1244,6 +1256,7 @@ class LoginCoordinator extends ChangeNotifier {
   String? _active;
   String? _nativeAttempt;
   bool _disposed = false;
+  PendingReviewEnvelope? pendingReview;
   final Set<String> _completed = {};
   bool get nativeFlowUnresolved => _nativeAttempt != null;
 
@@ -1360,6 +1373,11 @@ class LoginCoordinator extends ChangeNotifier {
         'platform': platform,
       },
     );
+    if (response.status == 202 && response.body != null) {
+      pendingReview = PendingReviewEnvelope.fromJson(response.body!);
+      state = LoginState.identityPending;
+      return;
+    }
     if (response.status != 201 || response.body == null) {
       if (response.body == null) {
         throw const ContractException('missing login error body');
@@ -1550,6 +1568,10 @@ class MutationUncertainException implements Exception {
   final AttendanceReply reply;
 }
 
+class ProfileMutationUncertainException implements Exception {
+  const ProfileMutationUncertainException();
+}
+
 class OfflineReadOnlyException implements Exception {
   const OfflineReadOnlyException();
 }
@@ -1560,6 +1582,10 @@ abstract interface class NotificationClient {
   Future<int> unreadCount();
   Future<NotificationReadResult> markRead(String id);
   Future<NotificationReadAllResult> markAllRead();
+}
+
+abstract interface class PagedNotificationClient {
+  Future<NotificationPage> page({String? cursor, bool unreadOnly = false});
 }
 
 abstract interface class NotificationPublishingClient {
@@ -1667,7 +1693,7 @@ class OfficerNotificationPublisher implements NotificationPublishingClient {
   }
 }
 
-class NotificationApi implements NotificationClient {
+class NotificationApi implements NotificationClient, PagedNotificationClient {
   const NotificationApi(this.session);
   final SessionController session;
 
@@ -1676,6 +1702,7 @@ class NotificationApi implements NotificationClient {
     throw ContractException('missing $operation response body');
   }
 
+  @override
   Future<NotificationPage> page({
     String? cursor,
     bool unreadOnly = false,
@@ -1796,6 +1823,48 @@ class BasicApi {
     final r = await session.authorized('GET', '/me');
     if (r.status != 200 || r.body == null) _failure(r, 'me');
     return Person.fromJson(r.body!);
+  }
+
+  /// A profile intent keeps its key until a definitive server response.  This
+  /// makes a timeout retry the same logical edit rather than create a second
+  /// mutation.  The key is deliberately never exposed by this API.
+  Future<ProfileMutation> updateDisplayName(String displayName) async {
+    final normalized = displayName.trim();
+    if (normalized.isEmpty || normalized.length > 120) {
+      throw const ContractException('invalid display name');
+    }
+    const keyName = 'profile-mutation';
+    final storedIntent = await store.read('$keyName:$installationId');
+    String key;
+    if (storedIntent == null) {
+      key = ids.next();
+      await store.write(
+        '$keyName:$installationId',
+        jsonEncode({'key': key, 'display_name': normalized}),
+      );
+    } else {
+      final intent = jsonDecode(storedIntent) as Map<String, dynamic>;
+      if (_required<String>(intent, 'display_name') != normalized) {
+        throw const ContractException('pending profile mutation');
+      }
+      key = _required<String>(intent, 'key');
+    }
+    try {
+      final response = await session.authorized(
+        'PATCH',
+        '/me',
+        headers: {'Idempotency-Key': key},
+        body: {'display_name': normalized},
+      );
+      if (response.status != 200 || response.body == null) {
+        _failure(response, 'profile mutation');
+      }
+      final result = ProfileMutation.fromJson(response.body!);
+      await store.delete('$keyName:$installationId');
+      return result;
+    } on AuthorizedRequestNetworkException {
+      throw const ProfileMutationUncertainException();
+    }
   }
 
   Future<GamePage> gamePage({String? cursor}) async {
@@ -1937,4 +2006,16 @@ class BasicApi {
     }
     throw MutationUncertainException(reply);
   }
+}
+
+class ProfileMutation {
+  const ProfileMutation(this.person, this.changed, this.idempotentReplay);
+  factory ProfileMutation.fromJson(Map<String, dynamic> json) =>
+      ProfileMutation(
+        Person.fromJson(_required<Map<String, dynamic>>(json, 'person')),
+        _required<bool>(json, 'changed'),
+        _required<bool>(json, 'idempotent_replay'),
+      );
+  final Person person;
+  final bool changed, idempotentReplay;
 }

@@ -31,6 +31,8 @@ class NotificationCenterController extends ChangeNotifier {
   List<MobileNotification> items = const [];
   DateTime? lastSyncedAt;
   int unreadCount = 0;
+  String? nextCursor;
+  bool unreadOnly = false;
   Future<void>? _loadOperation;
   Future<void>? _mutationOperation;
   Future<void> _cacheTail = Future.value();
@@ -58,7 +60,9 @@ class NotificationCenterController extends ChangeNotifier {
     required int nextUnreadCount,
   }) async {
     await _enqueueCache(() async {
-      if (epoch != _epoch) return;
+      if (epoch != _epoch) {
+        return;
+      }
       await cache.save(
         principal,
         nextItems,
@@ -101,7 +105,14 @@ class NotificationCenterController extends ChangeNotifier {
       return;
     }
     try {
-      final fresh = await client.notifications();
+      final pageClient = client is PagedNotificationClient
+          ? client as PagedNotificationClient
+          : null;
+      final page = pageClient == null
+          ? null
+          : await pageClient.page(unreadOnly: unreadOnly);
+      final fresh =
+          page?.items ?? await client.notifications(unreadOnly: unreadOnly);
       final serverUnreadCount = await client.unreadCount();
       if (epoch != _epoch) return;
       final now = clock().toUtc();
@@ -109,6 +120,7 @@ class NotificationCenterController extends ChangeNotifier {
           nextUnreadCount: serverUnreadCount);
       if (epoch != _epoch) return;
       items = List.unmodifiable(fresh);
+      nextCursor = page?.nextCursor;
       unreadCount = serverUnreadCount;
       lastSyncedAt = now;
       state = fresh.isEmpty
@@ -134,6 +146,65 @@ class NotificationCenterController extends ChangeNotifier {
     } on Object {
       state = NotificationCenterState.error;
       notifyListeners();
+    }
+  }
+
+  Future<void> setUnreadOnly(bool value, {required bool online}) async {
+    if (unreadOnly == value) return;
+    _epoch++;
+    _loadOperation = null;
+    unreadOnly = value;
+    nextCursor = null;
+    await load(online: online);
+  }
+
+  Future<void> loadMore({required bool online}) async {
+    if (!online ||
+        nextCursor == null ||
+        busy ||
+        client is! PagedNotificationClient) {
+      return;
+    }
+    final epoch = _epoch;
+    final cursor = nextCursor;
+    late final Future<void> operation;
+    operation = _loadMoreOnce(epoch, cursor!).whenComplete(() {
+      if (identical(_loadOperation, operation)) {
+        _loadOperation = null;
+        notifyListeners();
+      }
+    });
+    _loadOperation = operation;
+    await _loadOperation;
+  }
+
+  Future<void> _loadMoreOnce(int epoch, String cursor) async {
+    try {
+      final page = await (client as PagedNotificationClient)
+          .page(cursor: cursor, unreadOnly: unreadOnly);
+      if (epoch != _epoch) return;
+      final ids = items.map((item) => item.id).toSet();
+      if (page.items.any((item) => !ids.add(item.id))) {
+        throw const ContractException('duplicate notification page item');
+      }
+      items = List.unmodifiable([...items, ...page.items]);
+      nextCursor = page.nextCursor;
+      await _saveIfCurrent(epoch, items, lastSyncedAt ?? clock().toUtc(),
+          nextUnreadCount: unreadCount);
+      if (epoch == _epoch) notifyListeners();
+    } on SessionExpiredException {
+      await invalidate();
+      onTerminalSession?.call();
+    } on ApiError catch (error) {
+      if (error.code == ApiErrorCode.unauthenticated ||
+          error.code == ApiErrorCode.sessionExpired) {
+        await invalidate();
+        onTerminalSession?.call();
+      } else if (error.code == ApiErrorCode.forbidden) {
+        await invalidate();
+      } else {
+        rethrow;
+      }
     }
   }
 
@@ -334,6 +405,18 @@ class NotificationCenter extends StatelessWidget {
     }
     return Column(
       children: [
+        if (online)
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('全部')),
+              ButtonSegment(value: true, label: Text('未讀'))
+            ],
+            selected: {controller.unreadOnly},
+            onSelectionChanged: controller.busy
+                ? null
+                : (value) =>
+                    controller.setUnreadOnly(value.single, online: true),
+          ),
         if (controller.readOnly)
           const MaterialBanner(
             content: Text('離線模式：顯示上次同步內容，無法變更已讀狀態。'),
@@ -365,6 +448,12 @@ class NotificationCenter extends StatelessWidget {
             },
           ),
         ),
+        if (online && controller.nextCursor != null)
+          TextButton(
+              onPressed: controller.busy
+                  ? null
+                  : () => controller.loadMore(online: true),
+              child: const Text('載入更多')),
       ],
     );
   }
