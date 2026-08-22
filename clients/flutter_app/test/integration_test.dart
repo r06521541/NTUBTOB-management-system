@@ -707,6 +707,43 @@ void main() {
         isNot(transport.calls[1].$3['Idempotency-Key']));
   });
 
+  test('profile key survives 401 refresh rotation and uncertain PATCH retry',
+      () async {
+    final transport = NetworkScriptTransport([
+      const ApiResponse(401, null),
+      ApiResponse(200, {
+        'access_token': 'rotated-access',
+        'refresh_token': 'rotated-refresh-token-with-at-least-32-characters',
+        'session_id': 'same-login-session',
+        'expires_in': 900,
+      }),
+      const NetworkException(),
+      const NetworkException(),
+    ]);
+    final store = MemoryStore();
+    final sessions =
+        SessionController(transport, store, 'install', SecureIds());
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'initial-access',
+      refreshToken: 'initial-refresh-token-with-at-least-32-characters',
+      sessionId: 'same-login-session',
+      expiresIn: 900,
+    ));
+    final generation = sessions.generation;
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+    await expectLater(api.updateDisplayName('A', personId: 'person-A'),
+        throwsA(isA<ProfileMutationUncertainException>()));
+    expect(sessions.generation, generation);
+    await expectLater(api.updateDisplayName('A', personId: 'person-A'),
+        throwsA(isA<ProfileMutationUncertainException>()));
+    final patchKeys = transport.calls
+        .where((call) => call.$1 == 'PATCH')
+        .map((call) => call.$3['Idempotency-Key'])
+        .toList();
+    expect(patchKeys, hasLength(3));
+    expect(patchKeys.toSet(), hasLength(1));
+  });
+
   test('canonical identity states and native cancel are classified', () async {
     for (final entry in {
       'identity_pending': LoginState.identityPending,
