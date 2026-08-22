@@ -532,7 +532,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       client: NotificationApi(_session!),
       cache: _notificationCache!,
       principal: principal,
+      onTerminalSession: _handleNotificationTerminalSession,
     );
+  }
+
+  void _handleNotificationTerminalSession() {
+    _notificationController?.invalidate();
+    _showFailure(const SessionExpiredException());
   }
 }
 

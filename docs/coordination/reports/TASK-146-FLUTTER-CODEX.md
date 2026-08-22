@@ -34,3 +34,15 @@ deployment, Secret/IAM, signing, or store operation was performed.
 Writer self-review complete. Main Work should review the capability gate,
 terminal/session and Person lifecycle, notification request single-flight, and
 home badge/read-state integration before the hosted Flutter gate.
+
+## Correction round
+
+- Added epoch-based controller invalidation so pending loads or mutations cannot
+  restore stale notification memory/cache state after lifecycle invalidation.
+- Terminal notification session failures now invalidate the controller and
+  report to the root Basic lifecycle for canonical session-expired rendering.
+- Offline cache absence/corruption now renders explicit non-authoritative
+  evidence-unavailable state instead of an authoritative-looking empty list.
+- Correction verification: `flutter test test/notification_center_test.dart
+  test/basic_app_test.dart` (82 passed), affected `flutter analyze`, and
+  affected Dart formatter check all passed.

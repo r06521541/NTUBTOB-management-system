@@ -271,6 +271,36 @@ void main() {
     expect(controller.state, NotificationCenterState.online);
   });
 
+  test('invalidation prevents a pending load from restoring notification state',
+      () async {
+    final client = DelayedNotificationClient();
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    final pending = controller.load(online: true);
+    controller.invalidate();
+    client.loads.single.complete([makeNotification()]);
+    await pending;
+    expect(controller.state, NotificationCenterState.unauthorized);
+    expect(controller.items, isEmpty);
+  });
+
+  test('offline without valid cache is explicitly non-authoritative', () async {
+    final controller = NotificationCenterController(
+      client: FakeNotificationClient(),
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    await controller.load(online: false);
+    expect(
+        controller.state, NotificationCenterState.offlineEvidenceUnavailable);
+    expect(controller.items, isEmpty);
+  });
+
   test(
     'authorization loss and terminal session clear purge notification cache',
     () async {
