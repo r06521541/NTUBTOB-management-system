@@ -341,7 +341,7 @@ void main() {
     expect(await sessions.observePresence(), isFalse);
   });
   test('app theme reserves the global primary for team navy', () {
-    expect(appBrandNavy, const Color(0xff102a43));
+    expect(appBrandNavy, const Color(0xff29415d));
     final primary = appTheme(Brightness.light).colorScheme.primary;
     expect(primary.b, greaterThan(primary.g));
     expect(primary.b, greaterThan(primary.r));

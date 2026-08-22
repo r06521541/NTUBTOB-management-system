@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_theme.dart';
 import 'integration.dart';
 
 /// Local presentation input derived by a future canonical adapter.
@@ -1226,7 +1227,7 @@ class _InsightsCard extends StatelessWidget {
   final bool offline;
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => AppSurfaceCard(
         key: const ValueKey('attendance-insights'),
         child: Padding(
           padding: const EdgeInsets.all(16),
