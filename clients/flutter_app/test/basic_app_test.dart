@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ntubtob_portal/app_theme.dart';
 import 'package:ntubtob_portal/basic_app.dart';
 import 'package:ntubtob_portal/foundation.dart';
 import 'package:ntubtob_portal/integration.dart';
@@ -134,6 +135,13 @@ class ObservationFailingMemoryStore extends MemoryStore {
 }
 
 void main() {
+  test('app theme reserves the global primary for team navy', () {
+    expect(appBrandNavy, const Color(0xff102a43));
+    final primary = appTheme(Brightness.light).colorScheme.primary;
+    expect(primary.b, greaterThan(primary.g));
+    expect(primary.b, greaterThan(primary.r));
+  });
+
   for (final state in AuthViewState.values) {
     testWidgets('$state has distinguishable semantics', (tester) async {
       await tester.pumpWidget(MaterialApp(home: AuthStatePanel(state: state)));
