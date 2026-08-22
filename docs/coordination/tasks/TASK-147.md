@@ -80,4 +80,8 @@ adjacent authorization/navigation invariants.
 ## Status
 
 - 2026-08-22: planned by Main Work and authorized for repository execution.
-- Current: ready for Writer claim.
+- 2026-08-22: Writer implementation and focused verification completed at
+  `d8d736a072db664cee06ef0ec491bb46c5e9bce8`; Main Work accepted the actual
+  authorization/navigation diff without adding Domain review because no
+  lifecycle or capability boundary changed.
+- Current: source accepted; Hosted Flutter gate pending.
