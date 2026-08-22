@@ -126,6 +126,24 @@ presentation task 不因模板自動增加 reviewer。預算是節流而非省�
 - 同一 `delivery_group` 原則上只有一個 ready PR 與一次 final hosted CI。
 - 小型獨立 bug 或安全修正可以一個 TASK 對一個 PR。
 
+### Flutter 產品孵化例外
+
+Flutter 尚處產品孵化期，以描述性 commit 和 focused local evidence 快速迭代；PR、hosted CI 與完整正式驗收延後至
+delivery milestone，但安全、資料及跨系統契約變更不適用此豁免。
+
+- Active task 必須明列 `incubator_delivery_group`、共同 feature branch、milestone、focused evidence 與退出條件；
+  沒有這些欄位時仍套用一般 L1／L2／L3 gate。
+- 多個 Flutter `work_package` 可累積在同一 incubator branch。每個 task 以描述性 commit／push 作為可接續 checkpoint；
+  commit 只表示進度已保存，不表示已整合、hosted CI 已通過或可發布。
+- 平日最小 evidence 為 focused tests、`flutter analyze` 或等價 affected analyze、必要 compile check、formatter、
+  `git diff --check` 與 clean/known `git status`。Main 做輕量 diff／risk review，不機械重跑完整 suite。
+- Milestone 以先到者為準：完成 task 明列的一個完整使用者流程、累積約 3–6 個實質 commits、或一週。Main 可因風險
+  提前 milestone；到點建立該 delivery group 唯一 final PR，執行 change-selected hosted CI 與正式驗收。
+- UI、導覽、local state、fixture 與 prototype model 可在 milestone 前較大幅調整或短期不相容；task 仍須維持可測、
+  可接續且不誤稱 production-ready。
+- 一旦觸及登入／授權／安全、後端 API contract、shared boundary、正式資料、Secret、schema、真實通知、部署、簽署或
+  store 發布，該變更立即退出孵化例外；Main 必須拆出或升級為 L2／L3，恢復必要 reviewer、hosted CI 與 Owner gate。
+
 ## 6. 任務流程
 
 ### A. Work 收斂需求

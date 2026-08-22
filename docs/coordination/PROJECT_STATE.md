@@ -4,9 +4,14 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `1bb2417cac7b18d58bf4a453ad4bdb8607ef1894`
+Repository 基準：`main` / `36fcd195d960d3d65e3e393923538e98aeb0b787`
 
 ## Active role lanes
+
+Flutter 目前為 Owner 核准的產品孵化期：純 UI／導覽／local state／fixture／prototype model 可在具名 incubator
+delivery group 的共同 branch 以 focused local evidence 與描述性 commits 累積，直到完整流程、3–6 個實質 commits
+或一週（先到者）才建立唯一 final PR／Hosted CI。Auth、安全、後端契約、shared boundary、正式資料、Secret、schema、
+真實通知與部署不適用此例外。TASK-149 已在採用本模式前由 PR #177 合併完成，不追溯改制。
 
 | lane | current actor_id | claim_id | lease_version | state |
 | --- | --- | --- | --- | --- |
