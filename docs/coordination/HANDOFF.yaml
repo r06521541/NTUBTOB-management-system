@@ -1,23 +1,23 @@
 active_task: TASK-152
-status: ready_for_writer
-next_actor: codex-writer
+status: ready_for_hosted_ci
+next_actor: main-work
 
 claim_id: main-work-20260822
-lease_version: 9
+lease_version: 10
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
 base_commit: 710bf371e5616e47ef17e753809c3f5dd165eb3f
-head_commit: 710bf371e5616e47ef17e753809c3f5dd165eb3f
+head_commit: 8f13309d672eb5dfc02d327438c9da4b46c5270a
 
 updated_by: main-work
-updated_at: 2026-08-23T00:10:00+08:00
+updated_at: 2026-08-23T00:40:00+08:00
 
 note: >
-  TASK-151 checkpoint is saved at 710bf371e5616e47ef17e753809c3f5dd165eb3f.
-  TASK-152 closes the Flutter incubator milestone with a bounded next-five
-  member action home using existing attendance reads and session memory only.
-  API/cache/auth changes remain outside scope. After focused acceptance, Main
-  creates the delivery group's single PR and runs hosted Flutter CI.
+  TASK-150/151/152 product checkpoints are accepted through
+  8f13309d672eb5dfc02d327438c9da4b46c5270a. The incubator milestone is reached.
+  Main now creates the delivery group's single final PR and uses hosted Flutter
+  CI for formal integration acceptance. No deployment or external runtime is
+  authorized by this handoff.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-152.md
