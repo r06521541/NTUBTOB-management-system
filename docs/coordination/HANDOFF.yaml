@@ -1,25 +1,25 @@
-active_task: TASK-154
+active_task: TASK-155
 status: ready_for_writer
 next_actor: codex-writer
 
 claim_id: main-work-20260822
-lease_version: 12
+lease_version: 13
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 2784293a739972c92b7a82d68d6358d916167cff
-head_commit: 2784293a739972c92b7a82d68d6358d916167cff
+base_commit: 3b92971dcaf4a5f70a9a09e7dfcf3934f2041041
+head_commit: 3b92971dcaf4a5f70a9a09e7dfcf3934f2041041
 
 updated_by: main-work
-updated_at: 2026-08-23T02:00:00+08:00
+updated_at: 2026-08-23T16:30:00+08:00
 
 note: >
-  TASK-153 is accepted at 2784293a739972c92b7a82d68d6358d916167cff.
-  TASK-154 improves the existing Officer Lineup Lab's session-local decision
-  quality using loaded report data only. Web Portal is a read-only design
-  reference; no Web file, API, persistence, position data or official lineup
-  submission is in scope. PR/hosted CI remain release-candidate gated.
+  TASK-154 and the Mobile API gap register are accepted through
+  3b92971dcaf4a5f70a9a09e7dfcf3934f2041041. TASK-155 establishes a reusable
+  Flutter visual system derived from the Web Portal brand and applies it across
+  existing member/officer production surfaces without behavior or contract
+  changes. PR/hosted CI remain release-candidate gated.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-154.md
-report: docs/coordination/reports/TASK-154-FLUTTER-CODEX.md
+task: docs/coordination/tasks/TASK-155.md
+report: docs/coordination/reports/TASK-155-FLUTTER-CODEX.md
 review: none
