@@ -1,25 +1,25 @@
-active_task: TASK-150
+active_task: TASK-151
 status: ready_for_writer
 next_actor: codex-writer
 
 claim_id: main-work-20260822
-lease_version: 7
+lease_version: 8
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 36fcd195d960d3d65e3e393923538e98aeb0b787
-head_commit: 16393cc8e14cd41cf47090a9122b7ae331959f30
+base_commit: aecfcb6fa822a998cfe7594a28064c20baf1c319
+head_commit: aecfcb6fa822a998cfe7594a28064c20baf1c319
 
 updated_by: main-work
-updated_at: 2026-08-22T22:00:00+08:00
+updated_at: 2026-08-22T23:20:00+08:00
 
 note: >
-  TASK-149 merged via PR #177 at 36fcd195d960d3d65e3e393923538e98aeb0b787.
-  TASK-150 starts the Owner-approved Flutter product incubation mode on shared
-  branch codex/flutter-incubator-member-experience. This checkpoint requires
-  focused local evidence and no per-task PR/hosted CI. Auth, backend contract,
-  shared boundary, data, schema, provider and deployment remain outside scope.
+  TASK-150 checkpoint is saved at aecfcb6fa822a998cfe7594a28064c20baf1c319.
+  TASK-151 continues the Flutter incubator on the same shared branch with
+  Officer-only derived attendance insights and a session-local Lineup Lab.
+  It does not change capability, API, cache or server behavior and requires no
+  task-specific PR/hosted CI. Official submission or persistence exits scope.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-150.md
-report: docs/coordination/reports/TASK-150-FLUTTER-CODEX.md
+task: docs/coordination/tasks/TASK-151.md
+report: docs/coordination/reports/TASK-151-FLUTTER-CODEX.md
 review: none
