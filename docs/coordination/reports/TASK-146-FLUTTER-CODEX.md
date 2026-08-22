@@ -46,3 +46,6 @@ home badge/read-state integration before the hosted Flutter gate.
 - Correction verification: `flutter test test/notification_center_test.dart
   test/basic_app_test.dart` (82 passed), affected `flutter analyze`, and
   affected Dart formatter check all passed.
+- Final narrow completion serializes cache writes and invalidation purges, and
+  invalidates root-held controller state on logout, terminal expiry, Person
+  change, and capability loss.

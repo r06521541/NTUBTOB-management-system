@@ -366,6 +366,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         loadedPerson,
       );
       if (_notificationController?.principal.id != loadedPerson.id) {
+        await _notificationController?.invalidate();
+        _notificationController = null;
+      }
+      if (!loadedPerson.canReadNotifications) {
+        await _notificationController?.invalidate();
         _notificationController = null;
       }
       await _cache!.save(loadedPerson, loadedGames, syncedAt);
@@ -393,6 +398,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       await _reportCache?.clearPrincipal(cached.person.id);
     }
     if (classified == AuthViewState.sessionExpired) {
+      await _notificationController?.invalidate();
+      _notificationController = null;
       await _notificationCache?.clear();
     }
     final aggregate = await _observeCacheSessionAggregate();
@@ -419,6 +426,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       );
 
   Future<void> _performLogout() async {
+    await _notificationController?.invalidate();
+    _notificationController = null;
     setState(() {
       state = AuthViewState.logoutPending;
       cacheSessionAggregate = null;
@@ -537,7 +546,6 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   void _handleNotificationTerminalSession() {
-    _notificationController?.invalidate();
     _showFailure(const SessionExpiredException());
   }
 }

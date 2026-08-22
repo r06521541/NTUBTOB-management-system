@@ -33,15 +33,39 @@ class NotificationCenterController extends ChangeNotifier {
   int unreadCount = 0;
   Future<void>? _loadOperation;
   Future<void>? _mutationOperation;
+  Future<void> _cacheTail = Future.value();
   int _epoch = 0;
   bool get readOnly => state == NotificationCenterState.offline;
   bool get busy => _loadOperation != null || _mutationOperation != null;
 
-  void invalidate() {
+  Future<void> invalidate() {
     _epoch++;
     _loadOperation = null;
     _mutationOperation = null;
     _set(NotificationCenterState.unauthorized, const [], null);
+    return _enqueueCache(cache.clear);
+  }
+
+  Future<void> _enqueueCache(Future<void> Function() operation) {
+    _cacheTail = _cacheTail.catchError((_) {}).then((_) => operation());
+    return _cacheTail;
+  }
+
+  Future<void> _saveIfCurrent(
+    int epoch,
+    List<MobileNotification> nextItems,
+    DateTime syncedAt, {
+    required int nextUnreadCount,
+  }) async {
+    await _enqueueCache(() async {
+      if (epoch != _epoch) return;
+      await cache.save(
+        principal,
+        nextItems,
+        syncedAt,
+        unreadCount: nextUnreadCount,
+      );
+    });
   }
 
   Future<void> load({required bool online, bool sessionPresent = true}) {
@@ -67,7 +91,7 @@ class NotificationCenterController extends ChangeNotifier {
     state = NotificationCenterState.loading;
     notifyListeners();
     if (!sessionPresent || !principal.canReadNotifications) {
-      await cache.clear();
+      await invalidate();
       if (epoch != _epoch) return;
       _set(NotificationCenterState.unauthorized, const [], null);
       return;
@@ -81,7 +105,8 @@ class NotificationCenterController extends ChangeNotifier {
       final serverUnreadCount = await client.unreadCount();
       if (epoch != _epoch) return;
       final now = clock().toUtc();
-      await cache.save(principal, fresh, now, unreadCount: serverUnreadCount);
+      await _saveIfCurrent(epoch, fresh, now,
+          nextUnreadCount: serverUnreadCount);
       if (epoch != _epoch) return;
       items = List.unmodifiable(fresh);
       unreadCount = serverUnreadCount;
@@ -93,7 +118,7 @@ class NotificationCenterController extends ChangeNotifier {
     } on AuthorizedRequestNetworkException {
       await _loadCache();
     } on SessionExpiredException {
-      await cache.clear();
+      await invalidate();
       if (epoch != _epoch) return;
       _set(NotificationCenterState.unauthorized, const [], null);
       onTerminalSession?.call();
@@ -101,7 +126,7 @@ class NotificationCenterController extends ChangeNotifier {
       if (error.code == ApiErrorCode.forbidden ||
           error.code == ApiErrorCode.unauthenticated ||
           error.code == ApiErrorCode.sessionExpired) {
-        await cache.clear();
+        await invalidate();
         if (epoch != _epoch) return;
         _set(NotificationCenterState.unauthorized, const [], null);
         onTerminalSession?.call();
@@ -116,11 +141,13 @@ class NotificationCenterController extends ChangeNotifier {
   }
 
   Future<void> _loadCache() async {
+    final epoch = _epoch;
     final cached = await cache.loadFor(
       principal,
       clock().toUtc(),
       sessionPresent: true,
     );
+    if (epoch != _epoch) return;
     if (cached == null) {
       _set(NotificationCenterState.offlineEvidenceUnavailable, const [], null);
       return;
@@ -173,8 +200,8 @@ class NotificationCenterController extends ChangeNotifier {
         if (item.id == id) item.markRead(result.readAt) else item,
     ]);
     if (result.changed && unreadCount > 0) unreadCount--;
-    await cache.save(principal, items, lastSyncedAt ?? clock(),
-        unreadCount: unreadCount);
+    await _saveIfCurrent(epoch, items, lastSyncedAt ?? clock(),
+        nextUnreadCount: unreadCount);
     if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
@@ -208,8 +235,8 @@ class NotificationCenterController extends ChangeNotifier {
       items.map((item) => item.markRead(readAt)).toList(growable: false),
     );
     unreadCount = result.unreadCount;
-    await cache.save(principal, items, lastSyncedAt ?? readAt,
-        unreadCount: unreadCount);
+    await _saveIfCurrent(epoch, items, lastSyncedAt ?? readAt,
+        nextUnreadCount: unreadCount);
     if (epoch != _epoch) return;
     state = items.isEmpty
         ? NotificationCenterState.empty
@@ -233,15 +260,13 @@ class NotificationCenterController extends ChangeNotifier {
     try {
       return await operation();
     } on SessionExpiredException {
-      await cache.clear();
-      invalidate();
+      await invalidate();
       onTerminalSession?.call();
       return null;
     } on ApiError catch (error) {
       if (error.code == ApiErrorCode.unauthenticated ||
           error.code == ApiErrorCode.sessionExpired) {
-        await cache.clear();
-        invalidate();
+        await invalidate();
         onTerminalSession?.call();
         return null;
       }
