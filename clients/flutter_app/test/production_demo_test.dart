@@ -123,6 +123,88 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
+  testWidgets('schedule discovery groups, filters, and keeps search on return',
+      (tester) async {
+    await pumpDemo(tester);
+
+    await tester.tap(find.byKey(const ValueKey('schedule-discovery-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ScheduleDiscoveryPage), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-game-game_901')), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-game-game_903')), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-date-2026-10-03T00:00:00.000')),
+        findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('schedule-filter-withLocation')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('schedule-game-game_901')), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-game-game_903')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('schedule-filter-all')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('schedule-search')),
+      '猛虎',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('schedule-game-game_903')), findsOneWidget);
+    expect(find.byKey(const ValueKey('schedule-game-game_901')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('schedule-game-game_903')));
+    await tester.pumpAndSettle();
+    expect(find.byType(GameDetailPage), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byKey(const ValueKey('schedule-search')))
+          .controller!
+          .text,
+      '猛虎',
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('schedule-search')),
+      '不存在的球隊',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('schedule-no-match')), findsOneWidget);
+  });
+
+  testWidgets('schedule discovery distinguishes empty and offline cached views',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+
+    await tester.tap(find.byKey(const ValueKey('demo-data-empty')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('schedule-discovery-entry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('schedule-empty')), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('demo-data-populated')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('demo-connectivity-offline')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('schedule-discovery-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('離線唯讀賽程'), findsOneWidget);
+    final gameReads = probe.gameReads;
+    final attendanceReads = probe.attendanceReads;
+    final replyMutations = probe.replyMutations;
+    await tester.tap(find.byKey(const ValueKey('schedule-game-game_901')));
+    await tester.pumpAndSettle();
+    expect(find.byType(CachedGameDetailPage), findsOneWidget);
+    expect(probe.gameReads, gameReads);
+    expect(probe.attendanceReads, attendanceReads);
+    expect(probe.replyMutations, replyMutations);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
   testWidgets('production account surface is reachable without transport', (
     tester,
   ) async {

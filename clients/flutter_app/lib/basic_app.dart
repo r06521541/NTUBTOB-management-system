@@ -1177,6 +1177,25 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 ),
               ),
             ),
+          AppSurfaceCard(
+            child: ListTile(
+              key: const ValueKey('schedule-discovery-entry'),
+              leading: const Icon(Icons.calendar_month_outlined),
+              title: const Text('賽程探索'),
+              subtitle: Text(widget.online
+                  ? '依日期、球隊或場地尋找已載入賽事'
+                  : '離線唯讀・可能不是最新賽程'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ScheduleDiscoveryPage(
+                    api: widget.api,
+                    games: widget.games,
+                    online: widget.online,
+                  ),
+                ),
+              ),
+            ),
+          ),
           if (orderedGames.isEmpty)
             Semantics(
               key: const ValueKey('games-empty'),
@@ -1271,6 +1290,166 @@ class _BasicGamesViewState extends State<BasicGamesView> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+enum SchedulePresentationFilter { all, withLocation, withoutLocation }
+
+class ScheduleDiscoveryPage extends StatefulWidget {
+  const ScheduleDiscoveryPage({
+    super.key,
+    required this.api,
+    required this.games,
+    required this.online,
+  });
+
+  final BasicApi api;
+  final List<Game> games;
+  final bool online;
+
+  @override
+  State<ScheduleDiscoveryPage> createState() => _ScheduleDiscoveryPageState();
+}
+
+class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  SchedulePresentationFilter _filter = SchedulePresentationFilter.all;
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  List<Game> get _visibleGames {
+    final query = _query.trim().toLowerCase();
+    final games = widget.games.where((game) {
+      if (_filter == SchedulePresentationFilter.withLocation &&
+          (game.location == null || game.location!.trim().isEmpty)) {
+        return false;
+      }
+      if (_filter == SchedulePresentationFilter.withoutLocation &&
+          game.location != null &&
+          game.location!.trim().isNotEmpty) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return [game.homeTeam, game.awayTeam, game.location]
+          .whereType<String>()
+          .any((value) => value.toLowerCase().contains(query));
+    }).toList()
+      ..sort((left, right) => left.startAt.compareTo(right.startAt));
+    return games;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final games = _visibleGames;
+    final groups = <DateTime, List<Game>>{};
+    for (final game in games) {
+      final local = game.startAt.toLocal();
+      final day = DateTime(local.year, local.month, local.day);
+      groups.putIfAbsent(day, () => []).add(game);
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('賽程探索')),
+      body: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(AppSpacing.regular),
+        children: [
+          if (!widget.online)
+            const AppStatusPanel(
+              icon: Icons.cloud_off,
+              title: '離線唯讀賽程',
+              message: '僅顯示此帳號已載入的本機賽事，資料可能過期。',
+            ),
+          TextField(
+            key: const ValueKey('schedule-search'),
+            controller: _searchController,
+            onChanged: (value) => setState(() => _query = value),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              labelText: '搜尋球隊或場地',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.compact),
+          Wrap(
+            spacing: AppSpacing.compact,
+            children: [
+              for (final filter in SchedulePresentationFilter.values)
+                ChoiceChip(
+                  key: ValueKey('schedule-filter-${filter.name}'),
+                  label: Text(_filterLabel(filter)),
+                  selected: _filter == filter,
+                  onSelected: (_) => setState(() => _filter = filter),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.regular),
+          if (widget.games.isEmpty)
+            const AppStatusPanel(
+              key: ValueKey('schedule-empty'),
+              icon: Icons.event_busy,
+              title: '目前沒有賽事',
+              message: '有新賽事時會顯示在這裡。',
+            )
+          else if (games.isEmpty)
+            const AppStatusPanel(
+              key: ValueKey('schedule-no-match'),
+              icon: Icons.manage_search_outlined,
+              title: '找不到符合的賽事',
+              message: '請調整搜尋文字或篩選條件。',
+            )
+          else
+            for (final entry in groups.entries) ...[
+              Semantics(
+                header: true,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.compact),
+                  child: Text(
+                    localizations.formatFullDate(entry.key),
+                    key: ValueKey('schedule-date-${entry.key.toIso8601String()}'),
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+              ),
+              for (final game in entry.value)
+                AppSurfaceCard(
+                  child: ListTile(
+                    key: ValueKey('schedule-game-${game.id}'),
+                    title: Text(
+                      '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}',
+                    ),
+                    subtitle: Text(_formatGameMetadata(localizations, game)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => widget.online
+                            ? GameDetailPage(api: widget.api, gameId: game.id)
+                            : CachedGameDetailPage(game: game),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+        ],
+      ),
+    );
+  }
+
+  String _filterLabel(SchedulePresentationFilter filter) {
+    switch (filter) {
+      case SchedulePresentationFilter.all:
+        return '全部';
+      case SchedulePresentationFilter.withLocation:
+        return '有場地';
+      case SchedulePresentationFilter.withoutLocation:
+        return '未定場地';
+    }
   }
 }
 
