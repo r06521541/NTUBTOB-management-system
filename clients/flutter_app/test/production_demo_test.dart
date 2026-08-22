@@ -58,7 +58,8 @@ void main() {
       find.byKey(const ValueKey('account-data-status-entry')),
       findsOneWidget,
     );
-    expect(find.byKey(const ValueKey('support-app-info-entry')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('support-app-info-entry')), findsOneWidget);
     expect(find.byKey(const ValueKey('management-report-entry')), findsNothing);
   });
 
@@ -156,7 +157,8 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
-  testWidgets('production demo opens the shared support page without transport', (
+  testWidgets('production demo opens the shared support page without transport',
+      (
     tester,
   ) async {
     final probe = ProductionDemoProbe();
