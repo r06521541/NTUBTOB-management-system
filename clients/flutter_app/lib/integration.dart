@@ -40,8 +40,7 @@ class AppConfig {
       return AppConfig._(parsedFlavor, ClientMode.fake, null, null);
     }
     final uri = Uri.tryParse(apiBaseUrl);
-    final validUri =
-        uri != null &&
+    final validUri = uri != null &&
         uri.scheme == 'https' &&
         uri.host.isNotEmpty &&
         !uri.hasQuery &&
@@ -55,11 +54,11 @@ class AppConfig {
   }
 
   static AppConfig fromEnvironment() => parse(
-    flavor: const String.fromEnvironment('APP_FLAVOR'),
-    mode: const String.fromEnvironment('CLIENT_MODE'),
-    apiBaseUrl: const String.fromEnvironment('API_BASE_URL'),
-    lineChannelId: const String.fromEnvironment('LINE_CHANNEL_ID'),
-  );
+        flavor: const String.fromEnvironment('APP_FLAVOR'),
+        mode: const String.fromEnvironment('CLIENT_MODE'),
+        apiBaseUrl: const String.fromEnvironment('API_BASE_URL'),
+        lineChannelId: const String.fromEnvironment('LINE_CHANNEL_ID'),
+      );
 }
 
 class ContractException implements Exception {
@@ -166,20 +165,20 @@ enum AttendanceReply {
 
 extension AttendanceReplyWire on AttendanceReply {
   String get wire => switch (this) {
-    AttendanceReply.attending => 'attending',
-    AttendanceReply.notAttending => 'not_attending',
-    AttendanceReply.arrivingLate => 'arriving_late',
-    AttendanceReply.leavingEarly => 'leaving_early',
-    AttendanceReply.undecided => 'undecided',
-  };
+        AttendanceReply.attending => 'attending',
+        AttendanceReply.notAttending => 'not_attending',
+        AttendanceReply.arrivingLate => 'arriving_late',
+        AttendanceReply.leavingEarly => 'leaving_early',
+        AttendanceReply.undecided => 'undecided',
+      };
   static AttendanceReply parse(Object? value) => switch (value) {
-    'attending' => AttendanceReply.attending,
-    'not_attending' => AttendanceReply.notAttending,
-    'arriving_late' => AttendanceReply.arrivingLate,
-    'leaving_early' => AttendanceReply.leavingEarly,
-    'undecided' => AttendanceReply.undecided,
-    _ => throw const ContractException('unknown attendance reply'),
-  };
+        'attending' => AttendanceReply.attending,
+        'not_attending' => AttendanceReply.notAttending,
+        'arriving_late' => AttendanceReply.arrivingLate,
+        'leaving_early' => AttendanceReply.leavingEarly,
+        'undecided' => AttendanceReply.undecided,
+        _ => throw const ContractException('unknown attendance reply'),
+      };
 }
 
 class SessionEnvelope {
@@ -249,11 +248,11 @@ class Person {
   bool get canPublishNotifications =>
       capabilities.contains('notifications:publish');
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'display_name': displayName,
-    'access_level': accessLevel.name,
-    'capabilities': capabilities,
-  };
+        'id': id,
+        'display_name': displayName,
+        'access_level': accessLevel.name,
+        'capabilities': capabilities,
+      };
 }
 
 class AttendanceReportPerson {
@@ -372,11 +371,13 @@ class AttendanceReport {
 List<AttendanceReportPerson> _reportPeople(
   Map<String, dynamic> json,
   String key,
-) => _required<List<dynamic>>(json, key)
-    .map(
-      (item) => AttendanceReportPerson.fromJson(item as Map<String, dynamic>),
-    )
-    .toList(growable: false);
+) =>
+    _required<List<dynamic>>(json, key)
+        .map(
+          (item) =>
+              AttendanceReportPerson.fromJson(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
 
 class Game {
   const Game(
@@ -388,35 +389,35 @@ class Game {
     this.awayTeam,
   );
   factory Game.fromJson(Map<String, dynamic> json) => Game(
-    _required(json, 'id'),
-    _utcDate(json, 'start_at'),
-    _nullable(json, 'duration_minutes'),
-    _nullable(json, 'location'),
-    _nullable(json, 'home_team'),
-    _nullable(json, 'away_team'),
-  );
+        _required(json, 'id'),
+        _utcDate(json, 'start_at'),
+        _nullable(json, 'duration_minutes'),
+        _nullable(json, 'location'),
+        _nullable(json, 'home_team'),
+        _nullable(json, 'away_team'),
+      );
   final String id;
   final DateTime startAt;
   final int? durationMinutes;
   final String? location, homeTeam, awayTeam;
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'start_at': startAt.toIso8601String(),
-    'duration_minutes': durationMinutes,
-    'location': location,
-    'home_team': homeTeam,
-    'away_team': awayTeam,
-  };
+        'id': id,
+        'start_at': startAt.toIso8601String(),
+        'duration_minutes': durationMinutes,
+        'location': location,
+        'home_team': homeTeam,
+        'away_team': awayTeam,
+      };
 }
 
 class GamePage {
   const GamePage(this.items, this.nextCursor);
   factory GamePage.fromJson(Map<String, dynamic> json) => GamePage(
-    _required<List<dynamic>>(json, 'items')
-        .map((item) => Game.fromJson(item as Map<String, dynamic>))
-        .toList(growable: false),
-    _nullable<String>(json, 'next_cursor'),
-  );
+        _required<List<dynamic>>(json, 'items')
+            .map((item) => Game.fromJson(item as Map<String, dynamic>))
+            .toList(growable: false),
+        _nullable<String>(json, 'next_cursor'),
+      );
   final List<Game> items;
   final String? nextCursor;
 }
@@ -508,27 +509,27 @@ bool _validNotificationId(String value) {
 
 extension MobileNotificationTypeWire on MobileNotificationType {
   String get wire => switch (this) {
-    MobileNotificationType.gameReminder => 'game_reminder',
-    MobileNotificationType.attendanceReminder => 'attendance_reminder',
-    MobileNotificationType.gameChange => 'game_change',
-    MobileNotificationType.officerPersonal => 'officer_personal',
-    MobileNotificationType.officerGameBroadcast => 'officer_game_broadcast',
-    MobileNotificationType.officerTeamBroadcast => 'officer_team_broadcast',
-    MobileNotificationType.adminSystemAnnouncement =>
-      'admin_system_announcement',
-  };
+        MobileNotificationType.gameReminder => 'game_reminder',
+        MobileNotificationType.attendanceReminder => 'attendance_reminder',
+        MobileNotificationType.gameChange => 'game_change',
+        MobileNotificationType.officerPersonal => 'officer_personal',
+        MobileNotificationType.officerGameBroadcast => 'officer_game_broadcast',
+        MobileNotificationType.officerTeamBroadcast => 'officer_team_broadcast',
+        MobileNotificationType.adminSystemAnnouncement =>
+          'admin_system_announcement',
+      };
 
   static MobileNotificationType parse(Object? value) => switch (value) {
-    'game_reminder' => MobileNotificationType.gameReminder,
-    'attendance_reminder' => MobileNotificationType.attendanceReminder,
-    'game_change' => MobileNotificationType.gameChange,
-    'officer_personal' => MobileNotificationType.officerPersonal,
-    'officer_game_broadcast' => MobileNotificationType.officerGameBroadcast,
-    'officer_team_broadcast' => MobileNotificationType.officerTeamBroadcast,
-    'admin_system_announcement' =>
-      MobileNotificationType.adminSystemAnnouncement,
-    _ => throw const ContractException('unknown notification type'),
-  };
+        'game_reminder' => MobileNotificationType.gameReminder,
+        'attendance_reminder' => MobileNotificationType.attendanceReminder,
+        'game_change' => MobileNotificationType.gameChange,
+        'officer_personal' => MobileNotificationType.officerPersonal,
+        'officer_game_broadcast' => MobileNotificationType.officerGameBroadcast,
+        'officer_team_broadcast' => MobileNotificationType.officerTeamBroadcast,
+        'admin_system_announcement' =>
+          MobileNotificationType.adminSystemAnnouncement,
+        _ => throw const ContractException('unknown notification type'),
+      };
 }
 
 enum NotificationDestinationType { notificationList, notification, game }
@@ -536,11 +537,11 @@ enum NotificationDestinationType { notificationList, notification, game }
 class NotificationDestination {
   const NotificationDestination._(this.type, this.id);
   const NotificationDestination.listFallback()
-    : this._(NotificationDestinationType.notificationList, null);
+      : this._(NotificationDestinationType.notificationList, null);
   const NotificationDestination.notification(String id)
-    : this._(NotificationDestinationType.notification, id);
+      : this._(NotificationDestinationType.notification, id);
   const NotificationDestination.game(String id)
-    : this._(NotificationDestinationType.game, id);
+      : this._(NotificationDestinationType.game, id);
 
   static bool _hasExactKeys(Map<String, dynamic> value, Set<String> expected) =>
       value.length == expected.length && value.keys.every(expected.contains);
@@ -592,15 +593,15 @@ class NotificationDestination {
   }
 
   Map<String, dynamic> toJson() => switch (type) {
-    NotificationDestinationType.notification => {
-      'type': 'notification',
-      'notification_id': id,
-    },
-    NotificationDestinationType.game => {'type': 'game', 'game_id': id},
-    NotificationDestinationType.notificationList => {
-      'type': 'notification_list',
-    },
-  };
+        NotificationDestinationType.notification => {
+            'type': 'notification',
+            'notification_id': id,
+          },
+        NotificationDestinationType.game => {'type': 'game', 'game_id': id},
+        NotificationDestinationType.notificationList => {
+            'type': 'notification_list',
+          },
+      };
 }
 
 class MobileNotification {
@@ -622,9 +623,8 @@ class MobileNotification {
     final createdAt = _utcDate(json, 'created_at');
     final visibleUntil = _utcDate(json, 'visible_until');
     final rawReadAt = _nullable<String>(json, 'read_at');
-    final readAt = rawReadAt == null
-        ? null
-        : _utcDate({'read_at': rawReadAt}, 'read_at');
+    final readAt =
+        rawReadAt == null ? null : _utcDate({'read_at': rawReadAt}, 'read_at');
     if (!_validNotificationId(id) ||
         title.trim().isEmpty ||
         title.length > 120 ||
@@ -659,26 +659,26 @@ class MobileNotification {
       !createdAt.isAfter(now.toUtc()) && visibleUntil.isAfter(now.toUtc());
 
   MobileNotification markRead(DateTime value) => MobileNotification(
-    id: id,
-    type: type,
-    title: title,
-    body: body,
-    createdAt: createdAt,
-    visibleUntil: visibleUntil,
-    readAt: readAt ?? value.toUtc(),
-    destination: destination,
-  );
+        id: id,
+        type: type,
+        title: title,
+        body: body,
+        createdAt: createdAt,
+        visibleUntil: visibleUntil,
+        readAt: readAt ?? value.toUtc(),
+        destination: destination,
+      );
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'type': type.wire,
-    'title': title,
-    'body': body,
-    'created_at': createdAt.toUtc().toIso8601String(),
-    'visible_until': visibleUntil.toUtc().toIso8601String(),
-    'read_at': readAt?.toUtc().toIso8601String(),
-    'destination': destination.toJson(),
-  };
+        'id': id,
+        'type': type.wire,
+        'title': title,
+        'body': body,
+        'created_at': createdAt.toUtc().toIso8601String(),
+        'visible_until': visibleUntil.toUtc().toIso8601String(),
+        'read_at': readAt?.toUtc().toIso8601String(),
+        'destination': destination.toJson(),
+      };
 }
 
 class NotificationPage {
@@ -907,11 +907,11 @@ class CacheSessionAggregate {
 
   @override
   int get hashCode => Object.hash(
-    sessionPresent,
-    basicCachePresent,
-    officerReportCachePresent,
-    pendingAttendanceIntentPresent,
-  );
+        sessionPresent,
+        basicCachePresent,
+        officerReportCachePresent,
+        pendingAttendanceIntentPresent,
+      );
 }
 
 enum AttendanceQualification { teamPlayer, guestPlayer }
@@ -932,8 +932,8 @@ class RepliedAttendance {
           'team_player' => AttendanceQualification.teamPlayer,
           'guest_player' => AttendanceQualification.guestPlayer,
           _ => throw const ContractException(
-            'unknown attendance qualification',
-          ),
+              'unknown attendance qualification',
+            ),
         },
       );
   final String personId, displayName;
@@ -965,13 +965,15 @@ enum NotificationStatus { notRequired, succeeded, failed, unknown }
 class MutationNotification {
   const MutationNotification(this.status, this.code);
   factory MutationNotification.fromJson(Map<String, dynamic> json) =>
-      MutationNotification(switch (json['status']) {
-        'not_required' => NotificationStatus.notRequired,
-        'succeeded' => NotificationStatus.succeeded,
-        'failed' => NotificationStatus.failed,
-        'unknown' => NotificationStatus.unknown,
-        _ => throw const ContractException('unknown notification status'),
-      }, _nullable(json, 'code'));
+      MutationNotification(
+          switch (json['status']) {
+            'not_required' => NotificationStatus.notRequired,
+            'succeeded' => NotificationStatus.succeeded,
+            'failed' => NotificationStatus.failed,
+            'unknown' => NotificationStatus.unknown,
+            _ => throw const ContractException('unknown notification status'),
+          },
+          _nullable(json, 'code'));
   final NotificationStatus status;
   final String? code;
 }
@@ -986,15 +988,15 @@ class MutationResult {
     this.idempotentReplay,
   );
   factory MutationResult.fromJson(Map<String, dynamic> json) => MutationResult(
-    _required(json, 'game_id'),
-    AttendanceReplyWire.parse(json['reply']),
-    _nullable(json, 'changed'),
-    _utcDate(json, 'updated_at'),
-    MutationNotification.fromJson(
-      _required<Map<String, dynamic>>(json, 'notification'),
-    ),
-    _required(json, 'idempotent_replay'),
-  );
+        _required(json, 'game_id'),
+        AttendanceReplyWire.parse(json['reply']),
+        _nullable(json, 'changed'),
+        _utcDate(json, 'updated_at'),
+        MutationNotification.fromJson(
+          _required<Map<String, dynamic>>(json, 'notification'),
+        ),
+        _required(json, 'idempotent_replay'),
+      );
   final String gameId;
   final AttendanceReply reply;
   final bool? changed;
@@ -1116,15 +1118,15 @@ class MemoryStore implements DurableStore {
 
 class SecureStore implements DurableStore {
   SecureStore()
-    : storage = const FlutterSecureStorage(
-        aOptions: AndroidOptions(
-          storageNamespace: 'ntubtob_mobile_v1',
-          migrateWithBackup: false,
-        ),
-        iOptions: IOSOptions(
-          accessibility: KeychainAccessibility.first_unlock_this_device,
-        ),
-      );
+      : storage = const FlutterSecureStorage(
+          aOptions: AndroidOptions(
+            storageNamespace: 'ntubtob_mobile_v1',
+            migrateWithBackup: false,
+          ),
+          iOptions: IOSOptions(
+            accessibility: KeychainAccessibility.first_unlock_this_device,
+          ),
+        );
   final FlutterSecureStorage storage;
   @override
   Future<String?> read(String key) => storage.read(key: key);
@@ -1151,7 +1153,8 @@ class SecureStore implements DurableStore {
 
   @override
   Future<void> deleteKeysWithPrefix(String prefix) async {
-    final keys = (await storage.readAll()).keys
+    final keys = (await storage.readAll())
+        .keys
         .where((key) => key.startsWith(prefix))
         .toList(growable: false);
     for (final key in keys) {
@@ -1849,8 +1852,7 @@ class BasicApi {
         minimumResponseRate % 10 != 0) {
       throw const ContractException('invalid report query');
     }
-    final path =
-        '/games/${Uri.encodeComponent(id)}/attendance-report'
+    final path = '/games/${Uri.encodeComponent(id)}/attendance-report'
         '?history_limit=$historyLimit'
         '&minimum_response_rate=$minimumResponseRate';
     final r = await session.authorized('GET', path);
