@@ -246,6 +246,102 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
+  testWidgets('production schedule demo covers month week and empty-day states',
+      (tester) async {
+    await pumpDemo(tester);
+
+    await tester.tap(find.byKey(const ValueKey('schedule-discovery-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('schedule-next-period')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026 年 10 月'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('schedule-day-2026-10-03')),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(ListView).first,
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('schedule-game-game_903')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('schedule-game-game_904')),
+      findsOneWidget,
+    );
+
+    await tester.drag(
+      find.byType(ListView).first,
+      const Offset(0, 900),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('週'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('schedule-next-period')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('schedule-game-game_905')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('schedule-day-2026-10-04')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('schedule-day-2026-10-04')),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(ListView).first,
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('schedule-day-no-games')),
+      findsOneWidget,
+    );
+
+    await tester.drag(
+      find.byType(ListView).first,
+      const Offset(0, 1400),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('schedule-search')),
+      'no production demo match',
+    );
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('schedule-day-2026-10-03')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('schedule-day-2026-10-03')),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(ListView).first,
+      const Offset(0, -900),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('schedule-day-no-match')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('production account surface is reachable without transport', (
     tester,
   ) async {

@@ -83,6 +83,14 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
       '範例海豚隊',
       '虛構校友隊',
     ),
+    Game(
+      'game_905',
+      DateTime.utc(2026, 10, 5, 6),
+      120,
+      '虛構週界球場',
+      '示意星期一隊',
+      '虛構校友隊',
+    ),
   ];
   static const _basicPerson = Person('fictional-basic', '虛構一般使用者', [
     'games:read',

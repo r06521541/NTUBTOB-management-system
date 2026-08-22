@@ -1315,6 +1315,42 @@ class _BasicGamesViewState extends State<BasicGamesView> {
 
 enum SchedulePresentationFilter { all, withLocation, withoutLocation }
 
+enum SchedulePresentation { month, week, agenda }
+
+class ScheduleCalendarProjection {
+  static DateTime dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  static DateTime localGameDay(Game game) => dateOnly(game.startAt.toLocal());
+
+  static DateTime weekStart(DateTime day) {
+    final localDay = dateOnly(day);
+    return localDay.subtract(Duration(days: localDay.weekday - 1));
+  }
+
+  static List<DateTime> weekDays(DateTime day) {
+    final start = weekStart(day);
+    return List.generate(7, (index) => start.add(Duration(days: index)));
+  }
+
+  static List<DateTime> monthGrid(DateTime month) {
+    final first = DateTime(month.year, month.month);
+    final start = weekStart(first);
+    return List.generate(42, (index) => start.add(Duration(days: index)));
+  }
+
+  static Map<DateTime, List<Game>> groupByLocalDay(Iterable<Game> games) {
+    final groups = <DateTime, List<Game>>{};
+    for (final game in games) {
+      groups.putIfAbsent(localGameDay(game), () => []).add(game);
+    }
+    for (final values in groups.values) {
+      values.sort((left, right) => left.startAt.compareTo(right.startAt));
+    }
+    return groups;
+  }
+}
+
 class ScheduleDiscoveryPage extends StatefulWidget {
   const ScheduleDiscoveryPage({
     super.key,
@@ -1335,7 +1371,22 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   SchedulePresentationFilter _filter = SchedulePresentationFilter.all;
+  SchedulePresentation _presentation = SchedulePresentation.agenda;
   String _query = '';
+  late DateTime _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDay = widget.games.isEmpty
+        ? ScheduleCalendarProjection.dateOnly(DateTime.now())
+        : ScheduleCalendarProjection.localGameDay(
+            (List<Game>.of(widget.games)
+                  ..sort(
+                      (left, right) => left.startAt.compareTo(right.startAt)))
+                .first,
+          );
+  }
 
   @override
   void dispose() {
@@ -1370,11 +1421,7 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
     final localizations = MaterialLocalizations.of(context);
     final games = _visibleGames;
     final groups = <DateTime, List<Game>>{};
-    for (final game in games) {
-      final local = game.startAt.toLocal();
-      final day = DateTime(local.year, local.month, local.day);
-      groups.putIfAbsent(day, () => []).add(game);
-    }
+    groups.addAll(ScheduleCalendarProjection.groupByLocalDay(games));
     return Scaffold(
       appBar: AppBar(title: const Text('賽程探索')),
       body: ListView(
@@ -1410,57 +1457,221 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
             ],
           ),
           const SizedBox(height: AppSpacing.regular),
-          if (widget.games.isEmpty)
-            const AppStatusPanel(
-              key: ValueKey('schedule-empty'),
-              icon: Icons.event_busy,
-              title: '目前沒有賽事',
-              message: '有新賽事時會顯示在這裡。',
-            )
-          else if (games.isEmpty)
-            const AppStatusPanel(
-              key: ValueKey('schedule-no-match'),
-              icon: Icons.manage_search_outlined,
-              title: '找不到符合的賽事',
-              message: '請調整搜尋文字或篩選條件。',
-            )
-          else
-            for (final entry in groups.entries) ...[
-              Semantics(
-                header: true,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.compact),
-                  child: Text(
-                    localizations.formatFullDate(entry.key),
-                    key: ValueKey(
-                        'schedule-date-${entry.key.toIso8601String()}'),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
-              ),
-              for (final game in entry.value)
-                AppSurfaceCard(
-                  child: ListTile(
-                    key: ValueKey('schedule-game-${game.id}'),
-                    title: Text(
-                      '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}',
-                    ),
-                    subtitle: Text(_formatGameMetadata(localizations, game)),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => widget.online
-                            ? GameDetailPage(api: widget.api, gameId: game.id)
-                            : CachedGameDetailPage(game: game),
-                      ),
-                    ),
-                  ),
-                ),
+          SegmentedButton<SchedulePresentation>(
+            key: const ValueKey('schedule-presentation-switch'),
+            segments: const [
+              ButtonSegment(
+                  value: SchedulePresentation.month, label: Text('月')),
+              ButtonSegment(value: SchedulePresentation.week, label: Text('週')),
+              ButtonSegment(
+                  value: SchedulePresentation.agenda, label: Text('列表')),
             ],
+            selected: {_presentation},
+            onSelectionChanged: (selection) =>
+                setState(() => _presentation = selection.single),
+          ),
+          const SizedBox(height: AppSpacing.compact),
+          if (_presentation != SchedulePresentation.agenda)
+            Row(
+              children: [
+                IconButton(
+                  key: const ValueKey('schedule-previous-period'),
+                  tooltip: '上一期間',
+                  onPressed: () => setState(() => _movePeriod(-1)),
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Expanded(
+                  child: Text(
+                    _periodLabel(localizations),
+                    textAlign: TextAlign.center,
+                    key: const ValueKey('schedule-period-label'),
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('schedule-today'),
+                  onPressed: () => setState(() {
+                    _selectedDay =
+                        ScheduleCalendarProjection.dateOnly(DateTime.now());
+                  }),
+                  child: const Text('今天'),
+                ),
+                IconButton(
+                  key: const ValueKey('schedule-next-period'),
+                  tooltip: '下一期間',
+                  onPressed: () => setState(() => _movePeriod(1)),
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+          ..._presentationContents(localizations, games, groups),
         ],
       ),
     );
   }
+
+  List<Widget> _presentationContents(
+    MaterialLocalizations localizations,
+    List<Game> games,
+    Map<DateTime, List<Game>> groups,
+  ) {
+    final allGroups = ScheduleCalendarProjection.groupByLocalDay(widget.games);
+    if (widget.games.isEmpty) {
+      return const [
+        AppStatusPanel(
+          key: ValueKey('schedule-empty'),
+          icon: Icons.event_busy,
+          title: '目前沒有賽事',
+          message: '有新賽事時會顯示在這裡。',
+        ),
+      ];
+    }
+    if (_presentation == SchedulePresentation.agenda) {
+      if (games.isEmpty) return [_noMatchPanel()];
+      return [
+        for (final entry in groups.entries)
+          ..._daySection(localizations, entry.key, entry.value)
+      ];
+    }
+    if (_presentation == SchedulePresentation.week) {
+      return [
+        for (final day in ScheduleCalendarProjection.weekDays(_selectedDay))
+          ..._daySection(
+            localizations,
+            day,
+            groups[day] ?? const [],
+            compactEmpty: true,
+            emptyState:
+                allGroups[day]?.isNotEmpty ?? false ? 'no-match' : 'no-games',
+          ),
+      ];
+    }
+    return [
+      GridView.count(
+        key: const ValueKey('schedule-month-grid'),
+        crossAxisCount: 7,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final day in ScheduleCalendarProjection.monthGrid(_selectedDay))
+            Semantics(
+              selected: day == _selectedDay,
+              label:
+                  '${localizations.formatFullDate(day)}，${groups[day]?.length ?? 0} 場符合賽事',
+              child: TextButton(
+                key: ValueKey('schedule-day-${_dayToken(day)}'),
+                style: TextButton.styleFrom(
+                  backgroundColor: day == _selectedDay
+                      ? Theme.of(context).colorScheme.secondaryContainer
+                      : null,
+                  foregroundColor: day == _selectedDay
+                      ? Theme.of(context).colorScheme.onSecondaryContainer
+                      : null,
+                  side: day == _selectedDay
+                      ? BorderSide(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 2,
+                        )
+                      : null,
+                ),
+                onPressed: () => setState(() => _selectedDay = day),
+                child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('${day.day}'),
+                      if ((groups[day]?.isNotEmpty ?? false))
+                        Text('${groups[day]!.length} 場'),
+                    ]),
+              ),
+            ),
+        ],
+      ),
+      if (!(allGroups[_selectedDay]?.isNotEmpty ?? false))
+        const AppStatusPanel(
+          key: ValueKey('schedule-day-no-games'),
+          icon: Icons.event_busy,
+          title: '這一天沒有賽事',
+          message: '請選擇其他日期。',
+        )
+      else if (!(groups[_selectedDay]?.isNotEmpty ?? false))
+        _noMatchPanel(key: const ValueKey('schedule-day-no-match'))
+      else
+        ..._daySection(localizations, _selectedDay, groups[_selectedDay]!),
+    ];
+  }
+
+  List<Widget> _daySection(
+    MaterialLocalizations localizations,
+    DateTime day,
+    List<Game> games, {
+    bool compactEmpty = false,
+    String emptyState = 'no-match',
+  }) =>
+      [
+        Semantics(
+          header: true,
+          child: Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.compact),
+            child: Text(
+              localizations.formatFullDate(day),
+              key: ValueKey('schedule-date-${day.toIso8601String()}'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ),
+        if (games.isEmpty && compactEmpty)
+          Padding(
+            key: ValueKey('schedule-week-${_dayToken(day)}-$emptyState'),
+            padding: const EdgeInsets.only(bottom: AppSpacing.compact),
+            child: Text(emptyState == 'no-games' ? '沒有賽事' : '沒有符合賽事'),
+          ),
+        for (final game in games) _gameTile(localizations, game),
+      ];
+
+  Widget _gameTile(MaterialLocalizations localizations, Game game) =>
+      AppSurfaceCard(
+        child: ListTile(
+          key: ValueKey('schedule-game-${game.id}'),
+          title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+          subtitle: Text(_formatGameMetadata(localizations, game)),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => widget.online
+                  ? GameDetailPage(api: widget.api, gameId: game.id)
+                  : CachedGameDetailPage(game: game),
+            ),
+          ),
+        ),
+      );
+
+  AppStatusPanel _noMatchPanel({Key? key}) => AppStatusPanel(
+        key: key ?? const ValueKey('schedule-no-match'),
+        icon: Icons.manage_search_outlined,
+        title: '找不到符合的賽事',
+        message: '請調整搜尋文字或篩選條件。',
+      );
+
+  void _movePeriod(int delta) {
+    _selectedDay = switch (_presentation) {
+      SchedulePresentation.month =>
+        DateTime(_selectedDay.year, _selectedDay.month + delta, 1),
+      SchedulePresentation.week => _selectedDay.add(Duration(days: 7 * delta)),
+      SchedulePresentation.agenda => DateTime(
+          _selectedDay.year, _selectedDay.month + delta, _selectedDay.day),
+    };
+  }
+
+  String _periodLabel(MaterialLocalizations localizations) =>
+      switch (_presentation) {
+        SchedulePresentation.month =>
+          '${_selectedDay.year} 年 ${_selectedDay.month} 月',
+        SchedulePresentation.week =>
+          '${localizations.formatShortDate(ScheduleCalendarProjection.weekStart(_selectedDay))} – ${localizations.formatShortDate(ScheduleCalendarProjection.weekDays(_selectedDay).last)}',
+        SchedulePresentation.agenda => '依日期排列',
+      };
+
+  String _dayToken(DateTime day) =>
+      '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
 
   String _filterLabel(SchedulePresentationFilter filter) {
     switch (filter) {
