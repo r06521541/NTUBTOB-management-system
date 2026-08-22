@@ -121,8 +121,9 @@ class NotificationCenterController extends ChangeNotifier {
       await invalidate();
       onTerminalSession?.call();
     } on ApiError catch (error) {
-      if (error.code == ApiErrorCode.forbidden ||
-          error.code == ApiErrorCode.unauthenticated ||
+      if (error.code == ApiErrorCode.forbidden) {
+        await invalidate();
+      } else if (error.code == ApiErrorCode.unauthenticated ||
           error.code == ApiErrorCode.sessionExpired) {
         await invalidate();
         onTerminalSession?.call();

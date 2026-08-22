@@ -49,3 +49,5 @@ home badge/read-state integration before the hosted Flutter gate.
 - Final narrow completion serializes cache writes and invalidation purges, and
   invalidates root-held controller state on logout, terminal expiry, Person
   change, and capability loss.
+- `forbidden` now clears notification authorization state without converting a
+  still-valid Basic session into a terminal session.

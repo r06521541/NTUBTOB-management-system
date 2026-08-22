@@ -328,6 +328,28 @@ void main() {
   });
 
   test(
+      'forbidden list failure clears notification state without ending session',
+      () async {
+    final store = MemoryStore();
+    final cache = NotificationCache(store, 'install');
+    await cache.save(principal, [makeNotification()], now);
+    var terminalCalls = 0;
+    final controller = NotificationCenterController(
+      client: FakeNotificationClient()
+        ..failure = const ApiError(ApiErrorCode.forbidden, false, null),
+      cache: cache,
+      principal: principal,
+      clock: () => now,
+      onTerminalSession: () => terminalCalls++,
+    );
+
+    await controller.load(online: true);
+    expect(terminalCalls, 0);
+    expect(controller.state, NotificationCenterState.unauthorized);
+    expect(store.values, isEmpty);
+  });
+
+  test(
     'authorization loss and terminal session clear purge notification cache',
     () async {
       final store = MemoryStore();
