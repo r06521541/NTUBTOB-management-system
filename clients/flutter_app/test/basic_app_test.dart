@@ -622,6 +622,7 @@ void main() {
             onRefresh: () async {
               refreshes++;
               await gate.future;
+              return true;
             })));
 
     final refresh = find.byKey(const ValueKey('games-refresh'));
@@ -647,7 +648,10 @@ void main() {
             games: [Game('g', DateTime.utc(2026), 60, null, 'Home', 'Away')],
             online: true,
             lastSyncedAt: DateTime.utc(2026),
-            onRefresh: () async => refreshes++)));
+            onRefresh: () async {
+              refreshes++;
+              return true;
+            })));
 
     final pullRefresh = tester.widget<RefreshIndicator>(
         find.byKey(const ValueKey('games-pull-refresh')));
@@ -667,7 +671,10 @@ void main() {
             games: const [],
             online: true,
             lastSyncedAt: DateTime.utc(2026),
-            onRefresh: () async => refreshes++)));
+            onRefresh: () async {
+              refreshes++;
+              return true;
+            })));
 
     final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
     expect(scrollable.position.physics, isA<AlwaysScrollableScrollPhysics>());
@@ -691,6 +698,7 @@ void main() {
             onRefresh: () async {
               refreshes++;
               await gate.future;
+              return true;
             })));
 
     final list = find.byType(ListView);
@@ -716,7 +724,10 @@ void main() {
             games: const [],
             online: false,
             lastSyncedAt: DateTime.utc(2026),
-            onRefresh: () async => refreshes++)));
+            onRefresh: () async {
+              refreshes++;
+              return true;
+            })));
 
     expect(find.byKey(const ValueKey('games-pull-refresh')), findsNothing);
     await tester.fling(find.byType(ListView), const Offset(0, 300), 1000);
@@ -738,6 +749,7 @@ void main() {
             onRefresh: () async {
               refreshes++;
               if (refreshes == 1) throw StateError('refresh failed');
+              return true;
             })));
 
     final refresh = find.byKey(const ValueKey('games-refresh'));
@@ -745,10 +757,115 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(tester.widget<IconButton>(refresh).onPressed, isNotNull);
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('games-refresh-result')))
+          .label,
+      contains('重新整理失敗'),
+    );
 
     await tester.tap(refresh);
     await tester.pumpAndSettle();
     expect(refreshes, 2);
+  });
+
+  testWidgets('refresh reports progress and changes sync time only on success',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    var lastSyncedAt = DateTime.utc(2026, 8, 20, 1, 2);
+    var shouldSucceed = false;
+    late void Function(void Function()) update;
+
+    await tester.pumpWidget(MaterialApp(
+      home: StatefulBuilder(builder: (context, setState) {
+        update = setState;
+        return BasicGamesView(
+          api: api,
+          person: const Person('p', 'Basic', ['games:read']),
+          games: const [],
+          online: true,
+          lastSyncedAt: lastSyncedAt,
+          onRefresh: () async {
+            await Future<void>.delayed(const Duration(milliseconds: 1));
+            if (!shouldSucceed) return false;
+            update(() => lastSyncedAt = DateTime.utc(2026, 8, 21, 1, 2));
+            return true;
+          },
+        );
+      }),
+    ));
+
+    final refresh = find.byKey(const ValueKey('games-refresh'));
+    final initialSyncLabel = tester
+        .getSemantics(find.byKey(const ValueKey('games-last-sync')))
+        .label;
+    await tester.tap(refresh);
+    await tester.pump();
+    expect(
+        find.byKey(const ValueKey('games-refresh-progress')), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('games-refresh-result')))
+          .label,
+      contains('重新整理失敗'),
+    );
+    expect(
+      tester.getSemantics(find.byKey(const ValueKey('games-last-sync'))).label,
+      initialSyncLabel,
+    );
+
+    shouldSucceed = true;
+    await tester.tap(refresh);
+    await tester.pumpAndSettle();
+    expect(
+      tester.getSemantics(find.byKey(const ValueKey('games-last-sync'))).label,
+      isNot(initialSyncLabel),
+    );
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('games-refresh-result')))
+          .label,
+      contains('重新整理完成'),
+    );
+  });
+
+  testWidgets('successful pull refresh returns the games list to its top',
+      (tester) async {
+    final api = await apiFor(QueueTransport(), MemoryStore());
+    final games = List.generate(
+      24,
+      (index) => Game(
+        'game-$index',
+        DateTime.utc(2026, 8, 1).add(Duration(days: index)),
+        60,
+        '球場',
+        'Home',
+        'Away',
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: const Person('p', 'Basic', ['games:read']),
+        games: games,
+        online: true,
+        lastSyncedAt: DateTime.utc(2026),
+        onRefresh: () async => true,
+      ),
+    ));
+
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+    scrollable.position.jumpTo(300);
+    expect(scrollable.position.pixels, 300);
+
+    final refresh = tester
+        .state<RefreshIndicatorState>(
+            find.byKey(const ValueKey('games-pull-refresh')))
+        .show();
+    await tester.pumpAndSettle();
+    await refresh;
+    expect(scrollable.position.pixels, 0);
   });
 
   testWidgets('empty games has recognizable read-state semantics',
