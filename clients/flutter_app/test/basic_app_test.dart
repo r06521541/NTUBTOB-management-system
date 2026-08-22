@@ -242,6 +242,16 @@ MobileNotification destinationNotification(Map<String, dynamic> destination) =>
     });
 
 void main() {
+  test('auth operation context rejects terminal epoch and person races', () {
+    const operation = AuthOperationContext(4, 'person-A');
+    expect(operation.matches(currentEpoch: 4, currentPersonId: 'person-A'),
+        isTrue);
+    expect(operation.matches(currentEpoch: 5, currentPersonId: 'person-A'),
+        isFalse);
+    expect(operation.matches(currentEpoch: 4, currentPersonId: 'person-B'),
+        isFalse);
+    expect(operation.matches(currentEpoch: 5, currentPersonId: null), isFalse);
+  });
   test('app theme reserves the global primary for team navy', () {
     expect(appBrandNavy, const Color(0xff102a43));
     final primary = appTheme(Brightness.light).colorScheme.primary;
