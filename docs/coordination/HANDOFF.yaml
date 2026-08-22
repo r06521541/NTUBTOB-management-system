@@ -1,22 +1,23 @@
-active_task: TASK-146
-status: ready_for_review
-next_actor: main-work
+active_task: TASK-147
+status: ready_for_writer
+next_actor: codex-writer
 
 claim_id: main-work-20260822
 lease_version: 3
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 1bb2417cac7b18d58bf4a453ad4bdb8607ef1894
-head_commit: ba52e21caa181ba456cdb72bc729c981e7b9c3af
+base_commit: 4c6993ed5dbbde3919643ffa56bd5ae419e7f0fc
+head_commit: 4c6993ed5dbbde3919643ffa56bd5ae419e7f0fc
 
 updated_by: main-work
-updated_at: 2026-08-22T17:40:25+08:00
+updated_at: 2026-08-22T17:48:00+08:00
 
 note: >
-  TASK-146 source and lifecycle review accepted at exact HEAD ba52e21caa181ba456cdb72bc729c981e7b9c3af.
-  Hosted CI is the sole remaining full Flutter gate. No backend/schema/provider/deploy scope.
+  TASK-146 merged via PR #174 at 4c6993ed5dbbde3919643ffa56bd5ae419e7f0fc.
+  TASK-147 completes typed in-app notification destinations only. No OS push,
+  backend/schema/provider/deploy scope.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-146.md
-report: docs/coordination/reports/TASK-146-FLUTTER-CODEX.md
-review: docs/coordination/reviews/TASK-146-WORK.md
+task: docs/coordination/tasks/TASK-147.md
+report: docs/coordination/reports/TASK-147-FLUTTER-CODEX.md
+review: docs/coordination/reviews/TASK-147-WORK.md
