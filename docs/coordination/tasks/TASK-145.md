@@ -156,4 +156,6 @@ durable in-app history.
 - 2026-08-22: planned and authorized for repository implementation.
 - 2026-08-22: 145A and 145B accepted and integrated; 145C contract released
   to the registered sole writer.
-- Current unit: 145C implementation.
+- 2026-08-22: 145C Domain review requested one batched correction for active
+  session/device ownership, per-intent idempotency and exact bounded deep links.
+- Current unit: 145C correction by the same writer.
