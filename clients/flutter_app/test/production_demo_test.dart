@@ -33,6 +33,11 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> revealNextGame(WidgetTester tester) async {
+    await tester.drag(find.byType(ListView).last, const Offset(0, -600));
+    await tester.pumpAndSettle();
+  }
+
   test('fake composition selects production demo and real stays bootstrap', () {
     final fake = entrypoint.composeRoot(config(ClientMode.fake));
     final real = entrypoint.composeRoot(config(ClientMode.real));
@@ -78,6 +83,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('demo-connectivity-offline')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('offline-read-only')), findsOneWidget);
+      await revealNextGame(tester);
       expect(
         tester
             .widget<ListTile>(find.byKey(const ValueKey('game-game_901')))
@@ -106,6 +112,7 @@ void main() {
     await pumpDemo(tester, probe: probe);
     final initialAttendanceReads = probe.attendanceReads;
 
+    await revealNextGame(tester);
     await tester.tap(find.byKey(const ValueKey('game-game_901')));
     await tester.pumpAndSettle();
 
@@ -135,6 +142,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('demo-data-resolved')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('action-home-resolved')), findsOneWidget);
+    expect(find.text('近期待辦皆已確認，無待處理賽事。'), findsOneWidget);
+    expect(find.textContaining('已確認待處理'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('demo-data-action-error')));
     await tester.pumpAndSettle();

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shad;
 
 import 'app_theme.dart';
 import 'integration.dart';
@@ -1745,38 +1746,142 @@ class _MemberActionHomeState extends State<MemberActionHome> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: _controller,
-        builder: (context, _) => AppSurfaceCard(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('行動首頁'),
-            Text('僅評估已載入未來最多 5 場：已確認待處理 ${_controller.pending.length} 場'),
-            Text(_controller.message(online: widget.online),
-                key: ValueKey('action-home-${_controller.state.name}')),
-            if (_controller.nearestAction case final game?)
-              TextButton(
-                  key: const ValueKey('action-home-open-nearest'),
-                  onPressed: () async {
-                    await widget.onOpenGame(game);
-                    await _controller.refreshGame(game, online: widget.online);
-                  },
-                  child: const Text('查看並回覆')),
-            if (_controller.state == MemberActionState.retryableError)
-              TextButton(
-                key: const ValueKey('action-home-retry'),
-                onPressed: () => _controller.load(
-                  principalScope: widget.principalScope,
-                  games: widget.games,
-                  online: widget.online,
-                ),
-                child: const Text('重試確認'),
+        builder: (context, _) => shad.ShadcnLayer(
+          theme: const shad.ThemeData(
+            colorScheme: shad.ColorSchemes.lightSlate,
+            radius: .75,
+          ),
+          darkTheme: const shad.ThemeData.dark(
+            colorScheme: shad.ColorSchemes.darkSlate,
+            radius: .75,
+          ),
+          scaling: shad.AdaptiveScaling.desktop,
+          child: Semantics(
+            container: true,
+            label: '行動首頁，${_controller.message(online: widget.online)}',
+            child: shad.Card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '行動首頁',
+                          style: TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      _stateBadge(),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.compact),
+                  Text(_stateSummary()),
+                  const SizedBox(height: AppSpacing.compact),
+                  shad.Alert(
+                    leading: Icon(_stateIcon()),
+                    title: Text(_stateTitle()),
+                    content: Text(
+                      _controller.message(online: widget.online),
+                      key: ValueKey('action-home-${_controller.state.name}'),
+                    ),
+                    destructive:
+                        _controller.state == MemberActionState.retryableError,
+                  ),
+                  if (_controller.nearestAction case final game?) ...[
+                    const SizedBox(height: AppSpacing.regular),
+                    SizedBox(
+                      width: double.infinity,
+                      child: shad.PrimaryButton(
+                        key: const ValueKey('action-home-open-nearest'),
+                        onPressed: () async {
+                          await widget.onOpenGame(game);
+                          await _controller.refreshGame(
+                            game,
+                            online: widget.online,
+                          );
+                        },
+                        child: const Text('查看並回覆'),
+                      ),
+                    ),
+                  ],
+                  if (_controller.state == MemberActionState.retryableError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpacing.compact),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: shad.SecondaryButton(
+                          key: const ValueKey('action-home-retry'),
+                          onPressed: () => _controller.load(
+                            principalScope: widget.principalScope,
+                            games: widget.games,
+                            online: widget.online,
+                          ),
+                          child: const Text('重試確認'),
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(top: AppSpacing.compact),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: shad.SecondaryButton(
+                        key: const ValueKey('action-home-schedule'),
+                        onPressed: widget.onOpenSchedule,
+                        child: const Text('完整賽程'),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            TextButton(
-                key: const ValueKey('action-home-schedule'),
-                onPressed: widget.onOpenSchedule,
-                child: const Text('完整賽程')),
-          ]),
+            ),
+          ),
         ),
       );
+
+  Widget _stateBadge() => switch (_controller.state) {
+        MemberActionState.actionable => const shad.PrimaryBadge(
+            child: Text('待處理'),
+          ),
+        MemberActionState.retryableError => const shad.DestructiveBadge(
+            child: Text('需確認'),
+          ),
+        MemberActionState.partialUnknown => const shad.OutlineBadge(
+            child: Text('部分未知'),
+          ),
+        MemberActionState.loading => const shad.SecondaryBadge(
+            child: Text('確認中'),
+          ),
+        MemberActionState.resolved => const shad.SecondaryBadge(
+            child: Text('已確認'),
+          ),
+        MemberActionState.empty => const shad.SecondaryBadge(
+            child: Text('尚無賽事'),
+          ),
+      };
+
+  String _stateSummary() => switch (_controller.state) {
+        MemberActionState.resolved => '近期待辦皆已確認，無待處理賽事。',
+        _ => '僅評估已載入未來最多 5 場：目前有 '
+            '${_controller.pending.length} 場待處理。',
+      };
+
+  String _stateTitle() => switch (_controller.state) {
+        MemberActionState.actionable => '有一場賽事待回覆',
+        MemberActionState.retryableError => '部分回覆狀態尚待確認',
+        MemberActionState.partialUnknown => '部分賽事暫時無法確認',
+        MemberActionState.loading => '正在整理近期待辦',
+        MemberActionState.resolved => '近期待辦皆已確認',
+        MemberActionState.empty => '目前沒有已載入的未來賽事',
+      };
+
+  IconData _stateIcon() => switch (_controller.state) {
+        MemberActionState.actionable => Icons.assignment_late_outlined,
+        MemberActionState.retryableError => Icons.error_outline,
+        MemberActionState.partialUnknown => Icons.help_outline,
+        MemberActionState.loading => Icons.sync,
+        MemberActionState.resolved => Icons.check_circle_outline,
+        MemberActionState.empty => Icons.event_busy,
+      };
 }
 
 enum MemberActionState {
