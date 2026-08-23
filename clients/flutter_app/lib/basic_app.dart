@@ -234,9 +234,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   AuthViewState state = AuthViewState.booting;
   late final http.Client _http;
   LoginCoordinator? _login;
+  GoogleLoginCoordinator? _googleLogin;
   SessionController? _session;
   BasicApi? _api;
   LineLoginPort? _line;
+  GoogleLoginPort? _google;
   BasicCache? _cache;
   NotificationCache? _notificationCache;
   DurablePrincipalOfficerReportCache? _reportCache;
@@ -285,14 +287,27 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         terminalPurge: notificationCache.clear,
       );
       final line = NativeLineLogin(widget.config.lineChannelId!);
+      final google = NativeGoogleLogin(
+        widget.config.googleClientId!,
+        widget.config.googleServerClientId!,
+      );
       _session = session;
       _line = line;
+      _google = google;
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
       _notificationCache = notificationCache;
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
+      _googleLogin = GoogleLoginCoordinator(
+        google,
+        transport,
+        session,
+        _ids,
+        installationId,
+      );
       _login!.addListener(_onLoginStateChanged);
+      _googleLogin!.addListener(_onGoogleLoginStateChanged);
       if (await _store.containsKey('logout-pending:$installationId')) {
         setState(() {
           state = AuthViewState.logoutPending;
@@ -344,6 +359,37 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (login.state == LoginState.authenticated) {
       await _loadBasic();
     }
+  }
+
+  Future<void> _signInGoogle() async {
+    _authEpoch++;
+    _basicLoadOperation = null;
+    _basicLoadInProgress = false;
+    _retirePendingReview();
+    final platform = nativePlatformName(Theme.of(context).platform);
+    if (platform == null) {
+      setState(() => state = AuthViewState.unavailable);
+      return;
+    }
+    final login = _googleLogin!;
+    await login.login(platform);
+    if (login.state == LoginState.authenticated) await _loadBasic();
+  }
+
+  void _onGoogleLoginStateChanged() {
+    final login = _googleLogin;
+    if (!mounted || login == null) return;
+    final next = switch (login.state) {
+      LoginState.providerActive => AuthViewState.providerActive,
+      LoginState.exchanging => AuthViewState.exchanging,
+      LoginState.cancelled => AuthViewState.cancelled,
+      LoginState.unavailable => AuthViewState.unavailable,
+      LoginState.identityPending => AuthViewState.identityPending,
+      LoginState.accountUnavailable => AuthViewState.accountUnavailable,
+      LoginState.authenticated || LoginState.idle => state,
+      _ => AuthViewState.contractError,
+    };
+    setState(() => state = next);
   }
 
   void _onLoginStateChanged() {
@@ -538,6 +584,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     _retirePendingReview();
     await _notificationController?.invalidate();
     _notificationController = null;
+    try {
+      await _google?.logout();
+    } on Object {
+      // Local app-session terminal state must not be blocked by provider UI.
+    }
     setState(() {
       state = AuthViewState.logoutPending;
       cacheSessionAggregate = null;
@@ -590,6 +641,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   void dispose() {
     _login?.removeListener(_onLoginStateChanged);
     _login?.dispose();
+    _googleLogin?.removeListener(_onGoogleLoginStateChanged);
+    _googleLogin?.dispose();
     _http.close();
     super.dispose();
   }
@@ -642,6 +695,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                     : LoginActionButton(
                         state: state,
                         onLogin: _login == null ? null : _signIn,
+                        onGoogleLogin:
+                            _googleLogin == null ? null : _signInGoogle,
                       ),
               ),
       );
@@ -755,9 +810,11 @@ class LoginActionButton extends StatelessWidget {
     super.key,
     required this.state,
     required this.onLogin,
+    this.onGoogleLogin,
   });
   final AuthViewState state;
   final VoidCallback? onLogin;
+  final VoidCallback? onGoogleLogin;
 
   static const _retryableStates = {
     AuthViewState.loggedOut,
@@ -771,10 +828,24 @@ class LoginActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!_retryableStates.contains(state)) return const SizedBox.shrink();
-    return FloatingActionButton(
-      onPressed: onLogin,
-      tooltip: 'LINE 登入',
-      child: const Icon(Icons.login),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        FloatingActionButton.extended(
+          heroTag: 'google-login',
+          onPressed: onGoogleLogin,
+          label: const Text('Google 登入'),
+          icon: const Icon(Icons.login),
+        ),
+        const SizedBox(height: 12),
+        FloatingActionButton(
+          heroTag: 'line-login',
+          onPressed: onLogin,
+          tooltip: 'LINE 登入',
+          child: const Icon(Icons.login),
+        ),
+      ],
     );
   }
 }

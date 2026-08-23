@@ -87,7 +87,7 @@ class VerifiedAssertion:
     provider: str
     subject: str
     audience: str
-    nonce: str
+    nonce: str | None
     expires_at: datetime
 
 
@@ -146,7 +146,7 @@ class PendingReviewEnvelope:
 
 class AssertionVerifier(Protocol):
     def verify(
-        self, assertion: str, audience: str, nonce: str, now: datetime
+        self, assertion: str, audience: str, nonce: str | None, now: datetime
     ) -> VerifiedAssertion: ...
 
 
@@ -273,6 +273,8 @@ class MobileAuthService:
         token_codec: HmacAccessTokenCodec,
         *,
         audience: str,
+        verify_audience: bool = True,
+        require_nonce: bool = True,
         clock: Callable[[], datetime] = utc_now,
         token_factory: Callable[[], str] = lambda: secrets.token_urlsafe(48),
     ):
@@ -285,26 +287,31 @@ class MobileAuthService:
             clock,
             token_factory,
         )
+        self.verify_audience, self.require_nonce = verify_audience, require_nonce
 
     def exchange(
         self,
         *,
         assertion: str,
-        nonce: str,
+        nonce: str | None,
         login_attempt_id: str,
         installation_id: str,
         platform: str,
     ) -> TokenPair:
         self._bounded(assertion, 1, 2048)
-        for value in (nonce, login_attempt_id, installation_id):
+        for value in (login_attempt_id, installation_id):
             self._bounded(value, 16, 200)
+        if self.require_nonce:
+            self._bounded(nonce, 16, 200)
+        elif nonce is not None:
+            raise InvalidArgument("nonce is not supported for this provider")
         if platform not in {"ios", "android"}:
             raise InvalidArgument("unsupported platform")
         now = self.clock()
         verified = self.verifier.verify(assertion, self.audience, nonce, now)
         if (
-            verified.audience != self.audience
-            or verified.nonce != nonce
+            (self.verify_audience and verified.audience != self.audience)
+            or (self.require_nonce and verified.nonce != nonce)
             or verified.expires_at <= now
         ):
             raise AuthenticationError("invalid provider assertion")

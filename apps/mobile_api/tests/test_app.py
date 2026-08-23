@@ -127,7 +127,14 @@ class MobileApiRouteTest(unittest.TestCase):
         )
         self.revision = Mock(return_value=True)
         self.client = create_app(
-            Dependencies(self.auth, self.basic, self.publishing, self.revision, self.review)
+            Dependencies(
+                self.auth,
+                self.basic,
+                self.publishing,
+                self.revision,
+                self.review,
+                self.auth,
+            )
         ).test_client()
 
     def test_revision_mismatch_fails_before_auth_or_data_read(self):
@@ -151,6 +158,36 @@ class MobileApiRouteTest(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 500)
         self.assertNotIn("raw-secret", response.get_data(as_text=True))
+
+    def test_google_exchange_uses_only_id_token_and_never_accepts_profile_fields(self):
+        response = self.client.post(
+            "/api/v1/auth/google/exchange",
+            json={
+                "id_token": "obvious-fake-google-id-token",
+                "login_attempt_id": "attempt-123456789",
+                "installation_id": "installation-1234",
+                "platform": "android",
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        self.auth.exchange.assert_called_once_with(
+            assertion="obvious-fake-google-id-token",
+            nonce=None,
+            login_attempt_id="attempt-123456789",
+            installation_id="installation-1234",
+            platform="android",
+        )
+        rejected = self.client.post(
+            "/api/v1/auth/google/exchange",
+            json={
+                "id_token": "obvious-fake-google-id-token",
+                "login_attempt_id": "attempt-123456789",
+                "installation_id": "installation-1234",
+                "platform": "android",
+                "email": "spoof@example.test",
+            },
+        )
+        self.assertEqual(rejected.status_code, 422)
 
     def test_bearer_is_required_and_cookie_is_not_used(self):
         response = self.client.get("/api/v1/me")

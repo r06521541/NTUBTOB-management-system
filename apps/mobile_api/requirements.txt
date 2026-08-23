@@ -1,4 +1,5 @@
 Flask==3.0.3
 gunicorn==22.0.0
 cryptography==43.0.3
+google-auth==2.40.3
 ./dist/shared_lib-0.0.1.tar.gz

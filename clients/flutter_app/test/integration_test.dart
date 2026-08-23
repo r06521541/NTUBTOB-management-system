@@ -212,6 +212,8 @@ void main() {
           mode: 'real',
           apiBaseUrl: 'https://example.invalid',
           lineChannelId: '123',
+          googleClientId: 'ios-client.apps.googleusercontent.com',
+          googleServerClientId: 'server-client.apps.googleusercontent.com',
         ).mode,
         ClientMode.real,
       );

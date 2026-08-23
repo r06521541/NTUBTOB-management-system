@@ -15,6 +15,14 @@
         "responses": {"201": {"description": "Device session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionEnvelope"}}}}, "202": {"description": "Pending identity; review-only credential issued and no mobile session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PendingReviewEnvelope"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/IdentityUnavailable"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "429": {"$ref": "#/components/responses/RateLimited"}, "503": {"$ref": "#/components/responses/Unavailable"}}
       }
     },
+    "/auth/google/exchange": {
+      "post": {
+        "security": [],
+        "description": "Accepts only a raw Google ID token. The backend verifies signature, Google issuer, expiry and an explicitly configured audience allowlist, then uses only verified sub as provider_subject. Email, name and avatar are not identity assertions and are not accepted.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/GoogleExchangeRequest"}}}},
+        "responses": {"201": {"description": "Device session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionEnvelope"}}}}, "202": {"description": "Pending identity; review-only credential issued and no mobile session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PendingReviewEnvelope"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/IdentityUnavailable"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "429": {"$ref": "#/components/responses/RateLimited"}, "503": {"$ref": "#/components/responses/Unavailable"}}
+      }
+    },
     "/auth/refresh": {
       "post": {
         "security": [],
@@ -135,6 +143,7 @@
       "AttendanceReply": {"type": "string", "enum": ["attending", "not_attending", "arriving_late", "leaving_early", "undecided"]},
       "NotificationType": {"type": "string", "enum": ["game_reminder", "attendance_reminder", "game_change", "officer_personal", "officer_game_broadcast", "officer_team_broadcast", "admin_system_announcement"]},
       "LineExchangeRequest": {"type": "object", "additionalProperties": false, "required": ["id_token", "nonce", "login_attempt_id", "installation_id", "platform"], "properties": {"id_token": {"type": "string", "minLength": 1, "maxLength": 2048, "writeOnly": true}, "nonce": {"type": "string", "minLength": 16, "maxLength": 200, "writeOnly": true}, "login_attempt_id": {"type": "string", "minLength": 16, "maxLength": 200}, "installation_id": {"type": "string", "minLength": 16, "maxLength": 200}, "platform": {"type": "string", "enum": ["ios", "android"]}}},
+      "GoogleExchangeRequest": {"type": "object", "additionalProperties": false, "required": ["id_token", "login_attempt_id", "installation_id", "platform"], "properties": {"id_token": {"type": "string", "minLength": 1, "maxLength": 2048, "writeOnly": true}, "login_attempt_id": {"type": "string", "minLength": 16, "maxLength": 200}, "installation_id": {"type": "string", "minLength": 16, "maxLength": 200}, "platform": {"type": "string", "enum": ["ios", "android"]}}},
       "RefreshRequest": {"type": "object", "additionalProperties": false, "required": ["refresh_token", "installation_id"], "properties": {"refresh_token": {"type": "string", "minLength": 32, "maxLength": 2048, "writeOnly": true}, "installation_id": {"type": "string", "minLength": 16, "maxLength": 200}}},
       "SessionEnvelope": {"type": "object", "additionalProperties": false, "required": ["access_token", "refresh_token", "session_id", "expires_in"], "properties": {"access_token": {"type": "string", "writeOnly": true}, "refresh_token": {"type": "string", "writeOnly": true}, "session_id": {"type": "string", "maxLength": 64}, "expires_in": {"type": "integer", "const": 900}}},
       "PendingReviewEnvelope": {"type": "object", "additionalProperties": false, "required": ["review_credential", "expires_in", "status"], "properties": {"review_credential": {"type": "string", "writeOnly": true}, "expires_in": {"type": "integer", "const": 600}, "status": {"const": "pending"}}},

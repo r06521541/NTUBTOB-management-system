@@ -15,6 +15,7 @@ class OpenApiContractTest(unittest.TestCase):
             set(self.contract["paths"]),
             {
                 "/auth/line/exchange",
+                "/auth/google/exchange",
                 "/auth/line/review",
                 "/auth/line/review/messages",
                 "/auth/refresh",
@@ -39,6 +40,11 @@ class OpenApiContractTest(unittest.TestCase):
     def test_pending_review_and_profile_contracts_are_bounded(self):
         paths = self.contract["paths"]
         self.assertIn("202", paths["/auth/line/exchange"]["post"]["responses"])
+        self.assertIn("202", paths["/auth/google/exchange"]["post"]["responses"])
+        self.assertEqual(
+            set(paths["/auth/google/exchange"]["post"]["requestBody"]["content"]["application/json"]["schema"]),
+            {"$ref"},
+        )
         envelope = self.contract["components"]["schemas"]["PendingReviewEnvelope"]
         self.assertNotIn("access_token", envelope["properties"])
         self.assertNotIn("refresh_token", envelope["properties"])

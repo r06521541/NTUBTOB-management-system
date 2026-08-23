@@ -25,6 +25,7 @@ class Dependencies:
     publishing: object
     revision_check: Callable[[], bool]
     review: object | None = None
+    google_auth: MobileAuthService | None = None
 
 
 def create_app(dependencies: Dependencies) -> Flask:
@@ -162,6 +163,20 @@ def create_app(dependencies: Dependencies) -> Flask:
         result = dependencies.auth.exchange(
             assertion=body.get("id_token"),
             nonce=body.get("nonce"),
+            login_attempt_id=body.get("login_attempt_id"),
+            installation_id=body.get("installation_id"),
+            platform=body.get("platform"),
+        )
+        return jsonify(result.__dict__), 202 if hasattr(result, "review_credential") else 201
+
+    @app.post("/api/v1/auth/google/exchange")
+    def google_exchange():
+        if dependencies.google_auth is None:
+            raise MobileApiError("Google sign-in is unavailable")
+        body = json_body({"id_token", "login_attempt_id", "installation_id", "platform"})
+        result = dependencies.google_auth.exchange(
+            assertion=body.get("id_token"),
+            nonce=None,
             login_attempt_id=body.get("login_attempt_id"),
             installation_id=body.get("installation_id"),
             platform=body.get("platform"),
