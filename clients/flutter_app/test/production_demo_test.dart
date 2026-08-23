@@ -480,6 +480,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('候補／未安排 10'));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('lineup-reserve-fictional-ready-9')),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('lineup-reserve-fictional-ready-9')),
         findsOneWidget);
     expect(probe.unexpectedTransportCalls, 0);

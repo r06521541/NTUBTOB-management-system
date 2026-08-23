@@ -113,6 +113,12 @@ class OpenApiContractTest(unittest.TestCase):
         serialized = json.dumps(report, sort_keys=True)
         for private in ("provider_subject", "admin_note", "audit", "contact"):
             self.assertNotIn(private, serialized)
+        person = schemas["AttendanceReportPerson"]
+        self.assertNotIn("member_number", person["required"])
+        self.assertEqual(
+            person["properties"]["member_number"]["type"], ["integer", "null"]
+        )
+        self.assertNotIn("member_id", json.dumps(person, sort_keys=True))
 
     def test_deployment_unit_is_static_python310_and_excludes_private_env(self):
         root = CONTRACT.parent

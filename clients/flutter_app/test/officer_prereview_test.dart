@@ -16,7 +16,12 @@ class ReportTransport implements ApiTransport {
       'minimum_response_rate': 60,
     },
     'attending': [
-      {'person_id': 'person_1', 'display_name': '已出席', 'reply': 'attending'}
+      {
+        'person_id': 'person_1',
+        'display_name': '已出席',
+        'reply': 'attending',
+        'member_number': 18,
+      }
     ],
     'not_attending': [
       {'person_id': 'person_3', 'display_name': '不出席', 'reply': 'not_attending'}
@@ -123,6 +128,7 @@ SingleGameReportUiModel lineupReport({
         (index) => ReportParticipantUiModel(
           id: 'quality-$index',
           displayName: 'Quality $index',
+          memberNumber: index + 1,
           reply: index == attending - 1
               ? AttendanceReply.leavingEarly
               : AttendanceReply.attending,
@@ -412,6 +418,8 @@ void main() {
     final controller = await pumpLineupLab(tester, report, fine: false);
     final draft = controller.lineupDraftFor(report);
     draft.assignCoarseRole(draft.pool[0], CoarseLineupRole.catcher);
+    draft.coarseCoaches.add(draft.pool[0].id);
+    draft.fineCoaches.add(draft.pool[1].id);
     draft.assignFieldPosition(LineupFieldPosition.firstBase, draft.pool[0]);
     draft.assignBattingSlot(1, draft.pool[0]);
 
@@ -429,6 +437,8 @@ void main() {
     expect(draft.fieldAssignments, isEmpty);
     expect(draft.battingOrder, isEmpty);
     expect(draft.coarseRoles, isNotEmpty);
+    expect(draft.coarseCoaches, isNotEmpty);
+    expect(draft.fineCoaches, isEmpty);
 
     draft.assignFieldPosition(LineupFieldPosition.firstBase, draft.pool[0]);
     draft.assignBattingSlot(1, draft.pool[0]);
@@ -444,6 +454,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('lineup-reset-confirm')));
     await tester.pumpAndSettle();
     expect(draft.coarseRoles, isEmpty);
+    expect(draft.coarseCoaches, isEmpty);
+    expect(draft.fineCoaches, isEmpty);
     expect(draft.fieldAssignments, isEmpty);
     expect(draft.battingOrder, isEmpty);
   });
@@ -460,9 +472,11 @@ void main() {
       copyPort: copyPort,
     );
 
-    expect(
-        find.byKey(const ValueKey('lineup-coach-unavailable')), findsOneWidget);
-    expect(find.text('Quality 2（早走）'), findsWidgets);
+    expect(find.byKey(const ValueKey('lineup-coarse-coaches')), findsOneWidget);
+    expect(find.text('Quality 2 #3（早走）'), findsWidgets);
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-coarse-coach-quality-0')),
+    );
     await tester.tap(
       find.byKey(const ValueKey('lineup-coarse-quality-0-pitcher')),
     );
@@ -473,11 +487,17 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('lineup-copy-summary')));
     await tester.pumpAndSettle();
-    expect(copyPort.summaries.single, contains('投手：Quality 0'));
+    expect(copyPort.summaries.single, contains('教練：Quality 0 #1'));
+    expect(copyPort.summaries.single, contains('投手：Quality 0 #1'));
 
     await tester.ensureVisible(find.text('細排'));
     await tester.tap(find.text('細排'));
     await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-fine-coach-quality-1')),
+    );
+    expect(
+        controller.lineupDraftFor(report).fineCoaches, contains('quality-1'));
     await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
     await tester.pumpAndSettle();
     expect(find.text('目前沒有已安排守位且符合細排資格的球員。'), findsOneWidget);
@@ -642,6 +662,8 @@ void main() {
       )
     ]);
     expect(report.attending.single.displayName, '已出席');
+    expect(report.attending.single.memberNumber, 18);
+    expect(report.notAttending.single.memberNumber, isNull);
     expect(report.notAttending.single.displayName, '不出席');
     expect(report.notYetReplied.single.displayName, '尚未回覆');
     expect(report.notYetReplied.single.responseRate, 88);
@@ -649,6 +671,20 @@ void main() {
     expect(report.historyLimit, 12);
     expect(report.minimumResponseRate, 60);
     expect(report.generatedAt, DateTime.utc(2026, 8, 18, 12));
+  });
+
+  test('attendance report rejects malformed member numbers', () {
+    for (final value in ['18', -1, 32768]) {
+      expect(
+        () => AttendanceReportPerson.fromJson({
+          'person_id': 'person_1',
+          'display_name': '球員',
+          'reply': 'attending',
+          'member_number': value,
+        }),
+        throwsA(isA<ContractException>()),
+      );
+    }
   });
 
   test('server-owned role and exact capability must both grant reports', () {
@@ -964,7 +1000,24 @@ void main() {
     await first.write(
         'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
     final restarted = DurablePrincipalOfficerReportCache(store, 'install-a');
-    expect(await restarted.read('officer', 'fictional-game'), isNotNull);
+    final restored = await restarted.read('officer', 'fictional-game');
+    expect(restored, isNotNull);
+    expect(restored!.attending.single.memberNumber, 18);
+    final key = store.values.keys.single;
+    final legacy = jsonDecode(store.values[key]!) as Map<String, dynamic>;
+    final legacyReport =
+        (legacy['reports'] as List<dynamic>).single as Map<String, dynamic>;
+    for (final person in legacyReport['attending'] as List<dynamic>) {
+      (person as Map<String, dynamic>).remove('member_number');
+    }
+    await store.write(key, jsonEncode(legacy));
+    expect(
+      (await restarted.read('officer', 'fictional-game'))!
+          .attending
+          .single
+          .memberNumber,
+      isNull,
+    );
     expect(await restarted.read('basic', 'fictional-game'), isNull);
     expect(
       await DurablePrincipalOfficerReportCache(store, 'install-b')

@@ -679,6 +679,7 @@ class BasicApiService:
                 "person_id": f"person_{item['person_id']}",
                 "display_name": item["name"],
                 "reply": AttendanceReplyValue.from_legacy(item["reply"]).value,
+                "member_number": item.get("member_number"),
             }
 
         def stable(items):

@@ -59,11 +59,13 @@ class ReportParticipantUiModel {
     required this.id,
     required this.displayName,
     this.reply,
+    this.memberNumber,
   });
 
   final String id;
   final String displayName;
   final AttendanceReply? reply;
+  final int? memberNumber;
 
   String get replyAnnotation => switch (reply) {
         AttendanceReply.arrivingLate => '晚到',
@@ -158,6 +160,8 @@ class LineupDraft {
       : _pool = List.of(other._pool),
         unansweredCount = other.unansweredCount {
     coarseRoles.addAll(other.coarseRoles);
+    coarseCoaches.addAll(other.coarseCoaches);
+    fineCoaches.addAll(other.fineCoaches);
     fieldAssignments.addAll(other.fieldAssignments);
     battingOrder.addAll(other.battingOrder);
   }
@@ -165,6 +169,8 @@ class LineupDraft {
   final List<ReportParticipantUiModel> _pool;
   final int unansweredCount;
   final Map<String, CoarseLineupRole> coarseRoles = {};
+  final Set<String> coarseCoaches = {};
+  final Set<String> fineCoaches = {};
   final Map<LineupFieldPosition, ReportParticipantUiModel> fieldAssignments =
       {};
   final Map<int, ReportParticipantUiModel> battingOrder = {};
@@ -261,11 +267,15 @@ class LineupDraft {
           ? fieldAssignments[LineupFieldPosition.pitcher]
           : null;
 
-  void resetCoarse() => coarseRoles.clear();
+  void resetCoarse() {
+    coarseRoles.clear();
+    coarseCoaches.clear();
+  }
 
   void resetFine() {
     fieldAssignments.clear();
     battingOrder.clear();
+    fineCoaches.clear();
   }
 
   void clearAll() {
@@ -342,6 +352,7 @@ class CanonicalOfficerReportRepository
                   id: person.personId,
                   displayName: person.displayName,
                   reply: person.reply,
+                  memberNumber: person.memberNumber,
                 ))
             .toList(growable: false),
         notAttending: report.notAttending
@@ -413,7 +424,11 @@ class DeterministicFakeOfficerReportRepository
     historyLimit: 12,
     minimumResponseRate: 60,
     attending: [
-      ReportParticipantUiModel(id: 'fictional-replied', displayName: '已回覆隊員'),
+      ReportParticipantUiModel(
+        id: 'fictional-replied',
+        displayName: '已回覆隊員',
+        memberNumber: 18,
+      ),
     ],
     notAttending: [],
     notYetReplied: [
@@ -597,7 +612,11 @@ class DurablePrincipalOfficerReportCache
 
   static Map<String, dynamic> _encodeParticipant(
           ReportParticipantUiModel person) =>
-      {'id': person.id, 'display_name': person.displayName};
+      {
+        'id': person.id,
+        'display_name': person.displayName,
+        if (person.memberNumber != null) 'member_number': person.memberNumber,
+      };
 
   static SingleGameReportUiModel _decode(Map<String, dynamic> value) {
     final generatedAt = DateTime.parse(value['generated_at'] as String);
@@ -642,7 +661,9 @@ class DurablePrincipalOfficerReportCache
             200 ||
         [...report.attending, ...report.notAttending].any((person) =>
             !_validText(person.id, _maximumIdCharacters) ||
-            !_validText(person.displayName, _maximumDisplayNameCharacters)) ||
+            !_validText(person.displayName, _maximumDisplayNameCharacters) ||
+            (person.memberNumber != null &&
+                (person.memberNumber! < 0 || person.memberNumber! > 32767))) ||
         report.notYetReplied.any((person) =>
             !_validText(person.id, _maximumIdCharacters) ||
             !_validText(person.displayName, _maximumDisplayNameCharacters) ||
@@ -665,6 +686,7 @@ class DurablePrincipalOfficerReportCache
         return ReportParticipantUiModel(
           id: person['id'] as String,
           displayName: person['display_name'] as String,
+          memberNumber: person['member_number'] as int?,
         );
       }).toList(growable: false);
 }
@@ -1342,6 +1364,7 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
                   onSelectionChanged: (selection) =>
                       setState(() => _mode = selection.single),
                 ),
+                _coachPanel(coarse: false),
                 const SizedBox(height: 12),
                 if (_mode == LineupLabMode.batting) ..._starterSlots(),
                 if (_mode == LineupLabMode.reserves) ..._benchPlayers(),
@@ -1356,14 +1379,7 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
 
   List<Widget> _coarsePanel() => [
         const Text('每位可出席球員可先粗分為投手、捕手、內野或外野。'),
-        const Card(
-          key: ValueKey('lineup-coach-unavailable'),
-          child: ListTile(
-            leading: Icon(Icons.lock_outline),
-            title: Text('教練資格無法使用'),
-            subtitle: Text('Mobile 出席報告未提供 member_id／教練資格；不會依姓名或權限猜測。'),
-          ),
-        ),
+        _coachPanel(coarse: true),
         for (final player in _draft.pool)
           Card(
             key: ValueKey('lineup-coarse-${player.id}'),
@@ -1376,11 +1392,6 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
                   Wrap(
                     spacing: 6,
                     children: [
-                      const ChoiceChip(
-                        label: Text('教練（資料未提供）'),
-                        selected: false,
-                        onSelected: null,
-                      ),
                       for (final role in CoarseLineupRole.values)
                         ChoiceChip(
                           key: ValueKey(
@@ -1397,6 +1408,37 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
             ),
           ),
       ];
+
+  Widget _coachPanel({required bool coarse}) {
+    final coaches = coarse ? _draft.coarseCoaches : _draft.fineCoaches;
+    return Card(
+      key: ValueKey(coarse ? 'lineup-coarse-coaches' : 'lineup-fine-coaches'),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            const Text('教練'),
+            for (final player in _draft.pool)
+              FilterChip(
+                key: ValueKey(
+                    'lineup-${coarse ? 'coarse' : 'fine'}-coach-${player.id}'),
+                label: Text(_annotatedName(player)),
+                selected: coaches.contains(player.id),
+                onSelected: (selected) => setState(() {
+                  if (selected) {
+                    coaches.add(player.id);
+                  } else {
+                    coaches.remove(player.id);
+                  }
+                }),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _fieldPanel() => Card(
         key: const ValueKey('lineup-field'),
@@ -1575,7 +1617,14 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
   }
 
   String _coarseSummary() {
-    final lines = <String>['粗排摘要', '教練：資料未提供'];
+    final coaches = _draft.pool
+        .where((player) => _draft.coarseCoaches.contains(player.id))
+        .map(_annotatedName)
+        .join('、');
+    final lines = <String>[
+      '粗排摘要',
+      '教練：${coaches.isEmpty ? '—' : coaches}',
+    ];
     for (final role in CoarseLineupRole.values) {
       final people = _draft.pool
           .where((player) => _draft.coarseRoles[player.id] == role)
@@ -1596,7 +1645,14 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
       for (final entry in _draft.fieldAssignments.entries)
         entry.value.id: entry.key.label,
     };
-    final lines = <String>['細排摘要'];
+    final coaches = _draft.pool
+        .where((player) => _draft.fineCoaches.contains(player.id))
+        .map(_annotatedName)
+        .join('、');
+    final lines = <String>[
+      '細排摘要',
+      '教練：${coaches.isEmpty ? '—' : coaches}',
+    ];
     for (var slot = 1; slot <= 9; slot++) {
       final player = _draft.battingOrder[slot];
       lines.add(
@@ -1611,9 +1667,8 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
   }
 
   String _annotatedName(ReportParticipantUiModel player) =>
-      player.replyAnnotation.isEmpty
-          ? player.displayName
-          : '${player.displayName}（${player.replyAnnotation}）';
+      '${player.displayName}${player.memberNumber == null ? '' : ' #${player.memberNumber}'}'
+      '${player.replyAnnotation.isEmpty ? '' : '（${player.replyAnnotation}）'}';
 
   String _coarseRoleLabel(CoarseLineupRole role) => switch (role) {
         CoarseLineupRole.pitcher => '投手',

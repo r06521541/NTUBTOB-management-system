@@ -2289,6 +2289,7 @@ class IdentityLifecycleRepository:
                 projection = {
                     "person_id": person.id,
                     "member_id": member.id if member else None,
+                    "member_number": member.number if member else None,
                     "name": name,
                     "reply": current_reply,
                 }

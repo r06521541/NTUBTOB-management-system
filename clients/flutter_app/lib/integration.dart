@@ -268,15 +268,27 @@ class Person {
 }
 
 class AttendanceReportPerson {
-  const AttendanceReportPerson(this.personId, this.displayName, this.reply);
-  factory AttendanceReportPerson.fromJson(Map<String, dynamic> json) =>
-      AttendanceReportPerson(
-        _required(json, 'person_id'),
-        _required(json, 'display_name'),
-        AttendanceReplyWire.parse(json['reply']),
-      );
+  const AttendanceReportPerson(
+    this.personId,
+    this.displayName,
+    this.reply, {
+    this.memberNumber,
+  });
+  factory AttendanceReportPerson.fromJson(Map<String, dynamic> json) {
+    final number = json['member_number'];
+    if (number != null && (number is! int || number < 0 || number > 32767)) {
+      throw const ContractException('invalid member number');
+    }
+    return AttendanceReportPerson(
+      _required(json, 'person_id'),
+      _required(json, 'display_name'),
+      AttendanceReplyWire.parse(json['reply']),
+      memberNumber: number as int?,
+    );
+  }
   final String personId, displayName;
   final AttendanceReply reply;
+  final int? memberNumber;
 }
 
 class AttendanceReportUnansweredPerson {

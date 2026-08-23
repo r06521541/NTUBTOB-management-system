@@ -254,7 +254,13 @@ class BasicApiServiceTest(unittest.TestCase):
             "history_limit": 12,
             "minimum_rate": 60,
             "attending": (
-                {"person_id": 3, "name": "Zulu", "reply": 1, "member_id": 99},
+                {
+                    "person_id": 3,
+                    "name": "Zulu",
+                    "reply": 1,
+                    "member_id": 99,
+                    "member_number": 18,
+                },
                 {"person_id": 2, "name": "Alpha", "reply": 3, "admin_note": "x"},
             ),
             "not_attending": ({"person_id": 4, "name": "Beta", "reply": 2},),
@@ -284,6 +290,8 @@ class BasicApiServiceTest(unittest.TestCase):
             ["Alpha", "Zulu"],
         )
         self.assertEqual(result["observation"]["history_games"], 8)
+        self.assertEqual(result["attending"][1]["member_number"], 18)
+        self.assertIsNone(result["attending"][0]["member_number"])
         self.assertNotIn("member_id", str(result))
         self.assertNotIn("admin_note", str(result))
         self.assertNotIn("provider_subject", str(result))
