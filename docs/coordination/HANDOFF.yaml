@@ -1,26 +1,25 @@
-active_task: TASK-156
-status: ready_for_writer
-next_actor: codex-writer
+active_task: null
+status: completed
+next_actor: owner
 
 claim_id: main-work-20260822
-lease_version: 14
+lease_version: 15
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: 9cb52dcc618fb82fcf1bd3f26b209f84ba13fe78
-head_commit: 9cb52dcc618fb82fcf1bd3f26b209f84ba13fe78
+base_commit: ae7371dc337307eefae0cff2f3c1bab2f4358dae
+head_commit: ae7371dc337307eefae0cff2f3c1bab2f4358dae
 
 updated_by: main-work
-updated_at: 2026-08-23T17:15:00+08:00
+updated_at: 2026-08-23T12:55:00+08:00
 
 note: >
-  TASK-155 is accepted at 9cb52dcc618fb82fcf1bd3f26b209f84ba13fe78.
-  TASK-156 adds the existing nullable Member number to the authorized Mobile
-  attendance-report contract and completes session-local Lineup number/coach
-  parity. It is schema-neutral but exits the Flutter incubator exemption because
-  API/shared/cache contracts change; affected hosted CI and independent review
-  are required before integration.
+  TASK-156 is accepted and merged through PR #179 at
+  ae7371dc337307eefae0cff2f3c1bab2f4358dae. Independent API/auth/privacy and
+  Flutter lifecycle reviews accepted; hosted run 32618669673 passed PostgreSQL
+  15/16, all Flutter tests/analyze/format/fake APK and final gate. No schema,
+  migration, deployment, production or real-data action occurred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-156.md
 report: docs/coordination/reports/TASK-156-CODEX.md
-review: none
+review: https://github.com/r06521541/NTUBTOB-management-system/pull/179
