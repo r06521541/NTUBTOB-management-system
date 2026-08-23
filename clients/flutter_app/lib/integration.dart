@@ -276,7 +276,7 @@ class AttendanceReportPerson {
   });
   factory AttendanceReportPerson.fromJson(Map<String, dynamic> json) {
     final number = json['member_number'];
-    if (number != null && (number is! int || number < 0 || number > 32767)) {
+    if (number != null && (number is! int || number < 0 || number > 999)) {
       throw const ContractException('invalid member number');
     }
     return AttendanceReportPerson(

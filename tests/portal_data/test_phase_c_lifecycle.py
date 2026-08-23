@@ -8,9 +8,10 @@ import threading
 import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from shared_lib.shared_module.portal_data.domain import (
@@ -21,6 +22,7 @@ from shared_lib.shared_module.portal_data.domain import (
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
+from shared_lib.shared_module.mobile_api import BasicApiService, MobilePrincipal
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
@@ -132,6 +134,94 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         return self.repository.ensure_pending_line_identity(
             f"fake-pending-{suffix}", "Fake Applicant", f"pending-{suffix}"
         )
+
+    def test_game_attendance_report_projects_member_number_in_fixed_queries(self):
+        with self.engine.begin() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """
+                    INSERT INTO ntubtob.people
+                      (display_name, formal_name, portal_access_level, portal_status,
+                       version, created_at, updated_at)
+                    VALUES
+                      ('Numbered', 'Numbered Formal', 'basic', 'active', 1, now(), now()),
+                      ('Unnumbered', 'Unnumbered Formal', 'basic', 'active', 1, now(), now())
+                    RETURNING id
+                    """
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            numbered_id, unnumbered_id = rows
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.members (id, name, number, person_id)
+                    VALUES (7101, 'Numbered Member', 27, :numbered_id);
+                    INSERT INTO ntubtob.person_qualifications
+                      (person_id, qualification, status, created_at, updated_at)
+                    VALUES
+                      (:numbered_id, 'team_player', 'active', now(), now()),
+                      (:unnumbered_id, 'team_player', 'active', now(), now());
+                    """
+                ),
+                {"numbered_id": numbered_id, "unnumbered_id": unnumbered_id},
+            )
+            game_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.games (start_datetime) "
+                    "VALUES (now() + interval '1 day') RETURNING id"
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.game_attendance_replies
+                      (game_id, person_id, reply, updated_at)
+                    VALUES
+                      (:game_id, :numbered_id, 1, now()),
+                      (:game_id, :unnumbered_id, 2, now())
+                    """
+                ),
+                {
+                    "game_id": game_id,
+                    "numbered_id": numbered_id,
+                    "unnumbered_id": unnumbered_id,
+                },
+            )
+
+        statements = []
+
+        def record_query(*args):
+            statements.append(args[2])
+
+        event.listen(self.engine, "before_cursor_execute", record_query)
+        try:
+            report = self.repository.game_attendance_report(game_id)
+        finally:
+            event.remove(self.engine, "before_cursor_execute", record_query)
+        self.assertEqual(len(statements), 4)
+        self.assertEqual(report["attending"][0]["member_number"], 27)
+        self.assertIsNone(report["not_attending"][0]["member_number"])
+
+        data = SimpleNamespace(
+            scoped_game=Mock(return_value={"id": game_id}),
+            game_attendance_report=Mock(return_value=report),
+        )
+        service = BasicApiService(
+            data, Mock(), Mock(), clock=lambda: report["generated_at"]
+        )
+        public = service.attendance_report(
+            MobilePrincipal(
+                "session", self.admin_person_id, 1, "officer", "Officer", 1
+            ),
+            game_id,
+        )
+        self.assertEqual(public["attending"][0]["member_number"], 27)
+        self.assertIsNone(public["not_attending"][0]["member_number"])
+        self.assertNotIn("member_id", str(public))
 
     def test_schema_has_next_head_rls_and_attendance_person_fk(self):
         inspector = inspect(self.engine)

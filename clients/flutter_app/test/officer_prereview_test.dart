@@ -664,6 +664,7 @@ void main() {
     expect(report.attending.single.displayName, '已出席');
     expect(report.attending.single.memberNumber, 18);
     expect(report.notAttending.single.memberNumber, isNull);
+    expect(report.notAttending.single.reply, AttendanceReply.notAttending);
     expect(report.notAttending.single.displayName, '不出席');
     expect(report.notYetReplied.single.displayName, '尚未回覆');
     expect(report.notYetReplied.single.responseRate, 88);
@@ -673,8 +674,44 @@ void main() {
     expect(report.generatedAt, DateTime.utc(2026, 8, 18, 12));
   });
 
+  test('not-attending member number maps and survives durable cache', () async {
+    for (final entry in <(String, Object?)>[
+      ('number', 27),
+      ('null', null),
+      ('omitted', 'omitted'),
+    ]) {
+      final transport = ReportTransport();
+      final person = <String, dynamic>{
+        'person_id': 'person_3',
+        'display_name': 'Not attending',
+        'reply': 'not_attending',
+      };
+      if (entry.$2 != 'omitted') person['member_number'] = entry.$2;
+      transport.response.body!['not_attending'] = [person];
+      final report = await CanonicalOfficerReportRepository(
+        await reportApi(transport),
+      ).readSingleGame(principalId: 'officer', gameId: 'game_44');
+      final mapped = report.notAttending.single;
+      expect(mapped.reply, AttendanceReply.notAttending, reason: entry.$1);
+      expect(mapped.memberNumber, entry.$2 == 27 ? 27 : isNull,
+          reason: entry.$1);
+
+      final cache = DurablePrincipalOfficerReportCache(
+        MemoryStore(),
+        'install-${entry.$1}',
+      );
+      await cache.write('officer', report);
+      final restored = await cache.read('officer', 'game_44');
+      expect(restored!.notAttending.single.reply, AttendanceReply.notAttending,
+          reason: entry.$1);
+      expect(restored.notAttending.single.memberNumber,
+          entry.$2 == 27 ? 27 : isNull,
+          reason: entry.$1);
+    }
+  });
+
   test('attendance report rejects malformed member numbers', () {
-    for (final value in ['18', -1, 32768]) {
+    for (final value in ['18', -1, 1000]) {
       expect(
         () => AttendanceReportPerson.fromJson({
           'person_id': 'person_1',
@@ -1035,6 +1072,25 @@ void main() {
       expect(await cache.read('officer', 'game'), isNull);
       expect(store.values, isEmpty);
     }
+  });
+
+  test('durable cache rejects out-of-contract member number', () async {
+    final store = MemoryStore();
+    final cache = DurablePrincipalOfficerReportCache(store, 'install');
+    await cache.write(
+      'officer',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
+    final key = store.values.keys.single;
+    final payload = jsonDecode(store.values[key]!) as Map<String, dynamic>;
+    final reports = payload['reports'] as List<dynamic>;
+    final report = reports.single as Map<String, dynamic>;
+    final attending = report['attending'] as List<dynamic>;
+    (attending.single as Map<String, dynamic>)['member_number'] = 1000;
+    await store.write(key, jsonEncode(payload));
+
+    expect(await cache.read('officer', 'fictional-game'), isNull);
+    expect(store.values, isEmpty);
   });
 
   test('single blob failed write preserves prior durable report', () async {

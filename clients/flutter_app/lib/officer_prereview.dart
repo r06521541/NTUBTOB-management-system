@@ -357,7 +357,11 @@ class CanonicalOfficerReportRepository
             .toList(growable: false),
         notAttending: report.notAttending
             .map((person) => ReportParticipantUiModel(
-                id: person.personId, displayName: person.displayName))
+                  id: person.personId,
+                  displayName: person.displayName,
+                  reply: person.reply,
+                  memberNumber: person.memberNumber,
+                ))
             .toList(growable: false),
         notYetReplied: report.notYetReplied
             .map((person) => NotYetRepliedUiModel(
@@ -615,6 +619,7 @@ class DurablePrincipalOfficerReportCache
       {
         'id': person.id,
         'display_name': person.displayName,
+        if (person.reply != null) 'reply': person.reply!.wire,
         if (person.memberNumber != null) 'member_number': person.memberNumber,
       };
 
@@ -663,7 +668,7 @@ class DurablePrincipalOfficerReportCache
             !_validText(person.id, _maximumIdCharacters) ||
             !_validText(person.displayName, _maximumDisplayNameCharacters) ||
             (person.memberNumber != null &&
-                (person.memberNumber! < 0 || person.memberNumber! > 32767))) ||
+                (person.memberNumber! < 0 || person.memberNumber! > 999))) ||
         report.notYetReplied.any((person) =>
             !_validText(person.id, _maximumIdCharacters) ||
             !_validText(person.displayName, _maximumDisplayNameCharacters) ||
@@ -686,6 +691,9 @@ class DurablePrincipalOfficerReportCache
         return ReportParticipantUiModel(
           id: person['id'] as String,
           displayName: person['display_name'] as String,
+          reply: person['reply'] == null
+              ? null
+              : AttendanceReplyWire.parse(person['reply']),
           memberNumber: person['member_number'] as int?,
         );
       }).toList(growable: false);

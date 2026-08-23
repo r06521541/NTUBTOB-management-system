@@ -118,6 +118,8 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(
             person["properties"]["member_number"]["type"], ["integer", "null"]
         )
+        self.assertEqual(person["properties"]["member_number"]["minimum"], 0)
+        self.assertEqual(person["properties"]["member_number"]["maximum"], 999)
         self.assertNotIn("member_id", json.dumps(person, sort_keys=True))
 
     def test_deployment_unit_is_static_python310_and_excludes_private_env(self):
@@ -225,9 +227,7 @@ class OpenApiContractTest(unittest.TestCase):
             for item in schemas["NotificationDestination"]["oneOf"]
             if item["properties"]["type"].get("const") == "game"
         )
-        self.assertEqual(
-            game_destination["properties"]["game_id"]["maxLength"], 25
-        )
+        self.assertEqual(game_destination["properties"]["game_id"]["maxLength"], 25)
         game_audience = next(
             item
             for item in schemas["NotificationAudience"]["oneOf"]
@@ -240,9 +240,7 @@ class OpenApiContractTest(unittest.TestCase):
             ]
             if item["properties"]["type"].get("const") == "game"
         )
-        self.assertEqual(
-            game_audience["properties"]["game_id"]["maxLength"], 25
-        )
+        self.assertEqual(game_audience["properties"]["game_id"]["maxLength"], 25)
         self.assertEqual(
             draft_game_destination["properties"]["game_id"]["maxLength"], 25
         )

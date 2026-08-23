@@ -23,3 +23,14 @@
 - Python `compileall`: passed after using the required writable execution boundary.
 - OpenAPI JSON parse: passed.
 - No external application, database, notification, cloud, deployment or production effects occurred.
+
+## Consolidated correction round
+
+- Correction base: `a61dd7667099835d280777ccb60c6db18bef36fa`.
+- Canonical `member_number` product range is now `0..999` in OpenAPI, Flutter wire parsing and durable-cache validation, with boundary/malformed regressions.
+- A focused `IdentityLifecycleRepository.game_attendance_report` PostgreSQL regression covers joined number projection, nullable no-Member projection, Basic API `member_id` redaction and the fixed four-query boundary. The local run skipped the configured-database class because no isolated PostgreSQL URL was present.
+- The canonical Flutter adapter now preserves both reply and member number for `not_attending`; number/null/omitted inputs are covered through direct API mapping and durable-cache round trips. New cache writes preserve reply while legacy payloads with omitted reply remain readable.
+- Focused Python unittest run: 54 run, `OK` (27 configured-PostgreSQL skips); installed direct Mobile API consumer suite: 37 passed.
+- Focused Flutter `integration_test.dart` + `officer_prereview_test.dart`: 88 passed.
+- Flutter analyze: no issues; Dart format check, Python Black check, Python compileall, OpenAPI JSON/range assertion and `git diff --check`: passed.
+- Local external effect: rebuilt and reinstalled `shared_lib-0.0.1` only in the bundled Codex Python runtime. No database, notification, cloud, deployment, production or real-data effect.
