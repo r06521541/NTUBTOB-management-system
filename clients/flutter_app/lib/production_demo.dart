@@ -530,6 +530,7 @@ class _ProductionDemoApi extends BasicApi {
                 index == 8
                     ? AttendanceReply.leavingEarly
                     : AttendanceReply.attending,
+                memberNumber: index + 1,
               ),
             )
           : const [
@@ -537,6 +538,7 @@ class _ProductionDemoApi extends BasicApi {
                 'fictional-attending',
                 '虛構出席隊員',
                 AttendanceReply.arrivingLate,
+                memberNumber: 18,
               ),
             ],
       notAttending: const [
@@ -594,6 +596,7 @@ final _fictionalReportUiModel = SingleGameReportUiModel(
     ReportParticipantUiModel(
       id: 'fictional-attending',
       displayName: '虛構出席隊員',
+      memberNumber: 18,
       reply: AttendanceReply.arrivingLate,
     ),
   ],

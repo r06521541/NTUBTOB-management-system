@@ -312,6 +312,17 @@ void main() {
       });
       expect(report.attending.single.reply, AttendanceReply.attending);
       expect(report.notYetReplied.single.responseRate, 88);
+      for (final invalidNumber in [-1, 1000]) {
+        expect(
+          () => AttendanceReportPerson.fromJson({
+            'person_id': 'person_1',
+            'display_name': 'A',
+            'reply': 'attending',
+            'member_number': invalidNumber,
+          }),
+          throwsA(isA<ContractException>()),
+        );
+      }
       expect(
         () => AttendanceReportObservation.fromJson({
           'history_games': 8,
