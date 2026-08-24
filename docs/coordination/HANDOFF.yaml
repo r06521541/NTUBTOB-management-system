@@ -1,25 +1,26 @@
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-157
+status: ready_for_writer
+next_actor: codex-writer
 
 claim_id: main-work-20260822
-lease_version: 15
+lease_version: 16
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
-base_commit: ae7371dc337307eefae0cff2f3c1bab2f4358dae
-head_commit: ae7371dc337307eefae0cff2f3c1bab2f4358dae
+base_commit: b0c8cbb7ffd35950f366d289c7b70979f62b99fa
+head_commit: b0c8cbb7ffd35950f366d289c7b70979f62b99fa
 
 updated_by: main-work
-updated_at: 2026-08-23T12:55:00+08:00
+updated_at: 2026-08-24T14:00:00+08:00
 
 note: >
-  TASK-156 is accepted and merged through PR #179 at
-  ae7371dc337307eefae0cff2f3c1bab2f4358dae. Independent API/auth/privacy and
-  Flutter lifecycle reviews accepted; hosted run 32618669673 passed PostgreSQL
-  15/16, all Flutter tests/analyze/format/fake APK and final gate. No schema,
-  migration, deployment, production or real-data action occurred.
+  TASK-157 is an Owner-approved Flutter incubation work package. It starts from
+  the PR #180 auth HEAD after hosted run 32694135470 passed, but remains on a
+  separate branch and does not alter or expand the auth release PR. Scope is
+  deterministic fake account/recovery UX, a session-local unanswered-notification
+  draft preview, scoped shadcn presentation and Demo Launcher renderability. No
+  real provider, notification, API/schema, Secret, deployment or production work.
 
-worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-156.md
-report: docs/coordination/reports/TASK-156-CODEX.md
-review: https://github.com/r06521541/NTUBTOB-management-system/pull/179
+worktree: C:/Users/USER/Repos/NTUBTOB-management-system-flutter
+task: docs/coordination/tasks/TASK-157.md
+report: docs/coordination/reports/TASK-157-FLUTTER-CODEX.md
+review: pending
