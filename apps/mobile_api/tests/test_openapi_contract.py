@@ -16,6 +16,11 @@ class OpenApiContractTest(unittest.TestCase):
             {
                 "/auth/line/exchange",
                 "/auth/google/exchange",
+                "/auth/identities",
+                "/auth/identity-link/candidates/{provider}",
+                "/auth/identity-link/proofs/{provider}",
+                "/auth/identity-link/confirm",
+                "/auth/identity-link/cancel",
                 "/auth/line/review",
                 "/auth/line/review/messages",
                 "/auth/refresh",
@@ -42,7 +47,11 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertIn("202", paths["/auth/line/exchange"]["post"]["responses"])
         self.assertIn("202", paths["/auth/google/exchange"]["post"]["responses"])
         self.assertEqual(
-            set(paths["/auth/google/exchange"]["post"]["requestBody"]["content"]["application/json"]["schema"]),
+            set(
+                paths["/auth/google/exchange"]["post"]["requestBody"]["content"][
+                    "application/json"
+                ]["schema"]
+            ),
             {"$ref"},
         )
         envelope = self.contract["components"]["schemas"]["PendingReviewEnvelope"]
@@ -52,6 +61,23 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(set(paths["/auth/line/review"]), {"get"})
         self.assertEqual(set(paths["/auth/line/review/messages"]), {"post"})
         self.assertIn("patch", paths["/me"])
+
+    def test_identity_link_contract_is_cross_provider_redacted_and_bounded(self):
+        text = CONTRACT.read_text(encoding="utf-8")
+        paths = self.contract["paths"]
+        self.assertEqual(
+            self.contract["components"]["parameters"]["IdentityProvider"]["schema"][
+                "enum"
+            ],
+            ["line", "google"],
+        )
+        self.assertIn(
+            "300 seconds", paths["/auth/identity-link/cancel"]["post"]["description"]
+        )
+        identity_list = json.dumps(paths["/auth/identities"], sort_keys=True)
+        for private in ("provider_subject", "identity_id", "email", "avatar", "token"):
+            self.assertNotIn(private, identity_list)
+        self.assertIn("without a second session", text)
 
     def test_public_reply_enum_and_error_codes_are_exact(self):
         schemas = self.contract["components"]["schemas"]

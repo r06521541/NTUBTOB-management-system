@@ -23,6 +23,21 @@
         "responses": {"201": {"description": "Device session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/SessionEnvelope"}}}}, "202": {"description": "Pending identity; review-only credential issued and no mobile session created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PendingReviewEnvelope"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/IdentityUnavailable"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}, "429": {"$ref": "#/components/responses/RateLimited"}, "503": {"$ref": "#/components/responses/Unavailable"}}
       }
     },
+    "/auth/identities": {
+      "get": {"description": "List only safe provider labels and linked_at for the current Person; sensitive provider data is never returned.", "responses": {"200": {"description": "Redacted linked login methods"}, "401": {"$ref": "#/components/responses/Unauthenticated"}}}
+    },
+    "/auth/identity-link/candidates/{provider}": {
+      "post": {"security": [], "description": "Verify an explicitly selected provider credential and issue a purpose-separated candidate credential for at most 300 seconds. The credential alone has no access or review authority.", "parameters": [{"$ref": "#/components/parameters/IdentityProvider"}], "responses": {"201": {"description": "Candidate proof created"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}}}
+    },
+    "/auth/identity-link/proofs/{provider}": {
+      "post": {"security": [], "description": "Freshly verify the other linked active provider and bind it to the candidate transaction.", "parameters": [{"$ref": "#/components/parameters/IdentityProvider"}], "responses": {"201": {"description": "Fresh proof created"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "409": {"$ref": "#/components/responses/Conflict"}}}
+    },
+    "/auth/identity-link/confirm": {
+      "post": {"security": [], "description": "Explicit atomic cross-provider confirmation. Recovery returns a session only on the first successful confirmation; a lost-response replay returns already_linked without a second session.", "responses": {"200": {"description": "Linked or idempotently already linked"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}}}
+    },
+    "/auth/identity-link/cancel": {
+      "post": {"security": [], "description": "Cancel only this device flow and clear client-held state. The bounded harmless server proof expires within 300 seconds.", "responses": {"200": {"description": "Cancelled on this device"}}}
+    },
     "/auth/refresh": {
       "post": {
         "security": [],
@@ -134,6 +149,7 @@
   "components": {
     "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "short-lived app access token", "description": "Authorization header only; never cookie/query. Access TTL 900 seconds and maximum token length 4096 bytes."}},
     "parameters": {
+      "IdentityProvider": {"name": "provider", "in": "path", "required": true, "schema": {"type": "string", "enum": ["line", "google"]}},
       "GameId": {"name": "game_id", "in": "path", "required": true, "schema": {"type": "string", "minLength": 1, "maxLength": 64}, "description": "Opaque server ID."},
       "NotificationId": {"name": "notification_id", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^notification_[1-9][0-9]*$", "maxLength": 32}, "description": "Opaque notification identifier backed by a positive PostgreSQL signed bigint."},
       "RefreshAttemptId": {"name": "Refresh-Attempt-ID", "in": "header", "required": true, "schema": {"type": "string", "minLength": 16, "maxLength": 200}, "description": "One ID per refresh attempt; exact replay grace 300 seconds; persisted only as a hash."},

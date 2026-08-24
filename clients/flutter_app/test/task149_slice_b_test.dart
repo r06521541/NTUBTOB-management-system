@@ -38,6 +38,8 @@ void main() {
         mode: 'real',
         apiBaseUrl: 'https://example.invalid/api/v1',
         lineChannelId: '1234567890',
+        googleClientId: 'fake-ios-client-id',
+        googleServerClientId: 'fake-server-client-id',
       );
   test('preferences are installation local and theme never needs a principal',
       () async {

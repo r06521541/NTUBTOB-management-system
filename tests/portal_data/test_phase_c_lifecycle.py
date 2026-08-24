@@ -325,6 +325,11 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
     def test_pending_conversation_throttle_ignore_and_unignore(self):
         pending = self._pending()
         now = datetime.now(timezone.utc)
+        with self.engine.connect() as connection:
+            initial_version = connection.scalar(
+                text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                {"id": pending.identity.id},
+            )
         self.repository.post_review_message(
             pending.identity.id, "Please review", "review-one", now=now
         )
@@ -335,12 +340,14 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 "review-two",
                 now=now + timedelta(hours=23, minutes=59),
             )
+        ignore_at = now + timedelta(minutes=1)
         self.repository.set_ignored(
             self.admin_person_id,
             pending.identity.id,
             True,
             "Applicant requested later review",
             "ignore-one",
+            at=ignore_at,
         )
         self.repository.set_ignored(
             self.admin_person_id,
@@ -348,6 +355,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             True,
             "Applicant requested later review",
             "ignore-one",
+            at=ignore_at + timedelta(minutes=1),
         )
         with self.engine.begin() as connection:
             self.assertEqual(
@@ -359,12 +367,19 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 ),
                 1,
             )
+            ignored_version = connection.scalar(
+                text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                {"id": pending.identity.id},
+            )
+            self.assertGreater(ignored_version, initial_version)
+            self.assertEqual(ignored_version, ignore_at)
         self.repository.set_ignored(
             self.admin_person_id,
             pending.identity.id,
             False,
             "Applicant returned for review",
             "unignore-one",
+            at=ignore_at + timedelta(minutes=2),
         )
         with self.engine.begin() as connection:
             self.assertFalse(
@@ -374,6 +389,42 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                         "WHERE line_user_id='fake-pending-one'"
                     )
                 )
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                    {"id": pending.identity.id},
+                ),
+                ignore_at + timedelta(minutes=2),
+            )
+
+    def test_unchanged_ignore_request_does_not_advance_identity_version(self):
+        pending = self._pending("ignore-noop")
+        transition_at = datetime(2026, 8, 24, 1, 2, 3, 456789, timezone.utc)
+        self.repository.set_ignored(
+            self.admin_person_id,
+            pending.identity.id,
+            True,
+            "Applicant requested later review",
+            "ignore-noop-first",
+            at=transition_at,
+        )
+        with self.assertRaises(ConflictError):
+            self.repository.set_ignored(
+                self.admin_person_id,
+                pending.identity.id,
+                True,
+                "Applicant requested later review",
+                "ignore-noop-second",
+                at=transition_at + timedelta(minutes=1),
+            )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                    {"id": pending.identity.id},
+                ),
+                transition_at,
             )
 
     def test_non_member_guest_has_no_fake_member_and_is_excluded_after_expiry(self):

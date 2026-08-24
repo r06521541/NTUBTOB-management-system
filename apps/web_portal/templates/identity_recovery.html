@@ -1,0 +1,20 @@
+{% extends '_portal_base.html' %}{% block title %}追認既有帳戶｜NTUBTOB{% endblock %}
+{% block content %}<section class="portal-card portal-roster-card">
+<h1>我曾用其他方式登入</h1>
+<p>此流程不會依電子郵件、姓名或頭像合併帳戶。完成兩次 provider 驗證與明確確認前不會登入。</p>
+{% if not candidate_provider %}
+  {% for provider in ('google', 'line') %}<form method="post" action="{{ url_for('identity_link_web.begin', provider=provider) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="hidden" name="purpose" value="recovery_link" />
+  <input type="hidden" name="stage" value="candidate" /><button type="submit">驗證陌生 {{ 'Google' if provider == 'google' else 'LINE' }} 認證</button></form>{% endfor %}
+{% elif not summary %}
+  <p>請選擇你曾連結的另一種登入方式重新驗證。</p>
+  {% for provider in ('google', 'line') %}{% if provider != candidate_provider %}<form method="post" action="{{ url_for('identity_link_web.begin', provider=provider) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="hidden" name="purpose" value="recovery_link" />
+  <input type="hidden" name="stage" value="proof" /><button type="submit">以 {{ 'Google' if provider == 'google' else 'LINE' }} 追認</button></form>{% endif %}{% endfor %}
+{% else %}
+  <p><strong>確認將 {{ 'Google' if summary.candidate_provider == 'google' else 'LINE' }} 加入 {{ summary.person.display_name }} 的帳戶。</strong></p>
+  <form method="post" action="{{ url_for('identity_link_web.confirm') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+  <input type="hidden" name="purpose" value="recovery_link" /><input type="hidden" name="confirmed" value="true" /><button type="submit">確認連結並登入</button></form>
+{% endif %}
+{% if candidate_provider %}<form method="post" action="{{ url_for('identity_link_web.cancel') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button type="submit">取消此裝置上的連結流程</button></form>{% endif %}
+</section>{% endblock %}

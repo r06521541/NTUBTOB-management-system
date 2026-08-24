@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
 import 'integration.dart';
+import 'identity_link.dart';
 import 'local_preferences.dart';
 import 'notification_center.dart';
 import 'pending_review.dart';
@@ -79,8 +80,13 @@ Future<void> runBasicLogoutIfAllowed({
 }
 
 class AuthStatePanel extends StatelessWidget {
-  const AuthStatePanel({super.key, required this.state});
+  const AuthStatePanel({
+    super.key,
+    required this.state,
+    this.onRecoverIdentity,
+  });
   final AuthViewState state;
+  final VoidCallback? onRecoverIdentity;
   @override
   Widget build(BuildContext context) {
     final (icon, label) = switch (state) {
@@ -109,13 +115,22 @@ class AuthStatePanel extends StatelessWidget {
       child: Center(
         child: SizedBox(
           width: 320,
-          child: AppStatusPanel(
-            icon: icon,
-            title: label,
-            loading: state == AuthViewState.booting ||
-                state == AuthViewState.exchanging,
-            liveRegion: true,
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            AppStatusPanel(
+              icon: icon,
+              title: label,
+              loading: state == AuthViewState.booting ||
+                  state == AuthViewState.exchanging,
+              liveRegion: true,
+            ),
+            if (state == AuthViewState.identityPending &&
+                onRecoverIdentity != null)
+              TextButton(
+                key: const ValueKey('identity-recovery-entry'),
+                onPressed: onRecoverIdentity,
+                child: const Text('我曾用其他方式登入'),
+              ),
+          ]),
         ),
       ),
     );
@@ -239,6 +254,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   BasicApi? _api;
   LineLoginPort? _line;
   GoogleLoginPort? _google;
+  IdentityLinkController? _identityLink;
   BasicCache? _cache;
   NotificationCache? _notificationCache;
   DurablePrincipalOfficerReportCache? _reportCache;
@@ -294,6 +310,14 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _session = session;
       _line = line;
       _google = google;
+      _identityLink = IdentityLinkController(
+        transport: transport,
+        credentials: NativeIdentityCredentialPort(line, google),
+        installationId: installationId,
+        ids: _ids,
+        session: session,
+        onRecovered: _loadBasic,
+      );
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
       _notificationCache = notificationCache;
@@ -443,6 +467,18 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     _navigatorKey.currentState?.popUntil((route) => route.isFirst);
   }
 
+  void _openIdentityRecovery() {
+    final controller = _identityLink;
+    final platform = nativePlatformName(Theme.of(context).platform);
+    if (controller == null || platform == null || !mounted) return;
+    _navigatorKey.currentState?.push(MaterialPageRoute<void>(
+      builder: (_) => IdentityRecoveryPage(
+        controller: controller,
+        platform: platform,
+      ),
+    ));
+  }
+
   Future<bool> _loadBasic() {
     final existingOperation = _basicLoadOperation;
     if (existingOperation != null) return existingOperation;
@@ -480,6 +516,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final syncedAt = DateTime.now().toUtc();
       final previous = await _cache!.load();
       if (epoch != _authEpoch) return false;
+      if ((person != null && person!.id != loadedPerson.id) ||
+          (previous != null && previous.person.id != loadedPerson.id)) {
+        await _identityLink?.personSwitch();
+        _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+        if (epoch != _authEpoch) return false;
+      }
       if (previous != null &&
           (previous.person.id != loadedPerson.id ||
               previous.person.accessLevel != loadedPerson.accessLevel ||
@@ -541,6 +583,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (classified == AuthViewState.sessionExpired) {
       _authEpoch++;
       _retirePendingReview();
+      await _identityLink?.terminal();
       _navigatorKey.currentState?.popUntil((route) => route.isFirst);
       await _api?.clearPendingProfileIntents();
       await _cache?.clear();
@@ -582,6 +625,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Future<void> _performLogout() async {
     _authEpoch++;
     _retirePendingReview();
+    await _identityLink?.terminal();
     await _notificationController?.invalidate();
     _notificationController = null;
     try {
@@ -678,8 +722,17 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                           onProfileTerminalSession:
                               _handleProfileTerminalSession,
                           onOpenSettings: _openSettings,
+                          identityLink: _identityLink,
+                          platform:
+                              nativePlatformName(Theme.of(context).platform),
                         )
-                      : AuthStatePanel(state: state),
+                      : AuthStatePanel(
+                          state: state,
+                          onRecoverIdentity:
+                              state == AuthViewState.identityPending
+                                  ? _openIdentityRecovery
+                                  : null,
+                        ),
                 ),
                 floatingActionButton: state == AuthViewState.authenticated
                     ? FloatingActionButton(
@@ -949,6 +1002,8 @@ class BasicGamesView extends StatefulWidget {
     this.onPersonUpdated,
     this.onProfileTerminalSession,
     this.onOpenSettings,
+    this.identityLink,
+    this.platform,
     this.diagnosticEnabled = true,
   });
   final BasicApi api;
@@ -964,6 +1019,8 @@ class BasicGamesView extends StatefulWidget {
   final Future<void> Function(Person person)? onPersonUpdated;
   final Future<void> Function()? onProfileTerminalSession;
   final VoidCallback? onOpenSettings;
+  final IdentityLinkController? identityLink;
+  final String? platform;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -1115,6 +1172,8 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                     person: widget.person,
                     lastSyncedAt: widget.lastSyncedAt,
                     provenance: widget.principalProvenance,
+                    identityLink: widget.online ? widget.identityLink : null,
+                    platform: widget.platform,
                   ),
                 ),
               ),
@@ -2284,28 +2343,43 @@ String _formatGameMetadata(MaterialLocalizations localizations, Game game) {
   return details.join('・');
 }
 
-class AccountDataStatusPage extends StatelessWidget {
+class AccountDataStatusPage extends StatefulWidget {
   const AccountDataStatusPage({
     super.key,
     required this.person,
     required this.lastSyncedAt,
     this.provenance,
+    this.identityLink,
+    this.platform,
   });
 
   final Person person;
   final DateTime lastSyncedAt;
   final PrincipalProvenance? provenance;
+  final IdentityLinkController? identityLink;
+  final String? platform;
+
+  @override
+  State<AccountDataStatusPage> createState() => _AccountDataStatusPageState();
+}
+
+class _AccountDataStatusPageState extends State<AccountDataStatusPage> {
+  @override
+  void initState() {
+    super.initState();
+    widget.identityLink?.loadLinkedMethods();
+  }
 
   @override
   Widget build(BuildContext context) {
     final localizations = MaterialLocalizations.of(context);
-    final localLastSyncedAt = lastSyncedAt.toLocal();
-    final source = switch (provenance) {
+    final localLastSyncedAt = widget.lastSyncedAt.toLocal();
+    final source = switch (widget.provenance) {
       PrincipalProvenance.freshServer => '資料來源：伺服器同步資料',
       PrincipalProvenance.offlineCache => '資料來源：離線快取，唯讀且非權威',
       null => '資料來源未確認，請勿視為權威',
     };
-    final description = switch (provenance) {
+    final description = switch (widget.provenance) {
       PrincipalProvenance.freshServer => '目前顯示的是已由伺服器同步的資料。',
       PrincipalProvenance.offlineCache => '目前顯示的是本機離線快取；內容僅供查看，唯讀且非權威。',
       null => '目前無法確認資料來源；內容僅供查看，請勿視為權威。',
@@ -2317,11 +2391,11 @@ class AccountDataStatusPage extends StatelessWidget {
         children: [
           Semantics(
             key: const ValueKey('account-display-name'),
-            label: '目前帳號：${person.displayName}',
+            label: '目前帳號：${widget.person.displayName}',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.person_outline),
-              title: Text(person.displayName),
+              title: Text(widget.person.displayName),
               subtitle: const Text('目前顯示的帳號'),
             ),
           ),
@@ -2346,7 +2420,7 @@ class AccountDataStatusPage extends StatelessWidget {
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(
-                provenance == PrincipalProvenance.freshServer
+                widget.provenance == PrincipalProvenance.freshServer
                     ? Icons.cloud_done_outlined
                     : Icons.cloud_off,
               ),
@@ -2354,6 +2428,13 @@ class AccountDataStatusPage extends StatelessWidget {
               subtitle: Text(description),
             ),
           ),
+          if (widget.identityLink != null && widget.platform != null) ...[
+            const Divider(),
+            IdentityLinkPanel(
+              controller: widget.identityLink!,
+              platform: widget.platform!,
+            ),
+          ],
         ],
       ),
     );

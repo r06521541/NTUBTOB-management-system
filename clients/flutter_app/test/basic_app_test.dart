@@ -402,6 +402,8 @@ void main() {
         mode: 'real',
         apiBaseUrl: 'https://example.invalid',
         lineChannelId: '123',
+        googleClientId: 'fake-ios-client-id',
+        googleServerClientId: 'fake-server-client-id',
       ),
     );
     expect(fake, isA<DemoApp>());

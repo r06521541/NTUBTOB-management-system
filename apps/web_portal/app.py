@@ -234,12 +234,17 @@ def load_phase_c_web_principal(session_values):
     if not is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return False
     repository = phase_c_repository()
-    user_id = session_values.get("user_id")
     person_id = session_values.get("person_id")
     identity_id = session_values.get("auth_identity_id")
-    if repository is None or not isinstance(user_id, str):
+    if repository is None:
         return None
-    principal = repository.resolve_line_principal(user_id)
+    user_id = session_values.get("user_id")
+    if isinstance(user_id, str) and user_id:
+        principal = repository.resolve_line_principal(user_id)
+    elif type(person_id) is int and type(identity_id) is int:
+        principal = repository.resolve_principal_by_ids(identity_id, person_id)
+    else:
+        return None
     if (
         principal is None
         or principal.person.id != person_id
@@ -266,6 +271,95 @@ def load_phase_c_web_principal(session_values):
 configure_phase_c_principal_loader(load_phase_c_web_principal)
 
 
+def register_identity_link_routes():
+    names = {
+        "google": (
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID",
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET",
+            "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI",
+        ),
+        "line": (
+            "WEB_IDENTITY_LINK_LINE_CLIENT_ID",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET",
+            "WEB_IDENTITY_LINK_LINE_REDIRECT_URI",
+        ),
+    }
+    clients = {
+        provider: {
+            key: os.environ.get(name, "")
+            for key, name in zip(
+                ("client_id", "client_secret", "redirect_uri"), env_names
+            )
+        }
+        for provider, env_names in names.items()
+    }
+    if any(not value for config in clients.values() for value in config.values()):
+        return False
+    repository = phase_c_repository()
+    if repository is None:
+        return False
+    from identity_link_provider import WebIdentityProviderPort
+    from identity_link_web import create_identity_link_blueprint
+    from shared_module.identity_linking import (
+        IdentityLinkProofCodec,
+        IdentityLinkService,
+    )
+    from shared_module.portal_data.mobile_repository import MobileRepository
+    from shared_module.provider_verifiers import (
+        GoogleIdTokenVerifier,
+        LineIdTokenVerifier,
+    )
+
+    data = MobileRepository(repository.engine)
+    service = IdentityLinkService(
+        data,
+        IdentityLinkProofCodec(
+            hashlib.sha256(
+                ("identity-link-proof-v1:" + app.secret_key).encode()
+            ).digest()
+        ),
+        clock=lambda: datetime.now(timezone.utc),
+    )
+    provider_port = WebIdentityProviderPort(
+        clients=clients,
+        verifiers={
+            "google": GoogleIdTokenVerifier(
+                audiences=(clients["google"]["client_id"],)
+            ),
+            "line": LineIdTokenVerifier(),
+        },
+    )
+    app.register_blueprint(
+        create_identity_link_blueprint(
+            provider_port=provider_port,
+            service=service,
+            require_csrf=require_valid_csrf,
+            allowed_redirects={config["redirect_uri"] for config in clients.values()},
+            current_person_id=lambda: (
+                session.get("person_id")
+                if type(session.get("person_id")) is int
+                else None
+            ),
+        )
+    )
+    return True
+
+
+IDENTITY_LINK_ROUTES_ENABLED = register_identity_link_routes()
+
+
+@app.get("/identity-recovery")
+def identity_recovery():
+    if not IDENTITY_LINK_ROUTES_ENABLED:
+        abort(404)
+    return render_template(
+        "identity_recovery.html",
+        csrf_token=get_or_create_csrf_token(),
+        candidate_provider=session.get("identity_link_candidate_provider"),
+        summary=session.get("identity_link_summary"),
+    )
+
+
 def _game_management_context():
     user_id = session.get("user_id")
     person_id = session.get("person_id")
@@ -273,13 +367,18 @@ def _game_management_context():
     cached = getattr(g, "portal_lifecycle_context", None)
     if cached is None:
         repository = phase_c_repository()
-        if repository is None or not isinstance(user_id, str) or not user_id:
+        if repository is None:
             return None
-        lifecycle_principal = repository.resolve_line_principal(user_id)
+        if isinstance(user_id, str) and user_id:
+            lifecycle_principal = repository.resolve_line_principal(user_id)
+        elif type(person_id) is int and type(identity_id) is int:
+            lifecycle_principal = repository.resolve_principal_by_ids(
+                identity_id, person_id
+            )
+        else:
+            return None
     else:
         repository, lifecycle_principal = cached
-    if not isinstance(user_id, str) or not user_id:
-        return None
     if (
         lifecycle_principal is None
         or lifecycle_principal.person.id != person_id
@@ -301,7 +400,10 @@ def _game_management_context():
 def game_management_required(view):
     @wraps(view)
     def protected_view(*args, **kwargs):
-        if "user_id" not in session:
+        if (
+            type(session.get("person_id")) is not int
+            or type(session.get("auth_identity_id")) is not int
+        ) and not (isinstance(session.get("user_id"), str) and session.get("user_id")):
             return redirect(url_for("redirect_to_login", next=request.path))
         context = _game_management_context()
         if context is None:
@@ -758,8 +860,12 @@ def current_portal_member():
         return lifecycle_principal.person, lifecycle_principal
     repository = phase_c_repository()
     lifecycle_principal = (
-        repository.resolve_line_principal(session.get("user_id", ""))
+        repository.resolve_principal_by_ids(
+            session.get("auth_identity_id"), session.get("person_id")
+        )
         if repository is not None
+        and type(session.get("auth_identity_id")) is int
+        and type(session.get("person_id")) is int
         else None
     )
     member = (
@@ -990,11 +1096,18 @@ def reply_to_game(game_id):
 @member_required
 def account():
     repository = phase_c_repository()
-    lifecycle_principal = (
-        repository.resolve_line_principal(session.get("user_id", ""))
-        if repository is not None
-        else None
-    )
+    cached = getattr(g, "portal_lifecycle_context", None)
+    lifecycle_principal = cached[1] if cached is not None else None
+    if lifecycle_principal is None and repository is not None:
+        user_id = session.get("user_id")
+        person_id = session.get("person_id")
+        identity_id = session.get("auth_identity_id")
+        if isinstance(user_id, str) and user_id:
+            lifecycle_principal = repository.resolve_line_principal(user_id)
+        elif type(person_id) is int and type(identity_id) is int:
+            lifecycle_principal = repository.resolve_principal_by_ids(
+                identity_id, person_id
+            )
     member = (
         lifecycle_principal.person
         if lifecycle_principal is not None
@@ -1007,6 +1120,14 @@ def account():
 
     principal = get_current_principal()
     can_manage_members = has_capability(principal, MANAGE_MEMBERS)
+    linked_methods = ()
+    if lifecycle_principal is not None:
+        from shared_module.portal_data.mobile_repository import MobileRepository
+
+        linked_methods = MobileRepository(repository.engine).linked_identity_labels(
+            lifecycle_principal.person.id
+        )
+    linked_providers = {item["provider"] for item in linked_methods}
     return render_template(
         "account.html",
         member=member,
@@ -1016,6 +1137,18 @@ def account():
         profile_csrf_token=get_or_create_csrf_token(),
         profile_request_id=f"profile-{secrets.token_urlsafe(24)}",
         can_manage_games=_can_manage_games(lifecycle_principal),
+        linked_methods=linked_methods,
+        available_link_providers=(
+            tuple(
+                provider
+                for provider in ("google", "line")
+                if provider not in linked_providers
+            )
+            if IDENTITY_LINK_ROUTES_ENABLED
+            else ()
+        ),
+        link_candidate_provider=session.get("identity_link_candidate_provider"),
+        link_summary=session.get("identity_link_summary"),
     )
 
 

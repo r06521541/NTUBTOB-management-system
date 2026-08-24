@@ -34,6 +34,19 @@ class MobileApiRouteTest(unittest.TestCase):
             repository=SimpleNamespace(logout=Mock()),
             clock=Mock(),
         )
+        self.identity_link = SimpleNamespace(
+            confirm_mobile=Mock(
+                return_value=SimpleNamespace(
+                    web_principal=SimpleNamespace(person_id=999, identity_id=888),
+                    mobile_public=lambda: {
+                        "status": "linked",
+                        "session": {"session_id": "one"},
+                    },
+                )
+            ),
+            begin_candidate=Mock(),
+            issue_fresh_proof=Mock(),
+        )
         self.basic = SimpleNamespace(
             update_profile=Mock(
                 return_value=(
@@ -134,8 +147,37 @@ class MobileApiRouteTest(unittest.TestCase):
                 self.revision,
                 self.review,
                 self.auth,
+                self.identity_link,
             )
         ).test_client()
+
+    def test_recovery_confirm_requires_explicit_confirmation_and_forwards_platform(
+        self,
+    ):
+        body = {
+            "candidate_credential": "candidate",
+            "proof_credential": "proof",
+            "installation_id": "installation-1234",
+            "platform": "android",
+            "outcome": "recovery_link",
+        }
+        rejected = self.client.post("/api/v1/auth/identity-link/confirm", json=body)
+        self.assertEqual(rejected.status_code, 422)
+        self.identity_link.confirm_mobile.assert_not_called()
+        response = self.client.post(
+            "/api/v1/auth/identity-link/confirm", json={**body, "confirmed": True}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("999", response.get_data(as_text=True))
+        self.assertNotIn("888", response.get_data(as_text=True))
+        self.identity_link.confirm_mobile.assert_called_once_with(
+            candidate_credential="candidate",
+            proof_credential="proof",
+            binding="installation-1234",
+            outcome="recovery_link",
+            current_person_id=None,
+            platform="android",
+        )
 
     def test_revision_mismatch_fails_before_auth_or_data_read(self):
         self.revision.return_value = False
@@ -463,7 +505,9 @@ class MobileApiRouteTest(unittest.TestCase):
         self.assertEqual(read.status_code, 200)
         self.assertEqual(sent.status_code, 200)
         self.review.status.assert_called_once_with(7)
-        self.review.append.assert_called_once_with(7, "請協助確認", "review-message-0001")
+        self.review.append.assert_called_once_with(
+            7, "請協助確認", "review-message-0001"
+        )
 
 
 if __name__ == "__main__":

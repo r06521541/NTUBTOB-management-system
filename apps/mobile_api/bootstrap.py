@@ -10,6 +10,7 @@ from google_verifier import GoogleIdTokenVerifier
 from line_verifier import LineIdTokenVerifier
 from revision_readiness import database_revision_is_current
 from shared_module.attendance_reply import AttendanceReplyService
+from shared_module.identity_linking import IdentityLinkProofCodec, IdentityLinkService
 from shared_module.mobile_api import (
     BasicApiService,
     HmacAccessTokenCodec,
@@ -85,6 +86,12 @@ google_auth = MobileAuthService(
     verify_audience=False,
     require_nonce=False,
 )
+identity_link = IdentityLinkService(
+    repository,
+    IdentityLinkProofCodec(token_key),
+    clock=auth.clock,
+    recovery_auth=auth,
+)
 
 
 def unavailable_notifier(_notification):
@@ -101,5 +108,6 @@ app = create_app(
         revision_is_current,
         PendingReviewService(data, auth.token_codec),
         google_auth,
+        identity_link,
     )
 )

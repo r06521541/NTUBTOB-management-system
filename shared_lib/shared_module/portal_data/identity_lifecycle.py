@@ -1267,9 +1267,11 @@ class IdentityLifecycleRepository:
         ignored: bool,
         reason: str,
         request_id: str,
+        *,
+        at: datetime | None = None,
     ) -> AuthIdentity:
         reason = require_reason(reason)
-        now = utc_now()
+        now = at or utc_now()
         with Session(self.engine) as session, session.begin():
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
@@ -1293,6 +1295,7 @@ class IdentityLifecycleRepository:
             if legacy.ignored == ignored:
                 raise ConflictError("ignore state is unchanged")
             legacy.ignored = ignored
+            identity.updated_at = now
             session.add(
                 AccessAuditRecord(
                     action="identity_ignored" if ignored else "identity_unignored",
