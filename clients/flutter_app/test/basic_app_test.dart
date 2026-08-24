@@ -217,8 +217,9 @@ class DestinationNotificationClient implements NotificationClient {
   }
 
   @override
-  Future<List<MobileNotification>> notifications(
-      {bool unreadOnly = false}) async {
+  Future<List<MobileNotification>> notifications({
+    bool unreadOnly = false,
+  }) async {
     listReads++;
     return values;
   }
@@ -233,7 +234,7 @@ class DestinationNotificationClient implements NotificationClient {
     final readAt = DateTime.utc(2026, 8, 22, 12);
     values = [
       for (final item in values)
-        if (item.id == id) item.markRead(readAt) else item
+        if (item.id == id) item.markRead(readAt) else item,
     ];
     return NotificationReadResult(id, readAt, true);
   }
@@ -259,30 +260,41 @@ void main() {
   test('pending review and unknown recovery are mutually exclusive', () {
     expect(
       shouldOfferIdentityRecovery(
-          state: AuthViewState.identityPending,
-          pendingReviewCredential: 'line-or-google-review-only'),
+        state: AuthViewState.identityPending,
+        pendingReviewCredential: 'line-or-google-review-only',
+      ),
       isFalse,
     );
     expect(
       shouldOfferIdentityRecovery(
-          state: AuthViewState.identityPending, pendingReviewCredential: null),
+        state: AuthViewState.identityPending,
+        pendingReviewCredential: null,
+      ),
       isTrue,
     );
     expect(
       shouldOfferIdentityRecovery(
-          state: AuthViewState.loggedOut, pendingReviewCredential: null),
+        state: AuthViewState.loggedOut,
+        pendingReviewCredential: null,
+      ),
       isFalse,
     );
   });
 
   test('auth operation context rejects terminal epoch and person races', () {
     const operation = AuthOperationContext(4, 'person-A');
-    expect(operation.matches(currentEpoch: 4, currentPersonId: 'person-A'),
-        isTrue);
-    expect(operation.matches(currentEpoch: 5, currentPersonId: 'person-A'),
-        isFalse);
-    expect(operation.matches(currentEpoch: 4, currentPersonId: 'person-B'),
-        isFalse);
+    expect(
+      operation.matches(currentEpoch: 4, currentPersonId: 'person-A'),
+      isTrue,
+    );
+    expect(
+      operation.matches(currentEpoch: 5, currentPersonId: 'person-A'),
+      isFalse,
+    );
+    expect(
+      operation.matches(currentEpoch: 4, currentPersonId: 'person-B'),
+      isFalse,
+    );
     expect(operation.matches(currentEpoch: 5, currentPersonId: null), isFalse);
   });
 
@@ -312,44 +324,55 @@ void main() {
     expect(store.values.keys.any((key) => key.contains('person-A')), isFalse);
   });
 
-  testWidgets('terminal profile mutation invokes canonical route reset',
-      (tester) async {
+  testWidgets('terminal profile mutation invokes canonical route reset', (
+    tester,
+  ) async {
     final transport = QueueTransport()
       ..responses.addAll([
         const ApiResponse(401, null),
         const ApiResponse(401, null),
       ]);
     final store = MemoryStore();
-    final sessions =
-        SessionController(transport, store, 'install', SecureIds());
-    await sessions.accept(const SessionEnvelope(
-      accessToken: 'access',
-      refreshToken: 'refresh-token-with-at-least-32-characters',
-      sessionId: 'session',
-      expiresIn: 900,
-    ));
+    final sessions = SessionController(
+      transport,
+      store,
+      'install',
+      SecureIds(),
+    );
+    await sessions.accept(
+      const SessionEnvelope(
+        accessToken: 'access',
+        refreshToken: 'refresh-token-with-at-least-32-characters',
+        sessionId: 'session',
+        expiresIn: 900,
+      ),
+    );
     final api = BasicApi(sessions, store, 'install', SecureIds());
     var terminals = 0;
-    await tester.pumpWidget(MaterialApp(
-      home: Builder(
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
           builder: (rootContext) => Scaffold(
-                body: FilledButton(
-                  onPressed: () =>
-                      Navigator.of(rootContext).push(MaterialPageRoute<void>(
-                    builder: (_) => DisplayNamePage(
-                      api: api,
-                      person: const Person('person-A', 'A', ['games:read']),
-                      onTerminalSession: () async {
-                        terminals++;
-                        Navigator.of(rootContext)
-                            .popUntil((route) => route.isFirst);
-                      },
-                    ),
-                  )),
-                  child: const Text('open'),
+            body: FilledButton(
+              onPressed: () => Navigator.of(rootContext).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DisplayNamePage(
+                    api: api,
+                    person: const Person('person-A', 'A', ['games:read']),
+                    onTerminalSession: () async {
+                      terminals++;
+                      Navigator.of(rootContext)
+                          .popUntil((route) => route.isFirst);
+                    },
+                  ),
                 ),
-              )),
-    ));
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Updated');
@@ -495,44 +518,48 @@ void main() {
   });
 
   testWidgets(
-      'real Basic composition opens loaded notification detail without fetch',
-      (tester) async {
-    final item = destinationNotification({
-      'type': 'notification',
-      'notification_id': 'notification_147',
-    });
-    final client = DestinationNotificationClient([item]);
-    final controller = NotificationCenterController(
-      client: client,
-      cache: NotificationCache(MemoryStore(), 'install'),
-      principal: const Person('p', 'Basic', ['notifications:read']),
-    );
-    await controller.load(online: true);
-    final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-      home: BasicGamesView(
-        api: api,
-        person: controller.principal,
-        games: const [],
-        online: true,
-        lastSyncedAt: DateTime.utc(2026),
-        notificationController: controller,
-      ),
-    ));
+    'real Basic composition opens loaded notification detail without fetch',
+    (tester) async {
+      final item = destinationNotification({
+        'type': 'notification',
+        'notification_id': 'notification_147',
+      });
+      final client = DestinationNotificationClient([item]);
+      final controller = NotificationCenterController(
+        client: client,
+        cache: NotificationCache(MemoryStore(), 'install'),
+        principal: const Person('p', 'Basic', ['notifications:read']),
+      );
+      await controller.load(online: true);
+      final api = await apiFor(QueueTransport(), MemoryStore());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BasicGamesView(
+            api: api,
+            person: controller.principal,
+            games: const [],
+            online: true,
+            lastSyncedAt: DateTime.utc(2026),
+            notificationController: controller,
+          ),
+        ),
+      );
 
-    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('場地異動'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('場地異動'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(NotificationDetailPage), findsOneWidget);
-    expect(find.text('比賽改到第二球場。'), findsOneWidget);
-    expect(client.detailReads, 0);
-    expect(client.readMutations, 1);
-  });
+      expect(find.byType(NotificationDetailPage), findsOneWidget);
+      expect(find.text('比賽改到第二球場。'), findsOneWidget);
+      expect(client.detailReads, 0);
+      expect(client.readMutations, 1);
+    },
+  );
 
-  testWidgets('unauthorized game destination stays in centre without I/O',
-      (tester) async {
+  testWidgets('unauthorized game destination stays in centre without I/O', (
+    tester,
+  ) async {
     final item = destinationNotification({
       'type': 'game',
       'game_id': 'game_147',
@@ -546,16 +573,18 @@ void main() {
     await controller.load(online: true);
     final transport = QueueTransport();
     final api = await apiFor(transport, MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-      home: BasicGamesView(
-        api: api,
-        person: controller.principal,
-        games: const [],
-        online: true,
-        lastSyncedAt: DateTime.utc(2026),
-        notificationController: controller,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BasicGamesView(
+          api: api,
+          person: controller.principal,
+          games: const [],
+          online: true,
+          lastSyncedAt: DateTime.utc(2026),
+          notificationController: controller,
+        ),
       ),
-    ));
+    );
 
     await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
     await tester.pumpAndSettle();
@@ -569,48 +598,55 @@ void main() {
   });
 
   testWidgets(
-      'offline authorized game destination opens cached read-only detail',
-      (tester) async {
-    final item = destinationNotification({
-      'type': 'game',
-      'game_id': 'game_147',
-    });
-    final cache = NotificationCache(MemoryStore(), 'install');
-    const person = Person('p', 'Basic', ['notifications:read']);
-    await cache.save(person, [item], DateTime.utc(2026, 8, 22));
-    final client = DestinationNotificationClient([item]);
-    final controller = NotificationCenterController(
-      client: client,
-      cache: cache,
-      principal: person,
-      clock: () => DateTime.utc(2026, 8, 22, 12),
-    );
-    await controller.load(online: false);
-    final transport = QueueTransport();
-    final api = await apiFor(transport, MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-      home: BasicGamesView(
-        api: api,
-        person: person,
-        games: [
-          Game('game_147', DateTime.utc(2026, 9), 60, null, 'Home', 'Away')
-        ],
-        online: false,
-        lastSyncedAt: DateTime.utc(2026),
-        notificationController: controller,
-      ),
-    ));
+    'offline authorized game destination opens cached read-only detail',
+    (tester) async {
+      final item = destinationNotification({
+        'type': 'game',
+        'game_id': 'game_147',
+      });
+      final cache = NotificationCache(MemoryStore(), 'install');
+      const person = Person('p', 'Basic', ['notifications:read']);
+      await cache.save(person, [item], DateTime.utc(2026, 8, 22));
+      final client = DestinationNotificationClient([item]);
+      final controller = NotificationCenterController(
+        client: client,
+        cache: cache,
+        principal: person,
+        clock: () => DateTime.utc(2026, 8, 22, 12),
+      );
+      await controller.load(online: false);
+      final transport = QueueTransport();
+      final api = await apiFor(transport, MemoryStore());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BasicGamesView(
+            api: api,
+            person: person,
+            games: [
+              Game('game_147', DateTime.utc(2026, 9), 60, null, 'Home', 'Away'),
+            ],
+            online: false,
+            lastSyncedAt: DateTime.utc(2026),
+            notificationController: controller,
+          ),
+        ),
+      );
 
-    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('場地異動'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('場地異動'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(CachedGameDetailPage), findsOneWidget);
-    expect(find.text('離線快取賽事，僅供查看。'), findsOneWidget);
-    expect(transport.calls, isEmpty);
-    expect(client.readMutations, 0);
-  });
+      expect(find.byType(CachedGameDetailPage), findsOneWidget);
+      expect(find.text('離線快取賽事，僅供查看。'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('cached-game-detail-hero')),
+        findsOneWidget,
+      );
+      expect(transport.calls, isEmpty);
+      expect(client.readMutations, 0);
+    },
+  );
 
   testWidgets('Basic-only navigation exposes games and no management', (
     tester,
@@ -628,10 +664,7 @@ void main() {
         ),
       ),
     );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('game-g')),
-      100,
-    );
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('game-g')), 100);
     expect(find.byKey(const ValueKey('game-g')), findsOneWidget);
     expect(find.text('管理'), findsNothing);
     expect(find.text('系統公告'), findsNothing);
@@ -1246,10 +1279,7 @@ void main() {
           .onPressed,
       isNull,
     );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('game-g')),
-      100,
-    );
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('game-g')), 100);
     await tester.tap(find.byKey(const ValueKey('game-g')));
     await tester.pump();
     expect(find.text('賽事與出席'), findsNothing);
@@ -1651,6 +1681,48 @@ void main() {
     }
   });
 
+  testWidgets('game detail groups reply and attendance for mobile scanning', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, gameJson()),
+        ApiResponse(200, attendanceJson()),
+      ]);
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: GameDetailPage(
+          api: await apiFor(transport, MemoryStore()),
+          gameId: 'g',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('game-detail-hero')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('game-detail-reply-section')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('game-detail-attendance-section')),
+      findsOneWidget,
+    );
+    final submit = find.byKey(const ValueKey('reply-submit'));
+    await tester.scrollUntilVisible(submit, 120);
+    expect(tester.getSize(submit).height, greaterThanOrEqualTo(48));
+    expect(transport.calls.map((call) => call.$1), ['GET', 'GET']);
+  });
+
   testWidgets('list and detail share readable localized game metadata', (
     tester,
   ) async {
@@ -1674,10 +1746,7 @@ void main() {
         ),
       ),
     );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('game-g')),
-      100,
-    );
+    await tester.scrollUntilVisible(find.byKey(const ValueKey('game-g')), 100);
     final listMetadata = tester
         .widget<Text>(
           find
@@ -2473,212 +2542,240 @@ void main() {
         ),
       );
 
-  test('member action selects next five and defines pending truthfully',
-      () async {
-    final games = actionGames(7);
-    final replies = <String, AttendanceReply?>{
-      'action-0': null,
-      'action-1': AttendanceReply.undecided,
-      'action-2': AttendanceReply.attending,
-      'action-3': AttendanceReply.notAttending,
-      'action-4': AttendanceReply.arrivingLate,
-    };
-    final controller = MemberActionController(
-      (id) async => AttendanceSnapshot(id, replies[id], const []),
-      clock: () => DateTime.utc(2026, 8, 23),
-    );
-    await controller.load(principalScope: 'A', games: games, online: true);
+  test(
+    'member action selects next five and defines pending truthfully',
+    () async {
+      final games = actionGames(7);
+      final replies = <String, AttendanceReply?>{
+        'action-0': null,
+        'action-1': AttendanceReply.undecided,
+        'action-2': AttendanceReply.attending,
+        'action-3': AttendanceReply.notAttending,
+        'action-4': AttendanceReply.arrivingLate,
+      };
+      final controller = MemberActionController(
+        (id) async => AttendanceSnapshot(id, replies[id], const []),
+        clock: () => DateTime.utc(2026, 8, 23),
+      );
+      await controller.load(principalScope: 'A', games: games, online: true);
 
-    expect(controller.window.map((game) => game.id),
-        ['action-0', 'action-1', 'action-2', 'action-3', 'action-4']);
-    expect(controller.pending.map((game) => game.id), ['action-0', 'action-1']);
-    expect(controller.nearestAction!.id, 'action-0');
-    expect(controller.state, MemberActionState.actionable);
-    expect(controller.message(online: true), contains('最近待處理'));
-  });
-
-  test('member action bounds concurrency and deduplicates in-flight reads',
-      () async {
-    final gates = <String, Completer<void>>{};
-    final calls = <String, int>{};
-    var active = 0;
-    var maximumActive = 0;
-    final controller = MemberActionController((id) async {
-      calls[id] = (calls[id] ?? 0) + 1;
-      active++;
-      maximumActive = maximumActive < active ? active : maximumActive;
-      final gate = gates.putIfAbsent(id, Completer<void>.new);
-      await gate.future;
-      active--;
-      return AttendanceSnapshot(id, AttendanceReply.attending, const []);
-    }, clock: () => DateTime.utc(2026, 8, 23));
-    final games = actionGames(7);
-    final first =
-        controller.load(principalScope: 'A', games: games, online: true);
-    final duplicate =
-        controller.load(principalScope: 'A', games: games, online: true);
-    await Future<void>.delayed(Duration.zero);
-    expect(active, 3);
-    for (final id in ['action-0', 'action-1', 'action-2']) {
-      gates[id]!.complete();
-    }
-    await Future<void>.delayed(Duration.zero);
-    for (final id in ['action-3', 'action-4']) {
-      gates[id]!.complete();
-    }
-    await Future.wait([first, duplicate]);
-    expect(maximumActive, 3);
-    expect(calls.values, everyElement(1));
-    expect(calls, hasLength(5));
-  });
-
-  test('offline unknown is not inferred pending and performs zero reads',
-      () async {
-    var reads = 0;
-    final controller = MemberActionController((id) async {
-      reads++;
-      return AttendanceSnapshot(id, null, const []);
-    }, clock: () => DateTime.utc(2026, 8, 23));
-    await controller.load(
-      principalScope: 'A',
-      games: const [],
-      online: false,
-    );
-    controller.remember('action-0', AttendanceReply.attending);
-    await controller.load(
-      principalScope: 'A',
-      games: actionGames(3),
-      online: false,
-    );
-    expect(reads, 0);
-    expect(controller.pending, isEmpty);
-    expect(controller.unknown, hasLength(2));
-    expect(controller.state, MemberActionState.partialUnknown);
-    expect(controller.message(online: false), contains('未知不列為待處理'));
-  });
-
-  test('member action principal switch clears same-game observations offline',
-      () async {
-    var reads = 0;
-    final games = actionGames(1);
-    final controller = MemberActionController((id) async {
-      reads++;
-      return AttendanceSnapshot(id, AttendanceReply.undecided, const []);
-    }, clock: () => DateTime.utc(2026, 8, 23));
-    await controller.load(principalScope: 'A', games: games, online: true);
-    expect(controller.pending.single.id, 'action-0');
-
-    await controller.load(principalScope: 'B', games: games, online: false);
-    expect(reads, 1);
-    expect(controller.pending, isEmpty);
-    expect(controller.unknown.single.id, 'action-0');
-    expect(controller.state, MemberActionState.partialUnknown);
-  });
+      expect(controller.window.map((game) => game.id), [
+        'action-0',
+        'action-1',
+        'action-2',
+        'action-3',
+        'action-4',
+      ]);
+      expect(controller.pending.map((game) => game.id), [
+        'action-0',
+        'action-1',
+      ]);
+      expect(controller.nearestAction!.id, 'action-0');
+      expect(controller.state, MemberActionState.actionable);
+      expect(controller.message(online: true), contains('最近待處理'));
+    },
+  );
 
   test(
-      'member action ignores stale online completion after offline window switch',
-      () async {
-    final gate = Completer<void>();
-    var reads = 0;
-    final controller = MemberActionController((id) async {
-      reads++;
-      await gate.future;
-      return AttendanceSnapshot(id, AttendanceReply.undecided, const []);
-    }, clock: () => DateTime.utc(2026, 8, 23));
-    final oldLoad = controller.load(
-      principalScope: 'A',
-      games: actionGames(1),
-      online: true,
-    );
-    await Future<void>.delayed(Duration.zero);
-    final newWindow = [
-      Game(
-        'new-game',
-        DateTime.utc(2026, 10, 1),
-        60,
-        '新場地',
-        '新主隊',
-        '新客隊',
-      ),
-    ];
-    await controller.load(
-      principalScope: 'A',
-      games: newWindow,
-      online: false,
-    );
-    gate.complete();
-    await oldLoad;
-
-    expect(reads, 1);
-    expect(controller.window.single.id, 'new-game');
-    expect(controller.pending, isEmpty);
-    expect(controller.unknown.single.id, 'new-game');
-    expect(controller.state, MemberActionState.partialUnknown);
-  });
-
-  testWidgets('action dashboard renders states and refreshes only opened game',
-      (tester) async {
-    final games = actionGames(2);
-    final reads = <String>[];
-    final controller = MemberActionController((id) async {
-      reads.add(id);
-      return AttendanceSnapshot(
-        id,
-        id == 'action-0' && reads.where((value) => value == id).length == 1
-            ? AttendanceReply.undecided
-            : AttendanceReply.attending,
-        const [],
+    'member action bounds concurrency and deduplicates in-flight reads',
+    () async {
+      final gates = <String, Completer<void>>{};
+      final calls = <String, int>{};
+      var active = 0;
+      var maximumActive = 0;
+      final controller = MemberActionController((id) async {
+        calls[id] = (calls[id] ?? 0) + 1;
+        active++;
+        maximumActive = maximumActive < active ? active : maximumActive;
+        final gate = gates.putIfAbsent(id, Completer<void>.new);
+        await gate.future;
+        active--;
+        return AttendanceSnapshot(id, AttendanceReply.attending, const []);
+      }, clock: () => DateTime.utc(2026, 8, 23));
+      final games = actionGames(7);
+      final first = controller.load(
+        principalScope: 'A',
+        games: games,
+        online: true,
       );
-    }, clock: () => DateTime.utc(2026, 8, 23));
-    await controller.load(principalScope: 'A', games: games, online: true);
-    final api = await apiFor(QueueTransport(), MemoryStore());
-    var scheduleOpened = false;
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: MemberActionHome(
-          api: api,
-          principalScope: 'A',
-          games: games,
-          online: true,
-          controller: controller,
-          onOpenGame: (_) async {},
-          onOpenSchedule: () => scheduleOpened = true,
-        ),
-      ),
-    ));
-    await tester.pumpAndSettle();
-    expect(
-        find.byKey(const ValueKey('action-home-actionable')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('action-home-open-nearest')));
-    await tester.pumpAndSettle();
-    expect(reads.where((id) => id == 'action-0'), hasLength(2));
-    expect(reads.where((id) => id == 'action-1'), hasLength(1));
-    expect(find.byKey(const ValueKey('action-home-resolved')), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('action-home-schedule')));
-    expect(scheduleOpened, isTrue);
-  });
+      final duplicate = controller.load(
+        principalScope: 'A',
+        games: games,
+        online: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(active, 3);
+      for (final id in ['action-0', 'action-1', 'action-2']) {
+        gates[id]!.complete();
+      }
+      await Future<void>.delayed(Duration.zero);
+      for (final id in ['action-3', 'action-4']) {
+        gates[id]!.complete();
+      }
+      await Future.wait([first, duplicate]);
+      expect(maximumActive, 3);
+      expect(calls.values, everyElement(1));
+      expect(calls, hasLength(5));
+    },
+  );
 
-  testWidgets('action dashboard renders loading before observations settle',
-      (tester) async {
+  test(
+    'offline unknown is not inferred pending and performs zero reads',
+    () async {
+      var reads = 0;
+      final controller = MemberActionController((id) async {
+        reads++;
+        return AttendanceSnapshot(id, null, const []);
+      }, clock: () => DateTime.utc(2026, 8, 23));
+      await controller.load(
+        principalScope: 'A',
+        games: const [],
+        online: false,
+      );
+      controller.remember('action-0', AttendanceReply.attending);
+      await controller.load(
+        principalScope: 'A',
+        games: actionGames(3),
+        online: false,
+      );
+      expect(reads, 0);
+      expect(controller.pending, isEmpty);
+      expect(controller.unknown, hasLength(2));
+      expect(controller.state, MemberActionState.partialUnknown);
+      expect(controller.message(online: false), contains('未知不列為待處理'));
+    },
+  );
+
+  test(
+    'member action principal switch clears same-game observations offline',
+    () async {
+      var reads = 0;
+      final games = actionGames(1);
+      final controller = MemberActionController((id) async {
+        reads++;
+        return AttendanceSnapshot(id, AttendanceReply.undecided, const []);
+      }, clock: () => DateTime.utc(2026, 8, 23));
+      await controller.load(principalScope: 'A', games: games, online: true);
+      expect(controller.pending.single.id, 'action-0');
+
+      await controller.load(principalScope: 'B', games: games, online: false);
+      expect(reads, 1);
+      expect(controller.pending, isEmpty);
+      expect(controller.unknown.single.id, 'action-0');
+      expect(controller.state, MemberActionState.partialUnknown);
+    },
+  );
+
+  test(
+    'member action ignores stale online completion after offline window switch',
+    () async {
+      final gate = Completer<void>();
+      var reads = 0;
+      final controller = MemberActionController((id) async {
+        reads++;
+        await gate.future;
+        return AttendanceSnapshot(id, AttendanceReply.undecided, const []);
+      }, clock: () => DateTime.utc(2026, 8, 23));
+      final oldLoad = controller.load(
+        principalScope: 'A',
+        games: actionGames(1),
+        online: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      final newWindow = [
+        Game('new-game', DateTime.utc(2026, 10, 1), 60, '新場地', '新主隊', '新客隊'),
+      ];
+      await controller.load(
+        principalScope: 'A',
+        games: newWindow,
+        online: false,
+      );
+      gate.complete();
+      await oldLoad;
+
+      expect(reads, 1);
+      expect(controller.window.single.id, 'new-game');
+      expect(controller.pending, isEmpty);
+      expect(controller.unknown.single.id, 'new-game');
+      expect(controller.state, MemberActionState.partialUnknown);
+    },
+  );
+
+  testWidgets(
+    'action dashboard renders states and refreshes only opened game',
+    (tester) async {
+      final games = actionGames(2);
+      final reads = <String>[];
+      final controller = MemberActionController((id) async {
+        reads.add(id);
+        return AttendanceSnapshot(
+          id,
+          id == 'action-0' && reads.where((value) => value == id).length == 1
+              ? AttendanceReply.undecided
+              : AttendanceReply.attending,
+          const [],
+        );
+      }, clock: () => DateTime.utc(2026, 8, 23));
+      await controller.load(principalScope: 'A', games: games, online: true);
+      final api = await apiFor(QueueTransport(), MemoryStore());
+      var scheduleOpened = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MemberActionHome(
+              api: api,
+              principalScope: 'A',
+              games: games,
+              online: true,
+              controller: controller,
+              onOpenGame: (_) async {},
+              onOpenSchedule: () => scheduleOpened = true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('action-home-actionable')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('action-home-open-nearest')));
+      await tester.pumpAndSettle();
+      expect(reads.where((id) => id == 'action-0'), hasLength(2));
+      expect(reads.where((id) => id == 'action-1'), hasLength(1));
+      expect(
+        find.byKey(const ValueKey('action-home-resolved')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('action-home-schedule')));
+      expect(scheduleOpened, isTrue);
+    },
+  );
+
+  testWidgets('action dashboard renders loading before observations settle', (
+    tester,
+  ) async {
     final gate = Completer<void>();
     final controller = MemberActionController((id) async {
       await gate.future;
       return AttendanceSnapshot(id, AttendanceReply.attending, const []);
     }, clock: () => DateTime.utc(2026, 8, 23));
     final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(MaterialApp(
-      home: Scaffold(
-        body: MemberActionHome(
-          api: api,
-          principalScope: 'A',
-          games: actionGames(1),
-          online: true,
-          controller: controller,
-          onOpenGame: (_) async {},
-          onOpenSchedule: () {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: MemberActionHome(
+            api: api,
+            principalScope: 'A',
+            games: actionGames(1),
+            online: true,
+            controller: controller,
+            onOpenGame: (_) async {},
+            onOpenSchedule: () {},
+          ),
         ),
       ),
-    ));
+    );
     await tester.pump();
     expect(find.byKey(const ValueKey('action-home-loading')), findsOneWidget);
     gate.complete();
@@ -2686,35 +2783,38 @@ void main() {
     expect(find.byKey(const ValueKey('action-home-resolved')), findsOneWidget);
   });
 
-  test('member action distinguishes empty resolved partial and error states',
-      () async {
-    final empty = MemberActionController(
-      (id) async => AttendanceSnapshot(id, null, const []),
-      clock: () => DateTime.utc(2026, 8, 23),
-    );
-    await empty.load(principalScope: 'A', games: const [], online: true);
-    expect(empty.state, MemberActionState.empty);
+  test(
+    'member action distinguishes empty resolved partial and error states',
+    () async {
+      final empty = MemberActionController(
+        (id) async => AttendanceSnapshot(id, null, const []),
+        clock: () => DateTime.utc(2026, 8, 23),
+      );
+      await empty.load(principalScope: 'A', games: const [], online: true);
+      expect(empty.state, MemberActionState.empty);
 
-    final resolved = MemberActionController(
-      (id) async => AttendanceSnapshot(id, AttendanceReply.attending, const []),
-      clock: () => DateTime.utc(2026, 8, 23),
-    );
-    await resolved.load(
-      principalScope: 'A',
-      games: actionGames(1),
-      online: true,
-    );
-    expect(resolved.state, MemberActionState.resolved);
+      final resolved = MemberActionController(
+        (id) async =>
+            AttendanceSnapshot(id, AttendanceReply.attending, const []),
+        clock: () => DateTime.utc(2026, 8, 23),
+      );
+      await resolved.load(
+        principalScope: 'A',
+        games: actionGames(1),
+        online: true,
+      );
+      expect(resolved.state, MemberActionState.resolved);
 
-    final failed = MemberActionController(
-      (id) async => throw const NetworkException(),
-      clock: () => DateTime.utc(2026, 8, 23),
-    );
-    await failed.load(
-      principalScope: 'A',
-      games: actionGames(1),
-      online: true,
-    );
-    expect(failed.state, MemberActionState.retryableError);
-  });
+      final failed = MemberActionController(
+        (id) async => throw const NetworkException(),
+        clock: () => DateTime.utc(2026, 8, 23),
+      );
+      await failed.load(
+        principalScope: 'A',
+        games: actionGames(1),
+        online: true,
+      );
+      expect(failed.state, MemberActionState.retryableError);
+    },
+  );
 }

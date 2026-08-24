@@ -20,46 +20,11 @@ class _NoTransport implements ApiTransport {
 
 void main() {
   List<Game> games() => [
-        Game(
-          'sep-30',
-          DateTime.utc(2026, 9, 30, 6),
-          90,
-          '九月球場',
-          '九月隊',
-          '校友隊',
-        ),
-        Game(
-          'oct-3-a',
-          DateTime.utc(2026, 10, 3, 5),
-          120,
-          null,
-          '猛虎隊',
-          '校友隊',
-        ),
-        Game(
-          'oct-3-b',
-          DateTime.utc(2026, 10, 3, 8),
-          90,
-          '十月球場',
-          '海豚隊',
-          '校友隊',
-        ),
-        Game(
-          'oct-5',
-          DateTime.utc(2026, 10, 5, 6),
-          120,
-          '週界球場',
-          '星期一隊',
-          '校友隊',
-        ),
-        Game(
-          'jan-1',
-          DateTime.utc(2027, 1, 1, 6),
-          120,
-          '跨年球場',
-          '新年隊',
-          '校友隊',
-        ),
+        Game('sep-30', DateTime.utc(2026, 9, 30, 6), 90, '九月球場', '九月隊', '校友隊'),
+        Game('oct-3-a', DateTime.utc(2026, 10, 3, 5), 120, null, '猛虎隊', '校友隊'),
+        Game('oct-3-b', DateTime.utc(2026, 10, 3, 8), 90, '十月球場', '海豚隊', '校友隊'),
+        Game('oct-5', DateTime.utc(2026, 10, 5, 6), 120, '週界球場', '星期一隊', '校友隊'),
+        Game('jan-1', DateTime.utc(2027, 1, 1, 6), 120, '跨年球場', '新年隊', '校友隊'),
       ];
 
   test('calendar projection handles month year and Monday week boundaries', () {
@@ -71,15 +36,19 @@ void main() {
     final week = ScheduleCalendarProjection.weekDays(DateTime(2026, 10, 3));
     expect(week.first, DateTime(2026, 9, 28));
     expect(week.last, DateTime(2026, 10, 4));
-    expect(ScheduleCalendarProjection.weekStart(DateTime(2027, 1, 1)),
-        DateTime(2026, 12, 28));
+    expect(
+      ScheduleCalendarProjection.weekStart(DateTime(2027, 1, 1)),
+      DateTime(2026, 12, 28),
+    );
   });
 
   test('calendar grouping keeps multiple local games on the same day', () {
     final groups = ScheduleCalendarProjection.groupByLocalDay(games());
     expect(groups[DateTime(2026, 10, 3)], hasLength(2));
-    expect(groups[DateTime(2026, 10, 3)]!.map((game) => game.id),
-        ['oct-3-a', 'oct-3-b']);
+    expect(groups[DateTime(2026, 10, 3)]!.map((game) => game.id), [
+      'oct-3-a',
+      'oct-3-b',
+    ]);
     expect(groups[DateTime(2027, 1, 1)]!.single.id, 'jan-1');
 
     final withLocation = ScheduleCalendarProjection.groupByLocalDay(
@@ -113,19 +82,22 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final fixture = await fakeApi();
-    await tester.pumpWidget(MaterialApp(
-      home: ScheduleDiscoveryPage(
-        api: fixture.api,
-        games: values ?? games(),
-        online: online,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ScheduleDiscoveryPage(
+          api: fixture.api,
+          games: values ?? games(),
+          online: online,
+        ),
       ),
-    ));
+    );
     await tester.pumpAndSettle();
     return fixture;
   }
 
-  testWidgets('Month Week Agenda share search and location filters',
-      (tester) async {
+  testWidgets('Month Week Agenda share search and location filters', (
+    tester,
+  ) async {
     await pumpSchedule(tester);
 
     await tester.tap(find.text('月'));
@@ -162,8 +134,10 @@ void main() {
 
     await tester.tap(find.text('週'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('schedule-date-2026-09-28T00:00:00.000')),
-        findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('schedule-date-2026-09-28T00:00:00.000')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('schedule-game-oct-3-a')), findsOneWidget);
 
     await tester.tap(find.text('列表'));
@@ -172,12 +146,95 @@ void main() {
     expect(find.byKey(const ValueKey('schedule-game-oct-5')), findsNothing);
   });
 
-  testWidgets('selected day distinguishes no game from active-filter no match',
-      (tester) async {
-    await pumpSchedule(tester);
-    await tester.tap(find.text('月'));
+  testWidgets(
+    'selected day distinguishes no game from active-filter no match',
+    (tester) async {
+      await pumpSchedule(tester);
+      await tester.tap(find.text('月'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('schedule-day-2026-10-04')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('schedule-day-no-games')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('schedule-day-2026-10-03')));
+      await tester.enterText(
+        find.byKey(const ValueKey('schedule-search')),
+        '不存在',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('schedule-day-no-match')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('schedule-day-no-games')), findsNothing);
+
+      await tester.tap(find.text('週'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('schedule-week-2026-09-28-no-games')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('schedule-week-2026-10-03-no-match')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('mobile schedule keeps scan hierarchy at larger text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final fixture = await fakeApi();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(textTheme: ThemeData.light().textTheme),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context)
+              .copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: ScheduleDiscoveryPage(
+          api: fixture.api,
+          games: games(),
+          online: true,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
+    expect(find.byKey(const ValueKey('schedule-scan-header')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('schedule-filter-controls')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('schedule-presentation-controls')),
+      findsOneWidget,
+    );
+    final game = find.byKey(const ValueKey('schedule-game-oct-3-a'));
+    await tester.scrollUntilVisible(
+      game,
+      120,
+      scrollable: find
+          .descendant(
+            of: find.byType(ListView),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
+    expect(game, findsOneWidget);
+    expect(tester.getSize(game).height, greaterThanOrEqualTo(56));
+
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('schedule-day-2026-10-04')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('schedule-day-no-games')), findsOneWidget);
@@ -189,22 +246,12 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('schedule-day-no-match')), findsOneWidget);
-    expect(find.byKey(const ValueKey('schedule-day-no-games')), findsNothing);
-
-    await tester.tap(find.text('週'));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('schedule-week-2026-09-28-no-games')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('schedule-week-2026-10-03-no-match')),
-      findsOneWidget,
-    );
+    expect(fixture.transport.calls, 0);
   });
 
-  testWidgets('period controls Today and detail return retain calendar state',
-      (tester) async {
+  testWidgets('period controls Today and detail return retain calendar state', (
+    tester,
+  ) async {
     final fixture = await pumpSchedule(tester, online: false);
     await tester.tap(find.text('月'));
     await tester.pumpAndSettle();
@@ -214,10 +261,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('schedule-day-2026-10-03')));
     await tester.enterText(find.byKey(const ValueKey('schedule-search')), '海豚');
     await tester.pumpAndSettle();
-    await tester.drag(
-      find.byType(ListView).first,
-      const Offset(0, -900),
-    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('schedule-game-oct-3-b')));
     await tester.pumpAndSettle();
