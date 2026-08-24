@@ -1,25 +1,29 @@
-active_task: null
-status: completed
+active_task: AUTH-GOOGLE-IDENTITY-LINK
+status: ready_for_owner_configuration
 next_actor: owner
 
 claim_id: main-work-20260822
-lease_version: 15
+lease_version: 16
 actor_id: 01a02871-a907-7023-8324-3cde5c194f6a
 
 base_commit: ae7371dc337307eefae0cff2f3c1bab2f4358dae
-head_commit: ae7371dc337307eefae0cff2f3c1bab2f4358dae
+head_commit: b0c8cbb7ffd35950f366d289c7b70979f62b99fa
 
 updated_by: main-work
-updated_at: 2026-08-23T12:55:00+08:00
+updated_at: 2026-08-24T00:00:00+08:00
 
 note: >
-  TASK-156 is accepted and merged through PR #179 at
-  ae7371dc337307eefae0cff2f3c1bab2f4358dae. Independent API/auth/privacy and
-  Flutter lifecycle reviews accepted; hosted run 32618669673 passed PostgreSQL
-  15/16, all Flutter tests/analyze/format/fake APK and final gate. No schema,
-  migration, deployment, production or real-data action occurred.
+  PR #180 is open, clean and non-draft at
+  b0c8cbb7ffd35950f366d289c7b70979f62b99fa; all 12 hosted checks pass and
+  independent Web/Auth/DB Security plus Flutter Auth reviews accepted the
+  final corrections. Google sign-in, LINE/Google identity linking and account
+  recovery are implemented without a schema migration. Repository delivery is
+  ready; real OAuth Console clients/callbacks, Android/iOS signing metadata,
+  version-pinned Secret Manager refs/IAM, staging deployment and real-provider
+  smoke remain explicit Owner gates. No cloud, Secret, provider or deployment
+  action has occurred.
 
-worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-156.md
-report: docs/coordination/reports/TASK-156-CODEX.md
-review: https://github.com/r06521541/NTUBTOB-management-system/pull/179
+worktree: C:/Users/USER/.codex/worktrees/1824/NTUBTOB-management-system
+task: AUTH-GOOGLE-IDENTITY-LINK
+report: docs/coordination/PROJECT_STATE.md
+review: https://github.com/r06521541/NTUBTOB-management-system/pull/180
