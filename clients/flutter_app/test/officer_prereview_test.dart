@@ -22,10 +22,14 @@ class ReportTransport implements ApiTransport {
         'display_name': '已出席',
         'reply': 'attending',
         'member_number': 18,
-      }
+      },
     ],
     'not_attending': [
-      {'person_id': 'person_3', 'display_name': '不出席', 'reply': 'not_attending'}
+      {
+        'person_id': 'person_3',
+        'display_name': '不出席',
+        'reply': 'not_attending',
+      },
     ],
     'not_yet_replied': [
       {
@@ -36,14 +40,17 @@ class ReportTransport implements ApiTransport {
         'response_rate': 88,
         'participation_rate': 63,
         'nonparticipation_rate': 25,
-      }
+      },
     ],
   });
 
   @override
-  Future<ApiResponse> send(String method, String path,
-      {Map<String, String> headers = const {},
-      Map<String, dynamic>? body}) async {
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
     calls.add((method, path));
     return response;
   }
@@ -57,7 +64,7 @@ Map<String, dynamic> reportError(String code, {bool retryable = false}) => {
         'retryable': retryable,
         'retry_after_seconds': null,
         'field_errors': [],
-      }
+      },
     };
 
 class FailingWriteStore extends MemoryStore {
@@ -76,12 +83,14 @@ class FailingWriteStore extends MemoryStore {
 Future<BasicApi> reportApi(ReportTransport transport) async {
   final store = MemoryStore();
   final session = SessionController(transport, store, 'install', SecureIds());
-  await session.accept(const SessionEnvelope(
-    accessToken: 'access',
-    refreshToken: 'refresh-token-with-at-least-32-characters',
-    sessionId: 'session',
-    expiresIn: 900,
-  ));
+  await session.accept(
+    const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh-token-with-at-least-32-characters',
+      sessionId: 'session',
+      expiresIn: 900,
+    ),
+  );
   return BasicApi(session, store, 'install', SecureIds());
 }
 
@@ -161,10 +170,8 @@ SingleGameReportUiModel largeBoundedReport() {
     minimumResponseRate: source.minimumResponseRate,
     attending: List.generate(
       200,
-      (index) => ReportParticipantUiModel(
-        id: 'person-$index',
-        displayName: '員' * 120,
-      ),
+      (index) =>
+          ReportParticipantUiModel(id: 'person-$index', displayName: '員' * 120),
     ),
     notAttending: const [],
     notYetReplied: const [],
@@ -265,8 +272,10 @@ void main() {
     final first = controller.notificationDraftFor(
       lineupReport(gameId: 'first', unanswered: 2),
     );
-    expect(first.recipients.map((item) => item.id),
-        ['unanswered-0', 'unanswered-1']);
+    expect(first.recipients.map((item) => item.id), [
+      'unanswered-0',
+      'unanswered-1',
+    ]);
     expect(first.selectedCount, 2);
     first.toggle('unanswered-0');
     first.chooseTemplate(OfficerNotificationTemplate.friendly);
@@ -290,89 +299,111 @@ void main() {
   });
 
   testWidgets(
-      'notification draft selection preview and local record never send',
-      (tester) async {
-    final draft = OfficerNotificationDraft(
-      lineupReport(unanswered: 2),
-    );
-    await tester.pumpWidget(MaterialApp(
-      home: OfficerNotificationDraftPage(draft: draft, offline: true),
-    ));
-    expect(find.byKey(const ValueKey('notification-draft-local-only')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('notification-draft-offline')),
-        findsOneWidget);
-    expect(find.text('收件人 2/2'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const ValueKey('notification-recipient-unanswered-0')),
-    );
-    await tester.pump();
-    expect(find.text('收件人 1/2'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const ValueKey('notification-draft-message')),
-      '只存在本機的虛構提醒',
-    );
-    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('notification-draft-preview')));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('notification-draft-confirmation')),
-        findsOneWidget);
-    await tester.drag(find.byType(ListView).first, const Offset(0, -400));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('notification-draft-record')));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('notification-draft-recorded')),
-        findsOneWidget);
-    expect(find.text('沒有通知被傳送，也沒有資料被儲存。'), findsOneWidget);
-  });
+    'notification draft selection preview and local record never send',
+    (tester) async {
+      final draft = OfficerNotificationDraft(lineupReport(unanswered: 2));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: OfficerNotificationDraftPage(draft: draft, offline: true),
+        ),
+      );
+      expect(
+        find.byKey(const ValueKey('notification-draft-local-only')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('notification-draft-offline')),
+        findsOneWidget,
+      );
+      expect(find.text('收件人 2/2'), findsOneWidget);
+      await tester.tap(
+        find.byKey(const ValueKey('notification-recipient-unanswered-0')),
+      );
+      await tester.pump();
+      expect(find.text('收件人 1/2'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('notification-draft-message')),
+        '只存在本機的虛構提醒',
+      );
+      await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('notification-draft-preview')),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('notification-draft-confirmation')),
+        findsOneWidget,
+      );
+      await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('notification-draft-record')));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('notification-draft-recorded')),
+        findsOneWidget,
+      );
+      expect(find.text('沒有通知被傳送，也沒有資料被儲存。'), findsOneWidget);
+    },
+  );
 
-  testWidgets('notification draft uses server count and exact confirmation',
-      (tester) async {
+  testWidgets('notification draft uses server count and exact confirmation', (
+    tester,
+  ) async {
     final publisher = PreviewingPublisher();
     // Production reports use opaque person IDs; make this test use the API form.
-    final serverDraft = OfficerNotificationDraft(SingleGameReportUiModel(
-      gameId: 'game_44',
-      gameLabel: '測試賽事',
-      generatedAt: DateTime.utc(2026),
-      historyGames: 1,
-      historyLimit: 12,
-      minimumResponseRate: 60,
-      attending: const [],
-      notAttending: const [],
-      notYetReplied: const [
-        NotYetRepliedUiModel(
+    final serverDraft = OfficerNotificationDraft(
+      SingleGameReportUiModel(
+        gameId: 'game_44',
+        gameLabel: '測試賽事',
+        generatedAt: DateTime.utc(2026),
+        historyGames: 1,
+        historyLimit: 12,
+        minimumResponseRate: 60,
+        attending: const [],
+        notAttending: const [],
+        notYetReplied: const [
+          NotYetRepliedUiModel(
             id: 'person_2',
             displayName: '甲',
             observedReplies: 0,
             observedGames: 1,
             responseRate: 0,
             participationRate: 0,
-            nonparticipationRate: 0),
-        NotYetRepliedUiModel(
+            nonparticipationRate: 0,
+          ),
+          NotYetRepliedUiModel(
             id: 'person_3',
             displayName: '乙',
             observedReplies: 0,
             observedGames: 1,
             responseRate: 0,
             participationRate: 0,
-            nonparticipationRate: 0),
-      ],
-    ));
-    await tester.pumpWidget(MaterialApp(
+            nonparticipationRate: 0,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
         home: OfficerNotificationDraftPage(
-      draft: serverDraft,
-      offline: false,
-      publishingClient: publisher,
-    )));
-    final serverPreview =
-        find.byKey(const ValueKey('notification-draft-server-preview'));
+          draft: serverDraft,
+          offline: false,
+          publishingClient: publisher,
+        ),
+      ),
+    );
+    final serverPreview = find.byKey(
+      const ValueKey('notification-draft-server-preview'),
+    );
     await tester.drag(find.byType(ListView).first, const Offset(0, -900));
     await tester.pumpAndSettle();
     await tester.tap(serverPreview);
     await tester.pumpAndSettle();
-    expect(publisher.previews.single['audience']['person_ids'],
-        ['person_2', 'person_3']);
+    expect(publisher.previews.single['audience']['person_ids'], [
+      'person_2',
+      'person_3',
+    ]);
     expect(find.text('伺服器確認收件人：2 人'), findsOneWidget);
     expect(publisher.confirms, isEmpty);
     await tester.tap(
@@ -383,203 +414,304 @@ void main() {
   });
 
   testWidgets(
-      'offline injected publisher remains local-only and is never called',
-      (tester) async {
-    final publisher = PreviewingPublisher();
-    await tester.pumpWidget(MaterialApp(
-      home: OfficerNotificationDraftPage(
-        draft: OfficerNotificationDraft(lineupReport(unanswered: 1)),
-        offline: true,
-        publishingClient: publisher,
-      ),
-    ));
-    expect(find.text('本機草稿，不會送出'), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('notification-draft-server-preview')),
-      findsNothing,
-    );
-    expect(publisher.previews, isEmpty);
-    expect(publisher.confirms, isEmpty);
-  });
+    'offline injected publisher remains local-only and is never called',
+    (tester) async {
+      final publisher = PreviewingPublisher();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: OfficerNotificationDraftPage(
+            draft: OfficerNotificationDraft(lineupReport(unanswered: 1)),
+            offline: true,
+            publishingClient: publisher,
+          ),
+        ),
+      );
+      expect(find.text('本機草稿，不會送出'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('notification-draft-server-preview')),
+        findsNothing,
+      );
+      expect(publisher.previews, isEmpty);
+      expect(publisher.confirms, isEmpty);
+    },
+  );
 
-  testWidgets('publish scope loss clears preview and rejects stale completion',
-      (tester) async {
-    final transport = ReportTransport();
-    final session =
-        SessionController(transport, MemoryStore(), 'scope', SecureIds());
-    await session.accept(const SessionEnvelope(
-      accessToken: 'access',
-      refreshToken: 'refresh-token-with-at-least-32-characters',
-      sessionId: 'session',
-      expiresIn: 900,
-    ));
-    const officer = Person('person_1', 'Officer',
-        ['games:read', 'attendance:report:read', 'notifications:publish'],
-        accessLevel: AccessLevel.officer);
-    final scope = OfficerNotificationPublishScope(session, officer, true);
-    final publisher = DelayedPreviewPublisher();
-    final draft = OfficerNotificationDraft(SingleGameReportUiModel(
-      gameId: 'game_44',
-      gameLabel: '測試',
-      generatedAt: DateTime.utc(2026),
-      historyGames: 1,
-      historyLimit: 12,
-      minimumResponseRate: 60,
-      attending: const [],
-      notAttending: const [],
-      notYetReplied: const [
-        NotYetRepliedUiModel(
-            id: 'person_2',
-            displayName: '甲',
+  testWidgets(
+    'publish scope loss clears preview and rejects stale completion',
+    (tester) async {
+      final transport = ReportTransport();
+      final session = SessionController(
+        transport,
+        MemoryStore(),
+        'scope',
+        SecureIds(),
+      );
+      await session.accept(
+        const SessionEnvelope(
+          accessToken: 'access',
+          refreshToken: 'refresh-token-with-at-least-32-characters',
+          sessionId: 'session',
+          expiresIn: 900,
+        ),
+      );
+      const officer = Person(
+          'person_1',
+          'Officer',
+          [
+            'games:read',
+            'attendance:report:read',
+            'notifications:publish',
+          ],
+          accessLevel: AccessLevel.officer);
+      final scope = OfficerNotificationPublishScope(session, officer, true);
+      final publisher = DelayedPreviewPublisher();
+      final draft = OfficerNotificationDraft(
+        SingleGameReportUiModel(
+          gameId: 'game_44',
+          gameLabel: '測試',
+          generatedAt: DateTime.utc(2026),
+          historyGames: 1,
+          historyLimit: 12,
+          minimumResponseRate: 60,
+          attending: const [],
+          notAttending: const [],
+          notYetReplied: const [
+            NotYetRepliedUiModel(
+              id: 'person_2',
+              displayName: '甲',
+              observedReplies: 0,
+              observedGames: 1,
+              responseRate: 0,
+              participationRate: 0,
+              nonparticipationRate: 0,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: OfficerNotificationDraftPage(
+            draft: draft,
+            offline: false,
+            publishingClient: publisher,
+            publishScope: scope,
+          ),
+        ),
+      );
+      await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+      await tester.tap(
+        find.byKey(const ValueKey('notification-draft-server-preview')),
+      );
+      await tester.pump();
+      scope.update(
+        const Person(
+            'person_1',
+            'Officer',
+            [
+              'games:read',
+            ],
+            accessLevel: AccessLevel.officer),
+        true,
+      );
+      publisher.response.complete({
+        'recipient_count': 1,
+        'revision': 'a' * 64,
+        'confirmation_text': 'PUBLISH 1',
+      });
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('notification-draft-server-preview')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('notification-draft-server-confirm')),
+        findsNothing,
+      );
+      expect(publisher.confirms, isEmpty);
+      scope.dispose();
+    },
+  );
+  test(
+    'attendance insights use only loaded report counts and honest labels',
+    () {
+      final report = DeterministicFakeOfficerReportRepository.fictionalReport;
+      final insights = AttendanceInsights(report);
+
+      expect(insights.attending, 1);
+      expect(insights.unavailable, 0);
+      expect(insights.unanswered, 1);
+      expect(insights.responsePercent, 50);
+      expect(insights.availabilityPercent, 100);
+      expect(insights.isSmallSample, isTrue);
+      expect(insights.callout(offline: true), contains('可能過期'));
+      expect(insights.callout(offline: false), contains('樣本很少'));
+    },
+  );
+
+  test(
+    'lineup draft starts fine empty and enforces Web assignment invariants',
+    () {
+      final report = SingleGameReportUiModel(
+        gameId: 'lineup',
+        gameLabel: 'Lineup',
+        generatedAt: DateTime.utc(2026),
+        historyGames: 1,
+        historyLimit: 12,
+        minimumResponseRate: 60,
+        attending: List.generate(
+          10,
+          (index) => ReportParticipantUiModel(
+            id: 'attending-$index',
+            displayName: '出席 $index',
+          ),
+        ),
+        notAttending: const [
+          ReportParticipantUiModel(id: 'unavailable', displayName: '不出席'),
+        ],
+        notYetReplied: const [
+          NotYetRepliedUiModel(
+            id: 'unanswered',
+            displayName: '未回覆',
             observedReplies: 0,
             observedGames: 1,
             responseRate: 0,
             participationRate: 0,
-            nonparticipationRate: 0)
-      ],
-    ));
-    await tester.pumpWidget(MaterialApp(
-        home: OfficerNotificationDraftPage(
-      draft: draft,
-      offline: false,
-      publishingClient: publisher,
-      publishScope: scope,
-    )));
-    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
-    await tester
-        .tap(find.byKey(const ValueKey('notification-draft-server-preview')));
-    await tester.pump();
-    scope.update(
-        const Person('person_1', 'Officer', ['games:read'],
-            accessLevel: AccessLevel.officer),
-        true);
-    publisher.response.complete({
-      'recipient_count': 1,
-      'revision': 'a' * 64,
-      'confirmation_text': 'PUBLISH 1'
-    });
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('notification-draft-server-preview')),
-        findsNothing);
-    expect(find.byKey(const ValueKey('notification-draft-server-confirm')),
-        findsNothing);
-    expect(publisher.confirms, isEmpty);
-    scope.dispose();
-  });
-  test('attendance insights use only loaded report counts and honest labels',
-      () {
-    final report = DeterministicFakeOfficerReportRepository.fictionalReport;
-    final insights = AttendanceInsights(report);
+            nonparticipationRate: 0,
+          ),
+        ],
+      );
+      final draft = LineupDraft.fromReport(report);
+      expect(draft.battingOrder, isEmpty);
+      expect(draft.reserves, hasLength(10));
+      expect(draft.missingStarterCount, 9);
+      expect(draft.unansweredCount, 1);
+      expect(draft.isReady, isFalse);
+      expect(
+        draft.pool.map((player) => player.id),
+        isNot(contains('unavailable')),
+      );
 
-    expect(insights.attending, 1);
-    expect(insights.unavailable, 0);
-    expect(insights.unanswered, 1);
-    expect(insights.responsePercent, 50);
-    expect(insights.availabilityPercent, 100);
-    expect(insights.isSmallSample, isTrue);
-    expect(insights.callout(offline: true), contains('可能過期'));
-    expect(insights.callout(offline: false), contains('樣本很少'));
-  });
+      final ready = LineupDraft.fromReport(
+        lineupReport(attending: 10, unanswered: 0),
+      );
+      expect(ready.isReady, isFalse);
+      expect(ready.missingStarterCount, 9);
+      expect(ready.reserves, hasLength(10));
+      ready.assignFieldPosition(LineupFieldPosition.pitcher, ready.pool[0]);
+      ready.assignFieldPosition(LineupFieldPosition.catcher, ready.pool[0]);
+      expect(ready.fieldAssignments[LineupFieldPosition.pitcher], isNull);
+      expect(
+        ready.fieldAssignments[LineupFieldPosition.catcher]!.id,
+        'quality-0',
+      );
+      expect(ready.hasUniqueFieldAssignments, isTrue);
+      ready.assignBattingSlot(1, ready.pool[0]);
+      ready.assignBattingSlot(2, ready.pool[0]);
+      expect(ready.battingOrder[1], isNull);
+      expect(ready.battingOrder[2]!.id, 'quality-0');
+      expect(ready.hasUniqueBattingOrder, isTrue);
+      ready.assignFieldPosition(LineupFieldPosition.catcher, null);
+      expect(ready.battingOrder, isEmpty);
+      ready.assignFieldPosition(LineupFieldPosition.pitcher, ready.pool[1]);
+      ready.assignBattingSlot(1, ready.pool[1]);
+      ready.assignFieldPosition(
+        LineupFieldPosition.designatedHitter,
+        ready.pool[2],
+      );
+      expect(ready.nonBattingPitcher!.id, 'quality-1');
+      expect(ready.battingOrder, isEmpty);
+      expect(ready.hasUniqueFieldAssignments, isTrue);
+      expect(ready.hasUniqueBattingOrder, isTrue);
 
-  test('lineup draft starts fine empty and enforces Web assignment invariants',
-      () {
-    final report = SingleGameReportUiModel(
-      gameId: 'lineup',
-      gameLabel: 'Lineup',
-      generatedAt: DateTime.utc(2026),
-      historyGames: 1,
-      historyLimit: 12,
-      minimumResponseRate: 60,
-      attending: List.generate(
-        10,
-        (index) => ReportParticipantUiModel(
-          id: 'attending-$index',
-          displayName: '出席 $index',
-        ),
-      ),
-      notAttending: const [
-        ReportParticipantUiModel(id: 'unavailable', displayName: '不出席'),
-      ],
-      notYetReplied: const [
-        NotYetRepliedUiModel(
-          id: 'unanswered',
-          displayName: '未回覆',
-          observedReplies: 0,
-          observedGames: 1,
-          responseRate: 0,
-          participationRate: 0,
-          nonparticipationRate: 0,
-        ),
-      ],
-    );
-    final draft = LineupDraft.fromReport(report);
-    expect(draft.battingOrder, isEmpty);
-    expect(draft.reserves, hasLength(10));
-    expect(draft.missingStarterCount, 9);
-    expect(draft.unansweredCount, 1);
-    expect(draft.isReady, isFalse);
-    expect(
-        draft.pool.map((player) => player.id), isNot(contains('unavailable')));
-
-    final ready = LineupDraft.fromReport(
-      lineupReport(attending: 10, unanswered: 0),
-    );
-    expect(ready.isReady, isFalse);
-    expect(ready.missingStarterCount, 9);
-    expect(ready.reserves, hasLength(10));
-    ready.assignFieldPosition(LineupFieldPosition.pitcher, ready.pool[0]);
-    ready.assignFieldPosition(LineupFieldPosition.catcher, ready.pool[0]);
-    expect(ready.fieldAssignments[LineupFieldPosition.pitcher], isNull);
-    expect(
-        ready.fieldAssignments[LineupFieldPosition.catcher]!.id, 'quality-0');
-    expect(ready.hasUniqueFieldAssignments, isTrue);
-    ready.assignBattingSlot(1, ready.pool[0]);
-    ready.assignBattingSlot(2, ready.pool[0]);
-    expect(ready.battingOrder[1], isNull);
-    expect(ready.battingOrder[2]!.id, 'quality-0');
-    expect(ready.hasUniqueBattingOrder, isTrue);
-    ready.assignFieldPosition(LineupFieldPosition.catcher, null);
-    expect(ready.battingOrder, isEmpty);
-    ready.assignFieldPosition(LineupFieldPosition.pitcher, ready.pool[1]);
-    ready.assignBattingSlot(1, ready.pool[1]);
-    ready.assignFieldPosition(
-        LineupFieldPosition.designatedHitter, ready.pool[2]);
-    expect(ready.nonBattingPitcher!.id, 'quality-1');
-    expect(ready.battingOrder, isEmpty);
-    expect(ready.hasUniqueFieldAssignments, isTrue);
-    expect(ready.hasUniqueBattingOrder, isTrue);
-
-    final complete = LineupDraft.fromReport(
-      lineupReport(attending: 10, unanswered: 0),
-    );
-    for (var index = 0; index < 9; index++) {
-      complete.assignFieldPosition(
-          LineupFieldPosition.values[index], complete.pool[index]);
-      complete.assignBattingSlot(index + 1, complete.pool[index]);
-    }
-    expect(complete.battingOrder, hasLength(9));
-    expect(complete.isReady, isTrue);
-    expect(complete.hasUniqueFieldAssignments, isTrue);
-    expect(complete.hasUniqueBattingOrder, isTrue);
-  });
+      final complete = LineupDraft.fromReport(
+        lineupReport(attending: 10, unanswered: 0),
+      );
+      for (var index = 0; index < 9; index++) {
+        complete.assignFieldPosition(
+          LineupFieldPosition.values[index],
+          complete.pool[index],
+        );
+        complete.assignBattingSlot(index + 1, complete.pool[index]);
+      }
+      expect(complete.battingOrder, hasLength(9));
+      expect(complete.isReady, isTrue);
+      expect(complete.hasUniqueFieldAssignments, isTrue);
+      expect(complete.hasUniqueBattingOrder, isTrue);
+    },
+  );
 
   testWidgets(
-      'Lineup Lab starts fine empty with nine independently selectable slots',
-      (tester) async {
-    await pumpLineupLab(
-      tester,
-      lineupReport(attending: 8, unanswered: 2),
-    );
+    'Lineup Lab starts fine empty with nine independently selectable slots',
+    (tester) async {
+      await pumpLineupLab(tester, lineupReport(attending: 8, unanswered: 2));
 
-    expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
-    expect(find.text('先發 0/9・缺 9 人・候補／未安排 8 人・尚未回覆 2 人'), findsOneWidget);
-    for (var slot = 1; slot <= 9; slot++) {
-      expect(find.byKey(ValueKey('lineup-slot-$slot')), findsOneWidget);
-    }
-    expect(find.byKey(const ValueKey('lineup-empty-slot-9')), findsOneWidget);
-    expect(
-        find.byKey(const ValueKey('lineup-batting-select-1')), findsOneWidget);
-  });
+      expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
+      expect(find.text('先發 0/9・尚缺 9 人・候補／未安排 8 人・尚未回覆 2 人'), findsOneWidget);
+      for (var slot = 1; slot <= 9; slot++) {
+        expect(find.byKey(ValueKey('lineup-slot-$slot')), findsOneWidget);
+      }
+      expect(find.byKey(const ValueKey('lineup-empty-slot-9')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('lineup-batting-select-1')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'Officer report and Lineup Lab retain clear local planning hierarchy on a narrow scaled screen',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+      final controller = controllerFor();
+      await controller.applyFreshPrincipal(
+        principalId: 'officer',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      controller
+        ..report = lineupReport(attending: 8, unanswered: 2)
+        ..state = OfficerReportViewState.offlineCached;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light(),
+          darkTheme: ThemeData.dark(),
+          home: OfficerReportPanel(controller: controller),
+        ),
+      );
+
+      expect(
+        find.byKey(const ValueKey('officer-report-context')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('attendance-insights')), findsOneWidget);
+      expect(find.byKey(const ValueKey('unanswered-cohort')), findsOneWidget);
+      expect(find.text('本機規劃，不會提交 truth'), findsOneWidget);
+      expect(find.text('目前為離線快取，僅供讀取'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('lineup-local-only')), findsOneWidget);
+      expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
+      expect(
+          find.byKey(const ValueKey('lineup-decision-counts')), findsOneWidget);
+      expect(find.text('粗排：先分組，再進細排。'), findsOneWidget);
+
+      await tester.tap(find.text('細排'));
+      await tester.pumpAndSettle();
+      expect(find.text('細排：守位、棒次與候補安排。'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('lineup-reset-fine')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('此操作只影響本次開啟的本機草稿'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('lineup-reset-cancel')));
+      await tester.pumpAndSettle();
+    },
+  );
 
   test('coarse fine and all resets have isolated Web parity boundaries', () {
     final draft = LineupDraft.fromReport(
@@ -612,33 +744,34 @@ void main() {
       displayName: 'Late',
       reply: AttendanceReply.arrivingLate,
     );
-    final lateDraft = LineupDraft.fromReport(SingleGameReportUiModel(
-      gameId: 'late',
-      gameLabel: 'late',
-      generatedAt: DateTime.utc(2026),
-      historyGames: 1,
-      historyLimit: 12,
-      minimumResponseRate: 60,
-      attending: [late],
-      notAttending: const [],
-      notYetReplied: const [],
-    ));
+    final lateDraft = LineupDraft.fromReport(
+      SingleGameReportUiModel(
+        gameId: 'late',
+        gameLabel: 'late',
+        generatedAt: DateTime.utc(2026),
+        historyGames: 1,
+        historyLimit: 12,
+        minimumResponseRate: 60,
+        attending: [late],
+        notAttending: const [],
+        notYetReplied: const [],
+      ),
+    );
     lateDraft.assignCoarseRole(late, CoarseLineupRole.outfield);
     lateDraft.assignFieldPosition(LineupFieldPosition.leftField, late);
     expect(lateDraft.coarseRoles['late'], CoarseLineupRole.outfield);
     expect(lateDraft.fieldAssignments, isEmpty);
   });
 
-  testWidgets('coarse reset confirmation cancel preserves and confirm clears',
-      (tester) async {
+  testWidgets('coarse reset confirmation cancel preserves and confirm clears', (
+    tester,
+  ) async {
     await pumpLineupLab(
       tester,
       lineupReport(attending: 3, unanswered: 0),
       fine: false,
     );
-    final role = find.byKey(
-      const ValueKey('lineup-coarse-quality-0-pitcher'),
-    );
+    final role = find.byKey(const ValueKey('lineup-coarse-quality-0-pitcher'));
     await tester.tap(role);
     await tester.pumpAndSettle();
     expect(tester.widget<ChoiceChip>(role).selected, isTrue);
@@ -656,8 +789,9 @@ void main() {
     expect(tester.widget<ChoiceChip>(role).selected, isFalse);
   });
 
-  testWidgets('fine reset and clear-all confirmations keep exact scopes',
-      (tester) async {
+  testWidgets('fine reset and clear-all confirmations keep exact scopes', (
+    tester,
+  ) async {
     final report = lineupReport(attending: 3, unanswered: 0);
     final controller = await pumpLineupLab(tester, report, fine: false);
     final draft = controller.lineupDraftFor(report);
@@ -705,218 +839,250 @@ void main() {
   });
 
   testWidgets(
-      'Lineup Lab coarse fine field DH annotations and copy use local ports',
-      (tester) async {
-    final copyPort = RecordingLineupCopyPort();
-    final report = lineupReport(attending: 3, unanswered: 0);
-    final controller = await pumpLineupLab(
-      tester,
-      report,
-      fine: false,
-      copyPort: copyPort,
-    );
+    'Lineup Lab coarse fine field DH annotations and copy use local ports',
+    (tester) async {
+      final copyPort = RecordingLineupCopyPort();
+      final report = lineupReport(attending: 3, unanswered: 0);
+      final controller = await pumpLineupLab(
+        tester,
+        report,
+        fine: false,
+        copyPort: copyPort,
+      );
 
-    expect(find.byKey(const ValueKey('lineup-coarse-coaches')), findsOneWidget);
-    expect(find.text('Quality 2 #3（早走）'), findsWidgets);
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-coarse-coach-quality-0')),
-    );
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-coarse-quality-0-pitcher')),
-    );
-    await tester.pumpAndSettle();
-    expect(copyPort.summaries, isEmpty);
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('lineup-copy-summary')),
-    );
-    await tester.tap(find.byKey(const ValueKey('lineup-copy-summary')));
-    await tester.pumpAndSettle();
-    expect(copyPort.summaries.single, contains('教練：Quality 0 #1'));
-    expect(copyPort.summaries.single, contains('投手：Quality 0 #1'));
+      expect(
+        find.byKey(const ValueKey('lineup-coarse-coaches')),
+        findsOneWidget,
+      );
+      expect(find.text('Quality 2 #3（早走）'), findsWidgets);
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-coarse-coach-quality-0')),
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-coarse-quality-0-pitcher')),
+      );
+      await tester.pumpAndSettle();
+      expect(copyPort.summaries, isEmpty);
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('lineup-copy-summary')),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-copy-summary')));
+      await tester.pumpAndSettle();
+      expect(copyPort.summaries.single, contains('教練：Quality 0 #1'));
+      expect(copyPort.summaries.single, contains('投手：Quality 0 #1'));
 
-    await tester.ensureVisible(find.text('細排'));
-    await tester.tap(find.text('細排'));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-fine-coach-quality-1')),
-    );
-    expect(
-        controller.lineupDraftFor(report).fineCoaches, contains('quality-1'));
-    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
-    await tester.pumpAndSettle();
-    expect(find.text('目前沒有已安排守位且符合細排資格的球員。'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('lineup-batting-clear-1')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('lineup-position-P')),
-    );
-    await tester.tap(find.byKey(const ValueKey('lineup-position-P')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-position-P-player-quality-0')),
-    );
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, 1600));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('lineup-batting-select-1')),
-    );
-    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
-        findsOneWidget);
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
-    );
-    await tester.pumpAndSettle();
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1600));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('lineup-position-DH')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-position-DH-player-quality-1')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-non-batting-pitcher')),
-        findsOneWidget);
-    final draft = controller.lineupDraftFor(report);
-    expect(draft.battingOrder, isEmpty);
-    expect(draft.nonBattingPitcher!.id, 'quality-0');
+      await tester.ensureVisible(find.text('細排'));
+      await tester.tap(find.text('細排'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-fine-coach-quality-1')),
+      );
+      expect(
+        controller.lineupDraftFor(report).fineCoaches,
+        contains('quality-1'),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
+      await tester.pumpAndSettle();
+      expect(find.text('目前沒有已安排守位且符合細排資格的球員。'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('lineup-batting-clear-1')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('lineup-position-P')),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-position-P')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-position-P-player-quality-0')),
+      );
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, 1600));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('lineup-batting-select-1')),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
+      );
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -1600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('lineup-position-DH')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-position-DH-player-quality-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('lineup-non-batting-pitcher')),
+        findsOneWidget,
+      );
+      final draft = controller.lineupDraftFor(report);
+      expect(draft.battingOrder, isEmpty);
+      expect(draft.nonBattingPitcher!.id, 'quality-0');
 
-    await tester.drag(find.byType(ListView).last, const Offset(0, 1600));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('lineup-batting-select-1')),
-    );
-    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
-        findsNothing);
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-batting-1-player-quality-1')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('lineup-batting-select-2')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-batting-2-player-quality-1')),
-    );
-    await tester.pumpAndSettle();
-    expect(draft.battingOrder[1], isNull);
-    expect(draft.battingOrder[2]!.id, 'quality-1');
+      await tester.drag(find.byType(ListView).last, const Offset(0, 1600));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('lineup-batting-select-1')),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-batting-select-1')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('lineup-batting-1-player-quality-0')),
+        findsNothing,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-batting-1-player-quality-1')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('lineup-batting-select-2')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('lineup-batting-2-player-quality-1')),
+      );
+      await tester.pumpAndSettle();
+      expect(draft.battingOrder[1], isNull);
+      expect(draft.battingOrder[2]!.id, 'quality-1');
 
-    await tester.drag(find.byType(ListView).last, const Offset(0, -1600));
-    await tester.pumpAndSettle();
-    await tester
-        .ensureVisible(find.byKey(const ValueKey('lineup-position-DH')));
-    await tester.tap(find.byKey(const ValueKey('lineup-position-DH')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('lineup-position-clear')));
-    await tester.pumpAndSettle();
-    expect(draft.battingOrder, isEmpty);
-  });
+      await tester.drag(find.byType(ListView).last, const Offset(0, -1600));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('lineup-position-DH')),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-position-DH')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('lineup-position-clear')));
+      await tester.pumpAndSettle();
+      expect(draft.battingOrder, isEmpty);
+    },
+  );
 
   testWidgets(
-      'Lineup Lab retains draft after system back and resets for another report',
-      (tester) async {
-    SingleGameReportUiModel report(String id, String prefix) =>
-        SingleGameReportUiModel(
-          gameId: id,
-          gameLabel: id,
-          generatedAt: DateTime.utc(2026),
-          historyGames: 1,
-          historyLimit: 12,
-          minimumResponseRate: 60,
-          attending: List.generate(
-            10,
-            (index) => ReportParticipantUiModel(
-              id: '$prefix-$index',
-              displayName: '$prefix $index',
+    'Lineup Lab retains draft after system back and resets for another report',
+    (tester) async {
+      tester.view.physicalSize = const Size(1600, 2200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      SingleGameReportUiModel report(String id, String prefix) =>
+          SingleGameReportUiModel(
+            gameId: id,
+            gameLabel: id,
+            generatedAt: DateTime.utc(2026),
+            historyGames: 1,
+            historyLimit: 12,
+            minimumResponseRate: 60,
+            attending: List.generate(
+              10,
+              (index) => ReportParticipantUiModel(
+                id: '$prefix-$index',
+                displayName: '$prefix $index',
+              ),
             ),
-          ),
-          notAttending: const [],
-          notYetReplied: const [],
-        );
-    final controller = controllerFor();
-    await controller.applyFreshPrincipal(
-      principalId: 'officer',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    controller
-      ..report = report('first', 'first')
-      ..state = OfficerReportViewState.ready;
-    await tester.pumpWidget(
-        MaterialApp(home: OfficerReportPanel(controller: controller)));
-    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
-    );
-    await tester.pumpAndSettle();
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
-    await tester.pumpAndSettle();
-    expect(
-      tester
-          .widget<ChoiceChip>(
-              find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')))
-          .selected,
-      isTrue,
-    );
+            notAttending: const [],
+            notYetReplied: const [],
+          );
+      final controller = controllerFor();
+      await controller.applyFreshPrincipal(
+        principalId: 'officer',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      controller
+        ..report = report('first', 'first')
+        ..state = OfficerReportViewState.ready;
+      await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+      await tester.pumpAndSettle();
+      final firstPitcher =
+          find.byKey(const ValueKey('lineup-coarse-first-0-pitcher'));
+      await tester.ensureVisible(firstPitcher);
+      await tester.tap(firstPitcher);
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
+            )
+            .selected,
+        isTrue,
+      );
 
-    await tester.pageBack();
-    controller
-      ..report = report('second', 'second')
-      ..state = OfficerReportViewState.ready;
-    await tester.pumpWidget(
-        MaterialApp(home: OfficerReportPanel(controller: controller)));
-    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-coarse-second-0-pitcher')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
-        findsNothing);
-    await tester.pageBack();
-    await tester.pumpWidget(
-      MaterialApp(home: OfficerReportPanel(controller: controller)),
-    );
-    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('lineup-coarse-second-0-pitcher')),
-        findsOneWidget);
-    expect(find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
-        findsNothing);
-  });
+      await tester.pageBack();
+      controller
+        ..report = report('second', 'second')
+        ..state = OfficerReportViewState.ready;
+      await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('lineup-coarse-second-0-pitcher')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
+        findsNothing,
+      );
+      await tester.pageBack();
+      await tester.pumpWidget(
+        MaterialApp(home: OfficerReportPanel(controller: controller)),
+      );
+      await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('lineup-coarse-second-0-pitcher')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('lineup-coarse-first-0-pitcher')),
+        findsNothing,
+      );
+    },
+  );
 
-  test('canonical adapter uses exact read path and default bounded query',
-      () async {
-    final transport = ReportTransport();
-    final repository = CanonicalOfficerReportRepository(
-      await reportApi(transport),
-    );
-    final report = await repository.readSingleGame(
-      principalId: 'officer',
-      gameId: 'game_44',
-    );
-    expect(transport.calls, [
-      (
-        'GET',
-        '/games/game_44/attendance-report?history_limit=12&minimum_response_rate=60'
-      )
-    ]);
-    expect(report.attending.single.displayName, '已出席');
-    expect(report.attending.single.memberNumber, 18);
-    expect(report.notAttending.single.memberNumber, isNull);
-    expect(report.notAttending.single.reply, AttendanceReply.notAttending);
-    expect(report.notAttending.single.displayName, '不出席');
-    expect(report.notYetReplied.single.displayName, '尚未回覆');
-    expect(report.notYetReplied.single.responseRate, 88);
-    expect(report.historyGames, 8);
-    expect(report.historyLimit, 12);
-    expect(report.minimumResponseRate, 60);
-    expect(report.generatedAt, DateTime.utc(2026, 8, 18, 12));
-  });
+  test(
+    'canonical adapter uses exact read path and default bounded query',
+    () async {
+      final transport = ReportTransport();
+      final repository = CanonicalOfficerReportRepository(
+        await reportApi(transport),
+      );
+      final report = await repository.readSingleGame(
+        principalId: 'officer',
+        gameId: 'game_44',
+      );
+      expect(transport.calls, [
+        (
+          'GET',
+          '/games/game_44/attendance-report?history_limit=12&minimum_response_rate=60',
+        ),
+      ]);
+      expect(report.attending.single.displayName, '已出席');
+      expect(report.attending.single.memberNumber, 18);
+      expect(report.notAttending.single.memberNumber, isNull);
+      expect(report.notAttending.single.reply, AttendanceReply.notAttending);
+      expect(report.notAttending.single.displayName, '不出席');
+      expect(report.notYetReplied.single.displayName, '尚未回覆');
+      expect(report.notYetReplied.single.responseRate, 88);
+      expect(report.historyGames, 8);
+      expect(report.historyLimit, 12);
+      expect(report.minimumResponseRate, 60);
+      expect(report.generatedAt, DateTime.utc(2026, 8, 18, 12));
+    },
+  );
 
   test('not-attending member number maps and survives durable cache', () async {
     for (final entry in <(String, Object?)>[
@@ -937,8 +1103,11 @@ void main() {
       ).readSingleGame(principalId: 'officer', gameId: 'game_44');
       final mapped = report.notAttending.single;
       expect(mapped.reply, AttendanceReply.notAttending, reason: entry.$1);
-      expect(mapped.memberNumber, entry.$2 == 27 ? 27 : isNull,
-          reason: entry.$1);
+      expect(
+        mapped.memberNumber,
+        entry.$2 == 27 ? 27 : isNull,
+        reason: entry.$1,
+      );
 
       final cache = DurablePrincipalOfficerReportCache(
         MemoryStore(),
@@ -946,11 +1115,16 @@ void main() {
       );
       await cache.write('officer', report);
       final restored = await cache.read('officer', 'game_44');
-      expect(restored!.notAttending.single.reply, AttendanceReply.notAttending,
-          reason: entry.$1);
-      expect(restored.notAttending.single.memberNumber,
-          entry.$2 == 27 ? 27 : isNull,
-          reason: entry.$1);
+      expect(
+        restored!.notAttending.single.reply,
+        AttendanceReply.notAttending,
+        reason: entry.$1,
+      );
+      expect(
+        restored.notAttending.single.memberNumber,
+        entry.$2 == 27 ? 27 : isNull,
+        reason: entry.$1,
+      );
     }
   });
 
@@ -988,31 +1162,47 @@ void main() {
     }
   });
 
-  test('fresh lifecycle purges admin to officer but retains officer to admin',
-      () async {
-    final store = MemoryStore();
-    final cache = DurablePrincipalOfficerReportCache(store, 'install');
-    const grant = ['attendance:report:read'];
-    const admin = Person('p', 'Admin', grant, accessLevel: AccessLevel.admin);
-    const officer =
-        Person('p', 'Officer', grant, accessLevel: AccessLevel.officer);
+  test(
+    'fresh lifecycle purges admin to officer but retains officer to admin',
+    () async {
+      final store = MemoryStore();
+      final cache = DurablePrincipalOfficerReportCache(store, 'install');
+      const grant = ['attendance:report:read'];
+      const admin = Person('p', 'Admin', grant, accessLevel: AccessLevel.admin);
+      const officer = Person(
+        'p',
+        'Officer',
+        grant,
+        accessLevel: AccessLevel.officer,
+      );
 
-    await cache.write(
-        'p', DeterministicFakeOfficerReportRepository.fictionalReport);
-    await reconcileFreshReportPrincipal(
-        cache: cache, previous: admin, current: officer);
-    expect(await cache.read('p', 'fictional-game'), isNull);
+      await cache.write(
+        'p',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      await reconcileFreshReportPrincipal(
+        cache: cache,
+        previous: admin,
+        current: officer,
+      );
+      expect(await cache.read('p', 'fictional-game'), isNull);
 
-    await cache.write(
-        'p', DeterministicFakeOfficerReportRepository.fictionalReport);
-    await reconcileFreshReportPrincipal(
-        cache: cache, previous: officer, current: admin);
-    expect(await cache.read('p', 'fictional-game'), isNotNull);
-    expect(
-      const Person('p', 'Basic', grant).canReadAttendanceReport,
-      isFalse,
-    );
-  });
+      await cache.write(
+        'p',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      await reconcileFreshReportPrincipal(
+        cache: cache,
+        previous: officer,
+        current: admin,
+      );
+      expect(await cache.read('p', 'fictional-game'), isNotNull);
+      expect(
+        const Person('p', 'Basic', grant).canReadAttendanceReport,
+        isFalse,
+      );
+    },
+  );
   test('read grant alone controls discovery and route fail-closed', () async {
     final controller = controllerFor();
     await controller.applyFreshPrincipal(
@@ -1176,28 +1366,30 @@ void main() {
     },
   );
 
-  test('fresh server denial revokes report and purges principal cache',
-      () async {
-    final cache = InMemoryPrincipalOfficerReportCache();
-    await cache.write(
-      'p',
-      DeterministicFakeOfficerReportRepository.fictionalReport,
-    );
-    final controller = controllerFor(
-      cache: cache,
-      repository: DeterministicFakeOfficerReportRepository(
-        failure: const ForbiddenOfficerReportException(),
-      ),
-    );
-    await controller.applyFreshPrincipal(
-      principalId: 'p',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    await controller.loadSingleGame('fictional-game', online: true);
-    expect(controller.route, ManagementPresentationRoute.home);
-    expect(controller.state, OfficerReportViewState.forbidden);
-    expect(await cache.read('p', 'fictional-game'), isNull);
-  });
+  test(
+    'fresh server denial revokes report and purges principal cache',
+    () async {
+      final cache = InMemoryPrincipalOfficerReportCache();
+      await cache.write(
+        'p',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      final controller = controllerFor(
+        cache: cache,
+        repository: DeterministicFakeOfficerReportRepository(
+          failure: const ForbiddenOfficerReportException(),
+        ),
+      );
+      await controller.applyFreshPrincipal(
+        principalId: 'p',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      await controller.loadSingleGame('fictional-game', online: true);
+      expect(controller.route, ManagementPresentationRoute.home);
+      expect(controller.state, OfficerReportViewState.forbidden);
+      expect(await cache.read('p', 'fictional-game'), isNull);
+    },
+  );
 
   testWidgets('denied principal cannot discover management', (tester) async {
     final controller = controllerFor();
@@ -1215,43 +1407,60 @@ void main() {
     );
   });
 
-  testWidgets('direct canonical management route fails closed for Basic',
-      (tester) async {
+  testWidgets('direct canonical management route fails closed for Basic', (
+    tester,
+  ) async {
     for (final person in [
       const Person('basic', 'Basic', ['attendance:report:read']),
-      const Person('officer', 'Officer', ['games:read'],
+      const Person(
+          'officer',
+          'Officer',
+          [
+            'games:read',
+          ],
           accessLevel: AccessLevel.officer),
-      const Person('admin', 'Admin', ['games:read'],
+      const Person(
+          'admin',
+          'Admin',
+          [
+            'games:read',
+          ],
           accessLevel: AccessLevel.admin),
     ]) {
       final transport = ReportTransport();
       final api = await reportApi(transport);
-      await tester.pumpWidget(MaterialApp(
-        home: CanonicalManagementReportsPage(
-          api: api,
-          person: person,
-          games: [Game('game_44', DateTime.utc(2026), 60, null, 'A', 'B')],
-          online: true,
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CanonicalManagementReportsPage(
+            api: api,
+            person: person,
+            games: [Game('game_44', DateTime.utc(2026), 60, null, 'A', 'B')],
+            online: true,
+          ),
         ),
-      ));
-      expect(find.byKey(const ValueKey('management-route-forbidden')),
-          findsOneWidget);
+      );
+      expect(
+        find.byKey(const ValueKey('management-route-forbidden')),
+        findsOneWidget,
+      );
       expect(find.text('唯讀出席報表'), findsNothing);
       expect(transport.calls, isEmpty);
     }
   });
 
-  testWidgets('canonical 404 and 422 settle into fail-closed UI states',
-      (tester) async {
+  testWidgets('canonical 404 and 422 settle into fail-closed UI states', (
+    tester,
+  ) async {
     for (final entry in [
       (404, 'resource_not_found'),
-      (422, 'validation_failed')
+      (422, 'validation_failed'),
     ]) {
       final transport = ReportTransport()
         ..response = ApiResponse(entry.$1, reportError(entry.$2));
       final controller = OfficerReportController(
-        repository:
-            CanonicalOfficerReportRepository(await reportApi(transport)),
+        repository: CanonicalOfficerReportRepository(
+          await reportApi(transport),
+        ),
         cache: InMemoryPrincipalOfficerReportCache(),
       );
       await controller.applyFreshPrincipal(
@@ -1268,55 +1477,68 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: OfficerReportPanel(controller: controller)),
       );
-      expect(find.byKey(ValueKey('officer-report-${controller.state.name}')),
-          findsOneWidget);
+      expect(
+        find.byKey(ValueKey('officer-report-${controller.state.name}')),
+        findsOneWidget,
+      );
       expect(find.text('送出回覆'), findsNothing);
     }
   });
 
-  test('durable cache survives reconstruction and isolates principals',
-      () async {
-    final store = MemoryStore();
-    final first = DurablePrincipalOfficerReportCache(store, 'install-a');
-    await first.write(
-        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
-    final restarted = DurablePrincipalOfficerReportCache(store, 'install-a');
-    final restored = await restarted.read('officer', 'fictional-game');
-    expect(restored, isNotNull);
-    expect(restored!.attending.single.memberNumber, 18);
-    final key = store.values.keys.single;
-    final legacy = jsonDecode(store.values[key]!) as Map<String, dynamic>;
-    final legacyReport =
-        (legacy['reports'] as List<dynamic>).single as Map<String, dynamic>;
-    for (final person in legacyReport['attending'] as List<dynamic>) {
-      (person as Map<String, dynamic>).remove('member_number');
-    }
-    await store.write(key, jsonEncode(legacy));
-    expect(
-      (await restarted.read('officer', 'fictional-game'))!
-          .attending
-          .single
-          .memberNumber,
-      isNull,
-    );
-    expect(await restarted.read('basic', 'fictional-game'), isNull);
-    expect(
-      await DurablePrincipalOfficerReportCache(store, 'install-b')
-          .read('officer', 'fictional-game'),
-      isNull,
-    );
-  });
-
-  test('durable cache corrupt/version mismatch clears and fails closed',
-      () async {
-    for (final raw in ['not-json', '{"version":2,"reports":[]}']) {
+  test(
+    'durable cache survives reconstruction and isolates principals',
+    () async {
       final store = MemoryStore();
-      final cache = DurablePrincipalOfficerReportCache(store, 'install');
-      await store.write('officer-report-cache:v1:install:officer', raw);
-      expect(await cache.read('officer', 'game'), isNull);
-      expect(store.values, isEmpty);
-    }
-  });
+      final first = DurablePrincipalOfficerReportCache(store, 'install-a');
+      await first.write(
+        'officer',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      final restarted = DurablePrincipalOfficerReportCache(store, 'install-a');
+      final restored = await restarted.read('officer', 'fictional-game');
+      expect(restored, isNotNull);
+      expect(restored!.attending.single.memberNumber, 18);
+      final key = store.values.keys.single;
+      final legacy = jsonDecode(store.values[key]!) as Map<String, dynamic>;
+      final legacyReport =
+          (legacy['reports'] as List<dynamic>).single as Map<String, dynamic>;
+      for (final person in legacyReport['attending'] as List<dynamic>) {
+        (person as Map<String, dynamic>).remove('member_number');
+      }
+      await store.write(key, jsonEncode(legacy));
+      expect(
+        (await restarted.read(
+          'officer',
+          'fictional-game',
+        ))!
+            .attending
+            .single
+            .memberNumber,
+        isNull,
+      );
+      expect(await restarted.read('basic', 'fictional-game'), isNull);
+      expect(
+        await DurablePrincipalOfficerReportCache(
+          store,
+          'install-b',
+        ).read('officer', 'fictional-game'),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'durable cache corrupt/version mismatch clears and fails closed',
+    () async {
+      for (final raw in ['not-json', '{"version":2,"reports":[]}']) {
+        final store = MemoryStore();
+        final cache = DurablePrincipalOfficerReportCache(store, 'install');
+        await store.write('officer-report-cache:v1:install:officer', raw);
+        expect(await cache.read('officer', 'game'), isNull);
+        expect(store.values, isEmpty);
+      }
+    },
+  );
 
   test('durable cache rejects out-of-contract member number', () async {
     final store = MemoryStore();
@@ -1341,49 +1563,59 @@ void main() {
     final store = FailingWriteStore();
     final cache = DurablePrincipalOfficerReportCache(store, 'install');
     await cache.write(
-        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
+      'officer',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
     final before = Map<String, String>.from(store.values);
     store.failNextWrite = true;
     expect(
       () => cache.write(
-          'officer', DeterministicFakeOfficerReportRepository.fictionalReport),
+        'officer',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      ),
       throwsA(isA<NetworkException>()),
     );
     expect(store.values, before);
   });
 
-  test('durable cache is bounded and serializes low-sensitive fields only',
-      () async {
-    final store = MemoryStore();
-    final cache = DurablePrincipalOfficerReportCache(store, 'install');
-    for (var index = 0; index < 21; index++) {
-      await cache.write('officer', reportWithId('game-$index'));
-    }
-    expect(await cache.read('officer', 'game-0'), isNull);
-    expect(await cache.read('officer', 'game-20'), isNotNull);
-    final raw = store.values.values.single;
-    expect(
+  test(
+    'durable cache is bounded and serializes low-sensitive fields only',
+    () async {
+      final store = MemoryStore();
+      final cache = DurablePrincipalOfficerReportCache(store, 'install');
+      for (var index = 0; index < 21; index++) {
+        await cache.write('officer', reportWithId('game-$index'));
+      }
+      expect(await cache.read('officer', 'game-0'), isNull);
+      expect(await cache.read('officer', 'game-20'), isNotNull);
+      final raw = store.values.values.single;
+      expect(
         utf8.encode(raw).length,
         lessThanOrEqualTo(
-            DurablePrincipalOfficerReportCache.maximumEncodedBytes));
-    for (final prohibited in [
-      'token',
-      'nonce',
-      'provider',
-      'contact',
-      'admin_note',
-      'audit',
-      'raw_error',
-    ]) {
-      expect(raw, isNot(contains(prohibited)));
-    }
-  });
+          DurablePrincipalOfficerReportCache.maximumEncodedBytes,
+        ),
+      );
+      for (final prohibited in [
+        'token',
+        'nonce',
+        'provider',
+        'contact',
+        'admin_note',
+        'audit',
+        'raw_error',
+      ]) {
+        expect(raw, isNot(contains(prohibited)));
+      }
+    },
+  );
 
   test('oversized write preserves prior valid single blob', () async {
     final store = MemoryStore();
     final cache = DurablePrincipalOfficerReportCache(store, 'install');
     await cache.write(
-        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
+      'officer',
+      DeterministicFakeOfficerReportRepository.fictionalReport,
+    );
     final before = Map<String, String>.from(store.values);
     expect(
       () => cache.write('officer', largeBoundedReport()),
@@ -1403,123 +1635,148 @@ void main() {
     expect(store.values, isEmpty);
   });
 
-  test('offline reconstructed cache requires a fresh granted controller',
-      () async {
-    final store = MemoryStore();
-    final cache = DurablePrincipalOfficerReportCache(store, 'install');
-    await cache.write(
-        'officer', DeterministicFakeOfficerReportRepository.fictionalReport);
-    final denied = OfficerReportController(
-      repository: DeterministicFakeOfficerReportRepository(),
-      cache: DurablePrincipalOfficerReportCache(store, 'install'),
-    );
-    await denied.applyFreshPrincipal(
-      principalId: 'officer',
-      reportReadGrant: const ManagementReportReadGrant.denied(),
-    );
-    await denied.loadSingleGame('fictional-game', online: false);
-    expect(denied.state, OfficerReportViewState.forbidden);
-    expect(denied.report, isNull);
+  test(
+    'offline reconstructed cache requires a fresh granted controller',
+    () async {
+      final store = MemoryStore();
+      final cache = DurablePrincipalOfficerReportCache(store, 'install');
+      await cache.write(
+        'officer',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      final denied = OfficerReportController(
+        repository: DeterministicFakeOfficerReportRepository(),
+        cache: DurablePrincipalOfficerReportCache(store, 'install'),
+      );
+      await denied.applyFreshPrincipal(
+        principalId: 'officer',
+        reportReadGrant: const ManagementReportReadGrant.denied(),
+      );
+      await denied.loadSingleGame('fictional-game', online: false);
+      expect(denied.state, OfficerReportViewState.forbidden);
+      expect(denied.report, isNull);
 
-    final granted = OfficerReportController(
-      repository: DeterministicFakeOfficerReportRepository(),
-      cache: DurablePrincipalOfficerReportCache(store, 'install'),
-    );
-    await granted.applyFreshPrincipal(
-      principalId: 'officer',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    await granted.loadSingleGame('fictional-game', online: false);
-    expect(granted.state, OfficerReportViewState.offlineCached);
-    expect(granted.mutationsEnabled, isFalse);
-  });
+      final granted = OfficerReportController(
+        repository: DeterministicFakeOfficerReportRepository(),
+        cache: DurablePrincipalOfficerReportCache(store, 'install'),
+      );
+      await granted.applyFreshPrincipal(
+        principalId: 'officer',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      await granted.loadSingleGame('fictional-game', online: false);
+      expect(granted.state, OfficerReportViewState.offlineCached);
+      expect(granted.mutationsEnabled, isFalse);
+    },
+  );
 
-  test('durable cache is purged on downgrade identity change and session end',
-      () async {
-    final store = MemoryStore();
-    Future<void> seed(String principal) =>
-        DurablePrincipalOfficerReportCache(store, 'install').write(principal,
-            DeterministicFakeOfficerReportRepository.fictionalReport);
+  test(
+    'durable cache is purged on downgrade identity change and session end',
+    () async {
+      final store = MemoryStore();
+      Future<void> seed(String principal) =>
+          DurablePrincipalOfficerReportCache(store, 'install').write(
+            principal,
+            DeterministicFakeOfficerReportRepository.fictionalReport,
+          );
 
-    await seed('same');
-    final downgrade = OfficerReportController(
-      repository: DeterministicFakeOfficerReportRepository(),
-      cache: DurablePrincipalOfficerReportCache(store, 'install'),
-    );
-    await downgrade.applyFreshPrincipal(
-      principalId: 'same',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    await downgrade.applyFreshPrincipal(
-      principalId: 'same',
-      reportReadGrant: const ManagementReportReadGrant.denied(),
-    );
-    expect(
-        await DurablePrincipalOfficerReportCache(store, 'install')
-            .read('same', 'fictional-game'),
-        isNull);
+      await seed('same');
+      final downgrade = OfficerReportController(
+        repository: DeterministicFakeOfficerReportRepository(),
+        cache: DurablePrincipalOfficerReportCache(store, 'install'),
+      );
+      await downgrade.applyFreshPrincipal(
+        principalId: 'same',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      await downgrade.applyFreshPrincipal(
+        principalId: 'same',
+        reportReadGrant: const ManagementReportReadGrant.denied(),
+      );
+      expect(
+        await DurablePrincipalOfficerReportCache(
+          store,
+          'install',
+        ).read('same', 'fictional-game'),
+        isNull,
+      );
 
-    await seed('old');
-    final identity = OfficerReportController(
-      repository: DeterministicFakeOfficerReportRepository(),
-      cache: DurablePrincipalOfficerReportCache(store, 'install'),
-    );
-    await identity.applyFreshPrincipal(
-      principalId: 'old',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    await identity.applyFreshPrincipal(
-      principalId: 'new',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    expect(
-        await DurablePrincipalOfficerReportCache(store, 'install')
-            .read('old', 'fictional-game'),
-        isNull);
+      await seed('old');
+      final identity = OfficerReportController(
+        repository: DeterministicFakeOfficerReportRepository(),
+        cache: DurablePrincipalOfficerReportCache(store, 'install'),
+      );
+      await identity.applyFreshPrincipal(
+        principalId: 'old',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      await identity.applyFreshPrincipal(
+        principalId: 'new',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      expect(
+        await DurablePrincipalOfficerReportCache(
+          store,
+          'install',
+        ).read('old', 'fictional-game'),
+        isNull,
+      );
 
-    await seed('expired');
-    final expired = OfficerReportController(
-      repository: DeterministicFakeOfficerReportRepository(
-          failure: const ExpiredOfficerReportSessionException()),
-      cache: DurablePrincipalOfficerReportCache(store, 'install'),
-    );
-    await expired.applyFreshPrincipal(
-      principalId: 'expired',
-      reportReadGrant: const ManagementReportReadGrant.granted(),
-    );
-    await expired.loadSingleGame('fictional-game', online: true);
-    expect(
-        await DurablePrincipalOfficerReportCache(store, 'install')
-            .read('expired', 'fictional-game'),
-        isNull);
+      await seed('expired');
+      final expired = OfficerReportController(
+        repository: DeterministicFakeOfficerReportRepository(
+          failure: const ExpiredOfficerReportSessionException(),
+        ),
+        cache: DurablePrincipalOfficerReportCache(store, 'install'),
+      );
+      await expired.applyFreshPrincipal(
+        principalId: 'expired',
+        reportReadGrant: const ManagementReportReadGrant.granted(),
+      );
+      await expired.loadSingleGame('fictional-game', online: true);
+      expect(
+        await DurablePrincipalOfficerReportCache(
+          store,
+          'install',
+        ).read('expired', 'fictional-game'),
+        isNull,
+      );
 
-    await seed('logout');
-    await DurablePrincipalOfficerReportCache(store, 'install')
-        .clearPrincipal('logout');
-    expect(
-        await DurablePrincipalOfficerReportCache(store, 'install')
-            .read('logout', 'fictional-game'),
-        isNull);
-  });
+      await seed('logout');
+      await DurablePrincipalOfficerReportCache(
+        store,
+        'install',
+      ).clearPrincipal('logout');
+      expect(
+        await DurablePrincipalOfficerReportCache(
+          store,
+          'install',
+        ).read('logout', 'fictional-game'),
+        isNull,
+      );
+    },
+  );
 
-  test('installation aggregate presence and purge are physically scoped',
-      () async {
-    final store = MemoryStore();
-    final current = DurablePrincipalOfficerReportCache(store, 'install');
-    final other = DurablePrincipalOfficerReportCache(store, 'other');
-    await current.write(
-      'current-principal',
-      DeterministicFakeOfficerReportRepository.fictionalReport,
-    );
-    await other.write(
-      'other-principal',
-      DeterministicFakeOfficerReportRepository.fictionalReport,
-    );
-    expect(await current.observeAnyPresence(), isTrue);
-    await current.clearInstallation();
-    expect(await current.observeAnyPresence(), isFalse);
-    expect(await other.observeAnyPresence(), isTrue);
-  });
+  test(
+    'installation aggregate presence and purge are physically scoped',
+    () async {
+      final store = MemoryStore();
+      final current = DurablePrincipalOfficerReportCache(store, 'install');
+      final other = DurablePrincipalOfficerReportCache(store, 'other');
+      await current.write(
+        'current-principal',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      await other.write(
+        'other-principal',
+        DeterministicFakeOfficerReportRepository.fictionalReport,
+      );
+      expect(await current.observeAnyPresence(), isTrue);
+      await current.clearInstallation();
+      expect(await current.observeAnyPresence(), isFalse);
+      expect(await other.observeAnyPresence(), isTrue);
+    },
+  );
 
   testWidgets('granted shell navigates and renders read-only report cohorts', (
     tester,
@@ -1537,12 +1794,13 @@ void main() {
     expect(find.text('單場出席報表'), findsOneWidget);
     await controller.loadSingleGame('fictional-game', online: true);
     await tester.pump();
-    expect(find.text('出席'), findsOneWidget);
-    expect(find.text('不出席'), findsOneWidget);
-    expect(find.text('尚未回覆'), findsOneWidget);
     expect(find.text('觀察場次：8 / 12'), findsOneWidget);
     expect(find.text('最低回覆率：60%'), findsOneWidget);
     expect(find.textContaining('產生時間：2026-08-19'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('出席'), 300);
+    expect(find.text('出席'), findsOneWidget);
+    expect(find.text('不出席'), findsOneWidget);
+    expect(find.text('尚未回覆'), findsOneWidget);
     await tester.scrollUntilVisible(find.textContaining('回覆率 88%'), 300);
     expect(find.textContaining('回覆率 88%'), findsOneWidget);
     expect(find.text('送出回覆'), findsNothing);
@@ -1563,16 +1821,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: OfficerReportPanel(controller: controller)),
     );
-    final panel = find.byKey(
-      const ValueKey('officer-report-offlineCached'),
-    );
+    final panel = find.byKey(const ValueKey('officer-report-offlineCached'));
     expect(tester.getSemantics(panel).label, contains('離線快取唯讀報表'));
     expect(find.text('目前為離線快取，僅供讀取'), findsOneWidget);
     expect(controller.mutationsEnabled, isFalse);
   });
 
-  testWidgets('debug report projection exposes only canonical bounded states',
-      (tester) async {
+  testWidgets('debug report projection exposes only canonical bounded states', (
+    tester,
+  ) async {
     final ready = controllerFor();
     await ready.applyFreshPrincipal(
       principalId: 'ready-principal',
@@ -1611,8 +1868,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: OfficerReportPanel(controller: controller)),
       );
-      final projection =
-          find.byKey(const ValueKey('debug-officer-report-projection'));
+      final projection = find.byKey(
+        const ValueKey('debug-officer-report-projection'),
+      );
       expect(projection, findsOneWidget);
       expect(
         tester.widget<Semantics>(projection).properties.label,
@@ -1655,8 +1913,9 @@ void main() {
     );
   });
 
-  testWidgets('direct state injection cannot claim report authority',
-      (tester) async {
+  testWidgets('direct state injection cannot claim report authority', (
+    tester,
+  ) async {
     final controller = controllerFor();
     await controller.applyFreshPrincipal(
       principalId: 'injected-principal',
@@ -1674,8 +1933,9 @@ void main() {
     );
   });
 
-  testWidgets('debug gate and projection exclude sensitive report material',
-      (tester) async {
+  testWidgets('debug gate and projection exclude sensitive report material', (
+    tester,
+  ) async {
     final controller = controllerFor();
     await controller.applyFreshPrincipal(
       principalId: 'sensitive-principal-id',
@@ -1683,12 +1943,14 @@ void main() {
     );
     await controller.loadSingleGame('fictional-game', online: true);
 
-    await tester.pumpWidget(MaterialApp(
-      home: OfficerReportPanel(
-        controller: controller,
-        diagnosticEnabled: false,
+    await tester.pumpWidget(
+      MaterialApp(
+        home: OfficerReportPanel(
+          controller: controller,
+          diagnosticEnabled: false,
+        ),
       ),
-    ));
+    );
     expect(
       find.byKey(const ValueKey('debug-officer-report-projection')),
       findsNothing,
@@ -1711,8 +1973,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(home: OfficerReportPanel(controller: controller)),
     );
-    final projection =
-        find.byKey(const ValueKey('debug-officer-report-projection'));
+    final projection = find.byKey(
+      const ValueKey('debug-officer-report-projection'),
+    );
     final label = tester.widget<Semantics>(projection).properties.label!;
     for (final prohibited in [
       'sensitive-principal-id',

@@ -442,31 +442,37 @@ class CanonicalOfficerReportRepository
         historyLimit: report.observation.historyLimit,
         minimumResponseRate: report.observation.minimumResponseRate,
         attending: report.attending
-            .map((person) => ReportParticipantUiModel(
-                  id: person.personId,
-                  displayName: person.displayName,
-                  reply: person.reply,
-                  memberNumber: person.memberNumber,
-                ))
+            .map(
+              (person) => ReportParticipantUiModel(
+                id: person.personId,
+                displayName: person.displayName,
+                reply: person.reply,
+                memberNumber: person.memberNumber,
+              ),
+            )
             .toList(growable: false),
         notAttending: report.notAttending
-            .map((person) => ReportParticipantUiModel(
-                  id: person.personId,
-                  displayName: person.displayName,
-                  reply: person.reply,
-                  memberNumber: person.memberNumber,
-                ))
+            .map(
+              (person) => ReportParticipantUiModel(
+                id: person.personId,
+                displayName: person.displayName,
+                reply: person.reply,
+                memberNumber: person.memberNumber,
+              ),
+            )
             .toList(growable: false),
         notYetReplied: report.notYetReplied
-            .map((person) => NotYetRepliedUiModel(
-                  id: person.personId,
-                  displayName: person.displayName,
-                  observedReplies: person.observedReplies,
-                  observedGames: person.observedGames,
-                  responseRate: person.responseRate,
-                  participationRate: person.participationRate,
-                  nonparticipationRate: person.nonparticipationRate,
-                ))
+            .map(
+              (person) => NotYetRepliedUiModel(
+                id: person.personId,
+                displayName: person.displayName,
+                observedReplies: person.observedReplies,
+                observedGames: person.observedGames,
+                responseRate: person.responseRate,
+                participationRate: person.participationRate,
+                nonparticipationRate: person.nonparticipationRate,
+              ),
+            )
             .toList(growable: false),
       );
     } on NetworkException {
@@ -637,7 +643,9 @@ class DurablePrincipalOfficerReportCache
 
   @override
   Future<SingleGameReportUiModel?> read(
-      String principalId, String gameId) async {
+    String principalId,
+    String gameId,
+  ) async {
     final reports = await _readAll(principalId);
     for (final report in reports) {
       if (report.gameId == gameId) return report;
@@ -703,19 +711,22 @@ class DurablePrincipalOfficerReportCache
         'attending': report.attending.map(_encodeParticipant).toList(),
         'not_attending': report.notAttending.map(_encodeParticipant).toList(),
         'not_yet_replied': report.notYetReplied
-            .map((person) => {
-                  ..._encodeParticipant(person),
-                  'observed_replies': person.observedReplies,
-                  'observed_games': person.observedGames,
-                  'response_rate': person.responseRate,
-                  'participation_rate': person.participationRate,
-                  'nonparticipation_rate': person.nonparticipationRate,
-                })
+            .map(
+              (person) => {
+                ..._encodeParticipant(person),
+                'observed_replies': person.observedReplies,
+                'observed_games': person.observedGames,
+                'response_rate': person.responseRate,
+                'participation_rate': person.participationRate,
+                'nonparticipation_rate': person.nonparticipationRate,
+              },
+            )
             .toList(),
       };
 
   static Map<String, dynamic> _encodeParticipant(
-          ReportParticipantUiModel person) =>
+    ReportParticipantUiModel person,
+  ) =>
       {
         'id': person.id,
         'display_name': person.displayName,
@@ -764,19 +775,23 @@ class DurablePrincipalOfficerReportCache
                 report.notAttending.length +
                 report.notYetReplied.length >
             200 ||
-        [...report.attending, ...report.notAttending].any((person) =>
-            !_validText(person.id, _maximumIdCharacters) ||
-            !_validText(person.displayName, _maximumDisplayNameCharacters) ||
-            (person.memberNumber != null &&
-                (person.memberNumber! < 0 || person.memberNumber! > 999))) ||
-        report.notYetReplied.any((person) =>
-            !_validText(person.id, _maximumIdCharacters) ||
-            !_validText(person.displayName, _maximumDisplayNameCharacters) ||
-            person.observedReplies < 1 ||
-            person.observedGames < 1 ||
-            !_validPercentage(person.responseRate) ||
-            !_validPercentage(person.participationRate) ||
-            !_validPercentage(person.nonparticipationRate))) {
+        [...report.attending, ...report.notAttending].any(
+          (person) =>
+              !_validText(person.id, _maximumIdCharacters) ||
+              !_validText(person.displayName, _maximumDisplayNameCharacters) ||
+              (person.memberNumber != null &&
+                  (person.memberNumber! < 0 || person.memberNumber! > 999)),
+        ) ||
+        report.notYetReplied.any(
+          (person) =>
+              !_validText(person.id, _maximumIdCharacters) ||
+              !_validText(person.displayName, _maximumDisplayNameCharacters) ||
+              person.observedReplies < 1 ||
+              person.observedGames < 1 ||
+              !_validPercentage(person.responseRate) ||
+              !_validPercentage(person.participationRate) ||
+              !_validPercentage(person.nonparticipationRate),
+        )) {
       throw const FormatException('invalid cached report');
     }
   }
@@ -850,7 +865,8 @@ class OfficerReportController extends ChangeNotifier {
   }
 
   OfficerNotificationDraft notificationDraftFor(
-      SingleGameReportUiModel report) {
+    SingleGameReportUiModel report,
+  ) {
     if (_notificationDraft == null ||
         _notificationDraft!.gameId != report.gameId) {
       _notificationDraft = OfficerNotificationDraft(report);
@@ -974,12 +990,15 @@ class OfficerReadOnlyShell extends StatelessWidget {
             body: switch (controller.route) {
               ManagementPresentationRoute.home =>
                 const Center(child: Text('首頁')),
-              ManagementPresentationRoute.schedule =>
-                const Center(child: Text('賽程')),
-              ManagementPresentationRoute.notifications =>
-                const Center(child: Text('通知')),
-              ManagementPresentationRoute.account =>
-                const Center(child: Text('帳號')),
+              ManagementPresentationRoute.schedule => const Center(
+                  child: Text('賽程'),
+                ),
+              ManagementPresentationRoute.notifications => const Center(
+                  child: Text('通知'),
+                ),
+              ManagementPresentationRoute.account => const Center(
+                  child: Text('帳號'),
+                ),
               ManagementPresentationRoute.reportsHub => _ReportHub(controller),
               ManagementPresentationRoute.singleGameReport =>
                 OfficerReportPanel(
@@ -1226,8 +1245,9 @@ class OfficerReportPanel extends StatelessWidget {
       OfficerReportViewState.contractError => '報表資料格式異常，已停止處理',
       OfficerReportViewState.offlineCached => '離線快取唯讀報表',
     };
-    final diagnosticState =
-        DebugOfficerReportProjection.fromController(controller);
+    final diagnosticState = DebugOfficerReportProjection.fromController(
+      controller,
+    );
     final showDiagnostic = diagnosticState != null &&
         DebugOfficerReportProjection.shouldRender(
           debugBuild: kDebugMode,
@@ -1379,70 +1399,125 @@ class _ReportContentsState extends State<_ReportContents> {
     final insights = AttendanceInsights(report);
     return Material(
       child: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          Text(report.gameLabel),
-          Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
-          Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
-          Text('最低回覆率：${report.minimumResponseRate}%'),
-          if (widget.offline) const Text('目前為離線快取，僅供讀取'),
+          AppSurfaceCard(
+            key: const ValueKey('officer-report-context'),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  report.gameLabel,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
+                Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
+                Text('最低回覆率：${report.minimumResponseRate}%'),
+                if (widget.offline) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    '目前為離線快取，僅供讀取',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Theme.of(context).colorScheme.error),
+                  ),
+                ],
+              ],
+            ),
+          ),
           _InsightsCard(insights: insights, offline: widget.offline),
-          ListTile(
+          AppSurfaceCard(
             key: const ValueKey('lineup-lab-entry'),
-            leading: const Icon(Icons.groups_outlined),
-            title: const Text('Lineup Lab'),
-            subtitle: const Text('僅供本次規劃，不會提交或儲存'),
+            padding: const EdgeInsets.all(16),
             onTap: report.attending.isEmpty
                 ? null
                 : () async {
-                    final updated = await Navigator.of(context)
-                        .push<LineupDraft>(MaterialPageRoute(
-                      builder: (_) => _LineupLabPage(
-                        draft: _draft,
-                        offline: widget.offline,
-                        copyPort: widget.controller.lineupSummaryCopyPort,
+                    final updated =
+                        await Navigator.of(context).push<LineupDraft>(
+                      MaterialPageRoute(
+                        builder: (_) => _LineupLabPage(
+                          draft: _draft,
+                          offline: widget.offline,
+                          copyPort: widget.controller.lineupSummaryCopyPort,
+                        ),
                       ),
-                    ));
+                    );
                     if (updated != null && mounted) {
                       setState(() => _draft = updated);
                     }
                   },
+            child: const ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.groups_outlined),
+              title: Text('Lineup Lab'),
+              subtitle: Text('本機規劃，不會提交 truth'),
+              trailing: Icon(Icons.chevron_right),
+            ),
           ),
-          ListTile(
+          AppSurfaceCard(
             key: const ValueKey('unanswered-notification-draft-entry'),
-            leading: const Icon(Icons.notification_add_outlined),
-            title: const Text('未回覆通知草稿'),
-            subtitle: Text(report.notYetReplied.isEmpty
-                ? '目前沒有尚未回覆者'
-                : '依目前報表建立 ${report.notYetReplied.length} 人的本機草稿；不會送出'),
             onTap: report.notYetReplied.isEmpty
                 ? null
-                : () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => OfficerNotificationDraftPage(
-                        draft: widget.controller.notificationDraftFor(report),
-                        offline: widget.offline,
-                        publishingClient: widget.publishingClient,
-                        publishScope: widget.publishScope,
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => OfficerNotificationDraftPage(
+                          draft: widget.controller.notificationDraftFor(report),
+                          offline: widget.offline,
+                          publishingClient: widget.publishingClient,
+                          publishScope: widget.publishScope,
+                        ),
                       ),
-                    )),
-          ),
-          const Text('出席'),
-          for (final participant in report.attending)
-            Text(participant.displayName),
-          const Text('不出席'),
-          for (final participant in report.notAttending)
-            Text(participant.displayName),
-          const Text('尚未回覆'),
-          for (final participant in report.notYetReplied)
-            ListTile(
-              title: Text(participant.displayName),
+                    ),
+            child: ListTile(
+              contentPadding: const EdgeInsets.all(16),
+              leading: const Icon(Icons.notification_add_outlined),
+              title: const Text('未回覆通知草稿'),
               subtitle: Text(
-                '已觀察 ${participant.observedGames} 場、'
-                '已回覆 ${participant.observedReplies} 場；'
-                '回覆率 ${participant.responseRate}%；'
-                '出席率 ${participant.participationRate}%；'
-                '不出席率 ${participant.nonparticipationRate}%',
+                report.notYetReplied.isEmpty
+                    ? '目前沒有尚未回覆者'
+                    : '依目前報表建立 ${report.notYetReplied.length} 人的本機草稿；不會送出',
               ),
+              trailing: const Icon(Icons.chevron_right),
             ),
+          ),
+          AppSurfaceCard(
+            key: const ValueKey('unanswered-cohort'),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('回覆名單', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 8),
+                const Text('出席'),
+                Text('${report.attending.length} 人'),
+                for (final participant in report.attending)
+                  Text(participant.displayName),
+                const SizedBox(height: 8),
+                const Text('不出席'),
+                Text('${report.notAttending.length} 人'),
+                for (final participant in report.notAttending)
+                  Text(participant.displayName),
+                const SizedBox(height: 8),
+                const Text('尚未回覆'),
+                Text('${report.notYetReplied.length} 人'),
+                for (final participant in report.notYetReplied)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(participant.displayName),
+                    subtitle: Text(
+                      '已觀察 ${participant.observedGames} 場、'
+                      '已回覆 ${participant.observedReplies} 場；'
+                      '回覆率 ${participant.responseRate}%；'
+                      '出席率 ${participant.participationRate}%；'
+                      '不出席率 ${participant.nonparticipationRate}%',
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -1618,9 +1693,11 @@ class _OfficerNotificationDraftPageState
                   leading: Icon(Icons.edit_note_outlined),
                   title: Text(
                       !_publishAuthorized ? '本機草稿，不會送出' : '伺服器會驗證收件人並要求確認'),
-                  content: Text(!_publishAuthorized
-                      ? '這裡只供選擇、編輯與確認預覽；沒有呼叫通知或後端。'
-                      : '只顯示伺服器回傳的人數與修訂版本；離線時不可發布。'),
+                  content: Text(
+                    !_publishAuthorized
+                        ? '這裡只供選擇、編輯與確認預覽；沒有呼叫通知或後端。'
+                        : '只顯示伺服器回傳的人數與修訂版本；離線時不可發布。',
+                  ),
                 ),
                 if (widget.offline) ...[
                   const SizedBox(height: 12),
@@ -1637,20 +1714,24 @@ class _OfficerNotificationDraftPageState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                          '收件人 ${widget.draft.selectedCount}/${widget.draft.recipients.length}',
-                          style: Theme.of(context).textTheme.titleMedium),
-                      Row(children: [
-                        shad.GhostButton(
-                          key: const ValueKey('notification-draft-select-all'),
-                          onPressed: () => widget.draft.selectAll(true),
-                          child: const Text('全選'),
-                        ),
-                        shad.GhostButton(
-                          key: const ValueKey('notification-draft-clear-all'),
-                          onPressed: () => widget.draft.selectAll(false),
-                          child: const Text('取消全選'),
-                        ),
-                      ]),
+                        '收件人 ${widget.draft.selectedCount}/${widget.draft.recipients.length}',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Row(
+                        children: [
+                          shad.GhostButton(
+                            key:
+                                const ValueKey('notification-draft-select-all'),
+                            onPressed: () => widget.draft.selectAll(true),
+                            child: const Text('全選'),
+                          ),
+                          shad.GhostButton(
+                            key: const ValueKey('notification-draft-clear-all'),
+                            onPressed: () => widget.draft.selectAll(false),
+                            child: const Text('取消全選'),
+                          ),
+                        ],
+                      ),
                       for (final person in widget.draft.recipients)
                         Material(
                           color: Colors.transparent,
@@ -1746,19 +1827,22 @@ class _OfficerNotificationDraftPageState
                       ],
                     ),
                   ),
-                  Row(children: [
-                    shad.SecondaryButton(
-                      key: const ValueKey('notification-draft-cancel-preview'),
-                      onPressed: widget.draft.cancelPreview,
-                      child: const Text('返回修改'),
-                    ),
-                    const SizedBox(width: 8),
-                    shad.PrimaryButton(
-                      key: const ValueKey('notification-draft-record'),
-                      onPressed: widget.draft.recordLocally,
-                      child: const Text('記錄模擬結果'),
-                    ),
-                  ]),
+                  Row(
+                    children: [
+                      shad.SecondaryButton(
+                        key:
+                            const ValueKey('notification-draft-cancel-preview'),
+                        onPressed: widget.draft.cancelPreview,
+                        child: const Text('返回修改'),
+                      ),
+                      const SizedBox(width: 8),
+                      shad.PrimaryButton(
+                        key: const ValueKey('notification-draft-record'),
+                        onPressed: widget.draft.recordLocally,
+                        child: const Text('記錄模擬結果'),
+                      ),
+                    ],
+                  ),
                 ],
                 if (widget.draft.recorded)
                   const shad.Alert(
@@ -1784,16 +1868,21 @@ class _InsightsCard extends StatelessWidget {
         key: const ValueKey('attendance-insights'),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('出席洞察'),
-            Text(
-                '可出席 ${insights.attending} 人・不出席 ${insights.unavailable} 人・未回覆 ${insights.unanswered} 人'),
-            Text(
-                '回覆率 ${insights.responsePercent}%・已回覆者可出席比例 ${insights.availabilityPercent}%'),
-            if (insights.isSmallSample) const Text('樣本很少，僅供目前回覆的整理。'),
-            Text(insights.callout(offline: offline)),
-          ]),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('出席洞察', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 8),
+              Text(
+                '可出席 ${insights.attending} 人・不出席 ${insights.unavailable} 人・未回覆 ${insights.unanswered} 人',
+              ),
+              Text(
+                '回覆率 ${insights.responsePercent}%・已回覆者可出席比例 ${insights.availabilityPercent}%',
+              ),
+              if (insights.isSmallSample) const Text('樣本很少，僅供目前回覆的整理。'),
+              Text(insights.callout(offline: offline)),
+            ],
+          ),
         ),
       );
 }
@@ -1840,8 +1929,27 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              const Text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
-              if (widget.offline) const Text('離線唯讀來源可能過期；這份草稿仍只留在本次開啟期間。'),
+              AppSurfaceCard(
+                key: const ValueKey('lineup-local-only'),
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('本機規劃草稿',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 6),
+                    const Text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'),
+                    if (widget.offline) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '離線唯讀來源可能過期；草稿只留在本次開啟期間。',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            color: Theme.of(context).colorScheme.error),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
               const SizedBox(height: 12),
               _decisionSummary(),
               const SizedBox(height: 12),
@@ -1849,13 +1957,24 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
                 key: const ValueKey('lineup-planning-mode'),
                 segments: const [
                   ButtonSegment(
-                      value: LineupPlanningMode.coarse, label: Text('粗排')),
+                    value: LineupPlanningMode.coarse,
+                    label: Text('粗排'),
+                  ),
                   ButtonSegment(
                       value: LineupPlanningMode.fine, label: Text('細排')),
                 ],
                 selected: {_planningMode},
                 onSelectionChanged: (selection) =>
                     setState(() => _planningMode = selection.single),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _planningMode == LineupPlanningMode.coarse
+                      ? '粗排：先分組，再進細排。'
+                      : '細排：守位、棒次與候補安排。',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
               ),
               Wrap(
                 children: [
@@ -1954,7 +2073,8 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
             for (final player in _draft.pool)
               FilterChip(
                 key: ValueKey(
-                    'lineup-${coarse ? 'coarse' : 'fine'}-coach-${player.id}'),
+                  'lineup-${coarse ? 'coarse' : 'fine'}-coach-${player.id}',
+                ),
                 label: Text(_annotatedName(player)),
                 selected: coaches.contains(player.id),
                 onSelected: (selected) => setState(() {
@@ -1980,7 +2100,7 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('守備配置'),
-              const Text('同一球員只會佔一個守位；有 DH 時，投手不列入九棒。'),
+              const Text('同一球員只會佔一個守位；DH 時投手不列入九棒。'),
               GridView.count(
                 crossAxisCount: 3,
                 shrinkWrap: true,
@@ -1998,7 +2118,8 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
                             _draft.fieldAssignments[position] == null
                                 ? '未安排'
                                 : _annotatedName(
-                                    _draft.fieldAssignments[position]!),
+                                    _draft.fieldAssignments[position]!,
+                                  ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -2033,22 +2154,27 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
           for (final player in _draft.pool)
             SimpleDialogOption(
               key: ValueKey(
-                  'lineup-position-${position.label}-player-${player.id}'),
+                'lineup-position-${position.label}-player-${player.id}',
+              ),
               onPressed: player.fineEligible
                   ? () => Navigator.of(context).pop(player)
                   : null,
-              child: Text(player.fineEligible
-                  ? _annotatedName(player)
-                  : '${_annotatedName(player)}（細排不可用：非準時／早走或狀態未載入）'),
+              child: Text(
+                player.fineEligible
+                    ? _annotatedName(player)
+                    : '${_annotatedName(player)}（細排不可用：非準時／早走或狀態未載入）',
+              ),
             ),
         ],
       ),
     );
     if (!mounted || selected == null) return;
-    setState(() => _draft.assignFieldPosition(
-          position,
-          selected == false ? null : selected as ReportParticipantUiModel,
-        ));
+    setState(
+      () => _draft.assignFieldPosition(
+        position,
+        selected == false ? null : selected as ReportParticipantUiModel,
+      ),
+    );
   }
 
   Future<void> _chooseBattingSlot(int slot) async {
@@ -2081,10 +2207,12 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
       ),
     );
     if (!mounted || selected == null) return;
-    setState(() => _draft.assignBattingSlot(
-          slot,
-          selected == false ? null : selected as ReportParticipantUiModel,
-        ));
+    setState(
+      () => _draft.assignBattingSlot(
+        slot,
+        selected == false ? null : selected as ReportParticipantUiModel,
+      ),
+    );
   }
 
   LineupFieldPosition? _positionFor(ReportParticipantUiModel player) {
@@ -2135,11 +2263,13 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
                 }
               },
               icon: const Icon(Icons.copy_outlined),
-              label: Text(_copyFailed
-                  ? '無法複製'
-                  : _lastCopiedSummary == summary
-                      ? '已複製'
-                      : '複製摘要'),
+              label: Text(
+                _copyFailed
+                    ? '無法複製'
+                    : _lastCopiedSummary == summary
+                        ? '已複製'
+                        : '複製摘要',
+              ),
             ),
           ],
         ),
@@ -2152,10 +2282,7 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
         .where((player) => _draft.coarseCoaches.contains(player.id))
         .map(_annotatedName)
         .join('、');
-    final lines = <String>[
-      '粗排摘要',
-      '教練：${coaches.isEmpty ? '—' : coaches}',
-    ];
+    final lines = <String>['粗排摘要', '教練：${coaches.isEmpty ? '—' : coaches}'];
     for (final role in CoarseLineupRole.values) {
       final people = _draft.pool
           .where((player) => _draft.coarseRoles[player.id] == role)
@@ -2180,14 +2307,12 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
         .where((player) => _draft.fineCoaches.contains(player.id))
         .map(_annotatedName)
         .join('、');
-    final lines = <String>[
-      '細排摘要',
-      '教練：${coaches.isEmpty ? '—' : coaches}',
-    ];
+    final lines = <String>['細排摘要', '教練：${coaches.isEmpty ? '—' : coaches}'];
     for (var slot = 1; slot <= 9; slot++) {
       final player = _draft.battingOrder[slot];
       lines.add(
-          '$slot棒：${player == null ? '—' : '${_annotatedName(player)}（${positionById[player.id]!}）'}');
+        '$slot棒：${player == null ? '—' : '${_annotatedName(player)}（${positionById[player.id]!}）'}',
+      );
     }
     if (_draft.nonBattingPitcher != null) {
       lines.add('非打擊投手：${_annotatedName(_draft.nonBattingPitcher!)}');
@@ -2219,9 +2344,15 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(ready ? '名單已齊備' : '名單仍需確認'),
             Text(
-              '先發 ${_draft.battingOrder.length}/9・缺 ${_draft.missingStarterCount} 人・'
+              ready ? '名單已齊備' : '名單仍需確認',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(color: ready ? colors.primary : colors.error),
+            ),
+            Text(
+              '先發 ${_draft.battingOrder.length}/9・尚缺 ${_draft.missingStarterCount} 人・'
               '候補／未安排 ${_draft.fineUnassignedCount} 人・尚未回覆 ${_draft.unansweredCount} 人',
               key: const ValueKey('lineup-decision-counts'),
             ),
@@ -2248,21 +2379,27 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
               key: _draft.battingOrder[index + 1] == null
                   ? ValueKey('lineup-empty-slot-${index + 1}')
                   : ValueKey(
-                      'lineup-batting-${index + 1}-${_draft.battingOrder[index + 1]!.id}'),
+                      'lineup-batting-${index + 1}-${_draft.battingOrder[index + 1]!.id}',
+                    ),
               child: ListTile(
                 leading: CircleAvatar(child: Text('${index + 1}')),
-                title: Text(_draft.battingOrder[index + 1] == null
-                    ? '未安排'
-                    : _annotatedName(_draft.battingOrder[index + 1]!)),
-                subtitle: Text(_draft.battingOrder[index + 1] == null
-                    ? '先安排守位，再選擇本棒球員'
-                    : _positionFor(_draft.battingOrder[index + 1]!)?.label ??
-                        '守位已失效'),
+                title: Text(
+                  _draft.battingOrder[index + 1] == null
+                      ? '未安排'
+                      : _annotatedName(_draft.battingOrder[index + 1]!),
+                ),
+                subtitle: Text(
+                  _draft.battingOrder[index + 1] == null
+                      ? '先安排守位，再選擇本棒球員'
+                      : _positionFor(_draft.battingOrder[index + 1]!)?.label ??
+                          '守位已失效',
+                ),
                 trailing: OutlinedButton(
                   key: ValueKey('lineup-batting-select-${index + 1}'),
                   onPressed: () => _chooseBattingSlot(index + 1),
                   child: Text(
-                      _draft.battingOrder[index + 1] == null ? '選擇' : '更換／清除'),
+                    _draft.battingOrder[index + 1] == null ? '選擇' : '更換／清除',
+                  ),
                 ),
               ),
             ),
@@ -2271,14 +2408,16 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
 
   List<Widget> _benchPlayers() => [
         if (_draft.reserves.isEmpty &&
-            _draft.battingCandidates
-                .every((player) => _draft.battingOrder.values.contains(player)))
+            _draft.battingCandidates.every(
+              (player) => _draft.battingOrder.values.contains(player),
+            ))
           const Card(
             key: ValueKey('lineup-bench-empty'),
             child: ListTile(title: Text('目前沒有候補或未安排球員')),
           ),
-        for (final player in _draft.battingCandidates
-            .where((player) => !_draft.battingOrder.values.contains(player)))
+        for (final player in _draft.battingCandidates.where(
+          (player) => !_draft.battingOrder.values.contains(player),
+        ))
           ListTile(
             key: ValueKey('lineup-unbatted-${player.id}'),
             title: Text(_annotatedName(player)),
@@ -2303,7 +2442,10 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
       builder: (context) => AlertDialog(
         key: const ValueKey('lineup-reset-dialog'),
         title: Text('重設$label？'),
-        content: Text('只會重設這次開啟期間的$label，不會提交或儲存正式名單。'),
+        content: Text(
+          '此操作只影響本次開啟的本機草稿；只會重設$label，'
+          '不會提交或儲存正式名單。',
+        ),
         actions: [
           TextButton(
             key: const ValueKey('lineup-reset-cancel'),
