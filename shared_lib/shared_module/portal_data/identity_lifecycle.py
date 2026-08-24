@@ -1269,10 +1269,13 @@ class IdentityLifecycleRepository:
         request_id: str,
         *,
         at: datetime | None = None,
+        lock_boundary=None,
     ) -> AuthIdentity:
         reason = require_reason(reason)
         now = at or utc_now()
         with Session(self.engine) as session, session.begin():
+            if lock_boundary is not None:
+                lock_boundary()
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
                 select(AuthIdentityRecord)

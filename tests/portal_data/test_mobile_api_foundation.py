@@ -478,7 +478,6 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         barrier = threading.Barrier(2)
 
         def confirm():
-            barrier.wait()
             try:
                 MobileRepository(self.engine).confirm_identity_link(
                     codec=codec,
@@ -489,13 +488,13 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                     current_person_id=self.person_id,
                     recovery=None,
                     session_mode="web",
+                    lock_boundary=lambda: barrier.wait(timeout=5),
                 )
                 return "linked"
             except IdentityLinkConflict:
                 return "conflict"
 
         def ignore():
-            barrier.wait()
             try:
                 MobileRepository(self.engine).lifecycle.set_ignored(
                     self.person_id,
@@ -504,6 +503,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                     "race ignore",
                     "ignore-race",
                     at=NOW + timedelta(seconds=1),
+                    lock_boundary=lambda: barrier.wait(timeout=5),
                 )
                 return "ignored"
             except ConflictError:

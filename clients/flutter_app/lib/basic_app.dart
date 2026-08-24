@@ -79,6 +79,18 @@ Future<void> runBasicLogoutIfAllowed({
   await logout();
 }
 
+String? pendingReviewCredential(
+  LoginCoordinator? line,
+  GoogleLoginCoordinator? google,
+) =>
+    line?.pendingReview?.credential ?? google?.pendingReview?.credential;
+
+bool shouldOfferIdentityRecovery({
+  required AuthViewState state,
+  required String? pendingReviewCredential,
+}) =>
+    state == AuthViewState.identityPending && pendingReviewCredential == null;
+
 class AuthStatePanel extends StatelessWidget {
   const AuthStatePanel({
     super.key,
@@ -317,6 +329,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         ids: _ids,
         session: session,
         onRecovered: _loadBasic,
+        onTerminalSession: () => _showFailure(const SessionExpiredException()),
       );
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
@@ -414,6 +427,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _ => AuthViewState.contractError,
     };
     setState(() => state = next);
+    if (next == AuthViewState.identityPending && login.pendingReview != null) {
+      _openPendingReview();
+    } else if (next != AuthViewState.identityPending) {
+      _retirePendingReview();
+    }
   }
 
   void _onLoginStateChanged() {
@@ -445,7 +463,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   void _openPendingReview() {
-    final credential = _login?.pendingReview?.credential;
+    final credential = pendingReviewCredential(_login, _googleLogin);
     if (credential == null || !mounted) return;
     final client = PendingReviewClient(
       HttpApiTransport(widget.config.apiBaseUrl!, _http),
@@ -462,21 +480,29 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   void _retirePendingReview() {
     _login?.retirePendingReview();
+    _googleLogin?.retirePendingReview();
     _pendingReviewClient?.retire();
     _pendingReviewClient = null;
     _navigatorKey.currentState?.popUntil((route) => route.isFirst);
   }
 
-  void _openIdentityRecovery() {
+  Future<void> _openIdentityRecovery() async {
     final controller = _identityLink;
     final platform = nativePlatformName(Theme.of(context).platform);
     if (controller == null || platform == null || !mounted) return;
-    _navigatorKey.currentState?.push(MaterialPageRoute<void>(
-      builder: (_) => IdentityRecoveryPage(
-        controller: controller,
-        platform: platform,
+    final result = await _navigatorKey.currentState?.push<IdentityLinkStage>(
+      MaterialPageRoute<IdentityLinkStage>(
+        builder: (_) => IdentityRecoveryPage(
+          controller: controller,
+          platform: platform,
+        ),
       ),
-    ));
+    );
+    if (mounted && result == IdentityLinkStage.reauthenticationRequired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('登入方式已連結，請重新正常登入。')),
+      );
+    }
   }
 
   Future<bool> _loadBasic() {
@@ -728,10 +754,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                         )
                       : AuthStatePanel(
                           state: state,
-                          onRecoverIdentity:
-                              state == AuthViewState.identityPending
-                                  ? _openIdentityRecovery
-                                  : null,
+                          onRecoverIdentity: shouldOfferIdentityRecovery(
+                                  state: state,
+                                  pendingReviewCredential:
+                                      pendingReviewCredential(
+                                          _login, _googleLogin))
+                              ? _openIdentityRecovery
+                              : null,
                         ),
                 ),
                 floatingActionButton: state == AuthViewState.authenticated

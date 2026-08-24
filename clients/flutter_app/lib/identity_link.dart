@@ -9,6 +9,7 @@ enum IdentityLinkStage {
   proofReady,
   confirming,
   completed,
+  reauthenticationRequired,
   cancelled,
   error
 }
@@ -27,7 +28,16 @@ class NativeIdentityCredentialPort implements IdentityCredentialPort {
       provider == LoginProvider.line ? line.login(nonce!) : google.login();
   @override
   Future<void> clearPresentationState() async {
-    await Future.wait([line.logout(), google.logout()]);
+    try {
+      await line.logout();
+    } on Object {
+      // App-session cleanup must not depend on provider presentation state.
+    }
+    try {
+      await google.logout();
+    } on Object {
+      // Best effort for the second provider as well.
+    }
   }
 }
 
@@ -38,14 +48,19 @@ class IdentityLinkController extends ChangeNotifier {
       required this.installationId,
       required this.ids,
       this.session,
+      this.authorizedSend,
       this.onRecovered,
+      this.onTerminalSession,
       this.online = true});
   final ApiTransport transport;
   final IdentityCredentialPort credentials;
   final String installationId;
   final SecureIds ids;
   final SessionController? session;
+  final Future<ApiResponse> Function(String method, String path,
+      {Map<String, dynamic>? body})? authorizedSend;
   final Future<void> Function()? onRecovered;
+  final Future<void> Function()? onTerminalSession;
   final bool online;
   IdentityLinkStage stage = IdentityLinkStage.idle;
   String? candidateCredential, proofCredential;
@@ -53,11 +68,14 @@ class IdentityLinkController extends ChangeNotifier {
   Map<String, dynamic>? safeSummary;
   List<LinkedLoginMethod> linkedMethods = const [];
   bool linkedMethodsLoaded = false;
+  int _generation = 0;
 
   Future<void> loadLinkedMethods() async {
     if (!online || linkedMethodsLoaded) return;
+    final generation = _generation;
     try {
-      final response = await transport.send('GET', '/auth/identities');
+      final response = await _sendAuthorized('GET', '/auth/identities');
+      if (generation != _generation) return;
       final items = response.body?['items'];
       if (response.status != 200 || items is! List) {
         throw const ContractException('invalid identity list');
@@ -76,21 +94,41 @@ class IdentityLinkController extends ChangeNotifier {
         );
       }).toList(growable: false);
       linkedMethodsLoaded = true;
+      if (stage == IdentityLinkStage.error) stage = IdentityLinkStage.idle;
       notifyListeners();
-    } on Object {
+    } on Object catch (error) {
+      if (generation != _generation) return;
+      if (error is SessionExpiredException) {
+        _retireLocal(clearLinkedMethods: true);
+        stage = IdentityLinkStage.idle;
+        notifyListeners();
+        await _clearProviderState();
+        await onTerminalSession?.call();
+        return;
+      }
+      linkedMethods = const [];
+      linkedMethodsLoaded = false;
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
   }
 
-  Future<void> begin(LoginProvider provider) async {
-    if (!online || stage != IdentityLinkStage.idle) return;
+  Future<void> begin(LoginProvider provider, {bool recovery = false}) async {
+    if (!online ||
+        stage != IdentityLinkStage.idle ||
+        (!recovery && !linkedMethodsLoaded)) {
+      return;
+    }
+    final generation = _generation;
     try {
       final nonce = provider == LoginProvider.line ? ids.next() : null;
       final token = await credentials.authenticate(provider, nonce: nonce);
+      if (generation != _generation) return;
       if (token == null) {
+        _retireLocal(clearLinkedMethods: false);
         stage = IdentityLinkStage.cancelled;
         notifyListeners();
+        await _clearProviderState();
         return;
       }
       final response = await transport.send(
@@ -101,6 +139,7 @@ class IdentityLinkController extends ChangeNotifier {
             'installation_id': installationId,
             if (nonce != null) 'nonce': nonce,
           });
+      if (generation != _generation) return;
       if (response.status != 201 ||
           response.body?['candidate_credential'] is! String) {
         throw const ContractException('invalid candidate');
@@ -110,6 +149,9 @@ class IdentityLinkController extends ChangeNotifier {
       stage = IdentityLinkStage.candidateReady;
       notifyListeners();
     } on Object {
+      if (generation != _generation) return;
+      _retireLocal(clearLinkedMethods: false);
+      await _clearProviderState();
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
@@ -121,9 +163,11 @@ class IdentityLinkController extends ChangeNotifier {
         provider == candidateProvider) {
       return;
     }
+    final generation = _generation;
     try {
       final nonce = provider == LoginProvider.line ? ids.next() : null;
       final token = await credentials.authenticate(provider, nonce: nonce);
+      if (generation != _generation) return;
       if (token == null) {
         await cancel();
         return;
@@ -136,6 +180,7 @@ class IdentityLinkController extends ChangeNotifier {
         'installation_id': installationId,
         if (nonce != null) 'nonce': nonce,
       });
+      if (generation != _generation) return;
       if (response.status != 201 ||
           response.body?['proof_credential'] is! String ||
           response.body?['person'] is! Map) {
@@ -147,6 +192,9 @@ class IdentityLinkController extends ChangeNotifier {
       stage = IdentityLinkStage.proofReady;
       notifyListeners();
     } on Object {
+      if (generation != _generation) return;
+      _retireLocal(clearLinkedMethods: false);
+      await _clearProviderState();
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
@@ -159,20 +207,27 @@ class IdentityLinkController extends ChangeNotifier {
     }
     stage = IdentityLinkStage.confirming;
     notifyListeners();
+    final generation = _generation;
     try {
-      final response =
-          await transport.send('POST', '/auth/identity-link/confirm', body: {
+      final body = <String, dynamic>{
         'candidate_credential': candidateCredential,
         'proof_credential': proofCredential,
         'installation_id': installationId,
         'platform': platform,
         'outcome': recovery ? 'recovery_link' : 'self_link',
         'confirmed': true,
-      });
-      if (response.status != 200) {
+      };
+      final response = recovery
+          ? await transport.send('POST', '/auth/identity-link/confirm',
+              body: body)
+          : await _sendAuthorized('POST', '/auth/identity-link/confirm',
+              body: body);
+      if (generation != _generation) return;
+      if (response.status != 200 || response.body is! Map<String, dynamic>) {
         throw const ContractException('link failed');
       }
-      if (recovery && response.body?['session'] != null) {
+      final status = response.body!['status'];
+      if (recovery && status == 'linked') {
         final sessionController = session;
         if (sessionController == null || response.body?['session'] is! Map) {
           throw const ContractException('invalid recovery session');
@@ -180,41 +235,102 @@ class IdentityLinkController extends ChangeNotifier {
         await sessionController.accept(SessionEnvelope.fromJson(
             Map<String, dynamic>.from(response.body!['session'] as Map)));
         await onRecovered?.call();
+      } else if (recovery &&
+          status == 'already_linked' &&
+          response.body?['session'] == null) {
+        _retireLocal(clearLinkedMethods: true);
+        await _clearProviderState();
+        stage = IdentityLinkStage.reauthenticationRequired;
+        notifyListeners();
+        return;
+      } else if (recovery ||
+          (status != 'linked' && status != 'already_linked') ||
+          response.body?['session'] != null) {
+        throw const ContractException('invalid identity-link result');
       }
-      await _retire();
+      _retireLocal(clearLinkedMethods: true);
+      await _clearProviderState();
       stage = IdentityLinkStage.completed;
       notifyListeners();
-    } on Object {
+    } on Object catch (error) {
+      if (generation != _generation) return;
+      if (!recovery && error is SessionExpiredException) {
+        _retireLocal(clearLinkedMethods: true);
+        stage = IdentityLinkStage.idle;
+        notifyListeners();
+        await _clearProviderState();
+        await onTerminalSession?.call();
+        return;
+      }
+      _retireLocal(clearLinkedMethods: true);
+      await _clearProviderState();
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
   }
 
   Future<void> cancel() async {
-    if (online) {
-      await transport
-          .send('POST', '/auth/identity-link/cancel', body: const {});
-    }
-    await _retire();
+    if (!_isActiveFlow) return;
+    _retireLocal(clearLinkedMethods: true);
     stage = IdentityLinkStage.cancelled;
     notifyListeners();
+    try {
+      if (online) {
+        await transport
+            .send('POST', '/auth/identity-link/cancel', body: const {});
+      }
+    } on Object {
+      // Server proof is bounded and harmless alone; local retirement wins.
+    } finally {
+      await _clearProviderState();
+    }
   }
 
   Future<void> terminal() async {
-    await _retire();
+    _retireLocal(clearLinkedMethods: true);
     stage = IdentityLinkStage.idle;
     notifyListeners();
+    await _clearProviderState();
   }
 
   Future<void> personSwitch() => terminal();
 
-  Future<void> _retire() async {
+  bool get _isActiveFlow => const {
+        IdentityLinkStage.candidateReady,
+        IdentityLinkStage.proofReady,
+        IdentityLinkStage.confirming,
+      }.contains(stage);
+
+  void _retireLocal({required bool clearLinkedMethods}) {
+    _generation++;
     candidateCredential = null;
     proofCredential = null;
     candidateProvider = null;
     proofProvider = null;
     safeSummary = null;
-    await credentials.clearPresentationState();
+    if (clearLinkedMethods) {
+      linkedMethods = const [];
+      linkedMethodsLoaded = false;
+    }
+  }
+
+  Future<void> _clearProviderState() async {
+    try {
+      await credentials.clearPresentationState();
+    } on Object {
+      // Injected ports must not be able to block canonical local retirement.
+    }
+  }
+
+  Future<ApiResponse> _sendAuthorized(String method, String path,
+      {Map<String, dynamic>? body}) {
+    final injected = authorizedSend;
+    if (injected != null) return injected(method, path, body: body);
+    final sessionController = session;
+    if (sessionController == null) {
+      throw const ContractException('authenticated identity-link unavailable');
+    }
+    return sessionController.authorized(method, path, body: body);
   }
 }
 
@@ -256,12 +372,14 @@ class IdentityLinkPanel extends StatelessWidget {
             const Text('離線唯讀，無法新增登入方式', key: ValueKey('identity-link-offline')),
           if (controller.stage == IdentityLinkStage.idle && controller.online)
             for (final provider in LoginProvider.values)
-              if (recovery ||
-                  !controller.linkedMethods
-                      .any((method) => method.provider == provider.name))
+              if ((recovery || controller.linkedMethodsLoaded) &&
+                  (recovery ||
+                      !controller.linkedMethods
+                          .any((method) => method.provider == provider.name)))
                 OutlinedButton(
                     key: ValueKey('identity-link-begin-${provider.name}'),
-                    onPressed: () => controller.begin(provider),
+                    onPressed: () =>
+                        controller.begin(provider, recovery: recovery),
                     child: Text(
                         '新增 ${provider == LoginProvider.google ? 'Google' : 'LINE'} 登入')),
           if (controller.stage == IdentityLinkStage.candidateReady)
@@ -281,7 +399,11 @@ class IdentityLinkPanel extends StatelessWidget {
                 child: Text(recovery ? '確認追認並登入' : '確認新增登入方式')),
           ],
           if (controller.stage != IdentityLinkStage.idle &&
-              controller.stage != IdentityLinkStage.completed)
+              const {
+                IdentityLinkStage.candidateReady,
+                IdentityLinkStage.proofReady,
+                IdentityLinkStage.confirming,
+              }.contains(controller.stage))
             TextButton(
                 key: const ValueKey('identity-link-cancel'),
                 onPressed: controller.cancel,
@@ -290,7 +412,7 @@ class IdentityLinkPanel extends StatelessWidget {
       );
 }
 
-class IdentityRecoveryPage extends StatelessWidget {
+class IdentityRecoveryPage extends StatefulWidget {
   const IdentityRecoveryPage({
     super.key,
     required this.controller,
@@ -300,6 +422,43 @@ class IdentityRecoveryPage extends StatelessWidget {
   final String platform;
 
   @override
+  State<IdentityRecoveryPage> createState() => _IdentityRecoveryPageState();
+}
+
+class _IdentityRecoveryPageState extends State<IdentityRecoveryPage> {
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+  }
+
+  void _onChanged() {
+    final stage = widget.controller.stage;
+    if (stage != IdentityLinkStage.idle) _started = true;
+    if (_started &&
+        const {
+          IdentityLinkStage.idle,
+          IdentityLinkStage.completed,
+          IdentityLinkStage.reauthenticationRequired,
+          IdentityLinkStage.cancelled,
+        }.contains(stage)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && Navigator.of(context).canPop()) {
+          Navigator.of(context).pop(stage);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('用其他登入方式追認')),
         body: ListView(
@@ -307,8 +466,8 @@ class IdentityRecoveryPage extends StatelessWidget {
           children: [
             const Text('重新驗證陌生登入方式，再用已連結的另一種登入方式確認帳戶。'),
             IdentityLinkPanel(
-              controller: controller,
-              platform: platform,
+              controller: widget.controller,
+              platform: widget.platform,
               recovery: true,
             ),
           ],

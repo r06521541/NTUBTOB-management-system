@@ -10,6 +10,9 @@ import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 from .mobile_api import AuthenticationError, Conflict, InvalidArgument, secret_hash
 
 
@@ -66,6 +69,9 @@ class IdentityLinkProofCodec:
         if len(key) < 32:
             raise ValueError("identity-link proof key must contain at least 32 bytes")
         self._key = key
+        self._encryption_key = hmac.new(
+            key, b"identity-link-proof-aead-v1", hashlib.sha256
+        ).digest()
 
     @staticmethod
     def _utc_microseconds(value: datetime) -> str:
@@ -220,36 +226,43 @@ class IdentityLinkProofCodec:
             raise IdentityLinkConflict("identity-link proofs do not match")
 
     def _issue(self, domain: str, payload: dict) -> str:
-        body = base64.urlsafe_b64encode(
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("ascii")
-        ).rstrip(b"=")
-        signature = hmac.new(
-            self._key, domain.encode("ascii") + b":" + body, hashlib.sha256
-        ).digest()
-        return b".".join(
-            (body, base64.urlsafe_b64encode(signature).rstrip(b"="))
-        ).decode("ascii")
+        plaintext = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+            "ascii"
+        )
+        nonce = secrets.token_bytes(12)
+        sealed = nonce + AESGCM(self._encryption_key).encrypt(
+            nonce, plaintext, ("identity-link-proof:" + domain).encode("ascii")
+        )
+        return base64.urlsafe_b64encode(sealed).rstrip(b"=").decode("ascii")
 
     def _verify(self, domain: str, token: str, now: datetime) -> dict:
         try:
-            body_text, signature_text = token.split(".", 1)
-            body = body_text.encode("ascii")
-            signature = base64.urlsafe_b64decode(
-                signature_text + "=" * (-len(signature_text) % 4)
+            if not isinstance(token, str) or not 80 <= len(token) <= 2048:
+                raise ValueError
+            sealed = base64.b64decode(
+                token + "=" * (-len(token) % 4), altchars=b"-_", validate=True
             )
-            expected = hmac.new(
-                self._key, domain.encode("ascii") + b":" + body, hashlib.sha256
-            ).digest()
-            if not hmac.compare_digest(signature, expected):
+            if len(sealed) < 29:
                 raise ValueError
             payload = json.loads(
-                base64.urlsafe_b64decode(body_text + "=" * (-len(body_text) % 4))
+                AESGCM(self._encryption_key).decrypt(
+                    sealed[:12],
+                    sealed[12:],
+                    ("identity-link-proof:" + domain).encode("ascii"),
+                )
             )
             timestamp = int(now.astimezone(timezone.utc).timestamp())
             if payload["iat"] > timestamp or payload["exp"] <= timestamp:
                 raise ValueError
             return payload
-        except (KeyError, TypeError, ValueError, UnicodeError, json.JSONDecodeError):
+        except (
+            KeyError,
+            TypeError,
+            ValueError,
+            UnicodeError,
+            json.JSONDecodeError,
+            InvalidTag,
+        ):
             raise AuthenticationError(
                 "invalid or expired identity-link proof"
             ) from None

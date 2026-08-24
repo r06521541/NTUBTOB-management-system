@@ -256,6 +256,25 @@ MobileNotification destinationNotification(Map<String, dynamic> destination) =>
     });
 
 void main() {
+  test('pending review and unknown recovery are mutually exclusive', () {
+    expect(
+      shouldOfferIdentityRecovery(
+          state: AuthViewState.identityPending,
+          pendingReviewCredential: 'line-or-google-review-only'),
+      isFalse,
+    );
+    expect(
+      shouldOfferIdentityRecovery(
+          state: AuthViewState.identityPending, pendingReviewCredential: null),
+      isTrue,
+    );
+    expect(
+      shouldOfferIdentityRecovery(
+          state: AuthViewState.loggedOut, pendingReviewCredential: null),
+      isFalse,
+    );
+  });
+
   test('auth operation context rejects terminal epoch and person races', () {
     const operation = AuthOperationContext(4, 'person-A');
     expect(operation.matches(currentEpoch: 4, currentPersonId: 'person-A'),

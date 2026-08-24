@@ -1556,7 +1556,10 @@ class GoogleLoginCoordinator extends ChangeNotifier {
   bool _disposed = false;
   PendingReviewEnvelope? pendingReview;
 
+  void retirePendingReview() => pendingReview = null;
+
   Future<void> login(String platform) async {
+    retirePendingReview();
     if (_active || (platform != 'android' && platform != 'ios')) {
       state = LoginState.unavailable;
       _notify();

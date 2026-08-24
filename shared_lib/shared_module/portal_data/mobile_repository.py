@@ -20,11 +20,11 @@ from shared_module.identity_linking import (
     IdentityLinkResult,
     InternalWebPrincipal,
 )
-from sqlalchemy import Engine, and_, func, or_, select, update
+from sqlalchemy import Engine, and_, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .identity_lifecycle import IdentityLifecycleRepository
+from .identity_lifecycle import ADMIN_LOCK_KEY, IdentityLifecycleRepository
 from .models import (
     AuthIdentityRecord,
     AccessAuditRecord,
@@ -234,6 +234,32 @@ class MobileRepository:
         now = values["now"]
         request_id = codec.audit_request_id(candidate.jti)
         with Session(self.engine) as session, session.begin():
+            # Identity lifecycle admin mutations acquire this advisory lock,
+            # then the target Person, then identity rows. Linking must use the
+            # same global order to avoid Person/identity lock inversion.
+            proof_snapshot = session.scalar(
+                select(AuthIdentityRecord).where(
+                    AuthIdentityRecord.id == proof.identity_id
+                )
+            )
+            if (
+                proof_snapshot is None
+                or proof_snapshot.person_id is None
+                or proof_snapshot.person_id != proof.person_id
+            ):
+                raise IdentityLinkConflict("identity-link state changed")
+            lock_boundary = values.get("lock_boundary")
+            if lock_boundary is not None:
+                lock_boundary()
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": ADMIN_LOCK_KEY},
+            )
+            person = session.scalar(
+                select(PersonRecord)
+                .where(PersonRecord.id == proof.person_id)
+                .with_for_update()
+            )
             rows = session.scalars(
                 select(AuthIdentityRecord)
                 .where(
@@ -243,6 +269,7 @@ class MobileRepository:
                 )
                 .order_by(AuthIdentityRecord.id)
                 .with_for_update()
+                .execution_options(populate_existing=True)
             ).all()
             by_id = {row.id: row for row in rows}
             candidate_row, proof_row = by_id.get(candidate.identity_id), by_id.get(
@@ -302,11 +329,6 @@ class MobileRepository:
                 or audit is not None
             ):
                 raise IdentityLinkConflict("identity-link state changed")
-            person = session.scalar(
-                select(PersonRecord)
-                .where(PersonRecord.id == proof.person_id)
-                .with_for_update()
-            )
             if person is None or person.portal_status != "active":
                 raise IdentityLinkConflict("active target Person required")
             if values.get("current_person_id") not in {None, person.id}:

@@ -1,3 +1,5 @@
+import base64
+import json
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -39,6 +41,39 @@ class IdentityLinkProofCodecTest(unittest.TestCase):
             self.codec.verify_candidate(token, NOW + timedelta(minutes=5))
         with self.assertRaises(AuthenticationError):
             self.codec.verify_fresh_proof(token, NOW)
+
+    def test_public_proofs_are_confidential_not_base64_json(self):
+        candidate = self.codec.issue_candidate(
+            identity_id=41,
+            provider="google",
+            identity_updated_at=NOW,
+            assertion_hash="a" * 64,
+            attempt_hash="b" * 64,
+            binding_hash="c" * 64,
+            jti="candidate-jti-123456",
+            now=NOW,
+        )
+        fresh = self.codec.issue_fresh_proof(
+            identity_id=7,
+            person_id=9,
+            provider="line",
+            identity_updated_at=NOW,
+            candidate_jti="candidate-jti-123456",
+            attempt_hash="d" * 64,
+            binding_hash="c" * 64,
+            jti="proof-jti-123456789",
+            now=NOW,
+        )
+        for token in (candidate, fresh):
+            decoded = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+            with self.assertRaises((UnicodeDecodeError, json.JSONDecodeError)):
+                json.loads(decoded.decode("utf-8"))
+            self.assertNotIn(b'"iid"', decoded)
+            self.assertNotIn(b'"pid"', decoded)
+
+        tampered = candidate[:-1] + ("A" if candidate[-1] != "A" else "B")
+        with self.assertRaises(AuthenticationError):
+            self.codec.verify_candidate(tampered, NOW)
 
     def test_canonical_version_is_utc_microsecond_hmac(self):
         same = NOW.astimezone(timezone(timedelta(hours=8)))

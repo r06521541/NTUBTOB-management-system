@@ -59,6 +59,18 @@ class FakeLine implements LineLoginPort {
   Future<void> logout() async {}
 }
 
+class FakeGoogle implements GoogleLoginPort {
+  int calls = 0;
+  @override
+  Future<String> login() async {
+    calls++;
+    return 'obvious-fake-google-id-token';
+  }
+
+  @override
+  Future<void> logout() async {}
+}
+
 class PendingLine implements LineLoginPort {
   int calls = 0;
   final Completer<String> completer = Completer<String>();
@@ -649,6 +661,30 @@ void main() {
     await login.login('android');
     expect(login.state, LoginState.identityPending);
     expect(login.pendingReview, isNull);
+  });
+
+  test('Google 202 remains a review credential and never a normal session',
+      () async {
+    final api = ScriptedTransport()
+      ..responses.add(const ApiResponse(202, {
+        'review_credential': 'google-review-only',
+        'expires_in': 600,
+        'status': 'pending',
+      }));
+    final store = MemoryStore();
+    final google = FakeGoogle();
+    final login = GoogleLoginCoordinator(
+      google,
+      api,
+      SessionController(api, store, 'install', SecureIds()),
+      SecureIds(),
+      'install',
+    );
+    await login.login('android');
+    expect(login.state, LoginState.identityPending);
+    expect(login.pendingReview?.credential, 'google-review-only');
+    expect(await store.read('refresh:install'), isNull);
+    expect(api.calls.single.$2, '/auth/google/exchange');
   });
 
   test('profile retry key is scoped to person and session generation',
