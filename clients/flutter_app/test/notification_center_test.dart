@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ntubtob_portal/app_theme.dart';
 import 'package:ntubtob_portal/integration.dart';
 import 'package:ntubtob_portal/notification_center.dart';
 
@@ -613,5 +614,114 @@ void main() {
           .onPressed,
       isNull,
     );
+  });
+
+  testWidgets(
+      'centre gives unread rows, sync state, and read rows distinct hierarchy',
+      (tester) async {
+    final controller = NotificationCenterController(
+      client: FakeNotificationClient()
+        ..values = [
+          makeNotification(),
+          makeNotification(
+            id: 'notification_4',
+            readAt: '2026-08-22T11:30:00Z',
+          ),
+        ],
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    await controller.load(online: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: appTheme(Brightness.light),
+        home: NotificationCenter(controller: controller, online: true),
+      ),
+    );
+
+    expect(find.text('2 則通知'), findsOneWidget);
+    expect(find.text('1 則未讀'), findsOneWidget);
+    expect(find.text('未讀'), findsAtLeastNWidgets(2));
+    expect(find.text('已讀'), findsOneWidget);
+    expect(find.textContaining('已同步'), findsOneWidget);
+  });
+
+  testWidgets('detail presents delivery and read metadata as status badges',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: appTheme(Brightness.light),
+        home: NotificationDetailPage(
+          notification: makeNotification(readAt: '2026-08-22T11:30:00Z'),
+        ),
+      ),
+    );
+
+    expect(find.text('通知詳情'), findsOneWidget);
+    expect(find.text('已讀'), findsOneWidget);
+    expect(find.textContaining('送達於'), findsOneWidget);
+    expect(find.textContaining('已讀於'), findsOneWidget);
+  });
+
+  testWidgets(
+      'constrained large-text app bar keeps back, title, and actions reachable',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = NotificationCenterController(
+      client: FakeNotificationClient(),
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: principal,
+      clock: () => now,
+    );
+    await controller.load(online: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: appTheme(Brightness.light),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: const TextScaler.linear(1.3),
+          ),
+          child: child!,
+        ),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: TextButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => NotificationCenter(
+                    controller: controller,
+                    online: true,
+                  ),
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.text('通知中心'), findsOneWidget);
+    expect(find.byKey(const ValueKey('notification-refresh')), findsOneWidget);
+    expect(find.byTooltip('更多通知操作'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('更多通知操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('全部已讀'), findsOneWidget);
+    await tester.tapAt(const Offset(12, 300));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('open'), findsOneWidget);
   });
 }

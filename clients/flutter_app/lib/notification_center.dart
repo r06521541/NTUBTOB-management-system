@@ -391,11 +391,21 @@ class NotificationCenter extends StatelessWidget {
   final ValueChanged<MobileNotification>? onOpen;
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: controller,
-        builder: (context, _) => Scaffold(
+  Widget build(BuildContext context) {
+    final compactActions = MediaQuery.sizeOf(context).width <= 430 &&
+        MediaQuery.textScalerOf(context).scale(1) > 1.2;
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final canMarkAll =
+            online && controller.unreadCount > 0 && !controller.busy;
+        return Scaffold(
           appBar: AppBar(
-            title: Text('通知中心 (${controller.unreadCount})'),
+            automaticallyImplyLeading: false,
+            leading: const BackButton(),
+            title: Text(
+              compactActions ? '通知中心' : '通知中心 (${controller.unreadCount})',
+            ),
             actions: [
               IconButton(
                 key: const ValueKey('notification-refresh'),
@@ -405,52 +415,165 @@ class NotificationCenter extends StatelessWidget {
                     : () => controller.load(online: online),
                 icon: const Icon(Icons.refresh),
               ),
-              TextButton(
-                onPressed:
-                    online && controller.unreadCount > 0 && !controller.busy
-                        ? () => controller.markAllRead(online: true)
-                        : null,
-                child: const Text('全部已讀'),
-              ),
+              if (compactActions)
+                PopupMenuButton<String>(
+                  tooltip: '更多通知操作',
+                  onSelected: (_) => controller.markAllRead(online: true),
+                  itemBuilder: (_) => [
+                    PopupMenuItem<String>(
+                      value: 'mark-all-read',
+                      enabled: canMarkAll,
+                      child: const Text('全部已讀'),
+                    ),
+                  ],
+                )
+              else
+                TextButton(
+                  onPressed: canMarkAll
+                      ? () => controller.markAllRead(online: true)
+                      : null,
+                  child: const Text('全部已讀'),
+                ),
             ],
           ),
           body: _body(context),
-        ),
-      );
+        );
+      },
+    );
+  }
 
   Widget _body(BuildContext context) {
     if (controller.state == NotificationCenterState.loading ||
         controller.state == NotificationCenterState.initial) {
-      return const Center(child: CircularProgressIndicator());
+      return const Center(
+        child: AppStatusPanel(
+          icon: Icons.notifications_outlined,
+          title: '正在整理通知',
+          message: '正在取得最新通知內容。',
+          loading: true,
+        ),
+      );
     }
     if (controller.state == NotificationCenterState.unauthorized) {
-      return const Center(child: Text('目前無法查看通知，請重新登入。'));
+      return const Center(
+        child: AppStatusPanel(
+          icon: Icons.lock_outline,
+          title: '目前無法查看通知',
+          message: '請重新登入後再試。',
+          tone: AppStatusTone.warning,
+        ),
+      );
     }
     if (controller.state == NotificationCenterState.error) {
-      return const Center(child: Text('通知載入失敗，請稍後再試。'));
+      return const Center(
+        child: AppStatusPanel(
+          icon: Icons.error_outline,
+          title: '通知載入失敗',
+          message: '請稍後再試。',
+          tone: AppStatusTone.danger,
+          liveRegion: true,
+        ),
+      );
     }
     if (controller.state ==
         NotificationCenterState.offlineEvidenceUnavailable) {
       return const Center(
-        child: Text('離線時沒有可驗證的通知快取，無法顯示通知。'),
+        child: AppStatusPanel(
+          icon: Icons.cloud_off_outlined,
+          title: '沒有離線通知',
+          message: '離線時沒有可驗證的通知快取，無法顯示通知。',
+          tone: AppStatusTone.warning,
+        ),
       );
     }
     if (controller.items.isEmpty) {
-      return const Center(child: Text('目前沒有通知'));
+      return const Center(
+        child: AppStatusPanel(
+          icon: Icons.notifications_none,
+          title: '目前沒有通知',
+          message: '新的球隊消息會顯示在這裡。',
+        ),
+      );
     }
+    final tokens = context.appTokens;
+    final unreadLabel =
+        controller.unreadCount == 0 ? '全部已讀' : '${controller.unreadCount} 則未讀';
+    final syncedLabel = controller.lastSyncedAt == null
+        ? '尚未同步'
+        : '已同步 ${_formatDateTime(context, controller.lastSyncedAt!)}';
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.regular,
+            AppSpacing.compact,
+            AppSpacing.regular,
+            0,
+          ),
+          child: AppSurfaceCard(
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: tokens.accent.withValues(alpha: .16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    controller.unreadCount == 0
+                        ? Icons.notifications_none
+                        : Icons.notifications_active_outlined,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.regular),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${controller.items.length} 則通知',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        syncedLabel,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                AppStatusBadge(
+                  label: unreadLabel,
+                  tone: controller.unreadCount == 0
+                      ? AppStatusTone.success
+                      : AppStatusTone.warning,
+                ),
+              ],
+            ),
+          ),
+        ),
         if (online)
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('全部')),
-              ButtonSegment(value: true, label: Text('未讀'))
-            ],
-            selected: {controller.unreadOnly},
-            onSelectionChanged: controller.busy
-                ? null
-                : (value) =>
-                    controller.setUnreadOnly(value.single, online: true),
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.regular,
+              vertical: AppSpacing.compact,
+            ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: false, label: Text('全部')),
+                  ButtonSegment(value: true, label: Text('未讀'))
+                ],
+                selected: {controller.unreadOnly},
+                onSelectionChanged: controller.busy
+                    ? null
+                    : (value) =>
+                        controller.setUnreadOnly(value.single, online: true),
+              ),
+            ),
           ),
         if (controller.readOnly)
           const MaterialBanner(
@@ -459,9 +582,16 @@ class NotificationCenter extends StatelessWidget {
           ),
         Expanded(
           child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.regular,
+              AppSpacing.compact,
+              AppSpacing.regular,
+              AppSpacing.regular,
+            ),
             itemCount: controller.items.length,
             itemBuilder: (context, index) {
               final item = controller.items[index];
+              final status = item.isRead ? '已讀' : '未讀';
               return AppSurfaceCard(
                 padding: EdgeInsets.zero,
                 child: ListTile(
@@ -470,8 +600,31 @@ class NotificationCenter extends StatelessWidget {
                         ? Icons.notifications_none
                         : Icons.notifications_active,
                   ),
-                  title: Text(item.title),
-                  subtitle: Text(item.body),
+                  title: Text(
+                    item.title,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.body,
+                            maxLines: 2, overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 6),
+                        Text(
+                          _formatDateTime(context, item.createdAt),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  trailing: AppStatusBadge(
+                    label: status,
+                    tone: item.isRead
+                        ? AppStatusTone.neutral
+                        : AppStatusTone.warning,
+                  ),
                   selected: !item.isRead,
                   onTap: controller.busy
                       ? null
@@ -504,24 +657,56 @@ class NotificationDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final localCreatedAt = notification.createdAt.toLocal();
-    final localizations = MaterialLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('通知內容')),
+      appBar: AppBar(title: const Text('通知詳情')),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpacing.regular),
         children: [
-          Text(notification.title,
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
-          Text(
-            '${localizations.formatFullDate(localCreatedAt)} '
-            '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localCreatedAt))}',
+          AppPageTitle(
+            eyebrow: '球隊通知',
+            title: notification.title,
+            subtitle: '送達於 ${_formatDateTime(context, notification.createdAt)}',
           ),
-          const Divider(height: 32),
-          Text(notification.body),
+          const SizedBox(height: AppSpacing.regular),
+          Wrap(
+            spacing: AppSpacing.compact,
+            runSpacing: AppSpacing.compact,
+            children: [
+              AppStatusBadge(
+                label: notification.isRead ? '已讀' : '未讀',
+                tone: notification.isRead
+                    ? AppStatusTone.success
+                    : AppStatusTone.warning,
+                icon: notification.isRead
+                    ? Icons.check_circle_outline
+                    : Icons.mark_email_unread_outlined,
+              ),
+              if (notification.readAt != null)
+                AppStatusBadge(
+                  label:
+                      '已讀於 ${_formatDateTime(context, notification.readAt!)}',
+                  tone: AppStatusTone.neutral,
+                  icon: Icons.schedule_outlined,
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.regular),
+          AppSurfaceCard(
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            child: Text(
+              notification.body,
+              style: Theme.of(context).textTheme.bodyLarge,
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+String _formatDateTime(BuildContext context, DateTime value) {
+  final local = value.toLocal();
+  final localizations = MaterialLocalizations.of(context);
+  return '${localizations.formatFullDate(local)} '
+      '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(local))}';
 }
