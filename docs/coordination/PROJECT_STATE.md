@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-24
+更新時間：2026-08-25
 
 維護角色：Main Work
 
-Repository 基準：`main` / `36fcd195d960d3d65e3e393923538e98aeb0b787`
+Repository 基準：`main` / `cd49e2038b1d804b3e3c729c510eb8c34df59efb`
 
 ## Active role lanes
 
@@ -15,16 +15,19 @@ checkpoint 提示，不自動建立 PR。接近部署／正式發布候選時才
 
 | lane | current actor_id | claim_id | lease_version | state |
 | --- | --- | --- | --- | --- |
-| `main-work` | `01a02871-a907-7023-8324-3cde5c194f6a` | `main-work-20260822` | 3 | active |
+| `main-work` | `01a03587-d263-7e92-9965-54816f38b8a3` | `main-work-20260825` | 17 | active |
 | `domain-work:flutter` | `01a01212-72dc-7132-b2d7-dfaa2f97f184` | `flutter-domain-20260821` | 2 | active |
 
 Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke current actor，以 full HEAD、dirty state、完成／剩餘事項
 交棒，再更新本表。沒有 active task claim 的其他 session 一律為 `advisor/read-only`；通知訊息不得取代本表或 task claim。
+Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 取代；舊 actor 回報 worktree clean、沒有
+未完成 repository work，可安全封存。Flutter Domain lane 未被撤回，持續有效。
 
 ## 目前摘要
 
 - Flutter client foundation、native LINE/mobile API、Basic/Officer唯讀功能、schedule usability及帳號／資料狀態頁皆已整合；
-  最新產品交付為PR #162／#163。Production mobile deployment、iOS signing/TestFlight與商店發布仍未授權或完成。
+  Google 登入與跨 provider identity recovery repository delivery 亦已由 PR #180 合併。Production mobile deployment、
+  iOS signing/TestFlight與商店發布仍未授權或完成。
 - Isolated fictional mobile staging、fixture/operator、no-disclosure broker、固定redacted JSON、atomic launcher及checkpoint
   primitive可重用，且未觸及production。完整acceptance orchestration／UIAutomator timing retry僅供
   experimental/manual-on-demand，不作merge或release gate；其E2E dogfood結論仍為inconclusive。
@@ -46,10 +49,11 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   真實通知、release signing 與 stores 仍未授權。
 - TASK-146 已啟動為第一個新流程 L2 pilot：將既有通知中心接入正式 Flutter 首頁、badge、session/capability 與
   offline cache lifecycle。範圍限 Flutter repository integration；不改 backend/schema，不使用 emulator/staging/provider。
-- PR #180 已完成 Google 登入、LINE／Google 跨 provider 登入方式連結與陌生登入追認，以及 Web／Mobile／Flutter
-  release-readiness plumbing；exact HEAD `b0c8cbb7ffd35950f366d289c7b70979f62b99fa` 為 open／clean／non-draft，
-  12 項 hosted checks 與獨立 Web/Auth/DB、Flutter Auth review 均通過。沒有 schema migration；尚未執行真 OAuth
-  Console、Secret/IAM、staging／production deployment、真 provider smoke 或 iOS signing。
+- PR #180 已合併為 `cd49e2038b1d804b3e3c729c510eb8c34df59efb`，完成 Google 登入、LINE／Google 跨 provider
+  登入方式連結與陌生登入追認，以及 Web／Mobile／Flutter release-readiness plumbing；合併前 12 項 hosted checks
+  與獨立 Web/Auth/DB、Flutter Auth review 均通過，且沒有 schema migration。撤回的 Main actor 曾回報部分
+  provider-side preparation，但本次 repository recovery 未獨立驗證任何外部狀態；staging／production deployment、
+  真 provider smoke 與 iOS signing 仍未完成，且 OAuth/provider、Secret/IAM 與部署動作持續受 Owner gate 約束。
 
 ## 已確認的 production 狀態
 
@@ -94,8 +98,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - Identity maintenance 仍為 false；新 pending identity 的 match／ignore／remap 等正式操作需另行規劃啟用與驗證。
 - People role 尚未取代 runtime admin allowlist；officer／admin 的正式持久化權限切換仍屬 Phase D 之後工作。
 - Event／Activity、多場比賽、旅遊與 guest-player eligibility 尚停留在規劃／Demo，不代表正式 schema 或 production 功能。
-- Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation，但尚未由
-  Owner 配置 OAuth clients、callbacks、Android/iOS signing metadata、Secret/IAM 或部署驗證；Apple 登入仍未實作。
+- Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation。部分外部
+  provider preparation 僅有撤回 actor 的交棒回報，未經本次 repository recovery 驗證；部署與真 provider smoke
+  仍未完成且需 Owner 明確核准。Apple 登入仍未實作。
 - Attendance 首次載入可能受 Cloud Run／資料庫 cold path 影響；現階段接受延遲，後續應先量測再改架構。
 
 ## 下一階段候選方向

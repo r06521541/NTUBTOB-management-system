@@ -101,7 +101,9 @@
 - Portal 採 mobile-first、隊徽深藍／中性灰；綠色保留 LINE／成功，紅色保留警示與破壞性操作。
 - LINE Login 必須維持 session／state binding；手機一般瀏覽器不保證可喚起 LINE App，應引導 LINE 使用者在 LINE
   in-app browser 開啟。電腦可使用 LINE 提供的 QR／帳號登入。
-- Google／Apple 目前僅 prototype UI，不宣稱已串接 OAuth。
+- Google 登入及 LINE／Google identity linking/recovery 的 repository implementation 已由 PR #180 合併；這不代表
+  provider configuration、Secret/IAM、signing、deployment 或真 provider smoke 已驗證或獲授權。外部 preparation
+  只有撤回 actor 的部分交棒回報，未經 repository evidence 獨立驗證。Apple 登入仍未實作。
 - 登入後目的地曾有 production 未完全解決的回首頁情況；不得以降低 state／CSRF 邊界換取 redirect 便利。
 
 ## DEC-085：通知渠道與 LINE Notify 棄用
