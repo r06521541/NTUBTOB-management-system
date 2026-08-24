@@ -145,7 +145,10 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     super.initState();
     _probe = widget.probe ?? ProductionDemoProbe();
     _api = _ProductionDemoApi(_probe, _games);
-    _reportCache = _ProductionDemoReportCache(_fictionalReportUiModel);
+    _reportCache = _ProductionDemoReportCache([
+      _fictionalMixedReportUiModel,
+      _fictionalReadyReportUiModel,
+    ]);
     _notificationCache = NotificationCache(MemoryStore(), 'fictional-demo');
     _notificationClient = _ProductionDemoNotificationClient();
     _publishingClient = _ProductionDemoPublishingClient(_probe);
@@ -945,7 +948,8 @@ class _ProductionDemoApi extends BasicApi {
   }) async {
     probe.reportReads++;
     _findGame(id);
-    final completeLineup = id == 'game_902';
+    final readyLineup = id == 'game_902';
+    final mixedLineup = id == 'game_901';
     return AttendanceReport(
       gameId: id,
       generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
@@ -954,34 +958,28 @@ class _ProductionDemoApi extends BasicApi {
         historyLimit,
         minimumResponseRate,
       ),
-      attending: completeLineup
-          ? List.generate(
-              10,
-              (index) => AttendanceReportPerson(
-                'fictional-ready-$index',
-                '虛構齊備隊員 ${index + 1}',
-                index == 8
-                    ? AttendanceReply.leavingEarly
-                    : AttendanceReply.attending,
-                memberNumber: index + 1,
-              ),
-            )
+      attending: mixedLineup
+          ? _fictionalMixedLineupAttendance()
+          : readyLineup
+              ? _fictionalReadyLineupAttendance()
+              : const [
+                  AttendanceReportPerson(
+                    'fictional-attending',
+                    '虛構出席隊員',
+                    AttendanceReply.arrivingLate,
+                    memberNumber: 18,
+                  ),
+                ],
+      notAttending: readyLineup
+          ? const []
           : const [
               AttendanceReportPerson(
-                'fictional-attending',
-                '虛構出席隊員',
-                AttendanceReply.arrivingLate,
-                memberNumber: 18,
+                'fictional-not-attending',
+                '虛構不出席隊員',
+                AttendanceReply.notAttending,
               ),
             ],
-      notAttending: const [
-        AttendanceReportPerson(
-          'fictional-not-attending',
-          '虛構不出席隊員',
-          AttendanceReply.notAttending,
-        ),
-      ],
-      notYetReplied: completeLineup
+      notYetReplied: readyLineup
           ? const []
           : const [
               AttendanceReportUnansweredPerson(
@@ -1026,18 +1024,63 @@ class _ProductionDemoApi extends BasicApi {
   }
 }
 
-final _fictionalReportUiModel = SingleGameReportUiModel(
+List<AttendanceReportPerson> _fictionalMixedLineupAttendance() => [
+      for (var index = 0; index < 8; index++)
+        AttendanceReportPerson(
+          'fictional-ready-$index',
+          '虛構出席隊員 ${index + 1}',
+          AttendanceReply.attending,
+          memberNumber: index + 1,
+        ),
+      const AttendanceReportPerson(
+        'fictional-ready-8',
+        '虛構早退隊員 9',
+        AttendanceReply.leavingEarly,
+        memberNumber: 9,
+      ),
+      const AttendanceReportPerson(
+        'fictional-late',
+        '虛構晚到隊員 10',
+        AttendanceReply.arrivingLate,
+        memberNumber: 10,
+      ),
+    ];
+
+List<AttendanceReportPerson> _fictionalReadyLineupAttendance() => [
+      for (var index = 0; index < 11; index++)
+        AttendanceReportPerson(
+          'fictional-ready-$index',
+          '虛構齊備隊員 ${index + 1}',
+          index == 9 ? AttendanceReply.leavingEarly : AttendanceReply.attending,
+          memberNumber: index + 1,
+        ),
+    ];
+
+final _fictionalMixedReportUiModel = SingleGameReportUiModel(
   gameId: 'game_901',
   gameLabel: '虛構校友隊 vs 範例友隊',
   generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
   historyGames: 8,
   historyLimit: 12,
   minimumResponseRate: 60,
-  attending: const [
-    ReportParticipantUiModel(
-      id: 'fictional-attending',
-      displayName: '虛構出席隊員',
-      memberNumber: 18,
+  attending: [
+    for (var index = 0; index < 8; index++)
+      ReportParticipantUiModel(
+        id: 'fictional-ready-$index',
+        displayName: '虛構出席隊員 ${index + 1}',
+        memberNumber: index + 1,
+        reply: AttendanceReply.attending,
+      ),
+    const ReportParticipantUiModel(
+      id: 'fictional-ready-8',
+      displayName: '虛構早退隊員 9',
+      memberNumber: 9,
+      reply: AttendanceReply.leavingEarly,
+    ),
+    const ReportParticipantUiModel(
+      id: 'fictional-late',
+      displayName: '虛構晚到隊員 10',
+      memberNumber: 10,
       reply: AttendanceReply.arrivingLate,
     ),
   ],
@@ -1060,9 +1103,34 @@ final _fictionalReportUiModel = SingleGameReportUiModel(
   ],
 );
 
+final _fictionalReadyReportUiModel = SingleGameReportUiModel(
+  gameId: 'game_902',
+  gameLabel: '虛構校友隊 vs 示意來賓隊',
+  generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
+  historyGames: 8,
+  historyLimit: 12,
+  minimumResponseRate: 60,
+  attending: [
+    for (var index = 0; index < 11; index++)
+      ReportParticipantUiModel(
+        id: 'fictional-ready-$index',
+        displayName: '虛構齊備隊員 ${index + 1}',
+        memberNumber: index + 1,
+        reply: index == 9
+            ? AttendanceReply.leavingEarly
+            : AttendanceReply.attending,
+      ),
+  ],
+  notAttending: const [],
+  notYetReplied: const [],
+);
+
 class _ProductionDemoReportCache implements PrincipalOfficerReportCache {
-  _ProductionDemoReportCache(SingleGameReportUiModel report)
-      : _reports = {'fictional-officer::${report.gameId}': report};
+  _ProductionDemoReportCache(Iterable<SingleGameReportUiModel> reports)
+      : _reports = {
+          for (final report in reports)
+            'fictional-officer::${report.gameId}': report,
+        };
 
   final Map<String, SingleGameReportUiModel> _reports;
 

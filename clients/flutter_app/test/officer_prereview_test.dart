@@ -646,7 +646,10 @@ void main() {
       await pumpLineupLab(tester, lineupReport(attending: 8, unanswered: 2));
 
       expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
-      expect(find.text('先發 0/9・尚缺 9 人・候補／未安排 8 人・尚未回覆 2 人'), findsOneWidget);
+      expect(find.text('先發 0/9'), findsOneWidget);
+      expect(find.text('尚缺 9 人'), findsOneWidget);
+      expect(find.text('候補／未安排 8 人'), findsOneWidget);
+      expect(find.text('尚未回覆 2 人'), findsOneWidget);
       for (var slot = 1; slot <= 9; slot++) {
         expect(find.byKey(ValueKey('lineup-slot-$slot')), findsOneWidget);
       }
@@ -712,6 +715,110 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('narrow field grid keeps a long annotated name readable', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final report = lineupReport(attending: 10, unanswered: 0);
+    final controller = controllerFor();
+    await controller.applyFreshPrincipal(
+      principalId: 'officer',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    controller
+      ..report = report
+      ..state = OfficerReportViewState.ready;
+    await tester.pumpWidget(
+      MaterialApp(home: OfficerReportPanel(controller: controller)),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('細排'));
+    await tester.pumpAndSettle();
+    final pitcher = find.byKey(const ValueKey('lineup-position-P'));
+    await tester.scrollUntilVisible(
+      pitcher,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(pitcher);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('lineup-position-P-player-quality-9')),
+    );
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(
+      find.byKey(const ValueKey('lineup-field-grid')),
+    );
+    expect(
+      grid.gridDelegate,
+      isA<SliverGridDelegateWithFixedCrossAxisCount>().having(
+        (delegate) => delegate.crossAxisCount,
+        'crossAxisCount',
+        2,
+      ),
+    );
+    expect(tester.getSemantics(pitcher).label, contains('Quality 9 #10（早走）'));
+    final label = tester.widget<Text>(find.text('Quality 9 #10（早走）'));
+    expect(label.maxLines, 3);
+    expect(label.overflow, isNot(TextOverflow.ellipsis));
+  });
+
+  testWidgets('ready summary wraps four complete metrics at 390px text scale', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final report = lineupReport(attending: 10, unanswered: 0);
+    final controller = controllerFor();
+    await controller.applyFreshPrincipal(
+      principalId: 'officer',
+      reportReadGrant: const ManagementReportReadGrant.granted(),
+    );
+    final draft = controller.lineupDraftFor(report);
+    for (var index = 0; index < 9; index++) {
+      draft.assignFieldPosition(
+        LineupFieldPosition.values[index],
+        draft.pool[index],
+      );
+      draft.assignBattingSlot(index + 1, draft.pool[index]);
+    }
+    controller
+      ..report = report
+      ..state = OfficerReportViewState.ready;
+    await tester.pumpWidget(
+      MaterialApp(home: OfficerReportPanel(controller: controller)),
+    );
+    await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('lineup-ready')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('lineup-metric-starters')),
+      findsOneWidget,
+    );
+    expect(find.text('先發 9/9'), findsOneWidget);
+    expect(find.text('尚缺 0 人'), findsOneWidget);
+    expect(find.text('候補／未安排 1 人'), findsOneWidget);
+    expect(find.text('尚未回覆 0 人'), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(find.byKey(const ValueKey('lineup-decision-counts')))
+          .label,
+      contains('先發 9/9，尚缺 0 人，候補／未安排 1 人，尚未回覆 0 人'),
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   test('coarse fine and all resets have isolated Web parity boundaries', () {
     final draft = LineupDraft.fromReport(
@@ -1796,7 +1903,8 @@ void main() {
     await tester.pump();
     expect(find.text('觀察場次：8 / 12'), findsOneWidget);
     expect(find.text('最低回覆率：60%'), findsOneWidget);
-    expect(find.textContaining('產生時間：2026-08-19'), findsOneWidget);
+    expect(find.text('產生時間：2026年8月19日 08:00（台北時間）'), findsOneWidget);
+    expect(find.textContaining('2026-08-19T00:00:00'), findsNothing);
     await tester.scrollUntilVisible(find.text('出席'), 300);
     expect(find.text('出席'), findsOneWidget);
     expect(find.text('不出席'), findsOneWidget);
