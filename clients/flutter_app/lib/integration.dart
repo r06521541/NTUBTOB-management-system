@@ -1672,7 +1672,7 @@ class GoogleLoginCoordinator extends ChangeNotifier {
   }
 }
 
-class SessionController {
+class SessionController extends ChangeNotifier {
   SessionController(
     this.api,
     this.store,
@@ -1704,7 +1704,10 @@ class SessionController {
       await store.write('refresh:$installationId', session.refreshToken);
       await store.delete('refresh-attempt:$installationId');
       _access = session.accessToken;
-      if (newLogin) _generation++;
+      if (newLogin) {
+        _generation++;
+        notifyListeners();
+      }
     } on Object {
       _access = null;
       await store.delete('refresh:$installationId');
@@ -1801,6 +1804,7 @@ class SessionController {
   Future<void> clear() async {
     _generation++;
     _access = null;
+    notifyListeners();
     await store.delete('refresh:$installationId');
     await store.delete('refresh-attempt:$installationId');
     await terminalPurge?.call();

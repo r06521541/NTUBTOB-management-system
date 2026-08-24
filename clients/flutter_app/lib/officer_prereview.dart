@@ -1031,6 +1031,39 @@ class OfficerReadOnlyShell extends StatelessWidget {
       );
 }
 
+class OfficerNotificationPublishScope extends ChangeNotifier {
+  OfficerNotificationPublishScope(this.session, this.person, this.online) {
+    session.addListener(_sessionChanged);
+  }
+
+  final SessionController session;
+  Person person;
+  bool online;
+
+  bool get authorized => online && person.canPublishNotifications;
+  String get token =>
+      '${person.id}:${session.generation}:${authorized ? 1 : 0}';
+
+  void update(Person nextPerson, bool nextOnline) {
+    if (person.id == nextPerson.id &&
+        person.canPublishNotifications == nextPerson.canPublishNotifications &&
+        online == nextOnline) {
+      return;
+    }
+    person = nextPerson;
+    online = nextOnline;
+    notifyListeners();
+  }
+
+  void _sessionChanged() => notifyListeners();
+
+  @override
+  void dispose() {
+    session.removeListener(_sessionChanged);
+    super.dispose();
+  }
+}
+
 class CanonicalManagementReportsPage extends StatefulWidget {
   const CanonicalManagementReportsPage({
     super.key,
@@ -1039,6 +1072,7 @@ class CanonicalManagementReportsPage extends StatefulWidget {
     required this.games,
     required this.online,
     this.cache,
+    this.publishingClient,
   });
 
   final BasicApi api;
@@ -1046,6 +1080,7 @@ class CanonicalManagementReportsPage extends StatefulWidget {
   final List<Game> games;
   final bool online;
   final PrincipalOfficerReportCache? cache;
+  final NotificationPublishingClient? publishingClient;
 
   @override
   State<CanonicalManagementReportsPage> createState() =>
@@ -1055,6 +1090,7 @@ class CanonicalManagementReportsPage extends StatefulWidget {
 class _CanonicalManagementReportsPageState
     extends State<CanonicalManagementReportsPage> {
   late final OfficerReportController controller;
+  late final OfficerNotificationPublishScope publishScope;
 
   @override
   void initState() {
@@ -1062,6 +1098,11 @@ class _CanonicalManagementReportsPageState
     controller = OfficerReportController(
       repository: CanonicalOfficerReportRepository(widget.api, widget.games),
       cache: widget.cache ?? InMemoryPrincipalOfficerReportCache(),
+    );
+    publishScope = OfficerNotificationPublishScope(
+      widget.api.session,
+      widget.person,
+      widget.online,
     );
     controller.applyFreshPrincipal(
       principalId: widget.person.id,
@@ -1073,8 +1114,15 @@ class _CanonicalManagementReportsPageState
 
   @override
   void dispose() {
+    publishScope.dispose();
     controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant CanonicalManagementReportsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    publishScope.update(widget.person, widget.online);
   }
 
   @override
@@ -1095,7 +1143,18 @@ class _CanonicalManagementReportsPageState
                           OfficerReportViewState.sessionExpired,
                           OfficerReportViewState.contractError,
                         }.contains(controller.state)
-                    ? OfficerReportPanel(controller: controller)
+                    ? OfficerReportPanel(
+                        controller: controller,
+                        publishScope: publishScope,
+                        publishingClient: widget.online &&
+                                widget.person.canPublishNotifications
+                            ? (widget.publishingClient ??
+                                OfficerNotificationPublisher(
+                                  widget.api.session,
+                                  widget.person,
+                                ))
+                            : null,
+                      )
                     : ListView(
                         children: [
                           if (!widget.online)
@@ -1146,10 +1205,14 @@ class OfficerReportPanel extends StatelessWidget {
     super.key,
     required this.controller,
     this.diagnosticEnabled = true,
+    this.publishingClient,
+    this.publishScope,
   });
 
   final OfficerReportController controller;
   final bool diagnosticEnabled;
+  final NotificationPublishingClient? publishingClient;
+  final OfficerNotificationPublishScope? publishScope;
 
   @override
   Widget build(BuildContext context) {
@@ -1180,6 +1243,8 @@ class OfficerReportPanel extends StatelessWidget {
           report: controller.report!,
           offline: controller.state == OfficerReportViewState.offlineCached,
           controller: controller,
+          publishingClient: publishingClient,
+          publishScope: publishScope,
         ),
       _ => Center(child: Text(semantics)),
     };
@@ -1277,11 +1342,15 @@ class _ReportContents extends StatefulWidget {
     required this.report,
     required this.offline,
     required this.controller,
+    this.publishingClient,
+    this.publishScope,
   });
 
   final SingleGameReportUiModel report;
   final bool offline;
   final OfficerReportController controller;
+  final NotificationPublishingClient? publishingClient;
+  final OfficerNotificationPublishScope? publishScope;
 
   @override
   State<_ReportContents> createState() => _ReportContentsState();
@@ -1351,6 +1420,8 @@ class _ReportContentsState extends State<_ReportContents> {
                       builder: (_) => OfficerNotificationDraftPage(
                         draft: widget.controller.notificationDraftFor(report),
                         offline: widget.offline,
+                        publishingClient: widget.publishingClient,
+                        publishScope: widget.publishScope,
                       ),
                     )),
           ),
@@ -1383,9 +1454,13 @@ class OfficerNotificationDraftPage extends StatefulWidget {
     super.key,
     required this.draft,
     required this.offline,
+    this.publishingClient,
+    this.publishScope,
   });
   final OfficerNotificationDraft draft;
   final bool offline;
+  final NotificationPublishingClient? publishingClient;
+  final OfficerNotificationPublishScope? publishScope;
 
   @override
   State<OfficerNotificationDraftPage> createState() =>
@@ -1395,17 +1470,133 @@ class OfficerNotificationDraftPage extends StatefulWidget {
 class _OfficerNotificationDraftPageState
     extends State<OfficerNotificationDraftPage> {
   late final TextEditingController _message;
+  late final TextEditingController _confirmation;
+  Map<String, dynamic>? _serverPreview;
+  String? _commandKey;
+  String? _publishOutcome;
+  bool _publishing = false;
+  String? _previewScopeToken;
 
   @override
   void initState() {
     super.initState();
     _message = TextEditingController(text: widget.draft.message);
+    _confirmation = TextEditingController();
+    widget.draft.addListener(_invalidateServerPreview);
+    widget.publishScope?.addListener(_scopeChanged);
   }
 
   @override
   void dispose() {
+    widget.draft.removeListener(_invalidateServerPreview);
+    widget.publishScope?.removeListener(_scopeChanged);
     _message.dispose();
+    _confirmation.dispose();
     super.dispose();
+  }
+
+  bool get _publishAuthorized =>
+      !widget.offline &&
+      widget.publishingClient != null &&
+      (widget.publishScope?.authorized ?? true);
+
+  void _scopeChanged() => _invalidateServerPreview();
+
+  void _invalidateServerPreview() {
+    if (_serverPreview == null &&
+        _commandKey == null &&
+        _confirmation.text.isEmpty) {
+      return;
+    }
+    setState(() {
+      _serverPreview = null;
+      _commandKey = null;
+      _previewScopeToken = null;
+      _confirmation.clear();
+    });
+  }
+
+  Map<String, dynamic> _serverDraft() => {
+        'type': 'officer_personal',
+        'title': '尚未回覆提醒',
+        'body': widget.draft.message.trim(),
+        'audience': {
+          'type': 'individual',
+          'person_ids': widget.draft.selectedIds.toList()..sort(),
+        },
+        'destination': {'type': 'notification'},
+      };
+
+  Future<void> _previewServer() async {
+    final client = widget.publishingClient;
+    if (!_publishAuthorized || client == null || _publishing) return;
+    setState(() {
+      _publishing = true;
+      _serverPreview = null;
+      _commandKey = null;
+      _publishOutcome = null;
+    });
+    final scopeToken = widget.publishScope?.token;
+    try {
+      final preview = await client.preview(_serverDraft());
+      if (mounted &&
+          _publishAuthorized &&
+          scopeToken == widget.publishScope?.token) {
+        setState(() {
+          _serverPreview = preview;
+          _commandKey = SecureIds().next();
+          _previewScopeToken = widget.publishScope?.token;
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _publishOutcome = '伺服器預覽失敗；未發布通知');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _publishing = false);
+      }
+    }
+  }
+
+  Future<void> _confirmServer() async {
+    final client = widget.publishingClient;
+    final preview = _serverPreview;
+    final commandKey = _commandKey;
+    if (!_publishAuthorized ||
+        client == null ||
+        preview == null ||
+        commandKey == null ||
+        _publishing) {
+      return;
+    }
+    if (_previewScopeToken != widget.publishScope?.token) {
+      _invalidateServerPreview();
+      return;
+    }
+    if (_confirmation.text != preview['confirmation_text']) {
+      return;
+    }
+    setState(() => _publishing = true);
+    try {
+      await client.confirm(_serverDraft(), preview, commandKey);
+      if (mounted) {
+        setState(() {
+          _serverPreview = null;
+          _commandKey = null;
+          _previewScopeToken = null;
+          _publishOutcome = 'App 內通知已保存；外部推播仍在 outbox，尚未保證送達';
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _publishOutcome = '發布失敗；請重新取得伺服器預覽');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _publishing = false);
+      }
+    }
   }
 
   @override
@@ -1422,11 +1613,14 @@ class _OfficerNotificationDraftPageState
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                const shad.Alert(
+                shad.Alert(
                   key: ValueKey('notification-draft-local-only'),
                   leading: Icon(Icons.edit_note_outlined),
-                  title: Text('本機草稿，不會送出'),
-                  content: Text('這裡只供選擇、編輯與確認預覽；沒有呼叫通知或後端。'),
+                  title: Text(
+                      !_publishAuthorized ? '本機草稿，不會送出' : '伺服器會驗證收件人並要求確認'),
+                  content: Text(!_publishAuthorized
+                      ? '這裡只供選擇、編輯與確認預覽；沒有呼叫通知或後端。'
+                      : '只顯示伺服器回傳的人數與修訂版本；離線時不可發布。'),
                 ),
                 if (widget.offline) ...[
                   const SizedBox(height: 12),
@@ -1497,7 +1691,40 @@ class _OfficerNotificationDraftPageState
                   decoration: const InputDecoration(labelText: '草稿內容'),
                   onChanged: widget.draft.edit,
                 ),
-                if (!widget.draft.confirmed)
+                if (_publishAuthorized) ...[
+                  shad.PrimaryButton(
+                    key: const ValueKey('notification-draft-server-preview'),
+                    onPressed: widget.draft.selectedCount > 0 &&
+                            widget.draft.message.trim().isNotEmpty &&
+                            !_publishing
+                        ? _previewServer
+                        : null,
+                    child: const Text('取得伺服器收件人預覽'),
+                  ),
+                  if (_serverPreview != null) ...[
+                    Text('伺服器確認收件人：${_serverPreview!['recipient_count']} 人'),
+                    TextField(
+                      key: const ValueKey(
+                          'notification-draft-server-confirmation'),
+                      controller: _confirmation,
+                      onChanged: (_) => setState(() {}),
+                      decoration: InputDecoration(
+                        labelText:
+                            '請輸入 ${_serverPreview!['confirmation_text']}',
+                      ),
+                    ),
+                    shad.PrimaryButton(
+                      key: const ValueKey('notification-draft-server-confirm'),
+                      onPressed: !_publishing &&
+                              _confirmation.text ==
+                                  _serverPreview!['confirmation_text']
+                          ? _confirmServer
+                          : null,
+                      child: const Text('確認發布'),
+                    ),
+                  ],
+                  if (_publishOutcome != null) Text(_publishOutcome!),
+                ] else if (!widget.draft.confirmed)
                   shad.PrimaryButton(
                     key: const ValueKey('notification-draft-preview'),
                     onPressed: widget.draft.selectedCount > 0 &&
