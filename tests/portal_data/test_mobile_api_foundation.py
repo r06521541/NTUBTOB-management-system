@@ -17,6 +17,7 @@ from alembic.config import Config
 from shared_module.identity_linking import IdentityLinkConflict, IdentityLinkProofCodec
 from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
 from shared_module.portal_data.domain import ConflictError
+from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
 from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
 from sqlalchemy import create_engine, text
@@ -35,6 +36,15 @@ class FakeCipher:
 
     def open(self, value):
         return value.removeprefix(b"fake:")[::-1]
+
+
+class CapturingAccessTokenCodec:
+    def __init__(self):
+        self.principal = None
+
+    def issue(self, principal, _now):
+        self.principal = principal
+        return "obvious-fake-access", 900
 
 
 @unittest.skipUnless(DATABASE_URL, "portal-data PostgreSQL URL is required")
@@ -80,8 +90,19 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                     "now": NOW,
                 },
             )
+            admin_member_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.members (name, person_id) "
+                    "VALUES ('Mobile Test Admin', :person) RETURNING id"
+                ),
+                {"person": person_id},
+            )
         self.person_id, self.identity_id = person_id, identity_id
+        self.admin_member_id = admin_member_id
         self.repository = MobileRepository(self.engine)
+        self.admin_lifecycle = IdentityLifecycleRepository(
+            self.engine, admin_member_ids=(admin_member_id,)
+        )
 
     def _google_candidate_proofs(self, suffix="one"):
         candidate_id = self.repository.ensure_google_link_candidate(
@@ -120,6 +141,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         return codec, candidate, proof, candidate_id
 
     def _confirm_recovery(self, codec, candidate, proof, **overrides):
+        token_codec = overrides.pop("token_codec", HmacAccessTokenCodec(b"x" * 32))
         values = dict(
             codec=codec,
             candidate=candidate,
@@ -132,7 +154,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                 "refresh_hash": "1" * 64,
                 "installation_id_hash": "2" * 64,
                 "platform": "android",
-                "token_codec": HmacAccessTokenCodec(b"x" * 32),
+                "token_codec": token_codec,
             },
             session_mode="mobile",
         )
@@ -141,12 +163,15 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
 
     def test_recovery_confirm_and_lost_response_replay_have_exact_counts(self):
         codec, candidate, proof, _candidate_id = self._google_candidate_proofs()
-        first = self._confirm_recovery(codec, candidate, proof)
+        token_codec = CapturingAccessTokenCodec()
+        first = self._confirm_recovery(codec, candidate, proof, token_codec=token_codec)
         replay = self._confirm_recovery(
             codec, candidate, proof, now=NOW + timedelta(seconds=2)
         )
         self.assertEqual(first.status, "linked")
         self.assertIsNotNone(first.mobile_session)
+        self.assertIsNotNone(token_codec.principal)
+        self.assertEqual(token_codec.principal.access_level, "basic")
         self.assertEqual(replay.status, "already_linked")
         self.assertIsNone(replay.mobile_session)
         with self.engine.connect() as connection:
@@ -319,7 +344,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
             recovery=None,
             session_mode="web",
         )
-        self.repository.lifecycle.unlink_identity(
+        self.admin_lifecycle.unlink_identity(
             self.person_id,
             snapshot["identity_id"],
             "test unlink",
@@ -496,7 +521,9 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
 
         def ignore():
             try:
-                MobileRepository(self.engine).lifecycle.set_ignored(
+                IdentityLifecycleRepository(
+                    self.engine, admin_member_ids=(self.admin_member_id,)
+                ).set_ignored(
                     self.person_id,
                     snapshot["identity_id"],
                     True,
@@ -539,21 +566,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
 
     def tearDown(self):
         with self.engine.begin() as connection:
-            connection.execute(
-                text(
-                    "TRUNCATE ntubtob.mobile_auth_exchanges, "
-                    "ntubtob.mobile_idempotency_records, "
-                    "ntubtob.mobile_refresh_attempts, "
-                    "ntubtob.mobile_refresh_tokens, ntubtob.mobile_sessions CASCADE"
-                )
-            )
-            connection.execute(
-                text(
-                    "DELETE FROM ntubtob.auth_identities WHERE id = :identity; "
-                    "DELETE FROM ntubtob.people WHERE id = :person"
-                ),
-                {"identity": self.identity_id, "person": self.person_id},
-            )
+            connection.execute(text("TRUNCATE ntubtob.people RESTART IDENTITY CASCADE"))
 
     def test_five_tables_have_rls_and_revision_is_exact(self):
         expected = {

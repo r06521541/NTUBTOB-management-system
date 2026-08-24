@@ -417,7 +417,7 @@ class MobileRepository:
                     session_id,
                     person.id,
                     proof_row.id,
-                    person.access_level,
+                    person.portal_access_level,
                     person.display_name,
                     1,
                 )
