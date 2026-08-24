@@ -3,8 +3,11 @@ set -eu
 
 decode_define() {
   encoded="$1"
-  printf '%s' "$encoded" | /usr/bin/base64 -D 2>/dev/null ||
-    printf '%s' "$encoded" | /usr/bin/base64 -d 2>/dev/null
+  if /usr/bin/base64 --help 2>&1 | grep -q -- '--decode'; then
+    printf '%s' "$encoded" | /usr/bin/base64 --decode
+  else
+    printf '%s' "$encoded" | /usr/bin/base64 -D
+  fi
 }
 
 dart_define() {

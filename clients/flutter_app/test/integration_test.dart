@@ -418,11 +418,10 @@ void main() {
       'GOOGLE_CLIENT_ID': iosClient,
       'GOOGLE_SERVER_CLIENT_ID': serverClient,
     };
-    expect(
-      (await validate(real, reversed: 'com.googleusercontent.apps.123-ios'))
-          .exitCode,
-      0,
-    );
+    final validReal =
+        await validate(real, reversed: 'com.googleusercontent.apps.123-ios');
+    expect(validReal.exitCode, 0,
+        reason: '${validReal.stdout}\n${validReal.stderr}');
     expect(
       (await validate(real, reversed: 'com.googleusercontent.apps.999-other'))
           .exitCode,
