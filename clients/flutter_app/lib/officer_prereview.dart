@@ -1412,7 +1412,7 @@ class _ReportContentsState extends State<_ReportContents> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                Text('產生時間：${report.generatedAt.toUtc().toIso8601String()}'),
+                Text('產生時間：${_friendlyTaipeiTime(report.generatedAt)}'),
                 Text('觀察場次：${report.historyGames} / ${report.historyLimit}'),
                 Text('最低回覆率：${report.minimumResponseRate}%'),
                 if (widget.offline) ...[
@@ -1494,7 +1494,7 @@ class _ReportContentsState extends State<_ReportContents> {
                 const Text('出席'),
                 Text('${report.attending.length} 人'),
                 for (final participant in report.attending)
-                  Text(participant.displayName),
+                  Text(_reportParticipantLabel(participant)),
                 const SizedBox(height: 8),
                 const Text('不出席'),
                 Text('${report.notAttending.length} 人'),
@@ -1887,6 +1887,19 @@ class _InsightsCard extends StatelessWidget {
       );
 }
 
+String _friendlyTaipeiTime(DateTime instant) {
+  final taipei = instant.toUtc().add(const Duration(hours: 8));
+  final hour = taipei.hour.toString().padLeft(2, '0');
+  final minute = taipei.minute.toString().padLeft(2, '0');
+  return '${taipei.year}年${taipei.month}月${taipei.day}日 '
+      '$hour:$minute（台北時間）';
+}
+
+String _reportParticipantLabel(ReportParticipantUiModel participant) =>
+    '${participant.displayName}'
+    '${participant.memberNumber == null ? '' : ' #${participant.memberNumber}'}'
+    '${participant.replyAnnotation.isEmpty ? '' : '（${participant.replyAnnotation}）'}';
+
 class _LineupLabPage extends StatefulWidget {
   const _LineupLabPage({
     required this.draft,
@@ -2101,32 +2114,43 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
             children: [
               const Text('守備配置'),
               const Text('同一球員只會佔一個守位；DH 時投手不列入九棒。'),
-              GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  for (final position in LineupFieldPosition.values)
-                    OutlinedButton(
-                      key: ValueKey('lineup-position-${position.label}'),
-                      onPressed: () => _choosePosition(position),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(position.label),
-                          Text(
-                            _draft.fieldAssignments[position] == null
-                                ? '未安排'
-                                : _annotatedName(
-                                    _draft.fieldAssignments[position]!,
-                                  ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final narrow = constraints.maxWidth < 480;
+                  return GridView.count(
+                    key: const ValueKey('lineup-field-grid'),
+                    crossAxisCount: narrow ? 2 : 3,
+                    childAspectRatio: narrow ? 1.55 : 1,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      for (final position in LineupFieldPosition.values)
+                        OutlinedButton(
+                          key: ValueKey('lineup-position-${position.label}'),
+                          onPressed: () => _choosePosition(position),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(position.label),
+                              Text(
+                                _draft.fieldAssignments[position] == null
+                                    ? '未安排'
+                                    : _annotatedName(
+                                        _draft.fieldAssignments[position]!,
+                                      ),
+                                maxLines: narrow ? 3 : 2,
+                                textAlign: TextAlign.center,
+                                softWrap: true,
+                                overflow: narrow
+                                    ? TextOverflow.fade
+                                    : TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                ],
+                        ),
+                    ],
+                  );
+                },
               ),
               if (_draft.nonBattingPitcher != null)
                 ListTile(
@@ -2336,6 +2360,16 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
   Widget _decisionSummary() {
     final colors = Theme.of(context).colorScheme;
     final ready = _draft.isReady;
+    Widget metric(String key, String label) => Container(
+          key: ValueKey(key),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: colors.surface.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(label),
+        );
+
     return Card(
       key: ValueKey(ready ? 'lineup-ready' : 'lineup-warning'),
       color: ready ? colors.secondaryContainer : colors.errorContainer,
@@ -2351,10 +2385,36 @@ class _DecisionLineupLabPageState extends State<_LineupLabPage> {
                   .titleMedium
                   ?.copyWith(color: ready ? colors.primary : colors.error),
             ),
-            Text(
-              '先發 ${_draft.battingOrder.length}/9・尚缺 ${_draft.missingStarterCount} 人・'
-              '候補／未安排 ${_draft.fineUnassignedCount} 人・尚未回覆 ${_draft.unansweredCount} 人',
+            Semantics(
               key: const ValueKey('lineup-decision-counts'),
+              label: '先發 ${_draft.battingOrder.length}/9，'
+                  '尚缺 ${_draft.missingStarterCount} 人，'
+                  '候補／未安排 ${_draft.fineUnassignedCount} 人，'
+                  '尚未回覆 ${_draft.unansweredCount} 人',
+              child: ExcludeSemantics(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    metric(
+                      'lineup-metric-starters',
+                      '先發 ${_draft.battingOrder.length}/9',
+                    ),
+                    metric(
+                      'lineup-metric-missing',
+                      '尚缺 ${_draft.missingStarterCount} 人',
+                    ),
+                    metric(
+                      'lineup-metric-unassigned',
+                      '候補／未安排 ${_draft.fineUnassignedCount} 人',
+                    ),
+                    metric(
+                      'lineup-metric-unanswered',
+                      '尚未回覆 ${_draft.unansweredCount} 人',
+                    ),
+                  ],
+                ),
+              ),
             ),
             Text(
               ready

@@ -55,6 +55,49 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> assignProductionPosition(
+    WidgetTester tester,
+    String position,
+    String playerId,
+  ) async {
+    final field = find.byKey(ValueKey('lineup-position-$position'));
+    await tester.scrollUntilVisible(
+      field,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(field);
+    await tester.pumpAndSettle();
+    final player = find.byKey(
+      ValueKey('lineup-position-$position-player-$playerId'),
+    );
+    await tester.ensureVisible(player);
+    await tester.pumpAndSettle();
+    await tester.tap(player);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> assignProductionBattingSlot(
+    WidgetTester tester,
+    int slot,
+    String playerId,
+  ) async {
+    final select = find.byKey(ValueKey('lineup-batting-select-$slot'));
+    await tester.scrollUntilVisible(
+      select,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(select);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(ValueKey('lineup-batting-$slot-player-$playerId')),
+    );
+    await tester.pumpAndSettle();
+  }
+
   test('fake composition selects production demo and real stays bootstrap', () {
     final fake = entrypoint.composeRoot(config(ClientMode.fake));
     final real = entrypoint.composeRoot(config(ClientMode.real));
@@ -787,13 +830,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('officer-report-ready')), findsOneWidget);
-    expect(find.text('虛構出席隊員'), findsOneWidget);
+    expect(find.textContaining('可出席 10 人'), findsOneWidget);
+    expect(find.text('產生時間：2026年8月21日 16:30（台北時間）'), findsOneWidget);
+    expect(find.textContaining('2026-08-21T08:30:00'), findsNothing);
+    await tester.scrollUntilVisible(
+      find.text('虛構早退隊員 9 #9（早走）'),
+      300,
+    );
+    expect(find.text('虛構早退隊員 9 #9（早走）'), findsOneWidget);
+    expect(find.text('虛構晚到隊員 10 #10（晚到）'), findsOneWidget);
+    expect(find.text('虛構尚未回覆隊員'), findsOneWidget);
     expect(probe.reportReads, 1);
     expect(probe.unexpectedTransportCalls, 0);
   });
 
   testWidgets(
-    'Officer report opens the session-local Lineup Lab only from attendees',
+    'Officer rich report opens the session-local Lineup Lab with truthful eligibility',
     (tester) async {
       final probe = ProductionDemoProbe();
       await pumpDemo(tester, probe: probe);
@@ -805,22 +857,86 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('attendance-insights')), findsOneWidget);
-      expect(find.textContaining('可出席 1 人'), findsOneWidget);
+      expect(find.textContaining('可出席 10 人'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
       await tester.pumpAndSettle();
       expect(find.text('這是本次開啟期間的規劃草稿，不是正式提交，也不會儲存或分享。'), findsOneWidget);
       expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
-      expect(find.text('先發 0/9・缺 9 人・候補／未安排 1 人・尚未回覆 1 人'), findsOneWidget);
+      expect(find.text('先發 0/9'), findsOneWidget);
+      expect(find.text('尚缺 9 人'), findsOneWidget);
+      expect(find.text('候補／未安排 10 人'), findsOneWidget);
+      expect(find.text('尚未回覆 1 人'), findsOneWidget);
       await tester.tap(find.text('細排'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('lineup-empty-slot-9')), findsOneWidget);
-      expect(find.byKey(const ValueKey('lineup-empty-slot-1')), findsOneWidget);
       expect(find.text('虛構不出席隊員'), findsNothing);
+      final pitcher = find.byKey(const ValueKey('lineup-position-P'));
+      await tester.scrollUntilVisible(
+        pitcher,
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(pitcher);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(
+            const ValueKey('lineup-position-P-player-fictional-ready-0')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('lineup-position-P-player-fictional-late')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<SimpleDialogOption>(
+              find.byKey(
+                const ValueKey('lineup-position-P-player-fictional-late'),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(
+        find.byKey(
+            const ValueKey('lineup-position-P-player-fictional-ready-0')),
+      );
+      await tester.pumpAndSettle();
+      final catcher = find.byKey(const ValueKey('lineup-position-C'));
+      await tester.scrollUntilVisible(
+        catcher,
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(catcher);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(
+            const ValueKey('lineup-position-C-player-fictional-ready-1')),
+      );
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('management-report-entry')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('report-game-game_902')));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('可出席 11 人'), findsOneWidget);
+      expect(find.text('虛構尚未回覆隊員'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
+      await tester.pumpAndSettle();
+      expect(find.text('先發 0/9'), findsOneWidget);
+      expect(find.text('候補／未安排 11 人'), findsOneWidget);
+      expect(find.text('尚未回覆 0 人'), findsOneWidget);
       expect(probe.unexpectedTransportCalls, 0);
     },
   );
 
-  testWidgets('production Lineup Lab composes ten-player empty fine draft', (
+  testWidgets('ready DH report reaches 9/9 with pitcher excluded and one bench',
+      (
     tester,
   ) async {
     final probe = ProductionDemoProbe();
@@ -831,23 +947,63 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('report-game-game_902')));
     await tester.pumpAndSettle();
+    expect(find.textContaining('可出席 11 人'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
-    expect(find.text('先發 0/9・缺 9 人・候補／未安排 10 人・尚未回覆 0 人'), findsOneWidget);
     await tester.tap(find.text('細排'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('候補／未安排 10'));
+
+    const positions = [
+      'P',
+      'C',
+      '1B',
+      '2B',
+      '3B',
+      'SS',
+      'LF',
+      'CF',
+      'RF',
+      'DH'
+    ];
+    for (var index = 0; index < positions.length; index++) {
+      await assignProductionPosition(
+        tester,
+        positions[index],
+        'fictional-ready-$index',
+      );
+    }
+    expect(
+      find.byKey(const ValueKey('lineup-non-batting-pitcher')),
+      findsOneWidget,
+    );
+
+    await tester.drag(find.byType(ListView).last, const Offset(0, 3000));
+    await tester.pumpAndSettle();
+    for (var slot = 1; slot <= 9; slot++) {
+      await assignProductionBattingSlot(
+        tester,
+        slot,
+        'fictional-ready-$slot',
+      );
+    }
+    await tester.drag(find.byType(ListView).last, const Offset(0, 5000));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('lineup-ready')), findsOneWidget);
+    expect(find.text('先發 9/9'), findsOneWidget);
+    expect(find.text('尚缺 0 人'), findsOneWidget);
+    expect(find.text('候補／未安排 1 人'), findsOneWidget);
+    expect(find.text('尚未回覆 0 人'), findsOneWidget);
+    await tester.tap(find.text('候補／未安排 1'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('lineup-reserve-fictional-ready-9')),
+      find.byKey(const ValueKey('lineup-reserve-fictional-ready-10')),
       300,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
     expect(
-      find.byKey(const ValueKey('lineup-reserve-fictional-ready-9')),
+      find.byKey(const ValueKey('lineup-reserve-fictional-ready-10')),
       findsOneWidget,
     );
     expect(probe.unexpectedTransportCalls, 0);
@@ -872,9 +1028,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('目前為離線快取，僅供讀取'), findsOneWidget);
+    expect(find.textContaining('可出席 10 人'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('lineup-lab-entry')));
     await tester.pumpAndSettle();
     expect(find.textContaining('離線唯讀來源可能過期'), findsOneWidget);
+    expect(find.textContaining('不是正式提交，也不會儲存或分享'), findsOneWidget);
     expect(find.byKey(const ValueKey('lineup-warning')), findsOneWidget);
     expect(probe.reportReads, 0);
     expect(probe.unexpectedTransportCalls, 0);
