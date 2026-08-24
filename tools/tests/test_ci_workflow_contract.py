@@ -10,6 +10,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "python-tests.yml"
 FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
+SHARED_SETUP = ROOT / "shared_lib" / "setup.py"
+MIGRATION_REQUIREMENTS = ROOT / "requirements-migrations.txt"
 
 
 def job_block(source: str, job: str) -> str:
@@ -78,12 +80,42 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("postgres:15.8-alpine", block)
         self.assertIn("postgres:16.4-alpine", block)
         self.assertIn("requirements-migrations.txt", block)
+        self.assertIn("shared_lib/setup.py", block)
+        self.assertIn(
+            "pip install -r requirements-migrations.txt ./shared_lib black==24.4.2",
+            block,
+        )
+        for path in (
+            "shared_lib/shared_module/identity_linking.py",
+            "shared_lib/shared_module/portal_data/mobile_repository.py",
+            "shared_lib/shared_module/provider_verifiers.py",
+            "shared_lib/tests/test_identity_linking.py",
+            "tests/portal_data/test_mobile_api_foundation.py",
+        ):
+            self.assertIn(path, block)
         self.assertIn("tools/ci_change_classifier.py", block)
         self.assertIn("tools/tests/test_ci_workflow_contract.py", block)
         self.assertIn("portal_data_phase_c_migration verify", block)
         self.assertIn("portal_data_phase_c_evidence verify", block)
         self.assertIn("portal_data_phase_c_readiness verify", block)
         self.assertIn("unittest discover -s tests/portal_data -v", block)
+
+    def test_identity_link_jobs_install_shared_runtime_dependencies(self):
+        web = job_block(self.source, "web_portal")
+        portal_data = job_block(self.source, "portal_data")
+        shared_setup = SHARED_SETUP.read_text(encoding="utf-8")
+        self.assertIn('"cryptography==43.0.3"', shared_setup)
+        self.assertIn("pip install ./shared_lib", web)
+        self.assertIn("apps/web_portal/requirements.txt", web)
+        self.assertIn("shared_lib/setup.py", web)
+        self.assertIn(
+            "pip install -r requirements-migrations.txt ./shared_lib", portal_data
+        )
+        self.assertNotIn(
+            "cryptography",
+            MIGRATION_REQUIREMENTS.read_text(encoding="utf-8").lower(),
+        )
+        self.assertNotIn("cryptography", job_block(self.source, "quick").lower())
 
     def test_each_service_job_is_scope_gated(self):
         commands = {
