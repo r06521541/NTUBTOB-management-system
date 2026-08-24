@@ -222,6 +222,74 @@ class RecordingLineupCopyPort implements LineupSummaryCopyPort {
 }
 
 void main() {
+  test(
+      'notification draft derives exact unanswered recipients and resets per game',
+      () {
+    final controller = controllerFor();
+    final first = controller.notificationDraftFor(
+      lineupReport(gameId: 'first', unanswered: 2),
+    );
+    expect(first.recipients.map((item) => item.id),
+        ['unanswered-0', 'unanswered-1']);
+    expect(first.selectedCount, 2);
+    first.toggle('unanswered-0');
+    first.chooseTemplate(OfficerNotificationTemplate.friendly);
+    first.edit('虛構自訂提醒');
+    first.preview();
+    first.recordLocally();
+    expect(first.recorded, isTrue);
+
+    expect(
+      controller.notificationDraftFor(
+        lineupReport(gameId: 'first', unanswered: 2),
+      ),
+      same(first),
+    );
+    final second = controller.notificationDraftFor(
+      lineupReport(gameId: 'second', unanswered: 1),
+    );
+    expect(second, isNot(same(first)));
+    expect(second.selectedCount, 1);
+    expect(second.recorded, isFalse);
+  });
+
+  testWidgets(
+      'notification draft selection preview and local record never send',
+      (tester) async {
+    final draft = OfficerNotificationDraft(
+      lineupReport(unanswered: 2),
+    );
+    await tester.pumpWidget(MaterialApp(
+      home: OfficerNotificationDraftPage(draft: draft, offline: true),
+    ));
+    expect(find.byKey(const ValueKey('notification-draft-local-only')),
+        findsOneWidget);
+    expect(find.byKey(const ValueKey('notification-draft-offline')),
+        findsOneWidget);
+    expect(find.text('收件人 2/2'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('notification-recipient-unanswered-0')),
+    );
+    await tester.pump();
+    expect(find.text('收件人 1/2'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('notification-draft-message')),
+      '只存在本機的虛構提醒',
+    );
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-draft-preview')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('notification-draft-confirmation')),
+        findsOneWidget);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-draft-record')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('notification-draft-recorded')),
+        findsOneWidget);
+    expect(find.text('沒有通知被傳送，也沒有資料被儲存。'), findsOneWidget);
+  });
   test('attendance insights use only loaded report counts and honest labels',
       () {
     final report = DeterministicFakeOfficerReportRepository.fictionalReport;
@@ -1296,10 +1364,11 @@ void main() {
     expect(find.text('出席'), findsOneWidget);
     expect(find.text('不出席'), findsOneWidget);
     expect(find.text('尚未回覆'), findsOneWidget);
-    expect(find.textContaining('回覆率 88%'), findsOneWidget);
     expect(find.text('觀察場次：8 / 12'), findsOneWidget);
     expect(find.text('最低回覆率：60%'), findsOneWidget);
     expect(find.textContaining('產生時間：2026-08-19'), findsOneWidget);
+    await tester.scrollUntilVisible(find.textContaining('回覆率 88%'), 300);
+    expect(find.textContaining('回覆率 88%'), findsOneWidget);
     expect(find.text('送出回覆'), findsNothing);
   });
 

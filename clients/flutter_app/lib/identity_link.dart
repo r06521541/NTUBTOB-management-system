@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shad;
+import 'app_theme.dart';
 import 'integration.dart';
 
 enum LoginProvider { line, google }
@@ -84,13 +86,14 @@ class IdentityLinkController extends ChangeNotifier {
         if (item is! Map ||
             item['provider'] is! String ||
             item['label'] is! String ||
-            item['linked_at'] is! String) {
+            (item['linked_at'] != null && item['linked_at'] is! String)) {
           throw const ContractException('invalid identity list item');
         }
+        final rawLinkedAt = item['linked_at'] as String?;
         return LinkedLoginMethod(
           provider: item['provider'] as String,
           label: item['label'] as String,
-          linkedAt: DateTime.parse(item['linked_at'] as String),
+          linkedAt: rawLinkedAt == null ? null : DateTime.tryParse(rawLinkedAt),
         );
       }).toList(growable: false);
       linkedMethodsLoaded = true;
@@ -354,7 +357,19 @@ class LinkedLoginMethod {
   });
   final String provider;
   final String label;
-  final DateTime linkedAt;
+  final DateTime? linkedAt;
+}
+
+String identityProviderLabel(LoginProvider provider) => switch (provider) {
+      LoginProvider.google => 'Google',
+      LoginProvider.line => 'LINE',
+    };
+
+String linkedAtTraditionalChinese(DateTime value) {
+  final local = value.toLocal();
+  final hour = local.hour.toString().padLeft(2, '0');
+  final minute = local.minute.toString().padLeft(2, '0');
+  return '${local.year}年${local.month}月${local.day}日 $hour:$minute';
 }
 
 class IdentityLinkPanel extends StatelessWidget {
@@ -369,66 +384,98 @@ class IdentityLinkPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
         animation: controller,
-        builder: (context, _) =>
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('新增登入方式', style: TextStyle(fontWeight: FontWeight.bold)),
-          if (!recovery)
-            for (final method in controller.linkedMethods)
-              ListTile(
-                key: ValueKey('linked-provider-${method.provider}'),
-                contentPadding: EdgeInsets.zero,
-                title: Text(method.label),
-                subtitle: Text('已連結 ${method.linkedAt.toLocal()}'),
-              ),
-          if (!controller.online)
-            const Text('離線唯讀，無法新增登入方式', key: ValueKey('identity-link-offline')),
-          if (!recovery && controller.stage == IdentityLinkStage.error) ...[
-            const Text('無法載入登入方式，請重試。', key: ValueKey('identity-link-error')),
-            OutlinedButton(
-              key: const ValueKey('identity-link-retry'),
-              onPressed: controller.retrySelfLink,
-              child: const Text('重試'),
-            ),
-          ],
-          if (controller.stage == IdentityLinkStage.idle && controller.online)
-            for (final provider in LoginProvider.values)
-              if ((recovery || controller.linkedMethodsLoaded) &&
-                  (recovery ||
-                      !controller.linkedMethods
-                          .any((method) => method.provider == provider.name)))
-                OutlinedButton(
-                    key: ValueKey('identity-link-begin-${provider.name}'),
-                    onPressed: () =>
-                        controller.begin(provider, recovery: recovery),
-                    child: Text(
-                        '新增 ${provider == LoginProvider.google ? 'Google' : 'LINE'} 登入')),
-          if (controller.stage == IdentityLinkStage.candidateReady)
-            for (final provider in LoginProvider.values
-                .where((p) => p != controller.candidateProvider))
-              ElevatedButton(
-                  key: ValueKey('identity-link-proof-${provider.name}'),
-                  onPressed: () => controller.prove(provider),
-                  child: Text('重新驗證 ${provider.name}')),
-          if (controller.stage == IdentityLinkStage.proofReady) ...[
-            Text(
-                '確認將 ${controller.candidateProvider!.name} 加入 ${controller.safeSummary?['display_name'] ?? '此帳戶'}'),
-            ElevatedButton(
-                key: const ValueKey('identity-link-confirm'),
-                onPressed: () =>
-                    controller.confirm(recovery: recovery, platform: platform),
-                child: Text(recovery ? '確認追認並登入' : '確認新增登入方式')),
-          ],
-          if (controller.stage != IdentityLinkStage.idle &&
-              const {
-                IdentityLinkStage.candidateReady,
-                IdentityLinkStage.proofReady,
-                IdentityLinkStage.confirming,
-              }.contains(controller.stage))
-            TextButton(
-                key: const ValueKey('identity-link-cancel'),
-                onPressed: controller.cancel,
-                child: const Text('取消此裝置上的連結流程')),
-        ]),
+        builder: (context, _) => shad.ShadcnLayer(
+          theme: const shad.ThemeData(
+            colorScheme: shad.ColorSchemes.lightSlate,
+            radius: .75,
+          ),
+          scaling: shad.AdaptiveScaling.desktop,
+          child: shad.Card(
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(recovery ? '找回既有帳戶' : '登入方式',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: AppSpacing.compact),
+              Text(recovery
+                  ? '先驗證這次使用的陌生登入方式，再用另一個已連結方式證明是你。'
+                  : '新增另一種登入方式，之後可用任一方式安全登入。'),
+              const SizedBox(height: AppSpacing.regular),
+              if (!recovery)
+                for (final method in controller.linkedMethods)
+                  ListTile(
+                    key: ValueKey('linked-provider-${method.provider}'),
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(method.label),
+                    subtitle: Text(method.linkedAt == null
+                        ? '已連結・時間未提供'
+                        : '已連結 ${linkedAtTraditionalChinese(method.linkedAt!)}'),
+                  ),
+              if (!controller.online)
+                const shad.Alert(
+                  key: ValueKey('identity-link-offline'),
+                  leading: Icon(Icons.cloud_off_outlined),
+                  title: Text('離線唯讀'),
+                  content: Text('無法驗證或新增登入方式。'),
+                ),
+              if (!recovery && controller.stage == IdentityLinkStage.error) ...[
+                const Text('無法載入登入方式，請重試。',
+                    key: ValueKey('identity-link-error')),
+                shad.SecondaryButton(
+                  key: const ValueKey('identity-link-retry'),
+                  onPressed: controller.retrySelfLink,
+                  child: const Text('重試'),
+                ),
+              ],
+              if (controller.stage == IdentityLinkStage.idle &&
+                  controller.online)
+                for (final provider in LoginProvider.values)
+                  if ((recovery || controller.linkedMethodsLoaded) &&
+                      (recovery ||
+                          !controller.linkedMethods.any(
+                              (method) => method.provider == provider.name)))
+                    shad.SecondaryButton(
+                        key: ValueKey('identity-link-begin-${provider.name}'),
+                        onPressed: () =>
+                            controller.begin(provider, recovery: recovery),
+                        child:
+                            Text('新增 ${identityProviderLabel(provider)} 登入')),
+              if (controller.stage == IdentityLinkStage.candidateReady)
+                for (final provider in LoginProvider.values
+                    .where((p) => p != controller.candidateProvider))
+                  shad.PrimaryButton(
+                      key: ValueKey('identity-link-proof-${provider.name}'),
+                      onPressed: () => controller.prove(provider),
+                      child: Text('重新驗證 ${identityProviderLabel(provider)}')),
+              if (controller.stage == IdentityLinkStage.proofReady) ...[
+                const SizedBox(height: AppSpacing.regular),
+                Text(
+                    '確認將 ${identityProviderLabel(controller.candidateProvider!)} 加入 ${controller.safeSummary?['display_name'] ?? '此帳戶'}'),
+                shad.PrimaryButton(
+                    key: const ValueKey('identity-link-confirm'),
+                    onPressed: () => controller.confirm(
+                        recovery: recovery, platform: platform),
+                    child: Text(recovery ? '確認追認並登入' : '確認新增登入方式')),
+              ],
+              if (controller.stage != IdentityLinkStage.idle &&
+                  const {
+                    IdentityLinkStage.candidateReady,
+                    IdentityLinkStage.proofReady,
+                    IdentityLinkStage.confirming,
+                  }.contains(controller.stage))
+                shad.GhostButton(
+                    key: const ValueKey('identity-link-cancel'),
+                    onPressed: controller.cancel,
+                    child: const Text('取消此裝置上的連結流程')),
+              if (controller.stage == IdentityLinkStage.completed)
+                const shad.Alert(
+                  key: ValueKey('identity-link-completed'),
+                  leading: Icon(Icons.check_circle_outline),
+                  title: Text('登入方式已連結'),
+                  content: Text('本次連結已完成；重新開啟帳號頁可查看最新登入方式。'),
+                ),
+            ]),
+          ),
+        ),
       );
 }
 
@@ -489,7 +536,13 @@ class _IdentityRecoveryPageState extends State<IdentityRecoveryPage> {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text('重新驗證陌生登入方式，再用已連結的另一種登入方式確認帳戶。'),
+            Semantics(
+              header: true,
+              child: Text('兩步驟安全追認'),
+            ),
+            const SizedBox(height: 8),
+            const Text('兩次驗證都必須由你親自點選；取消或逾期後不會留下可重用憑證。'),
+            const SizedBox(height: 16),
             IdentityLinkPanel(
               controller: widget.controller,
               platform: widget.platform,

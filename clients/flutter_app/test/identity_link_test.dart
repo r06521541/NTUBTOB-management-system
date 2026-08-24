@@ -149,6 +149,58 @@ void main() {
     expect(controller.candidateCredential, isNull);
     expect(credentials.clears, 1);
   });
+
+  testWidgets(
+      'account link uses scoped shadcn journey without implicit provider',
+      (tester) async {
+    final api = FakeTransport(), credentials = FakeCredentials();
+    final controller = IdentityLinkController(
+      transport: api,
+      credentials: credentials,
+      installationId: 'installation-1234',
+      ids: FixedIds(),
+      authorizedSend: (method, path, {body}) =>
+          api.send(method, path, body: body),
+    );
+    await controller.loadLinkedMethods();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: IdentityLinkPanel(controller: controller, platform: 'android'),
+      ),
+    ));
+    expect(find.text('登入方式'), findsOneWidget);
+    expect(find.text('LINE'), findsOneWidget);
+    expect(find.textContaining('2026'), findsOneWidget);
+    expect(find.textContaining('.000'), findsNothing);
+    expect(find.textContaining('新增另一種登入方式'), findsOneWidget);
+    expect(credentials.calls, 0);
+  });
+
+  testWidgets('missing or unparseable linked time stays truthful',
+      (tester) async {
+    Future<ApiResponse> send(String method, String path,
+            {Map<String, dynamic>? body}) async =>
+        const ApiResponse(200, {
+          'items': [
+            {'provider': 'line', 'label': 'LINE', 'linked_at': 'not-a-date'},
+            {'provider': 'google', 'label': 'Google', 'linked_at': null},
+          ]
+        });
+    final controller = IdentityLinkController(
+      transport: FakeTransport(),
+      credentials: FakeCredentials(),
+      installationId: 'installation-1234',
+      ids: FixedIds(),
+      authorizedSend: send,
+    );
+    await controller.loadLinkedMethods();
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: IdentityLinkPanel(controller: controller, platform: 'android'),
+      ),
+    ));
+    expect(find.text('已連結・時間未提供'), findsNWidgets(2));
+  });
   testWidgets('offline never calls provider or backend', (tester) async {
     final api = FakeTransport(), credentials = FakeCredentials();
     final controller = IdentityLinkController(

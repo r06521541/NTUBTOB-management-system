@@ -6,6 +6,7 @@ import 'app_theme.dart';
 import 'basic_app.dart';
 import 'foundation.dart';
 import 'integration.dart';
+import 'identity_link.dart';
 import 'local_preferences.dart';
 import 'officer_prereview.dart';
 import 'notification_center.dart';
@@ -269,6 +270,40 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
           ),
           Wrap(children: [
             TextButton(
+              key: const ValueKey('demo-account-link'),
+              onPressed: () {
+                final controller = _demoIdentityLinkController(online);
+                controller.loadLinkedMethods();
+                Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => Scaffold(
+                    appBar: AppBar(title: const Text('虛構帳號管理')),
+                    body: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        IdentityLinkPanel(
+                          controller: controller,
+                          platform: 'android',
+                        ),
+                      ],
+                    ),
+                  ),
+                ));
+              },
+              child: const Text('帳號連結情境'),
+            ),
+            TextButton(
+              key: const ValueKey('demo-account-recovery'),
+              onPressed: online
+                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
+                        builder: (_) => IdentityRecoveryPage(
+                          controller: _demoIdentityLinkController(true),
+                          platform: 'android',
+                        ),
+                      ))
+                  : null,
+              child: const Text('陌生登入追認'),
+            ),
+            TextButton(
               key: const ValueKey('demo-pending-review'),
               onPressed: () =>
                   Navigator.of(context).push(MaterialPageRoute<void>(
@@ -329,6 +364,67 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
         ],
       ),
     );
+  }
+
+  IdentityLinkController _demoIdentityLinkController(bool online) =>
+      IdentityLinkController(
+        transport: _DemoIdentityLinkTransport(_probe),
+        credentials: _DemoIdentityCredentials(),
+        installationId: 'fictional-demo-installation',
+        ids: SecureIds(Random(157)),
+        online: online,
+        authorizedSend: (method, path, {body}) =>
+            _DemoIdentityLinkTransport(_probe).send(method, path, body: body),
+      );
+}
+
+class _DemoIdentityCredentials implements IdentityCredentialPort {
+  @override
+  Future<String?> authenticate(LoginProvider provider, {String? nonce}) async =>
+      'fictional-${provider.name}-id-token';
+
+  @override
+  Future<void> clearPresentationState() async {}
+}
+
+class _DemoIdentityLinkTransport implements ApiTransport {
+  _DemoIdentityLinkTransport(this.probe);
+  final ProductionDemoProbe probe;
+
+  @override
+  Future<ApiResponse> send(String method, String path,
+      {Map<String, String> headers = const {},
+      Map<String, dynamic>? body}) async {
+    if (method == 'GET' && path == '/auth/identities') {
+      return const ApiResponse(200, {
+        'items': [
+          {
+            'provider': 'line',
+            'label': 'LINE',
+            'linked_at': '2026-08-20T08:00:00Z'
+          }
+        ]
+      });
+    }
+    if (path.contains('/candidates/')) {
+      return const ApiResponse(201, {
+        'candidate_credential': 'fictional-candidate',
+      });
+    }
+    if (path.contains('/proofs/')) {
+      return const ApiResponse(201, {
+        'proof_credential': 'fictional-proof',
+        'person': {'display_name': '虛構一般使用者'}
+      });
+    }
+    if (path == '/auth/identity-link/confirm') {
+      return const ApiResponse(200, {'status': 'linked', 'session': null});
+    }
+    if (path == '/auth/identity-link/cancel') {
+      return const ApiResponse(204, null);
+    }
+    probe.unexpectedTransportCalls++;
+    throw StateError('unexpected fictional identity transport');
   }
 }
 

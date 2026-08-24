@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart' as shad;
 import 'package:flutter/services.dart';
 
 import 'app_theme.dart';
@@ -312,6 +313,96 @@ abstract interface class LineupSummaryCopyPort {
   Future<void> copy(String summary);
 }
 
+enum OfficerNotificationTemplate { reminder, friendly, urgent }
+
+extension OfficerNotificationTemplateLabel on OfficerNotificationTemplate {
+  String get label => switch (this) {
+        OfficerNotificationTemplate.reminder => '一般提醒',
+        OfficerNotificationTemplate.friendly => '友善提醒',
+        OfficerNotificationTemplate.urgent => '賽前提醒',
+      };
+
+  String message(String gameLabel) => switch (this) {
+        OfficerNotificationTemplate.reminder => '請記得回覆「$gameLabel」的出席狀態，謝謝。',
+        OfficerNotificationTemplate.friendly =>
+          '嗨！「$gameLabel」還在等你的回覆，有空時請幫忙確認。',
+        OfficerNotificationTemplate.urgent => '「$gameLabel」即將到來，請儘快回覆，方便幹部安排。',
+      };
+}
+
+class OfficerNotificationDraft extends ChangeNotifier {
+  OfficerNotificationDraft(SingleGameReportUiModel report)
+      : gameId = report.gameId,
+        gameLabel = report.gameLabel,
+        recipients = List.unmodifiable(report.notYetReplied),
+        _selectedIds = report.notYetReplied.map((item) => item.id).toSet(),
+        _message =
+            OfficerNotificationTemplate.reminder.message(report.gameLabel);
+
+  final String gameId;
+  final String gameLabel;
+  final List<NotYetRepliedUiModel> recipients;
+  final Set<String> _selectedIds;
+  OfficerNotificationTemplate template = OfficerNotificationTemplate.reminder;
+  String _message;
+  bool confirmed = false;
+  bool recorded = false;
+
+  Set<String> get selectedIds => Set.unmodifiable(_selectedIds);
+  String get message => _message;
+  int get selectedCount => _selectedIds.length;
+
+  void toggle(String id) {
+    if (!recipients.any((item) => item.id == id)) return;
+    _selectedIds.contains(id) ? _selectedIds.remove(id) : _selectedIds.add(id);
+    confirmed = false;
+    recorded = false;
+    notifyListeners();
+  }
+
+  void selectAll(bool selected) {
+    _selectedIds.clear();
+    if (selected) _selectedIds.addAll(recipients.map((item) => item.id));
+    confirmed = false;
+    recorded = false;
+    notifyListeners();
+  }
+
+  void chooseTemplate(OfficerNotificationTemplate value) {
+    template = value;
+    _message = value.message(gameLabel);
+    confirmed = false;
+    recorded = false;
+    notifyListeners();
+  }
+
+  void edit(String value) {
+    _message = value;
+    confirmed = false;
+    recorded = false;
+    notifyListeners();
+  }
+
+  void preview() {
+    if (_selectedIds.isEmpty || _message.trim().isEmpty) return;
+    confirmed = true;
+    recorded = false;
+    notifyListeners();
+  }
+
+  void cancelPreview() {
+    confirmed = false;
+    recorded = false;
+    notifyListeners();
+  }
+
+  void recordLocally() {
+    if (!confirmed) return;
+    recorded = true;
+    notifyListeners();
+  }
+}
+
 class SystemLineupSummaryCopyPort implements LineupSummaryCopyPort {
   const SystemLineupSummaryCopyPort();
 
@@ -329,9 +420,11 @@ abstract interface class OfficerReportPresentationPort {
 
 class CanonicalOfficerReportRepository
     implements OfficerReportPresentationPort {
-  const CanonicalOfficerReportRepository(this.api);
+  CanonicalOfficerReportRepository(this.api, [Iterable<Game> games = const []])
+      : _games = {for (final game in games) game.id: game};
 
   final BasicApi api;
+  final Map<String, Game> _games;
 
   @override
   Future<SingleGameReportUiModel> readSingleGame({
@@ -340,9 +433,10 @@ class CanonicalOfficerReportRepository
   }) async {
     try {
       final report = await api.attendanceReport(gameId);
+      final game = _games[report.gameId];
       return SingleGameReportUiModel(
         gameId: report.gameId,
-        gameLabel: '賽事 ${report.gameId}',
+        gameLabel: game == null ? '目前賽事' : _humanGameLabel(game),
         generatedAt: report.generatedAt,
         historyGames: report.observation.historyGames,
         historyLimit: report.observation.historyLimit,
@@ -394,6 +488,12 @@ class CanonicalOfficerReportRepository
       throw const ContractOfficerReportException();
     }
   }
+}
+
+String _humanGameLabel(Game game) {
+  final title = '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}';
+  final local = game.startAt.toLocal();
+  return '$title・${local.year}/${local.month}/${local.day}';
 }
 
 class RetryableOfficerReportException implements Exception {
@@ -734,6 +834,7 @@ class OfficerReportController extends ChangeNotifier {
   OfficerReportLoadProvenance? _loadProvenance;
   LineupDraft? _lineupDraft;
   String? _lineupDraftGameId;
+  OfficerNotificationDraft? _notificationDraft;
 
   String? get principalId => _principalId;
   ManagementPresentationRoute get route => _route;
@@ -746,6 +847,15 @@ class OfficerReportController extends ChangeNotifier {
       _lineupDraftGameId = report.gameId;
     }
     return _lineupDraft!;
+  }
+
+  OfficerNotificationDraft notificationDraftFor(
+      SingleGameReportUiModel report) {
+    if (_notificationDraft == null ||
+        _notificationDraft!.gameId != report.gameId) {
+      _notificationDraft = OfficerNotificationDraft(report);
+    }
+    return _notificationDraft!;
   }
 
   Future<void> applyFreshPrincipal({
@@ -843,6 +953,7 @@ class OfficerReportController extends ChangeNotifier {
     report = null;
     _lineupDraft = null;
     _lineupDraftGameId = null;
+    _notificationDraft = null;
     lastSyncedAt = null;
     _loadProvenance = null;
   }
@@ -949,7 +1060,7 @@ class _CanonicalManagementReportsPageState
   void initState() {
     super.initState();
     controller = OfficerReportController(
-      repository: CanonicalOfficerReportRepository(widget.api),
+      repository: CanonicalOfficerReportRepository(widget.api, widget.games),
       cache: widget.cache ?? InMemoryPrincipalOfficerReportCache(),
     );
     controller.applyFreshPrincipal(
@@ -1227,6 +1338,22 @@ class _ReportContentsState extends State<_ReportContents> {
                     }
                   },
           ),
+          ListTile(
+            key: const ValueKey('unanswered-notification-draft-entry'),
+            leading: const Icon(Icons.notification_add_outlined),
+            title: const Text('未回覆通知草稿'),
+            subtitle: Text(report.notYetReplied.isEmpty
+                ? '目前沒有尚未回覆者'
+                : '依目前報表建立 ${report.notYetReplied.length} 人的本機草稿；不會送出'),
+            onTap: report.notYetReplied.isEmpty
+                ? null
+                : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => OfficerNotificationDraftPage(
+                        draft: widget.controller.notificationDraftFor(report),
+                        offline: widget.offline,
+                      ),
+                    )),
+          ),
           const Text('出席'),
           for (final participant in report.attending)
             Text(participant.displayName),
@@ -1249,6 +1376,175 @@ class _ReportContentsState extends State<_ReportContents> {
       ),
     );
   }
+}
+
+class OfficerNotificationDraftPage extends StatefulWidget {
+  const OfficerNotificationDraftPage({
+    super.key,
+    required this.draft,
+    required this.offline,
+  });
+  final OfficerNotificationDraft draft;
+  final bool offline;
+
+  @override
+  State<OfficerNotificationDraftPage> createState() =>
+      _OfficerNotificationDraftPageState();
+}
+
+class _OfficerNotificationDraftPageState
+    extends State<OfficerNotificationDraftPage> {
+  late final TextEditingController _message;
+
+  @override
+  void initState() {
+    super.initState();
+    _message = TextEditingController(text: widget.draft.message);
+  }
+
+  @override
+  void dispose() {
+    _message.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('未回覆通知草稿')),
+        body: ListenableBuilder(
+          listenable: widget.draft,
+          builder: (context, _) => shad.ShadcnLayer(
+            theme: const shad.ThemeData(
+              colorScheme: shad.ColorSchemes.lightSlate,
+              radius: .75,
+            ),
+            scaling: shad.AdaptiveScaling.desktop,
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                const shad.Alert(
+                  key: ValueKey('notification-draft-local-only'),
+                  leading: Icon(Icons.edit_note_outlined),
+                  title: Text('本機草稿，不會送出'),
+                  content: Text('這裡只供選擇、編輯與確認預覽；沒有呼叫通知或後端。'),
+                ),
+                if (widget.offline) ...[
+                  const SizedBox(height: 12),
+                  const shad.Alert(
+                    key: ValueKey('notification-draft-offline'),
+                    leading: Icon(Icons.cloud_off_outlined),
+                    title: Text('離線快取可能過期'),
+                    content: Text('收件人只來自目前已載入的快取報表。'),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                shad.Card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                          '收件人 ${widget.draft.selectedCount}/${widget.draft.recipients.length}',
+                          style: Theme.of(context).textTheme.titleMedium),
+                      Row(children: [
+                        shad.GhostButton(
+                          key: const ValueKey('notification-draft-select-all'),
+                          onPressed: () => widget.draft.selectAll(true),
+                          child: const Text('全選'),
+                        ),
+                        shad.GhostButton(
+                          key: const ValueKey('notification-draft-clear-all'),
+                          onPressed: () => widget.draft.selectAll(false),
+                          child: const Text('取消全選'),
+                        ),
+                      ]),
+                      for (final person in widget.draft.recipients)
+                        Material(
+                          color: Colors.transparent,
+                          child: CheckboxListTile(
+                            key:
+                                ValueKey('notification-recipient-${person.id}'),
+                            contentPadding: EdgeInsets.zero,
+                            value: widget.draft.selectedIds.contains(person.id),
+                            title: Text(person.displayName),
+                            subtitle: Text('目前回覆率 ${person.responseRate}%'),
+                            onChanged: (_) => widget.draft.toggle(person.id),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<OfficerNotificationTemplate>(
+                  key: const ValueKey('notification-draft-template'),
+                  initialValue: widget.draft.template,
+                  decoration: const InputDecoration(labelText: '訊息範本'),
+                  items: [
+                    for (final value in OfficerNotificationTemplate.values)
+                      DropdownMenuItem(value: value, child: Text(value.label)),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    widget.draft.chooseTemplate(value);
+                    _message.text = widget.draft.message;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  key: const ValueKey('notification-draft-message'),
+                  controller: _message,
+                  maxLines: 4,
+                  maxLength: 240,
+                  decoration: const InputDecoration(labelText: '草稿內容'),
+                  onChanged: widget.draft.edit,
+                ),
+                if (!widget.draft.confirmed)
+                  shad.PrimaryButton(
+                    key: const ValueKey('notification-draft-preview'),
+                    onPressed: widget.draft.selectedCount > 0 &&
+                            widget.draft.message.trim().isNotEmpty
+                        ? widget.draft.preview
+                        : null,
+                    child: const Text('檢查確認預覽'),
+                  )
+                else ...[
+                  const SizedBox(height: 8),
+                  shad.Card(
+                    key: const ValueKey('notification-draft-confirmation'),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('最後確認（仍不會送出）'),
+                        Text('收件人：${widget.draft.selectedCount} 人'),
+                        Text(widget.draft.message),
+                      ],
+                    ),
+                  ),
+                  Row(children: [
+                    shad.SecondaryButton(
+                      key: const ValueKey('notification-draft-cancel-preview'),
+                      onPressed: widget.draft.cancelPreview,
+                      child: const Text('返回修改'),
+                    ),
+                    const SizedBox(width: 8),
+                    shad.PrimaryButton(
+                      key: const ValueKey('notification-draft-record'),
+                      onPressed: widget.draft.recordLocally,
+                      child: const Text('記錄模擬結果'),
+                    ),
+                  ]),
+                ],
+                if (widget.draft.recorded)
+                  const shad.Alert(
+                    key: ValueKey('notification-draft-recorded'),
+                    leading: Icon(Icons.check_circle_outline),
+                    title: Text('已記錄本機模擬'),
+                    content: Text('沒有通知被傳送，也沒有資料被儲存。'),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 class _InsightsCard extends StatelessWidget {

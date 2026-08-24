@@ -365,6 +365,75 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
+  testWidgets('demo account link and recovery are explicit fictional journeys',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    await tester.tap(find.byKey(const ValueKey('demo-account-link')));
+    await tester.pumpAndSettle();
+    expect(find.text('虛構帳號管理'), findsOneWidget);
+    expect(find.text('LINE'), findsOneWidget);
+    expect(find.byKey(const ValueKey('identity-link-begin-google')),
+        findsOneWidget);
+    expect(find.textContaining(RegExp(r'已連結 2026年8月20日 \d{2}:00')),
+        findsOneWidget);
+    expect(find.textContaining('Thursday'), findsNothing);
+    expect(find.textContaining('August'), findsNothing);
+    expect(find.textContaining('.000'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('identity-link-proof-line')));
+    await tester.pump();
+    expect(find.textContaining('確認將 Google 加入'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('identity-link-confirm')));
+    await tester.pump();
+    expect(
+        find.byKey(const ValueKey('identity-link-completed')), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('demo-account-recovery')));
+    await tester.pumpAndSettle();
+    expect(find.text('兩步驟安全追認'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('identity-link-confirm')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('identity-link-proof-line')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('identity-link-confirm')), findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('Officer notification draft remains local and unsent',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+    await tester.tap(find.byKey(const ValueKey('demo-persona-officer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('management-report-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('report-game-game_901')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('unanswered-notification-draft-entry')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('收件人 1/1'), findsOneWidget);
+    expect(find.textContaining('虛構校友隊 vs 範例友隊'), findsOneWidget);
+    expect(find.textContaining('game_901'), findsNothing);
+    expect(find.byKey(const ValueKey('notification-draft-local-only')),
+        findsOneWidget);
+    await tester.drag(find.byType(ListView).first, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-draft-preview')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('notification-draft-record')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('notification-draft-recorded')),
+        findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
   testWidgets(
       'production demo opens loaded notification detail without transport', (
     tester,
