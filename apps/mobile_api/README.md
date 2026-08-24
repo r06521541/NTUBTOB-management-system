@@ -7,7 +7,9 @@ The canonical machine-readable contract is `openapi.json`.
 The runtime fails closed unless PostgreSQL reports the exact revision
 `0008_mobile_notification_delivery`, and all
 signing, refresh-response encryption, audience configuration is present. The
-readiness check remains read-only and does not inspect the broker journal or
+LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
+plain runtime values; database, signing, and replay keys remain Secret-backed.
+The readiness check remains read-only and does not inspect the broker journal or
 notification tables. These values are runtime configuration only; this directory
 contains no credential and no deploy target.
 

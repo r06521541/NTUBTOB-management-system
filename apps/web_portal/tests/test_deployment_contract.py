@@ -73,18 +73,25 @@ class DeploymentContractTests(unittest.TestCase):
             "DSN_PASSWORD",
             "LINE_LOGIN_CHANNEL_SECRET",
             "SECRET_KEY",
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET",
         ):
             with self.subTest(variable=variable):
                 self.assertIn(variable, pattern)
-        self.assertIn("WEB_PORTAL_ADMIN_MEMBER_IDS", read_repository_file(
-            REPOSITORY_ROOT / "apps" / "web_portal" / "README.md"
-        ))
+        self.assertIn(
+            "WEB_PORTAL_ADMIN_MEMBER_IDS",
+            read_repository_file(REPOSITORY_ROOT / "apps" / "web_portal" / "README.md"),
+        )
 
     def test_unknown_secret_references_are_required_not_hard_coded(self):
         command = normalize_shell_command(self.target)
         for variable in (
             "WEB_PORTAL_LINE_LOGIN_SECRET_REF",
             "WEB_PORTAL_SESSION_SECRET_REF",
+            "WEB_IDENTITY_LINK_GOOGLE_SECRET_REF",
+            "WEB_IDENTITY_LINK_LINE_SECRET_REF",
+            "WEB_IDENTITY_LINK_GOOGLE_SECRET_REF",
+            "WEB_IDENTITY_LINK_LINE_SECRET_REF",
         ):
             with self.subTest(variable=variable):
                 self.assertIn(f'"${{{variable}}}" | grep -Eq', command)
@@ -124,6 +131,16 @@ class DeploymentContractTests(unittest.TestCase):
                 values = {
                     "WEB_PORTAL_LINE_LOGIN_SECRET_REF": "line-login-secret:1",
                     "WEB_PORTAL_SESSION_SECRET_REF": "session-secret:1",
+                    "WEB_PORTAL_WEATHER_SECRET_REF": "weather-secret:1",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "false",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "false",
+                    "WEB_IDENTITY_LINK_GOOGLE_SECRET_REF": "google-identity-secret:1",
+                    "WEB_IDENTITY_LINK_LINE_SECRET_REF": "line-identity-secret:1",
+                    "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID": "google-web.apps.googleusercontent.com",
+                    "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI": "https://portal.example/api/v1/auth/identity-link/web/callback/google",
+                    "WEB_IDENTITY_LINK_LINE_CLIENT_ID": "1234567890",
+                    "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": "https://portal.example/api/v1/auth/identity-link/web/callback/line",
                 }
                 values[variable] = invalid
                 result = subprocess.run(
@@ -151,9 +168,7 @@ class DeploymentContractTests(unittest.TestCase):
         if shell is None:
             self.skipTest("sh is required for executable cleanup coverage")
 
-        block_match = re.search(
-            r"(?ms)^\s*@trap '(?P<body>.*?)\Z", self.target
-        )
+        block_match = re.search(r"(?ms)^\s*@trap '(?P<body>.*?)\Z", self.target)
         self.assertIsNotNone(block_match)
         command = "trap '" + block_match.group("body")
         command = command.replace("${DIR_WEB_PORTAL}", "web_portal")
@@ -165,6 +180,25 @@ class DeploymentContractTests(unittest.TestCase):
         )
         command = command.replace(
             "${WEB_PORTAL_SESSION_SECRET_REF}", "session-secret:1"
+        )
+        command = command.replace(
+            "${WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}", "google-identity-secret:1"
+        )
+        command = command.replace(
+            "${WEB_IDENTITY_LINK_LINE_SECRET_REF}", "line-identity-secret:1"
+        )
+        command = command.replace(
+            "${WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID}",
+            "google-web.apps.googleusercontent.com",
+        )
+        command = command.replace(
+            "${WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI}",
+            "https://portal.example/api/v1/auth/identity-link/web/callback/google",
+        )
+        command = command.replace("${WEB_IDENTITY_LINK_LINE_CLIENT_ID}", "1234567890")
+        command = command.replace(
+            "${WEB_IDENTITY_LINK_LINE_REDIRECT_URI}",
+            "https://portal.example/api/v1/auth/identity-link/web/callback/line",
         )
 
         for gcloud_exit in (0, 9):
@@ -197,19 +231,19 @@ class DeploymentContractTests(unittest.TestCase):
                     self.assertEqual(gcloud_exit, result.returncode)
                     self.assertFalse(target.exists())
 
-    def test_cloud_build_fails_closed_and_binds_three_runtime_secrets(self):
+    def test_cloud_build_fails_closed_and_binds_identity_runtime_secrets(self):
         command = normalize_shell_command(self.cloudbuild)
         self.assertIn("Validate deployment inputs", self.cloudbuild)
         self.assertIn("invalid or missing Secret reference", self.cloudbuild)
-        bindings = re.search(
-            r"--update-secrets(?:=|\s+)(?P<bindings>\S+)", command
-        )
+        bindings = re.search(r"--update-secrets(?:=|\s+)(?P<bindings>\S+)", command)
         self.assertIsNotNone(bindings)
         value = bindings.group("bindings")
         for binding in (
             "DSN_PASSWORD=supabase-database-password:latest",
             "LINE_LOGIN_CHANNEL_SECRET=${_WEB_PORTAL_LINE_LOGIN_SECRET_REF}",
             "SECRET_KEY=${_WEB_PORTAL_SESSION_SECRET_REF}",
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET=${_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET=${_WEB_IDENTITY_LINK_LINE_SECRET_REF}",
         ):
             with self.subTest(binding=binding):
                 self.assertIn(binding, value)

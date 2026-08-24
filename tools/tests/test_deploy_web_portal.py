@@ -20,6 +20,12 @@ IDENTITY = "123456-compute@developer.gserviceaccount.com"
 LINE_REF = "fixture-line-login-secret:1"
 SESSION_REF = "fixture-session-secret:2"
 WEATHER_REF = "fixture-weather-secret:3"
+GOOGLE_IDENTITY_REF = "fixture-google-identity-secret:4"
+LINE_IDENTITY_REF = "fixture-line-identity-secret:5"
+GOOGLE_CLIENT_ID = "google-web.apps.googleusercontent.com"
+LINE_CLIENT_ID = "1234567890"
+GOOGLE_REDIRECT = "https://portal.example/api/v1/auth/identity-link/web/callback/google"
+LINE_REDIRECT = "https://portal.example/api/v1/auth/identity-link/web/callback/line"
 PHASE_C_ENABLED = "true"
 ROLLOUT_FREEZE_ENABLED = "false"
 IDENTITY_MAINTENANCE_ENABLED = "false"
@@ -129,11 +135,22 @@ class FakeRunner:
             {"name": name, "value": "fixture-plain-value"}
             for name in deploy.REQUIRED_PLAIN_KEYS
         ]
+        exact_plain = {
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID": GOOGLE_CLIENT_ID,
+            "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI": GOOGLE_REDIRECT,
+            "WEB_IDENTITY_LINK_LINE_CLIENT_ID": LINE_CLIENT_ID,
+            "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": LINE_REDIRECT,
+        }
+        for entry in entries:
+            if entry["name"] in exact_plain:
+                entry["value"] = exact_plain[entry["name"]]
         references = {
             "DSN_PASSWORD": "supabase-database-password:latest",
             "LINE_LOGIN_CHANNEL_SECRET": LINE_REF,
             "SECRET_KEY": SESSION_REF,
             "WEATHER_API_KEY": WEATHER_REF,
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": GOOGLE_IDENTITY_REF,
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": LINE_IDENTITY_REF,
         }
         if self.secret_override:
             references.update(self.secret_override)
@@ -142,9 +159,7 @@ class FakeRunner:
             entries.append(
                 {
                     "name": name,
-                    "valueFrom": {
-                        "secretKeyRef": {"name": resource, "key": version}
-                    },
+                    "valueFrom": {"secretKeyRef": {"name": resource, "key": version}},
                 }
             )
         rollout_values = {
@@ -155,8 +170,7 @@ class FakeRunner:
         if self.rollout_override:
             rollout_values.update(self.rollout_override)
         entries.extend(
-            {"name": name, "value": value}
-            for name, value in rollout_values.items()
+            {"name": name, "value": value} for name, value in rollout_values.items()
         )
         return entries
 
@@ -234,9 +248,11 @@ class FakeRunner:
                         "conditions": [
                             {
                                 "type": "Ready",
-                                "status": "True"
-                                if self.revision_ready and state.get("ready", True)
-                                else "False",
+                                "status": (
+                                    "True"
+                                    if self.revision_ready and state.get("ready", True)
+                                    else "False"
+                                ),
                             }
                         ],
                     },
@@ -280,7 +296,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             "DSN_PASSWORD: fixture-password\n"
             "LINE_LOGIN_CHANNEL_SECRET: fixture-line-value\n"
             "SECRET_KEY: fixture-session-value\n"
-            "WEATHER_API_KEY: fixture-weather-value\n",
+            "WEATHER_API_KEY: fixture-weather-value\n"
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET: fixture-google-secret\n"
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET: fixture-line-identity-secret\n",
             encoding="utf-8",
         )
 
@@ -302,8 +320,15 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             PHASE_C_ENABLED,
             ROLLOUT_FREEZE_ENABLED,
             IDENTITY_MAINTENANCE_ENABLED,
+            GOOGLE_IDENTITY_REF,
+            LINE_IDENTITY_REF,
+            GOOGLE_CLIENT_ID,
+            GOOGLE_REDIRECT,
+            LINE_CLIENT_ID,
+            LINE_REDIRECT,
             runner=runner,
-            http_get=http_get or (lambda url, timeout: 404 if url.endswith("/demo/") else 200),
+            http_get=http_get
+            or (lambda url, timeout: 404 if url.endswith("/demo/") else 200),
             clock=kwargs.pop("clock", FakeClock([0, 1, 2, 3])),
             sleeper=kwargs.pop("sleeper", lambda seconds: None),
             check_tools=False,
@@ -317,6 +342,42 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             [command for command, _ in runner.commands],
             [["git", "status", "--porcelain"], ["git", "rev-parse", "HEAD"]],
         )
+
+    def test_identity_link_plain_configuration_is_exact_and_https(self):
+        values = deploy.identity_plain_values(
+            GOOGLE_CLIENT_ID, GOOGLE_REDIRECT, LINE_CLIENT_ID, LINE_REDIRECT
+        )
+        self.assertEqual(
+            values["WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI"], GOOGLE_REDIRECT
+        )
+        for invalid in (
+            "",
+            "http://portal.example/api/v1/auth/identity-link/web/callback/google",
+            GOOGLE_REDIRECT + "?next=unsafe",
+            LINE_REDIRECT,
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(deploy.DeploymentError):
+                    deploy.identity_plain_values(
+                        GOOGLE_CLIENT_ID,
+                        invalid,
+                        LINE_CLIENT_ID,
+                        LINE_REDIRECT,
+                    )
+
+    def test_identity_link_client_secrets_require_numeric_versions(self):
+        self.assertEqual(
+            deploy.validate_version_pinned_secret_ref(
+                GOOGLE_IDENTITY_REF, "Google identity-link Secret reference"
+            ),
+            GOOGLE_IDENTITY_REF,
+        )
+        for invalid in ("identity-secret:latest", "identity-secret:0", ""):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(deploy.DeploymentError):
+                    deploy.validate_version_pinned_secret_ref(
+                        invalid, "Google identity-link Secret reference"
+                    )
 
     def test_main_rejects_execution_arguments_without_execute(self):
         stderr = io.StringIO()
@@ -336,33 +397,69 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
     def test_invalid_inputs_and_dirty_source_fail_closed(self):
         cases = (
             (
-                "abc", ROLLBACK, LINE_REF, SESSION_REF, WEATHER_REF,
-                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
-                IDENTITY_MAINTENANCE_ENABLED, "40-character",
+                "abc",
+                ROLLBACK,
+                LINE_REF,
+                SESSION_REF,
+                WEATHER_REF,
+                PHASE_C_ENABLED,
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
+                "40-character",
             ),
             (
-                SHA, "other-service-00001-bad", LINE_REF, SESSION_REF,
-                WEATHER_REF, PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
-                IDENTITY_MAINTENANCE_ENABLED, "web-portal",
+                SHA,
+                "other-service-00001-bad",
+                LINE_REF,
+                SESSION_REF,
+                WEATHER_REF,
+                PHASE_C_ENABLED,
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
+                "web-portal",
             ),
             (
-                SHA, ROLLBACK, "bad value", SESSION_REF, WEATHER_REF,
-                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
-                IDENTITY_MAINTENANCE_ENABLED, "resource:version",
+                SHA,
+                ROLLBACK,
+                "bad value",
+                SESSION_REF,
+                WEATHER_REF,
+                PHASE_C_ENABLED,
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
+                "resource:version",
             ),
             (
-                SHA, ROLLBACK, LINE_REF, "secret:", WEATHER_REF,
-                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
-                IDENTITY_MAINTENANCE_ENABLED, "resource:version",
+                SHA,
+                ROLLBACK,
+                LINE_REF,
+                "secret:",
+                WEATHER_REF,
+                PHASE_C_ENABLED,
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
+                "resource:version",
             ),
             (
-                SHA, ROLLBACK, LINE_REF, SESSION_REF, "weather value",
-                PHASE_C_ENABLED, ROLLOUT_FREEZE_ENABLED,
-                IDENTITY_MAINTENANCE_ENABLED, "resource:version",
+                SHA,
+                ROLLBACK,
+                LINE_REF,
+                SESSION_REF,
+                "weather value",
+                PHASE_C_ENABLED,
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
+                "resource:version",
             ),
             (
-                SHA, ROLLBACK, LINE_REF, SESSION_REF, WEATHER_REF, "yes",
-                ROLLOUT_FREEZE_ENABLED, IDENTITY_MAINTENANCE_ENABLED,
+                SHA,
+                ROLLBACK,
+                LINE_REF,
+                SESSION_REF,
+                WEATHER_REF,
+                "yes",
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
                 "true or false",
             ),
         )
@@ -407,7 +504,10 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
     def test_head_mismatch_missing_source_and_existing_temp_fail_closed(self):
         with self.assertRaisesRegex(deploy.DeploymentError, "HEAD"):
             deploy.preflight(
-                self.root, SHA, runner=FakeRunner(self.root, head="b" * 40), check_tools=False
+                self.root,
+                SHA,
+                runner=FakeRunner(self.root, head="b" * 40),
+                check_tools=False,
             )
         (self.root / "apps" / "web_portal" / "Dockerfile").unlink()
         with self.assertRaisesRegex(deploy.DeploymentError, "source"):
@@ -437,8 +537,25 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             'WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED: "false"\n',
         )
         self.assertNotIn(b"\r\n", self.temporary_env.read_bytes())
+        rendered = self.temporary_env.read_text(encoding="utf-8")
+        self.assertNotIn("fixture-google-secret", rendered)
+        self.assertNotIn("fixture-line-identity-secret", rendered)
 
-    def test_success_uses_fixed_context_single_substitution_argument_and_http_once(self):
+    def test_filtered_env_replaces_identity_plain_values_exactly(self):
+        source = self.root / "envs" / "web_portal" / ".env.yaml"
+        values = deploy.identity_plain_values(
+            GOOGLE_CLIENT_ID, GOOGLE_REDIRECT, LINE_CLIENT_ID, LINE_REDIRECT
+        )
+        deploy.write_filtered_env(source, self.temporary_env, identity_values=values)
+        rendered = self.temporary_env.read_text(encoding="utf-8")
+        for name, value in values.items():
+            self.assertEqual(rendered.count(name + ":"), 1)
+            self.assertIn(f'{name}: "{value}"', rendered)
+        self.assertNotIn("CLIENT_SECRET", rendered)
+
+    def test_success_uses_fixed_context_single_substitution_argument_and_http_once(
+        self,
+    ):
         runner = FakeRunner(self.root)
         http_calls = []
 
@@ -447,7 +564,11 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             return 404 if url.endswith("/demo/") else 200
 
         result = self.execute(runner, fake_http)
-        build, cwd = next(item for item in runner.commands if item[0][:3] == ["gcloud", "builds", "submit"])
+        build, cwd = next(
+            item
+            for item in runner.commands
+            if item[0][:3] == ["gcloud", "builds", "submit"]
+        )
         self.assertEqual(cwd, self.root / "apps" / "web_portal")
         self.assertIn("--async", build)
         substitutions = build[build.index("--substitutions") + 1]
@@ -455,14 +576,29 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         self.assertIn(f"_IMAGE_TAG={SHA}", substitutions)
         self.assertIn(f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={LINE_REF}", substitutions)
         self.assertIn(f"_WEB_PORTAL_WEATHER_SECRET_REF={WEATHER_REF}", substitutions)
+        self.assertIn(
+            f"_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF={GOOGLE_IDENTITY_REF}",
+            substitutions,
+        )
+        self.assertIn(
+            f"_WEB_IDENTITY_LINK_LINE_SECRET_REF={LINE_IDENTITY_REF}",
+            substitutions,
+        )
         self.assertIn("_PORTAL_DATA_PHASE_C_ENABLED=true", substitutions)
         self.assertIn("_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false", substitutions)
         self.assertIn("_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=false", substitutions)
-        self.assertEqual(len(http_calls), 2)
-        self.assertEqual(result["http_status"], {"/": 200, "/demo/": 404})
+        self.assertEqual(len(http_calls), 3)
+        self.assertEqual(
+            result["http_status"],
+            {"/": 200, "/demo/": 404, "/identity-recovery": 200},
+        )
         self.assertNotIn("fixture-password", json.dumps(result))
         self.assertFalse(self.temporary_env.exists())
-        self.assertTrue((self.root / "apps" / "web_portal" / "dist" / "shared_lib-0.0.1.tar.gz").is_file())
+        self.assertTrue(
+            (
+                self.root / "apps" / "web_portal" / "dist" / "shared_lib-0.0.1.tar.gz"
+            ).is_file()
+        )
 
     def test_pinned_traffic_waits_for_ready_revision_then_promotes_and_converges(self):
         runner = FakeRunner(
@@ -490,8 +626,10 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
         self.assertEqual(result["revision"], REVISION)
         self.assertEqual(len(sleeps), 4)  # build, two revision waits, traffic wait
-        self.assertEqual(len(http_calls), 2)
-        promotions = [command for command, _ in runner.commands if "update-traffic" in command]
+        self.assertEqual(len(http_calls), 3)
+        promotions = [
+            command for command, _ in runner.commands if "update-traffic" in command
+        ]
         self.assertEqual(len(promotions), 1)
         self.assertIn(f"{REVISION}=100", promotions[0])
 
@@ -513,7 +651,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.stage, "revision_convergence")
         self.assertEqual(http_calls, [])
-        self.assertFalse(any("get-iam-policy" in command for command, _ in runner.commands))
+        self.assertFalse(
+            any("get-iam-policy" in command for command, _ in runner.commands)
+        )
         self.assertEqual(
             len(
                 [
@@ -537,18 +677,33 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
     def test_polling_handles_failure_malformed_and_timeout(self):
         with self.assertRaisesRegex(deploy.DeploymentError, "FAILURE"):
             deploy.poll_build(
-                self.root, "build", FakeRunner(self.root, build_statuses=("FAILURE",)),
-                5, 1, FakeClock([0]), lambda seconds: None,
+                self.root,
+                "build",
+                FakeRunner(self.root, build_statuses=("FAILURE",)),
+                5,
+                1,
+                FakeClock([0]),
+                lambda seconds: None,
             )
         with self.assertRaisesRegex(deploy.DeploymentError, "malformed"):
             deploy.poll_build(
-                self.root, "build", FakeRunner(self.root, build_statuses=(None,)),
-                5, 1, FakeClock([0]), lambda seconds: None,
+                self.root,
+                "build",
+                FakeRunner(self.root, build_statuses=(None,)),
+                5,
+                1,
+                FakeClock([0]),
+                lambda seconds: None,
             )
         with self.assertRaisesRegex(deploy.DeploymentError, "timed out"):
             deploy.poll_build(
-                self.root, "build", FakeRunner(self.root, build_statuses=("WORKING",)),
-                1, 1, FakeClock([0, 1]), lambda seconds: None,
+                self.root,
+                "build",
+                FakeRunner(self.root, build_statuses=("WORKING",)),
+                1,
+                1,
+                FakeClock([0, 1]),
+                lambda seconds: None,
             )
 
     def test_build_failure_cleans_temp_without_rollback(self):
@@ -587,7 +742,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
                 return FakeResponse()
 
         opener = FakeOpener()
-        with patch.object(deploy.urllib.request, "build_opener", return_value=opener) as build:
+        with patch.object(
+            deploy.urllib.request, "build_opener", return_value=opener
+        ) as build:
             status = deploy.http_status("https://fixture.example/", 7.5)
         self.assertEqual(status, 200)
         self.assertEqual(opener.request.get_method(), "GET")
@@ -615,14 +772,20 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
                 runner = FakeRunner(self.root, **options)
                 with self.assertRaises(deploy.DeploymentStageError):
                     self.execute(runner, clock=FakeClock(range(100)), poll_timeout=3)
-                rollback = [command for command, _ in runner.commands if "update-traffic" in command]
+                rollback = [
+                    command
+                    for command, _ in runner.commands
+                    if "update-traffic" in command
+                ]
                 self.assertEqual(rollback, [])
                 self.assertFalse(self.temporary_env.exists())
 
     def test_already_promoted_revision_skips_duplicate_promotion(self):
         runner = FakeRunner(self.root, already_promoted=True)
         self.execute(runner)
-        self.assertFalse(any("update-traffic" in command for command, _ in runner.commands))
+        self.assertFalse(
+            any("update-traffic" in command for command, _ in runner.commands)
+        )
 
     def test_promotion_failure_rolls_back_with_exact_revision(self):
         runner = FakeRunner(self.root, promotion_failure=True)
@@ -631,7 +794,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         ) as raised:
             self.execute(runner)
         self.assertEqual(raised.exception.stage, "traffic_promotion")
-        updates = [command for command, _ in runner.commands if "update-traffic" in command]
+        updates = [
+            command for command, _ in runner.commands if "update-traffic" in command
+        ]
         self.assertEqual(len(updates), 2)
         self.assertIn(f"{REVISION}=100", updates[0])
         self.assertIn(f"{ROLLBACK}=100", updates[1])
@@ -650,8 +815,12 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             )
         self.assertEqual(raised.exception.stage, "traffic_convergence")
         self.assertEqual(http_calls, [])
-        self.assertFalse(any("get-iam-policy" in command for command, _ in runner.commands))
-        updates = [command for command, _ in runner.commands if "update-traffic" in command]
+        self.assertFalse(
+            any("get-iam-policy" in command for command, _ in runner.commands)
+        )
+        updates = [
+            command for command, _ in runner.commands if "update-traffic" in command
+        ]
         self.assertEqual(len(updates), 2)
         self.assertIn(f"{ROLLBACK}=100", updates[1])
 
@@ -665,7 +834,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
         with self.assertRaisesRegex(deploy.DeploymentError, "rollback succeeded"):
             self.execute(runner, failing_http)
-        self.assertEqual(len(calls), 2)
+        self.assertEqual(len(calls), 3)
         self.assertFalse(self.temporary_env.exists())
 
     def test_http_transport_error_rolls_back_and_cleans_environment(self):
@@ -678,7 +847,9 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
         with self.assertRaisesRegex(deploy.DeploymentError, "rollback succeeded"):
             self.execute(runner, unavailable_http)
-        updates = [command for command, _ in runner.commands if "update-traffic" in command]
+        updates = [
+            command for command, _ in runner.commands if "update-traffic" in command
+        ]
         self.assertEqual(len(updates), 2)
         self.assertIn(f"{ROLLBACK}=100", updates[1])
         self.assertFalse(self.temporary_env.exists())
@@ -710,9 +881,7 @@ class WebPortalCloudBuildContractTests(unittest.TestCase):
             "validate_secret_ref '${_WEB_PORTAL_WEATHER_SECRET_REF}' WEATHER_API_KEY",
             cloudbuild,
         )
-        self.assertIn(
-            "WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF}", cloudbuild
-        )
+        self.assertIn("WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF}", cloudbuild)
         self.assertNotIn("WEATHER_API_KEY: ", cloudbuild)
         self.assertIn("_PORTAL_DATA_PHASE_C_ENABLED", cloudbuild)
         self.assertIn("_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED", cloudbuild)

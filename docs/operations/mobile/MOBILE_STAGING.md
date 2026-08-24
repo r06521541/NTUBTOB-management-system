@@ -15,9 +15,11 @@ or distribution.
 - Staging uses a dedicated project and dedicated PostgreSQL database at exact
   revision `0005_mobile_auth_api_foundation`.
 - Runtime names are `PORTAL_DATA_DATABASE_URL`, `MOBILE_API_AUDIENCE`,
-  `MOBILE_ACCESS_SIGNING_KEY`, and `MOBILE_REFRESH_REPLAY_KEY`. Only the LINE
-  channel ID/audience is plain configuration; the other three are Secret
-  references. This package never creates, reads or prints their values.
+  `MOBILE_API_GOOGLE_AUDIENCES`, `MOBILE_ACCESS_SIGNING_KEY`, and
+  `MOBILE_REFRESH_REPLAY_KEY`. The LINE channel ID and the bounded, comma-separated
+  Google backend audience allowlist are plain configuration; the other three are
+  version-pinned Secret references. This package never creates, reads or prints
+  their values.
 - The provider subject is private execution input. It must only be supplied as
   `MOBILE_STAGING_PROVIDER_SUBJECT` in a private process environment. It must
   never appear in a command line, transcript, manifest, hash or repository file.
@@ -799,8 +801,18 @@ flutter build apk \
   --dart-define=APP_FLAVOR=staging \
   --dart-define=CLIENT_MODE=real \
   --dart-define=API_BASE_URL=https://<mobile-api-staging-origin-without-api-v1> \
-  --dart-define=LINE_CHANNEL_ID=<numeric-developing-channel-id>
+  --dart-define=LINE_CHANNEL_ID=<numeric-developing-channel-id> \
+  --dart-define=GOOGLE_CLIENT_ID=<approved-platform-client-id> \
+  --dart-define=GOOGLE_SERVER_CLIENT_ID=<approved-web-server-client-id>
 ```
+
+On Android, `GOOGLE_SERVER_CLIENT_ID` is the required Web client ID; the platform
+client value is retained as an exact approved build input but is not passed to
+the Android SDK initializer. On iOS, `GOOGLE_CLIENT_ID` is the iOS client ID and
+the same approved Web client ID is used as `GOOGLE_SERVER_CLIENT_ID`. The iOS
+build also requires a private `ios/Flutter/AuthConfig.xcconfig` containing the
+matching reversed iOS client-ID URL scheme; the Xcode build phase fails closed
+when it is absent or malformed.
 
 Do not put a channel secret, database URL, provider subject or app session key in
 the build. Do not upload, sign or distribute an APK under this task.

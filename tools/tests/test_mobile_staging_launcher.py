@@ -22,9 +22,16 @@ SENSITIVE_SENTINELS = (
 
 
 def powershell_available() -> bool:
-    return bool(os.environ.get("SystemRoot")) and (
-        Path(os.environ["SystemRoot"]) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
-    ).is_file()
+    return (
+        bool(os.environ.get("SystemRoot"))
+        and (
+            Path(os.environ["SystemRoot"])
+            / "System32"
+            / "WindowsPowerShell"
+            / "v1.0"
+            / "powershell.exe"
+        ).is_file()
+    )
 
 
 @unittest.skipUnless(powershell_available(), "Windows PowerShell is unavailable")
@@ -36,8 +43,7 @@ class PowerShellContractTest(unittest.TestCase):
             harness = Path(directory) / "harness.ps1"
             harness.write_text(
                 "$ErrorActionPreference = 'Stop'\n"
-                f". '{LAUNCHER.as_posix()}'\n"
-                + textwrap.dedent(body),
+                f". '{LAUNCHER.as_posix()}'\n" + textwrap.dedent(body),
                 encoding="utf-8-sig",
             )
             return subprocess.run(
@@ -116,7 +122,11 @@ class PowerShellContractTest(unittest.TestCase):
             r"\$script:(?:Routine|Private)Actions\s*=\s*@\((.*?)\)", source, re.S
         )
         self.assertEqual(
-            {value for group in action_sets for value in re.findall(r"'([^']+)'", group)},
+            {
+                value
+                for group in action_sets
+                for value in re.findall(r"'([^']+)'", group)
+            },
             expected,
         )
         for action in expected:
@@ -375,7 +385,10 @@ class PowerShellContractTest(unittest.TestCase):
                 '<node content-desc="請使用 LINE 安全登入"/></hierarchy>',
                 "Accessibility foreground state is not exact",
             ),
-            ('<hierarchy><node content-desc="unapproved"/></hierarchy>', "Accessibility foreground state is not exact"),
+            (
+                '<hierarchy><node content-desc="unapproved"/></hierarchy>',
+                "Accessibility foreground state is not exact",
+            ),
             ("not-xml", "Accessibility inventory is malformed"),
             ("", "Accessibility inventory size is not bounded"),
         )
@@ -432,14 +445,16 @@ class PowerShellContractTest(unittest.TestCase):
             exact_button + exact_button,
             exact_button
             + '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/>',
-            exact_button.replace('tw.org.ntubtob.portal', 'com.example.other'),
-            exact_button.replace('android.widget.Button', 'android.view.View'),
+            exact_button.replace("tw.org.ntubtob.portal", "com.example.other"),
+            exact_button.replace("android.widget.Button", "android.view.View"),
             exact_button.replace('enabled="true"', 'enabled="false"'),
             exact_button.replace('clickable="true"', 'clickable="false"'),
         )
         for nodes in invalid_nodes:
             with self.subTest(nodes=nodes):
-                hierarchy = f'<hierarchy>{nodes}<node content-desc="{sentinel}"/></hierarchy>'
+                hierarchy = (
+                    f'<hierarchy>{nodes}<node content-desc="{sentinel}"/></hierarchy>'
+                )
                 result = self.run_harness(
                     f"""
                     function Invoke-BoundedProcess {{
@@ -450,17 +465,54 @@ class PowerShellContractTest(unittest.TestCase):
                     """
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("Accessibility foreground state is not exact", result.stdout)
+                self.assertIn(
+                    "Accessibility foreground state is not exact", result.stdout
+                )
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_principal_provenance_matrix_is_bounded_and_non_authoritative(self):
         sentinel = "private-provider-subject-sentinel"
         cases = (
-            ("一般使用者", "停用", "fresh_server", "伺服器最新驗證", "basic", "fresh_server"),
-            ("幹部", "啟用", "fresh_server", "伺服器最新驗證", "officer_report_enabled", "fresh_server"),
-            ("幹部", "停用", "fresh_server", "伺服器最新驗證", "officer_report_disabled", "fresh_server"),
-            ("一般使用者", "停用", "offline_cache", "離線快取，非權威", "basic_non_authoritative", "offline_cache"),
-            ("幹部", "啟用", "unknown", "來源未確認，非權威", "officer_report_enabled_non_authoritative", "unknown"),
+            (
+                "一般使用者",
+                "停用",
+                "fresh_server",
+                "伺服器最新驗證",
+                "basic",
+                "fresh_server",
+            ),
+            (
+                "幹部",
+                "啟用",
+                "fresh_server",
+                "伺服器最新驗證",
+                "officer_report_enabled",
+                "fresh_server",
+            ),
+            (
+                "幹部",
+                "停用",
+                "fresh_server",
+                "伺服器最新驗證",
+                "officer_report_disabled",
+                "fresh_server",
+            ),
+            (
+                "一般使用者",
+                "停用",
+                "offline_cache",
+                "離線快取，非權威",
+                "basic_non_authoritative",
+                "offline_cache",
+            ),
+            (
+                "幹部",
+                "啟用",
+                "unknown",
+                "來源未確認，非權威",
+                "officer_report_enabled_non_authoritative",
+                "unknown",
+            ),
         )
         for role, report, token, label, expected_state, expected_provenance in cases:
             with self.subTest(token=token, role=role, report=report):
@@ -486,19 +538,32 @@ class PowerShellContractTest(unittest.TestCase):
                 )
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
 
-    def test_principal_provenance_rejects_legacy_ambiguous_and_malformed_projection(self):
+    def test_principal_provenance_rejects_legacy_ambiguous_and_malformed_projection(
+        self,
+    ):
         sentinel = "private-provider-subject-sentinel"
-        exact = "偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"
+        exact = (
+            "偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"
+        )
         login = (
             '<node package="tw.org.ntubtob.portal" class="android.widget.Button" '
             'content-desc="LINE 登入" enabled="true" clickable="true"/>'
         )
         cases = (
-            (f'<node content-desc="{exact}"/><node content-desc="{exact}"/>', "duplicate"),
-            (f"{login}<node content-desc=\"{exact}\"/>", "coexisting"),
+            (
+                f'<node content-desc="{exact}"/><node content-desc="{exact}"/>',
+                "duplicate",
+            ),
+            (f'{login}<node content-desc="{exact}"/>', "coexisting"),
             ('<node content-desc="偵錯權限投影：幹部；報表讀取：啟用"/>', "legacy"),
-            ('<node content-desc="偵錯權限投影：一般使用者；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/>', "inconsistent"),
-            ('<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（離線快取，非權威）"/>', "mismatched provenance label"),
+            (
+                '<node content-desc="偵錯權限投影：一般使用者；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/>',
+                "inconsistent",
+            ),
+            (
+                '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（離線快取，非權威）"/>',
+                "mismatched provenance label",
+            ),
         )
         for nodes, case_name in cases:
             with self.subTest(case=case_name):
@@ -513,15 +578,24 @@ class PowerShellContractTest(unittest.TestCase):
                     """
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn("Accessibility foreground state is not exact", result.stdout)
+                self.assertIn(
+                    "Accessibility foreground state is not exact", result.stdout
+                )
                 self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_principal_consumer_keeps_deferred_vocabulary_out_of_parser(self):
         source = LAUNCHER.read_text(encoding="utf-8")
-        body = re.search(r"function Get-AllowlistedUiCounts \{(.*?)\n\}", source, re.S).group(1)
+        body = re.search(
+            r"function Get-AllowlistedUiCounts \{(.*?)\n\}", source, re.S
+        ).group(1)
         for token in ("fresh_server", "offline_cache", "unknown"):
             self.assertIn(token, body)
-        for deferred in ("cold_reconstructed", "terminal_local", "offline_report_readonly", "ownReply"):
+        for deferred in (
+            "cold_reconstructed",
+            "terminal_local",
+            "offline_report_readonly",
+            "ownReply",
+        ):
             self.assertNotIn(deferred, body)
 
     def test_accessibility_transport_rejects_unsafe_results_without_disclosure(self):
@@ -578,7 +652,9 @@ class PowerShellContractTest(unittest.TestCase):
                     f"{semantic_state},login=0,basic=0,officer=0,uiCalls=0",
                     result.stdout,
                 )
-                self.assertNotIn("secrets versions access", result.stdout + result.stderr)
+                self.assertNotIn(
+                    "secrets versions access", result.stdout + result.stderr
+                )
 
     def test_current_activity_uses_only_one_exact_foreground_record(self):
         cases = (
@@ -831,7 +907,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             """
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("APK package identity does not match,install=False", result.stdout)
+        self.assertIn(
+            "APK package identity does not match,install=False", result.stdout
+        )
 
     def test_apk_tools_use_exact_child_java_and_reject_unapproved_home(self):
         stale_java = "C:/stale-java-sentinel"
@@ -892,14 +970,22 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             f"package=tw.org.ntubtob.portal,fingerprint={FINGERPRINT},calls=2",
             result.stdout,
         )
-        self.assertEqual(result.stdout.count("Approved Java home is invalid,started=False"), 2)
-        self.assertEqual(result.stdout.count("Approved Android SDK root is invalid,started=False"), 2)
-        self.assertEqual(result.stdout.count("Approved Windows root is invalid,started=False"), 3)
+        self.assertEqual(
+            result.stdout.count("Approved Java home is invalid,started=False"), 2
+        )
+        self.assertEqual(
+            result.stdout.count("Approved Android SDK root is invalid,started=False"), 2
+        )
+        self.assertEqual(
+            result.stdout.count("Approved Windows root is invalid,started=False"), 3
+        )
         self.assertIn("APK signer verification failed safely", result.stdout)
         self.assertNotIn(stale_java, result.stdout + result.stderr)
         self.assertNotIn("stale-path-sentinel", result.stdout + result.stderr)
         self.assertNotIn("stale-android-home-sentinel", result.stdout + result.stderr)
-        self.assertNotIn("stale-android-sdk-root-sentinel", result.stdout + result.stderr)
+        self.assertNotIn(
+            "stale-android-sdk-root-sentinel", result.stdout + result.stderr
+        )
         self.assertNotIn("apk-stdout-sentinel", result.stdout + result.stderr)
         self.assertNotIn("apk-stderr-sentinel", result.stdout + result.stderr)
 
@@ -924,7 +1010,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             """
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("timeout_but_running,forbidden,starts=1,network=0:1", result.stdout)
+        self.assertIn(
+            "timeout_but_running,forbidden,starts=1,network=0:1", result.stdout
+        )
 
     def test_launcher_anomaly_still_restores_network(self):
         result = self.run_harness(
@@ -993,7 +1081,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 """
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("Flutter build failed safely,output=False,artifact=False", result.stdout)
+            self.assertIn(
+                "Flutter build failed safely,output=False,artifact=False", result.stdout
+            )
 
     def test_timed_out_partial_build_is_removed_without_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1028,7 +1118,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 """
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("Flutter build failed safely,output=False,artifact=False", result.stdout)
+            self.assertIn(
+                "Flutter build failed safely,output=False,artifact=False", result.stdout
+            )
 
     def test_build_uses_exact_public_defines_and_redacts_bounded_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -1054,6 +1146,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 f"""
                 $env:MOBILE_STAGING_PUBLIC_ORIGIN='{SENSITIVE_SENTINELS[2]}'
                 $env:MOBILE_STAGING_LINE_CHANNEL_ID='{SENSITIVE_SENTINELS[3]}'
+                $env:MOBILE_STAGING_GOOGLE_CLIENT_ID='android-client.apps.googleusercontent.com'
+                $env:MOBILE_STAGING_GOOGLE_SERVER_CLIENT_ID='web-server.apps.googleusercontent.com'
                 function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{(evidence / 'app-debug.apk').as_posix()}' }}
@@ -1066,11 +1160,13 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                         '--dart-define=APP_FLAVOR=staging',
                         '--dart-define=CLIENT_MODE=real',
                         ('--dart-define=API_BASE_URL='+$env:MOBILE_STAGING_PUBLIC_ORIGIN),
-                        ('--dart-define=LINE_CHANNEL_ID='+$env:MOBILE_STAGING_LINE_CHANNEL_ID)
+                        ('--dart-define=LINE_CHANNEL_ID='+$env:MOBILE_STAGING_LINE_CHANNEL_ID),
+                        ('--dart-define=GOOGLE_CLIENT_ID='+$env:MOBILE_STAGING_GOOGLE_CLIENT_ID),
+                        ('--dart-define=GOOGLE_SERVER_CLIENT_ID='+$env:MOBILE_STAGING_GOOGLE_SERVER_CLIENT_ID)
                     )
                     $actual=@($Arguments | Where-Object {{ $_ -like '--dart-define=*' }})
-                    if ($actual.Count -ne 4) {{ throw 'Build define arguments are not exact' }}
-                    for ($index=0;$index -lt 4;$index++) {{
+                    if ($actual.Count -ne 6) {{ throw 'Build define arguments are not exact' }}
+                    for ($index=0;$index -lt 6;$index++) {{
                         if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Build define arguments are not exact' }}
                     }}
                     if (@($Arguments | Where-Object {{ $_ -like '--dart-define-from-file=*' }}).Count -ne 0) {{ throw 'Build transport is not direct' }}
@@ -1147,7 +1243,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("fakeStarted=True", result.stdout)
-            self.assertIn("Flutter define set is invalid,secretStarted=False", result.stdout)
+            self.assertIn(
+                "Flutter define set is invalid,secretStarted=False", result.stdout
+            )
             self.assertNotIn(sentinel, result.stdout + result.stderr)
 
     def test_help_and_owner_gate_emit_one_governed_json_result(self):
@@ -1170,7 +1268,14 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 "OWNER_ACTION_REQUIRED",
             ),
         )
-        for arguments, classification, operator, owner_gate, returncode, reason_code in cases:
+        for (
+            arguments,
+            classification,
+            operator,
+            owner_gate,
+            returncode,
+            reason_code,
+        ) in cases:
             with self.subTest(classification=classification):
                 result = subprocess.run(
                     [
@@ -1251,7 +1356,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 "RUNTIME_FAILED",
             ],
         )
-        self.assertNotIn("private-provider-subject-sentinel", result.stdout + result.stderr)
+        self.assertNotIn(
+            "private-provider-subject-sentinel", result.stdout + result.stderr
+        )
 
     def test_governed_status_failures_emit_exact_safe_reason_codes(self):
         cases = (
@@ -1387,7 +1494,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("isolated=True,created=True", result.stdout)
             self.assertIn("cleaned=True", result.stdout)
-            self.assertIn("Path escapes the task-owned root,outsideStarted=False", result.stdout)
+            self.assertIn(
+                "Path escapes the task-owned root,outsideStarted=False", result.stdout
+            )
             self.assertNotIn(inherited, result.stdout + result.stderr)
 
     def test_real_package_state_emits_exact_governed_contract(self):
@@ -1428,7 +1537,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 expected_exit,
             ) in enumerate(cases):
                 with self.subTest(index=index, classification=classification):
-                    escaped_stdout = stdout.replace("`", "``").replace('"', '`"').replace("\n", "`n")
+                    escaped_stdout = (
+                        stdout.replace("`", "``").replace('"', '`"').replace("\n", "`n")
+                    )
                     mock = (
                         "function Invoke-BoundedProcess { "
                         "return [pscustomobject]@{"
@@ -1475,7 +1586,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     envelope = json.loads(result.stdout)
                     self.assertEqual(envelope["classification"], classification)
                     if reason_code:
-                        self.assertEqual(envelope["details"]["reason_code"], reason_code)
+                        self.assertEqual(
+                            envelope["details"]["reason_code"], reason_code
+                        )
                     else:
                         self.assertEqual(envelope["details"]["result"], state)
                     self.assertNotIn(installed_path, result.stdout + result.stderr)
@@ -1800,7 +1913,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             original = "return [ordered]@{ result = 'available'; actions = @($script:RoutineActions + $script:PrivateActions) }"
             injected = f"return [ordered]@{{ result = 'available'; actions = @($script:RoutineActions + $script:PrivateActions); diagnostic = '{sentinel}' }}"
             self.assertEqual(source.count(original), 1)
-            launcher_copy.write_text(source.replace(original, injected), encoding="utf-8")
+            launcher_copy.write_text(
+                source.replace(original, injected), encoding="utf-8"
+            )
             result = subprocess.run(
                 [
                     "powershell.exe",
@@ -1858,11 +1973,15 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
         }
         assigned = {
             name.casefold()
-            for name in re.findall(r"(?im)(?:^|[;{])\s*\$([A-Za-z][A-Za-z0-9_]*)\s*=", source)
+            for name in re.findall(
+                r"(?im)(?:^|[;{])\s*\$([A-Za-z][A-Za-z0-9_]*)\s*=", source
+            )
         }
         iterators = {
             name.casefold()
-            for name in re.findall(r"(?i)foreach\s*\(\s*\$([A-Za-z][A-Za-z0-9_]*)", source)
+            for name in re.findall(
+                r"(?i)foreach\s*\(\s*\$([A-Za-z][A-Za-z0-9_]*)", source
+            )
         }
         self.assertFalse((assigned | iterators) & blocked)
 
@@ -1882,7 +2001,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             "tools.mobile_staging_data",
         ):
             self.assertNotIn(forbidden, pre_private)
-        config_body = re.search(r"function Load-LauncherConfig \{(.*?)\n\}", source, re.S).group(1)
+        config_body = re.search(
+            r"function Load-LauncherConfig \{(.*?)\n\}", source, re.S
+        ).group(1)
         self.assertNotIn("gcloud", config_body.lower())
         self.assertNotIn("python_executable", config_body)
 
@@ -1924,7 +2045,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 """
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.count("Task launcher lock already exists"), 2)
+            self.assertEqual(
+                result.stdout.count("Task launcher lock already exists"), 2
+            )
 
     def test_conflicting_options_fail_before_action_dispatch(self):
         source = LAUNCHER.read_text(encoding="utf-8")
@@ -1982,8 +2105,14 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 """
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("grant-officer,granted,changed=True,gcloud=1,childCleared=True", result.stdout)
-            self.assertIn("calls=--inspect-officer|--grant-officer|--inspect-officer", result.stdout)
+            self.assertIn(
+                "grant-officer,granted,changed=True,gcloud=1,childCleared=True",
+                result.stdout,
+            )
+            self.assertIn(
+                "calls=--inspect-officer|--grant-officer|--inspect-officer",
+                result.stdout,
+            )
             self.assertIn("parentDsn=True,parentSubject=True", result.stdout)
             self.assert_safe_output(result)
 
@@ -2009,7 +2138,9 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 """
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("Owner confirmation did not match,mutationCalled=False", result.stdout)
+            self.assertIn(
+                "Owner confirmation did not match,mutationCalled=False", result.stdout
+            )
             self.assert_safe_output(result)
 
     def test_private_mutation_interruption_only_reconciles_read_only_once(self):
@@ -2123,6 +2254,7 @@ def candidate_approval():
             "MOBILE_REFRESH_REPLAY_KEY": "mobile-api-staging-refresh:1",
         },
         "mobile_api_audience": "1234567890123456789",
+        "mobile_api_google_audiences": "staging-web.apps.googleusercontent.com",
     }
 
 

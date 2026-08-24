@@ -16,10 +16,15 @@ REVISION = "0005_mobile_auth_api_foundation"
 RUNTIME_NAMES = (
     "PORTAL_DATA_DATABASE_URL",
     "MOBILE_API_AUDIENCE",
+    "MOBILE_API_GOOGLE_AUDIENCES",
     "MOBILE_ACCESS_SIGNING_KEY",
     "MOBILE_REFRESH_REPLAY_KEY",
 )
-SECRET_NAMES = tuple(name for name in RUNTIME_NAMES if name != "MOBILE_API_AUDIENCE")
+SECRET_NAMES = tuple(
+    name
+    for name in RUNTIME_NAMES
+    if name not in {"MOBILE_API_AUDIENCE", "MOBILE_API_GOOGLE_AUDIENCES"}
+)
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 DIGEST_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 SECRET_REF_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{2,126}:[1-9][0-9]*$")
@@ -163,7 +168,10 @@ def redacted_manifest(
         },
         "runtime_secret_refs": refs
         or {name: "OWNER_DECISION_REQUIRED" for name in SECRET_NAMES},
-        "runtime_plain_names": ["MOBILE_API_AUDIENCE"],
+        "runtime_plain_names": [
+            "MOBILE_API_AUDIENCE",
+            "MOBILE_API_GOOGLE_AUDIENCES",
+        ],
         "tester_count": 1,
         "image": {"commit": commit, "digest": digest},
         "traffic": "candidate-no-traffic",
@@ -202,6 +210,7 @@ def load_approval(path: Path) -> dict:
         "build_service_account",
         "runtime_secret_refs",
         "mobile_api_audience",
+        "mobile_api_google_audiences",
     }
     if set(value) != required or value["owner_approved"] is not True:
         raise StagingContractError("Approval artifact fields are not exact")
@@ -277,4 +286,19 @@ def load_approval(path: Path) -> dict:
     validate_secret_refs(value["runtime_secret_refs"])
     if not re.fullmatch(r"[1-9][0-9]{4,19}", value["mobile_api_audience"] or ""):
         raise StagingContractError("LINE channel ID must be numeric")
+    google_audiences = value["mobile_api_google_audiences"]
+    if (
+        not isinstance(google_audiences, str)
+        or len(google_audiences) > 512
+        or not 1 <= len(google_audiences.split(",")) <= 4
+        or any(
+            not re.fullmatch(
+                r"[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com",
+                audience,
+            )
+            for audience in google_audiences.split(",")
+        )
+        or len(set(google_audiences.split(","))) != len(google_audiences.split(","))
+    ):
+        raise StagingContractError("Google audience allowlist is invalid")
     return value

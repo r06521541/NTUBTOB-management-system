@@ -58,11 +58,14 @@ class AppConfig {
         !uri.hasFragment &&
         uri.userInfo.isEmpty;
     final validChannel = RegExp(r'^\d+$').hasMatch(lineChannelId);
+    final googleClientPattern = RegExp(
+      r'^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$',
+    );
     if (mode != 'real' ||
         !validUri ||
         !validChannel ||
-        googleClientId.isEmpty ||
-        googleServerClientId.isEmpty) {
+        !googleClientPattern.hasMatch(googleClientId) ||
+        !googleClientPattern.hasMatch(googleServerClientId)) {
       throw const FormatException('real configuration is missing or invalid');
     }
     return AppConfig._(parsedFlavor, ClientMode.real, uri, lineChannelId,
@@ -1285,17 +1288,69 @@ abstract interface class GoogleLoginPort {
   Future<void> logout();
 }
 
+typedef GoogleSdkInitialize = Future<void> Function({
+  String? clientId,
+  required String serverClientId,
+});
+
+class GoogleSignInProcessInitializer {
+  static String? _configuration;
+  static Future<void>? _initialization;
+
+  static Future<void> ensure({
+    required String platform,
+    required String clientId,
+    required String serverClientId,
+    required GoogleSdkInitialize initialize,
+  }) {
+    final googlePattern = RegExp(
+      r'^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$',
+    );
+    final valid = (platform == 'android' || platform == 'ios') &&
+        googlePattern.hasMatch(serverClientId) &&
+        (platform == 'android' || googlePattern.hasMatch(clientId));
+    if (!valid) {
+      throw const FormatException('Google platform configuration is invalid');
+    }
+    final effectiveClientId = platform == 'ios' ? clientId : '';
+    final configuration =
+        '$platform\u0000$effectiveClientId\u0000$serverClientId';
+    if (_configuration != null && _configuration != configuration) {
+      throw StateError(
+          'Google Sign-In was initialized with another configuration');
+    }
+    _configuration = configuration;
+    return _initialization ??= initialize(
+      clientId: effectiveClientId.isEmpty ? null : effectiveClientId,
+      serverClientId: serverClientId,
+    );
+  }
+
+  @visibleForTesting
+  static void resetForTest() {
+    _configuration = null;
+    _initialization = null;
+  }
+}
+
 class NativeGoogleLogin implements GoogleLoginPort {
-  NativeGoogleLogin(this.clientId, this.serverClientId);
+  NativeGoogleLogin(this.platform, this.clientId, this.serverClientId);
+  final String platform;
   final String clientId;
   final String serverClientId;
   bool _ready = false;
 
   Future<void> _setup() async {
     if (_ready) return;
-    await GoogleSignIn.instance.initialize(
+    await GoogleSignInProcessInitializer.ensure(
+      platform: platform,
       clientId: clientId,
       serverClientId: serverClientId,
+      initialize: ({clientId, required serverClientId}) =>
+          GoogleSignIn.instance.initialize(
+        clientId: clientId,
+        serverClientId: serverClientId,
+      ),
     );
     _ready = true;
   }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -216,6 +217,17 @@ void main() {
         ),
         throwsFormatException,
       );
+      expect(
+        () => AppConfig.parse(
+          flavor: 'staging',
+          mode: 'real',
+          apiBaseUrl: 'https://example.invalid',
+          lineChannelId: '123',
+          googleClientId: 'not-a-client-id',
+          googleServerClientId: 'web-server.apps.googleusercontent.com',
+        ),
+        throwsFormatException,
+      );
     });
     test('real configuration requires strict https and channel', () {
       expect(
@@ -255,6 +267,105 @@ void main() {
         throwsFormatException,
       );
     });
+  });
+
+  group('process-wide Google SDK configuration', () {
+    setUp(GoogleSignInProcessInitializer.resetForTest);
+    tearDown(GoogleSignInProcessInitializer.resetForTest);
+
+    test('compatible concurrent Android initialization occurs exactly once',
+        () async {
+      var calls = 0;
+      Future<void> initialize(
+          {String? clientId, required String serverClientId}) async {
+        calls += 1;
+        expect(clientId, isNull);
+        expect(serverClientId, 'web-server.apps.googleusercontent.com');
+      }
+
+      await Future.wait([
+        GoogleSignInProcessInitializer.ensure(
+          platform: 'android',
+          clientId: 'unused-ios.apps.googleusercontent.com',
+          serverClientId: 'web-server.apps.googleusercontent.com',
+          initialize: initialize,
+        ),
+        GoogleSignInProcessInitializer.ensure(
+          platform: 'android',
+          clientId: 'another-unused.apps.googleusercontent.com',
+          serverClientId: 'web-server.apps.googleusercontent.com',
+          initialize: initialize,
+        ),
+      ]);
+      expect(calls, 1);
+    });
+
+    test('iOS requires its client ID and conflicting re-init fails closed',
+        () async {
+      var calls = 0;
+      await GoogleSignInProcessInitializer.ensure(
+        platform: 'ios',
+        clientId: 'ios-client.apps.googleusercontent.com',
+        serverClientId: 'web-server.apps.googleusercontent.com',
+        initialize: ({clientId, required serverClientId}) async {
+          calls += 1;
+          expect(clientId, 'ios-client.apps.googleusercontent.com');
+        },
+      );
+      expect(
+        () => GoogleSignInProcessInitializer.ensure(
+          platform: 'ios',
+          clientId: 'different-ios.apps.googleusercontent.com',
+          serverClientId: 'web-server.apps.googleusercontent.com',
+          initialize: ({clientId, required serverClientId}) async {},
+        ),
+        throwsStateError,
+      );
+      expect(calls, 1);
+    });
+
+    test('unsupported and incomplete platform configuration fails closed', () {
+      Future<void> initialize(
+          {String? clientId, required String serverClientId}) async {}
+      for (final values in [
+        (
+          'windows',
+          'ios-client.apps.googleusercontent.com',
+          'web-server.apps.googleusercontent.com'
+        ),
+        ('ios', '', 'web-server.apps.googleusercontent.com'),
+        ('android', '', ''),
+      ]) {
+        GoogleSignInProcessInitializer.resetForTest();
+        expect(
+          () => GoogleSignInProcessInitializer.ensure(
+            platform: values.$1,
+            clientId: values.$2,
+            serverClientId: values.$3,
+            initialize: initialize,
+          ),
+          throwsFormatException,
+        );
+      }
+    });
+  });
+
+  test('iOS Google scheme is private, injected, and build-phase validated', () {
+    final plist = File('ios/Runner/Info.plist').readAsStringSync();
+    final project =
+        File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+    final validator = File('ios/validate_auth_config.sh').readAsStringSync();
+    final template =
+        File('ios/Flutter/AuthConfig.xcconfig.example').readAsStringSync();
+    final ignores = File('.gitignore').readAsStringSync();
+    expect(plist, contains(r'<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>'));
+    expect(plist, contains(r'line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)'));
+    expect(project, contains('Validate Auth Config'));
+    expect(project, contains(r'$SRCROOT/validate_auth_config.sh'));
+    expect(validator, contains('com.googleusercontent.apps.'));
+    expect(template.trimRight(), endsWith('GOOGLE_REVERSED_CLIENT_ID='));
+    expect(ignores, contains('ios/Flutter/AuthConfig.xcconfig'));
+    expect(plist, isNot(contains('.apps.googleusercontent.com')));
   });
 
   group('wire contract', () {

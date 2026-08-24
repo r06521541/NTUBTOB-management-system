@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
@@ -316,6 +316,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       );
       final line = NativeLineLogin(widget.config.lineChannelId!);
       final google = NativeGoogleLogin(
+        nativePlatformName(defaultTargetPlatform) ?? '',
         widget.config.googleClientId!,
         widget.config.googleServerClientId!,
       );

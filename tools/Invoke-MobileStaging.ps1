@@ -713,12 +713,14 @@ function Get-FlutterDefineArguments {
         )
     }
     elseif ($SelectedMode -eq 'staging') {
-        $expectedKeys = @('APP_FLAVOR', 'CLIENT_MODE', 'API_BASE_URL', 'LINE_CHANNEL_ID')
+        $expectedKeys = @('APP_FLAVOR', 'CLIENT_MODE', 'API_BASE_URL', 'LINE_CHANNEL_ID', 'GOOGLE_CLIENT_ID', 'GOOGLE_SERVER_CLIENT_ID')
         $validValues = (
             [string]$Values['APP_FLAVOR'] -ceq 'staging' -and
             [string]$Values['CLIENT_MODE'] -ceq 'real' -and
             [string]$Values['API_BASE_URL'] -cmatch '^https://[A-Za-z0-9.-]+$' -and
-            [string]$Values['LINE_CHANNEL_ID'] -cmatch '^[1-9][0-9]{4,19}$'
+            [string]$Values['LINE_CHANNEL_ID'] -cmatch '^[1-9][0-9]{4,19}$' -and
+            [string]$Values['GOOGLE_CLIENT_ID'] -cmatch '^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$' -and
+            [string]$Values['GOOGLE_SERVER_CLIENT_ID'] -cmatch '^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$'
         )
     }
     else {
@@ -819,8 +821,11 @@ function Invoke-Build {
         else {
             $origin = [Environment]::GetEnvironmentVariable('MOBILE_STAGING_PUBLIC_ORIGIN', 'Process')
             $channel = [Environment]::GetEnvironmentVariable('MOBILE_STAGING_LINE_CHANNEL_ID', 'Process')
-            if ($origin -notmatch '^https://[A-Za-z0-9.-]+$' -or $channel -notmatch '^[1-9][0-9]{4,19}$') { Throw-Safe 'Private staging build inputs are unavailable or malformed' }
-            $values = [ordered]@{ APP_FLAVOR = 'staging'; CLIENT_MODE = 'real'; API_BASE_URL = $origin; LINE_CHANNEL_ID = $channel }
+            $googleClient = [Environment]::GetEnvironmentVariable('MOBILE_STAGING_GOOGLE_CLIENT_ID', 'Process')
+            $googleServerClient = [Environment]::GetEnvironmentVariable('MOBILE_STAGING_GOOGLE_SERVER_CLIENT_ID', 'Process')
+            $googlePattern = '^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$'
+            if ($origin -notmatch '^https://[A-Za-z0-9.-]+$' -or $channel -notmatch '^[1-9][0-9]{4,19}$' -or $googleClient -notmatch $googlePattern -or $googleServerClient -notmatch $googlePattern) { Throw-Safe 'Private staging build inputs are unavailable or malformed' }
+            $values = [ordered]@{ APP_FLAVOR = 'staging'; CLIENT_MODE = 'real'; API_BASE_URL = $origin; LINE_CHANNEL_ID = $channel; GOOGLE_CLIENT_ID = $googleClient; GOOGLE_SERVER_CLIENT_ID = $googleServerClient }
         }
         $appRoot = Join-Path ([string]$Config.snapshot_root) 'clients\flutter_app'
         $result = Invoke-FlutterBuildProcess $Config $values $SelectedMode $appRoot ([string]$approvedSigner.AndroidUserHome)
@@ -977,7 +982,7 @@ function Load-PrivateApproval {
         'production_database_identity_sha256', 'database_provider',
         'database_resource_id', 'database_alias', 'max_instances',
         'service_account', 'build_service_account', 'runtime_secret_refs',
-        'mobile_api_audience'
+        'mobile_api_audience', 'mobile_api_google_audiences'
     )
     Assert-ExactProperties $approval $required 'Private candidate approval'
     if (
@@ -1002,7 +1007,9 @@ function Load-PrivateApproval {
         [string]$approval.database_identity_sha256 -notmatch '^[0-9a-f]{64}$' -or
         [string]$approval.production_database_identity_sha256 -notmatch '^[0-9a-f]{64}$' -or
         $approval.database_identity_sha256 -ceq $approval.production_database_identity_sha256 -or
-        [string]$approval.mobile_api_audience -notmatch '^[1-9][0-9]{4,19}$'
+        [string]$approval.mobile_api_audience -notmatch '^[1-9][0-9]{4,19}$' -or
+        [string]$approval.mobile_api_google_audiences -notmatch '^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com(,[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com){0,3}$' -or
+        ([string]$approval.mobile_api_google_audiences).Length -gt 512
     ) { Throw-Safe 'Private candidate identity metadata is invalid' }
     $reference = [string]$approval.runtime_secret_refs.PORTAL_DATA_DATABASE_URL
     if ($reference -notmatch '^([a-z][a-z0-9_-]{2,126}):([1-9][0-9]*)$') { Throw-Safe 'Approved database Secret reference is invalid' }

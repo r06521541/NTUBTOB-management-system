@@ -256,12 +256,14 @@ python -m unittest discover -s apps/web_portal/tests -v
 ## Deployment preflight
 
 The repository deployment target filters `DSN_PASSWORD`,
-`LINE_LOGIN_CHANNEL_SECRET`, and `SECRET_KEY` out of the temporary non-secret
+`LINE_LOGIN_CHANNEL_SECRET`, `SECRET_KEY`, and both identity-link provider client
+secrets out of the temporary non-secret
 environment file. `.dockerignore` prevents that temporary file from entering the
 container image. `WEB_PORTAL_ADMIN_MEMBER_IDS` remains a non-secret runtime
 setting; never commit real production values.
 
-Deployment requires two explicit Secret Manager references and an exact
+Deployment requires version-pinned Secret Manager references, four approved
+plain identity-link values, and an exact
 40-character Git commit SHA. The references identify Secret Manager resources
 and versions; they are not Secret values:
 
@@ -269,7 +271,17 @@ and versions; they are not Secret values:
 make deploy-web-portal \
   IMAGE_TAG=<FULL_40_CHARACTER_GIT_SHA> \
   WEB_PORTAL_LINE_LOGIN_SECRET_REF=<SECRET_RESOURCE:VERSION> \
-  WEB_PORTAL_SESSION_SECRET_REF=<SECRET_RESOURCE:VERSION>
+  WEB_PORTAL_SESSION_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  WEB_PORTAL_WEATHER_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  PORTAL_DATA_PHASE_C_ENABLED=true \
+  PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false \
+  WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=false \
+  WEB_IDENTITY_LINK_GOOGLE_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  WEB_IDENTITY_LINK_LINE_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID=<APPROVED_CLIENT_ID> \
+  WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI=https://<APPROVED_ORIGIN>/api/v1/auth/identity-link/web/callback/google \
+  WEB_IDENTITY_LINK_LINE_CLIENT_ID=<APPROVED_CLIENT_ID> \
+  WEB_IDENTITY_LINK_LINE_REDIRECT_URI=https://<APPROVED_ORIGIN>/api/v1/auth/identity-link/web/callback/line
 ```
 
 Missing references, placeholders, or a non-commit image tag fail before build or

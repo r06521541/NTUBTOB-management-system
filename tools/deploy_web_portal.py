@@ -28,7 +28,14 @@ SECRET_REF_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$"
 )
 EXCLUDED_ENV_KEYS = frozenset(
-    {"DSN_PASSWORD", "LINE_LOGIN_CHANNEL_SECRET", "SECRET_KEY", "WEATHER_API_KEY"}
+    {
+        "DSN_PASSWORD",
+        "LINE_LOGIN_CHANNEL_SECRET",
+        "SECRET_KEY",
+        "WEATHER_API_KEY",
+        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET",
+        "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET",
+    }
 )
 ROLLOUT_ENV_KEYS = (
     "PORTAL_DATA_PHASE_C_ENABLED",
@@ -43,6 +50,10 @@ REQUIRED_PLAIN_KEYS = frozenset(
         "DSN_UID",
         "LINE_LOGIN_CHANNEL_ID",
         "WEB_PORTAL_ADMIN_MEMBER_IDS",
+        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID",
+        "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI",
+        "WEB_IDENTITY_LINK_LINE_CLIENT_ID",
+        "WEB_IDENTITY_LINK_LINE_REDIRECT_URI",
     }
 )
 TERMINAL_BUILD_STATUSES = frozenset(
@@ -68,7 +79,9 @@ Clock = Callable[[], float]
 HttpGet = Callable[[str, float], int]
 
 
-def run_command(arguments: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+def run_command(
+    arguments: Sequence[str], cwd: Path
+) -> subprocess.CompletedProcess[str]:
     command = list(arguments)
     if not command:
         raise DeploymentError("Refusing to run an empty command")
@@ -100,7 +113,9 @@ def http_status(url: str, timeout: float) -> int:
     except urllib.error.HTTPError as error:
         return error.code
     except (urllib.error.URLError, TimeoutError, OSError) as error:
-        raise DeploymentError("Web Portal HTTP verification could not complete") from error
+        raise DeploymentError(
+            "Web Portal HTTP verification could not complete"
+        ) from error
 
 
 def repository_root() -> Path:
@@ -139,10 +154,54 @@ def validate_secret_ref(value: str, label: str) -> str:
     return value
 
 
+def validate_version_pinned_secret_ref(value: str, label: str) -> str:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*:[1-9][0-9]*", value or ""):
+        raise DeploymentError(f"{label} must be a version-pinned resource reference")
+    return value
+
+
 def validate_boolean_flag(value: str, label: str) -> str:
     if value not in {"true", "false"}:
         raise DeploymentError(f"{label} must be exactly true or false")
     return value
+
+
+def validate_oauth_client_id(value: str, label: str) -> str:
+    if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z._-]{5,255}", value or ""):
+        raise DeploymentError(f"{label} is invalid")
+    return value
+
+
+def validate_callback(value: str, provider: str) -> str:
+    expected_path = f"/api/v1/auth/identity-link/web/callback/{provider}"
+    if not re.fullmatch(
+        rf"https://[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[1-9][0-9]{{0,4}})?{re.escape(expected_path)}",
+        value or "",
+    ):
+        raise DeploymentError(f"{provider} identity-link callback is invalid")
+    return value
+
+
+def identity_plain_values(
+    google_client_id: str,
+    google_redirect_uri: str,
+    line_client_id: str,
+    line_redirect_uri: str,
+) -> Dict[str, str]:
+    return {
+        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID": validate_oauth_client_id(
+            google_client_id, "Google identity-link client ID"
+        ),
+        "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI": validate_callback(
+            google_redirect_uri, "google"
+        ),
+        "WEB_IDENTITY_LINK_LINE_CLIENT_ID": validate_oauth_client_id(
+            line_client_id, "LINE identity-link client ID"
+        ),
+        "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": validate_callback(
+            line_redirect_uri, "line"
+        ),
+    }
 
 
 def parse_env_key(line: str) -> Optional[str]:
@@ -154,12 +213,19 @@ def parse_env_key(line: str) -> Optional[str]:
 
 
 def write_filtered_env(
-    source: Path, destination: Path, rollout_values: Optional[Dict[str, str]] = None
+    source: Path,
+    destination: Path,
+    rollout_values: Optional[Dict[str, str]] = None,
+    identity_values: Optional[Dict[str, str]] = None,
 ) -> None:
     if destination.exists():
         raise DeploymentError("Refusing to overwrite an existing service .env.yaml")
     lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
-    excluded = EXCLUDED_ENV_KEYS | frozenset(ROLLOUT_ENV_KEYS if rollout_values else ())
+    excluded = (
+        EXCLUDED_ENV_KEYS
+        | frozenset(ROLLOUT_ENV_KEYS if rollout_values else ())
+        | frozenset(identity_values or ())
+    )
     filtered = [line for line in lines if parse_env_key(line) not in excluded]
     if rollout_values is not None:
         if set(rollout_values) != set(ROLLOUT_ENV_KEYS):
@@ -167,6 +233,17 @@ def write_filtered_env(
         filtered.extend(
             f'{key}: "{validate_boolean_flag(rollout_values[key], key)}"\n'
             for key in ROLLOUT_ENV_KEYS
+        )
+    if identity_values is not None:
+        if set(identity_values) != {
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID",
+            "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_ID",
+            "WEB_IDENTITY_LINK_LINE_REDIRECT_URI",
+        }:
+            raise DeploymentError("Approved identity-link configuration is incomplete")
+        filtered.extend(
+            f'{key}: "{identity_values[key]}"\n' for key in sorted(identity_values)
         )
     with destination.open("w", encoding="utf-8", newline="\n") as output:
         output.write("".join(filtered))
@@ -201,6 +278,12 @@ def preflight(
     phase_c_enabled: Optional[str] = None,
     rollout_freeze_enabled: Optional[str] = None,
     identity_maintenance_enabled: Optional[str] = None,
+    google_identity_secret_ref: Optional[str] = None,
+    line_identity_secret_ref: Optional[str] = None,
+    google_client_id: Optional[str] = None,
+    google_redirect_uri: Optional[str] = None,
+    line_client_id: Optional[str] = None,
+    line_redirect_uri: Optional[str] = None,
     runner: Runner = run_command,
     check_tools: bool = True,
 ) -> str:
@@ -221,6 +304,24 @@ def preflight(
         validate_secret_ref(session_secret_ref, "Session Secret reference")
     if weather_secret_ref is not None:
         validate_secret_ref(weather_secret_ref, "Weather Secret reference")
+    if google_identity_secret_ref is not None:
+        validate_version_pinned_secret_ref(
+            google_identity_secret_ref, "Google identity-link Secret reference"
+        )
+    if line_identity_secret_ref is not None:
+        validate_version_pinned_secret_ref(
+            line_identity_secret_ref, "LINE identity-link Secret reference"
+        )
+    oauth_values = (
+        google_client_id,
+        google_redirect_uri,
+        line_client_id,
+        line_redirect_uri,
+    )
+    if any(value is not None for value in oauth_values):
+        if not all(oauth_values):
+            raise DeploymentError("Identity-link plain configuration is incomplete")
+        identity_plain_values(*oauth_values)
     for value, label in (
         (phase_c_enabled, "Phase C flag"),
         (rollout_freeze_enabled, "Rollout freeze flag"),
@@ -309,10 +410,16 @@ def validate_revision_contract(
     session_secret_ref: str,
     weather_secret_ref: str,
     rollout_values: Dict[str, str],
+    google_identity_secret_ref: str,
+    line_identity_secret_ref: str,
+    oauth_plain_values: Dict[str, str],
 ) -> None:
     if not revision_ready(revision):
         raise DeploymentError("New revision is not ready")
-    if normalize_digest(revision.get("status", {}).get("imageDigest")) != approved_digest:
+    if (
+        normalize_digest(revision.get("status", {}).get("imageDigest"))
+        != approved_digest
+    ):
         raise DeploymentError("New revision digest does not match the approved image")
     spec = revision.get("spec", {})
     if spec.get("serviceAccountName") != expected_identity:
@@ -327,18 +434,30 @@ def validate_revision_contract(
         "LINE_LOGIN_CHANNEL_SECRET": line_secret_ref,
         "SECRET_KEY": session_secret_ref,
         "WEATHER_API_KEY": weather_secret_ref,
+        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": google_identity_secret_ref,
+        "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": line_identity_secret_ref,
     }
     for name, reference in expected_secrets.items():
         if secret_reference(by_name.get(name, {})) != reference:
-            raise DeploymentError(f"Runtime Secret classification is invalid for {name}")
+            raise DeploymentError(
+                f"Runtime Secret classification is invalid for {name}"
+            )
     for name in REQUIRED_PLAIN_KEYS:
         entry = by_name.get(name, {})
         if "value" not in entry or secret_reference(entry) is not None:
             raise DeploymentError(f"Runtime plain configuration is missing: {name}")
+    for name, expected_value in oauth_plain_values.items():
+        entry = by_name.get(name, {})
+        if entry.get("value") != expected_value or secret_reference(entry) is not None:
+            raise DeploymentError(
+                f"Runtime identity-link configuration is invalid for {name}"
+            )
     for name, expected_value in rollout_values.items():
         entry = by_name.get(name, {})
         if entry.get("value") != expected_value or secret_reference(entry) is not None:
-            raise DeploymentError(f"Runtime rollout configuration is invalid for {name}")
+            raise DeploymentError(
+                f"Runtime rollout configuration is invalid for {name}"
+            )
     for forbidden in ("WEB_PORTAL_DEMO_MODE", "WEB_PORTAL_ENV"):
         if forbidden in by_name:
             raise DeploymentError("Production demo configuration must remain absent")
@@ -353,6 +472,9 @@ def revision_converged(
     session_secret_ref: str,
     weather_secret_ref: str,
     rollout_values: Dict[str, str],
+    google_identity_secret_ref: str,
+    line_identity_secret_ref: str,
+    oauth_plain_values: Dict[str, str],
     runner: Runner,
 ) -> Optional[tuple[dict, str]]:
     """Return a distinct Ready revision with an approved runtime contract."""
@@ -360,8 +482,16 @@ def revision_converged(
         command_output(
             runner,
             [
-                "gcloud", "run", "services", "describe", SERVICE,
-                "--project", PROJECT_ID, "--region", REGION, "--format=json",
+                "gcloud",
+                "run",
+                "services",
+                "describe",
+                SERVICE,
+                "--project",
+                PROJECT_ID,
+                "--region",
+                REGION,
+                "--format=json",
             ],
             root,
         ),
@@ -404,6 +534,9 @@ def revision_converged(
         session_secret_ref,
         weather_secret_ref,
         rollout_values,
+        google_identity_secret_ref,
+        line_identity_secret_ref,
+        oauth_plain_values,
     )
     return service, revision_name
 
@@ -417,6 +550,9 @@ def poll_revision(
     session_secret_ref: str,
     weather_secret_ref: str,
     rollout_values: Dict[str, str],
+    google_identity_secret_ref: str,
+    line_identity_secret_ref: str,
+    oauth_plain_values: Dict[str, str],
     runner: Runner,
     timeout: float,
     interval: float,
@@ -434,6 +570,9 @@ def poll_revision(
             session_secret_ref,
             weather_secret_ref,
             rollout_values,
+            google_identity_secret_ref,
+            line_identity_secret_ref,
+            oauth_plain_values,
             runner,
         )
         if result is not None:
@@ -467,8 +606,16 @@ def poll_traffic(
             command_output(
                 runner,
                 [
-                    "gcloud", "run", "services", "describe", SERVICE,
-                    "--project", PROJECT_ID, "--region", REGION, "--format=json",
+                    "gcloud",
+                    "run",
+                    "services",
+                    "describe",
+                    SERVICE,
+                    "--project",
+                    PROJECT_ID,
+                    "--region",
+                    REGION,
+                    "--format=json",
                 ],
                 root,
             ),
@@ -521,6 +668,12 @@ def execute_deployment(
     phase_c_enabled: str,
     rollout_freeze_enabled: str,
     identity_maintenance_enabled: str,
+    google_identity_secret_ref: str,
+    line_identity_secret_ref: str,
+    google_client_id: str,
+    google_redirect_uri: str,
+    line_client_id: str,
+    line_redirect_uri: str,
     runner: Runner = run_command,
     http_get: HttpGet = http_status,
     clock: Clock = time.monotonic,
@@ -540,17 +693,37 @@ def execute_deployment(
         phase_c_enabled,
         rollout_freeze_enabled,
         identity_maintenance_enabled,
-        runner,
-        check_tools,
+        google_identity_secret_ref,
+        line_identity_secret_ref,
+        google_client_id,
+        google_redirect_uri,
+        line_client_id,
+        line_redirect_uri,
+        runner=runner,
+        check_tools=check_tools,
     )
     approved_commit = validate_sha(approved_commit)
     rollback_revision = validate_revision(rollback_revision)
-    line_secret_ref = validate_secret_ref(line_secret_ref, "LINE Login Secret reference")
+    line_secret_ref = validate_secret_ref(
+        line_secret_ref, "LINE Login Secret reference"
+    )
     session_secret_ref = validate_secret_ref(
         session_secret_ref, "Session Secret reference"
     )
     weather_secret_ref = validate_secret_ref(
         weather_secret_ref, "Weather Secret reference"
+    )
+    google_identity_secret_ref = validate_version_pinned_secret_ref(
+        google_identity_secret_ref, "Google identity-link Secret reference"
+    )
+    line_identity_secret_ref = validate_version_pinned_secret_ref(
+        line_identity_secret_ref, "LINE identity-link Secret reference"
+    )
+    oauth_plain_values = identity_plain_values(
+        google_client_id,
+        google_redirect_uri,
+        line_client_id,
+        line_redirect_uri,
     )
     rollout_values = {
         "PORTAL_DATA_PHASE_C_ENABLED": validate_boolean_flag(
@@ -577,22 +750,50 @@ def execute_deployment(
         baseline = parse_json(
             command_output(
                 runner,
-                ["gcloud", "run", "services", "describe", SERVICE, "--project", PROJECT_ID, "--region", REGION, "--format=json"],
+                [
+                    "gcloud",
+                    "run",
+                    "services",
+                    "describe",
+                    SERVICE,
+                    "--project",
+                    PROJECT_ID,
+                    "--region",
+                    REGION,
+                    "--format=json",
+                ],
                 root,
             ),
             "Cloud Run baseline",
         )
-        baseline_identity = baseline.get("spec", {}).get("template", {}).get("spec", {}).get("serviceAccountName")
+        baseline_identity = (
+            baseline.get("spec", {})
+            .get("template", {})
+            .get("spec", {})
+            .get("serviceAccountName")
+        )
         baseline_revision = baseline.get("status", {}).get("latestCreatedRevisionName")
-        if not isinstance(baseline_identity, str) or not baseline_identity or not baseline_revision:
+        if (
+            not isinstance(baseline_identity, str)
+            or not baseline_identity
+            or not baseline_revision
+        ):
             raise DeploymentError("Cloud Run baseline contract is incomplete")
 
-        command_output(runner, [sys.executable, "setup.py", "sdist", "--dist-dir", "dist"], root / "shared_lib")
+        command_output(
+            runner,
+            [sys.executable, "setup.py", "sdist", "--dist-dir", "dist"],
+            root / "shared_lib",
+        )
         if not artifact_source.is_file():
-            raise DeploymentError("Shared library build did not produce the expected artifact")
+            raise DeploymentError(
+                "Shared library build did not produce the expected artifact"
+            )
         artifact_target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(artifact_source, artifact_target)
-        write_filtered_env(env_source, temporary_env, rollout_values)
+        write_filtered_env(
+            env_source, temporary_env, rollout_values, oauth_plain_values
+        )
 
         substitutions = ",".join(
             (
@@ -602,6 +803,8 @@ def execute_deployment(
                 f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={line_secret_ref}",
                 f"_WEB_PORTAL_SESSION_SECRET_REF={session_secret_ref}",
                 f"_WEB_PORTAL_WEATHER_SECRET_REF={weather_secret_ref}",
+                f"_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF={google_identity_secret_ref}",
+                f"_WEB_IDENTITY_LINK_LINE_SECRET_REF={line_identity_secret_ref}",
                 f"_PORTAL_DATA_PHASE_C_ENABLED={phase_c_enabled}",
                 f"_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED={rollout_freeze_enabled}",
                 f"_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED={identity_maintenance_enabled}",
@@ -609,7 +812,23 @@ def execute_deployment(
         )
         build_id = command_output(
             runner,
-            ["gcloud", "builds", "submit", ".", "--async", "--project", PROJECT_ID, "--region", REGION, "--config", "cloudbuild.yaml", "--substitutions", substitutions, "--format=value(id)", "--quiet"],
+            [
+                "gcloud",
+                "builds",
+                "submit",
+                ".",
+                "--async",
+                "--project",
+                PROJECT_ID,
+                "--region",
+                REGION,
+                "--config",
+                "cloudbuild.yaml",
+                "--substitutions",
+                substitutions,
+                "--format=value(id)",
+                "--quiet",
+            ],
             service_root,
         )
         if not re.fullmatch(r"[A-Za-z0-9-]+", build_id):
@@ -619,7 +838,21 @@ def execute_deployment(
 
         image_reference = f"{REGION}-docker.pkg.dev/{PROJECT_ID}/management-system-docker-repo/{SERVICE}-image:{approved_commit}"
         approved_digest = normalize_digest(
-            command_output(runner, ["gcloud", "artifacts", "docker", "images", "describe", image_reference, "--project", PROJECT_ID, "--format=value(image_summary.digest)"], root)
+            command_output(
+                runner,
+                [
+                    "gcloud",
+                    "artifacts",
+                    "docker",
+                    "images",
+                    "describe",
+                    image_reference,
+                    "--project",
+                    PROJECT_ID,
+                    "--format=value(image_summary.digest)",
+                ],
+                root,
+            )
         )
         service, revision_name = poll_revision(
             root,
@@ -630,6 +863,9 @@ def execute_deployment(
             session_secret_ref,
             weather_secret_ref,
             rollout_values,
+            google_identity_secret_ref,
+            line_identity_secret_ref,
+            oauth_plain_values,
             runner,
             poll_timeout,
             poll_interval,
@@ -655,7 +891,22 @@ def execute_deployment(
             )
         failure_stage = "iam"
         policy = parse_json(
-            command_output(runner, ["gcloud", "run", "services", "get-iam-policy", SERVICE, "--project", PROJECT_ID, "--region", REGION, "--format=json"], root),
+            command_output(
+                runner,
+                [
+                    "gcloud",
+                    "run",
+                    "services",
+                    "get-iam-policy",
+                    SERVICE,
+                    "--project",
+                    PROJECT_ID,
+                    "--region",
+                    REGION,
+                    "--format=json",
+                ],
+                root,
+            ),
             "Cloud Run IAM policy",
         )
         if not public_invoker_enabled(policy):
@@ -666,14 +917,21 @@ def execute_deployment(
             raise DeploymentError("Cloud Run service URL is missing or invalid")
         root_status = http_get(service_url.rstrip("/") + "/", http_timeout)
         demo_status = http_get(service_url.rstrip("/") + "/demo/", http_timeout)
-        if root_status != 200 or demo_status != 404:
+        identity_recovery_status = http_get(
+            service_url.rstrip("/") + "/identity-recovery", http_timeout
+        )
+        if root_status != 200 or demo_status != 404 or identity_recovery_status != 200:
             raise DeploymentError("Web Portal HTTP verification failed")
         return {
             "build_id": build_id,
             "revision": revision_name,
             "image_tag": approved_commit,
             "image_digest": approved_digest,
-            "http_status": {"/": root_status, "/demo/": demo_status},
+            "http_status": {
+                "/": root_status,
+                "/demo/": demo_status,
+                "/identity-recovery": identity_recovery_status,
+            },
             "rollback": "not_required",
         }
     except (DeploymentError, subprocess.CalledProcessError) as deployment_error:
@@ -712,6 +970,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--phase-c-enabled")
     parser.add_argument("--rollout-freeze-enabled")
     parser.add_argument("--identity-maintenance-enabled")
+    parser.add_argument("--google-identity-secret-ref")
+    parser.add_argument("--line-identity-secret-ref")
+    parser.add_argument("--google-client-id")
+    parser.add_argument("--google-redirect-uri")
+    parser.add_argument("--line-client-id")
+    parser.add_argument("--line-redirect-uri")
     return parser
 
 
@@ -726,6 +990,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.phase_c_enabled,
         args.rollout_freeze_enabled,
         args.identity_maintenance_enabled,
+        args.google_identity_secret_ref,
+        args.line_identity_secret_ref,
+        args.google_client_id,
+        args.google_redirect_uri,
+        args.line_client_id,
+        args.line_redirect_uri,
     )
     try:
         if args.execute:
@@ -741,13 +1011,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.phase_c_enabled,
                 args.rollout_freeze_enabled,
                 args.identity_maintenance_enabled,
+                args.google_identity_secret_ref,
+                args.line_identity_secret_ref,
+                args.google_client_id,
+                args.google_redirect_uri,
+                args.line_client_id,
+                args.line_redirect_uri,
             )
             print(json.dumps(result, sort_keys=True))
         else:
             if any(execution_values):
                 raise DeploymentError("Execution-only arguments require --execute")
             preflight(repository_root())
-            print("Preflight passed for web-portal; no cloud or HTTP commands were run.")
+            print(
+                "Preflight passed for web-portal; no cloud or HTTP commands were run."
+            )
         return 0
     except DeploymentError as error:
         print(f"ERROR: {error}", file=sys.stderr)

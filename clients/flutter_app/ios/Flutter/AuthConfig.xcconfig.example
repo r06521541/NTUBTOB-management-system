@@ -1,0 +1,3 @@
+// Copy to the gitignored AuthConfig.xcconfig only in an Owner-approved build environment.
+// GOOGLE_REVERSED_CLIENT_ID must be the reversed form of the approved iOS OAuth client ID.
+GOOGLE_REVERSED_CLIENT_ID=
