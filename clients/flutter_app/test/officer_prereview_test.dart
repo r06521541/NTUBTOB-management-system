@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -221,6 +222,41 @@ class RecordingLineupCopyPort implements LineupSummaryCopyPort {
   Future<void> copy(String summary) async => summaries.add(summary);
 }
 
+class PreviewingPublisher implements NotificationPublishingClient {
+  final previews = <Map<String, dynamic>>[];
+  final confirms = <Map<String, dynamic>>[];
+
+  @override
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft) async {
+    previews.add(draft);
+    return {
+      'recipient_count': 2,
+      'revision': 'a' * 64,
+      'confirmation_text': 'PUBLISH 2',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirm(
+    Map<String, dynamic> draft,
+    Map<String, dynamic> preview,
+    String key,
+  ) async {
+    confirms.add({'draft': draft, 'preview': preview, 'key': key});
+    return {'notification_id': 'notification_1', 'recipient_count': 2};
+  }
+}
+
+class DelayedPreviewPublisher extends PreviewingPublisher {
+  final response = Completer<Map<String, dynamic>>();
+
+  @override
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft) {
+    previews.add(draft);
+    return response.future;
+  }
+}
+
 void main() {
   test(
       'notification draft derives exact unanswered recipients and resets per game',
@@ -289,6 +325,146 @@ void main() {
     expect(find.byKey(const ValueKey('notification-draft-recorded')),
         findsOneWidget);
     expect(find.text('沒有通知被傳送，也沒有資料被儲存。'), findsOneWidget);
+  });
+
+  testWidgets('notification draft uses server count and exact confirmation',
+      (tester) async {
+    final publisher = PreviewingPublisher();
+    // Production reports use opaque person IDs; make this test use the API form.
+    final serverDraft = OfficerNotificationDraft(SingleGameReportUiModel(
+      gameId: 'game_44',
+      gameLabel: '測試賽事',
+      generatedAt: DateTime.utc(2026),
+      historyGames: 1,
+      historyLimit: 12,
+      minimumResponseRate: 60,
+      attending: const [],
+      notAttending: const [],
+      notYetReplied: const [
+        NotYetRepliedUiModel(
+            id: 'person_2',
+            displayName: '甲',
+            observedReplies: 0,
+            observedGames: 1,
+            responseRate: 0,
+            participationRate: 0,
+            nonparticipationRate: 0),
+        NotYetRepliedUiModel(
+            id: 'person_3',
+            displayName: '乙',
+            observedReplies: 0,
+            observedGames: 1,
+            responseRate: 0,
+            participationRate: 0,
+            nonparticipationRate: 0),
+      ],
+    ));
+    await tester.pumpWidget(MaterialApp(
+        home: OfficerNotificationDraftPage(
+      draft: serverDraft,
+      offline: false,
+      publishingClient: publisher,
+    )));
+    final serverPreview =
+        find.byKey(const ValueKey('notification-draft-server-preview'));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester.pumpAndSettle();
+    await tester.tap(serverPreview);
+    await tester.pumpAndSettle();
+    expect(publisher.previews.single['audience']['person_ids'],
+        ['person_2', 'person_3']);
+    expect(find.text('伺服器確認收件人：2 人'), findsOneWidget);
+    expect(publisher.confirms, isEmpty);
+    await tester.tap(
+      find.byKey(const ValueKey('notification-recipient-person_2')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('伺服器確認收件人：2 人'), findsNothing);
+  });
+
+  testWidgets(
+      'offline injected publisher remains local-only and is never called',
+      (tester) async {
+    final publisher = PreviewingPublisher();
+    await tester.pumpWidget(MaterialApp(
+      home: OfficerNotificationDraftPage(
+        draft: OfficerNotificationDraft(lineupReport(unanswered: 1)),
+        offline: true,
+        publishingClient: publisher,
+      ),
+    ));
+    expect(find.text('本機草稿，不會送出'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('notification-draft-server-preview')),
+      findsNothing,
+    );
+    expect(publisher.previews, isEmpty);
+    expect(publisher.confirms, isEmpty);
+  });
+
+  testWidgets('publish scope loss clears preview and rejects stale completion',
+      (tester) async {
+    final transport = ReportTransport();
+    final session =
+        SessionController(transport, MemoryStore(), 'scope', SecureIds());
+    await session.accept(const SessionEnvelope(
+      accessToken: 'access',
+      refreshToken: 'refresh-token-with-at-least-32-characters',
+      sessionId: 'session',
+      expiresIn: 900,
+    ));
+    const officer = Person('person_1', 'Officer',
+        ['games:read', 'attendance:report:read', 'notifications:publish'],
+        accessLevel: AccessLevel.officer);
+    final scope = OfficerNotificationPublishScope(session, officer, true);
+    final publisher = DelayedPreviewPublisher();
+    final draft = OfficerNotificationDraft(SingleGameReportUiModel(
+      gameId: 'game_44',
+      gameLabel: '測試',
+      generatedAt: DateTime.utc(2026),
+      historyGames: 1,
+      historyLimit: 12,
+      minimumResponseRate: 60,
+      attending: const [],
+      notAttending: const [],
+      notYetReplied: const [
+        NotYetRepliedUiModel(
+            id: 'person_2',
+            displayName: '甲',
+            observedReplies: 0,
+            observedGames: 1,
+            responseRate: 0,
+            participationRate: 0,
+            nonparticipationRate: 0)
+      ],
+    ));
+    await tester.pumpWidget(MaterialApp(
+        home: OfficerNotificationDraftPage(
+      draft: draft,
+      offline: false,
+      publishingClient: publisher,
+      publishScope: scope,
+    )));
+    await tester.drag(find.byType(ListView).first, const Offset(0, -900));
+    await tester
+        .tap(find.byKey(const ValueKey('notification-draft-server-preview')));
+    await tester.pump();
+    scope.update(
+        const Person('person_1', 'Officer', ['games:read'],
+            accessLevel: AccessLevel.officer),
+        true);
+    publisher.response.complete({
+      'recipient_count': 1,
+      'revision': 'a' * 64,
+      'confirmation_text': 'PUBLISH 1'
+    });
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('notification-draft-server-preview')),
+        findsNothing);
+    expect(find.byKey(const ValueKey('notification-draft-server-confirm')),
+        findsNothing);
+    expect(publisher.confirms, isEmpty);
+    scope.dispose();
   });
   test('attendance insights use only loaded report counts and honest labels',
       () {

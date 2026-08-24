@@ -24,6 +24,7 @@ PUBLISH_TYPES = {
     "team": "officer_team_broadcast",
 }
 MAX_RECIPIENTS = 500
+MAX_SELECTED_RECIPIENTS = 100
 
 
 class RejectingDeliveryAdapter:
@@ -103,14 +104,32 @@ class NotificationPublishingService:
         ):
             raise InvalidArgument("notification type does not match audience")
         if audience_type == "individual":
-            if set(audience) != {"type", "person_id"}:
+            if set(audience) == {"type", "person_id"}:
+                normalized_audience = {
+                    "type": audience_type,
+                    "person_id": cls._positive_identifier(
+                        audience["person_id"], "person_", "person_id"
+                    ),
+                }
+            elif set(audience) == {"type", "person_ids"}:
+                person_ids = audience["person_ids"]
+                if (
+                    not isinstance(person_ids, list)
+                    or not 1 <= len(person_ids) <= MAX_SELECTED_RECIPIENTS
+                ):
+                    raise InvalidArgument("person_ids is malformed")
+                normalized_ids = tuple(
+                    cls._positive_identifier(item, "person_", "person_ids")
+                    for item in person_ids
+                )
+                if len(set(normalized_ids)) != len(normalized_ids):
+                    raise InvalidArgument("person_ids is malformed")
+                normalized_audience = {
+                    "type": audience_type,
+                    "person_ids": tuple(sorted(normalized_ids)),
+                }
+            else:
                 raise InvalidArgument("audience is malformed")
-            normalized_audience = {
-                "type": audience_type,
-                "person_id": cls._positive_identifier(
-                    audience["person_id"], "person_", "person_id"
-                ),
-            }
         elif audience_type == "game":
             if set(audience) != {"type", "game_id"}:
                 raise InvalidArgument("audience is malformed")
@@ -198,27 +217,39 @@ class NotificationPublishingService:
         typed_confirmation: str,
         idempotency_key: str,
     ) -> dict:
-        preview, recipients = self._preview(principal, draft)
-        if not isinstance(preview_revision, str) or not hmac.compare_digest(
-            preview_revision, preview["revision"]
+        self._authorize(principal)
+        normalized = self._draft(draft)
+        if not isinstance(idempotency_key, str) or not 16 <= len(idempotency_key) <= 200:
+            raise InvalidArgument("Idempotency-Key required")
+        if not isinstance(preview_revision, str) or not isinstance(
+            typed_confirmation, str
         ):
+            raise InvalidArgument("notification confirmation is malformed")
+        request_hash = canonical_hash(
+            {
+                "draft": normalized,
+                "preview_revision": preview_revision,
+                "typed_confirmation": typed_confirmation,
+            }
+        )
+        replay = self.repository.replay_notification_publish(
+            session_id=principal.session_id,
+            key_hash=secret_hash(idempotency_key),
+            request_hash=request_hash,
+        )
+        if replay is not None:
+            return {**replay, "notification_id": f"notification_{replay['notification_id']}"}
+        preview, recipients = self._preview(principal, normalized)
+        if not hmac.compare_digest(preview_revision, preview["revision"]):
             raise IdempotencyConflict("notification preview revision changed")
         if typed_confirmation != preview["confirmation_text"]:
             raise InvalidArgument("typed confirmation does not match preview")
-        if not isinstance(idempotency_key, str) or not 16 <= len(idempotency_key) <= 200:
-            raise InvalidArgument("Idempotency-Key required")
         now = self.clock()
         result = self.repository.commit_notification_publish(
             session_id=principal.session_id,
             actor_person_id=principal.person_id,
             key_hash=secret_hash(idempotency_key),
-            request_hash=canonical_hash(
-                {
-                    "draft": preview["draft"],
-                    "preview_revision": preview_revision,
-                    "typed_confirmation": typed_confirmation,
-                }
-            ),
+            request_hash=request_hash,
             draft=preview["draft"],
             preview_revision=preview_revision,
             recipient_ids=recipients,

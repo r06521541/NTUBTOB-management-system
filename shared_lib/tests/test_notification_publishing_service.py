@@ -23,6 +23,10 @@ class FakePublishingRepository:
         self.recipients = [31, 29]
         self.commits = []
         self.registrations = []
+        self.replays = {}
+
+    def replay_notification_publish(self, **values):
+        return self.replays.get((values["session_id"], values["key_hash"], values["request_hash"]))
 
     def expand_notification_recipients(self, audience, now):
         return list(self.recipients)
@@ -94,6 +98,32 @@ class NotificationPublishingServiceTest(unittest.TestCase):
         self.assertEqual(committed["actor_person_id"], OFFICER.person_id)
         self.assertNotIn("provider", committed)
 
+    def test_exact_idempotent_replay_skips_recipient_drift(self):
+        preview = self.service.preview(OFFICER, draft())
+        first = self.service.confirm(
+            OFFICER, draft(), preview_revision=preview["revision"],
+            typed_confirmation=preview["confirmation_text"], idempotency_key="publish-command-0001",
+        )
+        committed = self.repository.commits[0]
+        self.repository.replays[(
+            OFFICER.session_id, committed["key_hash"], committed["request_hash"]
+        )] = {"notification_id": 81, "recipient_count": 2, "deliveries": [], "idempotent_replay": True}
+        self.repository.recipients = []
+        replay = self.service.confirm(
+            OFFICER, draft(), preview_revision=preview["revision"],
+            typed_confirmation=preview["confirmation_text"], idempotency_key="publish-command-0001",
+        )
+        self.assertEqual(
+            replay,
+            {
+                "notification_id": "notification_81",
+                "recipient_count": 2,
+                "deliveries": [],
+                "idempotent_replay": True,
+            },
+        )
+        self.assertEqual(len(self.repository.commits), 1)
+
     def test_basic_stale_preview_and_wrong_confirmation_fail_before_commit(self):
         preview = self.service.preview(OFFICER, draft())
         attempts = (
@@ -123,6 +153,22 @@ class NotificationPublishingServiceTest(unittest.TestCase):
         invalid["type"] = "officer_personal"
         with self.assertRaises(InvalidArgument):
             self.service.preview(OFFICER, invalid)
+
+    def test_selected_people_are_bounded_unique_and_server_previewed(self):
+        selected = {
+            "type": "officer_personal",
+            "title": "回覆提醒",
+            "body": "請回覆。",
+            "audience": {"type": "individual", "person_ids": ["person_31", "person_29"]},
+            "destination": {"type": "notification"},
+        }
+        preview = self.service.preview(OFFICER, selected)
+        self.assertEqual(preview["recipient_count"], 2)
+        self.assertEqual(preview["draft"]["audience"]["person_ids"], (29, 31))
+        for ids in ([], ["person_31", "person_31"], ["person_1"] * 101):
+            invalid = {**selected, "audience": {"type": "individual", "person_ids": ids}}
+            with self.assertRaises(InvalidArgument):
+                self.service.preview(OFFICER, invalid)
 
     def test_game_identifiers_are_canonical_signed_bigints(self):
         minimum = draft()

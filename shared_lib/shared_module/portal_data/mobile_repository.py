@@ -803,6 +803,19 @@ class MobileRepository:
         cls, session: Session, audience: dict, now: datetime
     ) -> tuple[int, ...]:
         if audience["type"] == "individual":
+            if "person_ids" in audience:
+                selected = audience["person_ids"]
+                active = tuple(
+                    session.scalars(
+                        select(PersonRecord.id)
+                        .where(
+                            PersonRecord.id.in_(selected),
+                            PersonRecord.portal_status == "active",
+                        )
+                        .order_by(PersonRecord.id)
+                    )
+                )
+                return active if len(active) == len(selected) else ()
             person_id = session.scalar(
                 select(PersonRecord.id).where(
                     PersonRecord.id == audience["person_id"],
@@ -826,6 +839,25 @@ class MobileRepository:
     def notification_game_exists(self, game_id: int) -> bool:
         with Session(self.engine) as session:
             return session.get(LegacyGameRecord, game_id) is not None
+
+    def replay_notification_publish(self, *, session_id, key_hash, request_hash):
+        route = "/api/v1/officer/notifications/confirm"
+        with Session(self.engine) as session, session.begin():
+            existing = session.scalar(
+                select(MobileIdempotencyRecord)
+                .where(
+                    MobileIdempotencyRecord.session_id == session_id,
+                    MobileIdempotencyRecord.method == "POST",
+                    MobileIdempotencyRecord.route == route,
+                    MobileIdempotencyRecord.key_hash == key_hash,
+                )
+                .with_for_update()
+            )
+            return (
+                None
+                if existing is None
+                else self._published_replay(existing, request_hash)
+            )
 
     def commit_notification_publish(self, **values) -> dict:
         route = "/api/v1/officer/notifications/confirm"
