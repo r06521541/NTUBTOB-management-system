@@ -14,9 +14,12 @@ void main() {
         mode: mode.name,
         apiBaseUrl: mode == ClientMode.real ? 'https://example.invalid' : '',
         lineChannelId: mode == ClientMode.real ? '123456' : '',
-        googleClientId: mode == ClientMode.real ? 'fake-ios-client-id' : '',
-        googleServerClientId:
-            mode == ClientMode.real ? 'fake-server-client-id' : '',
+        googleClientId: mode == ClientMode.real
+            ? 'fixture-ios.apps.googleusercontent.com'
+            : '',
+        googleServerClientId: mode == ClientMode.real
+            ? 'fixture-web.apps.googleusercontent.com'
+            : '',
       );
 
   Future<void> pumpDemo(

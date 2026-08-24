@@ -38,8 +38,8 @@ void main() {
         mode: 'real',
         apiBaseUrl: 'https://example.invalid/api/v1',
         lineChannelId: '1234567890',
-        googleClientId: 'fake-ios-client-id',
-        googleServerClientId: 'fake-server-client-id',
+        googleClientId: 'fixture-ios.apps.googleusercontent.com',
+        googleServerClientId: 'fixture-web.apps.googleusercontent.com',
       );
   test('preferences are installation local and theme never needs a principal',
       () async {

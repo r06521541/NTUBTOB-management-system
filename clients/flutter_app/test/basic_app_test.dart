@@ -421,8 +421,8 @@ void main() {
         mode: 'real',
         apiBaseUrl: 'https://example.invalid',
         lineChannelId: '123',
-        googleClientId: 'fake-ios-client-id',
-        googleServerClientId: 'fake-server-client-id',
+        googleClientId: 'fixture-ios.apps.googleusercontent.com',
+        googleServerClientId: 'fixture-web.apps.googleusercontent.com',
       ),
     );
     expect(fake, isA<DemoApp>());
