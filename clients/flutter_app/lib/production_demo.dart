@@ -20,12 +20,19 @@ enum ProductionDemoDataState { populated, resolved, actionError, empty, error }
 
 enum ProductionDemoNotificationState { populated, empty, error }
 
+enum ProductionDemoPublishScenario { success, previewError, confirmError }
+
 class ProductionDemoProbe {
   int unexpectedTransportCalls = 0;
   int gameReads = 0;
   int attendanceReads = 0;
   int reportReads = 0;
   int replyMutations = 0;
+  final previewDrafts = <Map<String, dynamic>>[];
+  final previewRevisions = <String>[];
+  final confirmDrafts = <Map<String, dynamic>>[];
+  final confirmPreviews = <Map<String, dynamic>>[];
+  final confirmKeys = <String>[];
 }
 
 class ProductionDemoApp extends DemoApp {
@@ -108,6 +115,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
         'attendance:reply:self',
         'attendance:report:read',
         'notifications:read',
+        'notifications:publish',
       ],
       accessLevel: AccessLevel.officer);
 
@@ -116,6 +124,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   late final _ProductionDemoReportCache _reportCache;
   late final NotificationCache _notificationCache;
   late final _ProductionDemoNotificationClient _notificationClient;
+  late final _ProductionDemoPublishingClient _publishingClient;
   late final LocalPreferences _preferences;
   late final Future<void> _notificationSeedReady;
   final _notificationControllers = <String, NotificationCenterController>{};
@@ -124,6 +133,8 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   ProductionDemoDataState _dataState = ProductionDemoDataState.populated;
   ProductionDemoNotificationState _notificationState =
       ProductionDemoNotificationState.populated;
+  ProductionDemoPublishScenario _publishScenario =
+      ProductionDemoPublishScenario.success;
 
   @override
   void initState() {
@@ -133,6 +144,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     _reportCache = _ProductionDemoReportCache(_fictionalReportUiModel);
     _notificationCache = NotificationCache(MemoryStore(), 'fictional-demo');
     _notificationClient = _ProductionDemoNotificationClient();
+    _publishingClient = _ProductionDemoPublishingClient(_probe);
     _preferences = LocalPreferences(MemoryStore(), 'fictional-demo');
     _notificationSeedReady = _seedNotifications(_basicPerson);
   }
@@ -166,6 +178,11 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     await _seedNotifications(principal);
     _notificationControllers.clear();
     if (mounted) setState(() => _notificationState = value);
+  }
+
+  void _selectPublishScenario(ProductionDemoPublishScenario value) {
+    _publishingClient.scenario = value;
+    setState(() => _publishScenario = value);
   }
 
   NotificationCenterController _notificationController(Person person) =>
@@ -316,77 +333,142 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                     ProductionDemoNotificationState.error,
                   ),
                 ),
+                const SizedBox(width: 12),
+                const Text('發布：'),
+                ChoiceChip(
+                  key: const ValueKey('demo-publish-success'),
+                  label: const Text('成功'),
+                  selected:
+                      _publishScenario == ProductionDemoPublishScenario.success,
+                  onSelected: (_) => _selectPublishScenario(
+                    ProductionDemoPublishScenario.success,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-publish-preview-error'),
+                  label: const Text('預覽失敗'),
+                  selected: _publishScenario ==
+                      ProductionDemoPublishScenario.previewError,
+                  onSelected: (_) => _selectPublishScenario(
+                    ProductionDemoPublishScenario.previewError,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-publish-confirm-error'),
+                  label: const Text('確認失敗'),
+                  selected: _publishScenario ==
+                      ProductionDemoPublishScenario.confirmError,
+                  onSelected: (_) => _selectPublishScenario(
+                    ProductionDemoPublishScenario.confirmError,
+                  ),
+                ),
               ],
             ),
           ),
-          Wrap(children: [
-            TextButton(
-              key: const ValueKey('demo-account-link'),
-              onPressed: () {
-                final controller = _demoIdentityLinkController(online);
-                controller.loadLinkedMethods();
-                Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => Scaffold(
-                    appBar: AppBar(title: const Text('虛構帳號管理')),
-                    body: ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        IdentityLinkPanel(
-                          controller: controller,
-                          platform: 'android',
+          Wrap(
+            children: [
+              TextButton(
+                key: const ValueKey('demo-server-publish-flow-entry'),
+                onPressed: _persona == ProductionDemoPersona.officer
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => CanonicalManagementReportsPage(
+                              api: _api,
+                              person: _officerPerson,
+                              games: games,
+                              online: online,
+                              cache: _reportCache,
+                              publishingClient:
+                                  online ? _publishingClient : null,
+                            ),
+                          ),
+                        )
+                    : null,
+                child: const Text('伺服器形狀發布流程'),
+              ),
+              TextButton(
+                key: const ValueKey('demo-account-link'),
+                onPressed: () {
+                  final controller = _demoIdentityLinkController(online);
+                  controller.loadLinkedMethods();
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(title: const Text('虛構帳號管理')),
+                        body: ListView(
+                          padding: const EdgeInsets.all(16),
+                          children: [
+                            IdentityLinkPanel(
+                              controller: controller,
+                              platform: 'android',
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('帳號連結情境'),
+              ),
+              TextButton(
+                key: const ValueKey('demo-account-recovery'),
+                onPressed: online
+                    ? () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => IdentityRecoveryPage(
+                              controller: _demoIdentityLinkController(true),
+                              platform: 'android',
+                            ),
+                          ),
+                        )
+                    : null,
+                child: const Text('陌生登入追認'),
+              ),
+              TextButton(
+                key: const ValueKey('demo-pending-review'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => PendingReviewPage(
+                      client: PendingReviewClient(
+                        _DemoReviewTransport(),
+                        'fictional-review',
+                        SecureIds(Random(149)),
+                      ),
                     ),
                   ),
-                ));
-              },
-              child: const Text('帳號連結情境'),
-            ),
-            TextButton(
-              key: const ValueKey('demo-account-recovery'),
-              onPressed: online
-                  ? () => Navigator.of(context).push(MaterialPageRoute<void>(
-                        builder: (_) => IdentityRecoveryPage(
-                          controller: _demoIdentityLinkController(true),
-                          platform: 'android',
-                        ),
-                      ))
-                  : null,
-              child: const Text('陌生登入追認'),
-            ),
-            TextButton(
-              key: const ValueKey('demo-pending-review'),
-              onPressed: () =>
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => PendingReviewPage(
-                    client: PendingReviewClient(_DemoReviewTransport(),
-                        'fictional-review', SecureIds(Random(149)))),
-              )),
-              child: const Text('待審核情境'),
-            ),
-            TextButton(
-              key: const ValueKey('demo-settings'),
-              onPressed: () =>
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => LocalPreferencesPage(
-                  preferences: _preferences,
-                  permissions: const NotificationPermissionActions(
-                      UnsupportedNotificationPermissionPort()),
-                  onThemeChanged: (_) {},
                 ),
-              )),
-              child: const Text('設定情境'),
-            ),
-            TextButton(
-              key: const ValueKey('demo-onboarding'),
-              onPressed: () =>
-                  Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (routeContext) => OnboardingPage(
-                    onComplete: () async => Navigator.of(routeContext).pop()),
-              )),
-              child: const Text('新手引導情境'),
-            ),
-          ]),
+                child: const Text('待審核情境'),
+              ),
+              TextButton(
+                key: const ValueKey('demo-settings'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => LocalPreferencesPage(
+                      preferences: _preferences,
+                      permissions: const NotificationPermissionActions(
+                        UnsupportedNotificationPermissionPort(),
+                      ),
+                      onThemeChanged: (_) {},
+                    ),
+                  ),
+                ),
+                child: const Text('設定情境'),
+              ),
+              TextButton(
+                key: const ValueKey('demo-onboarding'),
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (routeContext) => OnboardingPage(
+                      onComplete: () async => Navigator.of(routeContext).pop(),
+                    ),
+                  ),
+                ),
+                child: const Text('新手引導情境'),
+              ),
+            ],
+          ),
           const Divider(height: 1),
           Expanded(
             child: FutureBuilder<void>(
@@ -451,18 +533,21 @@ class _DemoIdentityLinkTransport implements ApiTransport {
   final ProductionDemoProbe probe;
 
   @override
-  Future<ApiResponse> send(String method, String path,
-      {Map<String, String> headers = const {},
-      Map<String, dynamic>? body}) async {
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
     if (method == 'GET' && path == '/auth/identities') {
       return const ApiResponse(200, {
         'items': [
           {
             'provider': 'line',
             'label': 'LINE',
-            'linked_at': '2026-08-20T08:00:00Z'
-          }
-        ]
+            'linked_at': '2026-08-20T08:00:00Z',
+          },
+        ],
       });
     }
     if (path.contains('/candidates/')) {
@@ -473,7 +558,7 @@ class _DemoIdentityLinkTransport implements ApiTransport {
     if (path.contains('/proofs/')) {
       return const ApiResponse(201, {
         'proof_credential': 'fictional-proof',
-        'person': {'display_name': '虛構一般使用者'}
+        'person': {'display_name': '虛構一般使用者'},
       });
     }
     if (path == '/auth/identity-link/confirm') {
@@ -489,9 +574,12 @@ class _DemoIdentityLinkTransport implements ApiTransport {
 
 class _DemoReviewTransport implements ApiTransport {
   @override
-  Future<ApiResponse> send(String method, String path,
-      {Map<String, String> headers = const {},
-      Map<String, dynamic>? body}) async {
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
     return const ApiResponse(200, {
       'status': 'pending',
       'messages': [
@@ -500,9 +588,9 @@ class _DemoReviewTransport implements ApiTransport {
           'sender': 'admin',
           'body': '請補充球隊屆別。',
           'created_at': '2026-08-22T01:00:00Z',
-          'redacted': false
-        }
-      ]
+          'redacted': false,
+        },
+      ],
     });
   }
 }
@@ -521,6 +609,126 @@ class _RejectingProductionDemoTransport implements ApiTransport {
   }) async {
     probe.unexpectedTransportCalls++;
     throw StateError('production demo transport must remain unused');
+  }
+}
+
+class _ProductionDemoPublishingClient implements NotificationPublishingClient {
+  _ProductionDemoPublishingClient(this.probe);
+
+  final ProductionDemoProbe probe;
+  ProductionDemoPublishScenario scenario =
+      ProductionDemoPublishScenario.success;
+
+  int _previewSequence = 0;
+  Map<String, dynamic>? _previewDraft;
+  Map<String, dynamic>? _previewResponse;
+
+  Map<String, dynamic> _copy(Map<String, dynamic> value) => {
+        for (final entry in value.entries)
+          entry.key: entry.value is Map<String, dynamic>
+              ? _copy(entry.value as Map<String, dynamic>)
+              : entry.value is List
+                  ? List.unmodifiable(entry.value as List<dynamic>)
+                  : entry.value,
+      };
+
+  Map<String, dynamic> _freeze(Map<String, dynamic> value) =>
+      Map.unmodifiable(_copy(value));
+
+  Map<String, dynamic> _canonicalDraft(Map<String, dynamic> draft) {
+    final audience = draft['audience'];
+    if (audience is! Map<String, dynamic> || audience['type'] != 'individual') {
+      throw const FormatException('fictional audience must be individual');
+    }
+    final personIds = audience['person_ids'];
+    if (personIds is! List || personIds.isEmpty || personIds.length > 100) {
+      throw const FormatException('fictional audience size is invalid');
+    }
+    final ids = <String>[];
+    final seen = <String>{};
+    for (final value in personIds) {
+      if (value is! String ||
+          !RegExp(r'^[a-z0-9][a-z0-9_-]{0,63}$').hasMatch(value) ||
+          !seen.add(value)) {
+        throw const FormatException('fictional audience ids are invalid');
+      }
+      ids.add(value);
+    }
+    return _freeze({
+      ...draft,
+      'audience': {'type': 'individual', 'person_ids': ids},
+    });
+  }
+
+  bool _sameValue(Object? left, Object? right) {
+    if (left is Map && right is Map) {
+      return left.length == right.length &&
+          left.keys.every(
+            (key) =>
+                right.containsKey(key) && _sameValue(left[key], right[key]),
+          );
+    }
+    if (left is List && right is List) {
+      return left.length == right.length &&
+          Iterable.generate(left.length)
+              .every((index) => _sameValue(left[index], right[index]));
+    }
+    return left == right;
+  }
+
+  bool _validKey(String key) =>
+      RegExp(r'^[A-Za-z0-9_-]{16,200}$').hasMatch(key);
+
+  @override
+  Future<Map<String, dynamic>> preview(Map<String, dynamic> draft) async {
+    final canonicalDraft = _canonicalDraft(draft);
+    probe.previewDrafts.add(canonicalDraft);
+    if (scenario == ProductionDemoPublishScenario.previewError) {
+      throw StateError('fictional preview error');
+    }
+    final count =
+        (canonicalDraft['audience'] as Map<String, dynamic>)['person_ids']
+            .length;
+    final revision = (++_previewSequence).toRadixString(16).padLeft(64, '0');
+    final response = _freeze({
+      'recipient_count': count,
+      'revision': revision,
+      'confirmation_text': 'PUBLISH $count',
+    });
+    _previewDraft = canonicalDraft;
+    _previewResponse = response;
+    probe.previewRevisions.add(revision);
+    return response;
+  }
+
+  @override
+  Future<Map<String, dynamic>> confirm(
+    Map<String, dynamic> draft,
+    Map<String, dynamic> preview,
+    String key,
+  ) async {
+    final canonicalDraft = _canonicalDraft(draft);
+    final canonicalPreview = _freeze(preview);
+    probe.confirmDrafts.add(canonicalDraft);
+    probe.confirmPreviews.add(canonicalPreview);
+    probe.confirmKeys.add(key);
+    final expectedDraft = _previewDraft;
+    final expectedPreview = _previewResponse;
+    if (expectedDraft == null ||
+        expectedPreview == null ||
+        !_sameValue(canonicalDraft, expectedDraft) ||
+        canonicalPreview['recipient_count'] !=
+            expectedPreview['recipient_count'] ||
+        canonicalPreview['revision'] != expectedPreview['revision'] ||
+        canonicalPreview['confirmation_text'] !=
+            expectedPreview['confirmation_text'] ||
+        !_validKey(key)) {
+      throw const FormatException('fictional preview confirmation is stale');
+    }
+    if (scenario == ProductionDemoPublishScenario.confirmError) {
+      throw StateError('fictional confirm error');
+    }
+    return const {'status': 'saved', 'outbox_status': 'pending'};
   }
 }
 
@@ -576,22 +784,26 @@ class _ProductionDemoNotificationClient
   }
 
   @override
-  Future<List<MobileNotification>> notifications(
-      {bool unreadOnly = false}) async {
+  Future<List<MobileNotification>> notifications({
+    bool unreadOnly = false,
+  }) async {
     _throwIfError();
     return unreadOnly ? values.where((item) => !item.isRead).toList() : values;
   }
 
   @override
-  Future<NotificationPage> page(
-      {String? cursor, bool unreadOnly = false}) async {
+  Future<NotificationPage> page({
+    String? cursor,
+    bool unreadOnly = false,
+  }) async {
     _throwIfError();
     final filtered =
         unreadOnly ? values.where((item) => !item.isRead).toList() : values;
     final index = cursor == null ? 0 : 1;
     if (index >= filtered.length) return const NotificationPage([], null);
-    return NotificationPage([filtered[index]],
-        index + 1 < filtered.length ? 'fictional-next' : null);
+    return NotificationPage([
+      filtered[index],
+    ], index + 1 < filtered.length ? 'fictional-next' : null);
   }
 
   @override
