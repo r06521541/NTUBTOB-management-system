@@ -18,6 +18,8 @@ enum ProductionDemoConnectivity { online, offline }
 
 enum ProductionDemoDataState { populated, resolved, actionError, empty, error }
 
+enum ProductionDemoNotificationState { populated, empty, error }
+
 class ProductionDemoProbe {
   int unexpectedTransportCalls = 0;
   int gameReads = 0;
@@ -115,10 +117,13 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   late final NotificationCache _notificationCache;
   late final _ProductionDemoNotificationClient _notificationClient;
   late final LocalPreferences _preferences;
+  late final Future<void> _notificationSeedReady;
   final _notificationControllers = <String, NotificationCenterController>{};
   ProductionDemoPersona _persona = ProductionDemoPersona.basic;
   ProductionDemoConnectivity _connectivity = ProductionDemoConnectivity.online;
   ProductionDemoDataState _dataState = ProductionDemoDataState.populated;
+  ProductionDemoNotificationState _notificationState =
+      ProductionDemoNotificationState.populated;
 
   @override
   void initState() {
@@ -129,23 +134,38 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     _notificationCache = NotificationCache(MemoryStore(), 'fictional-demo');
     _notificationClient = _ProductionDemoNotificationClient();
     _preferences = LocalPreferences(MemoryStore(), 'fictional-demo');
-    _seedNotifications();
+    _notificationSeedReady = _seedNotifications(_basicPerson);
   }
 
-  Future<void> _seedNotifications() async {
+  Future<void> _seedNotifications(Person principal) async {
     final notifications = _notificationClient.values;
     await _notificationCache.save(
-      _basicPerson,
+      principal,
       notifications,
       _lastSyncedAt,
       unreadCount: notifications.where((item) => !item.isRead).length,
     );
-    await _notificationCache.save(
-      _officerPerson,
-      notifications,
-      _lastSyncedAt,
-      unreadCount: notifications.where((item) => !item.isRead).length,
-    );
+  }
+
+  Future<void> _selectPersona(ProductionDemoPersona value) async {
+    if (_persona == value) return;
+    final principal =
+        value == ProductionDemoPersona.basic ? _basicPerson : _officerPerson;
+    await _seedNotifications(principal);
+    _notificationControllers.clear();
+    if (mounted) setState(() => _persona = value);
+  }
+
+  Future<void> _selectNotificationState(
+    ProductionDemoNotificationState value,
+  ) async {
+    if (_notificationState == value) return;
+    _notificationClient.configure(value);
+    final principal =
+        _persona == ProductionDemoPersona.basic ? _basicPerson : _officerPerson;
+    await _seedNotifications(principal);
+    _notificationControllers.clear();
+    if (mounted) setState(() => _notificationState = value);
   }
 
   NotificationCenterController _notificationController(Person person) =>
@@ -190,7 +210,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                   label: const Text('一般使用者'),
                   selected: _persona == ProductionDemoPersona.basic,
                   onSelected: (_) =>
-                      setState(() => _persona = ProductionDemoPersona.basic),
+                      _selectPersona(ProductionDemoPersona.basic),
                 ),
                 const SizedBox(width: 4),
                 ChoiceChip(
@@ -198,7 +218,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                   label: const Text('幹部'),
                   selected: _persona == ProductionDemoPersona.officer,
                   onSelected: (_) =>
-                      setState(() => _persona = ProductionDemoPersona.officer),
+                      _selectPersona(ProductionDemoPersona.officer),
                 ),
                 const SizedBox(width: 12),
                 const Text('連線：'),
@@ -263,6 +283,37 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                   selected: _dataState == ProductionDemoDataState.error,
                   onSelected: (_) => setState(
                     () => _dataState = ProductionDemoDataState.error,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('通知：'),
+                ChoiceChip(
+                  key: const ValueKey('demo-notifications-populated'),
+                  label: const Text('有通知'),
+                  selected: _notificationState ==
+                      ProductionDemoNotificationState.populated,
+                  onSelected: (_) => _selectNotificationState(
+                    ProductionDemoNotificationState.populated,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-notifications-empty'),
+                  label: const Text('通知空資料'),
+                  selected: _notificationState ==
+                      ProductionDemoNotificationState.empty,
+                  onSelected: (_) => _selectNotificationState(
+                    ProductionDemoNotificationState.empty,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-notifications-error'),
+                  label: const Text('通知錯誤'),
+                  selected: _notificationState ==
+                      ProductionDemoNotificationState.error,
+                  onSelected: (_) => _selectNotificationState(
+                    ProductionDemoNotificationState.error,
                   ),
                 ),
               ],
@@ -338,28 +389,36 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
           ]),
           const Divider(height: 1),
           Expanded(
-            child: _dataState == ProductionDemoDataState.error
-                ? const AuthStatePanel(
-                    key: ValueKey('production-demo-error'),
-                    state: AuthViewState.recoverableError,
-                  )
-                : BasicGamesView(
-                    key: ValueKey(
-                      'production-demo-games-${_persona.name}-'
-                      '${_connectivity.name}-${_dataState.name}',
-                    ),
-                    api: _api,
-                    person: person,
-                    games: games,
-                    online: online,
-                    lastSyncedAt: _lastSyncedAt,
-                    principalProvenance: online
-                        ? PrincipalProvenance.freshServer
-                        : PrincipalProvenance.offlineCache,
-                    reportCache: _reportCache,
-                    notificationController: _notificationController(person),
-                    onRefresh: () async => true,
-                  ),
+            child: FutureBuilder<void>(
+              future: _notificationSeedReady,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return _dataState == ProductionDemoDataState.error
+                    ? const AuthStatePanel(
+                        key: ValueKey('production-demo-error'),
+                        state: AuthViewState.recoverableError,
+                      )
+                    : BasicGamesView(
+                        key: ValueKey(
+                          'production-demo-games-${_persona.name}-'
+                          '${_connectivity.name}-${_dataState.name}',
+                        ),
+                        api: _api,
+                        person: person,
+                        games: games,
+                        online: online,
+                        lastSyncedAt: _lastSyncedAt,
+                        principalProvenance: online
+                            ? PrincipalProvenance.freshServer
+                            : PrincipalProvenance.offlineCache,
+                        reportCache: _reportCache,
+                        notificationController: _notificationController(person),
+                        onRefresh: () async => true,
+                      );
+              },
+            ),
           ),
         ],
       ),
@@ -467,7 +526,11 @@ class _RejectingProductionDemoTransport implements ApiTransport {
 
 class _ProductionDemoNotificationClient
     implements NotificationClient, PagedNotificationClient {
-  List<MobileNotification> values = [
+  List<MobileNotification> values = _populatedValues;
+  ProductionDemoNotificationState _state =
+      ProductionDemoNotificationState.populated;
+
+  static final _populatedValues = [
     MobileNotification.fromJson({
       'id': 'notification_901',
       'type': 'game_reminder',
@@ -493,18 +556,36 @@ class _ProductionDemoNotificationClient
     }),
   ];
 
+  void configure(ProductionDemoNotificationState state) {
+    _state = state;
+    values = state == ProductionDemoNotificationState.empty
+        ? const []
+        : List.of(_populatedValues);
+  }
+
+  void _throwIfError() {
+    if (_state == ProductionDemoNotificationState.error) {
+      throw StateError('fictional notification retryable error');
+    }
+  }
+
   @override
-  Future<MobileNotification> notification(String id) async =>
-      values.firstWhere((item) => item.id == id);
+  Future<MobileNotification> notification(String id) async {
+    _throwIfError();
+    return values.firstWhere((item) => item.id == id);
+  }
 
   @override
   Future<List<MobileNotification>> notifications(
-          {bool unreadOnly = false}) async =>
-      unreadOnly ? values.where((item) => !item.isRead).toList() : values;
+      {bool unreadOnly = false}) async {
+    _throwIfError();
+    return unreadOnly ? values.where((item) => !item.isRead).toList() : values;
+  }
 
   @override
   Future<NotificationPage> page(
       {String? cursor, bool unreadOnly = false}) async {
+    _throwIfError();
     final filtered =
         unreadOnly ? values.where((item) => !item.isRead).toList() : values;
     final index = cursor == null ? 0 : 1;
@@ -514,11 +595,14 @@ class _ProductionDemoNotificationClient
   }
 
   @override
-  Future<int> unreadCount() async =>
-      values.where((item) => !item.isRead).length;
+  Future<int> unreadCount() async {
+    _throwIfError();
+    return values.where((item) => !item.isRead).length;
+  }
 
   @override
   Future<NotificationReadResult> markRead(String id) async {
+    _throwIfError();
     const readAt = '2026-08-21T08:30:00Z';
     values = [
       for (final item in values)
@@ -532,6 +616,7 @@ class _ProductionDemoNotificationClient
 
   @override
   Future<NotificationReadAllResult> markAllRead() async {
+    _throwIfError();
     final readAt = DateTime.utc(2026, 8, 21, 8, 30);
     values = [for (final item in values) item.markRead(readAt)];
     return const NotificationReadAllResult(1, 0);
