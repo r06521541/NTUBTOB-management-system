@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
+
 import 'integration.dart';
 
 enum NotificationCenterState {
@@ -460,23 +462,26 @@ class NotificationCenter extends StatelessWidget {
             itemCount: controller.items.length,
             itemBuilder: (context, index) {
               final item = controller.items[index];
-              return ListTile(
-                leading: Icon(
-                  item.isRead
-                      ? Icons.notifications_none
-                      : Icons.notifications_active,
+              return AppSurfaceCard(
+                padding: EdgeInsets.zero,
+                child: ListTile(
+                  leading: Icon(
+                    item.isRead
+                        ? Icons.notifications_none
+                        : Icons.notifications_active,
+                  ),
+                  title: Text(item.title),
+                  subtitle: Text(item.body),
+                  selected: !item.isRead,
+                  onTap: controller.busy
+                      ? null
+                      : () {
+                          onOpen?.call(item);
+                          if (online && !item.isRead) {
+                            controller.markRead(item.id, online: true);
+                          }
+                        },
                 ),
-                title: Text(item.title),
-                subtitle: Text(item.body),
-                selected: !item.isRead,
-                onTap: controller.busy
-                    ? null
-                    : () {
-                        onOpen?.call(item);
-                        if (online && !item.isRead) {
-                          controller.markRead(item.id, online: true);
-                        }
-                      },
               );
             },
           ),

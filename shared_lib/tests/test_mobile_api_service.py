@@ -141,6 +141,7 @@ class MobileAuthServiceTest(unittest.TestCase):
 
     def test_pending_exchange_issues_review_only_without_refresh_or_session(self):
         from shared_module.mobile_api import IdentityPending
+
         self.repository.exchange = Mock(side_effect=IdentityPending("pending", 77))
         result = self.service.exchange(
             assertion="raw-line-token",
@@ -154,7 +155,6 @@ class MobileAuthServiceTest(unittest.TestCase):
         self.assertFalse(hasattr(result, "refresh_token"))
         with self.assertRaises(AuthenticationError):
             self.service.authenticate(result.review_credential)
-
 
     def test_refresh_passes_only_hash_and_encrypted_successor(self):
         result = self.service.refresh(
@@ -212,8 +212,12 @@ class BasicApiServiceTest(unittest.TestCase):
             )
         )
         service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
-        first = service.update_profile(repository.device, " 新名稱 ", "raw-key-123456789")
-        replay = service.update_profile(repository.device, " 新名稱 ", "raw-key-123456789")
+        first = service.update_profile(
+            repository.device, " 新名稱 ", "raw-key-123456789"
+        )
+        replay = service.update_profile(
+            repository.device, " 新名稱 ", "raw-key-123456789"
+        )
         self.assertFalse(first[2])
         self.assertTrue(replay[2])
         self.assertNotIn("raw-key-123456789", str(repository.records))
@@ -254,7 +258,43 @@ class BasicApiServiceTest(unittest.TestCase):
             "history_limit": 12,
             "minimum_rate": 60,
             "attending": (
-                {"person_id": 3, "name": "Zulu", "reply": 1, "member_id": 99},
+                {
+                    "person_id": 3,
+                    "name": "Zulu",
+                    "reply": 1,
+                    "member_id": 99,
+                    "member_number": 18,
+                },
+                {
+                    "person_id": 6,
+                    "name": "Too High",
+                    "reply": 1,
+                    "member_number": 1000,
+                },
+                {
+                    "person_id": 7,
+                    "name": "Negative",
+                    "reply": 1,
+                    "member_number": -1,
+                },
+                {
+                    "person_id": 8,
+                    "name": "Boundary",
+                    "reply": 1,
+                    "member_number": 27,
+                },
+                {
+                    "person_id": 9,
+                    "name": "Boolean",
+                    "reply": 1,
+                    "member_number": True,
+                },
+                {
+                    "person_id": 10,
+                    "name": "String",
+                    "reply": 1,
+                    "member_number": "27",
+                },
                 {"person_id": 2, "name": "Alpha", "reply": 3, "admin_note": "x"},
             ),
             "not_attending": ({"person_id": 4, "name": "Beta", "reply": 2},),
@@ -281,9 +321,24 @@ class BasicApiServiceTest(unittest.TestCase):
         result = service.attendance_report(repository.device, 44)
         self.assertEqual(
             [item["display_name"] for item in result["attending"]],
-            ["Alpha", "Zulu"],
+            [
+                "Alpha",
+                "Boolean",
+                "Boundary",
+                "Negative",
+                "String",
+                "Too High",
+                "Zulu",
+            ],
         )
         self.assertEqual(result["observation"]["history_games"], 8)
+        self.assertIsNone(result["attending"][0]["member_number"])
+        self.assertIsNone(result["attending"][1]["member_number"])
+        self.assertEqual(result["attending"][2]["member_number"], 27)
+        self.assertIsNone(result["attending"][3]["member_number"])
+        self.assertIsNone(result["attending"][4]["member_number"])
+        self.assertIsNone(result["attending"][5]["member_number"])
+        self.assertEqual(result["attending"][6]["member_number"], 18)
         self.assertNotIn("member_id", str(result))
         self.assertNotIn("admin_note", str(result))
         self.assertNotIn("provider_subject", str(result))

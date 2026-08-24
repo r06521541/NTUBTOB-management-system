@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_line_sdk/flutter_line_sdk.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
 import 'foundation.dart';
@@ -18,26 +19,36 @@ class AppConfig {
     this.mode,
     this.apiBaseUrl,
     this.lineChannelId,
+    this.googleClientId,
+    this.googleServerClientId,
   );
   final AppFlavor flavor;
   final ClientMode mode;
   final Uri? apiBaseUrl;
   final String? lineChannelId;
+  final String? googleClientId;
+  final String? googleServerClientId;
 
   static AppConfig parse({
     required String flavor,
     required String mode,
     String apiBaseUrl = '',
     String lineChannelId = '',
+    String googleClientId = '',
+    String googleServerClientId = '',
   }) {
     final parsedFlavor = FlavorConfig.parse(flavor).flavor;
     if (parsedFlavor == AppFlavor.development) {
-      if (mode != 'fake' || apiBaseUrl.isNotEmpty || lineChannelId.isNotEmpty) {
+      if (mode != 'fake' ||
+          apiBaseUrl.isNotEmpty ||
+          lineChannelId.isNotEmpty ||
+          googleClientId.isNotEmpty ||
+          googleServerClientId.isNotEmpty) {
         throw const FormatException(
           'development requires an explicit isolated fake mode',
         );
       }
-      return AppConfig._(parsedFlavor, ClientMode.fake, null, null);
+      return AppConfig._(parsedFlavor, ClientMode.fake, null, null, null, null);
     }
     final uri = Uri.tryParse(apiBaseUrl);
     final validUri = uri != null &&
@@ -47,10 +58,18 @@ class AppConfig {
         !uri.hasFragment &&
         uri.userInfo.isEmpty;
     final validChannel = RegExp(r'^\d+$').hasMatch(lineChannelId);
-    if (mode != 'real' || !validUri || !validChannel) {
+    final googleClientPattern = RegExp(
+      r'^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$',
+    );
+    if (mode != 'real' ||
+        !validUri ||
+        !validChannel ||
+        !googleClientPattern.hasMatch(googleClientId) ||
+        !googleClientPattern.hasMatch(googleServerClientId)) {
       throw const FormatException('real configuration is missing or invalid');
     }
-    return AppConfig._(parsedFlavor, ClientMode.real, uri, lineChannelId);
+    return AppConfig._(parsedFlavor, ClientMode.real, uri, lineChannelId,
+        googleClientId, googleServerClientId);
   }
 
   static AppConfig fromEnvironment() => parse(
@@ -58,6 +77,9 @@ class AppConfig {
         mode: const String.fromEnvironment('CLIENT_MODE'),
         apiBaseUrl: const String.fromEnvironment('API_BASE_URL'),
         lineChannelId: const String.fromEnvironment('LINE_CHANNEL_ID'),
+        googleClientId: const String.fromEnvironment('GOOGLE_CLIENT_ID'),
+        googleServerClientId:
+            const String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID'),
       );
 }
 
@@ -268,15 +290,27 @@ class Person {
 }
 
 class AttendanceReportPerson {
-  const AttendanceReportPerson(this.personId, this.displayName, this.reply);
-  factory AttendanceReportPerson.fromJson(Map<String, dynamic> json) =>
-      AttendanceReportPerson(
-        _required(json, 'person_id'),
-        _required(json, 'display_name'),
-        AttendanceReplyWire.parse(json['reply']),
-      );
+  const AttendanceReportPerson(
+    this.personId,
+    this.displayName,
+    this.reply, {
+    this.memberNumber,
+  });
+  factory AttendanceReportPerson.fromJson(Map<String, dynamic> json) {
+    final number = json['member_number'];
+    if (number != null && (number is! int || number < 0 || number > 999)) {
+      throw const ContractException('invalid member number');
+    }
+    return AttendanceReportPerson(
+      _required(json, 'person_id'),
+      _required(json, 'display_name'),
+      AttendanceReplyWire.parse(json['reply']),
+      memberNumber: number as int?,
+    );
+  }
   final String personId, displayName;
   final AttendanceReply reply;
+  final int? memberNumber;
 }
 
 class AttendanceReportUnansweredPerson {
@@ -1249,6 +1283,99 @@ abstract interface class LineLoginPort {
   Future<void> logout();
 }
 
+abstract interface class GoogleLoginPort {
+  Future<String> login();
+  Future<void> logout();
+}
+
+typedef GoogleSdkInitialize = Future<void> Function({
+  String? clientId,
+  required String serverClientId,
+});
+
+class GoogleSignInProcessInitializer {
+  static String? _configuration;
+  static Future<void>? _initialization;
+
+  static Future<void> ensure({
+    required String platform,
+    required String clientId,
+    required String serverClientId,
+    required GoogleSdkInitialize initialize,
+  }) {
+    final googlePattern = RegExp(
+      r'^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$',
+    );
+    final valid = (platform == 'android' || platform == 'ios') &&
+        googlePattern.hasMatch(serverClientId) &&
+        (platform == 'android' ||
+            (googlePattern.hasMatch(clientId) && clientId != serverClientId));
+    if (!valid) {
+      throw const FormatException('Google platform configuration is invalid');
+    }
+    final effectiveClientId = platform == 'ios' ? clientId : '';
+    final configuration =
+        '$platform\u0000$effectiveClientId\u0000$serverClientId';
+    if (_configuration != null && _configuration != configuration) {
+      throw StateError(
+          'Google Sign-In was initialized with another configuration');
+    }
+    _configuration = configuration;
+    return _initialization ??= initialize(
+      clientId: effectiveClientId.isEmpty ? null : effectiveClientId,
+      serverClientId: serverClientId,
+    );
+  }
+
+  @visibleForTesting
+  static void resetForTest() {
+    _configuration = null;
+    _initialization = null;
+  }
+}
+
+class NativeGoogleLogin implements GoogleLoginPort {
+  NativeGoogleLogin(this.platform, this.clientId, this.serverClientId);
+  final String platform;
+  final String clientId;
+  final String serverClientId;
+  bool _ready = false;
+
+  Future<void> _setup() async {
+    if (_ready) return;
+    await GoogleSignInProcessInitializer.ensure(
+      platform: platform,
+      clientId: clientId,
+      serverClientId: serverClientId,
+      initialize: ({clientId, required serverClientId}) =>
+          GoogleSignIn.instance.initialize(
+        clientId: clientId,
+        serverClientId: serverClientId,
+      ),
+    );
+    _ready = true;
+  }
+
+  @override
+  Future<String> login() async {
+    await _setup();
+    if (!GoogleSignIn.instance.supportsAuthenticate()) {
+      throw MissingPluginException('Google interactive sign-in unavailable');
+    }
+    final account = await GoogleSignIn.instance.authenticate();
+    final token = account.authentication.idToken;
+    if (token == null || token.isEmpty) {
+      throw const ContractException('Google sign-in returned no ID token');
+    }
+    return token;
+  }
+
+  @override
+  Future<void> logout() async {
+    if (_ready) await GoogleSignIn.instance.signOut();
+  }
+}
+
 class NativeLineLogin implements LineLoginPort {
   NativeLineLogin(this.channelId);
   final String channelId;
@@ -1469,6 +1596,79 @@ class LoginCoordinator extends ChangeNotifier {
   void _retirePendingReview() {
     pendingReview = null;
     _pendingReviewAttempt = null;
+  }
+}
+
+class GoogleLoginCoordinator extends ChangeNotifier {
+  GoogleLoginCoordinator(
+      this.google, this.api, this.sessions, this.ids, this.installationId);
+  final GoogleLoginPort google;
+  final ApiTransport api;
+  final SessionController sessions;
+  final SecureIds ids;
+  final String installationId;
+  LoginState state = LoginState.idle;
+  bool _active = false;
+  bool _disposed = false;
+  PendingReviewEnvelope? pendingReview;
+
+  void retirePendingReview() => pendingReview = null;
+
+  Future<void> login(String platform) async {
+    retirePendingReview();
+    if (_active || (platform != 'android' && platform != 'ios')) {
+      state = LoginState.unavailable;
+      _notify();
+      return;
+    }
+    _active = true;
+    state = LoginState.providerActive;
+    _notify();
+    try {
+      final token = await google.login();
+      state = LoginState.exchanging;
+      _notify();
+      final response = await api.send('POST', '/auth/google/exchange', body: {
+        'id_token': token,
+        'login_attempt_id': ids.next(),
+        'installation_id': installationId,
+        'platform': platform,
+      });
+      if (response.status == 202 && response.body != null) {
+        pendingReview = PendingReviewEnvelope.fromJson(response.body!);
+        state = LoginState.identityPending;
+      } else if (response.status == 201 && response.body != null) {
+        await sessions.accept(SessionEnvelope.fromJson(response.body!));
+        state = LoginState.authenticated;
+      } else {
+        final error =
+            response.body == null ? null : ApiError.fromJson(response.body!);
+        state = error?.code == ApiErrorCode.accountUnavailable
+            ? LoginState.accountUnavailable
+            : LoginState.error;
+      }
+    } on GoogleSignInException catch (error) {
+      state = error.code == GoogleSignInExceptionCode.canceled
+          ? LoginState.cancelled
+          : LoginState.error;
+    } on MissingPluginException {
+      state = LoginState.unavailable;
+    } on Object {
+      state = LoginState.error;
+    } finally {
+      _active = false;
+      _notify();
+    }
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
   }
 }
 

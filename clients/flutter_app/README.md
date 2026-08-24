@@ -17,7 +17,21 @@ account-data status, and Officer report are the current production widgets fed
 by deterministic in-memory adapters. Fake mode needs no account or credentials,
 does not call LINE or an API, and does not use platform secure storage.
 
-Staging/production require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, and numeric `LINE_CHANNEL_ID`, supplied by an approved local/runtime configuration mechanism. Never commit those values. Example placeholders are deliberately not provided because a launch must fail closed until real approved values exist.
+Staging/production require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, numeric
+`LINE_CHANNEL_ID`, `GOOGLE_CLIENT_ID`, and `GOOGLE_SERVER_CLIENT_ID`, supplied by
+an approved local/runtime configuration mechanism. Android uses the Web server
+client ID for backend tokens. iOS requires its iOS client ID plus that same Web
+server client ID. Never commit real IDs or credentials.
+
+iOS additionally resolves `GOOGLE_REVERSED_CLIENT_ID` from the gitignored
+`ios/Flutter/AuthConfig.xcconfig`; use `AuthConfig.xcconfig.example` only as the
+key-name template. For real builds it must be the exact reversed form of the
+same iOS `GOOGLE_CLIENT_ID` supplied through `DART_DEFINES`; the iOS and Web
+server client IDs must be distinct. The Xcode build phase rejects missing,
+unresolved, mismatched, or malformed values while preserving the existing LINE
+scheme. A clean development/fake build requires no Owner OAuth values and
+rejects any Google configuration instead of falling back to it. A
+macOS/Xcode build remains mandatory evidence; no Firebase plist is required.
 
 Android and iOS runners were generated with Flutter 3.47.0. To reproduce them after installing a compatible Flutter SDK and confirming Android/iOS prerequisites, run from this directory:
 
@@ -30,6 +44,11 @@ The expected additions are `android/`, `ios/`, and Flutter-generated metadata. B
 ## Session and platform boundary
 
 Access tokens are memory-only. Refresh/session continuity, installation isolation, retry attempt IDs, pending mutations, and `logout_pending` use platform secure storage. Android backup is disabled and secure storage uses an isolated namespace without backup migration; iOS Keychain accessibility is `first_unlock_this_device`. Android requires API 24 and declares INTERNET in the main manifest. iOS target 15 configuration is reviewable here, while runtime/build/signing requires macOS/Xcode.
+
+For Android staging evidence, the existing `Invoke-MobileStaging.ps1` artifact
+gate reads the APK package identity and signer certificate fingerprint and
+compares them with the Owner-approved allowlist; it never creates a keystore or
+handles a signing password.
 
 No release signing configuration is committed. Debug builds must use the explicit fake command above and must not contact LINE or an API.
 

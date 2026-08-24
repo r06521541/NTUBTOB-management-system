@@ -1,12 +1,17 @@
 # 專案狀態
 
-更新時間：2026-08-22
+更新時間：2026-08-24
 
 維護角色：Main Work
 
-Repository 基準：`main` / `1bb2417cac7b18d58bf4a453ad4bdb8607ef1894`
+Repository 基準：`main` / `36fcd195d960d3d65e3e393923538e98aeb0b787`
 
 ## Active role lanes
+
+Flutter 目前為 Owner 核准的產品孵化期：純 UI／導覽／local state／fixture／prototype model 可在具名 incubator
+delivery group 的共同 branch 以 focused local evidence 與描述性 commits 持續累積；完整流程、3–6 commits 或一週僅為
+checkpoint 提示，不自動建立 PR。接近部署／正式發布候選時才建立唯一 final PR／Hosted CI。Auth、安全、後端契約、shared boundary、正式資料、Secret、schema、
+真實通知與部署不適用此例外。TASK-149 已在採用本模式前由 PR #177 合併完成，不追溯改制。
 
 | lane | current actor_id | claim_id | lease_version | state |
 | --- | --- | --- | --- | --- |
@@ -41,6 +46,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   真實通知、release signing 與 stores 仍未授權。
 - TASK-146 已啟動為第一個新流程 L2 pilot：將既有通知中心接入正式 Flutter 首頁、badge、session/capability 與
   offline cache lifecycle。範圍限 Flutter repository integration；不改 backend/schema，不使用 emulator/staging/provider。
+- PR #180 已完成 Google 登入、LINE／Google 跨 provider 登入方式連結與陌生登入追認，以及 Web／Mobile／Flutter
+  release-readiness plumbing；exact HEAD `b0c8cbb7ffd35950f366d289c7b70979f62b99fa` 為 open／clean／non-draft，
+  12 項 hosted checks 與獨立 Web/Auth/DB、Flutter Auth review 均通過。沒有 schema migration；尚未執行真 OAuth
+  Console、Secret/IAM、staging／production deployment、真 provider smoke 或 iOS signing。
 
 ## 已確認的 production 狀態
 
@@ -85,7 +94,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - Identity maintenance 仍為 false；新 pending identity 的 match／ignore／remap 等正式操作需另行規劃啟用與驗證。
 - People role 尚未取代 runtime admin allowlist；officer／admin 的正式持久化權限切換仍屬 Phase D 之後工作。
 - Event／Activity、多場比賽、旅遊與 guest-player eligibility 尚停留在規劃／Demo，不代表正式 schema 或 production 功能。
-- Google／Apple OAuth 仍只有 prototype UI，尚未實作。
+- Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation，但尚未由
+  Owner 配置 OAuth clients、callbacks、Android/iOS signing metadata、Secret/IAM 或部署驗證；Apple 登入仍未實作。
 - Attendance 首次載入可能受 Cloud Run／資料庫 cold path 影響；現階段接受延遲，後續應先量測再改架構。
 
 ## 下一階段候選方向

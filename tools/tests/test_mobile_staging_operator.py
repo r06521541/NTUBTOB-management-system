@@ -106,6 +106,7 @@ def approval(*, phase="candidate", mode="update") -> dict:
             "MOBILE_REFRESH_REPLAY_KEY": "mobile-staging-refresh-key:1",
         },
         "mobile_api_audience": "1234567890",
+        "mobile_api_google_audiences": ("staging-web.apps.googleusercontent.com"),
     }
 
 
@@ -136,6 +137,12 @@ def revision(value=DIGEST):
         for name, reference in approval()["runtime_secret_refs"].items()
     ]
     environment.append({"name": "MOBILE_API_AUDIENCE", "value": "1234567890"})
+    environment.append(
+        {
+            "name": "MOBILE_API_GOOGLE_AUDIENCES",
+            "value": "staging-web.apps.googleusercontent.com",
+        }
+    )
     return {
         "metadata": {
             "name": "mobile-api-staging-candidate1",
@@ -337,7 +344,11 @@ class ContractTest(unittest.TestCase):
             ) as output:
                 self.assertEqual(
                     staging_data_main(
-                        ["--approval", str(approval_path), "--inspect-fixture-lifecycle"]
+                        [
+                            "--approval",
+                            str(approval_path),
+                            "--inspect-fixture-lifecycle",
+                        ]
                     ),
                     0,
                 )
@@ -549,6 +560,22 @@ class ContractTest(unittest.TestCase):
             path.write_text(json.dumps(bad), encoding="utf-8")
             with self.assertRaises(StagingContractError):
                 load_approval(path)
+
+    def test_google_audience_allowlist_is_bounded_exact_and_required(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "approval.json"
+            for invalid in (
+                "",
+                "not-a-google-client",
+                "a.apps.googleusercontent.com," * 5,
+                "duplicate.apps.googleusercontent.com,duplicate.apps.googleusercontent.com",
+            ):
+                value = approval()
+                value["mobile_api_google_audiences"] = invalid
+                path.write_text(json.dumps(value), encoding="utf-8")
+                with self.subTest(invalid=invalid):
+                    with self.assertRaises(StagingContractError):
+                        load_approval(path)
             bad = approval(mode="bootstrap")
             bad["rollback_revision"] = "mobile-api-staging-fake"
             path.write_text(json.dumps(bad), encoding="utf-8")
@@ -806,6 +833,25 @@ class OperatorTest(unittest.TestCase):
         self.assertIn("--ingress", bootstrap_deploy)
         self.assertIn("--min-instances", bootstrap_deploy)
         self.assertIn("--max-instances", bootstrap_deploy)
+        env_value = update_deploy[update_deploy.index("--set-env-vars") + 1]
+        self.assertTrue(env_value.startswith("^|^"))
+        self.assertIn("MOBILE_API_AUDIENCE=1234567890", env_value)
+        self.assertIn(
+            "MOBILE_API_GOOGLE_AUDIENCES=staging-web.apps.googleusercontent.com",
+            env_value,
+        )
+        multiple = approval()
+        multiple["mobile_api_google_audiences"] = (
+            "android.apps.googleusercontent.com,web.apps.googleusercontent.com"
+        )
+        multiple_env = deploy_command(multiple)[
+            deploy_command(multiple).index("--set-env-vars") + 1
+        ]
+        self.assertIn(
+            "MOBILE_API_GOOGLE_AUDIENCES="
+            "android.apps.googleusercontent.com,web.apps.googleusercontent.com",
+            multiple_env,
+        )
         self.assertNotIn("--min", bootstrap_deploy)
         self.assertNotIn("--max", bootstrap_deploy)
 
@@ -820,6 +866,14 @@ class OperatorTest(unittest.TestCase):
             service("bootstrap"),
         )
         validate_candidate(approval(), revision(), service())
+        drifted = revision()
+        next(
+            item
+            for item in drifted["spec"]["containers"][0]["env"]
+            if item["name"] == "MOBILE_API_GOOGLE_AUDIENCES"
+        )["value"] = "other.apps.googleusercontent.com"
+        with self.assertRaisesRegex(OperatorError, "Google audience"):
+            validate_candidate(approval(), drifted, service())
         update_with_retained_candidate = service()
         update_with_retained_candidate["status"]["traffic"].append(
             {"revisionName": "mobile-api-staging-candidate1", "percent": 0}
@@ -1716,9 +1770,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "'unknown fixture drift', 'task-119-unknown-drift', now())"
                 )
             )
-        with self.assertRaisesRegex(
-            StagingContractError, "audit.*drifted"
-        ):
+        with self.assertRaisesRegex(StagingContractError, "audit.*drifted"):
             officer_inventory(
                 self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
             )
@@ -1898,9 +1950,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     text("SELECT * FROM ntubtob.people WHERE id=-112001")
                 ).all(),
                 "attendance": connection.execute(
-                    text(
-                        "SELECT * FROM ntubtob.game_attendance_replies ORDER BY id"
-                    )
+                    text("SELECT * FROM ntubtob.game_attendance_replies ORDER BY id")
                 ).all(),
                 "audit": connection.execute(
                     text("SELECT * FROM ntubtob.access_audit ORDER BY id")
@@ -1920,9 +1970,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     text("SELECT * FROM ntubtob.people WHERE id=-112001")
                 ).all(),
                 "attendance": connection.execute(
-                    text(
-                        "SELECT * FROM ntubtob.game_attendance_replies ORDER BY id"
-                    )
+                    text("SELECT * FROM ntubtob.game_attendance_replies ORDER BY id")
                 ).all(),
                 "audit": connection.execute(
                     text("SELECT * FROM ntubtob.access_audit ORDER BY id")

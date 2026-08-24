@@ -87,7 +87,7 @@ class VerifiedAssertion:
     provider: str
     subject: str
     audience: str
-    nonce: str
+    nonce: str | None
     expires_at: datetime
 
 
@@ -112,6 +112,12 @@ OFFICER_READ_CAPABILITIES = (
 )
 MAX_POSTGRESQL_BIGINT = 9_223_372_036_854_775_807
 NOTIFICATION_RETENTION = timedelta(days=90)
+
+
+def _public_member_number(value: object) -> int | None:
+    if type(value) is int and 0 <= value <= 999:
+        return value
+    return None
 
 
 def mobile_capabilities(principal: MobilePrincipal) -> tuple[str, ...]:
@@ -140,7 +146,7 @@ class PendingReviewEnvelope:
 
 class AssertionVerifier(Protocol):
     def verify(
-        self, assertion: str, audience: str, nonce: str, now: datetime
+        self, assertion: str, audience: str, nonce: str | None, now: datetime
     ) -> VerifiedAssertion: ...
 
 
@@ -240,7 +246,12 @@ class HmacAccessTokenCodec:
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         ).rstrip(b"=")
         signature = hmac.new(self._key, body, hashlib.sha256).digest()
-        return b".".join((body, base64.urlsafe_b64encode(signature).rstrip(b"="))).decode(), 600
+        return (
+            b".".join(
+                (body, base64.urlsafe_b64encode(signature).rstrip(b"="))
+            ).decode(),
+            600,
+        )
 
     def verify_review(self, token: str, now: datetime) -> int:
         payload = self.verify(token, now)
@@ -262,6 +273,8 @@ class MobileAuthService:
         token_codec: HmacAccessTokenCodec,
         *,
         audience: str,
+        verify_audience: bool = True,
+        require_nonce: bool = True,
         clock: Callable[[], datetime] = utc_now,
         token_factory: Callable[[], str] = lambda: secrets.token_urlsafe(48),
     ):
@@ -274,26 +287,31 @@ class MobileAuthService:
             clock,
             token_factory,
         )
+        self.verify_audience, self.require_nonce = verify_audience, require_nonce
 
     def exchange(
         self,
         *,
         assertion: str,
-        nonce: str,
+        nonce: str | None,
         login_attempt_id: str,
         installation_id: str,
         platform: str,
     ) -> TokenPair:
         self._bounded(assertion, 1, 2048)
-        for value in (nonce, login_attempt_id, installation_id):
+        for value in (login_attempt_id, installation_id):
             self._bounded(value, 16, 200)
+        if self.require_nonce:
+            self._bounded(nonce, 16, 200)
+        elif nonce is not None:
+            raise InvalidArgument("nonce is not supported for this provider")
         if platform not in {"ios", "android"}:
             raise InvalidArgument("unsupported platform")
         now = self.clock()
         verified = self.verifier.verify(assertion, self.audience, nonce, now)
         if (
-            verified.audience != self.audience
-            or verified.nonce != nonce
+            (self.verify_audience and verified.audience != self.audience)
+            or (self.require_nonce and verified.nonce != nonce)
             or verified.expires_at <= now
         ):
             raise AuthenticationError("invalid provider assertion")
@@ -392,6 +410,7 @@ class BasicApiService:
         if not 1 <= len(cleaned) <= 120:
             raise InvalidArgument("display_name must contain 1 to 120 characters")
         request_hash = canonical_hash({"display_name": cleaned})
+
         def mutation():
             try:
                 person = self.data.update_profile(
@@ -401,7 +420,12 @@ class BasicApiService:
                     f"mobile-profile-{secret_hash(principal.session_id + ':' + key)}",
                 )
             except Exception as error:
-                from .portal_data.domain import AuthorizationError, ConflictError, ValidationError
+                from .portal_data.domain import (
+                    AuthorizationError,
+                    ConflictError,
+                    ValidationError,
+                )
+
                 if isinstance(error, AuthorizationError):
                     raise PermissionDenied(str(error)) from None
                 if isinstance(error, ConflictError):
@@ -438,7 +462,6 @@ class BasicApiService:
             mutation=mutation,
             now=self.clock(),
         )
-
 
     @staticmethod
     def _notification_cursor(value: str | None) -> tuple[datetime, int] | None:
@@ -679,6 +702,7 @@ class BasicApiService:
                 "person_id": f"person_{item['person_id']}",
                 "display_name": item["name"],
                 "reply": AttendanceReplyValue.from_legacy(item["reply"]).value,
+                "member_number": _public_member_number(item.get("member_number")),
             }
 
         def stable(items):
@@ -842,7 +866,9 @@ class PendingReviewService:
 
     def status(self, identity_id: int) -> dict:
         if self.lifecycle.identity_status_for_id(identity_id) != "pending":
-            raise AuthenticationError("review unavailable; repeat normal authentication")
+            raise AuthenticationError(
+                "review unavailable; repeat normal authentication"
+            )
         messages = self.lifecycle.review_messages(identity_id)
         return {
             "status": "pending",
@@ -871,7 +897,12 @@ class PendingReviewService:
                 now=self.clock(),
             )
         except Exception as error:
-            from .portal_data.domain import AuthorizationError, ConflictError, ValidationError
+            from .portal_data.domain import (
+                AuthorizationError,
+                ConflictError,
+                ValidationError,
+            )
+
             if isinstance(error, AuthorizationError):
                 raise AuthenticationError(
                     "review unavailable; repeat normal authentication"

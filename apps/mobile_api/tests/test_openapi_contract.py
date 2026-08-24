@@ -15,6 +15,12 @@ class OpenApiContractTest(unittest.TestCase):
             set(self.contract["paths"]),
             {
                 "/auth/line/exchange",
+                "/auth/google/exchange",
+                "/auth/identities",
+                "/auth/identity-link/candidates/{provider}",
+                "/auth/identity-link/proofs/{provider}",
+                "/auth/identity-link/confirm",
+                "/auth/identity-link/cancel",
                 "/auth/line/review",
                 "/auth/line/review/messages",
                 "/auth/refresh",
@@ -39,6 +45,15 @@ class OpenApiContractTest(unittest.TestCase):
     def test_pending_review_and_profile_contracts_are_bounded(self):
         paths = self.contract["paths"]
         self.assertIn("202", paths["/auth/line/exchange"]["post"]["responses"])
+        self.assertIn("202", paths["/auth/google/exchange"]["post"]["responses"])
+        self.assertEqual(
+            set(
+                paths["/auth/google/exchange"]["post"]["requestBody"]["content"][
+                    "application/json"
+                ]["schema"]
+            ),
+            {"$ref"},
+        )
         envelope = self.contract["components"]["schemas"]["PendingReviewEnvelope"]
         self.assertNotIn("access_token", envelope["properties"])
         self.assertNotIn("refresh_token", envelope["properties"])
@@ -46,6 +61,23 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(set(paths["/auth/line/review"]), {"get"})
         self.assertEqual(set(paths["/auth/line/review/messages"]), {"post"})
         self.assertIn("patch", paths["/me"])
+
+    def test_identity_link_contract_is_cross_provider_redacted_and_bounded(self):
+        text = CONTRACT.read_text(encoding="utf-8")
+        paths = self.contract["paths"]
+        self.assertEqual(
+            self.contract["components"]["parameters"]["IdentityProvider"]["schema"][
+                "enum"
+            ],
+            ["line", "google"],
+        )
+        self.assertIn(
+            "300 seconds", paths["/auth/identity-link/cancel"]["post"]["description"]
+        )
+        identity_list = json.dumps(paths["/auth/identities"], sort_keys=True)
+        for private in ("provider_subject", "identity_id", "email", "avatar", "token"):
+            self.assertNotIn(private, identity_list)
+        self.assertIn("without a second session", text)
 
     def test_public_reply_enum_and_error_codes_are_exact(self):
         schemas = self.contract["components"]["schemas"]
@@ -113,6 +145,14 @@ class OpenApiContractTest(unittest.TestCase):
         serialized = json.dumps(report, sort_keys=True)
         for private in ("provider_subject", "admin_note", "audit", "contact"):
             self.assertNotIn(private, serialized)
+        person = schemas["AttendanceReportPerson"]
+        self.assertNotIn("member_number", person["required"])
+        self.assertEqual(
+            person["properties"]["member_number"]["type"], ["integer", "null"]
+        )
+        self.assertEqual(person["properties"]["member_number"]["minimum"], 0)
+        self.assertEqual(person["properties"]["member_number"]["maximum"], 999)
+        self.assertNotIn("member_id", json.dumps(person, sort_keys=True))
 
     def test_deployment_unit_is_static_python310_and_excludes_private_env(self):
         root = CONTRACT.parent
@@ -219,9 +259,7 @@ class OpenApiContractTest(unittest.TestCase):
             for item in schemas["NotificationDestination"]["oneOf"]
             if item["properties"]["type"].get("const") == "game"
         )
-        self.assertEqual(
-            game_destination["properties"]["game_id"]["maxLength"], 25
-        )
+        self.assertEqual(game_destination["properties"]["game_id"]["maxLength"], 25)
         game_audience = next(
             item
             for item in schemas["NotificationAudience"]["oneOf"]
@@ -234,9 +272,7 @@ class OpenApiContractTest(unittest.TestCase):
             ]
             if item["properties"]["type"].get("const") == "game"
         )
-        self.assertEqual(
-            game_audience["properties"]["game_id"]["maxLength"], 25
-        )
+        self.assertEqual(game_audience["properties"]["game_id"]["maxLength"], 25)
         self.assertEqual(
             draft_game_destination["properties"]["game_id"]["maxLength"], 25
         )

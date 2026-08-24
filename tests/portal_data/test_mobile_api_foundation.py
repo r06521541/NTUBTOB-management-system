@@ -14,10 +14,14 @@ if str(SHARED_LIB_ROOT) not in sys.path:
 
 from alembic import command
 from alembic.config import Config
+from shared_module.identity_linking import IdentityLinkConflict, IdentityLinkProofCodec
 from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
+from shared_module.portal_data.domain import ConflictError
+from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
 from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import IntegrityError
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -32,6 +36,15 @@ class FakeCipher:
 
     def open(self, value):
         return value.removeprefix(b"fake:")[::-1]
+
+
+class CapturingAccessTokenCodec:
+    def __init__(self):
+        self.principal = None
+
+    def issue(self, principal, _now):
+        self.principal = principal
+        return "obvious-fake-access", 900
 
 
 @unittest.skipUnless(DATABASE_URL, "portal-data PostgreSQL URL is required")
@@ -77,26 +90,483 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                     "now": NOW,
                 },
             )
+            admin_member_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.members (name, person_id) "
+                    "VALUES ('Mobile Test Admin', :person) RETURNING id"
+                ),
+                {"person": person_id},
+            )
         self.person_id, self.identity_id = person_id, identity_id
+        self.admin_member_id = admin_member_id
         self.repository = MobileRepository(self.engine)
+        self.admin_lifecycle = IdentityLifecycleRepository(
+            self.engine, admin_member_ids=(admin_member_id,)
+        )
 
-    def tearDown(self):
+    def _google_candidate_proofs(self, suffix="one"):
+        candidate_id = self.repository.ensure_google_link_candidate(
+            f"google-candidate-{suffix}-{self.id()}",
+            f"pending-{suffix}",
+            NOW,
+        )["identity_id"]
+        codec = IdentityLinkProofCodec(b"l" * 32)
+        candidate = codec.verify_candidate(
+            codec.issue_candidate(
+                identity_id=candidate_id,
+                provider="google",
+                identity_updated_at=NOW,
+                assertion_hash=("a" if suffix == "one" else "e") * 64,
+                attempt_hash=("b" if suffix == "one" else "f") * 64,
+                binding_hash="c" * 64,
+                jti=f"candidate-{suffix}-123456",
+                now=NOW,
+            ),
+            NOW,
+        )
+        proof = codec.verify_fresh_proof(
+            codec.issue_fresh_proof(
+                identity_id=self.identity_id,
+                person_id=self.person_id,
+                provider="line",
+                identity_updated_at=NOW,
+                candidate_jti=candidate.jti,
+                attempt_hash="d" * 64,
+                binding_hash="c" * 64,
+                jti=f"proof-{suffix}-123456789",
+                now=NOW,
+            ),
+            NOW,
+        )
+        return codec, candidate, proof, candidate_id
+
+    def _confirm_recovery(self, codec, candidate, proof, **overrides):
+        token_codec = overrides.pop("token_codec", HmacAccessTokenCodec(b"x" * 32))
+        values = dict(
+            codec=codec,
+            candidate=candidate,
+            proof=proof,
+            now=NOW + timedelta(seconds=1),
+            outcome="recovery_link",
+            current_person_id=None,
+            recovery={
+                "refresh": "obvious-fake-refresh",
+                "refresh_hash": "1" * 64,
+                "installation_id_hash": "2" * 64,
+                "platform": "android",
+                "token_codec": token_codec,
+            },
+            session_mode="mobile",
+        )
+        values.update(overrides)
+        return self.repository.confirm_identity_link(**values)
+
+    def test_recovery_confirm_and_lost_response_replay_have_exact_counts(self):
+        codec, candidate, proof, _candidate_id = self._google_candidate_proofs()
+        token_codec = CapturingAccessTokenCodec()
+        first = self._confirm_recovery(codec, candidate, proof, token_codec=token_codec)
+        replay = self._confirm_recovery(
+            codec, candidate, proof, now=NOW + timedelta(seconds=2)
+        )
+        self.assertEqual(first.status, "linked")
+        self.assertIsNotNone(first.mobile_session)
+        self.assertIsNotNone(token_codec.principal)
+        self.assertEqual(token_codec.principal.access_level, "basic")
+        self.assertEqual(replay.status, "already_linked")
+        self.assertIsNone(replay.mobile_session)
+        with self.engine.connect() as connection:
+            counts = connection.execute(
+                text(
+                    "SELECT "
+                    "(SELECT count(*) FROM ntubtob.mobile_sessions), "
+                    "(SELECT count(*) FROM ntubtob.mobile_refresh_tokens), "
+                    "(SELECT count(*) FROM ntubtob.mobile_auth_exchanges), "
+                    "(SELECT count(*) FROM ntubtob.access_audit WHERE action='identity_linked')"
+                )
+            ).one()
+        self.assertEqual(tuple(counts), (1, 1, 1, 1))
+
+    def test_recovery_session_insert_failure_rolls_back_link_and_audit(self):
+        codec, candidate, proof, candidate_id = self._google_candidate_proofs(
+            "rollback"
+        )
+        principal = self.repository.exchange(
+            provider="line",
+            subject=f"mobile-{self.id()}",
+            assertion_hash="6" * 64,
+            login_attempt_hash="9" * 64,
+            installation_id_hash="8" * 64,
+            platform="ios",
+            refresh_hash="7" * 64,
+            now=NOW,
+        )
         with self.engine.begin() as connection:
             connection.execute(
                 text(
-                    "TRUNCATE ntubtob.mobile_auth_exchanges, "
-                    "ntubtob.mobile_idempotency_records, "
-                    "ntubtob.mobile_refresh_attempts, "
-                    "ntubtob.mobile_refresh_tokens, ntubtob.mobile_sessions CASCADE"
-                )
+                    "INSERT INTO ntubtob.mobile_auth_exchanges "
+                    "(provider, assertion_hash, login_attempt_hash, session_id, expires_at, created_at) "
+                    "VALUES ('google', :assertion, :attempt, :session, :expires, :now)"
+                ),
+                {
+                    "assertion": candidate.assertion_hash,
+                    "attempt": "5" * 64,
+                    "session": principal.session_id,
+                    "expires": NOW + timedelta(minutes=10),
+                    "now": NOW,
+                },
             )
+        with self.assertRaises(IntegrityError):
+            self._confirm_recovery(codec, candidate, proof)
+        with self.engine.connect() as connection:
+            state = connection.execute(
+                text(
+                    "SELECT status, person_id FROM ntubtob.auth_identities WHERE id=:id"
+                ),
+                {"id": candidate_id},
+            ).one()
+            linked_audits = connection.scalar(
+                text(
+                    "SELECT count(*) FROM ntubtob.access_audit "
+                    "WHERE auth_identity_id=:id AND action='identity_linked'"
+                ),
+                {"id": candidate_id},
+            )
+            sessions = connection.scalar(
+                text("SELECT count(*) FROM ntubtob.mobile_sessions")
+            )
+        self.assertEqual(tuple(state), ("pending", None))
+        self.assertEqual(linked_audits, 0)
+        self.assertEqual(sessions, 1)
+        self.assertIsNotNone(principal.session_id)
+
+    def test_two_concurrent_same_person_confirms_serialize_without_duplicate_effects(
+        self,
+    ):
+        codec, candidate, proof, _candidate_id = self._google_candidate_proofs("race")
+        barrier = threading.Barrier(2)
+
+        def confirm(index):
+            barrier.wait()
+            return MobileRepository(self.engine).confirm_identity_link(
+                codec=codec,
+                candidate=candidate,
+                proof=proof,
+                now=NOW + timedelta(seconds=index + 1),
+                outcome="recovery_link",
+                current_person_id=None,
+                recovery={
+                    "refresh": f"obvious-fake-refresh-{index}",
+                    "refresh_hash": str(index + 3) * 64,
+                    "installation_id_hash": "2" * 64,
+                    "platform": "android",
+                    "token_codec": HmacAccessTokenCodec(b"x" * 32),
+                },
+                session_mode="mobile",
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(confirm, index) for index in (0, 1)]
+            try:
+                results = [future.result(timeout=10) for future in futures]
+            finally:
+                for future in futures:
+                    future.cancel()
+        self.assertEqual(
+            sorted(result.status for result in results),
+            ["already_linked", "linked"],
+        )
+        self.assertEqual(
+            sum(result.mobile_session is not None for result in results), 1
+        )
+        with self.engine.connect() as connection:
+            counts = connection.execute(
+                text(
+                    "SELECT (SELECT count(*) FROM ntubtob.mobile_sessions), "
+                    "(SELECT count(*) FROM ntubtob.access_audit WHERE action='identity_linked')"
+                )
+            ).one()
+        self.assertEqual(tuple(counts), (1, 1))
+
+    def test_line_link_then_domain_unlink_rejects_old_candidate_ticket(self):
+        with self.engine.begin() as connection:
             connection.execute(
                 text(
-                    "DELETE FROM ntubtob.auth_identities WHERE id = :identity; "
-                    "DELETE FROM ntubtob.people WHERE id = :person"
+                    "UPDATE ntubtob.people SET portal_access_level='admin' WHERE id=:id"
                 ),
-                {"identity": self.identity_id, "person": self.person_id},
+                {"id": self.person_id},
             )
+            google_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('google', :subject, :person, 'linked', :now, :now) RETURNING id"
+                ),
+                {"subject": f"proof-{self.id()}", "person": self.person_id, "now": NOW},
+            )
+        snapshot = self.repository.ensure_line_link_candidate(
+            f"line-candidate-{self.id()}", "Candidate", "pending-line-unlink", NOW
+        )
+        codec = IdentityLinkProofCodec(b"l" * 32)
+        candidate = codec.verify_candidate(
+            codec.issue_candidate(
+                identity_id=snapshot["identity_id"],
+                provider="line",
+                identity_updated_at=snapshot["updated_at"],
+                assertion_hash="a" * 64,
+                attempt_hash="b" * 64,
+                binding_hash="c" * 64,
+                jti="candidate-unlink-123456",
+                now=NOW,
+            ),
+            NOW,
+        )
+        proof = codec.verify_fresh_proof(
+            codec.issue_fresh_proof(
+                identity_id=google_id,
+                person_id=self.person_id,
+                provider="google",
+                identity_updated_at=NOW,
+                candidate_jti=candidate.jti,
+                attempt_hash="d" * 64,
+                binding_hash="c" * 64,
+                jti="proof-unlink-123456",
+                now=NOW,
+            ),
+            NOW,
+        )
+        self.repository.confirm_identity_link(
+            codec=codec,
+            candidate=candidate,
+            proof=proof,
+            now=NOW + timedelta(seconds=1),
+            outcome="self_link",
+            current_person_id=self.person_id,
+            recovery=None,
+            session_mode="web",
+        )
+        self.admin_lifecycle.unlink_identity(
+            self.person_id,
+            snapshot["identity_id"],
+            "test unlink",
+            "unlink-old-ticket",
+            current_identity_id=google_id,
+        )
+        with self.assertRaises(IdentityLinkConflict):
+            self.repository.confirm_identity_link(
+                codec=codec,
+                candidate=candidate,
+                proof=proof,
+                now=NOW + timedelta(seconds=2),
+                outcome="self_link",
+                current_person_id=self.person_id,
+                recovery=None,
+                session_mode="web",
+            )
+
+    def test_cross_person_concurrent_confirms_never_remap_candidate(self):
+        codec, candidate, first_proof, candidate_id = self._google_candidate_proofs(
+            "cross"
+        )
+        with self.engine.begin() as connection:
+            second_person = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people (display_name, portal_access_level, portal_status, version, created_at, updated_at) "
+                    "VALUES ('Second Person', 'basic', 'active', 1, :now, :now) RETURNING id"
+                ),
+                {"now": NOW},
+            )
+            second_identity = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities (provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('line', :subject, :person, 'linked', :now, :now) RETURNING id"
+                ),
+                {"subject": f"second-{self.id()}", "person": second_person, "now": NOW},
+            )
+        second_proof = codec.verify_fresh_proof(
+            codec.issue_fresh_proof(
+                identity_id=second_identity,
+                person_id=second_person,
+                provider="line",
+                identity_updated_at=NOW,
+                candidate_jti=candidate.jti,
+                attempt_hash="e" * 64,
+                binding_hash="c" * 64,
+                jti="proof-cross-second-123456",
+                now=NOW,
+            ),
+            NOW,
+        )
+        barrier = threading.Barrier(2)
+
+        def confirm(index, proof):
+            barrier.wait()
+            try:
+                return MobileRepository(self.engine).confirm_identity_link(
+                    codec=codec,
+                    candidate=candidate,
+                    proof=proof,
+                    now=NOW + timedelta(seconds=index + 1),
+                    outcome="recovery_link",
+                    current_person_id=None,
+                    session_mode="mobile",
+                    recovery={
+                        "refresh": f"refresh-{index}",
+                        "refresh_hash": str(index + 3) * 64,
+                        "installation_id_hash": "2" * 64,
+                        "platform": "android",
+                        "token_codec": HmacAccessTokenCodec(b"x" * 32),
+                    },
+                )
+            except IdentityLinkConflict:
+                return None
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(confirm, 0, first_proof),
+                executor.submit(confirm, 1, second_proof),
+            ]
+            try:
+                results = [future.result(timeout=10) for future in futures]
+            finally:
+                for future in futures:
+                    future.cancel()
+        self.assertEqual(sum(result is None for result in results), 1)
+        self.assertEqual(
+            sum(result is not None and result.status == "linked" for result in results),
+            1,
+        )
+        with self.engine.connect() as connection:
+            person = connection.scalar(
+                text("SELECT person_id FROM ntubtob.auth_identities WHERE id=:id"),
+                {"id": candidate_id},
+            )
+            counts = connection.execute(
+                text(
+                    "SELECT (SELECT count(*) FROM ntubtob.mobile_sessions), "
+                    "(SELECT count(*) FROM ntubtob.access_audit WHERE action='identity_linked' AND auth_identity_id=:id)"
+                ),
+                {"id": candidate_id},
+            ).one()
+        self.assertIn(person, {self.person_id, second_person})
+        self.assertEqual(tuple(counts), (1, 1))
+
+    def test_concurrent_ignore_and_confirm_serialize_to_one_safe_terminal_state(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET portal_access_level='admin' WHERE id=:id"
+                ),
+                {"id": self.person_id},
+            )
+            google_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities (provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('google', :subject, :person, 'linked', :now, :now) RETURNING id"
+                ),
+                {
+                    "subject": f"ignore-proof-{self.id()}",
+                    "person": self.person_id,
+                    "now": NOW,
+                },
+            )
+        snapshot = self.repository.ensure_line_link_candidate(
+            f"ignore-candidate-{self.id()}", "Candidate", "pending-ignore-race", NOW
+        )
+        codec = IdentityLinkProofCodec(b"l" * 32)
+        candidate = codec.verify_candidate(
+            codec.issue_candidate(
+                identity_id=snapshot["identity_id"],
+                provider="line",
+                identity_updated_at=snapshot["updated_at"],
+                assertion_hash="a" * 64,
+                attempt_hash="b" * 64,
+                binding_hash="c" * 64,
+                jti="candidate-ignore-123456",
+                now=NOW,
+            ),
+            NOW,
+        )
+        proof = codec.verify_fresh_proof(
+            codec.issue_fresh_proof(
+                identity_id=google_id,
+                person_id=self.person_id,
+                provider="google",
+                identity_updated_at=NOW,
+                candidate_jti=candidate.jti,
+                attempt_hash="d" * 64,
+                binding_hash="c" * 64,
+                jti="proof-ignore-123456789",
+                now=NOW,
+            ),
+            NOW,
+        )
+        barrier = threading.Barrier(2)
+
+        def confirm():
+            try:
+                MobileRepository(self.engine).confirm_identity_link(
+                    codec=codec,
+                    candidate=candidate,
+                    proof=proof,
+                    now=NOW + timedelta(seconds=1),
+                    outcome="self_link",
+                    current_person_id=self.person_id,
+                    recovery=None,
+                    session_mode="web",
+                    lock_boundary=lambda: barrier.wait(timeout=5),
+                )
+                return "linked"
+            except IdentityLinkConflict:
+                return "conflict"
+
+        def ignore():
+            try:
+                IdentityLifecycleRepository(
+                    self.engine, admin_member_ids=(self.admin_member_id,)
+                ).set_ignored(
+                    self.person_id,
+                    snapshot["identity_id"],
+                    True,
+                    "race ignore",
+                    "ignore-race",
+                    at=NOW + timedelta(seconds=1),
+                    lock_boundary=lambda: barrier.wait(timeout=5),
+                )
+                return "ignored"
+            except ConflictError:
+                return "conflict"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [executor.submit(confirm), executor.submit(ignore)]
+            try:
+                outcomes = [future.result(timeout=10) for future in futures]
+            finally:
+                for future in futures:
+                    future.cancel()
+        self.assertIn(
+            sorted(outcomes), (["conflict", "ignored"], ["conflict", "linked"])
+        )
+        with self.engine.connect() as connection:
+            state = connection.execute(
+                text(
+                    "SELECT i.status, u.ignored FROM ntubtob.auth_identities i JOIN ntubtob.line_users u ON u.line_user_id=i.provider_subject WHERE i.id=:id"
+                ),
+                {"id": snapshot["identity_id"]},
+            ).one()
+            counts = connection.execute(
+                text(
+                    "SELECT (SELECT count(*) FROM ntubtob.mobile_sessions), "
+                    "(SELECT count(*) FROM ntubtob.access_audit WHERE auth_identity_id=:id AND action='identity_linked'), "
+                    "(SELECT count(*) FROM ntubtob.access_audit WHERE auth_identity_id=:id AND action='identity_ignored')"
+                ),
+                {"id": snapshot["identity_id"]},
+            ).one()
+        self.assertIn(tuple(state), (("linked", False), ("pending", True)))
+        self.assertIn(tuple(counts), ((0, 1, 0), (0, 0, 1)))
+
+    def tearDown(self):
+        with self.engine.begin() as connection:
+            connection.execute(text("TRUNCATE ntubtob.people RESTART IDENTITY CASCADE"))
 
     def test_five_tables_have_rls_and_revision_is_exact(self):
         expected = {

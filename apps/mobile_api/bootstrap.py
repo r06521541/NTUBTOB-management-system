@@ -6,9 +6,11 @@ import os
 
 from app import Dependencies, create_app
 from cryptography.fernet import Fernet, InvalidToken
+from google_verifier import GoogleIdTokenVerifier
 from line_verifier import LineIdTokenVerifier
 from revision_readiness import database_revision_is_current
 from shared_module.attendance_reply import AttendanceReplyService
+from shared_module.identity_linking import IdentityLinkProofCodec, IdentityLinkService
 from shared_module.mobile_api import (
     BasicApiService,
     HmacAccessTokenCodec,
@@ -50,6 +52,17 @@ def required(name: str) -> str:
     return value
 
 
+def google_audiences() -> tuple[str, ...]:
+    values = tuple(
+        value.strip()
+        for value in required("MOBILE_API_GOOGLE_AUDIENCES").split(",")
+        if value.strip()
+    )
+    if not values:
+        raise RuntimeError("MOBILE_API_GOOGLE_AUDIENCES is invalid")
+    return values
+
+
 def revision_is_current() -> bool:
     return database_revision_is_current(engine, logger)
 
@@ -63,6 +76,21 @@ auth = MobileAuthService(
     cipher,
     HmacAccessTokenCodec(token_key),
     audience=required("MOBILE_API_AUDIENCE"),
+)
+google_auth = MobileAuthService(
+    repository,
+    GoogleIdTokenVerifier(audiences=google_audiences()),
+    cipher,
+    HmacAccessTokenCodec(token_key),
+    audience="google-provider-verified",
+    verify_audience=False,
+    require_nonce=False,
+)
+identity_link = IdentityLinkService(
+    repository,
+    IdentityLinkProofCodec(token_key),
+    clock=auth.clock,
+    recovery_auth=auth,
 )
 
 
@@ -79,5 +107,7 @@ app = create_app(
         NotificationPublishingService(repository),
         revision_is_current,
         PendingReviewService(data, auth.token_codec),
+        google_auth,
+        identity_link,
     )
 )

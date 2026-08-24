@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
+
 class AppBuildMetadata {
   const AppBuildMetadata({this.version, this.build});
 
@@ -34,6 +36,12 @@ class SupportAppInfoPage extends StatelessWidget {
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            const AppPageTitle(
+              eyebrow: 'SUPPORT',
+              title: '需要協助嗎？',
+              subtitle: '了解資料來源、通知限制與目前安裝版本。',
+            ),
+            const SizedBox(height: 24),
             const _InfoSection(
               title: '帳號協助',
               body: '如需更正帳號資料或申請刪除帳號，請透過既有球隊聯絡管道向管理員提出申請；管理員會協助確認後續處理方式。',
@@ -73,8 +81,8 @@ class _InfoSection extends StatelessWidget {
   final String body;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 20),
+  Widget build(BuildContext context) => AppSurfaceCard(
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

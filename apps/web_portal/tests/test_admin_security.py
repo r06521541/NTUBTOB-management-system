@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 from urllib.parse import parse_qs, urlsplit
+from flask import Blueprint, Flask, session
 
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
 if str(WEB_PORTAL_DIR) not in sys.path:
@@ -74,9 +75,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "shared_module": types.ModuleType("shared_module"),
             "shared_module.models": types.ModuleType("shared_module.models"),
             "shared_module.models.games": cls._module(Game=cls.game_model),
-            "shared_module.models.ballparks": cls._module(
-                Ballpark=cls.ballpark_model
-            ),
+            "shared_module.models.ballparks": cls._module(Ballpark=cls.ballpark_model),
             "shared_module.models.members": cls._module(Member=cls.member_model),
             "shared_module.models.line_users": cls._module(
                 LineUser=cls.line_user_model
@@ -566,6 +565,173 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertNotIn("person_id", current_session)
             self.assertNotIn("member_id", current_session)
 
+    def test_phase_c_subjectless_session_revalidates_internal_ids(self):
+        principal = SimpleNamespace(
+            person=SimpleNamespace(id=80, member_id=7, access_level="basic"),
+            identity=SimpleNamespace(id=81),
+        )
+        repository = MagicMock()
+        repository.resolve_principal_by_ids.return_value = principal
+        with self.app.test_request_context("/account"):
+            session.update(person_id=80, auth_identity_id=81)
+            with patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+            ), patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ):
+                loaded = self.app_module.load_phase_c_web_principal(session)
+            self.assertIsNotNone(loaded)
+            self.assertNotIn("user_id", session)
+        repository.resolve_principal_by_ids.assert_called_once_with(81, 80)
+
+    def test_phase_c_subjectless_account_lists_only_redacted_login_methods(self):
+        principal = SimpleNamespace(
+            person=SimpleNamespace(
+                id=80,
+                member_id=7,
+                access_level="basic",
+                display_name="Safe Member",
+            ),
+            identity=SimpleNamespace(id=81),
+        )
+        repository = MagicMock(engine=object())
+        repository.resolve_principal_by_ids.return_value = principal
+        mobile_repository = MagicMock()
+        mobile_repository.linked_identity_labels.return_value = [
+            {
+                "provider": "line",
+                "label": "LINE",
+                "linked_at": datetime(2026, 8, 24, tzinfo=timezone.utc),
+            }
+        ]
+        mobile_module = self._module(
+            MobileRepository=MagicMock(return_value=mobile_repository)
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=80, auth_identity_id=81, member_id=7)
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.dict(
+            sys.modules,
+            {"shared_module.portal_data.mobile_repository": mobile_module},
+        ):
+            response = self.client.get("/account")
+        self.assertEqual(response.status_code, 200)
+        page = response.get_data(as_text=True)
+        self.assertIn("LINE", page)
+        self.assertNotIn("provider_subject", page)
+        self.assertNotIn("fake-authenticated-user", page)
+        mobile_repository.linked_identity_labels.assert_called_once_with(80)
+
+    def test_identity_link_blueprint_config_missing_fails_closed_before_repository(
+        self,
+    ):
+        repository = MagicMock()
+        names = {
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID": "",
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": "",
+            "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI": "",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_ID": "",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": "",
+            "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": "",
+        }
+        with patch.dict(os.environ, names, clear=False), patch.object(
+            self.app_module, "phase_c_repository", repository
+        ):
+            self.assertFalse(self.app_module.register_identity_link_routes())
+        repository.assert_not_called()
+
+    def test_identity_link_blueprint_registers_only_with_complete_named_config(self):
+        fresh_app = Flask("identity-link-production-composition")
+        fresh_app.secret_key = "s" * 32
+        repository = MagicMock(engine=object())
+        blueprint = Blueprint("identity_link_composition_test", __name__)
+        provider_port = MagicMock()
+        service = MagicMock()
+        modules = {
+            "identity_link_provider": self._module(
+                WebIdentityProviderPort=MagicMock(return_value=provider_port)
+            ),
+            "identity_link_web": self._module(
+                create_identity_link_blueprint=MagicMock(return_value=blueprint)
+            ),
+            "shared_module.identity_linking": self._module(
+                IdentityLinkProofCodec=MagicMock(),
+                IdentityLinkService=MagicMock(return_value=service),
+            ),
+            "shared_module.portal_data.mobile_repository": self._module(
+                MobileRepository=MagicMock()
+            ),
+            "shared_module.provider_verifiers": self._module(
+                GoogleIdTokenVerifier=MagicMock(),
+                LineIdTokenVerifier=MagicMock(),
+            ),
+        }
+        config = {
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID": "fake-google-client",
+            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": "fake-google-secret",
+            "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI": (
+                "https://portal.example/api/v1/auth/identity-link/web/callback/google"
+            ),
+            "WEB_IDENTITY_LINK_LINE_CLIENT_ID": "fake-line-client",
+            "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": "fake-line-secret",
+            "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": (
+                "https://portal.example/api/v1/auth/identity-link/web/callback/line"
+            ),
+        }
+        with patch.dict(os.environ, config, clear=False), patch.object(
+            self.app_module, "app", fresh_app
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.dict(
+            sys.modules, modules
+        ):
+            self.assertTrue(self.app_module.register_identity_link_routes())
+        self.assertIn("identity_link_composition_test", fresh_app.blueprints)
+
+    def test_phase_c_subjectless_disabled_unlinked_or_inactive_fails_closed(self):
+        repository = MagicMock()
+        repository.resolve_principal_by_ids.return_value = None
+        with self.app.test_request_context("/account"):
+            session.update(person_id=80, auth_identity_id=81, member_id=7)
+            with patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+            ), patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ):
+                self.assertIsNone(self.app_module.load_phase_c_web_principal(session))
+            for key in ("person_id", "auth_identity_id", "member_id", "user_id"):
+                self.assertNotIn(key, session)
+
+    def test_phase_c_existing_line_session_keeps_legacy_loader_compatibility(self):
+        principal = SimpleNamespace(
+            person=SimpleNamespace(id=80, member_id=7, access_level="basic"),
+            identity=SimpleNamespace(id=81),
+        )
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = principal
+        with self.app.test_request_context("/account"):
+            session.update(
+                user_id="existing-line-subject",
+                person_id=80,
+                auth_identity_id=81,
+                member_id=7,
+            )
+            with patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+            ), patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ):
+                self.assertIsNotNone(
+                    self.app_module.load_phase_c_web_principal(session)
+                )
+        repository.resolve_line_principal.assert_called_once_with(
+            "existing-line-subject"
+        )
+        repository.resolve_principal_by_ids.assert_not_called()
+
     def test_legacy_identity_payload_is_minimized_without_losing_other_state(self):
         legacy_member = {"id": 7, "name": "Legacy Member"}
         with self.client.session_transaction() as current_session:
@@ -844,9 +1010,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         token_request.assert_not_called()
         page = html.unescape(response.data.decode())
-        options_href = urlsplit(
-            self.login_link(page, "data-login-action", "options")
-        )
+        options_href = urlsplit(self.login_link(page, "data-login-action", "options"))
         self.assertEqual(options_href.path, "/redirect-to-login")
         self.assertEqual(parse_qs(options_href.query), {"next": ["/future-games"]})
 
@@ -865,9 +1029,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_tampered_state_fallback_uses_fixed_safe_default(self):
         response = self.client.get("/line/callback?code=old-code&state=tampered-state")
         page = html.unescape(response.data.decode())
-        options_href = urlsplit(
-            self.login_link(page, "data-login-action", "options")
-        )
+        options_href = urlsplit(self.login_link(page, "data-login-action", "options"))
         self.assertEqual(options_href.path, "/redirect-to-login")
         self.assertEqual(parse_qs(options_href.query), {"next": ["/attendance"]})
 
@@ -1500,7 +1662,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             valid_until=None,
         )
 
-    def test_qualification_management_page_hides_maintenance_when_team_player_present(self):
+    def test_qualification_management_page_hides_maintenance_when_team_player_present(
+        self,
+    ):
         repository = MagicMock()
         repository.admin_dashboard.return_value = {
             "people": (
@@ -1509,9 +1673,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     "display_name": "Demo Person",
                     "formal_name": "Demo Formal",
                     "member_id": 8,
-                    "qualifications": (
-                        {"name": "team_player", "status": "active"},
-                    ),
+                    "qualifications": ({"name": "team_player", "status": "active"},),
                 },
             )
         }
@@ -1548,9 +1710,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     "formal_name": "Demo Formal",
                     "member_id": 8,
                     "status": "active",
-                    "qualifications": (
-                        {"name": "team_player", "status": "active"},
-                    ),
+                    "qualifications": ({"name": "team_player", "status": "active"},),
                 },
             )
         }
@@ -1917,9 +2077,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     response = self.client.get("/game-roster/23")
 
                 self.assertEqual(response.status_code, 302)
-                self.assertEqual(
-                    response.headers["Location"], "/games/23/lineup-lab"
-                )
+                self.assertEqual(response.headers["Location"], "/games/23/lineup-lab")
                 repository.attendance_summary.assert_not_called()
 
     def test_roster_name_style_is_allowlisted_and_not_stored_in_session(self):
@@ -1976,7 +2134,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.return_value = fresh_member
         game = self.portal_game()
         self.game_model.search_for_invited.return_value = [game]
-        self.attendance_analyzer.get_attendance_of_game.return_value = {1: [fresh_member]}
+        self.attendance_analyzer.get_attendance_of_game.return_value = {
+            1: [fresh_member]
+        }
         self.login()
 
         with patch.object(self.app_module, "datetime") as fake_datetime:
@@ -2093,7 +2253,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.attendance_summaries.assert_called_once()
         requested_ids = tuple(repository.attendance_summaries.call_args.args[0])
         self.assertEqual(requested_ids, (23, 24))
-        self.assertTrue(repository.attendance_summaries.call_args.kwargs["use_display_name"])
+        self.assertTrue(
+            repository.attendance_summaries.call_args.kwargs["use_display_name"]
+        )
         self.attendance_analyzer.get_attendance_of_game.assert_not_called()
 
     def test_successful_attendance_logs_one_bounded_timing_event(self):
@@ -2404,11 +2566,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
         forecast = SimpleNamespace(
             location_label="臺北中正",
             rain_warning=False,
-            points=(
-                SimpleNamespace(
-                    hour=6, weather="☀️", rainfall=10, temperature=25
-                ),
-            ),
+            points=(SimpleNamespace(hour=6, weather="☀️", rainfall=10, temperature=25),),
         )
         self.login()
 

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +55,18 @@ class FakeLine implements LineLoginPort {
     calls++;
     if (error != null) throw error!;
     return token;
+  }
+
+  @override
+  Future<void> logout() async {}
+}
+
+class FakeGoogle implements GoogleLoginPort {
+  int calls = 0;
+  @override
+  Future<String> login() async {
+    calls++;
+    return 'obvious-fake-google-id-token';
   }
 
   @override
@@ -204,6 +218,17 @@ void main() {
         ),
         throwsFormatException,
       );
+      expect(
+        () => AppConfig.parse(
+          flavor: 'staging',
+          mode: 'real',
+          apiBaseUrl: 'https://example.invalid',
+          lineChannelId: '123',
+          googleClientId: 'not-a-client-id',
+          googleServerClientId: 'web-server.apps.googleusercontent.com',
+        ),
+        throwsFormatException,
+      );
     });
     test('real configuration requires strict https and channel', () {
       expect(
@@ -212,6 +237,8 @@ void main() {
           mode: 'real',
           apiBaseUrl: 'https://example.invalid',
           lineChannelId: '123',
+          googleClientId: 'ios-client.apps.googleusercontent.com',
+          googleServerClientId: 'server-client.apps.googleusercontent.com',
         ).mode,
         ClientMode.real,
       );
@@ -241,6 +268,182 @@ void main() {
         throwsFormatException,
       );
     });
+  });
+
+  group('process-wide Google SDK configuration', () {
+    setUp(GoogleSignInProcessInitializer.resetForTest);
+    tearDown(GoogleSignInProcessInitializer.resetForTest);
+
+    test('compatible concurrent Android initialization occurs exactly once',
+        () async {
+      var calls = 0;
+      Future<void> initialize(
+          {String? clientId, required String serverClientId}) async {
+        calls += 1;
+        expect(clientId, isNull);
+        expect(serverClientId, 'web-server.apps.googleusercontent.com');
+      }
+
+      await Future.wait([
+        GoogleSignInProcessInitializer.ensure(
+          platform: 'android',
+          clientId: 'unused-ios.apps.googleusercontent.com',
+          serverClientId: 'web-server.apps.googleusercontent.com',
+          initialize: initialize,
+        ),
+        GoogleSignInProcessInitializer.ensure(
+          platform: 'android',
+          clientId: 'another-unused.apps.googleusercontent.com',
+          serverClientId: 'web-server.apps.googleusercontent.com',
+          initialize: initialize,
+        ),
+      ]);
+      expect(calls, 1);
+    });
+
+    test('iOS requires its client ID and conflicting re-init fails closed',
+        () async {
+      var calls = 0;
+      await GoogleSignInProcessInitializer.ensure(
+        platform: 'ios',
+        clientId: 'ios-client.apps.googleusercontent.com',
+        serverClientId: 'web-server.apps.googleusercontent.com',
+        initialize: ({clientId, required serverClientId}) async {
+          calls += 1;
+          expect(clientId, 'ios-client.apps.googleusercontent.com');
+        },
+      );
+      expect(
+        () => GoogleSignInProcessInitializer.ensure(
+          platform: 'ios',
+          clientId: 'different-ios.apps.googleusercontent.com',
+          serverClientId: 'web-server.apps.googleusercontent.com',
+          initialize: ({clientId, required serverClientId}) async {},
+        ),
+        throwsStateError,
+      );
+      expect(calls, 1);
+    });
+
+    test('unsupported and incomplete platform configuration fails closed', () {
+      Future<void> initialize(
+          {String? clientId, required String serverClientId}) async {}
+      for (final values in [
+        (
+          'windows',
+          'ios-client.apps.googleusercontent.com',
+          'web-server.apps.googleusercontent.com'
+        ),
+        ('ios', '', 'web-server.apps.googleusercontent.com'),
+        (
+          'ios',
+          'same-client.apps.googleusercontent.com',
+          'same-client.apps.googleusercontent.com'
+        ),
+        ('android', '', ''),
+      ]) {
+        GoogleSignInProcessInitializer.resetForTest();
+        expect(
+          () => GoogleSignInProcessInitializer.ensure(
+            platform: values.$1,
+            clientId: values.$2,
+            serverClientId: values.$3,
+            initialize: initialize,
+          ),
+          throwsFormatException,
+        );
+      }
+    });
+  });
+
+  test('iOS Google scheme is private, injected, and build-phase validated', () {
+    final plist = File('ios/Runner/Info.plist').readAsStringSync();
+    final project =
+        File('ios/Runner.xcodeproj/project.pbxproj').readAsStringSync();
+    final validator = File('ios/validate_auth_config.sh').readAsStringSync();
+    final template =
+        File('ios/Flutter/AuthConfig.xcconfig.example').readAsStringSync();
+    final ignores = File('.gitignore').readAsStringSync();
+    expect(plist, contains(r'<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>'));
+    expect(plist, contains(r'line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)'));
+    expect(project, contains('Validate Auth Config'));
+    expect(project, contains(r'$SRCROOT/validate_auth_config.sh'));
+    expect(validator, contains('DART_DEFINES'));
+    expect(validator, contains('expected_reversed_client_id'));
+    expect(validator, contains('development fake iOS build'));
+    expect(template.trimRight(), endsWith('GOOGLE_REVERSED_CLIENT_ID='));
+    expect(ignores, contains('ios/Flutter/AuthConfig.xcconfig'));
+    expect(plist, isNot(contains('.apps.googleusercontent.com')));
+  });
+
+  test('iOS auth validator binds real IDs and permits clean fake builds',
+      () async {
+    if (Platform.isWindows) return;
+    final root = await Directory.systemTemp.createTemp('ios-auth-contract-');
+    addTearDown(() => root.delete(recursive: true));
+    final runner = Directory('${root.path}/Runner')..createSync();
+    File('${runner.path}/Info.plist').writeAsStringSync(
+      r'<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>',
+    );
+
+    String encodedDefines(Map<String, String> values) => values.entries
+        .map(
+            (entry) => base64Encode(utf8.encode('${entry.key}=${entry.value}')))
+        .join(',');
+
+    Future<ProcessResult> validate(
+      Map<String, String> values, {
+      String reversed = '',
+    }) =>
+        Process.run(
+          '/bin/sh',
+          ['ios/validate_auth_config.sh'],
+          environment: {
+            'SRCROOT': root.path,
+            'DART_DEFINES': encodedDefines(values),
+            'GOOGLE_REVERSED_CLIENT_ID': reversed,
+          },
+        );
+
+    expect(
+      (await validate({'APP_FLAVOR': 'development', 'CLIENT_MODE': 'fake'}))
+          .exitCode,
+      0,
+    );
+    const iosClient = '123-ios.apps.googleusercontent.com';
+    const serverClient = '456-web.apps.googleusercontent.com';
+    final real = {
+      'APP_FLAVOR': 'staging',
+      'CLIENT_MODE': 'real',
+      'GOOGLE_CLIENT_ID': iosClient,
+      'GOOGLE_SERVER_CLIENT_ID': serverClient,
+    };
+    final validReal =
+        await validate(real, reversed: 'com.googleusercontent.apps.123-ios');
+    expect(validReal.exitCode, 0,
+        reason: '${validReal.stdout}\n${validReal.stderr}');
+    expect(
+      (await validate(real, reversed: 'com.googleusercontent.apps.999-other'))
+          .exitCode,
+      2,
+    );
+    expect(
+      (await validate({
+        ...real,
+        'GOOGLE_SERVER_CLIENT_ID': iosClient,
+      }, reversed: 'com.googleusercontent.apps.123-ios'))
+          .exitCode,
+      2,
+    );
+    expect(
+      (await validate({
+        'APP_FLAVOR': 'development',
+        'CLIENT_MODE': 'fake',
+        'GOOGLE_CLIENT_ID': iosClient,
+      }, reversed: 'com.googleusercontent.apps.123-ios'))
+          .exitCode,
+      2,
+    );
   });
 
   group('wire contract', () {
@@ -312,6 +515,17 @@ void main() {
       });
       expect(report.attending.single.reply, AttendanceReply.attending);
       expect(report.notYetReplied.single.responseRate, 88);
+      for (final invalidNumber in [-1, 1000]) {
+        expect(
+          () => AttendanceReportPerson.fromJson({
+            'person_id': 'person_1',
+            'display_name': 'A',
+            'reply': 'attending',
+            'member_number': invalidNumber,
+          }),
+          throwsA(isA<ContractException>()),
+        );
+      }
       expect(
         () => AttendanceReportObservation.fromJson({
           'history_games': 8,
@@ -636,6 +850,30 @@ void main() {
     await login.login('android');
     expect(login.state, LoginState.identityPending);
     expect(login.pendingReview, isNull);
+  });
+
+  test('Google 202 remains a review credential and never a normal session',
+      () async {
+    final api = ScriptedTransport()
+      ..responses.add(const ApiResponse(202, {
+        'review_credential': 'google-review-only',
+        'expires_in': 600,
+        'status': 'pending',
+      }));
+    final store = MemoryStore();
+    final google = FakeGoogle();
+    final login = GoogleLoginCoordinator(
+      google,
+      api,
+      SessionController(api, store, 'install', SecureIds()),
+      SecureIds(),
+      'install',
+    );
+    await login.login('android');
+    expect(login.state, LoginState.identityPending);
+    expect(login.pendingReview?.credential, 'google-review-only');
+    expect(await store.read('refresh:install'), isNull);
+    expect(api.calls.single.$2, '/auth/google/exchange');
   });
 
   test('profile retry key is scoped to person and session generation',

@@ -8,9 +8,10 @@ import threading
 import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 
 from shared_lib.shared_module.portal_data.domain import (
@@ -21,6 +22,7 @@ from shared_lib.shared_module.portal_data.domain import (
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
+from shared_lib.shared_module.mobile_api import BasicApiService, MobilePrincipal
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
@@ -133,6 +135,94 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             f"fake-pending-{suffix}", "Fake Applicant", f"pending-{suffix}"
         )
 
+    def test_game_attendance_report_projects_member_number_in_fixed_queries(self):
+        with self.engine.begin() as connection:
+            rows = (
+                connection.execute(
+                    text(
+                        """
+                    INSERT INTO ntubtob.people
+                      (display_name, formal_name, portal_access_level, portal_status,
+                       version, created_at, updated_at)
+                    VALUES
+                      ('Numbered', 'Numbered Formal', 'basic', 'active', 1, now(), now()),
+                      ('Unnumbered', 'Unnumbered Formal', 'basic', 'active', 1, now(), now())
+                    RETURNING id
+                    """
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            numbered_id, unnumbered_id = rows
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.members (id, name, number, person_id)
+                    VALUES (7101, 'Numbered Member', 27, :numbered_id);
+                    INSERT INTO ntubtob.person_qualifications
+                      (person_id, qualification, status, created_at, updated_at)
+                    VALUES
+                      (:numbered_id, 'team_player', 'active', now(), now()),
+                      (:unnumbered_id, 'team_player', 'active', now(), now());
+                    """
+                ),
+                {"numbered_id": numbered_id, "unnumbered_id": unnumbered_id},
+            )
+            game_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.games (start_datetime) "
+                    "VALUES (now() + interval '1 day') RETURNING id"
+                )
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.game_attendance_replies
+                      (game_id, person_id, reply, updated_at)
+                    VALUES
+                      (:game_id, :numbered_id, 1, now()),
+                      (:game_id, :unnumbered_id, 2, now())
+                    """
+                ),
+                {
+                    "game_id": game_id,
+                    "numbered_id": numbered_id,
+                    "unnumbered_id": unnumbered_id,
+                },
+            )
+
+        statements = []
+
+        def record_query(*args):
+            statements.append(args[2])
+
+        event.listen(self.engine, "before_cursor_execute", record_query)
+        try:
+            report = self.repository.game_attendance_report(game_id)
+        finally:
+            event.remove(self.engine, "before_cursor_execute", record_query)
+        self.assertEqual(len(statements), 4)
+        self.assertEqual(report["attending"][0]["member_number"], 27)
+        self.assertIsNone(report["not_attending"][0]["member_number"])
+
+        data = SimpleNamespace(
+            scoped_game=Mock(return_value={"id": game_id}),
+            game_attendance_report=Mock(return_value=report),
+        )
+        service = BasicApiService(
+            data, Mock(), Mock(), clock=lambda: report["generated_at"]
+        )
+        public = service.attendance_report(
+            MobilePrincipal(
+                "session", self.admin_person_id, 1, "officer", "Officer", 1
+            ),
+            game_id,
+        )
+        self.assertEqual(public["attending"][0]["member_number"], 27)
+        self.assertIsNone(public["not_attending"][0]["member_number"])
+        self.assertNotIn("member_id", str(public))
+
     def test_schema_has_next_head_rls_and_attendance_person_fk(self):
         inspector = inspect(self.engine)
         self.assertIn(
@@ -235,6 +325,11 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
     def test_pending_conversation_throttle_ignore_and_unignore(self):
         pending = self._pending()
         now = datetime.now(timezone.utc)
+        with self.engine.connect() as connection:
+            initial_version = connection.scalar(
+                text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                {"id": pending.identity.id},
+            )
         self.repository.post_review_message(
             pending.identity.id, "Please review", "review-one", now=now
         )
@@ -245,12 +340,14 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 "review-two",
                 now=now + timedelta(hours=23, minutes=59),
             )
+        ignore_at = now + timedelta(minutes=1)
         self.repository.set_ignored(
             self.admin_person_id,
             pending.identity.id,
             True,
             "Applicant requested later review",
             "ignore-one",
+            at=ignore_at,
         )
         self.repository.set_ignored(
             self.admin_person_id,
@@ -258,6 +355,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             True,
             "Applicant requested later review",
             "ignore-one",
+            at=ignore_at + timedelta(minutes=1),
         )
         with self.engine.begin() as connection:
             self.assertEqual(
@@ -269,12 +367,19 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 ),
                 1,
             )
+            ignored_version = connection.scalar(
+                text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                {"id": pending.identity.id},
+            )
+            self.assertGreater(ignored_version, initial_version)
+            self.assertEqual(ignored_version, ignore_at)
         self.repository.set_ignored(
             self.admin_person_id,
             pending.identity.id,
             False,
             "Applicant returned for review",
             "unignore-one",
+            at=ignore_at + timedelta(minutes=2),
         )
         with self.engine.begin() as connection:
             self.assertFalse(
@@ -284,6 +389,42 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                         "WHERE line_user_id='fake-pending-one'"
                     )
                 )
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                    {"id": pending.identity.id},
+                ),
+                ignore_at + timedelta(minutes=2),
+            )
+
+    def test_unchanged_ignore_request_does_not_advance_identity_version(self):
+        pending = self._pending("ignore-noop")
+        transition_at = datetime(2026, 8, 24, 1, 2, 3, 456789, timezone.utc)
+        self.repository.set_ignored(
+            self.admin_person_id,
+            pending.identity.id,
+            True,
+            "Applicant requested later review",
+            "ignore-noop-first",
+            at=transition_at,
+        )
+        with self.assertRaises(ConflictError):
+            self.repository.set_ignored(
+                self.admin_person_id,
+                pending.identity.id,
+                True,
+                "Applicant requested later review",
+                "ignore-noop-second",
+                at=transition_at + timedelta(minutes=1),
+            )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT updated_at FROM ntubtob.auth_identities WHERE id=:id"),
+                    {"id": pending.identity.id},
+                ),
+                transition_at,
             )
 
     def test_non_member_guest_has_no_fake_member_and_is_excluded_after_expiry(self):

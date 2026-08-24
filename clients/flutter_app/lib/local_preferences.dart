@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'app_theme.dart';
 import 'integration.dart';
 
 enum LocalThemePreference { system, light, dark }
@@ -82,7 +83,13 @@ class _LocalPreferencesPageState extends State<LocalPreferencesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
       appBar: AppBar(title: const Text('App 偏好設定')),
-      body: ListView(children: [
+      body: ListView(padding: const EdgeInsets.all(16), children: [
+        const AppPageTitle(
+          eyebrow: 'PREFERENCES',
+          title: 'App 偏好設定',
+          subtitle: '調整只儲存在這台裝置上的顯示與通知選項。',
+        ),
+        const SizedBox(height: 16),
         const ListTile(title: Text('外觀')),
         ListTile(
           title: const Text('主題'),
@@ -144,9 +151,29 @@ class _OnboardingPageState extends State<OnboardingPage> {
             controller: _controller,
             onPageChanged: (value) => setState(() => _page = value),
             children: const [
-              Center(child: Text('歡迎使用隊務系統')),
-              Center(child: Text('賽事與通知只會在登入後顯示')),
-              Center(child: Text('離線資料會明確標示為唯讀且可能不是最新')),
+              Padding(
+                padding: EdgeInsets.all(24),
+                child: AppPageTitle(
+                  eyebrow: 'WELCOME',
+                  title: '歡迎使用隊務系統',
+                  subtitle: '用同一個入口掌握賽事、回覆與隊務通知。',
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(24),
+                child: AppPageTitle(
+                  eyebrow: 'MEMBER PORTAL',
+                  title: '賽事與通知',
+                  subtitle: '只有登入並通過授權後才會顯示。',
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(24),
+                child: AppNoticePanel(
+                  title: '離線仍保持誠實',
+                  message: '離線資料會明確標示為唯讀且可能不是最新。',
+                ),
+              ),
             ]),
         floatingActionButton: _page == 2
             ? FloatingActionButton.extended(

@@ -220,15 +220,20 @@ def deploy_command(approval: dict) -> list[str]:
             f"{k}={v}" for k, v in sorted(approval["runtime_secret_refs"].items())
         ),
         "--set-env-vars",
-        f"MOBILE_API_AUDIENCE={approval['mobile_api_audience']}",
+        "^|^"
+        + "|".join(
+            (
+                f"MOBILE_API_AUDIENCE={approval['mobile_api_audience']}",
+                "MOBILE_API_GOOGLE_AUDIENCES="
+                + approval["mobile_api_google_audiences"],
+            )
+        ),
         "--quiet",
     ]
     if approval["mode"] == "update":
         arguments.insert(arguments.index("--ingress"), "--no-traffic")
     else:
-        arguments.insert(
-            arguments.index("--ingress"), "--no-allow-unauthenticated"
-        )
+        arguments.insert(arguments.index("--ingress"), "--no-allow-unauthenticated")
     return arguments
 
 
@@ -345,6 +350,12 @@ def validate_candidate(approval: dict, revision: dict, service: dict) -> None:
         or "valueFrom" in audience
     ):
         raise OperatorError("Candidate audience configuration drifted")
+    google_audiences = environment.get("MOBILE_API_GOOGLE_AUDIENCES", {})
+    if (
+        google_audiences.get("value") != approval["mobile_api_google_audiences"]
+        or "valueFrom" in google_audiences
+    ):
+        raise OperatorError("Candidate Google audience configuration drifted")
     service_annotations = service.get("metadata", {}).get("annotations", {})
     if service_annotations.get("run.googleapis.com/ingress") != "all":
         raise OperatorError("Cloud Run ingress drifted")

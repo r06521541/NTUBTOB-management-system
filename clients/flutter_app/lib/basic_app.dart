@@ -1,9 +1,10 @@
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
 import 'integration.dart';
+import 'identity_link.dart';
 import 'local_preferences.dart';
 import 'notification_center.dart';
 import 'pending_review.dart';
@@ -78,9 +79,26 @@ Future<void> runBasicLogoutIfAllowed({
   await logout();
 }
 
+String? pendingReviewCredential(
+  LoginCoordinator? line,
+  GoogleLoginCoordinator? google,
+) =>
+    line?.pendingReview?.credential ?? google?.pendingReview?.credential;
+
+bool shouldOfferIdentityRecovery({
+  required AuthViewState state,
+  required String? pendingReviewCredential,
+}) =>
+    state == AuthViewState.identityPending && pendingReviewCredential == null;
+
 class AuthStatePanel extends StatelessWidget {
-  const AuthStatePanel({super.key, required this.state});
+  const AuthStatePanel({
+    super.key,
+    required this.state,
+    this.onRecoverIdentity,
+  });
   final AuthViewState state;
+  final VoidCallback? onRecoverIdentity;
   @override
   Widget build(BuildContext context) {
     final (icon, label) = switch (state) {
@@ -109,13 +127,22 @@ class AuthStatePanel extends StatelessWidget {
       child: Center(
         child: SizedBox(
           width: 320,
-          child: AppStatusPanel(
-            icon: icon,
-            title: label,
-            loading: state == AuthViewState.booting ||
-                state == AuthViewState.exchanging,
-            liveRegion: true,
-          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            AppStatusPanel(
+              icon: icon,
+              title: label,
+              loading: state == AuthViewState.booting ||
+                  state == AuthViewState.exchanging,
+              liveRegion: true,
+            ),
+            if (state == AuthViewState.identityPending &&
+                onRecoverIdentity != null)
+              TextButton(
+                key: const ValueKey('identity-recovery-entry'),
+                onPressed: onRecoverIdentity,
+                child: const Text('我曾用其他方式登入'),
+              ),
+          ]),
         ),
       ),
     );
@@ -234,9 +261,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   AuthViewState state = AuthViewState.booting;
   late final http.Client _http;
   LoginCoordinator? _login;
+  GoogleLoginCoordinator? _googleLogin;
   SessionController? _session;
   BasicApi? _api;
   LineLoginPort? _line;
+  GoogleLoginPort? _google;
+  IdentityLinkController? _identityLink;
   BasicCache? _cache;
   NotificationCache? _notificationCache;
   DurablePrincipalOfficerReportCache? _reportCache;
@@ -285,14 +315,37 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         terminalPurge: notificationCache.clear,
       );
       final line = NativeLineLogin(widget.config.lineChannelId!);
+      final google = NativeGoogleLogin(
+        nativePlatformName(defaultTargetPlatform) ?? '',
+        widget.config.googleClientId!,
+        widget.config.googleServerClientId!,
+      );
       _session = session;
       _line = line;
+      _google = google;
+      _identityLink = IdentityLinkController(
+        transport: transport,
+        credentials: NativeIdentityCredentialPort(line, google),
+        installationId: installationId,
+        ids: _ids,
+        session: session,
+        onRecovered: _loadBasic,
+        onTerminalSession: () => _showFailure(const SessionExpiredException()),
+      );
       _api = BasicApi(session, _store, installationId, _ids);
       _cache = BasicCache(_store, installationId);
       _notificationCache = notificationCache;
       _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
+      _googleLogin = GoogleLoginCoordinator(
+        google,
+        transport,
+        session,
+        _ids,
+        installationId,
+      );
       _login!.addListener(_onLoginStateChanged);
+      _googleLogin!.addListener(_onGoogleLoginStateChanged);
       if (await _store.containsKey('logout-pending:$installationId')) {
         setState(() {
           state = AuthViewState.logoutPending;
@@ -346,6 +399,42 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     }
   }
 
+  Future<void> _signInGoogle() async {
+    _authEpoch++;
+    _basicLoadOperation = null;
+    _basicLoadInProgress = false;
+    _retirePendingReview();
+    final platform = nativePlatformName(Theme.of(context).platform);
+    if (platform == null) {
+      setState(() => state = AuthViewState.unavailable);
+      return;
+    }
+    final login = _googleLogin!;
+    await login.login(platform);
+    if (login.state == LoginState.authenticated) await _loadBasic();
+  }
+
+  void _onGoogleLoginStateChanged() {
+    final login = _googleLogin;
+    if (!mounted || login == null) return;
+    final next = switch (login.state) {
+      LoginState.providerActive => AuthViewState.providerActive,
+      LoginState.exchanging => AuthViewState.exchanging,
+      LoginState.cancelled => AuthViewState.cancelled,
+      LoginState.unavailable => AuthViewState.unavailable,
+      LoginState.identityPending => AuthViewState.identityPending,
+      LoginState.accountUnavailable => AuthViewState.accountUnavailable,
+      LoginState.authenticated || LoginState.idle => state,
+      _ => AuthViewState.contractError,
+    };
+    setState(() => state = next);
+    if (next == AuthViewState.identityPending && login.pendingReview != null) {
+      _openPendingReview();
+    } else if (next != AuthViewState.identityPending) {
+      _retirePendingReview();
+    }
+  }
+
   void _onLoginStateChanged() {
     final login = _login;
     if (!mounted || login == null) return;
@@ -375,7 +464,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   void _openPendingReview() {
-    final credential = _login?.pendingReview?.credential;
+    final credential = pendingReviewCredential(_login, _googleLogin);
     if (credential == null || !mounted) return;
     final client = PendingReviewClient(
       HttpApiTransport(widget.config.apiBaseUrl!, _http),
@@ -392,9 +481,33 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   void _retirePendingReview() {
     _login?.retirePendingReview();
+    _googleLogin?.retirePendingReview();
     _pendingReviewClient?.retire();
     _pendingReviewClient = null;
     _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _openIdentityRecovery() async {
+    final controller = _identityLink;
+    final platform = nativePlatformName(Theme.of(context).platform);
+    if (controller == null || platform == null || !mounted) return;
+    final result = await _navigatorKey.currentState?.push<IdentityLinkStage>(
+      MaterialPageRoute<IdentityLinkStage>(
+        builder: (_) => IdentityRecoveryPage(
+          controller: controller,
+          platform: platform,
+        ),
+      ),
+    );
+    if (mounted && result == IdentityLinkStage.reauthenticationRequired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('登入方式已連結，請重新正常登入。')),
+      );
+    } else if (mounted && result == IdentityLinkStage.error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('連結流程失敗，請重新開始。')),
+      );
+    }
   }
 
   Future<bool> _loadBasic() {
@@ -434,6 +547,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final syncedAt = DateTime.now().toUtc();
       final previous = await _cache!.load();
       if (epoch != _authEpoch) return false;
+      if ((person != null && person!.id != loadedPerson.id) ||
+          (previous != null && previous.person.id != loadedPerson.id)) {
+        await _identityLink?.personSwitch();
+        _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+        if (epoch != _authEpoch) return false;
+      }
       if (previous != null &&
           (previous.person.id != loadedPerson.id ||
               previous.person.accessLevel != loadedPerson.accessLevel ||
@@ -495,6 +614,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (classified == AuthViewState.sessionExpired) {
       _authEpoch++;
       _retirePendingReview();
+      await _identityLink?.terminal();
       _navigatorKey.currentState?.popUntil((route) => route.isFirst);
       await _api?.clearPendingProfileIntents();
       await _cache?.clear();
@@ -536,8 +656,14 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Future<void> _performLogout() async {
     _authEpoch++;
     _retirePendingReview();
+    await _identityLink?.terminal();
     await _notificationController?.invalidate();
     _notificationController = null;
+    try {
+      await _google?.logout();
+    } on Object {
+      // Local app-session terminal state must not be blocked by provider UI.
+    }
     setState(() {
       state = AuthViewState.logoutPending;
       cacheSessionAggregate = null;
@@ -590,6 +716,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   void dispose() {
     _login?.removeListener(_onLoginStateChanged);
     _login?.dispose();
+    _googleLogin?.removeListener(_onGoogleLoginStateChanged);
+    _googleLogin?.dispose();
     _http.close();
     super.dispose();
   }
@@ -625,8 +753,20 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                           onProfileTerminalSession:
                               _handleProfileTerminalSession,
                           onOpenSettings: _openSettings,
+                          identityLink: _identityLink,
+                          platform:
+                              nativePlatformName(Theme.of(context).platform),
                         )
-                      : AuthStatePanel(state: state),
+                      : AuthStatePanel(
+                          state: state,
+                          onRecoverIdentity: shouldOfferIdentityRecovery(
+                                  state: state,
+                                  pendingReviewCredential:
+                                      pendingReviewCredential(
+                                          _login, _googleLogin))
+                              ? _openIdentityRecovery
+                              : null,
+                        ),
                 ),
                 floatingActionButton: state == AuthViewState.authenticated
                     ? FloatingActionButton(
@@ -642,6 +782,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                     : LoginActionButton(
                         state: state,
                         onLogin: _login == null ? null : _signIn,
+                        onGoogleLogin:
+                            _googleLogin == null ? null : _signInGoogle,
                       ),
               ),
       );
@@ -755,9 +897,11 @@ class LoginActionButton extends StatelessWidget {
     super.key,
     required this.state,
     required this.onLogin,
+    this.onGoogleLogin,
   });
   final AuthViewState state;
   final VoidCallback? onLogin;
+  final VoidCallback? onGoogleLogin;
 
   static const _retryableStates = {
     AuthViewState.loggedOut,
@@ -771,10 +915,24 @@ class LoginActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!_retryableStates.contains(state)) return const SizedBox.shrink();
-    return FloatingActionButton(
-      onPressed: onLogin,
-      tooltip: 'LINE 登入',
-      child: const Icon(Icons.login),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        FloatingActionButton.extended(
+          heroTag: 'google-login',
+          onPressed: onGoogleLogin,
+          label: const Text('Google 登入'),
+          icon: const Icon(Icons.login),
+        ),
+        const SizedBox(height: 12),
+        FloatingActionButton(
+          heroTag: 'line-login',
+          onPressed: onLogin,
+          tooltip: 'LINE 登入',
+          child: const Icon(Icons.login),
+        ),
+      ],
     );
   }
 }
@@ -878,6 +1036,8 @@ class BasicGamesView extends StatefulWidget {
     this.onPersonUpdated,
     this.onProfileTerminalSession,
     this.onOpenSettings,
+    this.identityLink,
+    this.platform,
     this.diagnosticEnabled = true,
   });
   final BasicApi api;
@@ -893,6 +1053,8 @@ class BasicGamesView extends StatefulWidget {
   final Future<void> Function(Person person)? onPersonUpdated;
   final Future<void> Function()? onProfileTerminalSession;
   final VoidCallback? onOpenSettings;
+  final IdentityLinkController? identityLink;
+  final String? platform;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -1044,6 +1206,8 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                     person: widget.person,
                     lastSyncedAt: widget.lastSyncedAt,
                     provenance: widget.principalProvenance,
+                    identityLink: widget.online ? widget.identityLink : null,
+                    platform: widget.platform,
                   ),
                 ),
               ),
@@ -1177,6 +1341,24 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 ),
               ),
             ),
+          AppSurfaceCard(
+            child: ListTile(
+              key: const ValueKey('schedule-discovery-entry'),
+              leading: const Icon(Icons.calendar_month_outlined),
+              title: const Text('賽程探索'),
+              subtitle:
+                  Text(widget.online ? '依日期、球隊或場地尋找已載入賽事' : '離線唯讀・可能不是最新賽程'),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ScheduleDiscoveryPage(
+                    api: widget.api,
+                    games: widget.games,
+                    online: widget.online,
+                  ),
+                ),
+              ),
+            ),
+          ),
           if (orderedGames.isEmpty)
             Semantics(
               key: const ValueKey('games-empty'),
@@ -1187,6 +1369,27 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 message: '有新賽事時會顯示在這裡。',
               ),
             ),
+          MemberActionHome(
+            api: widget.api,
+            principalScope: widget.person.id,
+            games: orderedGames,
+            online: widget.online,
+            onOpenGame: (game) async => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => widget.online
+                    ? GameDetailPage(api: widget.api, gameId: game.id)
+                    : CachedGameDetailPage(game: game),
+              ),
+            ),
+            onOpenSchedule: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ScheduleDiscoveryPage(
+                    api: widget.api,
+                    games: widget.games,
+                    online: widget.online),
+              ),
+            ),
+          ),
           if (orderedGames.isNotEmpty)
             NextAuthorizedGameCard(
               api: widget.api,
@@ -1272,6 +1475,612 @@ class _BasicGamesViewState extends State<BasicGamesView> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
+}
+
+enum SchedulePresentationFilter { all, withLocation, withoutLocation }
+
+enum SchedulePresentation { month, week, agenda }
+
+class ScheduleCalendarProjection {
+  static DateTime dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  static DateTime localGameDay(Game game) => dateOnly(game.startAt.toLocal());
+
+  static DateTime weekStart(DateTime day) {
+    final localDay = dateOnly(day);
+    return localDay.subtract(Duration(days: localDay.weekday - 1));
+  }
+
+  static List<DateTime> weekDays(DateTime day) {
+    final start = weekStart(day);
+    return List.generate(7, (index) => start.add(Duration(days: index)));
+  }
+
+  static List<DateTime> monthGrid(DateTime month) {
+    final first = DateTime(month.year, month.month);
+    final start = weekStart(first);
+    return List.generate(42, (index) => start.add(Duration(days: index)));
+  }
+
+  static Map<DateTime, List<Game>> groupByLocalDay(Iterable<Game> games) {
+    final groups = <DateTime, List<Game>>{};
+    for (final game in games) {
+      groups.putIfAbsent(localGameDay(game), () => []).add(game);
+    }
+    for (final values in groups.values) {
+      values.sort((left, right) => left.startAt.compareTo(right.startAt));
+    }
+    return groups;
+  }
+}
+
+class ScheduleDiscoveryPage extends StatefulWidget {
+  const ScheduleDiscoveryPage({
+    super.key,
+    required this.api,
+    required this.games,
+    required this.online,
+  });
+
+  final BasicApi api;
+  final List<Game> games;
+  final bool online;
+
+  @override
+  State<ScheduleDiscoveryPage> createState() => _ScheduleDiscoveryPageState();
+}
+
+class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
+  final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+  SchedulePresentationFilter _filter = SchedulePresentationFilter.all;
+  SchedulePresentation _presentation = SchedulePresentation.agenda;
+  String _query = '';
+  late DateTime _selectedDay;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDay = widget.games.isEmpty
+        ? ScheduleCalendarProjection.dateOnly(DateTime.now())
+        : ScheduleCalendarProjection.localGameDay(
+            (List<Game>.of(widget.games)
+                  ..sort(
+                      (left, right) => left.startAt.compareTo(right.startAt)))
+                .first,
+          );
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  List<Game> get _visibleGames {
+    final query = _query.trim().toLowerCase();
+    final games = widget.games.where((game) {
+      if (_filter == SchedulePresentationFilter.withLocation &&
+          (game.location == null || game.location!.trim().isEmpty)) {
+        return false;
+      }
+      if (_filter == SchedulePresentationFilter.withoutLocation &&
+          game.location != null &&
+          game.location!.trim().isNotEmpty) {
+        return false;
+      }
+      if (query.isEmpty) return true;
+      return [game.homeTeam, game.awayTeam, game.location]
+          .whereType<String>()
+          .any((value) => value.toLowerCase().contains(query));
+    }).toList()
+      ..sort((left, right) => left.startAt.compareTo(right.startAt));
+    return games;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final localizations = MaterialLocalizations.of(context);
+    final games = _visibleGames;
+    final groups = <DateTime, List<Game>>{};
+    groups.addAll(ScheduleCalendarProjection.groupByLocalDay(games));
+    return Scaffold(
+      appBar: AppBar(title: const Text('賽程探索')),
+      body: ListView(
+        controller: _scrollController,
+        padding: const EdgeInsets.all(AppSpacing.regular),
+        children: [
+          if (!widget.online)
+            const AppStatusPanel(
+              icon: Icons.cloud_off,
+              title: '離線唯讀賽程',
+              message: '僅顯示此帳號已載入的本機賽事，資料可能過期。',
+            ),
+          TextField(
+            key: const ValueKey('schedule-search'),
+            controller: _searchController,
+            onChanged: (value) => setState(() => _query = value),
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.search),
+              labelText: '搜尋球隊或場地',
+            ),
+          ),
+          const SizedBox(height: AppSpacing.compact),
+          Wrap(
+            spacing: AppSpacing.compact,
+            children: [
+              for (final filter in SchedulePresentationFilter.values)
+                ChoiceChip(
+                  key: ValueKey('schedule-filter-${filter.name}'),
+                  label: Text(_filterLabel(filter)),
+                  selected: _filter == filter,
+                  onSelected: (_) => setState(() => _filter = filter),
+                ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.regular),
+          SegmentedButton<SchedulePresentation>(
+            key: const ValueKey('schedule-presentation-switch'),
+            segments: const [
+              ButtonSegment(
+                  value: SchedulePresentation.month, label: Text('月')),
+              ButtonSegment(value: SchedulePresentation.week, label: Text('週')),
+              ButtonSegment(
+                  value: SchedulePresentation.agenda, label: Text('列表')),
+            ],
+            selected: {_presentation},
+            onSelectionChanged: (selection) =>
+                setState(() => _presentation = selection.single),
+          ),
+          const SizedBox(height: AppSpacing.compact),
+          if (_presentation != SchedulePresentation.agenda)
+            Row(
+              children: [
+                IconButton(
+                  key: const ValueKey('schedule-previous-period'),
+                  tooltip: '上一期間',
+                  onPressed: () => setState(() => _movePeriod(-1)),
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Expanded(
+                  child: Text(
+                    _periodLabel(localizations),
+                    textAlign: TextAlign.center,
+                    key: const ValueKey('schedule-period-label'),
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('schedule-today'),
+                  onPressed: () => setState(() {
+                    _selectedDay =
+                        ScheduleCalendarProjection.dateOnly(DateTime.now());
+                  }),
+                  child: const Text('今天'),
+                ),
+                IconButton(
+                  key: const ValueKey('schedule-next-period'),
+                  tooltip: '下一期間',
+                  onPressed: () => setState(() => _movePeriod(1)),
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+          ..._presentationContents(localizations, games, groups),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _presentationContents(
+    MaterialLocalizations localizations,
+    List<Game> games,
+    Map<DateTime, List<Game>> groups,
+  ) {
+    final allGroups = ScheduleCalendarProjection.groupByLocalDay(widget.games);
+    if (widget.games.isEmpty) {
+      return const [
+        AppStatusPanel(
+          key: ValueKey('schedule-empty'),
+          icon: Icons.event_busy,
+          title: '目前沒有賽事',
+          message: '有新賽事時會顯示在這裡。',
+        ),
+      ];
+    }
+    if (_presentation == SchedulePresentation.agenda) {
+      if (games.isEmpty) return [_noMatchPanel()];
+      return [
+        for (final entry in groups.entries)
+          ..._daySection(localizations, entry.key, entry.value)
+      ];
+    }
+    if (_presentation == SchedulePresentation.week) {
+      return [
+        for (final day in ScheduleCalendarProjection.weekDays(_selectedDay))
+          ..._daySection(
+            localizations,
+            day,
+            groups[day] ?? const [],
+            compactEmpty: true,
+            emptyState:
+                allGroups[day]?.isNotEmpty ?? false ? 'no-match' : 'no-games',
+          ),
+      ];
+    }
+    return [
+      GridView.count(
+        key: const ValueKey('schedule-month-grid'),
+        crossAxisCount: 7,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          for (final day in ScheduleCalendarProjection.monthGrid(_selectedDay))
+            Semantics(
+              selected: day == _selectedDay,
+              label:
+                  '${localizations.formatFullDate(day)}，${groups[day]?.length ?? 0} 場符合賽事',
+              child: TextButton(
+                key: ValueKey('schedule-day-${_dayToken(day)}'),
+                style: TextButton.styleFrom(
+                  backgroundColor: day == _selectedDay
+                      ? Theme.of(context).colorScheme.secondaryContainer
+                      : null,
+                  foregroundColor: day == _selectedDay
+                      ? Theme.of(context).colorScheme.onSecondaryContainer
+                      : null,
+                  side: day == _selectedDay
+                      ? BorderSide(
+                          color: Theme.of(context).colorScheme.primary,
+                          width: 2,
+                        )
+                      : null,
+                ),
+                onPressed: () => setState(() => _selectedDay = day),
+                child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('${day.day}'),
+                      if ((groups[day]?.isNotEmpty ?? false))
+                        Text('${groups[day]!.length} 場'),
+                    ]),
+              ),
+            ),
+        ],
+      ),
+      if (!(allGroups[_selectedDay]?.isNotEmpty ?? false))
+        const AppStatusPanel(
+          key: ValueKey('schedule-day-no-games'),
+          icon: Icons.event_busy,
+          title: '這一天沒有賽事',
+          message: '請選擇其他日期。',
+        )
+      else if (!(groups[_selectedDay]?.isNotEmpty ?? false))
+        _noMatchPanel(key: const ValueKey('schedule-day-no-match'))
+      else
+        ..._daySection(localizations, _selectedDay, groups[_selectedDay]!),
+    ];
+  }
+
+  List<Widget> _daySection(
+    MaterialLocalizations localizations,
+    DateTime day,
+    List<Game> games, {
+    bool compactEmpty = false,
+    String emptyState = 'no-match',
+  }) =>
+      [
+        Semantics(
+          header: true,
+          child: Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.compact),
+            child: Text(
+              localizations.formatFullDate(day),
+              key: ValueKey('schedule-date-${day.toIso8601String()}'),
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+        ),
+        if (games.isEmpty && compactEmpty)
+          Padding(
+            key: ValueKey('schedule-week-${_dayToken(day)}-$emptyState'),
+            padding: const EdgeInsets.only(bottom: AppSpacing.compact),
+            child: Text(emptyState == 'no-games' ? '沒有賽事' : '沒有符合賽事'),
+          ),
+        for (final game in games) _gameTile(localizations, game),
+      ];
+
+  Widget _gameTile(MaterialLocalizations localizations, Game game) =>
+      AppSurfaceCard(
+        child: ListTile(
+          key: ValueKey('schedule-game-${game.id}'),
+          title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+          subtitle: Text(_formatGameMetadata(localizations, game)),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => widget.online
+                  ? GameDetailPage(api: widget.api, gameId: game.id)
+                  : CachedGameDetailPage(game: game),
+            ),
+          ),
+        ),
+      );
+
+  AppStatusPanel _noMatchPanel({Key? key}) => AppStatusPanel(
+        key: key ?? const ValueKey('schedule-no-match'),
+        icon: Icons.manage_search_outlined,
+        title: '找不到符合的賽事',
+        message: '請調整搜尋文字或篩選條件。',
+      );
+
+  void _movePeriod(int delta) {
+    _selectedDay = switch (_presentation) {
+      SchedulePresentation.month =>
+        DateTime(_selectedDay.year, _selectedDay.month + delta, 1),
+      SchedulePresentation.week => _selectedDay.add(Duration(days: 7 * delta)),
+      SchedulePresentation.agenda => DateTime(
+          _selectedDay.year, _selectedDay.month + delta, _selectedDay.day),
+    };
+  }
+
+  String _periodLabel(MaterialLocalizations localizations) =>
+      switch (_presentation) {
+        SchedulePresentation.month =>
+          '${_selectedDay.year} 年 ${_selectedDay.month} 月',
+        SchedulePresentation.week =>
+          '${localizations.formatShortDate(ScheduleCalendarProjection.weekStart(_selectedDay))} – ${localizations.formatShortDate(ScheduleCalendarProjection.weekDays(_selectedDay).last)}',
+        SchedulePresentation.agenda => '依日期排列',
+      };
+
+  String _dayToken(DateTime day) =>
+      '${day.year.toString().padLeft(4, '0')}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+
+  String _filterLabel(SchedulePresentationFilter filter) {
+    switch (filter) {
+      case SchedulePresentationFilter.all:
+        return '全部';
+      case SchedulePresentationFilter.withLocation:
+        return '有場地';
+      case SchedulePresentationFilter.withoutLocation:
+        return '未定場地';
+    }
+  }
+}
+
+class MemberActionHome extends StatefulWidget {
+  const MemberActionHome(
+      {super.key,
+      required this.api,
+      required this.principalScope,
+      required this.games,
+      required this.online,
+      required this.onOpenGame,
+      required this.onOpenSchedule,
+      this.controller});
+  final BasicApi api;
+  final String principalScope;
+  final List<Game> games;
+  final bool online;
+  final Future<void> Function(Game) onOpenGame;
+  final VoidCallback onOpenSchedule;
+  final MemberActionController? controller;
+  @override
+  State<MemberActionHome> createState() => _MemberActionHomeState();
+}
+
+class _MemberActionHomeState extends State<MemberActionHome> {
+  late final MemberActionController _controller;
+  late final bool _ownsController;
+  @override
+  void initState() {
+    super.initState();
+    _ownsController = widget.controller == null;
+    _controller =
+        widget.controller ?? MemberActionController(widget.api.attendance);
+    _controller.load(
+      principalScope: widget.principalScope,
+      games: widget.games,
+      online: widget.online,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant MemberActionHome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.games != widget.games ||
+        oldWidget.online != widget.online ||
+        oldWidget.principalScope != widget.principalScope) {
+      _controller.load(
+        principalScope: widget.principalScope,
+        games: widget.games,
+        online: widget.online,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    if (_ownsController) _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+        listenable: _controller,
+        builder: (context, _) => AppSurfaceCard(
+          child:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('行動首頁'),
+            Text('僅評估已載入未來最多 5 場：已確認待處理 ${_controller.pending.length} 場'),
+            Text(_controller.message(online: widget.online),
+                key: ValueKey('action-home-${_controller.state.name}')),
+            if (_controller.nearestAction case final game?)
+              TextButton(
+                  key: const ValueKey('action-home-open-nearest'),
+                  onPressed: () async {
+                    await widget.onOpenGame(game);
+                    await _controller.refreshGame(game, online: widget.online);
+                  },
+                  child: const Text('查看並回覆')),
+            if (_controller.state == MemberActionState.retryableError)
+              TextButton(
+                key: const ValueKey('action-home-retry'),
+                onPressed: () => _controller.load(
+                  principalScope: widget.principalScope,
+                  games: widget.games,
+                  online: widget.online,
+                ),
+                child: const Text('重試確認'),
+              ),
+            TextButton(
+                key: const ValueKey('action-home-schedule'),
+                onPressed: widget.onOpenSchedule,
+                child: const Text('完整賽程')),
+          ]),
+        ),
+      );
+}
+
+enum MemberActionState {
+  loading,
+  actionable,
+  resolved,
+  partialUnknown,
+  empty,
+  retryableError
+}
+
+class MemberActionController extends ChangeNotifier {
+  MemberActionController(this._read, {DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now;
+  final Future<AttendanceSnapshot> Function(String) _read;
+  final DateTime Function() _clock;
+  final Map<String, AttendanceReply?> _known = {};
+  final Map<String, Future<void>> _inFlight = {};
+  String? _principalScope;
+  String? _contextKey;
+  int _generation = 0;
+  List<Game> window = const [];
+  MemberActionState state = MemberActionState.loading;
+  List<Game> get pending => window
+      .where((game) =>
+          _known.containsKey(game.id) &&
+          (_known[game.id] == null ||
+              _known[game.id] == AttendanceReply.undecided))
+      .toList();
+  List<Game> get unknown =>
+      window.where((game) => !_known.containsKey(game.id)).toList();
+  Game? get nearestAction => pending.isEmpty ? null : pending.first;
+  static List<Game> selectWindow(List<Game> games, DateTime now) =>
+      (List<Game>.of(games)..sort((a, b) => a.startAt.compareTo(b.startAt)))
+          .where((game) => game.startAt.isAfter(now.toUtc()))
+          .take(5)
+          .toList(growable: false);
+  Future<void> load({
+    required String principalScope,
+    required List<Game> games,
+    required bool online,
+  }) async {
+    final nextWindow = selectWindow(games, _clock());
+    final nextContext =
+        '$principalScope|$online|${nextWindow.map((game) => game.id).join(',')}';
+    if (_contextKey != nextContext) {
+      _generation++;
+      _contextKey = nextContext;
+      if (_principalScope != principalScope) {
+        _known.clear();
+        _inFlight.clear();
+        _principalScope = principalScope;
+      }
+    }
+    final generation = _generation;
+    window = nextWindow;
+    if (window.isEmpty) {
+      state = MemberActionState.empty;
+      notifyListeners();
+      return;
+    }
+    if (!online) {
+      _project(online: false);
+      return;
+    }
+    state = MemberActionState.loading;
+    notifyListeners();
+    var failed = false;
+    final missing =
+        window.where((game) => !_known.containsKey(game.id)).toList();
+    for (var start = 0; start < missing.length; start += 3) {
+      try {
+        await Future.wait(
+          missing.skip(start).take(3).map(
+                (game) => _readOnce(game, generation),
+              ),
+        );
+      } on Object {
+        failed = true;
+      }
+    }
+    if (generation != _generation) return;
+    if (failed && unknown.isNotEmpty) {
+      state = MemberActionState.retryableError;
+      notifyListeners();
+    } else {
+      _project(online: true);
+    }
+  }
+
+  Future<void> _readOnce(Game game, int generation) {
+    final key = '$generation:${game.id}';
+    return _inFlight.putIfAbsent(key, () async {
+      try {
+        final reply = (await _read(game.id)).ownReply;
+        if (generation == _generation) _known[game.id] = reply;
+      } finally {
+        _inFlight.remove(key);
+      }
+    });
+  }
+
+  Future<void> refreshGame(Game game, {required bool online}) async {
+    if (!online || !window.any((item) => item.id == game.id)) return;
+    _known.remove(game.id);
+    try {
+      final generation = _generation;
+      await _readOnce(game, generation);
+      if (generation != _generation) return;
+      _project(online: true);
+    } on Object {
+      state = MemberActionState.retryableError;
+      notifyListeners();
+    }
+  }
+
+  void remember(String gameId, AttendanceReply? reply) {
+    _known[gameId] = reply;
+  }
+
+  void _project({required bool online}) {
+    state = unknown.isNotEmpty
+        ? MemberActionState.partialUnknown
+        : pending.isNotEmpty
+            ? MemberActionState.actionable
+            : MemberActionState.resolved;
+    notifyListeners();
+  }
+
+  String message({required bool online}) => switch (state) {
+        MemberActionState.loading => '正在確認近期待辦…',
+        MemberActionState.actionable =>
+          '最近待處理：${nearestAction!.homeTeam ?? '主隊'} vs ${nearestAction!.awayTeam ?? '客隊'}',
+        MemberActionState.resolved => '近期待辦皆已確認。',
+        MemberActionState.partialUnknown => online
+            ? '部分賽事尚無法確認回覆狀態。'
+            : '離線時無法確認 ${unknown.length} 場的回覆狀態；未知不列為待處理。',
+        MemberActionState.empty => '目前沒有已載入的未來賽事。',
+        MemberActionState.retryableError => '暫時無法確認部分回覆，可稍後重試。',
+      };
 }
 
 class NextAuthorizedGameCard extends StatefulWidget {
@@ -1568,28 +2377,43 @@ String _formatGameMetadata(MaterialLocalizations localizations, Game game) {
   return details.join('・');
 }
 
-class AccountDataStatusPage extends StatelessWidget {
+class AccountDataStatusPage extends StatefulWidget {
   const AccountDataStatusPage({
     super.key,
     required this.person,
     required this.lastSyncedAt,
     this.provenance,
+    this.identityLink,
+    this.platform,
   });
 
   final Person person;
   final DateTime lastSyncedAt;
   final PrincipalProvenance? provenance;
+  final IdentityLinkController? identityLink;
+  final String? platform;
+
+  @override
+  State<AccountDataStatusPage> createState() => _AccountDataStatusPageState();
+}
+
+class _AccountDataStatusPageState extends State<AccountDataStatusPage> {
+  @override
+  void initState() {
+    super.initState();
+    widget.identityLink?.loadLinkedMethods();
+  }
 
   @override
   Widget build(BuildContext context) {
     final localizations = MaterialLocalizations.of(context);
-    final localLastSyncedAt = lastSyncedAt.toLocal();
-    final source = switch (provenance) {
+    final localLastSyncedAt = widget.lastSyncedAt.toLocal();
+    final source = switch (widget.provenance) {
       PrincipalProvenance.freshServer => '資料來源：伺服器同步資料',
       PrincipalProvenance.offlineCache => '資料來源：離線快取，唯讀且非權威',
       null => '資料來源未確認，請勿視為權威',
     };
-    final description = switch (provenance) {
+    final description = switch (widget.provenance) {
       PrincipalProvenance.freshServer => '目前顯示的是已由伺服器同步的資料。',
       PrincipalProvenance.offlineCache => '目前顯示的是本機離線快取；內容僅供查看，唯讀且非權威。',
       null => '目前無法確認資料來源；內容僅供查看，請勿視為權威。',
@@ -1601,11 +2425,11 @@ class AccountDataStatusPage extends StatelessWidget {
         children: [
           Semantics(
             key: const ValueKey('account-display-name'),
-            label: '目前帳號：${person.displayName}',
+            label: '目前帳號：${widget.person.displayName}',
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.person_outline),
-              title: Text(person.displayName),
+              title: Text(widget.person.displayName),
               subtitle: const Text('目前顯示的帳號'),
             ),
           ),
@@ -1630,7 +2454,7 @@ class AccountDataStatusPage extends StatelessWidget {
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Icon(
-                provenance == PrincipalProvenance.freshServer
+                widget.provenance == PrincipalProvenance.freshServer
                     ? Icons.cloud_done_outlined
                     : Icons.cloud_off,
               ),
@@ -1638,6 +2462,13 @@ class AccountDataStatusPage extends StatelessWidget {
               subtitle: Text(description),
             ),
           ),
+          if (widget.identityLink != null && widget.platform != null) ...[
+            const Divider(),
+            IdentityLinkPanel(
+              controller: widget.identityLink!,
+              platform: widget.platform!,
+            ),
+          ],
         ],
       ),
     );

@@ -15,7 +15,7 @@ enum ProductionDemoPersona { basic, officer }
 
 enum ProductionDemoConnectivity { online, offline }
 
-enum ProductionDemoDataState { populated, empty, error }
+enum ProductionDemoDataState { populated, resolved, actionError, empty, error }
 
 class ProductionDemoProbe {
   int unexpectedTransportCalls = 0;
@@ -63,9 +63,33 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
       'game_902',
       DateTime.utc(2026, 9, 19, 7),
       90,
-      null,
+      '虛構河濱球場',
       '虛構校友隊',
       '示意來賓隊',
+    ),
+    Game(
+      'game_903',
+      DateTime.utc(2026, 10, 3, 5, 30),
+      120,
+      null,
+      '示意猛虎隊',
+      '虛構校友隊',
+    ),
+    Game(
+      'game_904',
+      DateTime.utc(2026, 10, 3, 8),
+      90,
+      '虛構市立球場',
+      '範例海豚隊',
+      '虛構校友隊',
+    ),
+    Game(
+      'game_905',
+      DateTime.utc(2026, 10, 5, 6),
+      120,
+      '虛構週界球場',
+      '示意星期一隊',
+      '虛構校友隊',
     ),
   ];
   static const _basicPerson = Person('fictional-basic', '虛構一般使用者', [
@@ -139,6 +163,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
     final person =
         _persona == ProductionDemoPersona.basic ? _basicPerson : _officerPerson;
     final online = _connectivity == ProductionDemoConnectivity.online;
+    _api.actionScenario = _dataState;
     final games =
         _dataState == ProductionDemoDataState.empty ? <Game>[] : _games;
     return Scaffold(
@@ -210,6 +235,24 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                   selected: _dataState == ProductionDemoDataState.empty,
                   onSelected: (_) => setState(
                     () => _dataState = ProductionDemoDataState.empty,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-resolved'),
+                  label: const Text('待辦已處理'),
+                  selected: _dataState == ProductionDemoDataState.resolved,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.resolved,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-data-action-error'),
+                  label: const Text('待辦錯誤'),
+                  selected: _dataState == ProductionDemoDataState.actionError,
+                  onSelected: (_) => setState(
+                    () => _dataState = ProductionDemoDataState.actionError,
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -422,7 +465,8 @@ class _ProductionDemoApi extends BasicApi {
 
   final ProductionDemoProbe probe;
   final List<Game> _games;
-  AttendanceReply _ownReply = AttendanceReply.attending;
+  ProductionDemoDataState actionScenario = ProductionDemoDataState.populated;
+  AttendanceReply _ownReply = AttendanceReply.undecided;
 
   Game _findGame(String id) => _games.firstWhere(
         (game) => game.id == id,
@@ -439,7 +483,18 @@ class _ProductionDemoApi extends BasicApi {
   Future<AttendanceSnapshot> attendance(String id) async {
     probe.attendanceReads++;
     _findGame(id);
-    return AttendanceSnapshot(id, _ownReply, const [
+    if (actionScenario == ProductionDemoDataState.actionError) {
+      throw const NetworkException();
+    }
+    final actionReply = actionScenario == ProductionDemoDataState.resolved
+        ? AttendanceReply.attending
+        : switch (id) {
+            'game_901' => _ownReply,
+            'game_902' => AttendanceReply.attending,
+            'game_903' => null,
+            _ => AttendanceReply.notAttending,
+          };
+    return AttendanceSnapshot(id, actionReply, const [
       RepliedAttendance(
         'fictional-teammate',
         '虛構隊友',
@@ -457,6 +512,7 @@ class _ProductionDemoApi extends BasicApi {
   }) async {
     probe.reportReads++;
     _findGame(id);
+    final completeLineup = id == 'game_902';
     return AttendanceReport(
       gameId: id,
       generatedAt: DateTime.utc(2026, 8, 21, 8, 30),
@@ -465,13 +521,26 @@ class _ProductionDemoApi extends BasicApi {
         historyLimit,
         minimumResponseRate,
       ),
-      attending: const [
-        AttendanceReportPerson(
-          'fictional-attending',
-          '虛構出席隊員',
-          AttendanceReply.attending,
-        ),
-      ],
+      attending: completeLineup
+          ? List.generate(
+              10,
+              (index) => AttendanceReportPerson(
+                'fictional-ready-$index',
+                '虛構齊備隊員 ${index + 1}',
+                index == 8
+                    ? AttendanceReply.leavingEarly
+                    : AttendanceReply.attending,
+                memberNumber: index + 1,
+              ),
+            )
+          : const [
+              AttendanceReportPerson(
+                'fictional-attending',
+                '虛構出席隊員',
+                AttendanceReply.arrivingLate,
+                memberNumber: 18,
+              ),
+            ],
       notAttending: const [
         AttendanceReportPerson(
           'fictional-not-attending',
@@ -479,17 +548,19 @@ class _ProductionDemoApi extends BasicApi {
           AttendanceReply.notAttending,
         ),
       ],
-      notYetReplied: const [
-        AttendanceReportUnansweredPerson(
-          personId: 'fictional-unanswered',
-          displayName: '虛構尚未回覆隊員',
-          observedReplies: 7,
-          observedGames: 8,
-          responseRate: 88,
-          participationRate: 63,
-          nonparticipationRate: 25,
-        ),
-      ],
+      notYetReplied: completeLineup
+          ? const []
+          : const [
+              AttendanceReportUnansweredPerson(
+                personId: 'fictional-unanswered',
+                displayName: '虛構尚未回覆隊員',
+                observedReplies: 7,
+                observedGames: 8,
+                responseRate: 88,
+                participationRate: 63,
+                nonparticipationRate: 25,
+              ),
+            ],
     );
   }
 
@@ -522,7 +593,12 @@ final _fictionalReportUiModel = SingleGameReportUiModel(
   historyLimit: 12,
   minimumResponseRate: 60,
   attending: const [
-    ReportParticipantUiModel(id: 'fictional-attending', displayName: '虛構出席隊員'),
+    ReportParticipantUiModel(
+      id: 'fictional-attending',
+      displayName: '虛構出席隊員',
+      memberNumber: 18,
+      reply: AttendanceReply.arrivingLate,
+    ),
   ],
   notAttending: const [
     ReportParticipantUiModel(

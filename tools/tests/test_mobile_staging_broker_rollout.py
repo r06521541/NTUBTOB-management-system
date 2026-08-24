@@ -10,11 +10,14 @@ from types import SimpleNamespace
 from unittest import mock
 
 from apps.mobile_staging_broker.broker import BrokerFailure
-from tools.mobile_staging_broker_rollout import (APPROVAL_PATH, ARCHIVE_PATHS,
-                                                 BrokerRolloutError,
-                                                 _assert_path_chain_no_reparse,
-                                                 _read_approval_bytes,
-                                                 prepare_broker_rollout)
+from tools.mobile_staging_broker_rollout import (
+    APPROVAL_PATH,
+    ARCHIVE_PATHS,
+    BrokerRolloutError,
+    _assert_path_chain_no_reparse,
+    _read_approval_bytes,
+    prepare_broker_rollout,
+)
 
 
 class MobileStagingBrokerRolloutTest(unittest.TestCase):
@@ -45,9 +48,9 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
             "runtime.py",
         ):
             (broker / name).write_text(f"fixture:{name}\n", encoding="utf-8")
-        (self.source / "migrations/versions/0006_staging_broker_operation_journal.py").write_text(
-            "fixture migration\n", encoding="utf-8"
-        )
+        (
+            self.source / "migrations/versions/0006_staging_broker_operation_journal.py"
+        ).write_text("fixture migration\n", encoding="utf-8")
         tracked_approval = self.source / APPROVAL_PATH
         tracked_approval.parent.mkdir(parents=True, exist_ok=True)
         tracked_approval.write_text("{}\n", encoding="utf-8")
@@ -106,6 +109,7 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
                 "MOBILE_REFRESH_REPLAY_KEY": "mobile-staging-refresh-key:5",
             },
             "mobile_api_audience": "1234567890",
+            "mobile_api_google_audiences": "staging-web.apps.googleusercontent.com",
         }
 
     def test_archive_allowlist_has_tracked_bytes_at_current_source(self):
@@ -154,7 +158,9 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
             (self.output / "context" / APPROVAL_PATH).read_bytes(),
             self.approval.read_bytes().replace(b"\r\n", b"\n"),
         )
-        self.assertTrue((self.output / "context/apps/mobile_staging_broker/Dockerfile").is_file())
+        self.assertTrue(
+            (self.output / "context/apps/mobile_staging_broker/Dockerfile").is_file()
+        )
         self.assertFalse((self.output / "source.tar").exists())
         persisted = (self.output / "state.json").read_text(encoding="utf-8")
         self.assertNotIn(self.sentinel, persisted)
@@ -207,9 +213,7 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
             "artifact_hashes",
             side_effect=BrokerRolloutError("HASH_FAILED"),
         ), mock.patch.object(module.shutil, "rmtree", side_effect=OSError("sentinel")):
-            with self.assertRaisesRegex(
-                BrokerRolloutError, "PRIVATE_CLEANUP_REQUIRED"
-            ):
+            with self.assertRaisesRegex(BrokerRolloutError, "PRIVATE_CLEANUP_REQUIRED"):
                 prepare_broker_rollout(
                     source=self.source,
                     approval_path=self.approval,
@@ -240,9 +244,15 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
     def test_rejects_approval_drift_and_existing_output(self):
         value = self._approval_value()
         value["project"] = "fictional-mobile-staging"
-        value["image_uri"] = "asia-east1-docker.pkg.dev/fictional-mobile-staging/mobile-staging/mobile-api"
-        value["service_account"] = "mobile-runtime@fictional-mobile-staging.iam.gserviceaccount.com"
-        value["build_service_account"] = "mobile-build@fictional-mobile-staging.iam.gserviceaccount.com"
+        value["image_uri"] = (
+            "asia-east1-docker.pkg.dev/fictional-mobile-staging/mobile-staging/mobile-api"
+        )
+        value["service_account"] = (
+            "mobile-runtime@fictional-mobile-staging.iam.gserviceaccount.com"
+        )
+        value["build_service_account"] = (
+            "mobile-build@fictional-mobile-staging.iam.gserviceaccount.com"
+        )
         self.approval.write_text(json.dumps(value), encoding="utf-8")
         with self.assertRaisesRegex(BrokerRolloutError, "APPROVAL_DRIFT"):
             prepare_broker_rollout(
@@ -369,7 +379,9 @@ class MobileStagingBrokerRolloutTest(unittest.TestCase):
             ),
         ), mock.patch.object(
             module, "_assert_path_chain_no_reparse", side_effect=reject_source
-        ), mock.patch.object(module, "prepare_broker_rollout") as prepare:
+        ), mock.patch.object(
+            module, "prepare_broker_rollout"
+        ) as prepare:
             stdout = io.StringIO()
             with contextlib.redirect_stdout(stdout):
                 exit_code = module.main()
