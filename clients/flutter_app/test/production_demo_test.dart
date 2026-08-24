@@ -148,6 +148,73 @@ void main() {
     expect(probe.unexpectedTransportCalls, 0);
   });
 
+  testWidgets(
+    'reply demo exposes mutation failure then clears it for a normal reply',
+    (tester) async {
+      final probe = ProductionDemoProbe();
+      await pumpDemo(tester, probe: probe);
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('demo-reply-mutation-error')),
+      );
+      await tester.tap(find.byKey(const ValueKey('demo-reply-mutation-error')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('game-game_901')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reply-attending')));
+      await tester.tap(find.byKey(const ValueKey('reply-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mutation-error')), findsOneWidget);
+      expect(find.text('出席回覆失敗'), findsOneWidget);
+      expect(probe.replyMutations, 1);
+      expect(probe.unexpectedTransportCalls, 0);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('demo-reply-normal')),
+      );
+      await tester.tap(find.byKey(const ValueKey('demo-reply-normal')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('game-game_901')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reply-attending')));
+      await tester.tap(find.byKey(const ValueKey('reply-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mutation-error')), findsNothing);
+      expect(find.byKey(const ValueKey('mutation-uncertain')), findsNothing);
+      expect(probe.replyMutations, 2);
+      expect(probe.unexpectedTransportCalls, 0);
+    },
+  );
+
+  testWidgets(
+    'reply demo exposes uncertain outcome without claiming a successful reply',
+    (tester) async {
+      final probe = ProductionDemoProbe();
+      await pumpDemo(tester, probe: probe);
+
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('demo-reply-uncertain')),
+      );
+      await tester.tap(find.byKey(const ValueKey('demo-reply-uncertain')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('game-game_901')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reply-attending')));
+      await tester.tap(find.byKey(const ValueKey('reply-submit')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('mutation-uncertain')), findsOneWidget);
+      expect(find.text('回覆結果待確認，請稍後以同一回覆重試。'), findsOneWidget);
+      expect(find.byKey(const ValueKey('mutation-error')), findsNothing);
+      expect(probe.replyMutations, 1);
+      expect(probe.unexpectedTransportCalls, 0);
+    },
+  );
+
   testWidgets('production demo composes bounded member action scenarios', (
     tester,
   ) async {

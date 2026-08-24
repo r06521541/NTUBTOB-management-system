@@ -18,6 +18,8 @@ enum ProductionDemoConnectivity { online, offline }
 
 enum ProductionDemoDataState { populated, resolved, actionError, empty, error }
 
+enum ProductionDemoReplyScenario { normal, mutationError, uncertain }
+
 enum ProductionDemoNotificationState { populated, empty, error }
 
 enum ProductionDemoPublishScenario { success, previewError, confirmError }
@@ -131,6 +133,8 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   ProductionDemoPersona _persona = ProductionDemoPersona.basic;
   ProductionDemoConnectivity _connectivity = ProductionDemoConnectivity.online;
   ProductionDemoDataState _dataState = ProductionDemoDataState.populated;
+  ProductionDemoReplyScenario _replyScenario =
+      ProductionDemoReplyScenario.normal;
   ProductionDemoNotificationState _notificationState =
       ProductionDemoNotificationState.populated;
   ProductionDemoPublishScenario _publishScenario =
@@ -202,6 +206,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
         _persona == ProductionDemoPersona.basic ? _basicPerson : _officerPerson;
     final online = _connectivity == ProductionDemoConnectivity.online;
     _api.actionScenario = _dataState;
+    _api.replyScenario = _replyScenario;
     final games =
         _dataState == ProductionDemoDataState.empty ? <Game>[] : _games;
     return Scaffold(
@@ -362,6 +367,39 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                       ProductionDemoPublishScenario.confirmError,
                   onSelected: (_) => _selectPublishScenario(
                     ProductionDemoPublishScenario.confirmError,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('回覆：'),
+                ChoiceChip(
+                  key: const ValueKey('demo-reply-normal'),
+                  label: const Text('正常'),
+                  selected:
+                      _replyScenario == ProductionDemoReplyScenario.normal,
+                  onSelected: (_) => setState(
+                    () => _replyScenario = ProductionDemoReplyScenario.normal,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-reply-mutation-error'),
+                  label: const Text('回覆失敗'),
+                  selected: _replyScenario ==
+                      ProductionDemoReplyScenario.mutationError,
+                  onSelected: (_) => setState(
+                    () => _replyScenario =
+                        ProductionDemoReplyScenario.mutationError,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ChoiceChip(
+                  key: const ValueKey('demo-reply-uncertain'),
+                  label: const Text('結果待確認'),
+                  selected:
+                      _replyScenario == ProductionDemoReplyScenario.uncertain,
+                  onSelected: (_) => setState(
+                    () =>
+                        _replyScenario = ProductionDemoReplyScenario.uncertain,
                   ),
                 ),
               ],
@@ -859,6 +897,8 @@ class _ProductionDemoApi extends BasicApi {
   final ProductionDemoProbe probe;
   final List<Game> _games;
   ProductionDemoDataState actionScenario = ProductionDemoDataState.populated;
+  ProductionDemoReplyScenario replyScenario =
+      ProductionDemoReplyScenario.normal;
   AttendanceReply _ownReply = AttendanceReply.undecided;
 
   Game _findGame(String id) => _games.firstWhere(
@@ -966,6 +1006,14 @@ class _ProductionDemoApi extends BasicApi {
     if (!online) throw const OfflineReadOnlyException();
     probe.replyMutations++;
     _findGame(gameId);
+    switch (replyScenario) {
+      case ProductionDemoReplyScenario.mutationError:
+        throw const NetworkException();
+      case ProductionDemoReplyScenario.uncertain:
+        throw MutationUncertainException(reply);
+      case ProductionDemoReplyScenario.normal:
+        break;
+    }
     _ownReply = reply;
     return MutationResult(
       gameId,
