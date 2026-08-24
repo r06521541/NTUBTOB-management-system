@@ -42,10 +42,7 @@ class AuthOperationContext {
   final int epoch;
   final String? personId;
 
-  bool matches({
-    required int currentEpoch,
-    required String? currentPersonId,
-  }) =>
+  bool matches({required int currentEpoch, required String? currentPersonId}) =>
       epoch == currentEpoch && personId == currentPersonId;
 }
 
@@ -127,22 +124,25 @@ class AuthStatePanel extends StatelessWidget {
       child: Center(
         child: SizedBox(
           width: 320,
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            AppStatusPanel(
-              icon: icon,
-              title: label,
-              loading: state == AuthViewState.booting ||
-                  state == AuthViewState.exchanging,
-              liveRegion: true,
-            ),
-            if (state == AuthViewState.identityPending &&
-                onRecoverIdentity != null)
-              TextButton(
-                key: const ValueKey('identity-recovery-entry'),
-                onPressed: onRecoverIdentity,
-                child: const Text('我曾用其他方式登入'),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppStatusPanel(
+                icon: icon,
+                title: label,
+                loading: state == AuthViewState.booting ||
+                    state == AuthViewState.exchanging,
+                liveRegion: true,
               ),
-          ]),
+              if (state == AuthViewState.identityPending &&
+                  onRecoverIdentity != null)
+                TextButton(
+                  key: const ValueKey('identity-recovery-entry'),
+                  onPressed: onRecoverIdentity,
+                  child: const Text('我曾用其他方式登入'),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -472,11 +472,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       _ids,
     );
     _pendingReviewClient = client;
-    _navigatorKey.currentState?.push(MaterialPageRoute<void>(
-      builder: (_) => PendingReviewPage(
-        client: client,
+    _navigatorKey.currentState?.push(
+      MaterialPageRoute<void>(
+        builder: (_) => PendingReviewPage(client: client),
       ),
-    ));
+    );
   }
 
   void _retirePendingReview() {
@@ -493,20 +493,16 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (controller == null || platform == null || !mounted) return;
     final result = await _navigatorKey.currentState?.push<IdentityLinkStage>(
       MaterialPageRoute<IdentityLinkStage>(
-        builder: (_) => IdentityRecoveryPage(
-          controller: controller,
-          platform: platform,
-        ),
+        builder: (_) =>
+            IdentityRecoveryPage(controller: controller, platform: platform),
       ),
     );
     if (mounted && result == IdentityLinkStage.reauthenticationRequired) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('登入方式已連結，請重新正常登入。')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('登入方式已連結，請重新正常登入。')));
     } else if (mounted && result == IdentityLinkStage.error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('連結流程失敗，請重新開始。')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('連結流程失敗，請重新開始。')));
     }
   }
 
@@ -558,8 +554,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
               previous.person.accessLevel != loadedPerson.accessLevel ||
               previous.person.capabilities.length !=
                   loadedPerson.capabilities.length ||
-              previous.person.capabilities.any((capability) =>
-                  !loadedPerson.capabilities.contains(capability)))) {
+              previous.person.capabilities.any(
+                (capability) => !loadedPerson.capabilities.contains(capability),
+              ))) {
         await _api!.clearPendingProfileIntents();
         if (epoch != _authEpoch) return false;
       }
@@ -746,8 +743,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                           lastSyncedAt: lastSyncedAt!,
                           principalProvenance: principalProvenance,
                           reportCache: _reportCache,
-                          notificationController:
-                              _notificationControllerFor(person!),
+                          notificationController: _notificationControllerFor(
+                            person!,
+                          ),
                           onRefresh: _loadBasic,
                           onPersonUpdated: _profileUpdateCallback(),
                           onProfileTerminalSession:
@@ -760,10 +758,12 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                       : AuthStatePanel(
                           state: state,
                           onRecoverIdentity: shouldOfferIdentityRecovery(
-                                  state: state,
-                                  pendingReviewCredential:
-                                      pendingReviewCredential(
-                                          _login, _googleLogin))
+                            state: state,
+                            pendingReviewCredential: pendingReviewCredential(
+                              _login,
+                              _googleLogin,
+                            ),
+                          )
                               ? _openIdentityRecovery
                               : null,
                         ),
@@ -794,13 +794,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   void _openSettings() {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => LocalPreferencesPage(
-        preferences: _preferences!,
-        permissions: NotificationPermissionActions(widget.permissionPort),
-        onThemeChanged: (value) => setState(() => _themePreference = value),
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LocalPreferencesPage(
+          preferences: _preferences!,
+          permissions: NotificationPermissionActions(widget.permissionPort),
+          onThemeChanged: (value) => setState(() => _themePreference = value),
+        ),
       ),
-    ));
+    );
   }
 
   NotificationCenterController? _notificationControllerFor(Person principal) {
@@ -846,8 +848,9 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (!_profileContextMatches(epoch, current.id)) return;
     final capabilityChanged = current.accessLevel != refreshed.accessLevel ||
         current.capabilities.length != refreshed.capabilities.length ||
-        current.capabilities
-            .any((capability) => !refreshed.capabilities.contains(capability));
+        current.capabilities.any(
+          (capability) => !refreshed.capabilities.contains(capability),
+        );
     if (!refreshed.canReadNotifications || capabilityChanged) {
       await _api!.clearPendingProfileIntents();
       if (!_profileContextMatches(epoch, current.id)) return;
@@ -874,10 +877,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
 
   bool _profileContextMatches(int epoch, String personId) =>
       mounted &&
-      AuthOperationContext(epoch, personId).matches(
-        currentEpoch: _authEpoch,
-        currentPersonId: person?.id,
-      ) &&
+      AuthOperationContext(
+        epoch,
+        personId,
+      ).matches(currentEpoch: _authEpoch, currentPersonId: person?.id) &&
       state == AuthViewState.authenticated &&
       person?.id == personId;
 
@@ -954,8 +957,9 @@ class DisplayNamePage extends StatefulWidget {
 }
 
 class _DisplayNamePageState extends State<DisplayNamePage> {
-  late final TextEditingController _name =
-      TextEditingController(text: widget.person.displayName);
+  late final TextEditingController _name = TextEditingController(
+    text: widget.person.displayName,
+  );
   bool _saving = false;
   String? _message;
   @override
@@ -1004,18 +1008,22 @@ class _DisplayNamePageState extends State<DisplayNamePage> {
         appBar: AppBar(title: const Text('編輯顯示名稱')),
         body: Padding(
           padding: const EdgeInsets.all(AppSpacing.regular),
-          child: Column(children: [
-            TextField(
+          child: Column(
+            children: [
+              TextField(
                 controller: _name,
                 maxLength: 120,
                 autofocus: true,
-                decoration: const InputDecoration(labelText: '顯示名稱')),
-            if (_message != null) Text(_message!),
-            const SizedBox(height: AppSpacing.regular),
-            FilledButton(
+                decoration: const InputDecoration(labelText: '顯示名稱'),
+              ),
+              if (_message != null) Text(_message!),
+              const SizedBox(height: AppSpacing.regular),
+              FilledButton(
                 onPressed: _saving ? null : _save,
-                child: Text(_saving ? '儲存中…' : '儲存')),
-          ]),
+                child: Text(_saving ? '儲存中…' : '儲存'),
+              ),
+            ],
+          ),
         ),
       );
 }
@@ -1346,8 +1354,9 @@ class _BasicGamesViewState extends State<BasicGamesView> {
               key: const ValueKey('schedule-discovery-entry'),
               leading: const Icon(Icons.calendar_month_outlined),
               title: const Text('賽程探索'),
-              subtitle:
-                  Text(widget.online ? '依日期、球隊或場地尋找已載入賽事' : '離線唯讀・可能不是最新賽程'),
+              subtitle: Text(
+                widget.online ? '依日期、球隊或場地尋找已載入賽事' : '離線唯讀・可能不是最新賽程',
+              ),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (_) => ScheduleDiscoveryPage(
@@ -1384,9 +1393,10 @@ class _BasicGamesViewState extends State<BasicGamesView> {
             onOpenSchedule: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => ScheduleDiscoveryPage(
-                    api: widget.api,
-                    games: widget.games,
-                    online: widget.online),
+                  api: widget.api,
+                  games: widget.games,
+                  online: widget.online,
+                ),
               ),
             ),
           ),
@@ -1395,12 +1405,16 @@ class _BasicGamesViewState extends State<BasicGamesView> {
               api: widget.api,
               game: orderedGames.first,
               online: widget.online,
-              onOpen: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => widget.online
-                    ? GameDetailPage(
-                        api: widget.api, gameId: orderedGames.first.id)
-                    : CachedGameDetailPage(game: orderedGames.first),
-              )),
+              onOpen: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => widget.online
+                      ? GameDetailPage(
+                          api: widget.api,
+                          gameId: orderedGames.first.id,
+                        )
+                      : CachedGameDetailPage(game: orderedGames.first),
+                ),
+              ),
             ),
           for (final game in orderedGames.skip(1))
             AppSurfaceCard(
@@ -1545,9 +1559,9 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
     _selectedDay = widget.games.isEmpty
         ? ScheduleCalendarProjection.dateOnly(DateTime.now())
         : ScheduleCalendarProjection.localGameDay(
-            (List<Game>.of(widget.games)
-                  ..sort(
-                      (left, right) => left.startAt.compareTo(right.startAt)))
+            (List<Game>.of(
+              widget.games,
+            )..sort((left, right) => left.startAt.compareTo(right.startAt)))
                 .first,
           );
   }
@@ -1572,9 +1586,11 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
         return false;
       }
       if (query.isEmpty) return true;
-      return [game.homeTeam, game.awayTeam, game.location]
-          .whereType<String>()
-          .any((value) => value.toLowerCase().contains(query));
+      return [
+        game.homeTeam,
+        game.awayTeam,
+        game.location,
+      ].whereType<String>().any((value) => value.toLowerCase().contains(query));
     }).toList()
       ..sort((left, right) => left.startAt.compareTo(right.startAt));
     return games;
@@ -1592,47 +1608,77 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
         controller: _scrollController,
         padding: const EdgeInsets.all(AppSpacing.regular),
         children: [
+          const AppPageTitle(
+            key: ValueKey('schedule-scan-header'),
+            eyebrow: 'Schedule',
+            title: '瀏覽賽程',
+            subtitle: '依日期、球隊或場地快速找到已載入的賽事。',
+          ),
+          const SizedBox(height: AppSpacing.regular),
           if (!widget.online)
             const AppStatusPanel(
               icon: Icons.cloud_off,
               title: '離線唯讀賽程',
               message: '僅顯示此帳號已載入的本機賽事，資料可能過期。',
             ),
-          TextField(
-            key: const ValueKey('schedule-search'),
-            controller: _searchController,
-            onChanged: (value) => setState(() => _query = value),
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              labelText: '搜尋球隊或場地',
+          AppSurfaceCard(
+            key: const ValueKey('schedule-filter-controls'),
+            padding: const EdgeInsets.all(AppSpacing.regular),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  key: const ValueKey('schedule-search'),
+                  controller: _searchController,
+                  onChanged: (value) => setState(() => _query = value),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    labelText: '搜尋球隊或場地',
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.compact),
+                Text('篩選條件', style: Theme.of(context).textTheme.labelLarge),
+                const SizedBox(height: AppSpacing.compact),
+                Wrap(
+                  spacing: AppSpacing.compact,
+                  runSpacing: AppSpacing.compact,
+                  children: [
+                    for (final filter in SchedulePresentationFilter.values)
+                      ChoiceChip(
+                        key: ValueKey('schedule-filter-${filter.name}'),
+                        label: Text(_filterLabel(filter)),
+                        selected: _filter == filter,
+                        onSelected: (_) => setState(() => _filter = filter),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: AppSpacing.compact),
-          Wrap(
-            spacing: AppSpacing.compact,
-            children: [
-              for (final filter in SchedulePresentationFilter.values)
-                ChoiceChip(
-                  key: ValueKey('schedule-filter-${filter.name}'),
-                  label: Text(_filterLabel(filter)),
-                  selected: _filter == filter,
-                  onSelected: (_) => setState(() => _filter = filter),
-                ),
-            ],
-          ),
           const SizedBox(height: AppSpacing.regular),
-          SegmentedButton<SchedulePresentation>(
-            key: const ValueKey('schedule-presentation-switch'),
-            segments: const [
-              ButtonSegment(
-                  value: SchedulePresentation.month, label: Text('月')),
-              ButtonSegment(value: SchedulePresentation.week, label: Text('週')),
-              ButtonSegment(
-                  value: SchedulePresentation.agenda, label: Text('列表')),
-            ],
-            selected: {_presentation},
-            onSelectionChanged: (selection) =>
-                setState(() => _presentation = selection.single),
+          AppSurfaceCard(
+            key: const ValueKey('schedule-presentation-controls'),
+            padding: const EdgeInsets.all(AppSpacing.compact),
+            child: SegmentedButton<SchedulePresentation>(
+              key: const ValueKey('schedule-presentation-switch'),
+              segments: const [
+                ButtonSegment(
+                  value: SchedulePresentation.month,
+                  label: Text('月'),
+                ),
+                ButtonSegment(
+                  value: SchedulePresentation.week,
+                  label: Text('週'),
+                ),
+                ButtonSegment(
+                  value: SchedulePresentation.agenda,
+                  label: Text('列表'),
+                ),
+              ],
+              selected: {_presentation},
+              onSelectionChanged: (selection) =>
+                  setState(() => _presentation = selection.single),
+            ),
           ),
           const SizedBox(height: AppSpacing.compact),
           if (_presentation != SchedulePresentation.agenda)
@@ -1654,8 +1700,9 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
                 TextButton(
                   key: const ValueKey('schedule-today'),
                   onPressed: () => setState(() {
-                    _selectedDay =
-                        ScheduleCalendarProjection.dateOnly(DateTime.now());
+                    _selectedDay = ScheduleCalendarProjection.dateOnly(
+                      DateTime.now(),
+                    );
                   }),
                   child: const Text('今天'),
                 ),
@@ -1693,7 +1740,7 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
       if (games.isEmpty) return [_noMatchPanel()];
       return [
         for (final entry in groups.entries)
-          ..._daySection(localizations, entry.key, entry.value)
+          ..._daySection(localizations, entry.key, entry.value),
       ];
     }
     if (_presentation == SchedulePresentation.week) {
@@ -1713,6 +1760,7 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
       GridView.count(
         key: const ValueKey('schedule-month-grid'),
         crossAxisCount: 7,
+        mainAxisExtent: 52,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         children: [
@@ -1738,13 +1786,7 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
                       : null,
                 ),
                 onPressed: () => setState(() => _selectedDay = day),
-                child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('${day.day}'),
-                      if ((groups[day]?.isNotEmpty ?? false))
-                        Text('${groups[day]!.length} 場'),
-                    ]),
+                child: Text('${day.day}'),
               ),
             ),
         ],
@@ -1795,7 +1837,19 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
       AppSurfaceCard(
         child: ListTile(
           key: ValueKey('schedule-game-${game.id}'),
-          title: Text('${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}'),
+          leading: SizedBox(
+            width: 36,
+            child: Center(
+              child: Text(
+                '${ScheduleCalendarProjection.localGameDay(game).day}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+          ),
+          title: Text(
+            '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
           subtitle: Text(_formatGameMetadata(localizations, game)),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
@@ -1817,15 +1871,23 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
 
   void _movePeriod(int delta) {
     _selectedDay = switch (_presentation) {
-      SchedulePresentation.month =>
-        DateTime(_selectedDay.year, _selectedDay.month + delta, 1),
+      SchedulePresentation.month => DateTime(
+          _selectedDay.year,
+          _selectedDay.month + delta,
+          1,
+        ),
       SchedulePresentation.week => _selectedDay.add(Duration(days: 7 * delta)),
       SchedulePresentation.agenda => DateTime(
-          _selectedDay.year, _selectedDay.month + delta, _selectedDay.day),
+          _selectedDay.year,
+          _selectedDay.month + delta,
+          _selectedDay.day,
+        ),
     };
   }
 
-  String _periodLabel(MaterialLocalizations localizations) =>
+  String _periodLabel(
+    MaterialLocalizations localizations,
+  ) =>
       switch (_presentation) {
         SchedulePresentation.month =>
           '${_selectedDay.year} 年 ${_selectedDay.month} 月',
@@ -1850,15 +1912,16 @@ class _ScheduleDiscoveryPageState extends State<ScheduleDiscoveryPage> {
 }
 
 class MemberActionHome extends StatefulWidget {
-  const MemberActionHome(
-      {super.key,
-      required this.api,
-      required this.principalScope,
-      required this.games,
-      required this.online,
-      required this.onOpenGame,
-      required this.onOpenSchedule,
-      this.controller});
+  const MemberActionHome({
+    super.key,
+    required this.api,
+    required this.principalScope,
+    required this.games,
+    required this.online,
+    required this.onOpenGame,
+    required this.onOpenSchedule,
+    this.controller,
+  });
   final BasicApi api;
   final String principalScope;
   final List<Game> games;
@@ -1910,35 +1973,41 @@ class _MemberActionHomeState extends State<MemberActionHome> {
   Widget build(BuildContext context) => ListenableBuilder(
         listenable: _controller,
         builder: (context, _) => AppSurfaceCard(
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('行動首頁'),
-            Text('僅評估已載入未來最多 5 場：已確認待處理 ${_controller.pending.length} 場'),
-            Text(_controller.message(online: widget.online),
-                key: ValueKey('action-home-${_controller.state.name}')),
-            if (_controller.nearestAction case final game?)
-              TextButton(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('行動首頁'),
+              Text('僅評估已載入未來最多 5 場：已確認待處理 ${_controller.pending.length} 場'),
+              Text(
+                _controller.message(online: widget.online),
+                key: ValueKey('action-home-${_controller.state.name}'),
+              ),
+              if (_controller.nearestAction case final game?)
+                TextButton(
                   key: const ValueKey('action-home-open-nearest'),
                   onPressed: () async {
                     await widget.onOpenGame(game);
                     await _controller.refreshGame(game, online: widget.online);
                   },
-                  child: const Text('查看並回覆')),
-            if (_controller.state == MemberActionState.retryableError)
-              TextButton(
-                key: const ValueKey('action-home-retry'),
-                onPressed: () => _controller.load(
-                  principalScope: widget.principalScope,
-                  games: widget.games,
-                  online: widget.online,
+                  child: const Text('查看並回覆'),
                 ),
-                child: const Text('重試確認'),
-              ),
-            TextButton(
+              if (_controller.state == MemberActionState.retryableError)
+                TextButton(
+                  key: const ValueKey('action-home-retry'),
+                  onPressed: () => _controller.load(
+                    principalScope: widget.principalScope,
+                    games: widget.games,
+                    online: widget.online,
+                  ),
+                  child: const Text('重試確認'),
+                ),
+              TextButton(
                 key: const ValueKey('action-home-schedule'),
                 onPressed: widget.onOpenSchedule,
-                child: const Text('完整賽程')),
-          ]),
+                child: const Text('完整賽程'),
+              ),
+            ],
+          ),
         ),
       );
 }
@@ -1949,7 +2018,7 @@ enum MemberActionState {
   resolved,
   partialUnknown,
   empty,
-  retryableError
+  retryableError,
 }
 
 class MemberActionController extends ChangeNotifier {
@@ -1965,10 +2034,12 @@ class MemberActionController extends ChangeNotifier {
   List<Game> window = const [];
   MemberActionState state = MemberActionState.loading;
   List<Game> get pending => window
-      .where((game) =>
-          _known.containsKey(game.id) &&
-          (_known[game.id] == null ||
-              _known[game.id] == AttendanceReply.undecided))
+      .where(
+        (game) =>
+            _known.containsKey(game.id) &&
+            (_known[game.id] == null ||
+                _known[game.id] == AttendanceReply.undecided),
+      )
       .toList();
   List<Game> get unknown =>
       window.where((game) => !_known.containsKey(game.id)).toList();
@@ -2014,9 +2085,10 @@ class MemberActionController extends ChangeNotifier {
     for (var start = 0; start < missing.length; start += 3) {
       try {
         await Future.wait(
-          missing.skip(start).take(3).map(
-                (game) => _readOnce(game, generation),
-              ),
+          missing
+              .skip(start)
+              .take(3)
+              .map((game) => _readOnce(game, generation)),
         );
       } on Object {
         failed = true;
@@ -2084,12 +2156,13 @@ class MemberActionController extends ChangeNotifier {
 }
 
 class NextAuthorizedGameCard extends StatefulWidget {
-  const NextAuthorizedGameCard(
-      {super.key,
-      required this.api,
-      required this.game,
-      required this.online,
-      required this.onOpen});
+  const NextAuthorizedGameCard({
+    super.key,
+    required this.api,
+    required this.game,
+    required this.online,
+    required this.onOpen,
+  });
   final BasicApi api;
   final Game game;
   final bool online;
@@ -2110,22 +2183,28 @@ class _NextAuthorizedGameCardState extends State<NextAuthorizedGameCard> {
   Widget build(BuildContext context) => AppSurfaceCard(
         child: ListTile(
           key: ValueKey('game-${widget.game.id}'),
-          title:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
-                '${widget.game.homeTeam ?? '主隊'} vs ${widget.game.awayTeam ?? '客隊'}'),
-            if (widget.online)
-              FutureBuilder<AttendanceSnapshot>(
-                future: _attendance,
-                builder: (_, snapshot) => Text(snapshot.hasData
-                    ? '我的回覆：${snapshot.data!.ownReply?.wire ?? '尚未回覆'}'
-                    : '出席載入中'),
-              )
-            else
-              const Text('離線・非最新'),
-          ]),
-          subtitle: Text(_formatGameMetadata(
-              MaterialLocalizations.of(context), widget.game)),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${widget.game.homeTeam ?? '主隊'} vs ${widget.game.awayTeam ?? '客隊'}',
+              ),
+              if (widget.online)
+                FutureBuilder<AttendanceSnapshot>(
+                  future: _attendance,
+                  builder: (_, snapshot) => Text(
+                    snapshot.hasData
+                        ? '我的回覆：${snapshot.data!.ownReply?.wire ?? '尚未回覆'}'
+                        : '出席載入中',
+                  ),
+                )
+              else
+                const Text('離線・非最新'),
+            ],
+          ),
+          subtitle: Text(
+            _formatGameMetadata(MaterialLocalizations.of(context), widget.game),
+          ),
           trailing: const Icon(Icons.chevron_right),
           onTap: widget.online ? widget.onOpen : null,
         ),
@@ -2684,10 +2763,17 @@ class CachedGameDetailPage extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.regular),
             AppSurfaceCard(
+              key: const ValueKey('cached-game-detail-hero'),
               padding: const EdgeInsets.all(AppSpacing.regular),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const AppStatusBadge(
+                    label: '離線快取',
+                    tone: AppStatusTone.warning,
+                    icon: Icons.cloud_off_outlined,
+                  ),
+                  const SizedBox(height: AppSpacing.compact),
                   Text(
                     '${game.homeTeam ?? '主隊'} vs ${game.awayTeam ?? '客隊'}',
                     style: Theme.of(context).textTheme.titleLarge,
@@ -2850,10 +2936,16 @@ class _GameDetailPageState extends State<GameDetailPage> {
       padding: const EdgeInsets.all(AppSpacing.regular),
       children: [
         AppSurfaceCard(
+          key: const ValueKey('game-detail-hero'),
           padding: const EdgeInsets.all(AppSpacing.regular),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const AppStatusBadge(
+                label: '賽事資訊',
+                icon: Icons.calendar_month_outlined,
+              ),
+              const SizedBox(height: AppSpacing.compact),
               Text(
                 '${game!.homeTeam ?? '主隊'} vs ${game!.awayTeam ?? '客隊'}',
                 style: Theme.of(context).textTheme.titleLarge,
@@ -2877,11 +2969,13 @@ class _GameDetailPageState extends State<GameDetailPage> {
             source: observation.$2,
           ),
         AppSurfaceCard(
+          key: const ValueKey('game-detail-reply-section'),
           padding: const EdgeInsets.all(AppSpacing.regular),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('我的出席回覆'),
+              Text('我的出席回覆', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.compact),
               if (state == DetailViewState.uncertain)
                 Semantics(
                   key: const ValueKey('mutation-uncertain'),
@@ -2891,6 +2985,7 @@ class _GameDetailPageState extends State<GameDetailPage> {
                 ),
               Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: AttendanceReply.values
                     .map(
                       (reply) => ChoiceChip(
@@ -2904,12 +2999,28 @@ class _GameDetailPageState extends State<GameDetailPage> {
                     )
                     .toList(),
               ),
-              FilledButton(
-                onPressed: state == DetailViewState.mutating ? null : _submit,
-                child: Text(state == DetailViewState.mutating ? '送出中' : '送出回覆'),
+              const SizedBox(height: AppSpacing.regular),
+              SizedBox(
+                key: const ValueKey('reply-submit'),
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: state == DetailViewState.mutating ? null : _submit,
+                  child: Text(
+                    state == DetailViewState.mutating ? '送出中' : '送出回覆',
+                  ),
+                ),
               ),
-              const Divider(),
-              const Text('已回覆隊員'),
+            ],
+          ),
+        ),
+        AppSurfaceCard(
+          key: const ValueKey('game-detail-attendance-section'),
+          padding: const EdgeInsets.all(AppSpacing.regular),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('已回覆隊員', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: AppSpacing.compact),
               for (final reply in attendance!.replied)
                 ListTile(
                   title: Text(reply.displayName),
