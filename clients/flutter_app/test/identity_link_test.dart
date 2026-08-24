@@ -536,4 +536,94 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('open-recovery')), findsOneWidget);
   });
+
+  testWidgets(
+      'recovery error retires route and a new flow requires two fresh taps',
+      (tester) async {
+    final api = FakeTransport(
+        confirmResponse: const ApiResponse(401, {
+      'error': {'code': 'identity_link_proof_expired'}
+    }));
+    final credentials = FakeCredentials();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: credentials,
+        installationId: 'installation-1234',
+        ids: FixedIds());
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => ElevatedButton(
+          key: const ValueKey('open-recovery'),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+            builder: (_) => IdentityRecoveryPage(
+                controller: controller, platform: 'android'),
+          )),
+          child: const Text('open'),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.byKey(const ValueKey('open-recovery')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('identity-link-proof-line')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('identity-link-confirm')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('open-recovery')), findsOneWidget);
+    expect(controller.stage, IdentityLinkStage.idle);
+    expect(controller.candidateCredential, isNull);
+    expect(controller.proofCredential, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('open-recovery')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+    expect(controller.stage, IdentityLinkStage.candidateReady);
+    expect(find.byKey(const ValueKey('identity-link-confirm')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('identity-link-proof-line')));
+    await tester.pump();
+    expect(controller.stage, IdentityLinkStage.proofReady);
+    expect(credentials.calls, 4);
+  });
+
+  testWidgets('self-link error reloads methods and permits a fresh retry',
+      (tester) async {
+    final api = FakeTransport(
+        confirmResponse: const ApiResponse(500, {
+      'error': {'code': 'internal'}
+    }));
+    final credentials = FakeCredentials();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: credentials,
+        installationId: 'installation-1234',
+        ids: FixedIds(),
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    await controller.loadLinkedMethods();
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: IdentityLinkPanel(
+                controller: controller, platform: 'android'))));
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('identity-link-proof-line')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('identity-link-confirm')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('identity-link-error')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('identity-link-retry')));
+    await tester.pump();
+    expect(controller.stage, IdentityLinkStage.idle);
+    expect(controller.linkedMethodsLoaded, isTrue);
+    expect(find.byKey(const ValueKey('identity-link-begin-google')),
+        findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+    expect(controller.stage, IdentityLinkStage.candidateReady);
+    expect(credentials.calls, 3);
+  });
 }

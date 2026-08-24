@@ -502,6 +502,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('登入方式已連結，請重新正常登入。')),
       );
+    } else if (mounted && result == IdentityLinkStage.error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('連結流程失敗，請重新開始。')),
+      );
     }
   }
 

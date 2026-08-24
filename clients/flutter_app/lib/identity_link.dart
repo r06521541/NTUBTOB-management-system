@@ -295,6 +295,18 @@ class IdentityLinkController extends ChangeNotifier {
 
   Future<void> personSwitch() => terminal();
 
+  void acknowledgeError() {
+    if (stage != IdentityLinkStage.error) return;
+    stage = IdentityLinkStage.idle;
+    notifyListeners();
+  }
+
+  Future<void> retrySelfLink() async {
+    if (stage != IdentityLinkStage.error) return;
+    acknowledgeError();
+    await loadLinkedMethods();
+  }
+
   bool get _isActiveFlow => const {
         IdentityLinkStage.candidateReady,
         IdentityLinkStage.proofReady,
@@ -370,6 +382,14 @@ class IdentityLinkPanel extends StatelessWidget {
               ),
           if (!controller.online)
             const Text('離線唯讀，無法新增登入方式', key: ValueKey('identity-link-offline')),
+          if (!recovery && controller.stage == IdentityLinkStage.error) ...[
+            const Text('無法載入登入方式，請重試。', key: ValueKey('identity-link-error')),
+            OutlinedButton(
+              key: const ValueKey('identity-link-retry'),
+              onPressed: controller.retrySelfLink,
+              child: const Text('重試'),
+            ),
+          ],
           if (controller.stage == IdentityLinkStage.idle && controller.online)
             for (final provider in LoginProvider.values)
               if ((recovery || controller.linkedMethodsLoaded) &&
@@ -443,10 +463,15 @@ class _IdentityRecoveryPageState extends State<IdentityRecoveryPage> {
           IdentityLinkStage.completed,
           IdentityLinkStage.reauthenticationRequired,
           IdentityLinkStage.cancelled,
+          IdentityLinkStage.error,
         }.contains(stage)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && Navigator.of(context).canPop()) {
+          _started = false;
           Navigator.of(context).pop(stage);
+          if (stage == IdentityLinkStage.error) {
+            widget.controller.acknowledgeError();
+          }
         }
       });
     }
