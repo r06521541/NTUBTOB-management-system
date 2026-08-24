@@ -435,6 +435,66 @@ void main() {
   });
 
   testWidgets(
+      'offline notification center reads the seeded principal cache for Basic and Officer',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+
+    await tester.tap(find.byKey(const ValueKey('demo-connectivity-offline')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('虛構賽事提醒'), findsOneWidget);
+    expect(find.textContaining('離線模式：顯示上次同步內容'), findsOneWidget);
+    expect(find.text('沒有離線通知'), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('demo-persona-officer')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('虛構賽事提醒'), findsOneWidget);
+    expect(find.text('沒有離線通知'), findsNothing);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('notification demo selects an explicit empty scenario',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+
+    await tester.tap(
+      find.byKey(const ValueKey('demo-notifications-empty')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('目前沒有通知'), findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets('notification demo selects a retryable error scenario',
+      (tester) async {
+    final probe = ProductionDemoProbe();
+    await pumpDemo(tester, probe: probe);
+
+    await tester.tap(
+      find.byKey(const ValueKey('demo-notifications-error')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    expect(find.text('通知載入失敗'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('notification-refresh')));
+    await tester.pumpAndSettle();
+    expect(find.text('通知載入失敗'), findsOneWidget);
+    expect(probe.unexpectedTransportCalls, 0);
+  });
+
+  testWidgets(
       'production demo opens loaded notification detail without transport', (
     tester,
   ) async {
