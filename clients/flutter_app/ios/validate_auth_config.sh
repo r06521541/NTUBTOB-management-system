@@ -70,14 +70,8 @@ case "$GOOGLE_REVERSED_CLIENT_ID" in
     ;;
 esac
 
-binding_found=false
-while IFS= read -r line; do
-  case "$line" in
-    *'<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>'*) binding_found=true ;;
-  esac
-done < "${SRCROOT}/Runner/Info.plist"
-
-$binding_found || {
+grep -Fq '<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>' \
+  "${SRCROOT}/Runner/Info.plist" || {
     echo "error: Google callback URL scheme binding is missing" >&2
     exit 2
   }
