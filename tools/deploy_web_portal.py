@@ -15,6 +15,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path
 from typing import Callable, Dict, Optional, Sequence
 
@@ -202,6 +203,26 @@ def identity_plain_values(
             line_redirect_uri, "line"
         ),
     }
+
+
+def validate_callback_origins(values: Dict[str, str], service_url: str) -> None:
+    parsed_service = urlsplit(service_url)
+    if (
+        parsed_service.scheme != "https"
+        or not parsed_service.netloc
+        or parsed_service.path not in {"", "/"}
+        or parsed_service.query
+        or parsed_service.fragment
+    ):
+        raise DeploymentError("Cloud Run service URL is missing or invalid")
+    service_origin = f"https://{parsed_service.netloc}"
+    for provider in ("google", "line"):
+        key = f"WEB_IDENTITY_LINK_{provider.upper()}_REDIRECT_URI"
+        expected = f"{service_origin}/api/v1/auth/identity-link/web/callback/{provider}"
+        if values.get(key) != expected:
+            raise DeploymentError(
+                f"{provider} identity-link callback origin does not match Cloud Run"
+            )
 
 
 def parse_env_key(line: str) -> Optional[str]:
@@ -779,6 +800,10 @@ def execute_deployment(
             or not baseline_revision
         ):
             raise DeploymentError("Cloud Run baseline contract is incomplete")
+        baseline_service_url = baseline.get("status", {}).get("url")
+        if not isinstance(baseline_service_url, str):
+            raise DeploymentError("Cloud Run service URL is missing or invalid")
+        validate_callback_origins(oauth_plain_values, baseline_service_url)
 
         command_output(
             runner,

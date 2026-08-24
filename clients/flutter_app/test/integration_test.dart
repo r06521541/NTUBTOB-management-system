@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -334,6 +335,11 @@ void main() {
           'web-server.apps.googleusercontent.com'
         ),
         ('ios', '', 'web-server.apps.googleusercontent.com'),
+        (
+          'ios',
+          'same-client.apps.googleusercontent.com',
+          'same-client.apps.googleusercontent.com'
+        ),
         ('android', '', ''),
       ]) {
         GoogleSignInProcessInitializer.resetForTest();
@@ -362,10 +368,83 @@ void main() {
     expect(plist, contains(r'line3rdp.$(PRODUCT_BUNDLE_IDENTIFIER)'));
     expect(project, contains('Validate Auth Config'));
     expect(project, contains(r'$SRCROOT/validate_auth_config.sh'));
-    expect(validator, contains('com.googleusercontent.apps.'));
+    expect(validator, contains('DART_DEFINES'));
+    expect(validator, contains('expected_reversed_client_id'));
+    expect(validator, contains('development fake iOS build'));
     expect(template.trimRight(), endsWith('GOOGLE_REVERSED_CLIENT_ID='));
     expect(ignores, contains('ios/Flutter/AuthConfig.xcconfig'));
     expect(plist, isNot(contains('.apps.googleusercontent.com')));
+  });
+
+  test('iOS auth validator binds real IDs and permits clean fake builds',
+      () async {
+    if (Platform.isWindows) return;
+    final root = await Directory.systemTemp.createTemp('ios-auth-contract-');
+    addTearDown(() => root.delete(recursive: true));
+    final runner = Directory('${root.path}/Runner')..createSync();
+    File('${runner.path}/Info.plist').writeAsStringSync(
+      r'<string>$(GOOGLE_REVERSED_CLIENT_ID)</string>',
+    );
+
+    String encodedDefines(Map<String, String> values) => values.entries
+        .map(
+            (entry) => base64Encode(utf8.encode('${entry.key}=${entry.value}')))
+        .join(',');
+
+    Future<ProcessResult> validate(
+      Map<String, String> values, {
+      String reversed = '',
+    }) =>
+        Process.run(
+          '/bin/sh',
+          ['ios/validate_auth_config.sh'],
+          environment: {
+            'SRCROOT': root.path,
+            'DART_DEFINES': encodedDefines(values),
+            'GOOGLE_REVERSED_CLIENT_ID': reversed,
+          },
+        );
+
+    expect(
+      (await validate({'APP_FLAVOR': 'development', 'CLIENT_MODE': 'fake'}))
+          .exitCode,
+      0,
+    );
+    const iosClient = '123-ios.apps.googleusercontent.com';
+    const serverClient = '456-web.apps.googleusercontent.com';
+    final real = {
+      'APP_FLAVOR': 'staging',
+      'CLIENT_MODE': 'real',
+      'GOOGLE_CLIENT_ID': iosClient,
+      'GOOGLE_SERVER_CLIENT_ID': serverClient,
+    };
+    expect(
+      (await validate(real, reversed: 'com.googleusercontent.apps.123-ios'))
+          .exitCode,
+      0,
+    );
+    expect(
+      (await validate(real, reversed: 'com.googleusercontent.apps.999-other'))
+          .exitCode,
+      2,
+    );
+    expect(
+      (await validate({
+        ...real,
+        'GOOGLE_SERVER_CLIENT_ID': iosClient,
+      }, reversed: 'com.googleusercontent.apps.123-ios'))
+          .exitCode,
+      2,
+    );
+    expect(
+      (await validate({
+        'APP_FLAVOR': 'development',
+        'CLIENT_MODE': 'fake',
+        'GOOGLE_CLIENT_ID': iosClient,
+      }, reversed: 'com.googleusercontent.apps.123-ios'))
+          .exitCode,
+      2,
+    );
   });
 
   group('wire contract', () {

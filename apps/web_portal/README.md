@@ -285,7 +285,11 @@ make deploy-web-portal \
 ```
 
 Missing references, placeholders, or a non-commit image tag fail before build or
-deployment. Do not run this command without an Owner-approved production work
+deployment. Both identity-link redirect URIs must use the exact origin returned
+by the target Cloud Run service's `status.url`; the wrapper rejects a different
+host before build. Custom domains are not accepted by this path until a separate
+Owner-approved domain inventory and mapping verification contract exists. Do not
+run this command without an Owner-approved production work
 package. Repository tests only verify the static deployment contract; they do
 not prove that Secret resources exist, that runtime IAM can access them, or that
 the image builds and runs in Cloud Run.

@@ -24,8 +24,9 @@ GOOGLE_IDENTITY_REF = "fixture-google-identity-secret:4"
 LINE_IDENTITY_REF = "fixture-line-identity-secret:5"
 GOOGLE_CLIENT_ID = "google-web.apps.googleusercontent.com"
 LINE_CLIENT_ID = "1234567890"
-GOOGLE_REDIRECT = "https://portal.example/api/v1/auth/identity-link/web/callback/google"
-LINE_REDIRECT = "https://portal.example/api/v1/auth/identity-link/web/callback/line"
+SERVICE_URL = "https://fixture-web-portal.example"
+GOOGLE_REDIRECT = SERVICE_URL + "/api/v1/auth/identity-link/web/callback/google"
+LINE_REDIRECT = SERVICE_URL + "/api/v1/auth/identity-link/web/callback/line"
 PHASE_C_ENABLED = "true"
 ROLLOUT_FREEZE_ENABLED = "false"
 IDENTITY_MAINTENANCE_ENABLED = "false"
@@ -110,6 +111,7 @@ class FakeRunner:
         rollback_failure=False,
         rollout_states=None,
         already_promoted=False,
+        service_url=SERVICE_URL,
     ):
         self.root = root
         self.dirty = dirty
@@ -129,6 +131,7 @@ class FakeRunner:
         self.commands = []
         self.service_describes = 0
         self.promoted = already_promoted
+        self.service_url = service_url
 
     def env_entries(self):
         entries = [
@@ -214,7 +217,7 @@ class FakeRunner:
                     "spec": {"template": {"spec": {"serviceAccountName": IDENTITY}}},
                     "status": {
                         "latestCreatedRevisionName": revision,
-                        "url": "https://fixture-web-portal.example",
+                        "url": self.service_url,
                         "traffic": [
                             {
                                 "revisionName": (
@@ -378,6 +381,35 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
                     deploy.validate_version_pinned_secret_ref(
                         invalid, "Google identity-link Secret reference"
                     )
+
+    def test_identity_link_callbacks_must_match_cloud_run_origin(self):
+        values = deploy.identity_plain_values(
+            GOOGLE_CLIENT_ID, GOOGLE_REDIRECT, LINE_CLIENT_ID, LINE_REDIRECT
+        )
+        deploy.validate_callback_origins(values, SERVICE_URL)
+
+        mismatched = dict(values)
+        mismatched["WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI"] = (
+            "https://other.example/api/v1/auth/identity-link/web/callback/google"
+        )
+        with self.assertRaisesRegex(deploy.DeploymentError, "does not match"):
+            deploy.validate_callback_origins(mismatched, SERVICE_URL)
+
+        with self.assertRaisesRegex(deploy.DeploymentError, "service URL"):
+            deploy.validate_callback_origins(values, SERVICE_URL + "/unexpected")
+
+    def test_execute_rejects_callback_origin_drift_before_build(self):
+        runner = FakeRunner(self.root, service_url="https://other.example")
+
+        with self.assertRaisesRegex(deploy.DeploymentStageError, "stage build"):
+            self.execute(runner)
+
+        self.assertFalse(
+            any(
+                command[:3] == ["gcloud", "builds", "submit"]
+                for command, _ in runner.commands
+            )
+        )
 
     def test_main_rejects_execution_arguments_without_execute(self):
         stderr = io.StringIO()

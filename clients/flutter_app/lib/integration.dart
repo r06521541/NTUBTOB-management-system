@@ -1308,7 +1308,8 @@ class GoogleSignInProcessInitializer {
     );
     final valid = (platform == 'android' || platform == 'ios') &&
         googlePattern.hasMatch(serverClientId) &&
-        (platform == 'android' || googlePattern.hasMatch(clientId));
+        (platform == 'android' ||
+            (googlePattern.hasMatch(clientId) && clientId != serverClientId));
     if (!valid) {
       throw const FormatException('Google platform configuration is invalid');
     }

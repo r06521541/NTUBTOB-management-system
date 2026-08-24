@@ -24,5 +24,6 @@
     "MOBILE_ACCESS_SIGNING_KEY": "mobile-staging-access-key:3",
     "MOBILE_REFRESH_REPLAY_KEY": "mobile-staging-refresh-key:5"
   },
-  "mobile_api_audience": "1234567890"
+  "mobile_api_audience": "1234567890",
+  "mobile_api_google_audiences": "fictional-staging-web.apps.googleusercontent.com"
 }

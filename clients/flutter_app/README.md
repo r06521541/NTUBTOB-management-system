@@ -25,8 +25,12 @@ server client ID. Never commit real IDs or credentials.
 
 iOS additionally resolves `GOOGLE_REVERSED_CLIENT_ID` from the gitignored
 `ios/Flutter/AuthConfig.xcconfig`; use `AuthConfig.xcconfig.example` only as the
-key-name template. The Xcode build phase rejects a missing, unresolved, or
-malformed Google URL scheme while preserving the existing LINE scheme. A
+key-name template. For real builds it must be the exact reversed form of the
+same iOS `GOOGLE_CLIENT_ID` supplied through `DART_DEFINES`; the iOS and Web
+server client IDs must be distinct. The Xcode build phase rejects missing,
+unresolved, mismatched, or malformed values while preserving the existing LINE
+scheme. A clean development/fake build requires no Owner OAuth values and
+rejects any Google configuration instead of falling back to it. A
 macOS/Xcode build remains mandatory evidence; no Firebase plist is required.
 
 Android and iOS runners were generated with Flutter 3.47.0. To reproduce them after installing a compatible Flutter SDK and confirming Android/iOS prerequisites, run from this directory:

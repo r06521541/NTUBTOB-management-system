@@ -3,6 +3,9 @@ import re
 import unittest
 from pathlib import Path
 
+from apps.mobile_staging_broker.artifacts import artifact_hashes, load_attested_approval
+from apps.mobile_staging_broker.broker import BrokerManifest
+
 ROOT = Path(__file__).resolve().parents[3]
 SERVICE = ROOT / "apps/mobile_staging_broker"
 
@@ -65,6 +68,35 @@ class DeploymentContractTest(unittest.TestCase):
         self.assertNotRegex(encoded, r"postgres(?:ql)?://")
         ignored = (SERVICE / "Dockerfile.dockerignore").read_text(encoding="utf-8")
         self.assertNotIn("*approval*", ignored)
+
+    def test_baked_approval_loads_through_attested_runtime_contract(self):
+        hashes = artifact_hashes(ROOT)
+        manifest = BrokerManifest.from_mapping(
+            {
+                **hashes,
+                "project": "fictional-mobile-staging",
+                "region": "asia-east1",
+                "service": "mobile-staging-broker",
+                "runtime_identity": (
+                    "broker-runtime@fictional-mobile-staging.iam.gserviceaccount.com"
+                ),
+                "image_digest": "sha256:" + "d" * 64,
+                "database_secret_version": (
+                    "projects/fictional-mobile-staging/secrets/database-url/versions/7"
+                ),
+                "subject_secret_version": (
+                    "projects/fictional-mobile-staging/secrets/provider-subject/versions/9"
+                ),
+                "database_identity_sha256": "e" * 64,
+            }
+        )
+
+        approval = load_attested_approval(manifest, ROOT)
+
+        self.assertEqual(
+            approval["mobile_api_google_audiences"],
+            "fictional-staging-web.apps.googleusercontent.com",
+        )
 
 
 if __name__ == "__main__":
