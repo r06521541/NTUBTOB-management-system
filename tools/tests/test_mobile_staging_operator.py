@@ -239,7 +239,8 @@ class ContractTest(unittest.TestCase):
                 connection.scalar.return_value = True
                 connection.scalars.side_effect = [(revision_name,), tuple(tables)]
                 with patch(
-                    "tools.mobile_staging_data._fixture_state", return_value="clean"
+                    "tools.mobile_staging_data._canonical_fixture_fingerprint",
+                    return_value=("clean", ("clean",)),
                 ):
                     state = _database_state(connection)
                 self.assertEqual(state["revision"], revision_name)
@@ -269,17 +270,28 @@ class ContractTest(unittest.TestCase):
                 connection = MagicMock()
                 transaction = Mock()
                 connection.begin.return_value = transaction
-                connection.scalar.side_effect = [revision_name, 0, 0]
+                connection.scalar.return_value = 0
                 engine = MagicMock()
                 engine.connect.return_value.__enter__.return_value = connection
-                result = database_inventory(
-                    engine,
-                    DATABASE_URL,
-                    STAGING_HASH,
-                    PRODUCTION_HASH,
-                    PROVIDER,
-                    RESOURCE,
-                )
+                state = {
+                    "revision": revision_name,
+                    "database_state": (
+                        "ready" if revision_name == REVISION else "upgrade_pending"
+                    ),
+                    "fixture_state": "clean",
+                }
+                with patch(
+                    "tools.mobile_staging_preflight._database_state",
+                    return_value=state,
+                ):
+                    result = database_inventory(
+                        engine,
+                        DATABASE_URL,
+                        STAGING_HASH,
+                        PRODUCTION_HASH,
+                        PROVIDER,
+                        RESOURCE,
+                    )
                 self.assertEqual(result["revision"], revision_name)
                 self.assertEqual(
                     result["revision_state"],
@@ -288,17 +300,21 @@ class ContractTest(unittest.TestCase):
                 transaction.rollback.assert_called_once_with()
 
         unknown = MagicMock()
-        unknown_connection = unknown.connect.return_value.__enter__.return_value
-        unknown_connection.scalar.side_effect = ["0007_mobile_notifications", 0, 0]
         with self.assertRaisesRegex(StagingContractError, "not recognized"):
-            database_inventory(
-                unknown,
-                DATABASE_URL,
-                STAGING_HASH,
-                PRODUCTION_HASH,
-                PROVIDER,
-                RESOURCE,
-            )
+            with patch(
+                "tools.mobile_staging_preflight._database_state",
+                side_effect=StagingContractError(
+                    "Staging database revision is not recognized"
+                ),
+            ):
+                database_inventory(
+                    unknown,
+                    DATABASE_URL,
+                    STAGING_HASH,
+                    PRODUCTION_HASH,
+                    PROVIDER,
+                    RESOURCE,
+                )
 
     def test_forward_upgrade_requires_exact_pre_and_post_state(self):
         connection = Mock()
@@ -308,11 +324,13 @@ class ContractTest(unittest.TestCase):
             "revision": FORWARD_REVISIONS[0],
             "database_state": "upgrade_pending",
             "fixture_state": "seeded",
+            "fixture_fingerprint": ("seeded", "same"),
         }
         poststate = {
             "revision": REVISION,
             "database_state": "ready",
             "fixture_state": "seeded",
+            "fixture_fingerprint": ("seeded", "same"),
         }
         with patch(
             "tools.mobile_staging_data._database_state",
@@ -327,6 +345,60 @@ class ContractTest(unittest.TestCase):
 
         with self.assertRaisesRegex(StagingContractError, "not approved"):
             _upgrade_known_database(engine, Path.cwd(), REVISION, "seeded")
+
+    def test_forward_upgrade_value_drift_makes_zero_upgrade_calls(self):
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = Mock()
+        with patch(
+            "tools.mobile_staging_data._database_state",
+            side_effect=StagingContractError("fixture people are drifted"),
+        ), patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "people are drifted"):
+                _upgrade_known_database(
+                    engine, Path.cwd(), FORWARD_REVISIONS[0], "seeded", "subject"
+                )
+        upgrade.assert_not_called()
+
+    def test_forward_upgrade_table_drift_makes_zero_upgrade_calls(self):
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = Mock()
+        with patch(
+            "tools.mobile_staging_data._database_state",
+            side_effect=StagingContractError("schema is partial or drifted"),
+        ), patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "schema is partial"):
+                _upgrade_known_database(
+                    engine, Path.cwd(), FORWARD_REVISIONS[1], "clean", "subject"
+                )
+        upgrade.assert_not_called()
+
+    def test_forward_upgrade_requires_unchanged_semantic_fingerprint(self):
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = Mock()
+        before = {
+            "revision": FORWARD_REVISIONS[0],
+            "database_state": "upgrade_pending",
+            "fixture_state": "seeded",
+            "fixture_fingerprint": ("seeded", "before"),
+        }
+        after = {
+            "revision": REVISION,
+            "database_state": "ready",
+            "fixture_state": "seeded",
+            "fixture_fingerprint": ("seeded", "after"),
+        }
+        with patch(
+            "tools.mobile_staging_data._database_state", side_effect=[before, after]
+        ), patch(
+            "tools.mobile_staging_data._alembic_config", return_value="config"
+        ), patch(
+            "tools.mobile_staging_data.command.upgrade"
+        ) as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "postcheck failed"):
+                _upgrade_known_database(
+                    engine, Path.cwd(), FORWARD_REVISIONS[0], "seeded", "subject"
+                )
+        upgrade.assert_called_once_with("config", REVISION)
 
     def test_role_lifecycle_accepts_legacy_and_later_generations(self):
         legacy_grant = {
@@ -1551,6 +1623,41 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
         self.assertEqual(after["outcome"], "completed")
         self.assertEqual(after["revision"], REVISION)
         self.assertEqual(after["fixture_state"], "seeded")
+
+    def test_seeded_forward_upgrade_rejects_value_drift_before_alembic(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET display_name='drifted' "
+                    "WHERE id=-112002"
+                )
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "people are drifted"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT version_num FROM ntubtob.alembic_version")
+                ),
+                FORWARD_REVISIONS[1],
+            )
 
     def test_0007_and_known_revision_table_drift_fail_closed(self):
         self._downgrade_current_schema("0007_mobile_notifications")

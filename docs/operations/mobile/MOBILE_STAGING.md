@@ -187,9 +187,13 @@ fictional fixture, and performs a second read-only post-check.
 
 An existing exact 0005 or 0006 staging schema is a controlled
 `upgrade_pending` state. The operator verifies its revision-specific complete
-table set and fictional fixture, upgrades through the repository-owned
-0006／0007／0008 migrations in one injected Alembic transaction, then rechecks
-exact 0008 tables and unchanged fixture state before seeding. A migration or
+table set and canonical fictional-fixture fingerprint (Person values and access,
+identity binding, qualifications, Games, attendance ownership/timestamps,
+audits, and absence of other owned rows), upgrades through the repository-owned
+0006／0007／0008 migrations in one injected Alembic transaction, then reruns the
+same verifier against exact 0008 tables and requires an unchanged fingerprint
+before seeding. Read-only preflight exposes only the exact identity-binding
+boolean, never the private provider subject. A migration or
 post-check failure rolls back that transaction and requires a new read-only
 recovery observation; revision 0007, an unknown revision, or any table/fixture
 drift is not a resumable state and fails closed.

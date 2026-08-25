@@ -24,6 +24,7 @@ try:
         validate_database_identity,
     )
     from .mobile_staging_seed import (
+        ANCHOR,
         FIXTURE_REPLY_AT,
         StagingSeedError,
         _validate_subject,
@@ -41,6 +42,7 @@ except ImportError:  # pragma: no cover
         validate_database_identity,
     )
     from mobile_staging_seed import (
+        ANCHOR,
         FIXTURE_REPLY_AT,
         StagingSeedError,
         _validate_subject,
@@ -1239,7 +1241,9 @@ def inventory(approval: dict, database_url: str) -> dict:
     return {"database_identity_sha256": identity.fingerprint, **state}
 
 
-def _database_state(connection) -> dict:
+def _database_state(
+    connection, private_subject: str | None = None, include_fingerprint: bool = False
+) -> dict:
     schema_exists = connection.scalar(
         text("SELECT to_regnamespace('ntubtob') IS NOT NULL")
     )
@@ -1269,11 +1273,17 @@ def _database_state(connection) -> dict:
         raise StagingContractError(
             "Remote staging schema is partial or drifted; do not retry"
         )
-    return {
+    fixture_state, fixture_fingerprint = _canonical_fixture_fingerprint(
+        connection, revision, private_subject
+    )
+    state = {
         "revision": revision,
         "database_state": "ready" if revision == REVISION else "upgrade_pending",
-        "fixture_state": _fixture_state(connection),
+        "fixture_state": fixture_state,
     }
+    if include_fingerprint:
+        state["fixture_fingerprint"] = fixture_fingerprint
+    return state
 
 
 def _ids(connection, table: str) -> tuple:
@@ -1335,6 +1345,271 @@ def _fixture_state(connection) -> str:
     return state
 
 
+def _canonical_fixture_fingerprint(
+    connection, revision: str, private_subject: str | None = None
+) -> tuple[str, tuple]:
+    """Validate the complete owned fixture and return a secret-free fingerprint."""
+    state = _fixture_state(connection)
+    extension_tables = (BROKER_TABLES | NOTIFICATION_TABLES) & REVISION_TABLES[revision]
+    if any(
+        connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}"))
+        for table in extension_tables
+    ):
+        raise StagingContractError(
+            "Remote staging fixture contains owned runtime rows; do not retry"
+        )
+    if state == "clean":
+        return state, ("clean",)
+
+    people = connection.execute(
+        text(
+            "SELECT id, formal_name, display_name, admin_note, portal_access_level, "
+            "portal_status, version, created_at, updated_at FROM ntubtob.people "
+            "WHERE id = ANY(:ids) ORDER BY id"
+        ),
+        {"ids": list(MOBILE_FIXTURE_IDS)},
+    ).all()
+    expected_people = (
+        (
+            -112003,
+            None,
+            "虛構 Staging 隊友乙",
+            None,
+            "basic",
+            "active",
+            1,
+            ANCHOR,
+            ANCHOR,
+        ),
+        (
+            -112002,
+            None,
+            "虛構 Staging 隊友甲",
+            None,
+            "basic",
+            "active",
+            1,
+            ANCHOR,
+            ANCHOR,
+        ),
+        (
+            -112001,
+            None,
+            "虛構 Staging 測試員",
+            None,
+            "basic",
+            "active",
+            1,
+            ANCHOR,
+            ANCHOR,
+        ),
+    )
+    if tuple(map(tuple, people)) != expected_people:
+        raise StagingContractError(
+            "Remote staging fixture people are drifted; do not retry"
+        )
+
+    identities = connection.execute(
+        text(
+            "SELECT id, provider, person_id, status FROM ntubtob.auth_identities "
+            "WHERE id = ANY(:ids) ORDER BY id"
+        ),
+        {"ids": list(MOBILE_FIXTURE_IDS)},
+    ).all()
+    if tuple(map(tuple, identities)) != tuple(
+        (fixture_id, "line", fixture_id, "linked") for fixture_id in MOBILE_FIXTURE_IDS
+    ):
+        raise StagingContractError(
+            "Remote staging fixture identities are drifted; do not retry"
+        )
+    if private_subject is None:
+        tester_binding = connection.scalar(
+            text(
+                "SELECT count(*)=1 FROM ntubtob.auth_identities WHERE id=-112001 "
+                "AND provider='line' AND person_id=-112001 AND status='linked' "
+                "AND length(provider_subject) BETWEEN 8 AND 255 "
+                "AND provider_subject NOT IN ('task112-fictional-teammate-a', "
+                "'task112-fictional-teammate-b')"
+            )
+        )
+    else:
+        tester_binding = connection.scalar(
+            text(
+                "SELECT count(*)=1 FROM ntubtob.auth_identities WHERE id=-112001 "
+                "AND provider='line' AND provider_subject=:subject "
+                "AND person_id=-112001 AND status='linked'"
+            ),
+            {"subject": private_subject},
+        )
+    teammate_bindings = connection.scalar(
+        text(
+            "SELECT count(*)=2 FROM ntubtob.auth_identities WHERE "
+            "(id=-112002 AND provider_subject='task112-fictional-teammate-a' "
+            "AND person_id=-112002) OR "
+            "(id=-112003 AND provider_subject='task112-fictional-teammate-b' "
+            "AND person_id=-112003)"
+        )
+    )
+    if tester_binding is not True or teammate_bindings is not True:
+        raise StagingContractError(
+            "Remote staging fixture identity binding is drifted; do not retry"
+        )
+
+    qualifications = connection.execute(
+        text(
+            "SELECT id, person_id, qualification, status, valid_from, valid_until, "
+            "granted_by_person_id, reason, created_at, updated_at "
+            "FROM ntubtob.person_qualifications WHERE id = ANY(:ids) ORDER BY id"
+        ),
+        {"ids": list(MOBILE_FIXTURE_IDS)},
+    ).all()
+    expected_qualifications = tuple(
+        (
+            fixture_id,
+            fixture_id,
+            "guest_player",
+            "active",
+            datetime(2034, 1, 1, tzinfo=timezone.utc),
+            datetime(2038, 1, 1, tzinfo=timezone.utc),
+            None,
+            "fictional staging",
+            ANCHOR,
+            ANCHOR,
+        )
+        for fixture_id in MOBILE_FIXTURE_IDS
+    )
+    if tuple(map(tuple, qualifications)) != expected_qualifications:
+        raise StagingContractError(
+            "Remote staging qualifications are drifted; do not retry"
+        )
+
+    games = connection.execute(
+        text(
+            "SELECT id, year, season, start_datetime, duration, location, home_team, "
+            "away_team, invitation_time, cancellation_time, cancellation_announcement_time "
+            "FROM ntubtob.games WHERE id = ANY(:ids) ORDER BY id"
+        ),
+        {"ids": list(MOBILE_FIXTURE_IDS)},
+    ).all()
+    expected_games = (
+        (
+            -112003,
+            2035,
+            1,
+            datetime(2035, 2, 15, 4, tzinfo=timezone.utc),
+            150,
+            "虛構球場 C",
+            "台大OB",
+            "虛構對手丙",
+            ANCHOR,
+            None,
+            None,
+        ),
+        (
+            -112002,
+            2035,
+            1,
+            datetime(2035, 2, 8, 3, tzinfo=timezone.utc),
+            150,
+            "虛構球場 B",
+            "虛構對手乙",
+            "台大OB",
+            ANCHOR,
+            None,
+            None,
+        ),
+        (
+            -112001,
+            2035,
+            1,
+            datetime(2035, 2, 1, 2, tzinfo=timezone.utc),
+            150,
+            "虛構球場 A",
+            "台大OB",
+            "虛構對手甲",
+            ANCHOR,
+            None,
+            None,
+        ),
+    )
+    if tuple(map(tuple, games)) != expected_games:
+        raise StagingContractError("Remote staging games are drifted; do not retry")
+
+    replies = connection.execute(
+        text(
+            "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
+            "FROM ntubtob.game_attendance_replies WHERE id = ANY(:ids) ORDER BY id"
+        ),
+        {"ids": list(MOBILE_FIXTURE_IDS)},
+    ).all()
+    if tuple(map(tuple, replies)) != CANONICAL_FIXTURE_REPLY_ROWS:
+        raise StagingContractError("Remote staging attendance is drifted; do not retry")
+    legacy_replies = connection.execute(
+        text(
+            "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
+            "FROM ntubtob.game_attendance_replies WHERE id BETWEEN 9601 AND 9604 "
+            "ORDER BY id"
+        )
+    ).all()
+    expected_legacy_replies = (
+        (9601, 9401, 9501, 9201, 1, 9103, datetime(2037, 1, 1, tzinfo=timezone.utc)),
+        (
+            9602,
+            9401,
+            9501,
+            9201,
+            1,
+            9101,
+            datetime(2037, 1, 1, 0, 1, tzinfo=timezone.utc),
+        ),
+        (9603, 9402, 9501, 9201, 1, 9102, datetime(2037, 1, 2, tzinfo=timezone.utc)),
+        (
+            9604,
+            9402,
+            9501,
+            9201,
+            1,
+            9102,
+            datetime(2037, 1, 2, 0, 1, tzinfo=timezone.utc),
+        ),
+    )
+    if tuple(map(tuple, legacy_replies)) != expected_legacy_replies:
+        raise StagingContractError(
+            "Remote staging legacy attendance ownership is drifted; do not retry"
+        )
+    reply_types = connection.execute(
+        text(
+            "SELECT id, description FROM ntubtob.attendance_reply_types "
+            "WHERE id BETWEEN 1 AND 5 ORDER BY id"
+        )
+    ).all()
+    if tuple(map(tuple, reply_types)) != (
+        (1, "TASK112 fixture attending"),
+        (2, "TASK112 fixture not_attending"),
+        (3, "TASK112 fixture arriving_late"),
+        (4, "TASK112 fixture leaving_early"),
+        (5, "TASK112 fixture undecided"),
+    ):
+        raise StagingContractError(
+            "Remote staging attendance reply types are drifted; do not retry"
+        )
+    if not _legacy_fixture_audit(connection):
+        raise StagingContractError(
+            "Remote staging fixture audit is drifted; do not retry"
+        )
+    return state, (
+        "seeded",
+        tuple(map(tuple, people)),
+        tuple(map(tuple, identities)),
+        bool(tester_binding),
+        tuple(map(tuple, qualifications)),
+        tuple(map(tuple, games)),
+        tuple(map(tuple, replies)),
+        tuple(map(tuple, legacy_replies)),
+        tuple(map(tuple, reply_types)),
+    )
+
+
 def recover(approval: dict, database_url: str) -> dict:
     state = inventory(approval, database_url)
     if state["database_state"] == "empty":
@@ -1374,13 +1649,17 @@ def _bootstrap_empty_database(engine, root: Path) -> None:
 
 
 def _upgrade_known_database(
-    engine, root: Path, expected_revision: str, expected_fixture_state: str
+    engine,
+    root: Path,
+    expected_revision: str,
+    expected_fixture_state: str,
+    private_subject: str | None = None,
 ) -> None:
     if expected_revision not in FORWARD_REVISIONS:
         raise StagingContractError("Remote staging forward revision is not approved")
     try:
         with engine.begin() as connection:
-            before = _database_state(connection)
+            before = _database_state(connection, private_subject, True)
             if (
                 before["database_state"] != "upgrade_pending"
                 or before["revision"] != expected_revision
@@ -1390,11 +1669,12 @@ def _upgrade_known_database(
                     "Remote staging forward-upgrade precheck drifted"
                 )
             command.upgrade(_alembic_config(root, connection), REVISION)
-            after = _database_state(connection)
+            after = _database_state(connection, private_subject, True)
             if (
                 after["database_state"] != "ready"
                 or after["revision"] != REVISION
                 or after["fixture_state"] != expected_fixture_state
+                or after["fixture_fingerprint"] != before["fixture_fingerprint"]
             ):
                 raise StagingContractError(
                     "Remote staging forward-upgrade postcheck failed"
@@ -1431,6 +1711,7 @@ def execute(
                 root,
                 before["revision"],
                 before["fixture_state"],
+                private_subject,
             )
             migrated = inventory(approval, database_url)
             if (
