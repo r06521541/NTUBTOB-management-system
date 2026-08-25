@@ -34,3 +34,12 @@
 - Runtime grants for the existing Event tables remain a deploy gate. No schema,
   migration, deploy, cloud, Secret, IAM, production data, notification, or runtime
   mutation was performed.
+
+## Reviewer correction evidence
+
+- Lease 2 aligned Event, Activity, and linked Game wire IDs with the exact opaque
+  signed-bigint contract and rejects malformed detail IDs before transport.
+- Event list/detail now route terminal authentication through the canonical root
+  callback and fence completions by both session generation and principal scope.
+- Exact `dart format` completed with exit 0 on the four affected Dart files;
+  final focused Flutter tests passed `152/152` and focused analyze found no issues.

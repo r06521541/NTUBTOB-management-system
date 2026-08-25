@@ -177,6 +177,27 @@ DateTime _utcDate(Map<String, dynamic> json, String key) {
   return value;
 }
 
+final _minimumSignedBigint = BigInt.parse('-9223372036854775808');
+final _maximumSignedBigint = BigInt.parse('9223372036854775807');
+
+bool _validPositiveOpaqueId(String value, String prefix, int maxLength) {
+  if (value.length > maxLength ||
+      !RegExp('^${RegExp.escape(prefix)}[1-9][0-9]*\$').hasMatch(value)) {
+    return false;
+  }
+  final parsed = BigInt.tryParse(value.substring(prefix.length));
+  return parsed != null && parsed <= _maximumSignedBigint;
+}
+
+bool _validGameId(Object? value) {
+  if (value is! String || value.length > 25) return false;
+  if (!RegExp(r'^game_-?[1-9][0-9]*$').hasMatch(value)) return false;
+  final parsed = BigInt.tryParse(value.substring(5));
+  return parsed != null &&
+      parsed >= _minimumSignedBigint &&
+      parsed <= _maximumSignedBigint;
+}
+
 enum AttendanceReply {
   attending,
   notAttending,
@@ -482,29 +503,32 @@ class EventActivity {
   });
 
   factory EventActivity.fromJson(Map<String, dynamic> json) {
+    final id = _required<String>(json, 'id');
     final position = _required<int>(json, 'position');
     final startAt = _utcDate(json, 'start_at');
     final rawEndAt = _nullable<String>(json, 'end_at');
-    final endAt = rawEndAt == null
-        ? null
-        : _utcDate({'end_at': rawEndAt}, 'end_at');
+    final endAt =
+        rawEndAt == null ? null : _utcDate({'end_at': rawEndAt}, 'end_at');
     final title = _required<String>(json, 'title');
     final type = _required<String>(json, 'type');
-    if (title.isEmpty ||
+    final linkedGameId = _nullable<String>(json, 'linked_game_id');
+    if (!_validPositiveOpaqueId(id, 'activity_', 29) ||
+        title.isEmpty ||
         title.length > 200 ||
         !const {'game', 'meal', 'transport', 'lodging', 'gathering', 'other'}
             .contains(type) ||
-        endAt != null && endAt.isBefore(startAt)) {
+        endAt != null && endAt.isBefore(startAt) ||
+        linkedGameId != null && !_validGameId(linkedGameId)) {
       throw const ContractException('invalid activity');
     }
     return EventActivity(
-      id: _required(json, 'id'),
+      id: id,
       title: title,
       type: type,
       position: position,
       startAt: startAt,
       endAt: endAt,
-      linkedGameId: _nullable(json, 'linked_game_id'),
+      linkedGameId: linkedGameId,
     );
   }
 
@@ -527,15 +551,16 @@ class TeamEvent {
   });
 
   factory TeamEvent.fromJson(Map<String, dynamic> json) {
+    final id = _required<String>(json, 'id');
     final status = _required<String>(json, 'status');
     final startAt = _utcDate(json, 'start_at');
     final rawEndAt = _nullable<String>(json, 'end_at');
-    final endAt = rawEndAt == null
-        ? null
-        : _utcDate({'end_at': rawEndAt}, 'end_at');
+    final endAt =
+        rawEndAt == null ? null : _utcDate({'end_at': rawEndAt}, 'end_at');
     final title = _required<String>(json, 'title');
     final type = _required<String>(json, 'type');
-    if (title.isEmpty ||
+    if (!_validPositiveOpaqueId(id, 'event_', 26) ||
+        title.isEmpty ||
         title.length > 200 ||
         !const {'game', 'meal', 'trip', 'practice', 'social', 'other'}
             .contains(type) ||
@@ -551,7 +576,7 @@ class TeamEvent {
         return byPosition != 0 ? byPosition : left.id.compareTo(right.id);
       });
     return TeamEvent(
-      id: _required(json, 'id'),
+      id: id,
       title: title,
       type: type,
       status: status,
@@ -712,7 +737,7 @@ enum MobileNotificationType {
 }
 
 const notificationRetention = Duration(days: 90);
-final _maximumNotificationId = BigInt.parse('9223372036854775807');
+final _maximumNotificationId = _maximumSignedBigint;
 
 bool _validNotificationId(String value) {
   if (value.length > 32 ||
@@ -763,12 +788,7 @@ class NotificationDestination {
       value.length == expected.length && value.keys.every(expected.contains);
 
   static bool _isCanonicalGameId(Object? value) {
-    if (value is! String || value.length > 25) return false;
-    if (!RegExp(r'^game_-?[1-9][0-9]*$').hasMatch(value)) return false;
-    final parsed = BigInt.tryParse(value.substring(5));
-    return parsed != null &&
-        parsed >= BigInt.parse('-9223372036854775808') &&
-        parsed <= BigInt.parse('9223372036854775807');
+    return _validGameId(value);
   }
 
   factory NotificationDestination.parseOrFallback(
@@ -2335,6 +2355,9 @@ class BasicApi {
   }
 
   Future<TeamEvent> event(String id) async {
+    if (!_validPositiveOpaqueId(id, 'event_', 26)) {
+      throw const ContractException('invalid event id');
+    }
     final response = await session.authorized(
       'GET',
       '/events/${Uri.encodeComponent(id)}',

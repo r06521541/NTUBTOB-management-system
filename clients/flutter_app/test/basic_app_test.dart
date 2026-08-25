@@ -55,6 +55,34 @@ class QueueTransport implements ApiTransport {
   }
 }
 
+class PrincipalEventTransport implements ApiTransport {
+  final aStarted = Completer<void>();
+  final aResponse = Completer<ApiResponse>();
+  final calls = <(String, String, String?)>[];
+
+  @override
+  Future<ApiResponse> send(
+    String method,
+    String path, {
+    Map<String, String> headers = const {},
+    Map<String, dynamic>? body,
+  }) async {
+    final authorization = headers['Authorization'];
+    calls.add((method, path, authorization));
+    if (authorization == 'Bearer access-a') {
+      if (!aStarted.isCompleted) aStarted.complete();
+      return aResponse.future;
+    }
+    if (authorization == 'Bearer access-b') {
+      return ApiResponse(200, {
+        'items': [eventJson(id: 'event_2')],
+        'next_cursor': null,
+      });
+    }
+    throw StateError('unexpected principal');
+  }
+}
+
 Map<String, dynamic> gameJson({
   int? durationMinutes = 60,
   String? location = '球場',
@@ -69,7 +97,7 @@ Map<String, dynamic> gameJson({
     };
 
 Map<String, dynamic> eventJson({
-  String id = 'event-1',
+  String id = 'event_1',
   String status = 'published',
 }) =>
     {
@@ -81,22 +109,22 @@ Map<String, dynamic> eventJson({
       'end_at': '2026-09-01T04:00:00Z',
       'activities': [
         {
-          'id': 'activity-linked',
+          'id': 'activity_2',
           'title': '友誼賽',
           'type': 'game',
           'position': 2,
           'start_at': '2026-09-01T02:00:00Z',
           'end_at': '2026-09-01T04:00:00Z',
-          'linked_game_id': 'game-visible',
+          'linked_game_id': 'game_44',
         },
         {
-          'id': 'activity-hidden',
+          'id': 'activity_1',
           'title': '另一場比賽',
           'type': 'game',
           'position': 1,
           'start_at': '2026-09-01T01:00:00Z',
           'end_at': '2026-09-01T01:30:00Z',
-          'linked_game_id': 'game-not-visible',
+          'linked_game_id': 'game_45',
         },
       ],
     };
@@ -731,9 +759,10 @@ void main() {
       home: EventListPage(
         api: api,
         online: true,
+        principalScope: 'person_1',
         visibleGames: [
-          Game('game-visible', DateTime.utc(2026, 9, 1, 2), 120, null,
-              'Home', 'Away'),
+          Game('game_44', DateTime.utc(2026, 9, 1, 2), 120, null, 'Home',
+              'Away'),
         ],
       ),
     ));
@@ -742,18 +771,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('已取消'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('event-event-1')));
+    await tester.tap(find.byKey(const ValueKey('event-event_1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('event-cancelled')), findsOneWidget);
   });
 
   test('event linked game resolves only inside the visible game scope', () {
     final visible = [
-      Game('game-visible', DateTime.utc(2026, 9, 1, 2), 120, null, 'Home',
-          'Away'),
+      Game('game_44', DateTime.utc(2026, 9, 1, 2), 120, null, 'Home', 'Away'),
     ];
-    expect(visibleLinkedGame('game-visible', visible)?.id, 'game-visible');
-    expect(visibleLinkedGame('game-not-visible', visible), isNull);
+    expect(visibleLinkedGame('game_44', visible)?.id, 'game_44');
+    expect(visibleLinkedGame('game_45', visible), isNull);
     expect(visibleLinkedGame(null, visible), isNull);
   });
 
@@ -769,6 +797,7 @@ void main() {
       home: EventListPage(
         api: await apiFor(emptyTransport, MemoryStore()),
         online: true,
+        principalScope: 'person_1',
         visibleGames: const [],
       ),
     ));
@@ -782,12 +811,159 @@ void main() {
         key: UniqueKey(),
         api: await apiFor(errorTransport, MemoryStore()),
         online: true,
+        principalScope: 'person_1',
         visibleGames: const [],
       ),
     ));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('events-error')), findsOneWidget);
     expect(find.byKey(const ValueKey('events-retry')), findsOneWidget);
+  });
+
+  testWidgets('terminal event list auth clears projection and returns root', (
+    tester,
+  ) async {
+    final transport = QueueTransport()
+      ..responses.addAll(const [
+        ApiResponse(401, null),
+        ApiResponse(401, null),
+      ]);
+    final store = MemoryStore();
+    final api = await apiFor(transport, store);
+    var terminalCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (rootContext) => Scaffold(
+          body: FilledButton(
+            onPressed: () => Navigator.of(rootContext).push(
+              MaterialPageRoute<void>(
+                builder: (_) => EventListPage(
+                  api: api,
+                  online: true,
+                  principalScope: 'person_1',
+                  visibleGames: const [],
+                  onTerminalSession: () async {
+                    terminalCalls++;
+                    Navigator.of(rootContext)
+                        .popUntil((route) => route.isFirst);
+                  },
+                ),
+              ),
+            ),
+            child: const Text('open events'),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('open events'));
+    await tester.pumpAndSettle();
+
+    expect(terminalCalls, 1);
+    expect(find.byType(EventListPage), findsNothing);
+    expect(await api.session.observePresence(), isFalse);
+    expect(find.byKey(const ValueKey('events-error')), findsNothing);
+  });
+
+  testWidgets('terminal event detail uses the canonical session callback', (
+    tester,
+  ) async {
+    final transport = QueueTransport()
+      ..responses.addAll(const [
+        ApiResponse(401, null),
+        ApiResponse(401, null),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    var terminalCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (rootContext) => Scaffold(
+          body: FilledButton(
+            onPressed: () => Navigator.of(rootContext).push(
+              MaterialPageRoute<void>(
+                builder: (_) => EventDetailPage(
+                  api: api,
+                  eventId: 'event_1',
+                  principalScope: 'person_1',
+                  visibleGames: const [],
+                  onTerminalSession: () async {
+                    terminalCalls++;
+                    Navigator.of(rootContext)
+                        .popUntil((route) => route.isFirst);
+                  },
+                ),
+              ),
+            ),
+            child: const Text('open event detail'),
+          ),
+        ),
+      ),
+    ));
+
+    await tester.tap(find.text('open event detail'));
+    await tester.pumpAndSettle();
+
+    expect(terminalCalls, 1);
+    expect(find.byType(EventDetailPage), findsNothing);
+    expect(find.byKey(const ValueKey('event-detail-error')), findsNothing);
+  });
+
+  testWidgets('principal switch fences a stale event list completion', (
+    tester,
+  ) async {
+    final transport = PrincipalEventTransport();
+    final store = MemoryStore();
+    final sessions = SessionController(
+      transport,
+      store,
+      'install',
+      SecureIds(),
+    );
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'access-a',
+      refreshToken: 'refresh-token-a-with-at-least-32-characters',
+      sessionId: 'session-a',
+      expiresIn: 900,
+    ));
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+    const pageKey = ValueKey('principal-fenced-events');
+    await tester.pumpWidget(MaterialApp(
+      home: EventListPage(
+        key: pageKey,
+        api: api,
+        online: true,
+        principalScope: 'person_1',
+        visibleGames: const [],
+      ),
+    ));
+    await transport.aStarted.future;
+
+    await sessions.accept(const SessionEnvelope(
+      accessToken: 'access-b',
+      refreshToken: 'refresh-token-b-with-at-least-32-characters',
+      sessionId: 'session-b',
+      expiresIn: 900,
+    ));
+    await tester.pumpWidget(MaterialApp(
+      home: EventListPage(
+        key: pageKey,
+        api: api,
+        online: true,
+        principalScope: 'person_2',
+        visibleGames: const [],
+      ),
+    ));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('event-event_2')), findsOneWidget);
+
+    transport.aResponse.complete(ApiResponse(200, {
+      'items': [eventJson(id: 'event_1')],
+      'next_cursor': null,
+    }));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('event-event_2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('event-event_1')), findsNothing);
   });
 
   testWidgets('fresh account status is reachable with safe semantics', (

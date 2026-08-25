@@ -53,10 +53,7 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   if (error is NetworkException) {
     return hasCache ? AuthViewState.offline : AuthViewState.recoverableError;
   }
-  if (error is SessionExpiredException ||
-      error is ApiError &&
-          (error.code == ApiErrorCode.sessionExpired ||
-              error.code == ApiErrorCode.unauthenticated)) {
+  if (isTerminalSessionFailure(error)) {
     return AuthViewState.sessionExpired;
   }
   if (error is StateError && error.message == 'signed out') {
@@ -64,6 +61,12 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   }
   return AuthViewState.contractError;
 }
+
+bool isTerminalSessionFailure(Object error) =>
+    error is SessionExpiredException ||
+    error is ApiError &&
+        (error.code == ApiErrorCode.sessionExpired ||
+            error.code == ApiErrorCode.unauthenticated);
 
 bool canStartLogout(AuthViewState state, {required bool basicLoadInProgress}) =>
     state == AuthViewState.authenticated && !basicLoadInProgress;
@@ -1353,7 +1356,9 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                     builder: (_) => EventListPage(
                       api: widget.api,
                       online: widget.online,
+                      principalScope: widget.person.id,
                       visibleGames: widget.games,
+                      onTerminalSession: widget.onProfileTerminalSession,
                     ),
                   ),
                 ),
@@ -1538,12 +1543,16 @@ class EventListPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.online,
+    required this.principalScope,
     required this.visibleGames,
+    this.onTerminalSession,
   });
 
   final BasicApi api;
   final bool online;
+  final String principalScope;
   final List<Game> visibleGames;
+  final Future<void> Function()? onTerminalSession;
 
   @override
   State<EventListPage> createState() => _EventListPageState();
@@ -1559,17 +1568,55 @@ class _EventListPageState extends State<EventListPage> {
     if (widget.online) _load();
   }
 
+  @override
+  void didUpdateWidget(covariant EventListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.principalScope != widget.principalScope ||
+        !identical(oldWidget.api, widget.api) ||
+        oldWidget.online != widget.online) {
+      if (widget.online) {
+        _load();
+      } else {
+        setState(() {
+          _events = null;
+          _error = null;
+        });
+      }
+    }
+  }
+
+  bool _matches(AuthOperationContext operation) =>
+      mounted &&
+      operation.matches(
+        currentEpoch: widget.api.session.generation,
+        currentPersonId: widget.principalScope,
+      );
+
+  bool _samePrincipal(AuthOperationContext operation) =>
+      mounted &&
+      operation.personId == widget.principalScope &&
+      (widget.api.session.generation == operation.epoch ||
+          widget.api.session.generation == operation.epoch + 1);
+
   Future<void> _load() async {
+    final operation = AuthOperationContext(
+      widget.api.session.generation,
+      widget.principalScope,
+    );
     setState(() {
       _events = null;
       _error = null;
     });
     try {
       final events = await widget.api.events();
-      if (!mounted) return;
+      if (!_matches(operation)) return;
       setState(() => _events = events);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (isTerminalSessionFailure(error)) {
+        if (_samePrincipal(operation)) await widget.onTerminalSession?.call();
+      } else if (_matches(operation)) {
+        setState(() => _error = error);
+      }
     }
   }
 
@@ -1634,14 +1681,18 @@ class _EventListPageState extends State<EventListPage> {
                                       ? Icons.event_busy
                                       : Icons.event_available),
                                   title: Text(event.title),
-                                  subtitle: Text(_eventMetadata(context, event)),
+                                  subtitle:
+                                      Text(_eventMetadata(context, event)),
                                   trailing: const Icon(Icons.chevron_right),
                                   onTap: () => Navigator.of(context).push(
                                     MaterialPageRoute<void>(
                                       builder: (_) => EventDetailPage(
                                         api: widget.api,
                                         eventId: event.id,
+                                        principalScope: widget.principalScope,
                                         visibleGames: widget.visibleGames,
+                                        onTerminalSession:
+                                            widget.onTerminalSession,
                                       ),
                                     ),
                                   ),
@@ -1657,12 +1708,16 @@ class EventDetailPage extends StatefulWidget {
     super.key,
     required this.api,
     required this.eventId,
+    required this.principalScope,
     required this.visibleGames,
+    this.onTerminalSession,
   });
 
   final BasicApi api;
   final String eventId;
+  final String principalScope;
   final List<Game> visibleGames;
+  final Future<void> Function()? onTerminalSession;
 
   @override
   State<EventDetailPage> createState() => _EventDetailPageState();
@@ -1678,17 +1733,48 @@ class _EventDetailPageState extends State<EventDetailPage> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant EventDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.principalScope != widget.principalScope ||
+        oldWidget.eventId != widget.eventId ||
+        !identical(oldWidget.api, widget.api)) {
+      _load();
+    }
+  }
+
+  bool _matches(AuthOperationContext operation) =>
+      mounted &&
+      operation.matches(
+        currentEpoch: widget.api.session.generation,
+        currentPersonId: widget.principalScope,
+      );
+
+  bool _samePrincipal(AuthOperationContext operation) =>
+      mounted &&
+      operation.personId == widget.principalScope &&
+      (widget.api.session.generation == operation.epoch ||
+          widget.api.session.generation == operation.epoch + 1);
+
   Future<void> _load() async {
+    final operation = AuthOperationContext(
+      widget.api.session.generation,
+      widget.principalScope,
+    );
     setState(() {
       _event = null;
       _error = null;
     });
     try {
       final event = await widget.api.event(widget.eventId);
-      if (!mounted) return;
+      if (!_matches(operation)) return;
       setState(() => _event = event);
     } on Object catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (isTerminalSessionFailure(error)) {
+        if (_samePrincipal(operation)) await widget.onTerminalSession?.call();
+      } else if (_matches(operation)) {
+        setState(() => _error = error);
+      }
     }
   }
 
@@ -1789,7 +1875,8 @@ String _eventMetadata(BuildContext context, TeamEvent event) {
   final localStart = event.startAt.toLocal();
   final localEnd = event.endAt?.toLocal();
   final status = event.cancelled ? '已取消' : '已發布';
-  final start = localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
+  final start =
+      localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
   final end = localEnd == null
       ? ''
       : '–${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localEnd))}';
