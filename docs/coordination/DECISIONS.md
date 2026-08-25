@@ -272,9 +272,33 @@
 - Non-goals：不授權 production promotion、正式 schema／資料操作、LINE／Google／Apple Console policy、建立新付費資源、
   提高成本上限或刪除既有 cloud resource；也不允許 agent 代替 Owner 輸入帳密、掃碼或 consent。
 
+## DEC-099：Checksummed staging target 與分層 agent autonomy
+
+- 狀態：`active`
+- 生效：2026-08-25
+- 來源：Owner 對 Main Work 外部唯讀與隔離 staging 操作邊界的明確長期授權
+- Supersedes：無；補充 DEC-098 的 target resolution 與操作分層
+- 決策：Repository 中通過既有 verifier 的 checksummed staging artifact 所指向之 project、region、service、revision
+  與 resource alias，視為既有核准的 isolated fictional staging target。即使其 project 不同於本機 default config，
+  Main Work 仍可用每個命令顯式 target 執行 sanitized `list/get/describe`，不得因此切換預設帳號或修改 gcloud config。
+- Repository autonomy：Work／Codex可依 DEC-076 完成 branch、commit、push、PR、CI與merge；一般 coordination payload
+  的 repository push 已獲 Owner 明確授權，仍不得提交 Secret、credential或受限制的 provider identifier。
+- Read-only autonomy：可查 Cloud Run revision／traffic／runtime key存在性、Secret reference metadata與version存在性、
+  IAM結構、OAuth client類型／callback匹配狀態、build／health／audit metadata。輸出只保留
+  `confirmed／missing／inconsistent／blocked` 或布林值；不得輸出account、client ID、callback值、Secret名稱、
+  fingerprint、IAM member identity或Secret payload。
+- Reversible staging autonomy：確認 exact target、runtime identity、cost ceiling、public boundary與rollback一致後，agent
+  可在既有工具邊界內建立無traffic candidate、執行health check及可復原rollback，並沿用既有Secret references；
+  未知結果先唯讀reconcile，不得盲目重送。
+- Owner gates：OAuth client建立／刪除、callback修改、Secret payload／version建立或輪替、IAM binding、public access、
+  runtime identity、traffic promotion、signing、帳密／登入／consent、store、production、真實資料／通知、新付費資源與
+  不可逆刪除仍需精確逐案批准。Main Work應先提供一次完整批准包，不為同一已核准原子操作逐命令重問。
+- Stop conditions：artifact verifier失敗、target無法唯一解析、active identity或cost／public／rollback boundary漂移、
+  network/auth failure、輸出無法安全去識別、外部結果不確定或需要任何未核准mutation時立即停止。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～098`，下一個新決策從 `DEC-099` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前為 `DEC-076～099`，下一個新決策從 `DEC-100` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

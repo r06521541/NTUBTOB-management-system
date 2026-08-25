@@ -14,13 +14,12 @@ updated_at: 2026-08-25T00:00:00+08:00
 
 note: >
   Owner activated TASK-157 to move the Google Auth repository implementation
-  toward a truthful staging result. Main Work may first perform sanitized
-  read-only reconciliation only. Partial provider-side preparation was reported
-  by the revoked actor but remains unverified. Any provider/callback,
-  Secret/IAM, signing, build, staging deployment or traffic mutation requires a
-  separate exact Owner approval; human login or consent remains operator=owner.
-  Production is outside this task. No external operation has been performed by
-  TASK-157 yet.
+  toward a truthful staging result. DEC-099 now authorizes checksummed
+  artifact-derived explicit targets, sanitized read-only reconciliation and,
+  after boundary verification, no-traffic candidate/health/rollback autonomy.
+  Initial Web runtime metadata read found no Google runtime configuration and
+  made no mutation. Provider/callback, Secret/IAM, traffic, signing and human
+  login/consent remain exact Owner gates; production is outside this task.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-157.md
