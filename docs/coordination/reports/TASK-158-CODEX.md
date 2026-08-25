@@ -53,3 +53,13 @@
 - Bundled dependency runtime suites passed: shared library `55/55`, Mobile API
   `47/47`, and Flutter Event wire tests `5/5`. Black formatter API reported no
   remaining files requiring formatting after the documented Windows CLI fallback.
+
+## OpenAPI identifier correction evidence
+
+- Lease 4 corrected Event and Activity opaque-ID lengths to the prefix plus the
+  maximum 19 decimal digits (`25` and `28`) and documents the exact positive
+  signed 64-bit range plus leading-zero and overflow rejection without an
+  unreadable numeric regex or vendor extension.
+- OpenAPI adversarial contract and JSON parse passed; Mobile API passed `47/47`
+  and the shared Mobile API service file passed `19/19`, including same-length
+  19-digit overflow rejection for both Event and Activity IDs.

@@ -299,6 +299,34 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(
             event["properties"]["status"]["enum"], ["published", "cancelled"]
         )
+        event_parameter = self.contract["components"]["parameters"]["EventId"]
+        event_id_contracts = (
+            (
+                event_parameter["schema"],
+                event_parameter["description"],
+                "^event_[1-9][0-9]*$",
+                25,
+            ),
+            (
+                event["properties"]["id"],
+                event["properties"]["id"]["description"],
+                "^event_[1-9][0-9]*$",
+                25,
+            ),
+            (
+                schemas["EventActivity"]["properties"]["id"],
+                schemas["EventActivity"]["properties"]["id"]["description"],
+                "^activity_[1-9][0-9]*$",
+                28,
+            ),
+        )
+        for identifier, description, pattern, max_length in event_id_contracts:
+            with self.subTest(description=description):
+                self.assertEqual(identifier["pattern"], pattern)
+                self.assertEqual(identifier["maxLength"], max_length)
+                self.assertIn("1..9223372036854775807", description)
+                self.assertIn("leading zero", description)
+                self.assertIn("overflow", description)
         linked_game = schemas["EventActivity"]["properties"]["linked_game_id"]
         self.assertEqual(linked_game["pattern"], "^game_-?[1-9][0-9]*$")
         self.assertEqual(linked_game["maxLength"], 25)

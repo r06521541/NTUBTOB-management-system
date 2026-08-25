@@ -547,7 +547,7 @@ class BasicApiServiceTest(unittest.TestCase):
             with self.subTest(malformed=malformed), self.assertRaises(InvalidArgument):
                 service._public_event(event_with_linked_games(malformed))
 
-        for malformed in (-1, True, 1.0):
+        for malformed in (-1, MAX_POSTGRESQL_BIGINT + 1, True, 1.0):
             with self.subTest(positive_id=malformed), self.assertRaises(
                 InvalidArgument
             ):
