@@ -59,16 +59,28 @@ Main claim／lease. Inventory observation, not-before, and expiry timestamps use
 exact second-resolution UTC and each phase packet may span at most 30 minutes.
 A private execution sidecar must consume the derived binding SHA-256; a
 previously consumed binding fails closed.
-The executable CLI uses a fixed, repository-external TASK-157 private
-consumption namespace and derives the sidecar filename only from the execution
+The executable CLI uses a fixed, repository-external, machine-local and
+user-local TASK-157 private consumption namespace from the operating system's
+canonical user-state location. It is independent of checkout, worktree, clone
+and repository names and derives the sidecar filename only from the execution
 binding SHA-256. It atomically creates that sidecar with create-exclusive
-semantics before it emits `PASS`, so copied or renamed packets converge on the
-same global-per-binding record and concurrent attempts have exactly one winner.
+semantics before it emits `PASS`, so packet copies in any checkout converge on
+the same machine-wide per-user binding record and concurrent attempts have
+exactly one winner.
 The sidecar contains only its schema, binding hash, approval hash and UTC
 consumption time. An existing empty, malformed or valid sidecar is the same
 terminal replay failure. A write, flush, identity or postcheck failure leaves
 the sidecar in place and must not be deleted or retried. The CLI exposes no
 argument that can relocate this consumption namespace.
+
+On Windows every task-owned namespace directory has inheritance disabled, is
+owned by the current user, and has exactly two full-control inheritable allow
+ACEs: the current user and `SYSTEM`. Unexpected, inherited, duplicated or
+permission-drifted ACEs fail closed; built-in Administrators are not required.
+On POSIX the namespace must be owned by the effective user with exact mode
+`0700`. Existing namespace ownership or ACL/mode drift is never repaired during
+approval consumption and fails closed instead. All namespace ancestors retain
+the no-symlink／no-reparse requirement.
 
 The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import ctypes
 import hashlib
 import io
 import json
@@ -19,7 +20,12 @@ from tools.google_auth_staging_preflight import (
     ProviderApprovalError,
     _consume_cli_approval,
     _consumed_sidecar_path,
+    _default_consumption_root,
+    _prepare_consumption_root,
     _read_opened_json,
+    _set_windows_private_acl,
+    _validate_windows_acl_state,
+    _verify_windows_private_acl,
     canonical_approval_sha256,
     execution_binding_sha256,
     load_provider_approval,
@@ -213,7 +219,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         return main(
             [str(path or self.path)],
             now=now,
-            consumption_root=self.consumption_root,
+            _test_consumption_root=self.consumption_root,
         )
 
     def replace(self, field: str, replacement: object) -> dict:
@@ -372,7 +378,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         script = (
             "import sys; from pathlib import Path; "
             "from tools.google_auth_staging_preflight import main; "
-            "raise SystemExit(main([sys.argv[1]], consumption_root=Path(sys.argv[2])))"
+            "raise SystemExit(main([sys.argv[1]], _test_consumption_root=Path(sys.argv[2])))"
         )
         command = [
             sys.executable,
@@ -422,6 +428,92 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual(json.loads(outputs[0][1])["classification"], "PASS")
         self.assertEqual(outputs[1][1:], ("", "ERROR: PROVIDER_APPROVAL_INVALID\n"))
 
+    def test_default_namespace_is_independent_of_checkout_path(self):
+        first = _default_consumption_root()
+        with patch(
+            "tools.google_auth_staging_preflight.REPOSITORY_ROOT",
+            Path("Z:/another-clone/renamed-checkout"),
+        ):
+            second = _default_consumption_root()
+        self.assertEqual(first, second)
+        repository = Path(__file__).resolve().parents[2]
+        self.assertFalse(first == repository or first.is_relative_to(repository))
+
+    def test_new_namespace_is_secured_and_existing_acl_drift_fails_closed(self):
+        root = Path(self.temp.name) / "isolated-consumption"
+        with patch(
+            "tools.google_auth_staging_preflight._secure_new_private_directory"
+        ) as secure, patch(
+            "tools.google_auth_staging_preflight._verify_private_directory_security"
+        ) as verify:
+            self.assertEqual(_prepare_consumption_root(root), root.resolve())
+        secure.assert_called_once_with(root.resolve())
+        verify.assert_called_once_with(root.resolve())
+
+        with patch(
+            "tools.google_auth_staging_preflight._verify_private_directory_security",
+            side_effect=ProviderApprovalError("ACL_DRIFT_SENTINEL"),
+        ):
+            with self.assertRaises(ProviderApprovalError):
+                _prepare_consumption_root(root)
+
+    def test_windows_acl_state_is_exact_and_drift_fails_closed(self):
+        exact = [
+            (0, 0x03, 0x001F01FF, "user"),
+            (0, 0x03, 0x001F01FF, "system"),
+        ]
+        _validate_windows_acl_state(
+            owner_is_user=True, dacl_is_protected=True, aces=exact
+        )
+        drifts = (
+            {"owner_is_user": False, "dacl_is_protected": True, "aces": exact},
+            {"owner_is_user": True, "dacl_is_protected": False, "aces": exact},
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": exact + [(0, 0x03, 0x001F01FF, "administrators")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [(0, 0x13, 0x001F01FF, "user"), exact[1]],
+            },
+        )
+        for drift in drifts:
+            with self.subTest(drift=drift):
+                with self.assertRaises(ProviderApprovalError):
+                    _validate_windows_acl_state(**drift)
+
+    @unittest.skipUnless(os.name == "nt", "Windows ACL integration only")
+    def test_actual_windows_namespace_acl_drift_fails_closed_and_is_restored(self):
+        from ctypes import wintypes
+
+        root = Path(self.temp.name) / "actual-windows-acl"
+        secured = _prepare_consumption_root(root)
+        _verify_windows_private_acl(secured)
+
+        advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+        advapi32.SetNamedSecurityInfoW.argtypes = [
+            wintypes.LPWSTR,
+            wintypes.DWORD,
+            wintypes.DWORD,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+            ctypes.c_void_p,
+        ]
+        advapi32.SetNamedSecurityInfoW.restype = wintypes.DWORD
+        try:
+            result = advapi32.SetNamedSecurityInfoW(
+                str(secured), 1, 0x00000004, None, None, None, None
+            )
+            self.assertEqual(result, 0)
+            with self.assertRaises(ProviderApprovalError):
+                _verify_windows_private_acl(secured)
+        finally:
+            _set_windows_private_acl(secured)
+            _verify_windows_private_acl(secured)
+
     def test_concurrent_identical_binding_two_filenames_has_exactly_one_pass(self):
         value = approval_for_now(
             datetime.now(timezone.utc), phase_approval("tester_add")
@@ -436,7 +528,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         script = (
             "import sys; from pathlib import Path; "
             "from tools.google_auth_staging_preflight import main; "
-            "raise SystemExit(main([sys.argv[1]], consumption_root=Path(sys.argv[2])))"
+            "raise SystemExit(main([sys.argv[1]], _test_consumption_root=Path(sys.argv[2])))"
         )
         processes = [
             subprocess.Popen(
@@ -482,7 +574,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):
                     result = main(
-                        [str(path)], now=NOW, consumption_root=consumption_root
+                        [str(path)], now=NOW, _test_consumption_root=consumption_root
                     )
                 self.assertEqual(result, 2)
                 self.assertEqual(
@@ -519,7 +611,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                     self.path,
                     loaded,
                     NOW,
-                    consumption_root=self.consumption_root,
+                    _test_consumption_root=self.consumption_root,
                 )
         self.assertFalse(_consumed_sidecar_path(loaded, self.consumption_root).exists())
 
@@ -531,7 +623,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             result = main(
                 [str(self.path)],
                 now=NOW,
-                consumption_root=repository_namespace,
+                _test_consumption_root=repository_namespace,
             )
         self.assertEqual((result, stdout.getvalue()), (2, ""))
         self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
