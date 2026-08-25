@@ -58,6 +58,7 @@ class MobileApiRouteTest(unittest.TestCase):
                             "access_level": "basic",
                             "capabilities": [
                                 "games:read",
+                                "events:read",
                                 "attendance:reply:self",
                                 "notifications:read",
                             ],
@@ -70,6 +71,18 @@ class MobileApiRouteTest(unittest.TestCase):
             games=Mock(return_value=()),
             games_page=Mock(return_value={"items": [], "next_cursor": None}),
             game=Mock(return_value={"id": 44, "home_team": "A", "away_team": "B"}),
+            events_page=Mock(return_value={"items": [], "next_cursor": None}),
+            event=Mock(
+                return_value={
+                    "id": "event_7",
+                    "title": "虛構週末活動",
+                    "type": "trip",
+                    "status": "published",
+                    "start_at": "2026-09-01T00:00:00Z",
+                    "end_at": None,
+                    "activities": [],
+                }
+            ),
             data=SimpleNamespace(own_attendance_reply=Mock(return_value=5)),
             attendance_view=Mock(
                 return_value={"game_id": "44", "own_reply": "undecided", "replied": []}
@@ -262,6 +275,39 @@ class MobileApiRouteTest(unittest.TestCase):
         self.assertEqual(attendance.status_code, 200)
         self.basic.game.assert_called_once_with(self.principal, -112001)
         self.basic.attendance_view.assert_called_once_with(self.principal, -112001)
+
+    def test_event_list_and_detail_are_authenticated_and_opaque(self):
+        headers = {"Authorization": "Bearer token"}
+        listed = self.client.get(
+            "/api/v1/events?limit=10&cursor=opaque", headers=headers
+        )
+        detail = self.client.get("/api/v1/events/event_7", headers=headers)
+
+        self.assertEqual(listed.status_code, 200)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.get_json()["id"], "event_7")
+        self.basic.events_page.assert_called_once_with(self.principal, "opaque", 10)
+        self.basic.event.assert_called_once_with(self.principal, 7)
+
+    def test_event_transport_rejects_malformed_ids_and_limits_before_read(self):
+        headers = {"Authorization": "Bearer token"}
+        responses = [
+            self.client.get(f"/api/v1/events/{value}", headers=headers)
+            for value in (
+                "event_0",
+                "event_nope",
+                "event_-1",
+                "event_9223372036854775808",
+                "activity_1",
+            )
+        ]
+        responses.extend(
+            (self.client.get("/api/v1/events?limit=nope", headers=headers),)
+        )
+        self.assertTrue(
+            all(response.status_code in {400, 422} for response in responses)
+        )
+        self.basic.event.assert_not_called()
 
     def test_zero_and_malformed_game_ids_remain_rejected(self):
         headers = {"Authorization": "Bearer token"}

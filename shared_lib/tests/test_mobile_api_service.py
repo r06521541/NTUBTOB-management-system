@@ -8,6 +8,7 @@ from shared_module.mobile_api import (
     BasicApiService,
     Conflict,
     HmacAccessTokenCodec,
+    InvalidArgument,
     MobileAuthService,
     MobilePrincipal,
     NotFound,
@@ -243,7 +244,12 @@ class BasicApiServiceTest(unittest.TestCase):
         admin = MobilePrincipal("s", 1, 2, "admin", "Admin", 1)
         self.assertEqual(
             mobile_capabilities(basic),
-            ("games:read", "attendance:reply:self", "notifications:read"),
+            (
+                "games:read",
+                "events:read",
+                "attendance:reply:self",
+                "notifications:read",
+            ),
         )
         for principal in (officer, admin):
             self.assertIn("attendance:report:read", mobile_capabilities(principal))
@@ -418,6 +424,77 @@ class BasicApiServiceTest(unittest.TestCase):
                 }
             ],
         )
+
+    def test_events_are_paginated_redacted_and_linked_game_is_already_scoped(self):
+        repository = FakeAuthRepository()
+        events = tuple(
+            {
+                "id": value,
+                "title": f"Event {value}",
+                "type": "trip",
+                "status": "cancelled" if value == 2 else "published",
+                "start_at": NOW + timedelta(days=value),
+                "end_at": None,
+                "activities": (
+                    {
+                        "id": value,
+                        "title": "Game activity",
+                        "type": "game",
+                        "position": 1,
+                        "start_at": NOW + timedelta(days=value),
+                        "end_at": None,
+                        "linked_game_id": 44 if value == 1 else None,
+                        "manager": "must not leak",
+                    },
+                ),
+                "invitees": "must not leak",
+            }
+            for value in range(1, 4)
+        )
+        data = SimpleNamespace(
+            scoped_events=Mock(return_value=events),
+            scoped_event=Mock(return_value=events[0]),
+        )
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+
+        first = service.events_page(repository.device, None, 2)
+        second = service.events_page(repository.device, first["next_cursor"], 2)
+        self.assertEqual(
+            [event["id"] for event in first["items"]], ["event_1", "event_2"]
+        )
+        self.assertEqual([event["id"] for event in second["items"]], ["event_3"])
+        self.assertEqual(first["items"][0]["activities"][0]["id"], "activity_1")
+        self.assertEqual(
+            first["items"][0]["activities"][0]["linked_game_id"], "game_44"
+        )
+        self.assertEqual(first["items"][1]["status"], "cancelled")
+        self.assertNotIn("invitees", str(first))
+        self.assertNotIn("manager", str(first))
+        self.assertEqual(service.event(repository.device, 1), first["items"][0])
+
+        data.scoped_event.return_value = None
+        with self.assertRaises(NotFound):
+            service.event(repository.device, 999)
+
+    def test_event_projection_rejects_unbounded_or_malformed_stored_values(self):
+        repository = FakeAuthRepository()
+        data = SimpleNamespace(scoped_events=Mock(return_value=()))
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+        with self.assertRaises(InvalidArgument):
+            service.events_page(repository.device, "not-base64", 20)
+        with self.assertRaises(InvalidArgument):
+            service.events_page(repository.device, None, 101)
+        malformed = {
+            "id": 0,
+            "title": "Malformed",
+            "type": "other",
+            "status": "published",
+            "start_at": NOW,
+            "end_at": None,
+            "activities": (),
+        }
+        with self.assertRaises(InvalidArgument):
+            service._public_event(malformed)
 
     def test_five_replies_and_exact_idempotent_readback(self):
         repository = FakeAuthRepository()

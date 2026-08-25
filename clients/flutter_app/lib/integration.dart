@@ -257,6 +257,7 @@ class Person {
     final caps = _required<List<dynamic>>(json, 'capabilities');
     const allowed = {
       'games:read',
+      'events:read',
       'attendance:reply:self',
       'notifications:read',
       'attendance:report:read',
@@ -279,6 +280,7 @@ class Person {
       accessLevel != AccessLevel.basic &&
       capabilities.contains('attendance:report:read');
   bool get canReadNotifications => capabilities.contains('notifications:read');
+  bool get canReadEvents => capabilities.contains('events:read');
   bool get canPublishNotifications =>
       capabilities.contains('notifications:publish');
   Map<String, dynamic> toJson() => {
@@ -465,6 +467,116 @@ class GamePage {
         _nullable<String>(json, 'next_cursor'),
       );
   final List<Game> items;
+  final String? nextCursor;
+}
+
+class EventActivity {
+  const EventActivity({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.position,
+    required this.startAt,
+    required this.endAt,
+    this.linkedGameId,
+  });
+
+  factory EventActivity.fromJson(Map<String, dynamic> json) {
+    final position = _required<int>(json, 'position');
+    final startAt = _utcDate(json, 'start_at');
+    final rawEndAt = _nullable<String>(json, 'end_at');
+    final endAt = rawEndAt == null
+        ? null
+        : _utcDate({'end_at': rawEndAt}, 'end_at');
+    final title = _required<String>(json, 'title');
+    final type = _required<String>(json, 'type');
+    if (title.isEmpty ||
+        title.length > 200 ||
+        !const {'game', 'meal', 'transport', 'lodging', 'gathering', 'other'}
+            .contains(type) ||
+        endAt != null && endAt.isBefore(startAt)) {
+      throw const ContractException('invalid activity');
+    }
+    return EventActivity(
+      id: _required(json, 'id'),
+      title: title,
+      type: type,
+      position: position,
+      startAt: startAt,
+      endAt: endAt,
+      linkedGameId: _nullable(json, 'linked_game_id'),
+    );
+  }
+
+  final String id, title, type;
+  final int position;
+  final DateTime startAt;
+  final DateTime? endAt;
+  final String? linkedGameId;
+}
+
+class TeamEvent {
+  const TeamEvent({
+    required this.id,
+    required this.title,
+    required this.type,
+    required this.status,
+    required this.startAt,
+    required this.endAt,
+    required this.activities,
+  });
+
+  factory TeamEvent.fromJson(Map<String, dynamic> json) {
+    final status = _required<String>(json, 'status');
+    final startAt = _utcDate(json, 'start_at');
+    final rawEndAt = _nullable<String>(json, 'end_at');
+    final endAt = rawEndAt == null
+        ? null
+        : _utcDate({'end_at': rawEndAt}, 'end_at');
+    final title = _required<String>(json, 'title');
+    final type = _required<String>(json, 'type');
+    if (title.isEmpty ||
+        title.length > 200 ||
+        !const {'game', 'meal', 'trip', 'practice', 'social', 'other'}
+            .contains(type) ||
+        !const {'published', 'cancelled'}.contains(status) ||
+        endAt != null && endAt.isBefore(startAt)) {
+      throw const ContractException('invalid event');
+    }
+    final activities = _required<List<dynamic>>(json, 'activities')
+        .map((item) => EventActivity.fromJson(item as Map<String, dynamic>))
+        .toList(growable: false)
+      ..sort((left, right) {
+        final byPosition = left.position.compareTo(right.position);
+        return byPosition != 0 ? byPosition : left.id.compareTo(right.id);
+      });
+    return TeamEvent(
+      id: _required(json, 'id'),
+      title: title,
+      type: type,
+      status: status,
+      startAt: startAt,
+      endAt: endAt,
+      activities: activities,
+    );
+  }
+
+  final String id, title, type, status;
+  final DateTime startAt;
+  final DateTime? endAt;
+  final List<EventActivity> activities;
+  bool get cancelled => status == 'cancelled';
+}
+
+class EventPage {
+  const EventPage(this.items, this.nextCursor);
+  factory EventPage.fromJson(Map<String, dynamic> json) => EventPage(
+        _required<List<dynamic>>(json, 'items')
+            .map((item) => TeamEvent.fromJson(item as Map<String, dynamic>))
+            .toList(growable: false),
+        _nullable<String>(json, 'next_cursor'),
+      );
+  final List<TeamEvent> items;
   final String? nextCursor;
 }
 
@@ -2194,6 +2306,43 @@ class BasicApi {
     );
     if (r.status != 200 || r.body == null) _failure(r, 'game');
     return Game.fromJson(r.body!);
+  }
+
+  Future<EventPage> eventPage({String? cursor}) async {
+    final path = cursor == null
+        ? '/events'
+        : '/events?cursor=${Uri.encodeQueryComponent(cursor)}';
+    final response = await session.authorized('GET', path);
+    if (response.status != 200 || response.body == null) {
+      _failure(response, 'events');
+    }
+    return EventPage.fromJson(response.body!);
+  }
+
+  Future<List<TeamEvent>> events() async {
+    final result = <TeamEvent>[];
+    final seen = <String>{};
+    String? cursor;
+    do {
+      final page = await eventPage(cursor: cursor);
+      result.addAll(page.items);
+      cursor = page.nextCursor;
+      if (cursor != null && !seen.add(cursor)) {
+        throw const ContractException('repeated events cursor');
+      }
+    } while (cursor != null);
+    return result;
+  }
+
+  Future<TeamEvent> event(String id) async {
+    final response = await session.authorized(
+      'GET',
+      '/events/${Uri.encodeComponent(id)}',
+    );
+    if (response.status != 200 || response.body == null) {
+      _failure(response, 'event');
+    }
+    return TeamEvent.fromJson(response.body!);
   }
 
   Future<AttendanceSnapshot> attendance(String id) async {

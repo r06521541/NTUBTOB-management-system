@@ -88,6 +88,15 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                     TRUNCATE TABLE
                       ntubtob.identity_review_messages,
                       ntubtob.identity_review_threads,
+                      ntubtob.event_audit,
+                      ntubtob.event_managers,
+                      ntubtob.activity_attendance_replies,
+                      ntubtob.event_attendance_replies,
+                      ntubtob.event_invitees,
+                      ntubtob.event_invitee_overrides,
+                      ntubtob.event_eligibility_rules,
+                      ntubtob.activities,
+                      ntubtob.events,
                       ntubtob.access_audit,
                       ntubtob.person_qualifications,
                       ntubtob.auth_identities,
@@ -134,6 +143,191 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         return self.repository.ensure_pending_line_identity(
             f"fake-pending-{suffix}", "Fake Applicant", f"pending-{suffix}"
         )
+
+    def test_event_reads_require_included_snapshot_and_filter_linked_games(self):
+        now = datetime(2026, 9, 1, 8, 0, tzinfo=timezone.utc)
+        with self.engine.begin() as connection:
+            visible_game_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.games (start_datetime, invitation_time) "
+                    "VALUES (:start, :invited) RETURNING id"
+                ),
+                {"start": now + timedelta(days=2), "invited": now},
+            )
+            hidden_game_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.games (start_datetime) "
+                    "VALUES (:start) RETURNING id"
+                ),
+                {"start": now + timedelta(days=2)},
+            )
+            published_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.events
+                      (title, event_type, status, start_at, end_at,
+                       created_by_person_id, published_at, version,
+                       created_at, updated_at)
+                    VALUES
+                      ('Included Trip', 'trip', 'published', :start, :finish,
+                       :person_id, :published, 2, :published, :published)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "start": now + timedelta(days=1),
+                    "finish": now + timedelta(days=3),
+                    "person_id": self.admin_person_id,
+                    "published": now - timedelta(days=1),
+                },
+            )
+            draft_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.events
+                      (title, event_type, status, start_at, created_by_person_id,
+                       version, created_at, updated_at)
+                    VALUES ('Hidden Draft', 'meal', 'draft', :start, :person_id,
+                            1, :created, :created)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "start": now + timedelta(days=1),
+                    "person_id": self.admin_person_id,
+                    "created": now,
+                },
+            )
+            cancelled_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.events
+                      (title, event_type, status, start_at, created_by_person_id,
+                       published_at, version, created_at, updated_at)
+                    VALUES ('Visible Cancellation', 'social', 'cancelled', :start,
+                            :person_id, :published, 3, :published, :published)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "start": now + timedelta(days=4),
+                    "person_id": self.admin_person_id,
+                    "published": now - timedelta(days=1),
+                },
+            )
+            ended_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.events
+                      (title, event_type, status, start_at, end_at,
+                       created_by_person_id, published_at, version,
+                       created_at, updated_at)
+                    VALUES ('Ended Event', 'meal', 'published', :start, :finish,
+                            :person_id, :published, 2, :published, :published)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "start": now - timedelta(days=2),
+                    "finish": now - timedelta(days=1),
+                    "person_id": self.admin_person_id,
+                    "published": now - timedelta(days=3),
+                },
+            )
+            excluded_id = connection.scalar(
+                text(
+                    """
+                    INSERT INTO ntubtob.events
+                      (title, event_type, status, start_at, created_by_person_id,
+                       published_at, version, created_at, updated_at)
+                    VALUES ('Excluded Event', 'practice', 'published', :start,
+                            :person_id, :published, 2, :published, :published)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "start": now + timedelta(days=2),
+                    "person_id": self.admin_person_id,
+                    "published": now - timedelta(days=1),
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.event_invitees
+                      (event_id, person_id, included, source,
+                       source_qualification, participation_category,
+                       actor_person_id, reason, snapshotted_at)
+                    VALUES
+                      (:published_id, :person_id, true, 'qualification',
+                       'team_player', 'team_player', NULL, NULL, :now),
+                      (:draft_id, :person_id, true, 'qualification',
+                       'team_player', 'team_player', NULL, NULL, :now),
+                      (:cancelled_id, :person_id, true, 'qualification',
+                       'team_player', 'team_player', NULL, NULL, :now),
+                      (:ended_id, :person_id, true, 'qualification',
+                       'team_player', 'team_player', NULL, NULL, :now),
+                      (:excluded_id, :person_id, false, 'manual_exclude',
+                       NULL, 'team_player', :person_id, 'Excluded by snapshot', :now)
+                    """
+                ),
+                {
+                    "published_id": published_id,
+                    "draft_id": draft_id,
+                    "cancelled_id": cancelled_id,
+                    "ended_id": ended_id,
+                    "excluded_id": excluded_id,
+                    "person_id": self.admin_person_id,
+                    "now": now,
+                },
+            )
+            connection.execute(
+                text(
+                    """
+                    INSERT INTO ntubtob.activities
+                      (event_id, title, activity_type, position, start_at,
+                       end_at, game_id)
+                    VALUES
+                      (:event_id, 'Hidden linked game', 'game', 2, :start,
+                       NULL, :hidden_game_id),
+                      (:event_id, 'Visible linked game', 'game', 1, :start,
+                       NULL, :visible_game_id)
+                    """
+                ),
+                {
+                    "event_id": published_id,
+                    "start": now + timedelta(days=2),
+                    "hidden_game_id": hidden_game_id,
+                    "visible_game_id": visible_game_id,
+                },
+            )
+
+        events = self.repository.scoped_events(self.admin_person_id, now)
+        self.assertEqual(
+            [event["id"] for event in events], [published_id, cancelled_id]
+        )
+        self.assertEqual(events[1]["status"], "cancelled")
+        self.assertEqual(
+            [activity["position"] for activity in events[0]["activities"]], [1, 2]
+        )
+        self.assertEqual(events[0]["activities"][0]["linked_game_id"], visible_game_id)
+        self.assertIsNone(events[0]["activities"][1]["linked_game_id"])
+        self.assertNotIn("source_qualification", str(events))
+        self.assertEqual(
+            self.repository.scoped_event(self.admin_person_id, published_id, now),
+            events[0],
+        )
+        self.assertIsNone(
+            self.repository.scoped_event(self.admin_person_id, draft_id, now)
+        )
+
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("UPDATE ntubtob.people SET portal_status='disabled' WHERE id=:id"),
+                {"id": self.admin_person_id},
+            )
+        with self.assertRaises(AuthorizationError):
+            self.repository.scoped_events(self.admin_person_id, now)
 
     def test_game_attendance_report_projects_member_number_in_fixed_queries(self):
         with self.engine.begin() as connection:

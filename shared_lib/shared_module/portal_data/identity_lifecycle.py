@@ -23,7 +23,10 @@ from .domain import (
 )
 from .models import (
     AccessAuditRecord,
+    ActivityRecord,
     AuthIdentityRecord,
+    EventInviteeRecord,
+    EventRecord,
     IdentityReviewMessageRecord,
     IdentityReviewThreadRecord,
     LegacyGameAttendanceReplyRecord,
@@ -2595,6 +2598,85 @@ class IdentityLifecycleRepository:
                 game
                 for game in self.scoped_games(person_id, at)
                 if game["id"] == game_id
+            ),
+            None,
+        )
+
+    def scoped_events(
+        self, person_id: int, at: datetime | None = None
+    ) -> tuple[dict, ...]:
+        """Return non-ended Events authorized by an immutable invitee snapshot."""
+        now = at or utc_now()
+        visible_game_ids = {game["id"] for game in self.scoped_games(person_id, now)}
+        with Session(self.engine) as session:
+            person = session.get(PersonRecord, person_id)
+            if person is None or person.portal_status != "active":
+                raise AuthorizationError("active person required")
+            events = session.scalars(
+                select(EventRecord)
+                .join(
+                    EventInviteeRecord,
+                    EventInviteeRecord.event_id == EventRecord.id,
+                )
+                .where(
+                    EventInviteeRecord.person_id == person_id,
+                    EventInviteeRecord.included.is_(True),
+                    EventRecord.status.in_(("published", "cancelled")),
+                    func.coalesce(EventRecord.end_at, EventRecord.start_at) >= now,
+                )
+                .order_by(EventRecord.start_at, EventRecord.id)
+            ).all()
+            event_ids = tuple(event.id for event in events)
+            activities_by_event: dict[int, list[dict]] = {
+                event_id: [] for event_id in event_ids
+            }
+            if event_ids:
+                activities = session.scalars(
+                    select(ActivityRecord)
+                    .where(ActivityRecord.event_id.in_(event_ids))
+                    .order_by(
+                        ActivityRecord.event_id,
+                        ActivityRecord.position,
+                        ActivityRecord.id,
+                    )
+                ).all()
+                for activity in activities:
+                    activities_by_event[activity.event_id].append(
+                        {
+                            "id": activity.id,
+                            "title": activity.title,
+                            "type": activity.activity_type,
+                            "position": activity.position,
+                            "start_at": activity.start_at,
+                            "end_at": activity.end_at,
+                            "linked_game_id": (
+                                activity.game_id
+                                if activity.game_id in visible_game_ids
+                                else None
+                            ),
+                        }
+                    )
+            return tuple(
+                {
+                    "id": event.id,
+                    "title": event.title,
+                    "type": event.event_type,
+                    "status": event.status,
+                    "start_at": event.start_at,
+                    "end_at": event.end_at,
+                    "activities": tuple(activities_by_event[event.id]),
+                }
+                for event in events
+            )
+
+    def scoped_event(
+        self, person_id: int, event_id: int, at: datetime | None = None
+    ) -> dict | None:
+        return next(
+            (
+                event
+                for event in self.scoped_events(person_id, at)
+                if event["id"] == event_id
             ),
             None,
         )

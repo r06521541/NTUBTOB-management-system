@@ -29,6 +29,7 @@ class QueueTransport implements ApiTransport {
   final List<(String, String, Map<String, String>, Map<String, dynamic>?)>
       calls = [];
   Completer<void>? mutationGate;
+  Completer<void>? getGate;
   bool networkOnPut = false;
   @override
   Future<ApiResponse> send(
@@ -38,6 +39,11 @@ class QueueTransport implements ApiTransport {
     Map<String, dynamic>? body,
   }) async {
     calls.add((method, path, headers, body));
+    if (method == 'GET' && getGate != null) {
+      final gate = getGate!;
+      getGate = null;
+      await gate.future;
+    }
     if (method == 'PUT' && networkOnPut) {
       networkOnPut = false;
       throw const NetworkException();
@@ -60,6 +66,39 @@ Map<String, dynamic> gameJson({
       'location': location,
       'home_team': 'Home',
       'away_team': 'Away',
+    };
+
+Map<String, dynamic> eventJson({
+  String id = 'event-1',
+  String status = 'published',
+}) =>
+    {
+      'id': id,
+      'title': '移地訓練',
+      'type': 'trip',
+      'status': status,
+      'start_at': '2026-09-01T01:00:00Z',
+      'end_at': '2026-09-01T04:00:00Z',
+      'activities': [
+        {
+          'id': 'activity-linked',
+          'title': '友誼賽',
+          'type': 'game',
+          'position': 2,
+          'start_at': '2026-09-01T02:00:00Z',
+          'end_at': '2026-09-01T04:00:00Z',
+          'linked_game_id': 'game-visible',
+        },
+        {
+          'id': 'activity-hidden',
+          'title': '另一場比賽',
+          'type': 'game',
+          'position': 1,
+          'start_at': '2026-09-01T01:00:00Z',
+          'end_at': '2026-09-01T01:30:00Z',
+          'linked_game_id': 'game-not-visible',
+        },
+      ],
     };
 
 Map<String, dynamic> attendanceJson({String? ownReply = 'undecided'}) => {
@@ -635,6 +674,120 @@ void main() {
     expect(find.byKey(const ValueKey('game-g')), findsOneWidget);
     expect(find.text('管理'), findsNothing);
     expect(find.text('系統公告'), findsNothing);
+  });
+
+  testWidgets('events capability gates entry and offline performs zero reads', (
+    tester,
+  ) async {
+    final transport = QueueTransport();
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: const Person('p', 'Basic', ['games:read']),
+        games: const [],
+        online: true,
+        lastSyncedAt: DateTime.utc(2026),
+      ),
+    ));
+    expect(find.byKey(const ValueKey('events-entry')), findsNothing);
+
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: const Person('p', 'Basic', ['games:read', 'events:read']),
+        games: const [],
+        online: false,
+        lastSyncedAt: DateTime.utc(2026),
+      ),
+    ));
+    await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('events-entry')), 100);
+    await tester.tap(find.byKey(const ValueKey('events-entry')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('events-offline-unavailable')),
+        findsOneWidget);
+    expect(transport.calls, isEmpty);
+  });
+
+  testWidgets(
+      'event list shows loading and cancelled detail with scoped game links', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1200));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final gate = Completer<void>();
+    final transport = QueueTransport()
+      ..getGate = gate
+      ..responses.addAll([
+        ApiResponse(200, {
+          'items': [eventJson(status: 'cancelled')],
+          'next_cursor': null,
+        }),
+        ApiResponse(200, eventJson(status: 'cancelled')),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: EventListPage(
+        api: api,
+        online: true,
+        visibleGames: [
+          Game('game-visible', DateTime.utc(2026, 9, 1, 2), 120, null,
+              'Home', 'Away'),
+        ],
+      ),
+    ));
+    expect(find.byKey(const ValueKey('events-loading')), findsOneWidget);
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.textContaining('已取消'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('event-event-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('event-cancelled')), findsOneWidget);
+  });
+
+  test('event linked game resolves only inside the visible game scope', () {
+    final visible = [
+      Game('game-visible', DateTime.utc(2026, 9, 1, 2), 120, null, 'Home',
+          'Away'),
+    ];
+    expect(visibleLinkedGame('game-visible', visible)?.id, 'game-visible');
+    expect(visibleLinkedGame('game-not-visible', visible), isNull);
+    expect(visibleLinkedGame(null, visible), isNull);
+  });
+
+  testWidgets('event list distinguishes empty and recoverable error', (
+    tester,
+  ) async {
+    final emptyTransport = QueueTransport()
+      ..responses.add(const ApiResponse(200, {
+        'items': <dynamic>[],
+        'next_cursor': null,
+      }));
+    await tester.pumpWidget(MaterialApp(
+      home: EventListPage(
+        api: await apiFor(emptyTransport, MemoryStore()),
+        online: true,
+        visibleGames: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('events-empty')), findsOneWidget);
+
+    final errorTransport = QueueTransport()
+      ..responses.add(ApiResponse(503, errorJson('service_unavailable')));
+    await tester.pumpWidget(MaterialApp(
+      home: EventListPage(
+        key: UniqueKey(),
+        api: await apiFor(errorTransport, MemoryStore()),
+        online: true,
+        visibleGames: const [],
+      ),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('events-error')), findsOneWidget);
+    expect(find.byKey(const ValueKey('events-retry')), findsOneWidget);
   });
 
   testWidgets('fresh account status is reachable with safe semantics', (

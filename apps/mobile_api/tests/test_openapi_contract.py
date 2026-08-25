@@ -28,6 +28,8 @@ class OpenApiContractTest(unittest.TestCase):
                 "/me",
                 "/games",
                 "/games/{game_id}",
+                "/events",
+                "/events/{event_id}",
                 "/games/{game_id}/attendance",
                 "/games/{game_id}/attendance-report",
                 "/games/{game_id}/attendance-reply",
@@ -276,6 +278,53 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(
             draft_game_destination["properties"]["game_id"]["maxLength"], 25
         )
+
+    def test_event_contract_is_snapshot_scoped_and_privacy_bounded(self):
+        schemas = self.contract["components"]["schemas"]
+        capabilities = schemas["Person"]["properties"]["capabilities"]["items"]["enum"]
+        self.assertIn("events:read", capabilities)
+        event = schemas["Event"]
+        self.assertEqual(
+            set(event["properties"]),
+            {
+                "id",
+                "title",
+                "type",
+                "status",
+                "start_at",
+                "end_at",
+                "activities",
+            },
+        )
+        self.assertEqual(
+            event["properties"]["status"]["enum"], ["published", "cancelled"]
+        )
+        serialized = json.dumps(
+            {
+                "paths": {
+                    key: value
+                    for key, value in self.contract["paths"].items()
+                    if key.startswith("/events")
+                },
+                "event": event,
+                "activity": schemas["EventActivity"],
+            },
+            sort_keys=True,
+        )
+        self.assertIn("immutable invitee snapshot", serialized)
+        response_properties = set(event["properties"]) | set(
+            schemas["EventActivity"]["properties"]
+        )
+        for private in (
+            "provider_subject",
+            "invitees",
+            "eligibility",
+            "manager",
+            "audit",
+            "reason",
+            "attendance",
+        ):
+            self.assertNotIn(private, response_properties)
 
 
 if __name__ == "__main__":
