@@ -2,6 +2,8 @@
 
 本文件只保存目前仍規範未來行為的決策。DEC-001～075 原始紀錄保留於
 `archive/governance/DECISIONS-001-075.md`，只能證明當時授權與執行事實，不自動授權現在的操作。
+被 DEC-100 取代的 DEC-098～099 原文保留於
+`archive/governance/DECISIONS-098-099.md`，同樣不再構成現行授權。
 
 ## DEC-076：一般 Git 工作流程授權
 
@@ -257,48 +259,36 @@
 - Invariants：client profile/user ID不是身份 assertion；identity必須linked且Person必須active；capability由server enforce。Refresh lost-response replay、token-family reuse detection、device revocation與精確Idempotency-Key replay必須使用durable transactional persistence，不得以process memory、signed cookie、一般cache、既有auth identity或access audit假裝完成。
 - Non-goals：本決策不授權schema/migration、runtime API、LINE channel/Secret、staging/production、Google/Apple linking、push/通知或商店發布；未來custom browser login另立PKCE與redirect contract。
 
-## DEC-098：隔離 staging fictional environment 採 agent autonomy
-
-- 狀態：`active`
-- 生效：2026-08-20
-- 來源：Owner 對 TASK-113～118 實際 activation／Emulator 流程的檢討與明確長期授權
-- Supersedes：DEC-096 中「staging deployment 一律另案逐步批准」的 staging fictional 部分；production promotion 仍保留
-- 決策：在 project、database identity、cost ceiling、runtime service account、Secret references、public boundary 與 rollback
-  已由 Owner 核准且持續一致時，Main Work 可自主完成 staging fictional build、candidate、traffic、data repair／test mutation、
-  rollback、Emulator／ADB 驗收與 task-specific cleanup。一般低敏操作使用 `operator=agent`，不建立儀式性 Owner gate。
-- Invariants：production、真實使用者／資料／通知、Secret payload、付費或公開權限擴張、release signing／store、資源／DB／
-  Secret version 的不可逆刪除仍為 Owner gate。未知外部結果先唯讀 reconcile；unknown drift、identity mismatch 或安全邊界
-  放寬立即停止。Domain Work 必須主動 heartbeat 並向 Main Work 交回，不得在自己的 session 靜默等待。
-- Non-goals：不授權 production promotion、正式 schema／資料操作、LINE／Google／Apple Console policy、建立新付費資源、
-  提高成本上限或刪除既有 cloud resource；也不允許 agent 代替 Owner 輸入帳密、掃碼或 consent。
-
-## DEC-099：Checksummed staging target 與分層 agent autonomy
+## DEC-100：Owner-managed isolated sandbox 採完整 operator autonomy
 
 - 狀態：`active`
 - 生效：2026-08-25
-- 來源：Owner 對 Main Work 外部唯讀與隔離 staging 操作邊界的明確長期授權
-- Supersedes：無；補充 DEC-098 的 target resolution 與操作分層
-- 決策：Repository 中通過既有 verifier 的 checksummed staging artifact 所指向之 project、region、service、revision
-  與 resource alias，視為既有核准的 isolated fictional staging target。即使其 project 不同於本機 default config，
-  Main Work 仍可用每個命令顯式 target 執行 sanitized `list/get/describe`，不得因此切換預設帳號或修改 gcloud config。
-- Repository autonomy：Work／Codex可依 DEC-076 完成 branch、commit、push、PR、CI與merge；一般 coordination payload
-  的 repository push 已獲 Owner 明確授權，仍不得提交 Secret、credential或受限制的 provider identifier。
-- Read-only autonomy：可查 Cloud Run revision／traffic／runtime key存在性、Secret reference metadata與version存在性、
-  IAM結構、OAuth client類型／callback匹配狀態、build／health／audit metadata。輸出只保留
-  `confirmed／missing／inconsistent／blocked` 或布林值；不得輸出account、client ID、callback值、Secret名稱、
-  fingerprint、IAM member identity或Secret payload。
-- Reversible staging autonomy：確認 exact target、runtime identity、cost ceiling、public boundary與rollback一致後，agent
-  可在既有工具邊界內建立無traffic candidate、執行health check及可復原rollback，並沿用既有Secret references；
-  未知結果先唯讀reconcile，不得盲目重送。
-- Owner gates：OAuth client建立／刪除、callback修改、Secret payload／version建立或輪替、IAM binding、public access、
-  runtime identity、traffic promotion、signing、帳密／登入／consent、store、production、真實資料／通知、新付費資源與
-  不可逆刪除仍需精確逐案批准。Main Work應先提供一次完整批准包，不為同一已核准原子操作逐命令重問。
-- Stop conditions：artifact verifier失敗、target無法唯一解析、active identity或cost／public／rollback boundary漂移、
-  network/auth failure、輸出無法安全去識別、外部結果不確定或需要任何未核准mutation時立即停止。
+- 來源：Owner 明確確認相關project與資源均為Owner與前Main Work建立的專案沙盒，並核准完整sandbox操作授權
+- Supersedes：DEC-098、DEC-099
+- Target authority：Owner最新明確指定的sandbox target為最高權威；通過repository既有verifier且與Owner指定環境一致
+  的artifact可解析project、region、service、revision、OAuth client、callback與resource alias。Agent可讀取精確
+  identifier並在browser／tool command內使用；不要求Owner逐項隱藏或人工比對。本機default project／region不同不
+  構成blocker。Artifact與Owner exact target不一致時只允許對Owner target做唯讀reconciliation；任何mutation須先修正
+  或重產artifact並重新通過preflight。
+- Repository autonomy：Work／Codex可依DEC-076完成branch、commit、push、PR、CI與merge；本repository的一般
+  coordination／authority payload push已獲Owner明確授權。Secret、credential、token與Secret payload仍不得提交。
+- Read-only autonomy：可自主查看sandbox Cloud Run、build、traffic、runtime env key、Secret reference metadata、IAM
+  結構、OAuth client／callback metadata、health與audit。精確identifier可留在受控tool input／diagnostic中；repository
+  authority文件與一般回報預設只使用stable alias或sanitized結果。
+- Sandbox mutation autonomy：在artifact verifier與preflight確認exact target、runtime identity、cost ceiling、public
+  boundary及rollback後，Main Work可自主完成sandbox build、candidate deployment、health check、traffic promotion／
+  rollback、OAuth client／callback metadata更新、runtime env更新、沿用既有Secret references、fictional data
+  seed／repair／cleanup，以及task明列且限既有service accounts的IAM調整。每次mutation仍須有exact action、post-check
+  與rollback；不為同一已核准原子流程逐命令停問。
+- Owner-reserved actions：Secret payload／token／密碼的讀取或輸入、MFA／登入／consent、release signing／store、
+  production、真實使用者／資料／通知、新billing或付費資源、提高cost ceiling、public access／`allUsers`、高權限人類
+  IAM及不可逆刪除仍需Owner精確逐案批准。Sandbox授權不得用來推定production或真實資料也獲授權。
+- Failure handling：artifact verifier失敗、target無法唯一解析、identity／cost／public／rollback boundary漂移、
+  credential失效、輸出無法安全處理或mutation結果不確定時停止；不確定mutation不得重送，先執行獨立唯讀reconcile。
 
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前為 `DEC-076～099`，下一個新決策從 `DEC-100` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-100`，下一個新決策從 `DEC-101` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

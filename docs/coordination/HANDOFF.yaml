@@ -1,6 +1,6 @@
 active_task: TASK-157
 status: in_progress
-next_actor: main-work
+next_actor: owner
 
 claim_id: main-work-20260825
 lease_version: 17
@@ -14,12 +14,18 @@ updated_at: 2026-08-25T00:00:00+08:00
 
 note: >
   Owner activated TASK-157 to move the Google Auth repository implementation
-  toward a truthful staging result. DEC-099 now authorizes checksummed
-  artifact-derived explicit targets, sanitized read-only reconciliation and,
-  after boundary verification, no-traffic candidate/health/rollback autonomy.
-  Initial Web runtime metadata read found no Google runtime configuration and
-  made no mutation. Provider/callback, Secret/IAM, traffic, signing and human
-  login/consent remain exact Owner gates; production is outside this task.
+  toward a truthful staging result. DEC-100 now authorizes exact
+  artifact-derived sandbox identifiers and bounded build/deploy/traffic,
+  OAuth-metadata, runtime, fictional-data and service-account IAM operations
+  after preflight. Initial Web runtime metadata read found no Google runtime
+  configuration and made no mutation. Secret payload, human login/consent,
+  production, public access, billing, real data/notifications and irreversible
+  deletion remain Owner-reserved. Owner's current sandbox project does not
+  match the checked-in candidate artifact; read-only reconciliation may
+  continue against the Owner target, but mutation is blocked pending artifact
+  correction and preflight. The current Console session has no selected project
+  and returned permission denied; Owner must complete browser sign-in/account
+  selection and select the exact sandbox project before inventory resumes.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-157.md
