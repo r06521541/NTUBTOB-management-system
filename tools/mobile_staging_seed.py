@@ -11,7 +11,7 @@ from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
 
-REVISION = "0005_mobile_auth_api_foundation"
+REVISION = "0008_mobile_notification_delivery"
 PERSON_IDS = (-112001, -112002, -112003)
 IDENTITY_IDS = (-112001, -112002, -112003)
 QUALIFICATION_IDS = (-112001, -112002, -112003)
@@ -123,7 +123,7 @@ def seed(engine: Engine, private_subject: str) -> dict[str, int]:
             text("SELECT version_num FROM ntubtob.alembic_version")
         )
         if revision != REVISION:
-            raise StagingSeedError("Database revision must be exact 0005")
+            raise StagingSeedError("Database revision must be exact 0008")
         counts = _counts(connection)
         if any(counts.values()):
             _assert_exact(connection, private_subject)
@@ -228,7 +228,7 @@ def _attendance_repair_state(connection) -> dict[str, object]:
         text("SELECT version_num FROM ntubtob.alembic_version")
     )
     if revision != REVISION:
-        raise StagingSeedError("Database revision must be exact 0005")
+        raise StagingSeedError("Database revision must be exact 0008")
     fixture_rows = connection.execute(
         text(
             "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
@@ -295,10 +295,7 @@ def repair_attendance_fixture(engine: Engine) -> dict[str, object]:
         if state["state"] == "repaired":
             return {"state": "repaired", "removed_hidden_rows": 0}
         deleted = connection.execute(
-            text(
-                "DELETE FROM ntubtob.game_attendance_replies "
-                "WHERE id = ANY(:ids)"
-            ),
+            text("DELETE FROM ntubtob.game_attendance_replies " "WHERE id = ANY(:ids)"),
             {"ids": list(hidden_ids)},
         ).rowcount
         updated = connection.execute(

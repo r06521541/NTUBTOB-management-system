@@ -38,6 +38,17 @@ def powershell_available() -> bool:
 class PowerShellContractTest(unittest.TestCase):
     maxDiff = None
 
+    def test_launcher_requires_current_mobile_api_database_revision(self):
+        source = LAUNCHER.read_text(encoding="utf-8")
+        self.assertIn(
+            "$script:ExpectedRevision = '0008_mobile_notification_delivery'",
+            source,
+        )
+        self.assertNotIn(
+            "$script:ExpectedRevision = '0005_mobile_auth_api_foundation'",
+            source,
+        )
+
     def run_harness(self, body: str, *, input_text: str | None = None):
         with tempfile.TemporaryDirectory() as directory:
             harness = Path(directory) / "harness.ps1"

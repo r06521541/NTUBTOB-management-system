@@ -12,21 +12,21 @@ from sqlalchemy import Engine, text
 try:
     from .mobile_staging_contract import (
         REGION,
-        REVISION,
         SERVICE,
         StagingContractError,
         validate_database_identity,
         validate_target,
     )
+    from .mobile_staging_data import _database_state
 except ImportError:  # pragma: no cover - direct script execution
     from mobile_staging_contract import (
         REGION,
-        REVISION,
         SERVICE,
         StagingContractError,
         validate_database_identity,
         validate_target,
     )
+    from mobile_staging_data import _database_state
 
 Runner = Callable[[Sequence[str], Path], subprocess.CompletedProcess[str]]
 
@@ -130,9 +130,7 @@ def database_inventory(
         transaction = connection.begin()
         try:
             connection.execute(text("SET TRANSACTION READ ONLY"))
-            revision = connection.scalar(
-                text("SELECT version_num FROM ntubtob.alembic_version")
-            )
+            state = _database_state(connection)
             production_fingerprint = connection.scalar(
                 text(
                     """
@@ -141,22 +139,17 @@ def database_inventory(
                 """
                 )
             )
-            fixture_people = connection.scalar(
-                text("SELECT count(*) FROM ntubtob.people WHERE id = ANY(:ids)"),
-                {"ids": [-112001, -112002, -112003]},
-            )
         finally:
             transaction.rollback()
-    if revision != REVISION:
-        raise StagingContractError("Staging database revision is not exact 0005")
     if production_fingerprint:
         raise StagingContractError("Database contains a production-shaped fingerprint")
-    if fixture_people not in {0, 3}:
-        raise StagingContractError("Staging fixture state is partial")
     return {
         "database_identity_sha256": identity.fingerprint,
         "database_provider": identity.provider,
-        "revision": revision,
+        "revision": state["revision"],
+        "revision_state": (
+            "current" if state["database_state"] == "ready" else "upgrade_pending"
+        ),
         "production_fingerprint_rows": 0,
-        "fixture_state": "clean" if fixture_people == 0 else "seeded",
+        "fixture_state": state["fixture_state"],
     }

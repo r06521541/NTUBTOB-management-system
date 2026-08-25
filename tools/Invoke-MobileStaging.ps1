@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:PackageId = 'tw.org.ntubtob.portal'
 $script:MainActivity = 'tw.org.ntubtob.portal/.MainActivity'
-$script:ExpectedRevision = '0005_mobile_auth_api_foundation'
+$script:ExpectedRevision = '0008_mobile_notification_delivery'
 $script:ProductionProject = 'ntubtob-schedule-405614'
 $script:FullShaPattern = '^[0-9a-f]{40}$'
 $script:FingerprintPattern = '^[0-9A-F]{64}$'
