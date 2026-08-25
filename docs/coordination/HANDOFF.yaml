@@ -1,30 +1,28 @@
-active_task: AUTH-GOOGLE-IDENTITY-LINK
-status: awaiting_owner_approval
-next_actor: owner
+active_task: TASK-157
+status: in_progress
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: cd49e2038b1d804b3e3c729c510eb8c34df59efb
-head_commit: cd49e2038b1d804b3e3c729c510eb8c34df59efb
+base_commit: 1b7d80a41a24c6fbf2ed693ed7d7b017527bf866
+head_commit: 1b7d80a41a24c6fbf2ed693ed7d7b017527bf866
 
 updated_by: main-work
 updated_at: 2026-08-25T00:00:00+08:00
 
 note: >
-  PR #180 was merged as cd49e2038b1d804b3e3c729c510eb8c34df59efb after all
-  12 hosted checks and independent Web/Auth/DB Security plus Flutter Auth
-  reviews passed. Google sign-in, LINE/Google identity linking and account
-  recovery are implemented without a schema migration. The Owner revoked
-  main-work-20260822 and activated main-work-20260825 lease 17; the old actor
-  reported no unfinished repository work. It also reported partial
-  provider-side preparation, but this repository recovery did not independently
-  verify external state. Deployment and real-provider smoke remain incomplete;
-  OAuth/provider configuration, Secret/IAM, signing, staging and production
-  actions remain explicit Owner gates.
+  Owner activated TASK-157 to move the Google Auth repository implementation
+  toward a truthful staging result. Main Work may first perform sanitized
+  read-only reconciliation only. Partial provider-side preparation was reported
+  by the revoked actor but remains unverified. Any provider/callback,
+  Secret/IAM, signing, build, staging deployment or traffic mutation requires a
+  separate exact Owner approval; human login or consent remains operator=owner.
+  Production is outside this task. No external operation has been performed by
+  TASK-157 yet.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: AUTH-GOOGLE-IDENTITY-LINK
-report: docs/coordination/PROJECT_STATE.md
-review: https://github.com/r06521541/NTUBTOB-management-system/pull/180
+task: docs/coordination/tasks/TASK-157.md
+report: null
+review: null

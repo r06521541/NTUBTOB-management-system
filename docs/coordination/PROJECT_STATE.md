@@ -54,6 +54,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
   與獨立 Web/Auth/DB、Flutter Auth review 均通過，且沒有 schema migration。撤回的 Main actor 曾回報部分
   provider-side preparation，但本次 repository recovery 未獨立驗證任何外部狀態；staging／production deployment、
   真 provider smoke 與 iOS signing 仍未完成，且 OAuth/provider、Secret/IAM 與部署動作持續受 Owner gate 約束。
+- TASK-157 已由 Owner 啟動為 L3 Google Auth staging rollout verification。第一階段只允許 Main Work 進行不含敏感
+  identifier／Secret payload 的唯讀 reconciliation；任何 provider、Secret/IAM、signing、build、staging deployment、
+  traffic 或真人登入／consent 依 task 分開進入精確 Owner gate。Production 不在本 task 範圍。
 
 ## 已確認的 production 狀態
 
