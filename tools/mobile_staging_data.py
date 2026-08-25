@@ -1358,8 +1358,9 @@ def _canonical_fixture_fingerprint(
         raise StagingContractError(
             "Remote staging fixture contains owned runtime rows; do not retry"
         )
+    legacy_fingerprint = _canonical_legacy_fingerprint(connection, state)
     if state == "clean":
-        return state, ("clean",)
+        return state, ("clean", legacy_fingerprint)
 
     people = connection.execute(
         text(
@@ -1411,13 +1412,15 @@ def _canonical_fixture_fingerprint(
 
     identities = connection.execute(
         text(
-            "SELECT id, provider, person_id, status FROM ntubtob.auth_identities "
+            "SELECT id, provider, person_id, status, created_at, updated_at "
+            "FROM ntubtob.auth_identities "
             "WHERE id = ANY(:ids) ORDER BY id"
         ),
         {"ids": list(MOBILE_FIXTURE_IDS)},
     ).all()
     if tuple(map(tuple, identities)) != tuple(
-        (fixture_id, "line", fixture_id, "linked") for fixture_id in MOBILE_FIXTURE_IDS
+        (fixture_id, "line", fixture_id, "linked", ANCHOR, ANCHOR)
+        for fixture_id in MOBILE_FIXTURE_IDS
     ):
         raise StagingContractError(
             "Remote staging fixture identities are drifted; do not retry"
@@ -1544,14 +1547,141 @@ def _canonical_fixture_fingerprint(
     ).all()
     if tuple(map(tuple, replies)) != CANONICAL_FIXTURE_REPLY_ROWS:
         raise StagingContractError("Remote staging attendance is drifted; do not retry")
-    legacy_replies = connection.execute(
+    return state, (
+        "seeded",
+        legacy_fingerprint,
+        tuple(map(tuple, people)),
+        tuple(map(tuple, identities)),
+        bool(tester_binding),
+        tuple(map(tuple, qualifications)),
+        tuple(map(tuple, games)),
+        tuple(map(tuple, replies)),
+    )
+
+
+def _canonical_legacy_fingerprint(connection, fixture_state: str) -> tuple:
+    """Validate repository-owned legacy rows, including dynamic migration timestamps."""
+    reply_types = connection.execute(
+        text("SELECT id, description FROM ntubtob.attendance_reply_types ORDER BY id")
+    ).all()
+    expected_reply_types = (
+        (
+            (1, "TASK112 fixture attending"),
+            (2, "TASK112 fixture not_attending"),
+            (3, "TASK112 fixture arriving_late"),
+            (4, "TASK112 fixture leaving_early"),
+            (5, "TASK112 fixture undecided"),
+        )
+        if fixture_state == "seeded"
+        else ()
+    ) + (
+        (9101, "fictional attending"),
+        (9102, "fictional not attending"),
+        (9103, "fictional maybe"),
+    )
+    if tuple(map(tuple, reply_types)) != expected_reply_types:
+        raise StagingContractError(
+            "Remote staging legacy reply types are drifted; do not retry"
+        )
+
+    ballparks = connection.execute(
+        text(
+            "SELECT id, name, city_name, city_weather_code, district_name "
+            "FROM ntubtob.ballparks ORDER BY id"
+        )
+    ).all()
+    if tuple(map(tuple, ballparks)) != (
+        (9301, "虛構球場", "虛構城市", "fictional-code", "虛構行政區"),
+    ):
+        raise StagingContractError(
+            "Remote staging legacy ballparks are drifted; do not retry"
+        )
+
+    members = connection.execute(
+        text(
+            "SELECT id, name, enroll_year, major, number, positions, person_id "
+            "FROM ntubtob.members ORDER BY id"
+        )
+    ).all()
+    if tuple(map(tuple, members)) != (
+        (9201, "虛構校友甲", 100, "虛構系所", 1, "虛構守位", 1),
+        (9202, "虛構校友乙", 101, "虛構系所", 2, "虛構守位", None),
+    ):
+        raise StagingContractError(
+            "Remote staging legacy members are drifted; do not retry"
+        )
+
+    games = connection.execute(
+        text(
+            "SELECT id, year, season, start_datetime, duration, location, home_team, "
+            "away_team, invitation_time, cancellation_time, cancellation_announcement_time "
+            "FROM ntubtob.games WHERE id IN (9401, 9402) ORDER BY id"
+        )
+    ).all()
+    expected_games = (
+        (
+            9401,
+            126,
+            1,
+            datetime(2037, 1, 1, 1, tzinfo=timezone.utc),
+            180,
+            "虛構球場",
+            "虛構主隊",
+            "虛構客隊",
+            None,
+            None,
+            None,
+        ),
+        (
+            9402,
+            126,
+            1,
+            datetime(2037, 1, 8, 1, tzinfo=timezone.utc),
+            180,
+            "虛構球場",
+            "虛構主隊",
+            "虛構客隊",
+            datetime(2037, 1, 1, 1, tzinfo=timezone.utc),
+            datetime(2037, 1, 2, 1, tzinfo=timezone.utc),
+            None,
+        ),
+    )
+    if tuple(map(tuple, games)) != expected_games:
+        raise StagingContractError(
+            "Remote staging legacy games are drifted; do not retry"
+        )
+
+    line_users = connection.execute(
+        text(
+            "SELECT id, nickname, line_user_id, member_id, submit_time, has_replied, "
+            "ignored FROM ntubtob.line_users ORDER BY id"
+        )
+    ).all()
+    line_user_static = tuple(
+        (row[0], row[1], row[2], row[3], row[5], row[6]) for row in line_users
+    )
+    if (
+        line_user_static
+        != (
+            (9501, "虛構已連結", "fake-line-linked", 9201, True, False),
+            (9502, "虛構待配對", "fake-line-pending", None, False, False),
+            (9503, "虛構已忽略", "fake-line-ignored", None, False, True),
+        )
+        or len({row[4] for row in line_users}) != 1
+        or line_users[0][4] is None
+    ):
+        raise StagingContractError(
+            "Remote staging legacy line users are drifted; do not retry"
+        )
+
+    attendance = connection.execute(
         text(
             "SELECT id, game_id, user_id, member_id, person_id, reply, updated_at "
             "FROM ntubtob.game_attendance_replies WHERE id BETWEEN 9601 AND 9604 "
             "ORDER BY id"
         )
     ).all()
-    expected_legacy_replies = (
+    expected_attendance = (
         (9601, 9401, 9501, 9201, 1, 9103, datetime(2037, 1, 1, tzinfo=timezone.utc)),
         (
             9602,
@@ -1573,40 +1703,112 @@ def _canonical_fixture_fingerprint(
             datetime(2037, 1, 2, 0, 1, tzinfo=timezone.utc),
         ),
     )
-    if tuple(map(tuple, legacy_replies)) != expected_legacy_replies:
+    if tuple(map(tuple, attendance)) != expected_attendance:
         raise StagingContractError(
-            "Remote staging legacy attendance ownership is drifted; do not retry"
+            "Remote staging legacy attendance is drifted; do not retry"
         )
-    reply_types = connection.execute(
+
+    person = connection.execute(
         text(
-            "SELECT id, description FROM ntubtob.attendance_reply_types "
-            "WHERE id BETWEEN 1 AND 5 ORDER BY id"
+            "SELECT id, formal_name, display_name, admin_note, portal_access_level, "
+            "portal_status, version, created_at, updated_at FROM ntubtob.people "
+            "WHERE id=1"
         )
-    ).all()
-    if tuple(map(tuple, reply_types)) != (
-        (1, "TASK112 fixture attending"),
-        (2, "TASK112 fixture not_attending"),
-        (3, "TASK112 fixture arriving_late"),
-        (4, "TASK112 fixture leaving_early"),
-        (5, "TASK112 fixture undecided"),
+    ).one_or_none()
+    if (
+        person is None
+        or tuple(person[:7])
+        != (
+            1,
+            "虛構校友甲",
+            "虛構校友甲",
+            None,
+            "basic",
+            "inactive",
+            1,
+        )
+        or person[7] is None
+        or person[7] != person[8]
     ):
         raise StagingContractError(
-            "Remote staging attendance reply types are drifted; do not retry"
+            "Remote staging legacy person is drifted; do not retry"
         )
-    if not _legacy_fixture_audit(connection):
+
+    qualification = connection.execute(
+        text(
+            "SELECT id, person_id, qualification, status, valid_from, valid_until, "
+            "granted_by_person_id, reason, created_at, updated_at "
+            "FROM ntubtob.person_qualifications WHERE id=1"
+        )
+    ).one_or_none()
+    if (
+        qualification is None
+        or tuple(qualification[:8])
+        != (
+            1,
+            1,
+            "team_player",
+            "active",
+            None,
+            None,
+            None,
+            "Phase C attendance compatibility backfill",
+        )
+        or qualification[8] is None
+        or qualification[8] != qualification[9]
+    ):
         raise StagingContractError(
-            "Remote staging fixture audit is drifted; do not retry"
+            "Remote staging legacy qualification is drifted; do not retry"
         )
-    return state, (
-        "seeded",
-        tuple(map(tuple, people)),
-        tuple(map(tuple, identities)),
-        bool(tester_binding),
-        tuple(map(tuple, qualifications)),
-        tuple(map(tuple, games)),
-        tuple(map(tuple, replies)),
-        tuple(map(tuple, legacy_replies)),
+
+    audit = (
+        connection.execute(
+            text(
+                "SELECT id, action, actor_person_id, target_person_id, auth_identity_id, "
+                "before_state, after_state, reason, request_id, created_at "
+                "FROM ntubtob.access_audit WHERE id=1"
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if (
+        audit is None
+        or _audit_shape(audit)
+        != {
+            "id": 1,
+            "action": "member_backfilled",
+            "actor_person_id": None,
+            "target_person_id": 1,
+            "auth_identity_id": None,
+            "before_state": {"member_id": 9201, "person_id": None},
+            "after_state": {"member_id": 9201, "person_id": 1},
+            "reason": "Phase C attendance compatibility backfill",
+            "request_id": "phase-c-attendance-member-9201",
+        }
+        or audit["created_at"] is None
+    ):
+        raise StagingContractError(
+            "Remote staging legacy audit is drifted; do not retry"
+        )
+    migration_timestamp = person[7]
+    if (
+        qualification[8] != migration_timestamp
+        or audit["created_at"] != migration_timestamp
+    ):
+        raise StagingContractError(
+            "Remote staging legacy migration timestamps are drifted; do not retry"
+        )
+    return (
         tuple(map(tuple, reply_types)),
+        tuple(map(tuple, ballparks)),
+        tuple(map(tuple, members)),
+        tuple(map(tuple, games)),
+        tuple(map(tuple, line_users)),
+        tuple(map(tuple, attendance)),
+        tuple(person),
+        tuple(qualification),
+        tuple(audit[field] for field in (*AUDIT_FIELDS, "created_at")),
     )
 
 

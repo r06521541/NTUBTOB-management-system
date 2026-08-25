@@ -400,6 +400,42 @@ class ContractTest(unittest.TestCase):
                 )
         upgrade.assert_called_once_with("config", REVISION)
 
+    def test_clean_legacy_value_drift_makes_zero_upgrade_calls(self):
+        connection = Mock()
+        connection.scalar.return_value = True
+        connection.scalars.side_effect = [
+            (FORWARD_REVISIONS[0],),
+            tuple(REVISION_TABLES[FORWARD_REVISIONS[0]]),
+        ]
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = connection
+        with patch(
+            "tools.mobile_staging_data._fixture_state", return_value="clean"
+        ), patch(
+            "tools.mobile_staging_data._canonical_legacy_fingerprint",
+            side_effect=StagingContractError("legacy ballparks are drifted"),
+        ), patch(
+            "tools.mobile_staging_data.command.upgrade"
+        ) as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "ballparks are drifted"):
+                _upgrade_known_database(
+                    engine, Path.cwd(), FORWARD_REVISIONS[0], "clean", "subject"
+                )
+        upgrade.assert_not_called()
+
+    def test_seeded_identity_timestamp_drift_makes_zero_upgrade_calls(self):
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = Mock()
+        with patch(
+            "tools.mobile_staging_data._database_state",
+            side_effect=StagingContractError("fixture identities are drifted"),
+        ), patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "identities are drifted"):
+                _upgrade_known_database(
+                    engine, Path.cwd(), FORWARD_REVISIONS[1], "seeded", "subject"
+                )
+        upgrade.assert_not_called()
+
     def test_role_lifecycle_accepts_legacy_and_later_generations(self):
         legacy_grant = {
             "id": -119001,
@@ -1658,6 +1694,50 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 ),
                 FORWARD_REVISIONS[1],
             )
+
+    def test_clean_forward_upgrade_rejects_legacy_value_drift_before_alembic(self):
+        self._downgrade_current_schema(FORWARD_REVISIONS[0])
+        with self.engine.begin() as connection:
+            connection.execute(
+                text("UPDATE ntubtob.ballparks SET name='drifted' WHERE id=9301")
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "ballparks are drifted"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+
+    def test_seeded_forward_upgrade_rejects_identity_timestamp_drift(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.auth_identities SET created_at=created_at + "
+                    "interval '1 second' WHERE id=-112002"
+                )
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "identities are drifted"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
 
     def test_0007_and_known_revision_table_drift_fail_closed(self):
         self._downgrade_current_schema("0007_mobile_notifications")
