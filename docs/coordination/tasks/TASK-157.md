@@ -8,9 +8,9 @@
 - requires_independent_pr: true
 - authority_branch: `codex/task-157-google-auth-staging-readiness`
 - repository_authority: `1b7d80a41a24c6fbf2ed693ed7d7b017527bf866`
-- owner_authorized: 2026-08-25 for task activation and sanitized read-only
-  reconciliation only
-- standing_authorization: `DEC-099`
+- owner_authorized: 2026-08-25 for task activation; sandbox operations follow
+  DEC-100
+- standing_authorization: `DEC-100`
 - production_or_real_data: prohibited
 
 This task's initial docs-only PR is the safety/authority exception required
@@ -68,14 +68,15 @@ identity or authorization boundaries.
 ### Stage A — sanitized read-only reconciliation
 
 `operator=agent`, `owner_gate=none`,
-`standing_authorization=DEC-099 and TASK-157 read-only reconciliation`,
+`standing_authorization=DEC-100 and TASK-157`,
 `report_to=main-work`.
 
 1. Resolve only approved stable target aliases from repository authority and
-   existing operator tooling; do not read `.env.yaml` or Secret payloads.
+   existing operator tooling, or use the Owner's latest exact sandbox target
+   for read-only reconciliation; do not read `.env.yaml` or Secret payloads.
 2. Verify a single active account, then use artifact-derived project and
    explicit region/service flags for every cloud read; do not require or modify
-   the local default project/region when DEC-099 resolves a different target.
+   the local default project/region when DEC-100 resolves a different target.
 3. Read only the minimum provider/cloud metadata required to classify each
    expected Web, Android, iOS, callback, Secret-reference/IAM and staging item
    as confirmed, reported-but-unverified, missing, inconsistent or blocked.
@@ -85,10 +86,10 @@ identity or authorization boundaries.
 
 ### Gate B — exact mutation approval
 
-Before any provider, callback, Secret reference, IAM, signing metadata, build,
-revision or traffic mutation, Main Work gives Owner one bounded approval packet:
-sanitized target aliases, exact action/count, effect, stop conditions,
-post-check and rollback. Approval of one action does not approve later gates.
+Before a sandbox mutation, Main Work records a bounded execution packet with
+exact target, action/count, effect, stop conditions, post-check and rollback.
+DEC-100-authorized sandbox operations do not require an additional Owner prompt;
+Owner-reserved actions listed by DEC-100 still require exact approval.
 
 ### Stage C — repository correction, only if reconciliation requires it
 
@@ -102,12 +103,11 @@ delivery group; the task-activation safety PR is not reused as that PR.
 ### Stage D — standing-authorized isolated staging candidate
 
 After the artifact verifier and read-only checks confirm exact target, runtime
-identity, cost ceiling, public boundary and rollback, DEC-099 authorizes agent
-execution of the existing fail-closed operator to build and deploy a no-traffic
-candidate, run health checks and perform a recoverable rollback while reusing
-existing Secret references. Traffic promotion, provider/callback, Secret/IAM,
-signing, new resources, public-boundary expansion and production remain Owner
-gates under Gate B.
+identity, cost ceiling, public boundary and rollback, DEC-100 authorizes agent
+execution of existing fail-closed operators for sandbox build, candidate
+deployment, health check, traffic promotion／rollback, OAuth client／callback
+metadata, runtime env, existing Secret references, fictional data and bounded
+service-account IAM. Owner-reserved actions in DEC-100 remain Gate B.
 
 ### Gate E — real-provider smoke
 
@@ -162,4 +162,16 @@ package after staging evidence is accepted.
 - 2026-08-25: Owner established DEC-099 after the existing staging artifact
   resolved a different project than local defaults. Stage A may resume with
   artifact-derived explicit targets and sanitized output.
+- 2026-08-25: Owner expanded and consolidated sandbox authority in DEC-100;
+  exact sandbox identifiers may be used in controlled tools, and bounded
+  sandbox operations no longer require per-command approval.
+- 2026-08-25: Owner identified the current sandbox project, but it does not
+  match the checked-in candidate artifact. Owner target may be inspected
+  read-only; all mutation remains blocked until the artifact is corrected or
+  regenerated and passes the existing contract/preflight.
+- 2026-08-25: The read-only Console guide reached a session with no selected
+  project and a permission-denied Cloud Run view. This does not establish that
+  the Owner target is absent; Owner must complete sign-in/account selection and
+  select the exact sandbox project before browser inventory resumes. No
+  mutation occurred.
 - Next action: complete Stage A and stop at Gate B or an earlier stop condition.
