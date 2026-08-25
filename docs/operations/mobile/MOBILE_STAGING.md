@@ -52,12 +52,13 @@ or distribution.
 
 `tools/google_auth_staging_preflight.py` is an offline verifier for a separate,
 private provider-bootstrap approval. It performs no Google, cloud or network
-request and never creates a provider resource. Schema version 2 binds a
-canonical UUIDv4 approval ID and one-shot execution nonce to TASK-157, DEC-100,
-the stable Owner gate, and the active Main claim／lease. Inventory observation,
-not-before, and expiry timestamps use exact second-resolution UTC and the whole
-packet window may span at most 30 minutes. A private execution sidecar must
-consume the derived binding SHA-256; a previously consumed binding fails closed.
+request and never creates a provider resource. Schema version 3 binds a
+canonical UUIDv4 approval ID, one-shot execution nonce, exact phase and complete
+observed pre-state to TASK-157, DEC-100, the stable Owner gate, and the active
+Main claim／lease. Inventory observation, not-before, and expiry timestamps use
+exact second-resolution UTC and each phase packet may span at most 30 minutes.
+A private execution sidecar must consume the derived binding SHA-256; a
+previously consumed binding fails closed.
 The executable CLI deterministically derives that sidecar beside the private
 approval and atomically creates it with create-exclusive semantics before it
 emits `PASS`. The sidecar contains only its schema, binding hash, approval hash
@@ -69,18 +70,33 @@ The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any
 opened-handle identity, size or modification-time drift. Its exact provider
 schema freezes the dedicated staging project, External／Testing consent screen,
-basic `openid`／`email`／`profile` scopes, one fictional tester, and a complete
-create-only empty inventory. The Web and Android client aliases, display names,
-and inventory matching keys are fixed. The Web server client has no JavaScript
-origin or redirect URI; the Android client is for `tw.org.ntubtob.portal` with
-a canonical SHA-1 signer fingerprint.
+basic `openid`／`email`／`profile` scopes, one fictional tester target, and a
+complete phase-specific observed inventory. The Web and Android client aliases,
+display names, and inventory matching keys are fixed. The Web server client has
+no JavaScript origin or redirect URI; the Android client is for
+`tw.org.ntubtob.portal` with a canonical SHA-1 signer fingerprint.
 
-The mutation vocabulary is exactly one Auth Platform registration, one consent
-configuration, one tester add, one Web client create, and one Android client
-create. Secret, IAM, public-access, billing, runtime and traffic mutation counts
-must all be zero. Unknown inventory, duplicates, cross-project ownership,
-target drift, non-exact counts, destructive rollback, and any
-production-project reference fail closed.
+Phase order and mutation vocabulary are exact:
+
+1. `registration` requires an unconfigured platform, unconfigured consent and
+   zero tester／Web／Android clients; it authorizes only one Auth Platform
+   registration plus one consent configuration.
+2. `web_client_create` requires registered platform, exact consent and zero
+   tester／Web／Android clients; it authorizes only one Web client create.
+3. `android_client_create` additionally requires exactly one matching Web client
+   and zero Android/tester clients; it authorizes only one Android client create.
+4. `tester_add` requires registered platform, exact consent, exactly one
+   matching Web and Android client, and zero testers; it authorizes only one
+   fictional tester add.
+
+Every other provider action and every Secret, IAM, public-access, billing,
+runtime and traffic mutation count must be zero. Unknown inventory, duplicates,
+cross-project ownership, completed-action reauthorization, skipped phase,
+target drift, non-exact counts, destructive rollback, and any production-project
+reference fail closed. Schema version 2 remains parseable only through the
+library for an existing bootstrap packet's dry reconciliation; the executable
+CLI rejects every v2 packet, including a newly timed reissue, and therefore v2
+cannot authorize work after phase progress exists.
 
 ```powershell
 python -m tools.google_auth_staging_preflight C:\private\google-auth-approval.json

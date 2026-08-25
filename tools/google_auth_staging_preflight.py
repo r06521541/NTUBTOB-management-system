@@ -36,6 +36,27 @@ DECISION_ID = "DEC-100"
 OWNER_GATE_ID = "TASK-157-OWNER-GATE-GOOGLE-AUTH-SEPARATION-20260826"
 MAIN_CLAIM_ID = "main-work-20260825"
 MAIN_LEASE_VERSION = 17
+PHASE_STATES = {
+    "registration": ("unconfigured", "unconfigured", 0, 0, 0),
+    "web_client_create": ("registered", "exact", 0, 0, 0),
+    "android_client_create": ("registered", "exact", 0, 1, 0),
+    "tester_add": ("registered", "exact", 0, 1, 1),
+}
+PHASE_CLIENT_ACTIONS = {
+    "registration": {"web": "not-authorized", "android": "not-authorized"},
+    "web_client_create": {"web": "create", "android": "not-authorized"},
+    "android_client_create": {"web": "completed", "android": "create"},
+    "tester_add": {"web": "completed", "android": "completed"},
+}
+PHASE_ACTION_FIELDS = {
+    "registration": {
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+    },
+    "web_client_create": {"web_client_create_count"},
+    "android_client_create": {"android_client_create_count"},
+    "tester_add": {"tester_add_count"},
+}
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 MAX_APPROVAL_BYTES = 64 * 1024
 MAX_VALIDITY = timedelta(minutes=30)
@@ -299,7 +320,59 @@ def _validate_inventory(value: object) -> tuple[datetime, str]:
     return _parse_utc(inventory["observed_at"]), fingerprint
 
 
-def _validate_clients(value: object, fingerprint: str) -> None:
+def _validate_phase_inventory(value: object, phase: str) -> tuple[datetime, str]:
+    inventory = _exact_object(
+        value,
+        {
+            "status",
+            "project",
+            "observed_at",
+            "auth_platform_status",
+            "consent_status",
+            "tester_count",
+            "web_client_count",
+            "android_client_count",
+            "duplicate_client_count",
+            "cross_project_client_count",
+            "matching_keys",
+        },
+        "Phase inventory fields are not exact",
+    )
+    if inventory["status"] != "complete" or inventory["project"] != STAGING_PROJECT:
+        _fail("Phase inventory target is not exact")
+    expected = PHASE_STATES.get(phase)
+    actual = (
+        inventory["auth_platform_status"],
+        inventory["consent_status"],
+        inventory["tester_count"],
+        inventory["web_client_count"],
+        inventory["android_client_count"],
+    )
+    if expected is None or actual != expected:
+        _fail("Phase inventory precondition is not exact")
+    for field in (
+        "tester_count",
+        "web_client_count",
+        "android_client_count",
+        "duplicate_client_count",
+        "cross_project_client_count",
+    ):
+        if type(inventory[field]) is not int:
+            _fail("Phase inventory counts are invalid")
+    if (
+        inventory["duplicate_client_count"] != 0
+        or inventory["cross_project_client_count"] != 0
+    ):
+        _fail("Phase inventory contains duplicate or cross-project clients")
+    fingerprint = _validate_matching_keys(inventory["matching_keys"])
+    return _parse_utc(inventory["observed_at"]), fingerprint
+
+
+def _validate_clients(
+    value: object,
+    fingerprint: str,
+    expected_actions: dict[str, str] | None = None,
+) -> None:
     if not isinstance(value, list) or len(value) != 2:
         _fail("Exactly two planned clients are required")
     by_type: dict[str, dict] = {}
@@ -331,11 +404,13 @@ def _validate_clients(value: object, fingerprint: str) -> None:
     )
     for client in (web, android):
         if (
-            client["action"] != "create"
-            or client["owning_project"] != STAGING_PROJECT
+            client["owning_project"] != STAGING_PROJECT
             or client["dedicated"] is not True
         ):
             _fail("Planned clients are not new, dedicated staging resources")
+    actions = expected_actions or {"web": "create", "android": "create"}
+    if web["action"] != actions["web"] or android["action"] != actions["android"]:
+        _fail("Client action sequence is not exact")
     if (
         web["alias"] != WEB_ALIAS
         or web["display_name"] != WEB_DISPLAY_NAME
@@ -352,7 +427,9 @@ def _validate_clients(value: object, fingerprint: str) -> None:
         _fail("Android client boundary is not exact")
 
 
-def _validate_mutation_boundary(value: object) -> None:
+def _validate_mutation_boundary(
+    value: object, expected_one_fields: set[str] | None = None
+) -> None:
     one_fields = {
         "auth_platform_registration_count",
         "consent_configuration_count",
@@ -373,8 +450,10 @@ def _validate_mutation_boundary(value: object) -> None:
         one_fields | zero_fields | {"rollback"},
         "Mutation boundary fields are not exact",
     )
+    expected = one_fields if expected_one_fields is None else expected_one_fields
     if any(
-        type(boundary[field]) is not int or boundary[field] != 1 for field in one_fields
+        type(boundary[field]) is not int or boundary[field] != int(field in expected)
+        for field in one_fields
     ):
         _fail("Provider bootstrap action counts are not exact")
     if any(
@@ -389,7 +468,20 @@ def _validate_mutation_boundary(value: object) -> None:
 def execution_binding_sha256(approval: dict) -> str:
     approval_id = approval["approval_id"]
     nonce = approval["execution_binding"]["nonce"]
-    payload = f"{approval_id}:{nonce}"
+    if approval.get("schema_version") == 3:
+        payload = json.dumps(
+            {
+                "approval_id": approval_id,
+                "nonce": nonce,
+                "phase": approval.get("phase"),
+                "inventory": approval.get("inventory"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    else:
+        payload = f"{approval_id}:{nonce}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -401,41 +493,57 @@ def load_provider_approval(
 ) -> dict:
     """Load and validate one exact private provider-bootstrap approval."""
 
+    raw = _read_opened_json(_require_private_path(path))
+    common_fields = {
+        "schema_version",
+        "approval_id",
+        "authority",
+        "owner_approved",
+        "project",
+        "validity",
+        "execution_binding",
+        "consent_screen",
+        "inventory",
+        "planned_clients",
+        "mutation_boundary",
+    }
+    schema_version = raw.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {2, 3}:
+        _fail("Provider approval schema is not supported")
     approval = _exact_object(
-        _read_opened_json(_require_private_path(path)),
-        {
-            "schema_version",
-            "approval_id",
-            "authority",
-            "owner_approved",
-            "project",
-            "validity",
-            "execution_binding",
-            "consent_screen",
-            "inventory",
-            "planned_clients",
-            "mutation_boundary",
-        },
+        raw,
+        common_fields | ({"phase"} if schema_version == 3 else set()),
         "Provider approval fields are not exact",
     )
     if _contains_production_project(approval):
         _fail("Production project reference is forbidden")
-    if (
-        type(approval["schema_version"]) is not int
-        or approval["schema_version"] != 2
-        or approval["owner_approved"] is not True
-        or approval["project"] != STAGING_PROJECT
-    ):
+    if approval["owner_approved"] is not True or approval["project"] != STAGING_PROJECT:
         _fail("Provider approval target is not exact")
     _validate_authority(approval["authority"], approval["approval_id"])
     _validate_execution_binding(approval["execution_binding"])
-    observed_at, fingerprint = _validate_inventory(approval["inventory"])
+    if schema_version == 2:
+        observed_at, fingerprint = _validate_inventory(approval["inventory"])
+    else:
+        phase = approval["phase"]
+        if phase not in PHASE_STATES:
+            _fail("Provider approval phase is invalid")
+        observed_at, fingerprint = _validate_phase_inventory(
+            approval["inventory"], phase
+        )
     _validate_validity(
         approval["validity"], observed_at, now or datetime.now(timezone.utc)
     )
     _validate_consent_screen(approval["consent_screen"])
-    _validate_clients(approval["planned_clients"], fingerprint)
-    _validate_mutation_boundary(approval["mutation_boundary"])
+    if schema_version == 2:
+        _validate_clients(approval["planned_clients"], fingerprint)
+        _validate_mutation_boundary(approval["mutation_boundary"])
+    else:
+        _validate_clients(
+            approval["planned_clients"], fingerprint, PHASE_CLIENT_ACTIONS[phase]
+        )
+        _validate_mutation_boundary(
+            approval["mutation_boundary"], PHASE_ACTION_FIELDS[phase]
+        )
     if execution_binding_sha256(approval) in consumed_execution_bindings:
         _fail("Execution binding was already consumed")
     return approval
@@ -459,6 +567,8 @@ def _write_sidecar_bytes(handle, payload: bytes) -> None:
 def _consume_cli_approval(
     approval_path: Path, approval: dict, consumed_at: datetime
 ) -> Path:
+    if approval.get("schema_version") != 3 or approval.get("phase") not in PHASE_STATES:
+        _fail("Only progressive phase approvals may be consumed")
     resolved_approval = _require_private_path(approval_path)
     resolved_parent = _require_private_path(resolved_approval.parent)
     if not resolved_parent.is_dir() or resolved_approval.parent != resolved_parent:
@@ -545,6 +655,8 @@ def main(
             now=effective_now,
             consumed_execution_bindings=consumed_execution_bindings,
         )
+        if approval["schema_version"] != 3:
+            _fail("Legacy full bootstrap approval is dry-validation only")
         _consume_cli_approval(args.approval, approval, effective_now)
         print(
             json.dumps(

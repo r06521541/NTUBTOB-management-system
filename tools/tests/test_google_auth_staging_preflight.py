@@ -124,8 +124,63 @@ def approval() -> dict:
     }
 
 
-def approval_for_now(now: datetime) -> dict:
+PHASE_STATES = {
+    "registration": ("unconfigured", "unconfigured", 0, 0, 0),
+    "web_client_create": ("registered", "exact", 0, 0, 0),
+    "android_client_create": ("registered", "exact", 0, 1, 0),
+    "tester_add": ("registered", "exact", 0, 1, 1),
+}
+PHASE_CLIENT_ACTIONS = {
+    "registration": ("not-authorized", "not-authorized"),
+    "web_client_create": ("create", "not-authorized"),
+    "android_client_create": ("completed", "create"),
+    "tester_add": ("completed", "completed"),
+}
+PHASE_ACTION_FIELDS = {
+    "registration": (
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+    ),
+    "web_client_create": ("web_client_create_count",),
+    "android_client_create": ("android_client_create_count",),
+    "tester_add": ("tester_add_count",),
+}
+
+
+def phase_approval(phase: str) -> dict:
     value = approval()
+    value["schema_version"] = 3
+    value["phase"] = phase
+    platform, consent, tester, web, android = PHASE_STATES[phase]
+    value["inventory"] = {
+        "status": "complete",
+        "project": PROJECT,
+        "observed_at": "2026-08-26T00:00:00Z",
+        "auth_platform_status": platform,
+        "consent_status": consent,
+        "tester_count": tester,
+        "web_client_count": web,
+        "android_client_count": android,
+        "duplicate_client_count": 0,
+        "cross_project_client_count": 0,
+        "matching_keys": copy.deepcopy(approval()["inventory"]["matching_keys"]),
+    }
+    web_action, android_action = PHASE_CLIENT_ACTIONS[phase]
+    value["planned_clients"][0]["action"] = web_action
+    value["planned_clients"][1]["action"] = android_action
+    for field in (
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+        "tester_add_count",
+        "web_client_create_count",
+        "android_client_create_count",
+    ):
+        value["mutation_boundary"][field] = int(field in PHASE_ACTION_FIELDS[phase])
+    return value
+
+
+def approval_for_now(now: datetime, value: dict | None = None) -> dict:
+    value = copy.deepcopy(value or approval())
     exact_now = now.astimezone(timezone.utc).replace(microsecond=0)
 
     def rendered(delta: timedelta) -> str:
@@ -277,7 +332,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 _read_opened_json(self.path)
 
     def test_cli_emits_only_classification_and_hash(self):
-        self.write(approval())
+        self.write(phase_approval("registration"))
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
             result = main([str(self.path)], now=NOW)
@@ -296,7 +351,11 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             self.assertNotIn(private_value, rendered)
 
     def test_second_cli_process_is_rejected_after_first_pass(self):
-        self.write(approval_for_now(datetime.now(timezone.utc)))
+        self.write(
+            approval_for_now(
+                datetime.now(timezone.utc), phase_approval("web_client_create")
+            )
+        )
         repository = Path(__file__).resolve().parents[2]
         command = [
             sys.executable,
@@ -334,7 +393,10 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 directory = Path(self.temp.name) / hashlib.sha256(content).hexdigest()
                 directory.mkdir()
                 path = directory / "private-approval.json"
-                path.write_text(json.dumps(approval()), encoding="utf-8")
+                path.write_text(
+                    json.dumps(phase_approval("android_client_create")),
+                    encoding="utf-8",
+                )
                 _consumed_sidecar_path(path).write_bytes(content)
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):
@@ -345,7 +407,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 )
 
     def test_write_failure_leaves_sidecar_and_blocks_replay(self):
-        self.write(approval())
+        self.write(phase_approval("tester_add"))
         stderr = io.StringIO()
         with patch(
             "tools.google_auth_staging_preflight._write_sidecar_bytes",
@@ -360,7 +422,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertNotIn("PRIVATE-WRITE-SENTINEL", stderr.getvalue())
 
     def test_sidecar_reparse_boundary_fails_before_create(self):
-        self.write(approval())
+        self.write(phase_approval("web_client_create"))
         loaded = self.load()
         with patch(
             "tools.google_auth_staging_preflight._assert_path_chain_no_reparse",
@@ -380,7 +442,9 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertNotIn(sentinel, stderr.getvalue())
 
     def test_cli_contract_failure_is_fixed_and_redacted(self):
-        self.write(self.replace("planned_clients.1.sha1_fingerprint", "PRIVATE"))
+        value = phase_approval("android_client_create")
+        value["planned_clients"][1]["sha1_fingerprint"] = "PRIVATE"
+        self.write(value)
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             result = main([str(self.path)], now=NOW)
@@ -474,6 +538,95 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 with self.assertRaises(ProviderApprovalError):
                     self.load()
         self.assert_rejected("mutation_boundary.rollback", "delete-provider-resources")
+
+    def test_accepts_each_exact_progressive_phase(self):
+        for phase in PHASE_STATES:
+            with self.subTest(phase=phase):
+                value = phase_approval(phase)
+                self.write(value)
+                self.assertEqual(self.load(), value)
+
+    def test_rejects_phase_transition_precondition_drift(self):
+        mutations = (
+            ("registration", "inventory.auth_platform_status", "registered"),
+            ("web_client_create", "inventory.tester_count", 1),
+            ("web_client_create", "inventory.web_client_count", 1),
+            ("android_client_create", "inventory.web_client_count", 0),
+            ("android_client_create", "inventory.android_client_count", 1),
+            ("tester_add", "inventory.tester_count", 1),
+            ("tester_add", "inventory.android_client_count", 0),
+        )
+        for phase, field, replacement in mutations:
+            with self.subTest(phase=phase, field=field):
+                value = phase_approval(phase)
+                target = value
+                for part in field.split(".")[:-1]:
+                    target = target[part]
+                target[field.split(".")[-1]] = replacement
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_phase_packet_authorizes_only_current_action(self):
+        for phase in PHASE_STATES:
+            with self.subTest(phase=phase):
+                value = phase_approval(phase)
+                unexpected = next(
+                    field
+                    for field in (
+                        "auth_platform_registration_count",
+                        "consent_configuration_count",
+                        "tester_add_count",
+                        "web_client_create_count",
+                        "android_client_create_count",
+                    )
+                    if field not in PHASE_ACTION_FIELDS[phase]
+                )
+                value["mutation_boundary"][unexpected] = 1
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+                value = phase_approval(phase)
+                expected = next(iter(PHASE_ACTION_FIELDS[phase]))
+                value["mutation_boundary"][expected] = 0
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_v2_remains_dry_loadable_but_cannot_be_reissued_to_cli(self):
+        value = approval_for_now(NOW, approval())
+        self.write(value)
+        self.assertEqual(self.load(), value)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result = main([str(self.path)], now=NOW)
+        self.assertEqual(result, 2)
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+        self.assertFalse(_consumed_sidecar_path(self.path).exists())
+
+    def test_binding_changes_with_phase_and_observed_completed_state(self):
+        web = phase_approval("web_client_create")
+        android = phase_approval("android_client_create")
+        changed_state = copy.deepcopy(web)
+        changed_state["inventory"]["web_client_count"] = 1
+        self.assertNotEqual(
+            execution_binding_sha256(web), execution_binding_sha256(android)
+        )
+        self.assertNotEqual(
+            execution_binding_sha256(web), execution_binding_sha256(changed_state)
+        )
+
+    def test_rejects_unknown_phase_and_client_action_sequence_drift(self):
+        value = phase_approval("registration")
+        value["phase"] = "full_bootstrap"
+        self.write(value)
+        with self.assertRaises(ProviderApprovalError):
+            self.load()
+        value = phase_approval("tester_add")
+        value["planned_clients"][1]["action"] = "create"
+        self.write(value)
+        with self.assertRaises(ProviderApprovalError):
+            self.load()
 
 
 if __name__ == "__main__":
