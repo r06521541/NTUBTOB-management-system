@@ -12,7 +12,11 @@ from urllib.parse import unquote, urlparse
 PRODUCTION_PROJECT = "ntubtob-schedule-405614"
 REGION = "asia-east1"
 SERVICE = "mobile-api-staging"
-REVISION = "0005_mobile_auth_api_foundation"
+REVISION = "0008_mobile_notification_delivery"
+FORWARD_REVISIONS = (
+    "0005_mobile_auth_api_foundation",
+    "0006_staging_broker_operation_journal",
+)
 RUNTIME_NAMES = (
     "PORTAL_DATA_DATABASE_URL",
     "MOBILE_API_AUDIENCE",

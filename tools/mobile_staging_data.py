@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from contextvars import ContextVar
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -18,6 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 try:
     from .mobile_staging_contract import (
+        FORWARD_REVISIONS,
         REVISION,
         StagingContractError,
         load_approval,
@@ -34,6 +34,7 @@ try:
     from .setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 except ImportError:  # pragma: no cover
     from mobile_staging_contract import (
+        FORWARD_REVISIONS,
         REVISION,
         StagingContractError,
         load_approval,
@@ -86,10 +87,26 @@ MOBILE_TABLES = {
     "mobile_refresh_tokens",
     "mobile_sessions",
 }
-EXPECTED_TABLES = LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES | {"alembic_version"}
-BROKER_REVISION = "0006_staging_broker_operation_journal"
+BASE_EXPECTED_TABLES = (
+    LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES | {"alembic_version"}
+)
+AUTH_REVISION, BROKER_REVISION = FORWARD_REVISIONS
 BROKER_TABLES = frozenset({"staging_broker_operations"})
-_BROKER_SCHEMA_MODE = ContextVar("mobile_staging_broker_schema_mode", default=False)
+NOTIFICATION_TABLES = frozenset(
+    {
+        "mobile_notifications",
+        "mobile_notification_recipients",
+        "mobile_notification_publish_audits",
+        "mobile_notification_deliveries",
+        "mobile_device_registrations",
+    }
+)
+EXPECTED_TABLES = BASE_EXPECTED_TABLES | BROKER_TABLES | NOTIFICATION_TABLES
+REVISION_TABLES = {
+    AUTH_REVISION: BASE_EXPECTED_TABLES,
+    BROKER_REVISION: BASE_EXPECTED_TABLES | BROKER_TABLES,
+    REVISION: EXPECTED_TABLES,
+}
 LEGACY_IDS = {
     "attendance_reply_types": (9101, 9102, 9103),
     "ballparks": (9301,),
@@ -468,11 +485,8 @@ def _officer_fixture_state(
     revisions = tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
     )
-    broker_schema = _BROKER_SCHEMA_MODE.get()
-    expected_revision = BROKER_REVISION if broker_schema else REVISION
-    expected_tables = (
-        EXPECTED_TABLES | BROKER_TABLES if broker_schema else EXPECTED_TABLES
-    )
+    expected_revision = REVISION
+    expected_tables = EXPECTED_TABLES
     if set(tables) != expected_tables or revisions != (expected_revision,):
         raise StagingContractError("Officer fixture is not ready; do not retry")
 
@@ -674,7 +688,7 @@ def mobile_principal_inventory(approval: dict, database_url: str) -> dict:
                     )
                     if revisions != (REVISION,):
                         raise StagingContractError(
-                            "Mobile principal inventory requires exact revision 0005"
+                            "Mobile principal inventory requires exact revision 0008"
                         )
                     expected_person = (
                         connection.execute(
@@ -1147,12 +1161,8 @@ def execute_fixture_lifecycle_reset(
 
 
 def _broker_schema_call(function, *args):
-    """Run one existing bounded operator call against exact revision 0006."""
-    token = _BROKER_SCHEMA_MODE.set(True)
-    try:
-        return function(*args)
-    finally:
-        _BROKER_SCHEMA_MODE.reset(token)
+    """Run one existing bounded broker call against the current staging schema."""
+    return function(*args)
 
 
 def broker_fixture_lifecycle_inventory(
@@ -1239,6 +1249,14 @@ def _database_state(connection) -> dict:
             "database_state": "empty",
             "fixture_state": "clean",
         }
+    revisions = tuple(
+        connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
+    )
+    if len(revisions) != 1 or revisions[0] not in REVISION_TABLES:
+        raise StagingContractError(
+            "Remote staging revision is unknown or drifted; do not retry"
+        )
+    revision = revisions[0]
     tables = tuple(
         connection.scalars(
             text(
@@ -1247,20 +1265,13 @@ def _database_state(connection) -> dict:
             )
         )
     )
-    if set(tables) != EXPECTED_TABLES:
+    if set(tables) != REVISION_TABLES[revision]:
         raise StagingContractError(
             "Remote staging schema is partial or drifted; do not retry"
         )
-    revisions = tuple(
-        connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    )
-    if revisions != (REVISION,):
-        raise StagingContractError(
-            "Remote staging revision is partial or drifted; do not retry"
-        )
     return {
-        "revision": REVISION,
-        "database_state": "ready",
+        "revision": revision,
+        "database_state": "ready" if revision == REVISION else "upgrade_pending",
         "fixture_state": _fixture_state(connection),
     }
 
@@ -1328,6 +1339,8 @@ def recover(approval: dict, database_url: str) -> dict:
     state = inventory(approval, database_url)
     if state["database_state"] == "empty":
         outcome = "not_started"
+    elif state["database_state"] == "upgrade_pending":
+        outcome = "upgrade_pending"
     elif state["fixture_state"] == "clean":
         outcome = "seed_pending"
     else:
@@ -1360,6 +1373,40 @@ def _bootstrap_empty_database(engine, root: Path) -> None:
         ) from None
 
 
+def _upgrade_known_database(
+    engine, root: Path, expected_revision: str, expected_fixture_state: str
+) -> None:
+    if expected_revision not in FORWARD_REVISIONS:
+        raise StagingContractError("Remote staging forward revision is not approved")
+    try:
+        with engine.begin() as connection:
+            before = _database_state(connection)
+            if (
+                before["database_state"] != "upgrade_pending"
+                or before["revision"] != expected_revision
+                or before["fixture_state"] != expected_fixture_state
+            ):
+                raise StagingContractError(
+                    "Remote staging forward-upgrade precheck drifted"
+                )
+            command.upgrade(_alembic_config(root, connection), REVISION)
+            after = _database_state(connection)
+            if (
+                after["database_state"] != "ready"
+                or after["revision"] != REVISION
+                or after["fixture_state"] != expected_fixture_state
+            ):
+                raise StagingContractError(
+                    "Remote staging forward-upgrade postcheck failed"
+                )
+    except StagingContractError:
+        raise
+    except (CommandError, SQLAlchemyError, UnicodeError):
+        raise StagingContractError(
+            "Remote staging forward upgrade failed safely; recover before retry"
+        ) from None
+
+
 def execute(
     approval: dict,
     database_url: str,
@@ -1378,6 +1425,21 @@ def execute(
             migrated = inventory(approval, database_url)
             if migrated["revision"] != REVISION or migrated["fixture_state"] != "clean":
                 raise StagingContractError("Remote staging migration postcheck failed")
+        elif before["outcome"] == "upgrade_pending":
+            _upgrade_known_database(
+                engine,
+                root,
+                before["revision"],
+                before["fixture_state"],
+            )
+            migrated = inventory(approval, database_url)
+            if (
+                migrated["revision"] != REVISION
+                or migrated["fixture_state"] != before["fixture_state"]
+            ):
+                raise StagingContractError(
+                    "Remote staging forward-upgrade recovery failed"
+                )
         seed(engine, private_subject)
     except StagingContractError:
         raise

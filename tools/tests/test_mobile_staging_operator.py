@@ -12,24 +12,33 @@ import tempfile
 import unittest
 from pathlib import Path
 from subprocess import CompletedProcess
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
+from alembic import command
 from alembic.util.exc import CommandError
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from tools.mobile_staging_contract import (
+    FORWARD_REVISIONS,
     PRODUCTION_PROJECT,
+    REVISION,
     DatabaseIdentity,
     StagingContractError,
     load_approval,
     redacted_manifest,
 )
 from tools.mobile_staging_data import (
+    EXPECTED_TABLES,
+    NOTIFICATION_TABLES,
+    REVISION_TABLES,
+    _alembic_config,
     _bootstrap_empty_database,
     _classify_role_lifecycle,
+    _database_state,
     _execute_officer_transition,
     _mobile_principal_state,
+    _upgrade_known_database,
     attendance_repair_inventory,
 )
 from tools.mobile_staging_data import execute as execute_staging_data
@@ -60,8 +69,10 @@ from tools.mobile_staging_operator import (
     validate_build_context,
     validate_candidate,
 )
-from tools.mobile_staging_preflight import cloud_inventory
-from tools.mobile_staging_seed import ANCHOR, FIXTURE_REPLY_AT, cleanup
+from tools.mobile_staging_preflight import cloud_inventory, database_inventory
+from tools.mobile_staging_seed import ANCHOR, FIXTURE_REPLY_AT
+from tools.mobile_staging_seed import REVISION as SEED_REVISION
+from tools.mobile_staging_seed import cleanup
 
 DATABASE_URL = (
     "postgresql://fake-user:fake-password@staging-db.invalid:5432/mobile_staging"
@@ -198,6 +209,125 @@ def service(mode="update", candidate_percent=0):
 
 
 class ContractTest(unittest.TestCase):
+    def test_staging_revision_contract_matches_mobile_api_readiness(self):
+        self.assertEqual(REVISION, "0008_mobile_notification_delivery")
+        self.assertEqual(SEED_REVISION, REVISION)
+        self.assertEqual(
+            FORWARD_REVISIONS,
+            (
+                "0005_mobile_auth_api_foundation",
+                "0006_staging_broker_operation_journal",
+            ),
+        )
+        self.assertEqual(set(REVISION_TABLES), {*FORWARD_REVISIONS, REVISION})
+        self.assertEqual(REVISION_TABLES[REVISION], EXPECTED_TABLES)
+        self.assertEqual(
+            NOTIFICATION_TABLES,
+            {
+                "mobile_notifications",
+                "mobile_notification_recipients",
+                "mobile_notification_publish_audits",
+                "mobile_notification_deliveries",
+                "mobile_device_registrations",
+            },
+        )
+
+    def test_revision_specific_table_sets_and_unknown_revision_fail_closed(self):
+        for revision_name, tables in REVISION_TABLES.items():
+            with self.subTest(revision=revision_name):
+                connection = Mock()
+                connection.scalar.return_value = True
+                connection.scalars.side_effect = [(revision_name,), tuple(tables)]
+                with patch(
+                    "tools.mobile_staging_data._fixture_state", return_value="clean"
+                ):
+                    state = _database_state(connection)
+                self.assertEqual(state["revision"], revision_name)
+                self.assertEqual(
+                    state["database_state"],
+                    "ready" if revision_name == REVISION else "upgrade_pending",
+                )
+
+        unknown = Mock()
+        unknown.scalar.return_value = True
+        unknown.scalars.return_value = ("0007_mobile_notifications",)
+        with self.assertRaisesRegex(StagingContractError, "revision is unknown"):
+            _database_state(unknown)
+
+        drifted = Mock()
+        drifted.scalar.return_value = True
+        drifted.scalars.side_effect = [
+            (FORWARD_REVISIONS[0],),
+            tuple(REVISION_TABLES[FORWARD_REVISIONS[0]] | {"unknown_table"}),
+        ]
+        with self.assertRaisesRegex(StagingContractError, "schema is partial"):
+            _database_state(drifted)
+
+    def test_read_only_preflight_classifies_current_and_forward_revisions(self):
+        for revision_name in (*FORWARD_REVISIONS, REVISION):
+            with self.subTest(revision=revision_name):
+                connection = MagicMock()
+                transaction = Mock()
+                connection.begin.return_value = transaction
+                connection.scalar.side_effect = [revision_name, 0, 0]
+                engine = MagicMock()
+                engine.connect.return_value.__enter__.return_value = connection
+                result = database_inventory(
+                    engine,
+                    DATABASE_URL,
+                    STAGING_HASH,
+                    PRODUCTION_HASH,
+                    PROVIDER,
+                    RESOURCE,
+                )
+                self.assertEqual(result["revision"], revision_name)
+                self.assertEqual(
+                    result["revision_state"],
+                    "current" if revision_name == REVISION else "upgrade_pending",
+                )
+                transaction.rollback.assert_called_once_with()
+
+        unknown = MagicMock()
+        unknown_connection = unknown.connect.return_value.__enter__.return_value
+        unknown_connection.scalar.side_effect = ["0007_mobile_notifications", 0, 0]
+        with self.assertRaisesRegex(StagingContractError, "not recognized"):
+            database_inventory(
+                unknown,
+                DATABASE_URL,
+                STAGING_HASH,
+                PRODUCTION_HASH,
+                PROVIDER,
+                RESOURCE,
+            )
+
+    def test_forward_upgrade_requires_exact_pre_and_post_state(self):
+        connection = Mock()
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = connection
+        prestate = {
+            "revision": FORWARD_REVISIONS[0],
+            "database_state": "upgrade_pending",
+            "fixture_state": "seeded",
+        }
+        poststate = {
+            "revision": REVISION,
+            "database_state": "ready",
+            "fixture_state": "seeded",
+        }
+        with patch(
+            "tools.mobile_staging_data._database_state",
+            side_effect=[prestate, poststate],
+        ), patch(
+            "tools.mobile_staging_data._alembic_config", return_value="config"
+        ), patch(
+            "tools.mobile_staging_data.command.upgrade"
+        ) as upgrade:
+            _upgrade_known_database(engine, Path.cwd(), FORWARD_REVISIONS[0], "seeded")
+        upgrade.assert_called_once_with("config", REVISION)
+
+        with self.assertRaisesRegex(StagingContractError, "not approved"):
+            _upgrade_known_database(engine, Path.cwd(), REVISION, "seeded")
+
     def test_role_lifecycle_accepts_legacy_and_later_generations(self):
         legacy_grant = {
             "id": -119001,
@@ -546,6 +676,7 @@ class ContractTest(unittest.TestCase):
         self.assertNotIn("staging-db.invalid", encoded)
         self.assertNotIn(RESOURCE, encoded)
         self.assertEqual(manifest["database"]["provider"], PROVIDER)
+        self.assertEqual(manifest["revision"], REVISION)
 
     def test_approval_modes_and_project_scoped_service_accounts(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -621,7 +752,7 @@ class ContractTest(unittest.TestCase):
             "tools.mobile_staging_data.inventory",
             return_value={
                 "database_state": "ready",
-                "revision": "0005_mobile_auth_api_foundation",
+                "revision": REVISION,
                 "fixture_state": "seeded",
             },
         ):
@@ -1056,6 +1187,11 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
         _bootstrap_empty_database(self.engine, Path.cwd())
 
+    def _downgrade_current_schema(self, revision):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        with self.engine.begin() as connection:
+            command.downgrade(_alembic_config(Path.cwd(), connection), revision)
+
     def _seed_mobile_runtime_history(
         self, *, cross_principal=False, session_id="task120-fixture-session"
     ):
@@ -1079,6 +1215,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "installation": f"fake-installation-{label}",
                 },
             )
+
             for number in range(8):
                 connection.execute(
                     text(
@@ -1323,7 +1460,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             Path.cwd(),
         )
         self.assertEqual(result["outcome"], "completed")
-        self.assertEqual(result["revision"], "0005_mobile_auth_api_foundation")
+        self.assertEqual(result["revision"], REVISION)
 
         with self.engine.connect() as connection:
             self.assertEqual(
@@ -1368,6 +1505,84 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
         state = recover(self.approval, TEST_DATABASE_URL)
         self.assertEqual(state["outcome"], "not_started")
         self.assertEqual(state["database_state"], "empty")
+
+    def test_exact_0005_and_0006_forward_upgrade_preserve_fixture_state(self):
+        for previous_revision in FORWARD_REVISIONS:
+            with self.subTest(previous_revision=previous_revision):
+                with self.engine.begin() as connection:
+                    connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+                self._downgrade_current_schema(previous_revision)
+                before = recover(self.approval, TEST_DATABASE_URL)
+                self.assertEqual(before["outcome"], "upgrade_pending")
+                self.assertEqual(before["revision"], previous_revision)
+                self.assertEqual(before["fixture_state"], "clean")
+
+                result = execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+                self.assertEqual(result["outcome"], "completed")
+                self.assertEqual(result["revision"], REVISION)
+
+    def test_exact_0006_forward_upgrade_preserves_seeded_fixture(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+        before = recover(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(before["outcome"], "upgrade_pending")
+        self.assertEqual(before["fixture_state"], "seeded")
+
+        after = execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self.assertEqual(after["outcome"], "completed")
+        self.assertEqual(after["revision"], REVISION)
+        self.assertEqual(after["fixture_state"], "seeded")
+
+    def test_0007_and_known_revision_table_drift_fail_closed(self):
+        self._downgrade_current_schema("0007_mobile_notifications")
+        with self.assertRaisesRegex(StagingContractError, "revision is unknown"):
+            recover(self.approval, TEST_DATABASE_URL)
+
+        with self.engine.begin() as connection:
+            connection.execute(text("DROP SCHEMA ntubtob CASCADE"))
+        self._downgrade_current_schema(FORWARD_REVISIONS[1])
+        with self.engine.begin() as connection:
+            connection.execute(text("CREATE TABLE ntubtob.unknown_drift (id int)"))
+        with self.assertRaisesRegex(StagingContractError, "schema is partial"):
+            recover(self.approval, TEST_DATABASE_URL)
+
+    def test_failed_forward_upgrade_rolls_back_to_exact_prestate(self):
+        self._downgrade_current_schema(FORWARD_REVISIONS[0])
+        with patch(
+            "tools.mobile_staging_data.command.upgrade",
+            side_effect=CommandError("fake forward migration failure"),
+        ):
+            with self.assertRaisesRegex(
+                StagingContractError, "forward upgrade failed safely"
+            ):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        recovered = recover(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(recovered["outcome"], "upgrade_pending")
+        self.assertEqual(recovered["revision"], FORWARD_REVISIONS[0])
 
     def test_attendance_repair_makes_runtime_reply_authoritative(self):
         execute_staging_data(

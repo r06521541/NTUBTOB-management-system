@@ -13,7 +13,7 @@ or distribution.
   the first revision of a bootstrap service to receive 100% service traffic,
   so that bootstrap remains private until a separate IAM approval.
 - Staging uses a dedicated project and dedicated PostgreSQL database at exact
-  revision `0005_mobile_auth_api_foundation`.
+  revision `0008_mobile_notification_delivery`.
 - Runtime names are `PORTAL_DATA_DATABASE_URL`, `MOBILE_API_AUDIENCE`,
   `MOBILE_API_GOOGLE_AUDIENCES`, `MOBILE_ACCESS_SIGNING_KEY`, and
   `MOBILE_REFRESH_REPLAY_KEY`. The LINE channel ID and the bounded, comma-separated
@@ -35,8 +35,9 @@ or distribution.
 2. Use `tools/mobile_staging_preflight.py` helpers with an injected/read-only
    runner. Cloud inventory only uses `gcloud config get-value`, Cloud Run list and
    Secret metadata list. Database inventory starts an explicit read-only
-   transaction, requires revision 0005 and rejects production-shaped People or a
-   partial TASK-112 fixture.
+   transaction, accepts current revision 0008 or the two controlled forward
+   prestates 0005／0006, and rejects production-shaped People or a partial
+   TASK-112 fixture.
 3. Render the redacted manifest with `redacted_manifest`. It contains no host,
    username, password, provider subject or Secret payload.
 4. Main Work presents the exact project/billing/APIs, database provider/resource
@@ -161,7 +162,7 @@ Use only an isolated local database named `ntubtob_portal_local`:
 ```powershell
 $env:PORTAL_DATA_DATABASE_URL = 'postgresql+psycopg2://<local-only>'
 python tools/setup_portal_data_legacy.py
-python -m alembic upgrade 0005_mobile_auth_api_foundation
+python -m alembic upgrade 0008_mobile_notification_delivery
 $env:MOBILE_STAGING_PROVIDER_SUBJECT = '<private-fake-test-value>'
 python tools/mobile_staging_seed.py
 $env:MOBILE_STAGING_ACTION = 'cleanup'
@@ -180,16 +181,27 @@ fixture before deleting it. Output contains counts only.
 future approved execution gates the private DSN with provider/resource identity.
 For an exact empty dedicated database it uses one controlled connection and one
 PostgreSQL transaction to execute the repository-owned legacy fixture, stamp
-`0001_legacy_baseline`, and upgrade through exact 0005. It then verifies the
+`0001_legacy_baseline`, and upgrade through exact 0008. It then verifies the
 complete table/legacy-backfill fingerprint, seeds the separate TASK-112
 fictional fixture, and performs a second read-only post-check.
+
+An existing exact 0005 or 0006 staging schema is a controlled
+`upgrade_pending` state. The operator verifies its revision-specific complete
+table set and fictional fixture, upgrades through the repository-owned
+0006／0007／0008 migrations in one injected Alembic transaction, then rechecks
+exact 0008 tables and unchanged fixture state before seeding. A migration or
+post-check failure rolls back that transaction and requires a new read-only
+recovery observation; revision 0007, an unknown revision, or any table/fixture
+drift is not a resumable state and fails closed.
 
 The normal Alembic CLI remains localhost-only. Remote migration is possible only
 through the operator-injected Alembic connection after database identity
 validation; no environment flag can turn the general CLI into a remote runner.
 The canonical recovery states are `not_started` (no `ntubtob` schema),
-`seed_pending` (exact 0005 legacy fixture, no mobile fixture), and `completed`
-(both exact fixtures). A schema without the exact table set, unknown rows,
+`upgrade_pending` (exact 0005／0006 schema and fixture awaiting the controlled
+forward migration), `seed_pending` (exact 0008 legacy fixture, no mobile
+fixture), and `completed` (both exact fixtures). A schema without its
+revision-specific exact table set, unknown rows,
 partial fixture IDs, an unexpected revision, or legacy attendance/backfill drift
 stops recovery without retry. Database errors are returned as redacted operator
 errors without the DSN.
@@ -217,7 +229,7 @@ do not retry a later-stage failure until read-only recovery classifies it.
 
 TASK-118 adds one bounded forward repair for the original TASK-112 fictional
 attendance state. Run `--inspect-attendance-repair` first. The only executable
-pre-state is exact revision 0005 with all three original fixture replies still
+pre-state is exact revision 0008 with all three original fixture replies still
 timestamped at `2035-01-10T10:00:00Z` and exactly the two proven additional
 reply IDs `1` and `2` for Person/Game `-112001`. Both rows must be `undecided`, have
 null legacy user/member ownership, and each must match its own UTC window:
@@ -242,7 +254,7 @@ production data or any non-fictional Person/Game.
 
 TASK-119 adds a separate bounded state machine for the already-linked fictional
 tester only. First run `--inspect-officer`; it is read-only and accepts only
-revision `0005` plus the complete TASK-112/TASK-118 fixture. The only mutable
+revision `0008` plus the complete TASK-112/TASK-118 fixture. The only mutable
 Person is `-112001`; every other fixture row, identity, qualification, Game,
 reply, legacy audit, audit request ID, access level and version is exact-checked.
 
@@ -333,7 +345,7 @@ python -m tools.mobile_staging_data --approval C:\private\candidate-approval.jso
 ```
 
 The action opens an explicit read-only transaction, requires revision
-`0005_mobile_auth_api_foundation`, and reads only Person `-112001` access level,
+`0008_mobile_notification_delivery`, and reads only Person `-112001` access level,
 status and version plus aggregate active-session ownership counts. Output states
 are `no_active_sessions`, `expected_only`, `mixed_principals`, `other_only`, or
 `binding_drift`; `expected_person_match` is true only for an active Officer at
@@ -667,9 +679,9 @@ issue a second TASK-126 mutation.
 Integration requires accepted TASK-130 commit
 `6099fce0cb9ecdbbb69ec7452df5771417540f20`; do not deploy TASK-128 alone.
 Main combines both packages in one delivery branch and PR. Any later external
-rollout must update the compatibility API first, then apply the 0006 journal
-migration and broker. Cloud Run, IAM, Secret versions and staging execution
-remain separate Owner gates; the checked-in deployment files are static
+rollout must first reach exact revision 0008, which retains the 0006 journal
+schema, before running the broker. Cloud Run, IAM, Secret versions and staging
+execution remain separate Owner gates; the checked-in deployment files are static
 contracts only.
 
 Before a real staging broker build, TASK-135 prepares a private immutable build

@@ -11,6 +11,7 @@ from sqlalchemy import Engine, text
 
 try:
     from .mobile_staging_contract import (
+        FORWARD_REVISIONS,
         REGION,
         REVISION,
         SERVICE,
@@ -20,6 +21,7 @@ try:
     )
 except ImportError:  # pragma: no cover - direct script execution
     from mobile_staging_contract import (
+        FORWARD_REVISIONS,
         REGION,
         REVISION,
         SERVICE,
@@ -147,8 +149,8 @@ def database_inventory(
             )
         finally:
             transaction.rollback()
-    if revision != REVISION:
-        raise StagingContractError("Staging database revision is not exact 0005")
+    if revision not in (*FORWARD_REVISIONS, REVISION):
+        raise StagingContractError("Staging database revision is not recognized")
     if production_fingerprint:
         raise StagingContractError("Database contains a production-shaped fingerprint")
     if fixture_people not in {0, 3}:
@@ -157,6 +159,7 @@ def database_inventory(
         "database_identity_sha256": identity.fingerprint,
         "database_provider": identity.provider,
         "revision": revision,
+        "revision_state": "current" if revision == REVISION else "upgrade_pending",
         "production_fingerprint_rows": 0,
         "fixture_state": "clean" if fixture_people == 0 else "seeded",
     }
