@@ -43,3 +43,13 @@
   callback and fence completions by both session generation and principal scope.
 - Exact `dart format` completed with exit 0 on the four affected Dart files;
   final focused Flutter tests passed `152/152` and focused analyze found no issues.
+
+## Linked Game boundary correction evidence
+
+- Lease 3 split positive Event／Activity serialization from linked Game
+  serialization. Linked Games now accept the exact nonzero signed 64-bit range,
+  including the minimum and maximum values, while zero, both overflows, booleans,
+  floats, and strings fail closed.
+- Bundled dependency runtime suites passed: shared library `55/55`, Mobile API
+  `47/47`, and Flutter Event wire tests `5/5`. Black formatter API reported no
+  remaining files requiring formatting after the documented Windows CLI fallback.

@@ -824,10 +824,19 @@ class BasicApiService:
 
     @staticmethod
     def _public_event(event: dict) -> dict:
-        def opaque(prefix: str, value: object) -> str:
+        def positive_opaque(prefix: str, value: object) -> str:
             if type(value) is not int or not 1 <= value <= MAX_POSTGRESQL_BIGINT:
                 raise InvalidArgument(f"{prefix}_id is malformed")
             return f"{prefix}_{value}"
+
+        def signed_game_opaque(value: object) -> str:
+            if (
+                type(value) is not int
+                or value == 0
+                or not -MAX_POSTGRESQL_BIGINT - 1 <= value <= MAX_POSTGRESQL_BIGINT
+            ):
+                raise InvalidArgument("game_id is malformed")
+            return f"game_{value}"
 
         def utc(value: object) -> str | None:
             if value is None:
@@ -866,21 +875,21 @@ class BasicApiService:
                 raise InvalidArgument("stored activity position is malformed")
             activities.append(
                 {
-                    "id": opaque("activity", activity["id"]),
+                    "id": positive_opaque("activity", activity["id"]),
                     "title": bounded_text(activity.get("title"), "activity title"),
                     "type": activity_type,
                     "position": position,
                     "start_at": utc(activity["start_at"]),
                     "end_at": utc(activity.get("end_at")),
                     "linked_game_id": (
-                        opaque("game", linked_game_id)
+                        signed_game_opaque(linked_game_id)
                         if linked_game_id is not None
                         else None
                     ),
                 }
             )
         return {
-            "id": opaque("event", event["id"]),
+            "id": positive_opaque("event", event["id"]),
             "title": bounded_text(event.get("title"), "event title"),
             "type": event_type,
             "status": status,

@@ -9,6 +9,7 @@ from shared_module.mobile_api import (
     Conflict,
     HmacAccessTokenCodec,
     InvalidArgument,
+    MAX_POSTGRESQL_BIGINT,
     MobileAuthService,
     MobilePrincipal,
     NotFound,
@@ -495,6 +496,70 @@ class BasicApiServiceTest(unittest.TestCase):
         }
         with self.assertRaises(InvalidArgument):
             service._public_event(malformed)
+
+    def test_event_linked_game_uses_exact_signed_bigint_boundaries(self):
+        repository = FakeAuthRepository()
+        service = BasicApiService(
+            SimpleNamespace(), Mock(), repository, clock=lambda: NOW
+        )
+
+        def event_with_linked_games(*values):
+            return {
+                "id": 1,
+                "title": "Signed linked Games",
+                "type": "other",
+                "status": "published",
+                "start_at": NOW,
+                "end_at": None,
+                "activities": tuple(
+                    {
+                        "id": index,
+                        "title": f"Activity {index}",
+                        "type": "game",
+                        "position": index,
+                        "start_at": NOW,
+                        "end_at": None,
+                        "linked_game_id": value,
+                    }
+                    for index, value in enumerate(values, start=1)
+                ),
+            }
+
+        projected = service._public_event(
+            event_with_linked_games(
+                -MAX_POSTGRESQL_BIGINT - 1,
+                MAX_POSTGRESQL_BIGINT,
+            )
+        )
+        self.assertEqual(
+            [activity["linked_game_id"] for activity in projected["activities"]],
+            ["game_-9223372036854775808", "game_9223372036854775807"],
+        )
+
+        for malformed in (
+            0,
+            -MAX_POSTGRESQL_BIGINT - 2,
+            MAX_POSTGRESQL_BIGINT + 1,
+            True,
+            1.0,
+            "44",
+        ):
+            with self.subTest(malformed=malformed), self.assertRaises(InvalidArgument):
+                service._public_event(event_with_linked_games(malformed))
+
+        for malformed in (-1, True, 1.0):
+            with self.subTest(positive_id=malformed), self.assertRaises(
+                InvalidArgument
+            ):
+                event = event_with_linked_games(None)
+                event["id"] = malformed
+                service._public_event(event)
+            with self.subTest(positive_activity_id=malformed), self.assertRaises(
+                InvalidArgument
+            ):
+                event = event_with_linked_games(None)
+                event["activities"][0]["id"] = malformed
+                service._public_event(event)
 
     def test_five_replies_and_exact_idempotent_readback(self):
         repository = FakeAuthRepository()

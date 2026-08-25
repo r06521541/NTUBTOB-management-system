@@ -299,6 +299,10 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(
             event["properties"]["status"]["enum"], ["published", "cancelled"]
         )
+        linked_game = schemas["EventActivity"]["properties"]["linked_game_id"]
+        self.assertEqual(linked_game["pattern"], "^game_-?[1-9][0-9]*$")
+        self.assertEqual(linked_game["maxLength"], 25)
+        self.assertIn("nonzero signed 64-bit", linked_game["description"])
         serialized = json.dumps(
             {
                 "paths": {
