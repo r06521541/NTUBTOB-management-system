@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import json
 import os
@@ -36,6 +37,27 @@ DECISION_ID = "DEC-100"
 OWNER_GATE_ID = "TASK-157-OWNER-GATE-GOOGLE-AUTH-SEPARATION-20260826"
 MAIN_CLAIM_ID = "main-work-20260825"
 MAIN_LEASE_VERSION = 17
+PHASE_STATES = {
+    "registration": ("unconfigured", "unconfigured", 0, 0, 0),
+    "web_client_create": ("registered", "exact", 0, 0, 0),
+    "android_client_create": ("registered", "exact", 0, 1, 0),
+    "tester_add": ("registered", "exact", 0, 1, 1),
+}
+PHASE_CLIENT_ACTIONS = {
+    "registration": {"web": "not-authorized", "android": "not-authorized"},
+    "web_client_create": {"web": "create", "android": "not-authorized"},
+    "android_client_create": {"web": "completed", "android": "create"},
+    "tester_add": {"web": "completed", "android": "completed"},
+}
+PHASE_ACTION_FIELDS = {
+    "registration": {
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+    },
+    "web_client_create": {"web_client_create_count"},
+    "android_client_create": {"android_client_create_count"},
+    "tester_add": {"tester_add_count"},
+}
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 MAX_APPROVAL_BYTES = 64 * 1024
 MAX_VALIDITY = timedelta(minutes=30)
@@ -299,7 +321,59 @@ def _validate_inventory(value: object) -> tuple[datetime, str]:
     return _parse_utc(inventory["observed_at"]), fingerprint
 
 
-def _validate_clients(value: object, fingerprint: str) -> None:
+def _validate_phase_inventory(value: object, phase: str) -> tuple[datetime, str]:
+    inventory = _exact_object(
+        value,
+        {
+            "status",
+            "project",
+            "observed_at",
+            "auth_platform_status",
+            "consent_status",
+            "tester_count",
+            "web_client_count",
+            "android_client_count",
+            "duplicate_client_count",
+            "cross_project_client_count",
+            "matching_keys",
+        },
+        "Phase inventory fields are not exact",
+    )
+    if inventory["status"] != "complete" or inventory["project"] != STAGING_PROJECT:
+        _fail("Phase inventory target is not exact")
+    expected = PHASE_STATES.get(phase)
+    actual = (
+        inventory["auth_platform_status"],
+        inventory["consent_status"],
+        inventory["tester_count"],
+        inventory["web_client_count"],
+        inventory["android_client_count"],
+    )
+    if expected is None or actual != expected:
+        _fail("Phase inventory precondition is not exact")
+    for field in (
+        "tester_count",
+        "web_client_count",
+        "android_client_count",
+        "duplicate_client_count",
+        "cross_project_client_count",
+    ):
+        if type(inventory[field]) is not int:
+            _fail("Phase inventory counts are invalid")
+    if (
+        inventory["duplicate_client_count"] != 0
+        or inventory["cross_project_client_count"] != 0
+    ):
+        _fail("Phase inventory contains duplicate or cross-project clients")
+    fingerprint = _validate_matching_keys(inventory["matching_keys"])
+    return _parse_utc(inventory["observed_at"]), fingerprint
+
+
+def _validate_clients(
+    value: object,
+    fingerprint: str,
+    expected_actions: dict[str, str] | None = None,
+) -> None:
     if not isinstance(value, list) or len(value) != 2:
         _fail("Exactly two planned clients are required")
     by_type: dict[str, dict] = {}
@@ -331,11 +405,13 @@ def _validate_clients(value: object, fingerprint: str) -> None:
     )
     for client in (web, android):
         if (
-            client["action"] != "create"
-            or client["owning_project"] != STAGING_PROJECT
+            client["owning_project"] != STAGING_PROJECT
             or client["dedicated"] is not True
         ):
             _fail("Planned clients are not new, dedicated staging resources")
+    actions = expected_actions or {"web": "create", "android": "create"}
+    if web["action"] != actions["web"] or android["action"] != actions["android"]:
+        _fail("Client action sequence is not exact")
     if (
         web["alias"] != WEB_ALIAS
         or web["display_name"] != WEB_DISPLAY_NAME
@@ -352,7 +428,9 @@ def _validate_clients(value: object, fingerprint: str) -> None:
         _fail("Android client boundary is not exact")
 
 
-def _validate_mutation_boundary(value: object) -> None:
+def _validate_mutation_boundary(
+    value: object, expected_one_fields: set[str] | None = None
+) -> None:
     one_fields = {
         "auth_platform_registration_count",
         "consent_configuration_count",
@@ -373,8 +451,10 @@ def _validate_mutation_boundary(value: object) -> None:
         one_fields | zero_fields | {"rollback"},
         "Mutation boundary fields are not exact",
     )
+    expected = one_fields if expected_one_fields is None else expected_one_fields
     if any(
-        type(boundary[field]) is not int or boundary[field] != 1 for field in one_fields
+        type(boundary[field]) is not int or boundary[field] != int(field in expected)
+        for field in one_fields
     ):
         _fail("Provider bootstrap action counts are not exact")
     if any(
@@ -389,7 +469,20 @@ def _validate_mutation_boundary(value: object) -> None:
 def execution_binding_sha256(approval: dict) -> str:
     approval_id = approval["approval_id"]
     nonce = approval["execution_binding"]["nonce"]
-    payload = f"{approval_id}:{nonce}"
+    if approval.get("schema_version") == 3:
+        payload = json.dumps(
+            {
+                "approval_id": approval_id,
+                "nonce": nonce,
+                "phase": approval.get("phase"),
+                "inventory": approval.get("inventory"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    else:
+        payload = f"{approval_id}:{nonce}"
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -401,41 +494,57 @@ def load_provider_approval(
 ) -> dict:
     """Load and validate one exact private provider-bootstrap approval."""
 
+    raw = _read_opened_json(_require_private_path(path))
+    common_fields = {
+        "schema_version",
+        "approval_id",
+        "authority",
+        "owner_approved",
+        "project",
+        "validity",
+        "execution_binding",
+        "consent_screen",
+        "inventory",
+        "planned_clients",
+        "mutation_boundary",
+    }
+    schema_version = raw.get("schema_version")
+    if type(schema_version) is not int or schema_version not in {2, 3}:
+        _fail("Provider approval schema is not supported")
     approval = _exact_object(
-        _read_opened_json(_require_private_path(path)),
-        {
-            "schema_version",
-            "approval_id",
-            "authority",
-            "owner_approved",
-            "project",
-            "validity",
-            "execution_binding",
-            "consent_screen",
-            "inventory",
-            "planned_clients",
-            "mutation_boundary",
-        },
+        raw,
+        common_fields | ({"phase"} if schema_version == 3 else set()),
         "Provider approval fields are not exact",
     )
     if _contains_production_project(approval):
         _fail("Production project reference is forbidden")
-    if (
-        type(approval["schema_version"]) is not int
-        or approval["schema_version"] != 2
-        or approval["owner_approved"] is not True
-        or approval["project"] != STAGING_PROJECT
-    ):
+    if approval["owner_approved"] is not True or approval["project"] != STAGING_PROJECT:
         _fail("Provider approval target is not exact")
     _validate_authority(approval["authority"], approval["approval_id"])
     _validate_execution_binding(approval["execution_binding"])
-    observed_at, fingerprint = _validate_inventory(approval["inventory"])
+    if schema_version == 2:
+        observed_at, fingerprint = _validate_inventory(approval["inventory"])
+    else:
+        phase = approval["phase"]
+        if phase not in PHASE_STATES:
+            _fail("Provider approval phase is invalid")
+        observed_at, fingerprint = _validate_phase_inventory(
+            approval["inventory"], phase
+        )
     _validate_validity(
         approval["validity"], observed_at, now or datetime.now(timezone.utc)
     )
     _validate_consent_screen(approval["consent_screen"])
-    _validate_clients(approval["planned_clients"], fingerprint)
-    _validate_mutation_boundary(approval["mutation_boundary"])
+    if schema_version == 2:
+        _validate_clients(approval["planned_clients"], fingerprint)
+        _validate_mutation_boundary(approval["mutation_boundary"])
+    else:
+        _validate_clients(
+            approval["planned_clients"], fingerprint, PHASE_CLIENT_ACTIONS[phase]
+        )
+        _validate_mutation_boundary(
+            approval["mutation_boundary"], PHASE_ACTION_FIELDS[phase]
+        )
     if execution_binding_sha256(approval) in consumed_execution_bindings:
         _fail("Execution binding was already consumed")
     return approval
@@ -448,8 +557,546 @@ def canonical_approval_sha256(approval: dict) -> str:
     return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
-def _consumed_sidecar_path(approval_path: Path) -> Path:
-    return approval_path.with_name(approval_path.name + ".google-auth.consumed.json")
+def _consumed_sidecar_path(approval: dict, consumption_root: Path) -> Path:
+    return consumption_root / (
+        execution_binding_sha256(approval) + ".google-auth.consumed.json"
+    )
+
+
+def _windows_local_app_data() -> Path:
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [
+            ("Data1", wintypes.DWORD),
+            ("Data2", wintypes.WORD),
+            ("Data3", wintypes.WORD),
+            ("Data4", ctypes.c_ubyte * 8),
+        ]
+
+    folder_id = GUID(
+        0xF1B32785,
+        0x6FBA,
+        0x4FCF,
+        (ctypes.c_ubyte * 8)(0x9D, 0x55, 0x7B, 0x8E, 0x7F, 0x15, 0x70, 0x91),
+    )
+    shell32 = ctypes.WinDLL("shell32", use_last_error=True)
+    ole32 = ctypes.WinDLL("ole32", use_last_error=True)
+    shell32.SHGetKnownFolderPath.argtypes = [
+        ctypes.POINTER(GUID),
+        wintypes.DWORD,
+        wintypes.HANDLE,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    ]
+    shell32.SHGetKnownFolderPath.restype = ctypes.c_long
+    ole32.CoTaskMemFree.argtypes = [ctypes.c_void_p]
+    ole32.CoTaskMemFree.restype = None
+    value = ctypes.c_wchar_p()
+    result = shell32.SHGetKnownFolderPath(
+        ctypes.byref(folder_id), 0, None, ctypes.byref(value)
+    )
+    if result != 0 or not value.value:
+        _fail("User-local state directory is unavailable")
+    try:
+        return Path(value.value)
+    finally:
+        ole32.CoTaskMemFree(ctypes.cast(value, ctypes.c_void_p))
+
+
+def _user_state_root() -> Path:
+    if os.name == "nt":
+        return _windows_local_app_data()
+    try:
+        import pwd
+
+        return Path(pwd.getpwuid(os.getuid()).pw_dir) / ".local" / "state"
+    except (ImportError, KeyError, OSError):
+        _fail("User-local state directory is unavailable")
+
+
+def _default_consumption_root() -> Path:
+    return _user_state_root() / "NTUBTOB" / "TASK-157" / "google-auth-consumed"
+
+
+def _select_windows_logon_sid(
+    groups: list[tuple[object, int]],
+    restricted_groups: list[tuple[object, int]],
+    *,
+    token_is_restricted: bool,
+    is_logon_sid,
+    equal_sid,
+) -> object:
+    candidates = [
+        sid
+        for sid, attributes in groups
+        if attributes & 0x00000004
+        and not attributes & 0x00000010
+        and attributes & 0xC0000000 == 0xC0000000
+        and is_logon_sid(sid)
+    ]
+    if len(candidates) != 1:
+        _fail("Current logon security identity is not exact")
+    logon_sid = candidates[0]
+    if token_is_restricted:
+        restricted_matches = [
+            restricted
+            for restricted, attributes in restricted_groups
+            if attributes & 0x00000004
+            and not attributes & 0x00000010
+            and is_logon_sid(restricted)
+            and equal_sid(logon_sid, restricted)
+        ]
+        if len(restricted_matches) != 1:
+            _fail("Restricted token does not retain one exact logon identity")
+    return logon_sid
+
+
+def _windows_user_system_logon_sids() -> (
+    tuple[ctypes.Array, ctypes.Array, ctypes.Array]
+):
+    from ctypes import wintypes
+
+    class SID_AND_ATTRIBUTES(ctypes.Structure):
+        _fields_ = [("Sid", ctypes.c_void_p), ("Attributes", wintypes.DWORD)]
+
+    class TOKEN_USER(ctypes.Structure):
+        _fields_ = [("User", SID_AND_ATTRIBUTES)]
+
+    class TOKEN_GROUPS(ctypes.Structure):
+        _fields_ = [
+            ("GroupCount", wintypes.DWORD),
+            ("Groups", SID_AND_ATTRIBUTES * 1),
+        ]
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    advapi32.OpenProcessToken.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.HANDLE),
+    ]
+    advapi32.OpenProcessToken.restype = wintypes.BOOL
+    advapi32.GetTokenInformation.argtypes = [
+        wintypes.HANDLE,
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.GetTokenInformation.restype = wintypes.BOOL
+    advapi32.GetLengthSid.argtypes = [ctypes.c_void_p]
+    advapi32.GetLengthSid.restype = wintypes.DWORD
+    advapi32.CopySid.argtypes = [wintypes.DWORD, ctypes.c_void_p, ctypes.c_void_p]
+    advapi32.CopySid.restype = wintypes.BOOL
+    advapi32.CreateWellKnownSid.argtypes = [
+        wintypes.DWORD,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.CreateWellKnownSid.restype = wintypes.BOOL
+    advapi32.IsWellKnownSid.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+    advapi32.IsWellKnownSid.restype = wintypes.BOOL
+    advapi32.EqualSid.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    advapi32.EqualSid.restype = wintypes.BOOL
+    advapi32.IsTokenRestricted.argtypes = [wintypes.HANDLE]
+    advapi32.IsTokenRestricted.restype = wintypes.BOOL
+
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(
+        kernel32.GetCurrentProcess(), 0x0008, ctypes.byref(token)
+    ):
+        _fail("Current user security identity is unavailable")
+    try:
+
+        def token_information(information_class: int) -> ctypes.Array:
+            needed = wintypes.DWORD()
+            advapi32.GetTokenInformation(
+                token, information_class, None, 0, ctypes.byref(needed)
+            )
+            if not needed.value:
+                _fail("Current token security identities are unavailable")
+            value = ctypes.create_string_buffer(needed.value)
+            if not advapi32.GetTokenInformation(
+                token, information_class, value, needed, ctypes.byref(needed)
+            ):
+                _fail("Current token security identities are unavailable")
+            return value
+
+        def group_entries(value: ctypes.Array) -> list[tuple[object, int]]:
+            count = ctypes.cast(value, ctypes.POINTER(TOKEN_GROUPS)).contents.GroupCount
+            base = ctypes.addressof(value) + TOKEN_GROUPS.Groups.offset
+            entries: list[tuple[object, int]] = []
+            for index in range(count):
+                item = ctypes.cast(
+                    base + index * ctypes.sizeof(SID_AND_ATTRIBUTES),
+                    ctypes.POINTER(SID_AND_ATTRIBUTES),
+                ).contents
+                entries.append((item.Sid, item.Attributes))
+            return entries
+
+        def copy_sid(pointer: object, reason: str) -> ctypes.Array:
+            length = advapi32.GetLengthSid(pointer)
+            if not length:
+                _fail(reason)
+            copied = ctypes.create_string_buffer(length)
+            if not advapi32.CopySid(length, copied, pointer):
+                _fail(reason)
+            return copied
+
+        token_info = token_information(1)
+        user_pointer = ctypes.cast(
+            token_info, ctypes.POINTER(TOKEN_USER)
+        ).contents.User.Sid
+        user_sid = copy_sid(
+            user_pointer, "Current user security identity is unavailable"
+        )
+
+        token_groups = token_information(2)
+        restricted_groups = token_information(11)
+        selected_logon = _select_windows_logon_sid(
+            group_entries(token_groups),
+            group_entries(restricted_groups),
+            token_is_restricted=bool(advapi32.IsTokenRestricted(token)),
+            is_logon_sid=lambda sid: bool(advapi32.IsWellKnownSid(sid, 21)),
+            equal_sid=lambda left, right: bool(advapi32.EqualSid(left, right)),
+        )
+        logon_sid = copy_sid(
+            selected_logon, "Current logon security identity is unavailable"
+        )
+    finally:
+        kernel32.CloseHandle(token)
+
+    system_length = wintypes.DWORD(68)
+    system_sid = ctypes.create_string_buffer(system_length.value)
+    if not advapi32.CreateWellKnownSid(
+        22, None, system_sid, ctypes.byref(system_length)
+    ):
+        _fail("SYSTEM security identity is unavailable")
+    return user_sid, system_sid, logon_sid
+
+
+def _windows_sid_string(sid: ctypes.Array) -> str:
+    from ctypes import wintypes
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.ConvertSidToStringSidW.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    ]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    rendered = ctypes.c_wchar_p()
+    if not advapi32.ConvertSidToStringSidW(sid, ctypes.byref(rendered)):
+        _fail("Current user security identity is unavailable")
+    try:
+        if not rendered.value:
+            _fail("Current user security identity is unavailable")
+        return rendered.value
+    finally:
+        kernel32.LocalFree(ctypes.cast(rendered, ctypes.c_void_p))
+
+
+def _create_windows_private_directory(path: Path) -> bool:
+    from ctypes import wintypes
+
+    class SECURITY_ATTRIBUTES(ctypes.Structure):
+        _fields_ = [
+            ("nLength", wintypes.DWORD),
+            ("lpSecurityDescriptor", ctypes.c_void_p),
+            ("bInheritHandle", wintypes.BOOL),
+        ]
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = (
+        wintypes.BOOL
+    )
+    kernel32.CreateDirectoryW.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.POINTER(SECURITY_ATTRIBUTES),
+    ]
+    kernel32.CreateDirectoryW.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    user_sid, _, logon_sid = _windows_user_system_logon_sids()
+    user = _windows_sid_string(user_sid)
+    logon = _windows_sid_string(logon_sid)
+    sddl = f"D:P(A;OICI;FA;;;{user})" f"(A;OICI;FA;;;SY)(A;OICI;FA;;;{logon})"
+    descriptor = ctypes.c_void_p()
+    descriptor_size = wintypes.DWORD()
+    if not advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        sddl, 1, ctypes.byref(descriptor), ctypes.byref(descriptor_size)
+    ):
+        _fail(
+            "Private namespace descriptor creation failed "
+            f"({ctypes.get_last_error()})"
+        )
+    try:
+        attributes = SECURITY_ATTRIBUTES(
+            ctypes.sizeof(SECURITY_ATTRIBUTES), descriptor, False
+        )
+        ctypes.set_last_error(0)
+        if kernel32.CreateDirectoryW(str(path), ctypes.byref(attributes)):
+            return True
+        error = ctypes.get_last_error()
+        if error == 183:
+            return False
+        _fail(f"Private namespace creation failed ({error})")
+    finally:
+        kernel32.LocalFree(descriptor)
+
+
+def _validate_windows_acl_state(
+    *,
+    owner_is_user: bool,
+    dacl_is_protected: bool,
+    aces: list[tuple[int, int, int, str]],
+) -> None:
+    if not owner_is_user:
+        _fail("Private namespace owner drifted")
+    if not dacl_is_protected:
+        _fail("Private namespace DACL is not protected")
+    if len(aces) != 3:
+        _fail("Private namespace ACE count drifted")
+    identities: set[str] = set()
+    for ace_type, ace_flags, mask, identity in aces:
+        if ace_type != 0 or ace_flags != 0x03 or mask != 0x001F01FF:
+            _fail("Private namespace ACE permissions drifted")
+        if identity not in {"user", "system", "logon"}:
+            _fail("Private namespace ACE identity drifted")
+        if identity in identities:
+            _fail("Private namespace ACE identity is duplicated")
+        identities.add(identity)
+    if identities != {"user", "system", "logon"}:
+        _fail("Private namespace ACE identities are incomplete")
+
+
+def _verify_windows_private_acl(path: Path) -> None:
+    from ctypes import wintypes
+
+    class ACL_SIZE_INFORMATION(ctypes.Structure):
+        _fields_ = [
+            ("AceCount", wintypes.DWORD),
+            ("AclBytesInUse", wintypes.DWORD),
+            ("AclBytesFree", wintypes.DWORD),
+        ]
+
+    class ACE_HEADER(ctypes.Structure):
+        _fields_ = [
+            ("AceType", ctypes.c_ubyte),
+            ("AceFlags", ctypes.c_ubyte),
+            ("AceSize", wintypes.WORD),
+        ]
+
+    class ACCESS_ALLOWED_ACE(ctypes.Structure):
+        _fields_ = [
+            ("Header", ACE_HEADER),
+            ("Mask", wintypes.DWORD),
+            ("SidStart", wintypes.DWORD),
+        ]
+
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.GetNamedSecurityInfoW.argtypes = [
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    advapi32.GetNamedSecurityInfoW.restype = wintypes.DWORD
+    advapi32.EqualSid.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    advapi32.EqualSid.restype = wintypes.BOOL
+    advapi32.GetSecurityDescriptorControl.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(wintypes.WORD),
+        ctypes.POINTER(wintypes.DWORD),
+    ]
+    advapi32.GetSecurityDescriptorControl.restype = wintypes.BOOL
+    advapi32.GetAclInformation.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        wintypes.DWORD,
+    ]
+    advapi32.GetAclInformation.restype = wintypes.BOOL
+    advapi32.GetAce.argtypes = [
+        ctypes.c_void_p,
+        wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    advapi32.GetAce.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    user_sid, system_sid, logon_sid = _windows_user_system_logon_sids()
+    owner, dacl, descriptor = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
+    result = advapi32.GetNamedSecurityInfoW(
+        str(path),
+        1,
+        0x00000005,
+        ctypes.byref(owner),
+        None,
+        ctypes.byref(dacl),
+        None,
+        ctypes.byref(descriptor),
+    )
+    if result != 0 or not descriptor.value or not owner.value or not dacl.value:
+        _fail("Private namespace ACL is unavailable")
+    try:
+        control, revision = wintypes.WORD(), wintypes.DWORD()
+        control_available = advapi32.GetSecurityDescriptorControl(
+            descriptor, ctypes.byref(control), ctypes.byref(revision)
+        )
+        if not control_available:
+            _fail("Private namespace security control is unavailable")
+        information = ACL_SIZE_INFORMATION()
+        if not advapi32.GetAclInformation(
+            dacl, ctypes.byref(information), ctypes.sizeof(information), 2
+        ):
+            _fail("Private namespace ACL information is unavailable")
+        aces: list[tuple[int, int, int, str]] = []
+        for index in range(information.AceCount):
+            pointer = ctypes.c_void_p()
+            if not advapi32.GetAce(dacl, index, ctypes.byref(pointer)):
+                _fail("Private namespace ACE is unavailable")
+            ace = ctypes.cast(pointer, ctypes.POINTER(ACCESS_ALLOWED_ACE)).contents
+            if ace.Header.AceType != 0 or ace.Header.AceSize < ctypes.sizeof(
+                ACCESS_ALLOWED_ACE
+            ):
+                aces.append((ace.Header.AceType, ace.Header.AceFlags, 0, "unexpected"))
+                continue
+            sid = ctypes.c_void_p(pointer.value + ACCESS_ALLOWED_ACE.SidStart.offset)
+            if advapi32.EqualSid(sid, user_sid):
+                identity = "user"
+            elif advapi32.EqualSid(sid, system_sid):
+                identity = "system"
+            elif advapi32.EqualSid(sid, logon_sid):
+                identity = "logon"
+            else:
+                identity = "unexpected"
+            aces.append((ace.Header.AceType, ace.Header.AceFlags, ace.Mask, identity))
+        _validate_windows_acl_state(
+            owner_is_user=bool(advapi32.EqualSid(owner, user_sid)),
+            dacl_is_protected=bool(control.value & 0x1000),
+            aces=aces,
+        )
+    finally:
+        kernel32.LocalFree(descriptor)
+
+
+def _verify_private_directory_security(path: Path) -> None:
+    if os.name == "nt":
+        _verify_windows_private_acl(path)
+        return
+    details = path.stat(follow_symlinks=False)
+    if details.st_uid != os.getuid() or stat.S_IMODE(details.st_mode) != 0o700:
+        _fail("Private namespace owner or mode drifted")
+
+
+def _secured_namespace_paths(absolute: Path, component_count: int) -> set[Path]:
+    secured = set(list(absolute.parents[: component_count - 1]))
+    secured.add(absolute)
+    return secured
+
+
+def _bootstrap_consumption_root(
+    consumption_root: Path, *, secured_component_count: int = 1
+) -> Path:
+    try:
+        absolute = consumption_root.absolute()
+        if absolute == REPOSITORY_ROOT or absolute.is_relative_to(REPOSITORY_ROOT):
+            _fail("Consumption namespace must remain outside the repository")
+
+        missing: list[Path] = []
+        existing = absolute
+        while not existing.exists() and not existing.is_symlink():
+            missing.append(existing)
+            parent = existing.parent
+            if parent == existing:
+                _fail("Consumption namespace has no private ancestor")
+            existing = parent
+
+        current = _require_private_path(existing)
+        if not current.is_dir():
+            _fail("Consumption namespace ancestor is invalid")
+        secured_paths = _secured_namespace_paths(absolute, secured_component_count)
+        for secured_path in secured_paths:
+            if secured_path.exists() or secured_path.is_symlink():
+                secured = _require_private_path(secured_path)
+                if not secured.is_dir():
+                    _fail("Consumption namespace is invalid")
+                _verify_private_directory_security(secured)
+        for path in reversed(missing):
+            if path.parent.resolve(strict=True) != current:
+                _fail("Consumption namespace path drifted")
+            if os.name == "nt" and path in secured_paths:
+                created = _create_windows_private_directory(path)
+            else:
+                try:
+                    path.mkdir(mode=0o700)
+                    created = True
+                except FileExistsError:
+                    created = False
+            current = _require_private_path(path)
+            if not current.is_dir():
+                _fail("Consumption namespace is invalid")
+            if path in secured_paths:
+                if created and os.name != "nt":
+                    current.chmod(0o700)
+                _verify_private_directory_security(current)
+        resolved = _require_private_path(absolute)
+        if not resolved.is_dir():
+            _fail("Consumption namespace is invalid")
+        for secured_path in secured_paths:
+            secured = _require_private_path(secured_path)
+            if not secured.is_dir():
+                _fail("Consumption namespace is invalid")
+            _verify_private_directory_security(secured)
+        return resolved
+    except ProviderApprovalError:
+        raise
+    except (BrokerRolloutError, OSError, RuntimeError):
+        _fail("Consumption namespace is invalid")
+
+
+def _verify_consumption_root(
+    consumption_root: Path, *, secured_component_count: int = 1
+) -> Path:
+    try:
+        absolute = consumption_root.absolute()
+        if absolute == REPOSITORY_ROOT or absolute.is_relative_to(REPOSITORY_ROOT):
+            _fail("Consumption namespace must remain outside the repository")
+        resolved = _require_private_path(absolute)
+        if not resolved.is_dir():
+            _fail("Consumption namespace is invalid")
+        for secured_path in _secured_namespace_paths(absolute, secured_component_count):
+            secured = _require_private_path(secured_path)
+            if not secured.is_dir():
+                _fail("Consumption namespace is invalid")
+            _verify_private_directory_security(secured)
+        return resolved
+    except ProviderApprovalError:
+        raise
+    except (BrokerRolloutError, OSError, RuntimeError):
+        _fail("Consumption namespace is invalid")
 
 
 def _write_sidecar_bytes(handle, payload: bytes) -> None:
@@ -457,8 +1104,14 @@ def _write_sidecar_bytes(handle, payload: bytes) -> None:
 
 
 def _consume_cli_approval(
-    approval_path: Path, approval: dict, consumed_at: datetime
+    approval_path: Path,
+    approval: dict,
+    consumed_at: datetime,
+    *,
+    _test_consumption_root: Path | None = None,
 ) -> Path:
+    if approval.get("schema_version") != 3 or approval.get("phase") not in PHASE_STATES:
+        _fail("Only progressive phase approvals may be consumed")
     resolved_approval = _require_private_path(approval_path)
     resolved_parent = _require_private_path(resolved_approval.parent)
     if not resolved_parent.is_dir() or resolved_approval.parent != resolved_parent:
@@ -471,7 +1124,12 @@ def _consume_cli_approval(
     if consumed_at.tzinfo is None or consumed_at.utcoffset() != timedelta(0):
         _fail("Consumption time must be UTC")
 
-    sidecar = _consumed_sidecar_path(resolved_approval)
+    consumption_root = _test_consumption_root or _default_consumption_root()
+    secured_component_count = 1 if _test_consumption_root is not None else 3
+    resolved_consumption_root = _verify_consumption_root(
+        consumption_root, secured_component_count=secured_component_count
+    )
+    sidecar = _consumed_sidecar_path(approval, resolved_consumption_root)
     _assert_path_chain_no_reparse(sidecar)
     value = {
         "schema_version": 1,
@@ -534,18 +1192,50 @@ def main(
     *,
     now: datetime | None = None,
     consumed_execution_bindings: Collection[str] = (),
+    _test_consumption_root: Path | None = None,
 ) -> int:
     parser = _PrivateArgumentParser(description=__doc__, add_help=False)
-    parser.add_argument("approval", type=Path)
+    parser.add_argument("approval", type=Path, nargs="?")
+    parser.add_argument("--bootstrap-consumption-namespace", action="store_true")
     try:
         args = parser.parse_args(argv)
+        consumption_root = _test_consumption_root or _default_consumption_root()
+        secured_component_count = 1 if _test_consumption_root is not None else 3
+        if args.bootstrap_consumption_namespace:
+            if args.approval is not None:
+                _fail("Namespace bootstrap takes no approval")
+            _bootstrap_consumption_root(
+                consumption_root,
+                secured_component_count=secured_component_count,
+            )
+            print(
+                json.dumps(
+                    {
+                        "classification": "PASS",
+                        "operation": "CONSUMPTION_NAMESPACE_BOOTSTRAP",
+                        "state": "READY",
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+            return 0
+        if args.approval is None:
+            _fail("Approval argument is required")
         effective_now = now or datetime.now(timezone.utc)
         approval = load_provider_approval(
             args.approval,
             now=effective_now,
             consumed_execution_bindings=consumed_execution_bindings,
         )
-        _consume_cli_approval(args.approval, approval, effective_now)
+        if approval["schema_version"] != 3:
+            _fail("Legacy full bootstrap approval is dry-validation only")
+        _consume_cli_approval(
+            args.approval,
+            approval,
+            effective_now,
+            _test_consumption_root=_test_consumption_root,
+        )
         print(
             json.dumps(
                 {

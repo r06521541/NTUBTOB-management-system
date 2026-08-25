@@ -19,7 +19,12 @@ from tools.google_auth_staging_preflight import (
     ProviderApprovalError,
     _consume_cli_approval,
     _consumed_sidecar_path,
+    _default_consumption_root,
+    _bootstrap_consumption_root,
     _read_opened_json,
+    _select_windows_logon_sid,
+    _validate_windows_acl_state,
+    _verify_windows_private_acl,
     canonical_approval_sha256,
     execution_binding_sha256,
     load_provider_approval,
@@ -124,8 +129,63 @@ def approval() -> dict:
     }
 
 
-def approval_for_now(now: datetime) -> dict:
+PHASE_STATES = {
+    "registration": ("unconfigured", "unconfigured", 0, 0, 0),
+    "web_client_create": ("registered", "exact", 0, 0, 0),
+    "android_client_create": ("registered", "exact", 0, 1, 0),
+    "tester_add": ("registered", "exact", 0, 1, 1),
+}
+PHASE_CLIENT_ACTIONS = {
+    "registration": ("not-authorized", "not-authorized"),
+    "web_client_create": ("create", "not-authorized"),
+    "android_client_create": ("completed", "create"),
+    "tester_add": ("completed", "completed"),
+}
+PHASE_ACTION_FIELDS = {
+    "registration": (
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+    ),
+    "web_client_create": ("web_client_create_count",),
+    "android_client_create": ("android_client_create_count",),
+    "tester_add": ("tester_add_count",),
+}
+
+
+def phase_approval(phase: str) -> dict:
     value = approval()
+    value["schema_version"] = 3
+    value["phase"] = phase
+    platform, consent, tester, web, android = PHASE_STATES[phase]
+    value["inventory"] = {
+        "status": "complete",
+        "project": PROJECT,
+        "observed_at": "2026-08-26T00:00:00Z",
+        "auth_platform_status": platform,
+        "consent_status": consent,
+        "tester_count": tester,
+        "web_client_count": web,
+        "android_client_count": android,
+        "duplicate_client_count": 0,
+        "cross_project_client_count": 0,
+        "matching_keys": copy.deepcopy(approval()["inventory"]["matching_keys"]),
+    }
+    web_action, android_action = PHASE_CLIENT_ACTIONS[phase]
+    value["planned_clients"][0]["action"] = web_action
+    value["planned_clients"][1]["action"] = android_action
+    for field in (
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+        "tester_add_count",
+        "web_client_create_count",
+        "android_client_create_count",
+    ):
+        value["mutation_boundary"][field] = int(field in PHASE_ACTION_FIELDS[phase])
+    return value
+
+
+def approval_for_now(now: datetime, value: dict | None = None) -> dict:
+    value = copy.deepcopy(value or approval())
     exact_now = now.astimezone(timezone.utc).replace(microsecond=0)
 
     def rendered(delta: timedelta) -> str:
@@ -141,6 +201,8 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "private-approval.json"
+        self.consumption_root = Path(self.temp.name) / "consumed"
+        _bootstrap_consumption_root(self.consumption_root)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -152,6 +214,13 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
 
     def load(self, **kwargs) -> dict:
         return load_provider_approval(self.path, now=NOW, **kwargs)
+
+    def execute(self, path: Path | None = None, *, now: datetime = NOW) -> int:
+        return main(
+            [str(path or self.path)],
+            now=now,
+            _test_consumption_root=self.consumption_root,
+        )
 
     def replace(self, field: str, replacement: object) -> dict:
         value = approval()
@@ -277,16 +346,20 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 _read_opened_json(self.path)
 
     def test_cli_emits_only_classification_and_hash(self):
-        self.write(approval())
+        self.write(phase_approval("registration"))
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
-            result = main([str(self.path)], now=NOW)
+            result = self.execute()
         output = json.loads(stdout.getvalue())
         self.assertEqual(result, 0)
         self.assertEqual(set(output), {"classification", "approval_sha256"})
         for private_value in (TESTER, FINGERPRINT, PROJECT, "redirect_uris"):
             self.assertNotIn(private_value, stdout.getvalue())
-        sidecar = json.loads(_consumed_sidecar_path(self.path).read_text("utf-8"))
+        sidecar = json.loads(
+            _consumed_sidecar_path(
+                phase_approval("registration"), self.consumption_root
+            ).read_text("utf-8")
+        )
         self.assertEqual(
             set(sidecar),
             {"schema_version", "binding_sha256", "approval_sha256", "consumed_at"},
@@ -296,13 +369,23 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             self.assertNotIn(private_value, rendered)
 
     def test_second_cli_process_is_rejected_after_first_pass(self):
-        self.write(approval_for_now(datetime.now(timezone.utc)))
+        self.write(
+            approval_for_now(
+                datetime.now(timezone.utc), phase_approval("web_client_create")
+            )
+        )
         repository = Path(__file__).resolve().parents[2]
+        script = (
+            "import sys; from pathlib import Path; "
+            "from tools.google_auth_staging_preflight import main; "
+            "raise SystemExit(main([sys.argv[1]], _test_consumption_root=Path(sys.argv[2])))"
+        )
         command = [
             sys.executable,
-            "-m",
-            "tools.google_auth_staging_preflight",
+            "-c",
+            script,
             str(self.path),
+            str(self.consumption_root),
         ]
         first = subprocess.run(
             command,
@@ -328,47 +411,342 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual(second.stderr, "ERROR: PROVIDER_APPROVAL_INVALID\n")
         self.assertNotIn(str(self.path), first.stdout + first.stderr + second.stderr)
 
+    def test_identical_binding_copied_to_two_filenames_passes_once(self):
+        value = phase_approval("android_client_create")
+        first_path = Path(self.temp.name) / "first-private.json"
+        second_path = Path(self.temp.name) / "second-private.json"
+        rendered = json.dumps(value)
+        first_path.write_text(rendered, encoding="utf-8")
+        second_path.write_text(rendered, encoding="utf-8")
+        outputs: list[tuple[int, str, str]] = []
+        for path in (first_path, second_path):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = self.execute(path)
+            outputs.append((result, stdout.getvalue(), stderr.getvalue()))
+        self.assertEqual([item[0] for item in outputs], [0, 2])
+        self.assertEqual(json.loads(outputs[0][1])["classification"], "PASS")
+        self.assertEqual(outputs[1][1:], ("", "ERROR: PROVIDER_APPROVAL_INVALID\n"))
+
+    def test_default_namespace_is_independent_of_checkout_path(self):
+        first = _default_consumption_root()
+        with patch(
+            "tools.google_auth_staging_preflight.REPOSITORY_ROOT",
+            Path("Z:/another-clone/renamed-checkout"),
+        ):
+            second = _default_consumption_root()
+        self.assertEqual(first, second)
+        repository = Path(__file__).resolve().parents[2]
+        self.assertFalse(first == repository or first.is_relative_to(repository))
+
+    def test_normal_cli_fails_closed_when_namespace_is_absent(self):
+        self.write(phase_approval("registration"))
+        absent = Path(self.temp.name) / "absent-consumption"
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = main([str(self.path)], now=NOW, _test_consumption_root=absent)
+        self.assertEqual((result, stdout.getvalue()), (2, ""))
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+        self.assertFalse(absent.exists())
+
+    def test_explicit_namespace_bootstrap_is_sanitized_and_idempotent(self):
+        root = Path(self.temp.name) / "explicit-bootstrap"
+        outputs = []
+        for _ in range(2):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = main(
+                    ["--bootstrap-consumption-namespace"],
+                    _test_consumption_root=root,
+                )
+            outputs.append((result, stdout.getvalue(), stderr.getvalue()))
+        for result, stdout, stderr in outputs:
+            self.assertEqual((result, stderr), (0, ""))
+            self.assertEqual(
+                json.loads(stdout),
+                {
+                    "classification": "PASS",
+                    "operation": "CONSUMPTION_NAMESPACE_BOOTSTRAP",
+                    "state": "READY",
+                },
+            )
+            self.assertNotIn(str(root), stdout)
+        _verify_windows_private_acl(root) if os.name == "nt" else None
+
+    def test_namespace_bootstrap_rejects_approval_and_acl_drift(self):
+        self.write(phase_approval("registration"))
+        unused = Path(self.temp.name) / "unused-bootstrap"
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result = main(
+                ["--bootstrap-consumption-namespace", str(self.path)],
+                _test_consumption_root=unused,
+            )
+        self.assertEqual(result, 2)
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+        self.assertFalse(unused.exists())
+
+        drifted = Path(self.temp.name) / "drifted-bootstrap"
+        drifted.mkdir()
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = main(
+                ["--bootstrap-consumption-namespace"],
+                _test_consumption_root=drifted,
+            )
+        self.assertEqual(result, 2)
+        if os.name == "nt":
+            with self.assertRaises(ProviderApprovalError):
+                _verify_windows_private_acl(drifted)
+
+        drifted_parent = Path(self.temp.name) / "drifted-parent"
+        drifted_parent.mkdir()
+        child = drifted_parent / "must-not-be-created"
+        with self.assertRaises(ProviderApprovalError):
+            _bootstrap_consumption_root(child, secured_component_count=2)
+        self.assertFalse(child.exists())
+
+    def test_new_namespace_is_secured_and_existing_acl_drift_fails_closed(self):
+        root = Path(self.temp.name) / "isolated-consumption"
+        with patch(
+            "tools.google_auth_staging_preflight._verify_private_directory_security"
+        ) as verify:
+            self.assertEqual(_bootstrap_consumption_root(root), root.resolve())
+        verify.assert_called_with(root.resolve())
+
+        with patch(
+            "tools.google_auth_staging_preflight._verify_private_directory_security",
+            side_effect=ProviderApprovalError("ACL_DRIFT_SENTINEL"),
+        ):
+            with self.assertRaises(ProviderApprovalError):
+                _bootstrap_consumption_root(root)
+
+    def test_windows_acl_state_is_exact_and_drift_fails_closed(self):
+        exact = [
+            (0, 0x03, 0x001F01FF, "user"),
+            (0, 0x03, 0x001F01FF, "system"),
+            (0, 0x03, 0x001F01FF, "logon"),
+        ]
+        _validate_windows_acl_state(
+            owner_is_user=True, dacl_is_protected=True, aces=exact
+        )
+        drifts = (
+            {"owner_is_user": False, "dacl_is_protected": True, "aces": exact},
+            {"owner_is_user": True, "dacl_is_protected": False, "aces": exact},
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": exact + [(0, 0x03, 0x001F01FF, "administrators")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x13, 0x001F01FF, "logon")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x03, 0x001F01FF, "everyone")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x03, 0x001F01FF, "opaque")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x03, 0x001F01FF, "old-logon")],
+            },
+            {"owner_is_user": True, "dacl_is_protected": True, "aces": []},
+        )
+        for drift in drifts:
+            with self.subTest(drift=drift):
+                with self.assertRaises(ProviderApprovalError):
+                    _validate_windows_acl_state(**drift)
+
+    def test_logon_sid_selection_models_normal_and_restricted_tokens(self):
+        groups = [("ordinary", 0x00000004), ("logon-current", 0xC0000004)]
+        arguments = {
+            "is_logon_sid": lambda sid: sid.startswith("logon-"),
+            "equal_sid": lambda left, right: left == right,
+        }
+        self.assertEqual(
+            _select_windows_logon_sid(
+                groups, [], token_is_restricted=False, **arguments
+            ),
+            "logon-current",
+        )
+        self.assertEqual(
+            _select_windows_logon_sid(
+                groups,
+                [
+                    ("opaque-1", 0x00000004),
+                    ("logon-current", 0xC0000004),
+                    ("opaque-2", 0x00000004),
+                ],
+                token_is_restricted=True,
+                **arguments,
+            ),
+            "logon-current",
+        )
+        invalid_restricted_groups = (
+            [],
+            [("opaque-1", 0x00000004), ("old-logon", 0xC0000004)],
+            [("logon-current", 0xC0000014)],
+            [("logon-current", 0xC0000000)],
+            [("logon-current", 0xC0000004), ("logon-current", 0xC0000004)],
+        )
+        for restricted_groups in invalid_restricted_groups:
+            with self.subTest(restricted_groups=restricted_groups):
+                with self.assertRaises(ProviderApprovalError):
+                    _select_windows_logon_sid(
+                        groups,
+                        restricted_groups,
+                        token_is_restricted=True,
+                        **arguments,
+                    )
+        for invalid_groups in (
+            [("logon-current", 0xC0000014)],
+            [("logon-current", 0xC0000000)],
+            groups + [("logon-second", 0xC0000004)],
+        ):
+            with self.subTest(invalid_groups=invalid_groups):
+                with self.assertRaises(ProviderApprovalError):
+                    _select_windows_logon_sid(
+                        invalid_groups,
+                        [],
+                        token_is_restricted=False,
+                        **arguments,
+                    )
+
+    @unittest.skipUnless(os.name == "nt", "Windows ACL integration only")
+    def test_actual_windows_namespace_acl_drift_fails_closed_and_is_restored(self):
+        root = Path(self.temp.name) / "actual-windows-acl"
+        secured = _bootstrap_consumption_root(root)
+        _verify_windows_private_acl(secured)
+        secured.rmdir()
+        root.mkdir()
+        try:
+            with self.assertRaises(ProviderApprovalError):
+                _verify_windows_private_acl(root)
+        finally:
+            root.rmdir()
+            recreated = _bootstrap_consumption_root(root)
+            _verify_windows_private_acl(recreated)
+
+    def test_concurrent_identical_binding_two_filenames_has_exactly_one_pass(self):
+        value = approval_for_now(
+            datetime.now(timezone.utc), phase_approval("tester_add")
+        )
+        paths = [
+            Path(self.temp.name) / f"concurrent-{index}.json" for index in range(2)
+        ]
+        rendered = json.dumps(value)
+        for path in paths:
+            path.write_text(rendered, encoding="utf-8")
+        repository = Path(__file__).resolve().parents[2]
+        script = (
+            "import sys; from pathlib import Path; "
+            "from tools.google_auth_staging_preflight import main; "
+            "raise SystemExit(main([sys.argv[1]], _test_consumption_root=Path(sys.argv[2])))"
+        )
+        processes = [
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    script,
+                    str(path),
+                    str(self.consumption_root),
+                ],
+                cwd=repository,
+                text=True,
+                encoding="utf-8",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            for path in paths
+        ]
+        results = [process.communicate(timeout=30) for process in processes]
+        returncodes = [process.returncode for process in processes]
+        self.assertEqual(sorted(returncodes), [0, 2])
+        passed = results[returncodes.index(0)]
+        failed = results[returncodes.index(2)]
+        self.assertEqual(json.loads(passed[0])["classification"], "PASS")
+        self.assertEqual(failed, ("", "ERROR: PROVIDER_APPROVAL_INVALID\n"))
+
     def test_preexisting_empty_or_malformed_sidecar_blocks_pass(self):
         for content in (b"", b"not-json"):
             with self.subTest(content=content):
                 directory = Path(self.temp.name) / hashlib.sha256(content).hexdigest()
                 directory.mkdir()
+                consumption_root = directory / "consumed"
                 path = directory / "private-approval.json"
-                path.write_text(json.dumps(approval()), encoding="utf-8")
-                _consumed_sidecar_path(path).write_bytes(content)
+                path.write_text(
+                    json.dumps(phase_approval("android_client_create")),
+                    encoding="utf-8",
+                )
+                _bootstrap_consumption_root(consumption_root)
+                sidecar = _consumed_sidecar_path(
+                    phase_approval("android_client_create"), consumption_root
+                )
+                sidecar.write_bytes(content)
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):
-                    result = main([str(path)], now=NOW)
+                    result = main(
+                        [str(path)], now=NOW, _test_consumption_root=consumption_root
+                    )
                 self.assertEqual(result, 2)
                 self.assertEqual(
                     stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n"
                 )
 
     def test_write_failure_leaves_sidecar_and_blocks_replay(self):
-        self.write(approval())
+        self.write(phase_approval("tester_add"))
         stderr = io.StringIO()
         with patch(
             "tools.google_auth_staging_preflight._write_sidecar_bytes",
             side_effect=OSError("PRIVATE-WRITE-SENTINEL"),
         ), contextlib.redirect_stderr(stderr):
-            first = main([str(self.path)], now=NOW)
+            first = self.execute()
         self.assertEqual(first, 2)
-        self.assertTrue(_consumed_sidecar_path(self.path).exists())
+        sidecar = _consumed_sidecar_path(
+            phase_approval("tester_add"), self.consumption_root
+        )
+        self.assertTrue(sidecar.exists())
         with contextlib.redirect_stderr(io.StringIO()):
-            second = main([str(self.path)], now=NOW)
+            second = self.execute()
         self.assertEqual(second, 2)
         self.assertNotIn("PRIVATE-WRITE-SENTINEL", stderr.getvalue())
 
     def test_sidecar_reparse_boundary_fails_before_create(self):
-        self.write(approval())
+        self.write(phase_approval("web_client_create"))
         loaded = self.load()
         with patch(
             "tools.google_auth_staging_preflight._assert_path_chain_no_reparse",
             side_effect=BrokerRolloutError("PATH_INVALID"),
         ):
             with self.assertRaises(ProviderApprovalError):
-                _consume_cli_approval(self.path, loaded, NOW)
-        self.assertFalse(_consumed_sidecar_path(self.path).exists())
+                _consume_cli_approval(
+                    self.path,
+                    loaded,
+                    NOW,
+                    _test_consumption_root=self.consumption_root,
+                )
+        self.assertFalse(_consumed_sidecar_path(loaded, self.consumption_root).exists())
+
+    def test_consumption_namespace_inside_repository_is_rejected(self):
+        self.write(phase_approval("registration"))
+        repository_namespace = Path(__file__).resolve().parents[2] / "tools"
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = main(
+                [str(self.path)],
+                now=NOW,
+                _test_consumption_root=repository_namespace,
+            )
+        self.assertEqual((result, stdout.getvalue()), (2, ""))
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
     def test_cli_usage_error_does_not_echo_argv_or_private_path(self):
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -379,11 +757,24 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
         self.assertNotIn(sentinel, stderr.getvalue())
 
+    def test_cli_has_no_namespace_rekey_or_override_argument(self):
+        self.write(phase_approval("registration"))
+        for private_argument in ("--rekey", "--consumption-root"):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with self.subTest(
+                private_argument=private_argument
+            ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = main([str(self.path), private_argument], now=NOW)
+            self.assertEqual((result, stdout.getvalue()), (2, ""))
+            self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+
     def test_cli_contract_failure_is_fixed_and_redacted(self):
-        self.write(self.replace("planned_clients.1.sha1_fingerprint", "PRIVATE"))
+        value = phase_approval("android_client_create")
+        value["planned_clients"][1]["sha1_fingerprint"] = "PRIVATE"
+        self.write(value)
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            result = main([str(self.path)], now=NOW)
+            result = self.execute()
         self.assertEqual((result, stdout.getvalue()), (2, ""))
         self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
@@ -474,6 +865,95 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 with self.assertRaises(ProviderApprovalError):
                     self.load()
         self.assert_rejected("mutation_boundary.rollback", "delete-provider-resources")
+
+    def test_accepts_each_exact_progressive_phase(self):
+        for phase in PHASE_STATES:
+            with self.subTest(phase=phase):
+                value = phase_approval(phase)
+                self.write(value)
+                self.assertEqual(self.load(), value)
+
+    def test_rejects_phase_transition_precondition_drift(self):
+        mutations = (
+            ("registration", "inventory.auth_platform_status", "registered"),
+            ("web_client_create", "inventory.tester_count", 1),
+            ("web_client_create", "inventory.web_client_count", 1),
+            ("android_client_create", "inventory.web_client_count", 0),
+            ("android_client_create", "inventory.android_client_count", 1),
+            ("tester_add", "inventory.tester_count", 1),
+            ("tester_add", "inventory.android_client_count", 0),
+        )
+        for phase, field, replacement in mutations:
+            with self.subTest(phase=phase, field=field):
+                value = phase_approval(phase)
+                target = value
+                for part in field.split(".")[:-1]:
+                    target = target[part]
+                target[field.split(".")[-1]] = replacement
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_phase_packet_authorizes_only_current_action(self):
+        for phase in PHASE_STATES:
+            with self.subTest(phase=phase):
+                value = phase_approval(phase)
+                unexpected = next(
+                    field
+                    for field in (
+                        "auth_platform_registration_count",
+                        "consent_configuration_count",
+                        "tester_add_count",
+                        "web_client_create_count",
+                        "android_client_create_count",
+                    )
+                    if field not in PHASE_ACTION_FIELDS[phase]
+                )
+                value["mutation_boundary"][unexpected] = 1
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+                value = phase_approval(phase)
+                expected = next(iter(PHASE_ACTION_FIELDS[phase]))
+                value["mutation_boundary"][expected] = 0
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_v2_remains_dry_loadable_but_cannot_be_reissued_to_cli(self):
+        value = approval_for_now(NOW, approval())
+        self.write(value)
+        self.assertEqual(self.load(), value)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result = self.execute()
+        self.assertEqual(result, 2)
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+        self.assertFalse(_consumed_sidecar_path(value, self.consumption_root).exists())
+
+    def test_binding_changes_with_phase_and_observed_completed_state(self):
+        web = phase_approval("web_client_create")
+        android = phase_approval("android_client_create")
+        changed_state = copy.deepcopy(web)
+        changed_state["inventory"]["web_client_count"] = 1
+        self.assertNotEqual(
+            execution_binding_sha256(web), execution_binding_sha256(android)
+        )
+        self.assertNotEqual(
+            execution_binding_sha256(web), execution_binding_sha256(changed_state)
+        )
+
+    def test_rejects_unknown_phase_and_client_action_sequence_drift(self):
+        value = phase_approval("registration")
+        value["phase"] = "full_bootstrap"
+        self.write(value)
+        with self.assertRaises(ProviderApprovalError):
+            self.load()
+        value = phase_approval("tester_add")
+        value["planned_clients"][1]["action"] = "create"
+        self.write(value)
+        with self.assertRaises(ProviderApprovalError):
+            self.load()
 
 
 if __name__ == "__main__":

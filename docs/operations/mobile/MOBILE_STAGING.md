@@ -52,35 +52,85 @@ or distribution.
 
 `tools/google_auth_staging_preflight.py` is an offline verifier for a separate,
 private provider-bootstrap approval. It performs no Google, cloud or network
-request and never creates a provider resource. Schema version 2 binds a
-canonical UUIDv4 approval ID and one-shot execution nonce to TASK-157, DEC-100,
-the stable Owner gate, and the active Main claim／lease. Inventory observation,
-not-before, and expiry timestamps use exact second-resolution UTC and the whole
-packet window may span at most 30 minutes. A private execution sidecar must
-consume the derived binding SHA-256; a previously consumed binding fails closed.
-The executable CLI deterministically derives that sidecar beside the private
-approval and atomically creates it with create-exclusive semantics before it
-emits `PASS`. The sidecar contains only its schema, binding hash, approval hash
-and UTC consumption time. An existing empty, malformed or valid sidecar is the
-same terminal replay failure. A write, flush, identity or postcheck failure
-leaves the sidecar in place and must not be deleted or retried.
+request and never creates a provider resource. Schema version 3 binds a
+canonical UUIDv4 approval ID, one-shot execution nonce, exact phase and complete
+observed pre-state to TASK-157, DEC-100, the stable Owner gate, and the active
+Main claim／lease. Inventory observation, not-before, and expiry timestamps use
+exact second-resolution UTC and each phase packet may span at most 30 minutes.
+A private execution sidecar must consume the derived binding SHA-256; a
+previously consumed binding fails closed.
+The executable CLI uses a fixed, repository-external, machine-local and
+user-local TASK-157 private consumption namespace from the operating system's
+canonical user-state location. It is independent of checkout, worktree, clone
+and repository names and derives the sidecar filename only from the execution
+binding SHA-256. It atomically creates that sidecar with create-exclusive
+semantics before it emits `PASS`, so packet copies in any checkout converge on
+the same machine-wide per-user binding record and concurrent attempts have
+exactly one winner.
+The sidecar contains only its schema, binding hash, approval hash and UTC
+consumption time. An existing empty, malformed or valid sidecar is the same
+terminal replay failure. A write, flush, identity or postcheck failure leaves
+the sidecar in place and must not be deleted or retried. The CLI exposes no
+argument that can relocate this consumption namespace.
+
+On Windows every task-owned namespace directory has inheritance disabled, is
+owned by the current user, and is atomically created with exactly three
+full-control inheritable allow ACEs: the current owner SID, `SYSTEM`, and the
+current well-known logon SID. A restricted token must expose that same enabled
+logon SID in both TokenGroups and TokenRestrictedSids; opaque restricting SIDs,
+Everyone, built-in Administrators and other identities are never added.
+Unexpected, inherited, duplicated or permission-drifted ACEs fail closed.
+On POSIX the namespace must be owned by the effective user with exact mode
+`0700`. Existing namespace ownership or ACL/mode drift is never repaired during
+approval consumption and fails closed instead. All namespace ancestors retain
+the no-symlink／no-reparse requirement.
+
+Before the first approval consumption in a logon session, run the explicit
+Owner-shell bootstrap once:
+
+```powershell
+py -3.10 -m tools.google_auth_staging_preflight --bootstrap-consumption-namespace
+```
+
+This mode takes no approval path or provider data, creates only the local ACL
+namespace, and returns a sanitized idempotent `PASS` when it is newly created or
+already exact. Normal approval consumption only verifies the existing
+namespace; it never creates, repairs or rekeys it. A missing namespace, ACL
+drift, or a changed/missing logon SID after reboot fails closed. A separate
+future Owner-shell reconciliation may rekey retained consumption evidence for a
+new logon session, but TASK-157 does not implement that rekey operation.
 
 The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any
 opened-handle identity, size or modification-time drift. Its exact provider
 schema freezes the dedicated staging project, External／Testing consent screen,
-basic `openid`／`email`／`profile` scopes, one fictional tester, and a complete
-create-only empty inventory. The Web and Android client aliases, display names,
-and inventory matching keys are fixed. The Web server client has no JavaScript
-origin or redirect URI; the Android client is for `tw.org.ntubtob.portal` with
-a canonical SHA-1 signer fingerprint.
+basic `openid`／`email`／`profile` scopes, one fictional tester target, and a
+complete phase-specific observed inventory. The Web and Android client aliases,
+display names, and inventory matching keys are fixed. The Web server client has
+no JavaScript origin or redirect URI; the Android client is for
+`tw.org.ntubtob.portal` with a canonical SHA-1 signer fingerprint.
 
-The mutation vocabulary is exactly one Auth Platform registration, one consent
-configuration, one tester add, one Web client create, and one Android client
-create. Secret, IAM, public-access, billing, runtime and traffic mutation counts
-must all be zero. Unknown inventory, duplicates, cross-project ownership,
-target drift, non-exact counts, destructive rollback, and any
-production-project reference fail closed.
+Phase order and mutation vocabulary are exact:
+
+1. `registration` requires an unconfigured platform, unconfigured consent and
+   zero tester／Web／Android clients; it authorizes only one Auth Platform
+   registration plus one consent configuration.
+2. `web_client_create` requires registered platform, exact consent and zero
+   tester／Web／Android clients; it authorizes only one Web client create.
+3. `android_client_create` additionally requires exactly one matching Web client
+   and zero Android/tester clients; it authorizes only one Android client create.
+4. `tester_add` requires registered platform, exact consent, exactly one
+   matching Web and Android client, and zero testers; it authorizes only one
+   fictional tester add.
+
+Every other provider action and every Secret, IAM, public-access, billing,
+runtime and traffic mutation count must be zero. Unknown inventory, duplicates,
+cross-project ownership, completed-action reauthorization, skipped phase,
+target drift, non-exact counts, destructive rollback, and any production-project
+reference fail closed. Schema version 2 remains parseable only through the
+library for an existing bootstrap packet's dry reconciliation; the executable
+CLI rejects every v2 packet, including a newly timed reissue, and therefore v2
+cannot authorize work after phase progress exists.
 
 ```powershell
 python -m tools.google_auth_staging_preflight C:\private\google-auth-approval.json
