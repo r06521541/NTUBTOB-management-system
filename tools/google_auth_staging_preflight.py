@@ -618,7 +618,34 @@ def _default_consumption_root() -> Path:
     return _user_state_root() / "NTUBTOB" / "TASK-157" / "google-auth-consumed"
 
 
-def _windows_user_and_system_sids() -> tuple[ctypes.Array, ctypes.Array]:
+def _select_windows_logon_sid(
+    groups: list[tuple[object, int]],
+    restricted_sids: list[object],
+    *,
+    token_is_restricted: bool,
+    is_logon_sid,
+    equal_sid,
+) -> object:
+    candidates = [
+        sid
+        for sid, attributes in groups
+        if attributes & 0x00000004
+        and attributes & 0xC0000000 == 0xC0000000
+        and is_logon_sid(sid)
+    ]
+    if len(candidates) != 1:
+        _fail("Current logon security identity is not exact")
+    logon_sid = candidates[0]
+    if token_is_restricted and not any(
+        equal_sid(logon_sid, restricted) for restricted in restricted_sids
+    ):
+        _fail("Restricted token does not retain the current logon identity")
+    return logon_sid
+
+
+def _windows_user_system_logon_sids() -> (
+    tuple[ctypes.Array, ctypes.Array, ctypes.Array]
+):
     from ctypes import wintypes
 
     class SID_AND_ATTRIBUTES(ctypes.Structure):
@@ -626,6 +653,12 @@ def _windows_user_and_system_sids() -> tuple[ctypes.Array, ctypes.Array]:
 
     class TOKEN_USER(ctypes.Structure):
         _fields_ = [("User", SID_AND_ATTRIBUTES)]
+
+    class TOKEN_GROUPS(ctypes.Structure):
+        _fields_ = [
+            ("GroupCount", wintypes.DWORD),
+            ("Groups", SID_AND_ATTRIBUTES * 1),
+        ]
 
     advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
@@ -658,6 +691,12 @@ def _windows_user_and_system_sids() -> tuple[ctypes.Array, ctypes.Array]:
         ctypes.POINTER(wintypes.DWORD),
     ]
     advapi32.CreateWellKnownSid.restype = wintypes.BOOL
+    advapi32.IsWellKnownSid.argtypes = [ctypes.c_void_p, wintypes.DWORD]
+    advapi32.IsWellKnownSid.restype = wintypes.BOOL
+    advapi32.EqualSid.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    advapi32.EqualSid.restype = wintypes.BOOL
+    advapi32.IsTokenRestricted.argtypes = [wintypes.HANDLE]
+    advapi32.IsTokenRestricted.restype = wintypes.BOOL
 
     token = wintypes.HANDLE()
     if not advapi32.OpenProcessToken(
@@ -665,24 +704,62 @@ def _windows_user_and_system_sids() -> tuple[ctypes.Array, ctypes.Array]:
     ):
         _fail("Current user security identity is unavailable")
     try:
-        needed = wintypes.DWORD()
-        advapi32.GetTokenInformation(token, 1, None, 0, ctypes.byref(needed))
-        if not needed.value:
-            _fail("Current user security identity is unavailable")
-        token_info = ctypes.create_string_buffer(needed.value)
-        if not advapi32.GetTokenInformation(
-            token, 1, token_info, needed, ctypes.byref(needed)
-        ):
-            _fail("Current user security identity is unavailable")
+
+        def token_information(information_class: int) -> ctypes.Array:
+            needed = wintypes.DWORD()
+            advapi32.GetTokenInformation(
+                token, information_class, None, 0, ctypes.byref(needed)
+            )
+            if not needed.value:
+                _fail("Current token security identities are unavailable")
+            value = ctypes.create_string_buffer(needed.value)
+            if not advapi32.GetTokenInformation(
+                token, information_class, value, needed, ctypes.byref(needed)
+            ):
+                _fail("Current token security identities are unavailable")
+            return value
+
+        def group_entries(value: ctypes.Array) -> list[tuple[object, int]]:
+            count = ctypes.cast(value, ctypes.POINTER(TOKEN_GROUPS)).contents.GroupCount
+            base = ctypes.addressof(value) + TOKEN_GROUPS.Groups.offset
+            entries: list[tuple[object, int]] = []
+            for index in range(count):
+                item = ctypes.cast(
+                    base + index * ctypes.sizeof(SID_AND_ATTRIBUTES),
+                    ctypes.POINTER(SID_AND_ATTRIBUTES),
+                ).contents
+                entries.append((item.Sid, item.Attributes))
+            return entries
+
+        def copy_sid(pointer: object, reason: str) -> ctypes.Array:
+            length = advapi32.GetLengthSid(pointer)
+            if not length:
+                _fail(reason)
+            copied = ctypes.create_string_buffer(length)
+            if not advapi32.CopySid(length, copied, pointer):
+                _fail(reason)
+            return copied
+
+        token_info = token_information(1)
         user_pointer = ctypes.cast(
             token_info, ctypes.POINTER(TOKEN_USER)
         ).contents.User.Sid
-        user_length = advapi32.GetLengthSid(user_pointer)
-        if not user_length:
-            _fail("Current user security identity is unavailable")
-        user_sid = ctypes.create_string_buffer(user_length)
-        if not advapi32.CopySid(user_length, user_sid, user_pointer):
-            _fail("Current user security identity is unavailable")
+        user_sid = copy_sid(
+            user_pointer, "Current user security identity is unavailable"
+        )
+
+        token_groups = token_information(2)
+        restricted_groups = token_information(11)
+        selected_logon = _select_windows_logon_sid(
+            group_entries(token_groups),
+            [sid for sid, _ in group_entries(restricted_groups)],
+            token_is_restricted=bool(advapi32.IsTokenRestricted(token)),
+            is_logon_sid=lambda sid: bool(advapi32.IsWellKnownSid(sid, 21)),
+            equal_sid=lambda left, right: bool(advapi32.EqualSid(left, right)),
+        )
+        logon_sid = copy_sid(
+            selected_logon, "Current logon security identity is unavailable"
+        )
     finally:
         kernel32.CloseHandle(token)
 
@@ -692,57 +769,87 @@ def _windows_user_and_system_sids() -> tuple[ctypes.Array, ctypes.Array]:
         22, None, system_sid, ctypes.byref(system_length)
     ):
         _fail("SYSTEM security identity is unavailable")
-    return user_sid, system_sid
+    return user_sid, system_sid, logon_sid
 
 
-def _set_windows_private_acl(path: Path) -> None:
+def _windows_sid_string(sid: ctypes.Array) -> str:
     from ctypes import wintypes
 
-    class ACL(ctypes.Structure):
+    advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.ConvertSidToStringSidW.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_wchar_p),
+    ]
+    advapi32.ConvertSidToStringSidW.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+    rendered = ctypes.c_wchar_p()
+    if not advapi32.ConvertSidToStringSidW(sid, ctypes.byref(rendered)):
+        _fail("Current user security identity is unavailable")
+    try:
+        if not rendered.value:
+            _fail("Current user security identity is unavailable")
+        return rendered.value
+    finally:
+        kernel32.LocalFree(ctypes.cast(rendered, ctypes.c_void_p))
+
+
+def _create_windows_private_directory(path: Path) -> bool:
+    from ctypes import wintypes
+
+    class SECURITY_ATTRIBUTES(ctypes.Structure):
         _fields_ = [
-            ("AclRevision", ctypes.c_ubyte),
-            ("Sbz1", ctypes.c_ubyte),
-            ("AclSize", wintypes.WORD),
-            ("AceCount", wintypes.WORD),
-            ("Sbz2", wintypes.WORD),
+            ("nLength", wintypes.DWORD),
+            ("lpSecurityDescriptor", ctypes.c_void_p),
+            ("bInheritHandle", wintypes.BOOL),
         ]
 
     advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
-    advapi32.InitializeAcl.argtypes = [ctypes.c_void_p, wintypes.DWORD, wintypes.DWORD]
-    advapi32.InitializeAcl.restype = wintypes.BOOL
-    advapi32.AddAccessAllowedAceEx.argtypes = [
-        ctypes.c_void_p,
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.argtypes = [
+        wintypes.LPCWSTR,
         wintypes.DWORD,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(wintypes.DWORD),
     ]
-    advapi32.AddAccessAllowedAceEx.restype = wintypes.BOOL
-    advapi32.SetNamedSecurityInfoW.argtypes = [
-        wintypes.LPWSTR,
-        wintypes.DWORD,
-        wintypes.DWORD,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-    ]
-    advapi32.SetNamedSecurityInfoW.restype = wintypes.DWORD
-
-    user_sid, system_sid = _windows_user_and_system_sids()
-    sid_lengths = [ctypes.sizeof(user_sid), ctypes.sizeof(system_sid)]
-    acl_size = ctypes.sizeof(ACL) + sum(8 + length for length in sid_lengths)
-    acl = ctypes.create_string_buffer(acl_size)
-    if not advapi32.InitializeAcl(acl, acl_size, 2):
-        _fail("Private namespace ACL initialization failed")
-    for sid in (user_sid, system_sid):
-        if not advapi32.AddAccessAllowedAceEx(acl, 2, 0x03, 0x001F01FF, sid):
-            _fail("Private namespace ACL initialization failed")
-    result = advapi32.SetNamedSecurityInfoW(
-        str(path), 1, 0x80000005, user_sid, None, acl, None
+    advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW.restype = (
+        wintypes.BOOL
     )
-    if result != 0:
-        _fail("Private namespace ACL application failed")
+    kernel32.CreateDirectoryW.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.POINTER(SECURITY_ATTRIBUTES),
+    ]
+    kernel32.CreateDirectoryW.restype = wintypes.BOOL
+    kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+    kernel32.LocalFree.restype = ctypes.c_void_p
+
+    user_sid, _, logon_sid = _windows_user_system_logon_sids()
+    user = _windows_sid_string(user_sid)
+    logon = _windows_sid_string(logon_sid)
+    sddl = f"D:P(A;OICI;FA;;;{user})" f"(A;OICI;FA;;;SY)(A;OICI;FA;;;{logon})"
+    descriptor = ctypes.c_void_p()
+    descriptor_size = wintypes.DWORD()
+    if not advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+        sddl, 1, ctypes.byref(descriptor), ctypes.byref(descriptor_size)
+    ):
+        _fail(
+            "Private namespace descriptor creation failed "
+            f"({ctypes.get_last_error()})"
+        )
+    try:
+        attributes = SECURITY_ATTRIBUTES(
+            ctypes.sizeof(SECURITY_ATTRIBUTES), descriptor, False
+        )
+        ctypes.set_last_error(0)
+        if kernel32.CreateDirectoryW(str(path), ctypes.byref(attributes)):
+            return True
+        error = ctypes.get_last_error()
+        if error == 183:
+            return False
+        _fail(f"Private namespace creation failed ({error})")
+    finally:
+        kernel32.LocalFree(descriptor)
 
 
 def _validate_windows_acl_state(
@@ -755,18 +862,18 @@ def _validate_windows_acl_state(
         _fail("Private namespace owner drifted")
     if not dacl_is_protected:
         _fail("Private namespace DACL is not protected")
-    if len(aces) != 2:
+    if len(aces) != 3:
         _fail("Private namespace ACE count drifted")
     identities: set[str] = set()
     for ace_type, ace_flags, mask, identity in aces:
         if ace_type != 0 or ace_flags != 0x03 or mask != 0x001F01FF:
             _fail("Private namespace ACE permissions drifted")
-        if identity not in {"user", "system"}:
+        if identity not in {"user", "system", "logon"}:
             _fail("Private namespace ACE identity drifted")
         if identity in identities:
             _fail("Private namespace ACE identity is duplicated")
         identities.add(identity)
-    if identities != {"user", "system"}:
+    if identities != {"user", "system", "logon"}:
         _fail("Private namespace ACE identities are incomplete")
 
 
@@ -831,7 +938,7 @@ def _verify_windows_private_acl(path: Path) -> None:
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
     kernel32.LocalFree.restype = ctypes.c_void_p
 
-    user_sid, system_sid = _windows_user_and_system_sids()
+    user_sid, system_sid, logon_sid = _windows_user_system_logon_sids()
     owner, dacl, descriptor = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
     result = advapi32.GetNamedSecurityInfoW(
         str(path),
@@ -873,6 +980,8 @@ def _verify_windows_private_acl(path: Path) -> None:
                 identity = "user"
             elif advapi32.EqualSid(sid, system_sid):
                 identity = "system"
+            elif advapi32.EqualSid(sid, logon_sid):
+                identity = "logon"
             else:
                 identity = "unexpected"
             aces.append((ace.Header.AceType, ace.Header.AceFlags, ace.Mask, identity))
@@ -883,14 +992,6 @@ def _verify_windows_private_acl(path: Path) -> None:
         )
     finally:
         kernel32.LocalFree(descriptor)
-
-
-def _secure_new_private_directory(path: Path) -> None:
-    if os.name == "nt":
-        _set_windows_private_acl(path)
-    else:
-        path.chmod(0o700)
-    _verify_private_directory_security(path)
 
 
 def _verify_private_directory_security(path: Path) -> None:
@@ -927,19 +1028,21 @@ def _prepare_consumption_root(
         for path in reversed(missing):
             if path.parent.resolve(strict=True) != current:
                 _fail("Consumption namespace path drifted")
-            try:
-                path.mkdir(mode=0o700)
-                created = True
-            except FileExistsError:
-                created = False
+            if os.name == "nt" and path in secured_paths:
+                created = _create_windows_private_directory(path)
+            else:
+                try:
+                    path.mkdir(mode=0o700)
+                    created = True
+                except FileExistsError:
+                    created = False
             current = _require_private_path(path)
             if not current.is_dir():
                 _fail("Consumption namespace is invalid")
             if path in secured_paths:
-                if created:
-                    _secure_new_private_directory(current)
-                else:
-                    _verify_private_directory_security(current)
+                if created and os.name != "nt":
+                    current.chmod(0o700)
+                _verify_private_directory_security(current)
         resolved = _require_private_path(absolute)
         if not resolved.is_dir():
             _fail("Consumption namespace is invalid")

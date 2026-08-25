@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import ctypes
 import hashlib
 import io
 import json
@@ -23,7 +22,7 @@ from tools.google_auth_staging_preflight import (
     _default_consumption_root,
     _prepare_consumption_root,
     _read_opened_json,
-    _set_windows_private_acl,
+    _select_windows_logon_sid,
     _validate_windows_acl_state,
     _verify_windows_private_acl,
     canonical_approval_sha256,
@@ -442,13 +441,10 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
     def test_new_namespace_is_secured_and_existing_acl_drift_fails_closed(self):
         root = Path(self.temp.name) / "isolated-consumption"
         with patch(
-            "tools.google_auth_staging_preflight._secure_new_private_directory"
-        ) as secure, patch(
             "tools.google_auth_staging_preflight._verify_private_directory_security"
         ) as verify:
             self.assertEqual(_prepare_consumption_root(root), root.resolve())
-        secure.assert_called_once_with(root.resolve())
-        verify.assert_called_once_with(root.resolve())
+        verify.assert_called_with(root.resolve())
 
         with patch(
             "tools.google_auth_staging_preflight._verify_private_directory_security",
@@ -461,6 +457,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         exact = [
             (0, 0x03, 0x001F01FF, "user"),
             (0, 0x03, 0x001F01FF, "system"),
+            (0, 0x03, 0x001F01FF, "logon"),
         ]
         _validate_windows_acl_state(
             owner_is_user=True, dacl_is_protected=True, aces=exact
@@ -476,43 +473,75 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             {
                 "owner_is_user": True,
                 "dacl_is_protected": True,
-                "aces": [(0, 0x13, 0x001F01FF, "user"), exact[1]],
+                "aces": [exact[0], exact[1], (0, 0x13, 0x001F01FF, "logon")],
             },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x03, 0x001F01FF, "everyone")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x03, 0x001F01FF, "opaque")],
+            },
+            {
+                "owner_is_user": True,
+                "dacl_is_protected": True,
+                "aces": [exact[0], exact[1], (0, 0x03, 0x001F01FF, "old-logon")],
+            },
+            {"owner_is_user": True, "dacl_is_protected": True, "aces": []},
         )
         for drift in drifts:
             with self.subTest(drift=drift):
                 with self.assertRaises(ProviderApprovalError):
                     _validate_windows_acl_state(**drift)
 
+    def test_logon_sid_selection_models_normal_and_restricted_tokens(self):
+        groups = [("ordinary", 0x00000004), ("logon-current", 0xC0000004)]
+        arguments = {
+            "is_logon_sid": lambda sid: sid.startswith("logon-"),
+            "equal_sid": lambda left, right: left == right,
+        }
+        self.assertEqual(
+            _select_windows_logon_sid(
+                groups, [], token_is_restricted=False, **arguments
+            ),
+            "logon-current",
+        )
+        self.assertEqual(
+            _select_windows_logon_sid(
+                groups,
+                ["opaque-1", "logon-current", "opaque-2"],
+                token_is_restricted=True,
+                **arguments,
+            ),
+            "logon-current",
+        )
+        for restricted_sids in ([], ["opaque-1", "old-logon"]):
+            with self.subTest(restricted_sids=restricted_sids):
+                with self.assertRaises(ProviderApprovalError):
+                    _select_windows_logon_sid(
+                        groups,
+                        restricted_sids,
+                        token_is_restricted=True,
+                        **arguments,
+                    )
+
     @unittest.skipUnless(os.name == "nt", "Windows ACL integration only")
     def test_actual_windows_namespace_acl_drift_fails_closed_and_is_restored(self):
-        from ctypes import wintypes
-
         root = Path(self.temp.name) / "actual-windows-acl"
         secured = _prepare_consumption_root(root)
         _verify_windows_private_acl(secured)
-
-        advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
-        advapi32.SetNamedSecurityInfoW.argtypes = [
-            wintypes.LPWSTR,
-            wintypes.DWORD,
-            wintypes.DWORD,
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-            ctypes.c_void_p,
-        ]
-        advapi32.SetNamedSecurityInfoW.restype = wintypes.DWORD
+        secured.rmdir()
+        root.mkdir()
         try:
-            result = advapi32.SetNamedSecurityInfoW(
-                str(secured), 1, 0x00000004, None, None, None, None
-            )
-            self.assertEqual(result, 0)
             with self.assertRaises(ProviderApprovalError):
-                _verify_windows_private_acl(secured)
+                _verify_windows_private_acl(root)
         finally:
-            _set_windows_private_acl(secured)
-            _verify_windows_private_acl(secured)
+            root.rmdir()
+            recreated = _prepare_consumption_root(root)
+            _verify_windows_private_acl(recreated)
 
     def test_concurrent_identical_binding_two_filenames_has_exactly_one_pass(self):
         value = approval_for_now(
@@ -636,6 +665,17 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual((result, stdout.getvalue()), (2, ""))
         self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
         self.assertNotIn(sentinel, stderr.getvalue())
+
+    def test_cli_has_no_namespace_rekey_or_override_argument(self):
+        self.write(phase_approval("registration"))
+        for private_argument in ("--rekey", "--consumption-root"):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with self.subTest(
+                private_argument=private_argument
+            ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = main([str(self.path), private_argument], now=NOW)
+            self.assertEqual((result, stdout.getvalue()), (2, ""))
+            self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
     def test_cli_contract_failure_is_fixed_and_redacted(self):
         value = phase_approval("android_client_create")

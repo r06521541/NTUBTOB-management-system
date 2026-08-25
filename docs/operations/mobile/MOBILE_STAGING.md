@@ -74,13 +74,23 @@ the sidecar in place and must not be deleted or retried. The CLI exposes no
 argument that can relocate this consumption namespace.
 
 On Windows every task-owned namespace directory has inheritance disabled, is
-owned by the current user, and has exactly two full-control inheritable allow
-ACEs: the current user and `SYSTEM`. Unexpected, inherited, duplicated or
-permission-drifted ACEs fail closed; built-in Administrators are not required.
+owned by the current user, and is atomically created with exactly three
+full-control inheritable allow ACEs: the current owner SID, `SYSTEM`, and the
+current well-known logon SID. A restricted token must expose that same enabled
+logon SID in both TokenGroups and TokenRestrictedSids; opaque restricting SIDs,
+Everyone, built-in Administrators and other identities are never added.
+Unexpected, inherited, duplicated or permission-drifted ACEs fail closed.
 On POSIX the namespace must be owned by the effective user with exact mode
 `0700`. Existing namespace ownership or ACL/mode drift is never repaired during
 approval consumption and fails closed instead. All namespace ancestors retain
 the no-symlink／no-reparse requirement.
+
+The Windows namespace is therefore stable across checkouts during one logon
+session, while a later or missing logon SID intentionally fails closed. The CLI
+does not rekey or repair that namespace. A future Owner-shell procedure may
+explicitly reconcile and rekey retained consumption evidence for a new logon
+session, but that procedure is outside this verifier and is not implemented by
+TASK-157.
 
 The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any
