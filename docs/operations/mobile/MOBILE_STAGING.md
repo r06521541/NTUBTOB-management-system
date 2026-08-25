@@ -59,12 +59,16 @@ Main claim／lease. Inventory observation, not-before, and expiry timestamps use
 exact second-resolution UTC and each phase packet may span at most 30 minutes.
 A private execution sidecar must consume the derived binding SHA-256; a
 previously consumed binding fails closed.
-The executable CLI deterministically derives that sidecar beside the private
-approval and atomically creates it with create-exclusive semantics before it
-emits `PASS`. The sidecar contains only its schema, binding hash, approval hash
-and UTC consumption time. An existing empty, malformed or valid sidecar is the
-same terminal replay failure. A write, flush, identity or postcheck failure
-leaves the sidecar in place and must not be deleted or retried.
+The executable CLI uses a fixed, repository-external TASK-157 private
+consumption namespace and derives the sidecar filename only from the execution
+binding SHA-256. It atomically creates that sidecar with create-exclusive
+semantics before it emits `PASS`, so copied or renamed packets converge on the
+same global-per-binding record and concurrent attempts have exactly one winner.
+The sidecar contains only its schema, binding hash, approval hash and UTC
+consumption time. An existing empty, malformed or valid sidecar is the same
+terminal replay failure. A write, flush, identity or postcheck failure leaves
+the sidecar in place and must not be deleted or retried. The CLI exposes no
+argument that can relocate this consumption namespace.
 
 The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any

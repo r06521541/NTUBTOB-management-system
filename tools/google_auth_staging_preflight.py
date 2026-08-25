@@ -58,6 +58,13 @@ PHASE_ACTION_FIELDS = {
     "tester_add": {"tester_add_count"},
 }
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_CONSUMPTION_ROOT = (
+    REPOSITORY_ROOT.parent
+    / ".ntubtob-private"
+    / REPOSITORY_ROOT.name
+    / "task-157"
+    / "google-auth-consumed"
+)
 MAX_APPROVAL_BYTES = 64 * 1024
 MAX_VALIDITY = timedelta(minutes=30)
 UTC_TIMESTAMP = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
@@ -556,8 +563,50 @@ def canonical_approval_sha256(approval: dict) -> str:
     return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
-def _consumed_sidecar_path(approval_path: Path) -> Path:
-    return approval_path.with_name(approval_path.name + ".google-auth.consumed.json")
+def _consumed_sidecar_path(
+    approval: dict, consumption_root: Path = DEFAULT_CONSUMPTION_ROOT
+) -> Path:
+    return consumption_root / (
+        execution_binding_sha256(approval) + ".google-auth.consumed.json"
+    )
+
+
+def _prepare_consumption_root(consumption_root: Path) -> Path:
+    try:
+        absolute = consumption_root.absolute()
+        if absolute == REPOSITORY_ROOT or absolute.is_relative_to(REPOSITORY_ROOT):
+            _fail("Consumption namespace must remain outside the repository")
+
+        missing: list[Path] = []
+        existing = absolute
+        while not existing.exists() and not existing.is_symlink():
+            missing.append(existing)
+            parent = existing.parent
+            if parent == existing:
+                _fail("Consumption namespace has no private ancestor")
+            existing = parent
+
+        current = _require_private_path(existing)
+        if not current.is_dir():
+            _fail("Consumption namespace ancestor is invalid")
+        for path in reversed(missing):
+            if path.parent.resolve(strict=True) != current:
+                _fail("Consumption namespace path drifted")
+            try:
+                path.mkdir(mode=0o700)
+            except FileExistsError:
+                pass
+            current = _require_private_path(path)
+            if not current.is_dir():
+                _fail("Consumption namespace is invalid")
+        resolved = _require_private_path(absolute)
+        if not resolved.is_dir():
+            _fail("Consumption namespace is invalid")
+        return resolved
+    except ProviderApprovalError:
+        raise
+    except (BrokerRolloutError, OSError, RuntimeError):
+        _fail("Consumption namespace is invalid")
 
 
 def _write_sidecar_bytes(handle, payload: bytes) -> None:
@@ -565,7 +614,11 @@ def _write_sidecar_bytes(handle, payload: bytes) -> None:
 
 
 def _consume_cli_approval(
-    approval_path: Path, approval: dict, consumed_at: datetime
+    approval_path: Path,
+    approval: dict,
+    consumed_at: datetime,
+    *,
+    consumption_root: Path = DEFAULT_CONSUMPTION_ROOT,
 ) -> Path:
     if approval.get("schema_version") != 3 or approval.get("phase") not in PHASE_STATES:
         _fail("Only progressive phase approvals may be consumed")
@@ -581,7 +634,8 @@ def _consume_cli_approval(
     if consumed_at.tzinfo is None or consumed_at.utcoffset() != timedelta(0):
         _fail("Consumption time must be UTC")
 
-    sidecar = _consumed_sidecar_path(resolved_approval)
+    resolved_consumption_root = _prepare_consumption_root(consumption_root)
+    sidecar = _consumed_sidecar_path(approval, resolved_consumption_root)
     _assert_path_chain_no_reparse(sidecar)
     value = {
         "schema_version": 1,
@@ -644,6 +698,7 @@ def main(
     *,
     now: datetime | None = None,
     consumed_execution_bindings: Collection[str] = (),
+    consumption_root: Path = DEFAULT_CONSUMPTION_ROOT,
 ) -> int:
     parser = _PrivateArgumentParser(description=__doc__, add_help=False)
     parser.add_argument("approval", type=Path)
@@ -657,7 +712,12 @@ def main(
         )
         if approval["schema_version"] != 3:
             _fail("Legacy full bootstrap approval is dry-validation only")
-        _consume_cli_approval(args.approval, approval, effective_now)
+        _consume_cli_approval(
+            args.approval,
+            approval,
+            effective_now,
+            consumption_root=consumption_root,
+        )
         print(
             json.dumps(
                 {

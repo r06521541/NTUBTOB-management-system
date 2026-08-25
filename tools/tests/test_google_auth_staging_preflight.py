@@ -196,6 +196,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "private-approval.json"
+        self.consumption_root = Path(self.temp.name) / "consumed"
 
     def tearDown(self):
         self.temp.cleanup()
@@ -207,6 +208,13 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
 
     def load(self, **kwargs) -> dict:
         return load_provider_approval(self.path, now=NOW, **kwargs)
+
+    def execute(self, path: Path | None = None, *, now: datetime = NOW) -> int:
+        return main(
+            [str(path or self.path)],
+            now=now,
+            consumption_root=self.consumption_root,
+        )
 
     def replace(self, field: str, replacement: object) -> dict:
         value = approval()
@@ -335,13 +343,17 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.write(phase_approval("registration"))
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
-            result = main([str(self.path)], now=NOW)
+            result = self.execute()
         output = json.loads(stdout.getvalue())
         self.assertEqual(result, 0)
         self.assertEqual(set(output), {"classification", "approval_sha256"})
         for private_value in (TESTER, FINGERPRINT, PROJECT, "redirect_uris"):
             self.assertNotIn(private_value, stdout.getvalue())
-        sidecar = json.loads(_consumed_sidecar_path(self.path).read_text("utf-8"))
+        sidecar = json.loads(
+            _consumed_sidecar_path(
+                phase_approval("registration"), self.consumption_root
+            ).read_text("utf-8")
+        )
         self.assertEqual(
             set(sidecar),
             {"schema_version", "binding_sha256", "approval_sha256", "consumed_at"},
@@ -357,11 +369,17 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             )
         )
         repository = Path(__file__).resolve().parents[2]
+        script = (
+            "import sys; from pathlib import Path; "
+            "from tools.google_auth_staging_preflight import main; "
+            "raise SystemExit(main([sys.argv[1]], consumption_root=Path(sys.argv[2])))"
+        )
         command = [
             sys.executable,
-            "-m",
-            "tools.google_auth_staging_preflight",
+            "-c",
+            script,
             str(self.path),
+            str(self.consumption_root),
         ]
         first = subprocess.run(
             command,
@@ -387,20 +405,85 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual(second.stderr, "ERROR: PROVIDER_APPROVAL_INVALID\n")
         self.assertNotIn(str(self.path), first.stdout + first.stderr + second.stderr)
 
+    def test_identical_binding_copied_to_two_filenames_passes_once(self):
+        value = phase_approval("android_client_create")
+        first_path = Path(self.temp.name) / "first-private.json"
+        second_path = Path(self.temp.name) / "second-private.json"
+        rendered = json.dumps(value)
+        first_path.write_text(rendered, encoding="utf-8")
+        second_path.write_text(rendered, encoding="utf-8")
+        outputs: list[tuple[int, str, str]] = []
+        for path in (first_path, second_path):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = self.execute(path)
+            outputs.append((result, stdout.getvalue(), stderr.getvalue()))
+        self.assertEqual([item[0] for item in outputs], [0, 2])
+        self.assertEqual(json.loads(outputs[0][1])["classification"], "PASS")
+        self.assertEqual(outputs[1][1:], ("", "ERROR: PROVIDER_APPROVAL_INVALID\n"))
+
+    def test_concurrent_identical_binding_two_filenames_has_exactly_one_pass(self):
+        value = approval_for_now(
+            datetime.now(timezone.utc), phase_approval("tester_add")
+        )
+        paths = [
+            Path(self.temp.name) / f"concurrent-{index}.json" for index in range(2)
+        ]
+        rendered = json.dumps(value)
+        for path in paths:
+            path.write_text(rendered, encoding="utf-8")
+        repository = Path(__file__).resolve().parents[2]
+        script = (
+            "import sys; from pathlib import Path; "
+            "from tools.google_auth_staging_preflight import main; "
+            "raise SystemExit(main([sys.argv[1]], consumption_root=Path(sys.argv[2])))"
+        )
+        processes = [
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    script,
+                    str(path),
+                    str(self.consumption_root),
+                ],
+                cwd=repository,
+                text=True,
+                encoding="utf-8",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            for path in paths
+        ]
+        results = [process.communicate(timeout=30) for process in processes]
+        returncodes = [process.returncode for process in processes]
+        self.assertEqual(sorted(returncodes), [0, 2])
+        passed = results[returncodes.index(0)]
+        failed = results[returncodes.index(2)]
+        self.assertEqual(json.loads(passed[0])["classification"], "PASS")
+        self.assertEqual(failed, ("", "ERROR: PROVIDER_APPROVAL_INVALID\n"))
+
     def test_preexisting_empty_or_malformed_sidecar_blocks_pass(self):
         for content in (b"", b"not-json"):
             with self.subTest(content=content):
                 directory = Path(self.temp.name) / hashlib.sha256(content).hexdigest()
                 directory.mkdir()
+                consumption_root = directory / "consumed"
                 path = directory / "private-approval.json"
                 path.write_text(
                     json.dumps(phase_approval("android_client_create")),
                     encoding="utf-8",
                 )
-                _consumed_sidecar_path(path).write_bytes(content)
+                sidecar = _consumed_sidecar_path(
+                    phase_approval("android_client_create"), consumption_root
+                )
+                sidecar.parent.mkdir(parents=True, exist_ok=True)
+                sidecar.write_bytes(content)
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):
-                    result = main([str(path)], now=NOW)
+                    result = main(
+                        [str(path)], now=NOW, consumption_root=consumption_root
+                    )
                 self.assertEqual(result, 2)
                 self.assertEqual(
                     stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n"
@@ -413,11 +496,14 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             "tools.google_auth_staging_preflight._write_sidecar_bytes",
             side_effect=OSError("PRIVATE-WRITE-SENTINEL"),
         ), contextlib.redirect_stderr(stderr):
-            first = main([str(self.path)], now=NOW)
+            first = self.execute()
         self.assertEqual(first, 2)
-        self.assertTrue(_consumed_sidecar_path(self.path).exists())
+        sidecar = _consumed_sidecar_path(
+            phase_approval("tester_add"), self.consumption_root
+        )
+        self.assertTrue(sidecar.exists())
         with contextlib.redirect_stderr(io.StringIO()):
-            second = main([str(self.path)], now=NOW)
+            second = self.execute()
         self.assertEqual(second, 2)
         self.assertNotIn("PRIVATE-WRITE-SENTINEL", stderr.getvalue())
 
@@ -429,8 +515,26 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             side_effect=BrokerRolloutError("PATH_INVALID"),
         ):
             with self.assertRaises(ProviderApprovalError):
-                _consume_cli_approval(self.path, loaded, NOW)
-        self.assertFalse(_consumed_sidecar_path(self.path).exists())
+                _consume_cli_approval(
+                    self.path,
+                    loaded,
+                    NOW,
+                    consumption_root=self.consumption_root,
+                )
+        self.assertFalse(_consumed_sidecar_path(loaded, self.consumption_root).exists())
+
+    def test_consumption_namespace_inside_repository_is_rejected(self):
+        self.write(phase_approval("registration"))
+        repository_namespace = Path(__file__).resolve().parents[2] / "tools"
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = main(
+                [str(self.path)],
+                now=NOW,
+                consumption_root=repository_namespace,
+            )
+        self.assertEqual((result, stdout.getvalue()), (2, ""))
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
     def test_cli_usage_error_does_not_echo_argv_or_private_path(self):
         stdout, stderr = io.StringIO(), io.StringIO()
@@ -447,7 +551,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.write(value)
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-            result = main([str(self.path)], now=NOW)
+            result = self.execute()
         self.assertEqual((result, stdout.getvalue()), (2, ""))
         self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
@@ -599,10 +703,10 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual(self.load(), value)
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr):
-            result = main([str(self.path)], now=NOW)
+            result = self.execute()
         self.assertEqual(result, 2)
         self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
-        self.assertFalse(_consumed_sidecar_path(self.path).exists())
+        self.assertFalse(_consumed_sidecar_path(value, self.consumption_root).exists())
 
     def test_binding_changes_with_phase_and_observed_completed_state(self):
         web = phase_approval("web_client_create")
