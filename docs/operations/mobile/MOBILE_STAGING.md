@@ -48,6 +48,57 @@ or distribution.
    The approval must use the exact schema enforced by `load_approval`; extra or
    missing fields fail closed.
 
+### Google Auth provider bootstrap preflight
+
+`tools/google_auth_staging_preflight.py` is an offline verifier for a separate,
+private provider-bootstrap approval. It performs no Google, cloud or network
+request and never creates a provider resource. Schema version 2 binds a
+canonical UUIDv4 approval ID and one-shot execution nonce to TASK-157, DEC-100,
+the stable Owner gate, and the active Main claim／lease. Inventory observation,
+not-before, and expiry timestamps use exact second-resolution UTC and the whole
+packet window may span at most 30 minutes. A private execution sidecar must
+consume the derived binding SHA-256; a previously consumed binding fails closed.
+The executable CLI deterministically derives that sidecar beside the private
+approval and atomically creates it with create-exclusive semantics before it
+emits `PASS`. The sidecar contains only its schema, binding hash, approval hash
+and UTC consumption time. An existing empty, malformed or valid sidecar is the
+same terminal replay failure. A write, flush, identity or postcheck failure
+leaves the sidecar in place and must not be deleted or retried.
+
+The approval path must remain outside the repository. The verifier rejects a
+symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any
+opened-handle identity, size or modification-time drift. Its exact provider
+schema freezes the dedicated staging project, External／Testing consent screen,
+basic `openid`／`email`／`profile` scopes, one fictional tester, and a complete
+create-only empty inventory. The Web and Android client aliases, display names,
+and inventory matching keys are fixed. The Web server client has no JavaScript
+origin or redirect URI; the Android client is for `tw.org.ntubtob.portal` with
+a canonical SHA-1 signer fingerprint.
+
+The mutation vocabulary is exactly one Auth Platform registration, one consent
+configuration, one tester add, one Web client create, and one Android client
+create. Secret, IAM, public-access, billing, runtime and traffic mutation counts
+must all be zero. Unknown inventory, duplicates, cross-project ownership,
+target drift, non-exact counts, destructive rollback, and any
+production-project reference fail closed.
+
+```powershell
+python -m tools.google_auth_staging_preflight C:\private\google-auth-approval.json
+```
+
+Success emits only `classification=PASS` and the canonical approval SHA-256.
+It never emits tester accounts, client identifiers, signer fingerprints,
+callback/origin data, Secret metadata or private file content. Provider
+execution remains a separate gate; rollback retains provider resources and
+evidence for explicit reconciliation rather than deleting them automatically.
+Argument and contract failures emit only `ERROR: PROVIDER_APPROVAL_INVALID`;
+usage output never repeats the private path or other argument values.
+Library callers may use `load_provider_approval` for offline dry validation and
+inject a consumed-binding inventory for tests or sidecar reconciliation. That
+API does not consume the packet and is not execution-gate or mutation authority;
+only a successful CLI invocation with its retained atomic sidecar establishes
+consumption.
+
 The LINE Login channel must remain `Developing`, under the same Provider as the
 related channels. Configure Mobile app identities `tw.org.ntubtob.portal` for
 Android and iOS. Channel ID is non-secret; no channel secret is required by the
