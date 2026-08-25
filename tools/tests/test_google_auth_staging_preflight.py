@@ -20,7 +20,7 @@ from tools.google_auth_staging_preflight import (
     _consume_cli_approval,
     _consumed_sidecar_path,
     _default_consumption_root,
-    _prepare_consumption_root,
+    _bootstrap_consumption_root,
     _read_opened_json,
     _select_windows_logon_sid,
     _validate_windows_acl_state,
@@ -202,6 +202,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "private-approval.json"
         self.consumption_root = Path(self.temp.name) / "consumed"
+        _bootstrap_consumption_root(self.consumption_root)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -438,12 +439,78 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         repository = Path(__file__).resolve().parents[2]
         self.assertFalse(first == repository or first.is_relative_to(repository))
 
+    def test_normal_cli_fails_closed_when_namespace_is_absent(self):
+        self.write(phase_approval("registration"))
+        absent = Path(self.temp.name) / "absent-consumption"
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = main([str(self.path)], now=NOW, _test_consumption_root=absent)
+        self.assertEqual((result, stdout.getvalue()), (2, ""))
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+        self.assertFalse(absent.exists())
+
+    def test_explicit_namespace_bootstrap_is_sanitized_and_idempotent(self):
+        root = Path(self.temp.name) / "explicit-bootstrap"
+        outputs = []
+        for _ in range(2):
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                result = main(
+                    ["--bootstrap-consumption-namespace"],
+                    _test_consumption_root=root,
+                )
+            outputs.append((result, stdout.getvalue(), stderr.getvalue()))
+        for result, stdout, stderr in outputs:
+            self.assertEqual((result, stderr), (0, ""))
+            self.assertEqual(
+                json.loads(stdout),
+                {
+                    "classification": "PASS",
+                    "operation": "CONSUMPTION_NAMESPACE_BOOTSTRAP",
+                    "state": "READY",
+                },
+            )
+            self.assertNotIn(str(root), stdout)
+        _verify_windows_private_acl(root) if os.name == "nt" else None
+
+    def test_namespace_bootstrap_rejects_approval_and_acl_drift(self):
+        self.write(phase_approval("registration"))
+        unused = Path(self.temp.name) / "unused-bootstrap"
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            result = main(
+                ["--bootstrap-consumption-namespace", str(self.path)],
+                _test_consumption_root=unused,
+            )
+        self.assertEqual(result, 2)
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
+        self.assertFalse(unused.exists())
+
+        drifted = Path(self.temp.name) / "drifted-bootstrap"
+        drifted.mkdir()
+        with contextlib.redirect_stderr(io.StringIO()):
+            result = main(
+                ["--bootstrap-consumption-namespace"],
+                _test_consumption_root=drifted,
+            )
+        self.assertEqual(result, 2)
+        if os.name == "nt":
+            with self.assertRaises(ProviderApprovalError):
+                _verify_windows_private_acl(drifted)
+
+        drifted_parent = Path(self.temp.name) / "drifted-parent"
+        drifted_parent.mkdir()
+        child = drifted_parent / "must-not-be-created"
+        with self.assertRaises(ProviderApprovalError):
+            _bootstrap_consumption_root(child, secured_component_count=2)
+        self.assertFalse(child.exists())
+
     def test_new_namespace_is_secured_and_existing_acl_drift_fails_closed(self):
         root = Path(self.temp.name) / "isolated-consumption"
         with patch(
             "tools.google_auth_staging_preflight._verify_private_directory_security"
         ) as verify:
-            self.assertEqual(_prepare_consumption_root(root), root.resolve())
+            self.assertEqual(_bootstrap_consumption_root(root), root.resolve())
         verify.assert_called_with(root.resolve())
 
         with patch(
@@ -451,7 +518,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             side_effect=ProviderApprovalError("ACL_DRIFT_SENTINEL"),
         ):
             with self.assertRaises(ProviderApprovalError):
-                _prepare_consumption_root(root)
+                _bootstrap_consumption_root(root)
 
     def test_windows_acl_state_is_exact_and_drift_fails_closed(self):
         exact = [
@@ -512,26 +579,50 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertEqual(
             _select_windows_logon_sid(
                 groups,
-                ["opaque-1", "logon-current", "opaque-2"],
+                [
+                    ("opaque-1", 0x00000004),
+                    ("logon-current", 0xC0000004),
+                    ("opaque-2", 0x00000004),
+                ],
                 token_is_restricted=True,
                 **arguments,
             ),
             "logon-current",
         )
-        for restricted_sids in ([], ["opaque-1", "old-logon"]):
-            with self.subTest(restricted_sids=restricted_sids):
+        invalid_restricted_groups = (
+            [],
+            [("opaque-1", 0x00000004), ("old-logon", 0xC0000004)],
+            [("logon-current", 0xC0000014)],
+            [("logon-current", 0xC0000000)],
+            [("logon-current", 0xC0000004), ("logon-current", 0xC0000004)],
+        )
+        for restricted_groups in invalid_restricted_groups:
+            with self.subTest(restricted_groups=restricted_groups):
                 with self.assertRaises(ProviderApprovalError):
                     _select_windows_logon_sid(
                         groups,
-                        restricted_sids,
+                        restricted_groups,
                         token_is_restricted=True,
+                        **arguments,
+                    )
+        for invalid_groups in (
+            [("logon-current", 0xC0000014)],
+            [("logon-current", 0xC0000000)],
+            groups + [("logon-second", 0xC0000004)],
+        ):
+            with self.subTest(invalid_groups=invalid_groups):
+                with self.assertRaises(ProviderApprovalError):
+                    _select_windows_logon_sid(
+                        invalid_groups,
+                        [],
+                        token_is_restricted=False,
                         **arguments,
                     )
 
     @unittest.skipUnless(os.name == "nt", "Windows ACL integration only")
     def test_actual_windows_namespace_acl_drift_fails_closed_and_is_restored(self):
         root = Path(self.temp.name) / "actual-windows-acl"
-        secured = _prepare_consumption_root(root)
+        secured = _bootstrap_consumption_root(root)
         _verify_windows_private_acl(secured)
         secured.rmdir()
         root.mkdir()
@@ -540,7 +631,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 _verify_windows_private_acl(root)
         finally:
             root.rmdir()
-            recreated = _prepare_consumption_root(root)
+            recreated = _bootstrap_consumption_root(root)
             _verify_windows_private_acl(recreated)
 
     def test_concurrent_identical_binding_two_filenames_has_exactly_one_pass(self):
@@ -595,10 +686,10 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                     json.dumps(phase_approval("android_client_create")),
                     encoding="utf-8",
                 )
+                _bootstrap_consumption_root(consumption_root)
                 sidecar = _consumed_sidecar_path(
                     phase_approval("android_client_create"), consumption_root
                 )
-                sidecar.parent.mkdir(parents=True, exist_ok=True)
                 sidecar.write_bytes(content)
                 stderr = io.StringIO()
                 with contextlib.redirect_stderr(stderr):

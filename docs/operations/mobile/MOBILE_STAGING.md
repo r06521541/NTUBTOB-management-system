@@ -85,12 +85,20 @@ On POSIX the namespace must be owned by the effective user with exact mode
 approval consumption and fails closed instead. All namespace ancestors retain
 the no-symlink／no-reparse requirement.
 
-The Windows namespace is therefore stable across checkouts during one logon
-session, while a later or missing logon SID intentionally fails closed. The CLI
-does not rekey or repair that namespace. A future Owner-shell procedure may
-explicitly reconcile and rekey retained consumption evidence for a new logon
-session, but that procedure is outside this verifier and is not implemented by
-TASK-157.
+Before the first approval consumption in a logon session, run the explicit
+Owner-shell bootstrap once:
+
+```powershell
+py -3.10 -m tools.google_auth_staging_preflight --bootstrap-consumption-namespace
+```
+
+This mode takes no approval path or provider data, creates only the local ACL
+namespace, and returns a sanitized idempotent `PASS` when it is newly created or
+already exact. Normal approval consumption only verifies the existing
+namespace; it never creates, repairs or rekeys it. A missing namespace, ACL
+drift, or a changed/missing logon SID after reboot fails closed. A separate
+future Owner-shell reconciliation may rekey retained consumption evidence for a
+new logon session, but TASK-157 does not implement that rekey operation.
 
 The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any

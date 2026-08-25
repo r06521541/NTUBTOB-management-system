@@ -620,7 +620,7 @@ def _default_consumption_root() -> Path:
 
 def _select_windows_logon_sid(
     groups: list[tuple[object, int]],
-    restricted_sids: list[object],
+    restricted_groups: list[tuple[object, int]],
     *,
     token_is_restricted: bool,
     is_logon_sid,
@@ -630,16 +630,24 @@ def _select_windows_logon_sid(
         sid
         for sid, attributes in groups
         if attributes & 0x00000004
+        and not attributes & 0x00000010
         and attributes & 0xC0000000 == 0xC0000000
         and is_logon_sid(sid)
     ]
     if len(candidates) != 1:
         _fail("Current logon security identity is not exact")
     logon_sid = candidates[0]
-    if token_is_restricted and not any(
-        equal_sid(logon_sid, restricted) for restricted in restricted_sids
-    ):
-        _fail("Restricted token does not retain the current logon identity")
+    if token_is_restricted:
+        restricted_matches = [
+            restricted
+            for restricted, attributes in restricted_groups
+            if attributes & 0x00000004
+            and not attributes & 0x00000010
+            and is_logon_sid(restricted)
+            and equal_sid(logon_sid, restricted)
+        ]
+        if len(restricted_matches) != 1:
+            _fail("Restricted token does not retain one exact logon identity")
     return logon_sid
 
 
@@ -752,7 +760,7 @@ def _windows_user_system_logon_sids() -> (
         restricted_groups = token_information(11)
         selected_logon = _select_windows_logon_sid(
             group_entries(token_groups),
-            [sid for sid, _ in group_entries(restricted_groups)],
+            group_entries(restricted_groups),
             token_is_restricted=bool(advapi32.IsTokenRestricted(token)),
             is_logon_sid=lambda sid: bool(advapi32.IsWellKnownSid(sid, 21)),
             equal_sid=lambda left, right: bool(advapi32.EqualSid(left, right)),
@@ -1003,7 +1011,13 @@ def _verify_private_directory_security(path: Path) -> None:
         _fail("Private namespace owner or mode drifted")
 
 
-def _prepare_consumption_root(
+def _secured_namespace_paths(absolute: Path, component_count: int) -> set[Path]:
+    secured = set(list(absolute.parents[: component_count - 1]))
+    secured.add(absolute)
+    return secured
+
+
+def _bootstrap_consumption_root(
     consumption_root: Path, *, secured_component_count: int = 1
 ) -> Path:
     try:
@@ -1023,8 +1037,13 @@ def _prepare_consumption_root(
         current = _require_private_path(existing)
         if not current.is_dir():
             _fail("Consumption namespace ancestor is invalid")
-        secured_paths = set(list(absolute.parents[: secured_component_count - 1]))
-        secured_paths.add(absolute)
+        secured_paths = _secured_namespace_paths(absolute, secured_component_count)
+        for secured_path in secured_paths:
+            if secured_path.exists() or secured_path.is_symlink():
+                secured = _require_private_path(secured_path)
+                if not secured.is_dir():
+                    _fail("Consumption namespace is invalid")
+                _verify_private_directory_security(secured)
         for path in reversed(missing):
             if path.parent.resolve(strict=True) != current:
                 _fail("Consumption namespace path drifted")
@@ -1047,6 +1066,28 @@ def _prepare_consumption_root(
         if not resolved.is_dir():
             _fail("Consumption namespace is invalid")
         for secured_path in secured_paths:
+            secured = _require_private_path(secured_path)
+            if not secured.is_dir():
+                _fail("Consumption namespace is invalid")
+            _verify_private_directory_security(secured)
+        return resolved
+    except ProviderApprovalError:
+        raise
+    except (BrokerRolloutError, OSError, RuntimeError):
+        _fail("Consumption namespace is invalid")
+
+
+def _verify_consumption_root(
+    consumption_root: Path, *, secured_component_count: int = 1
+) -> Path:
+    try:
+        absolute = consumption_root.absolute()
+        if absolute == REPOSITORY_ROOT or absolute.is_relative_to(REPOSITORY_ROOT):
+            _fail("Consumption namespace must remain outside the repository")
+        resolved = _require_private_path(absolute)
+        if not resolved.is_dir():
+            _fail("Consumption namespace is invalid")
+        for secured_path in _secured_namespace_paths(absolute, secured_component_count):
             secured = _require_private_path(secured_path)
             if not secured.is_dir():
                 _fail("Consumption namespace is invalid")
@@ -1085,7 +1126,7 @@ def _consume_cli_approval(
 
     consumption_root = _test_consumption_root or _default_consumption_root()
     secured_component_count = 1 if _test_consumption_root is not None else 3
-    resolved_consumption_root = _prepare_consumption_root(
+    resolved_consumption_root = _verify_consumption_root(
         consumption_root, secured_component_count=secured_component_count
     )
     sidecar = _consumed_sidecar_path(approval, resolved_consumption_root)
@@ -1154,9 +1195,33 @@ def main(
     _test_consumption_root: Path | None = None,
 ) -> int:
     parser = _PrivateArgumentParser(description=__doc__, add_help=False)
-    parser.add_argument("approval", type=Path)
+    parser.add_argument("approval", type=Path, nargs="?")
+    parser.add_argument("--bootstrap-consumption-namespace", action="store_true")
     try:
         args = parser.parse_args(argv)
+        consumption_root = _test_consumption_root or _default_consumption_root()
+        secured_component_count = 1 if _test_consumption_root is not None else 3
+        if args.bootstrap_consumption_namespace:
+            if args.approval is not None:
+                _fail("Namespace bootstrap takes no approval")
+            _bootstrap_consumption_root(
+                consumption_root,
+                secured_component_count=secured_component_count,
+            )
+            print(
+                json.dumps(
+                    {
+                        "classification": "PASS",
+                        "operation": "CONSUMPTION_NAMESPACE_BOOTSTRAP",
+                        "state": "READY",
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+            return 0
+        if args.approval is None:
+            _fail("Approval argument is required")
         effective_now = now or datetime.now(timezone.utc)
         approval = load_provider_approval(
             args.approval,
