@@ -56,7 +56,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
   真 provider smoke 與 iOS signing 仍未完成，且 OAuth/provider、Secret/IAM 與部署動作持續受 Owner gate 約束。
 - TASK-157 已由 Owner 啟動為 L3 Google Auth staging rollout verification。第一階段只允許 Main Work 進行不含敏感
   identifier／Secret payload 的唯讀 reconciliation；任何 provider、Secret/IAM、signing、build、staging deployment、
-  traffic 或真人登入／consent 依 task 分開進入精確 Owner gate。Production 不在本 task 範圍。
+  traffic 或真人登入／consent 依 task與DEC-099進入相應gate。初次Web runtime唯讀檢查確認service健康但尚無Google
+  runtime metadata；未產生mutation。Checksummed artifact解析的isolated staging target可依DEC-099使用顯式參數繼續
+  sanitized read-only reconciliation，並在完整boundary確認後建立無traffic candidate；production不在本task範圍。
 
 ## 已確認的 production 狀態
 

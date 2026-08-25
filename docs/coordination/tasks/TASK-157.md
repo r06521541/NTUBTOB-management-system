@@ -10,6 +10,7 @@
 - repository_authority: `1b7d80a41a24c6fbf2ed693ed7d7b017527bf866`
 - owner_authorized: 2026-08-25 for task activation and sanitized read-only
   reconciliation only
+- standing_authorization: `DEC-099`
 - production_or_real_data: prohibited
 
 This task's initial docs-only PR is the safety/authority exception required
@@ -67,12 +68,14 @@ identity or authorization boundaries.
 ### Stage A — sanitized read-only reconciliation
 
 `operator=agent`, `owner_gate=none`,
-`standing_authorization=TASK-157 read-only reconciliation`,
+`standing_authorization=DEC-099 and TASK-157 read-only reconciliation`,
 `report_to=main-work`.
 
 1. Resolve only approved stable target aliases from repository authority and
    existing operator tooling; do not read `.env.yaml` or Secret payloads.
-2. Verify current local account/project/region context before any cloud read.
+2. Verify a single active account, then use artifact-derived project and
+   explicit region/service flags for every cloud read; do not require or modify
+   the local default project/region when DEC-099 resolves a different target.
 3. Read only the minimum provider/cloud metadata required to classify each
    expected Web, Android, iOS, callback, Secret-reference/IAM and staging item
    as confirmed, reported-but-unverified, missing, inconsistent or blocked.
@@ -96,13 +99,15 @@ Web/Auth/DB Security and, when Flutter changes, the existing Flutter Domain lane
 perform independent targeted review. One product-code PR is allowed for this
 delivery group; the task-activation safety PR is not reused as that PR.
 
-### Gate D — staging deployment and traffic
+### Stage D — standing-authorized isolated staging candidate
 
-Staging build/deployment requires Owner approval of the exact commit/artifact,
-target alias, candidate revision, current rollback revision and traffic plan.
-Agent execution must use existing fail-closed operators and existing Secret
-references. No new resource, public-boundary expansion or production target is
-allowed.
+After the artifact verifier and read-only checks confirm exact target, runtime
+identity, cost ceiling, public boundary and rollback, DEC-099 authorizes agent
+execution of the existing fail-closed operator to build and deploy a no-traffic
+candidate, run health checks and perform a recoverable rollback while reusing
+existing Secret references. Traffic promotion, provider/callback, Secret/IAM,
+signing, new resources, public-boundary expansion and production remain Owner
+gates under Gate B.
 
 ### Gate E — real-provider smoke
 
@@ -151,5 +156,10 @@ package after staging evidence is accepted.
 
 - 2026-08-25: Owner approved the proposed task direction and sanitized
   read-only reconciliation. Task activation safety PR is in progress.
-- Next action after activation merge: Main Work performs Stage A only and stops
-  at Gate B or an earlier stop condition.
+- 2026-08-25: activation PR merged. Initial Web runtime metadata read confirmed
+  a healthy single-traffic service without Google client, redirect or pinned
+  Secret-reference metadata. No mutation occurred.
+- 2026-08-25: Owner established DEC-099 after the existing staging artifact
+  resolved a different project than local defaults. Stage A may resume with
+  artifact-derived explicit targets and sanitized output.
+- Next action: complete Stage A and stop at Gate B or an earlier stop condition.
