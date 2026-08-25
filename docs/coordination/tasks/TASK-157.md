@@ -1,0 +1,155 @@
+# TASK-157 Google Auth staging rollout verification
+
+## Classification
+
+- task_type: delivery
+- risk: L3 authentication / Secret / deployment boundary
+- delivery_group: `google-auth-staging-rollout-v1`
+- requires_independent_pr: true
+- authority_branch: `codex/task-157-google-auth-staging-readiness`
+- repository_authority: `1b7d80a41a24c6fbf2ed693ed7d7b017527bf866`
+- owner_authorized: 2026-08-25 for task activation and sanitized read-only
+  reconciliation only
+- production_or_real_data: prohibited
+
+This task's initial docs-only PR is the safety/authority exception required
+before external authentication work. It does not count as a product-code
+delivery and does not authorize provider, cloud, Secret, IAM or deployment
+mutation.
+
+## Active coordination claim
+
+- claim_id: `main-work-20260825`
+- lease_version: 17
+- actor_id: `01a03587-d263-7e92-9965-54816f38b8a3`
+- role: `main-work`
+- scope: task authority, sanitized reconciliation, Owner-gate preparation,
+  risk-based acceptance and handoff
+- write: coordination documents only; Main Work must not implement and become
+  the sole acceptor of any product-code correction
+- report target: this task until a separate writer report or operation evidence
+  is required
+- stop conditions: dirty-state conflict, unexpected target/account/project,
+  network/auth failure, unredactable provider metadata, Secret payload, any
+  mutation without an exact Owner gate, production access or ambiguous external
+  result
+
+The existing `domain-work:flutter` lane remains active but is not assigned work
+by task activation alone. A repository correction must receive a separate,
+non-overlapping writer claim and an independent auth/security or Flutter
+lifecycle reviewer before implementation.
+
+## Product outcome
+
+Move the Google sign-in and LINE/Google identity linking/recovery implementation
+merged by PR #180 from repository-complete to a truthful staging result. The
+task must establish what provider-side preparation actually exists, obtain
+exact approval for any required changes, and verify the approved staging
+artifact through the real provider without weakening state, nonce, session,
+identity or authorization boundaries.
+
+## Current facts and non-facts
+
+- Repository implementation is merged at
+  `cd49e2038b1d804b3e3c729c510eb8c34df59efb`; its hosted checks and independent
+  Web/Auth/DB Security plus Flutter Auth reviews passed before merge.
+- The revoked Main actor reported partial provider-side preparation and no
+  deployment, traffic change or real-provider smoke.
+- This recovery has not independently verified external provider, Secret/IAM,
+  signing, revision or traffic state. Reported preparation is not acceptance
+  evidence and must not be repeated as confirmed fact.
+- Raw provider identifiers, client IDs, callback values, Secret names, key
+  fingerprints and old session/worktree paths must not enter repository files,
+  logs copied into reports or user-facing summaries.
+
+## Execution stages and gates
+
+### Stage A — sanitized read-only reconciliation
+
+`operator=agent`, `owner_gate=none`,
+`standing_authorization=TASK-157 read-only reconciliation`,
+`report_to=main-work`.
+
+1. Resolve only approved stable target aliases from repository authority and
+   existing operator tooling; do not read `.env.yaml` or Secret payloads.
+2. Verify current local account/project/region context before any cloud read.
+3. Read only the minimum provider/cloud metadata required to classify each
+   expected Web, Android, iOS, callback, Secret-reference/IAM and staging item
+   as confirmed, reported-but-unverified, missing, inconsistent or blocked.
+4. Produce a sanitized delta. Unknown identity, target drift, authentication or
+   network failure stops the stage; do not switch credentials or retry through
+   another path.
+
+### Gate B — exact mutation approval
+
+Before any provider, callback, Secret reference, IAM, signing metadata, build,
+revision or traffic mutation, Main Work gives Owner one bounded approval packet:
+sanitized target aliases, exact action/count, effect, stop conditions,
+post-check and rollback. Approval of one action does not approve later gates.
+
+### Stage C — repository correction, only if reconciliation requires it
+
+Main Work assigns a unique `codex-writer` with owned paths and report target.
+The writer supplies the five-line checkpoint, focused regression first,
+affected complete auth/security suites, formatter and diff evidence. Named
+Web/Auth/DB Security and, when Flutter changes, the existing Flutter Domain lane
+perform independent targeted review. One product-code PR is allowed for this
+delivery group; the task-activation safety PR is not reused as that PR.
+
+### Gate D — staging deployment and traffic
+
+Staging build/deployment requires Owner approval of the exact commit/artifact,
+target alias, candidate revision, current rollback revision and traffic plan.
+Agent execution must use existing fail-closed operators and existing Secret
+references. No new resource, public-boundary expansion or production target is
+allowed.
+
+### Gate E — real-provider smoke
+
+Human login, consent, credential entry or account selection is
+`operator=owner`. Agent-owned steps are limited to prepared navigation,
+sanitized observation and reversible staging controls. Run one bounded smoke
+covering Google sign-in, existing-Person linking, LINE/Google recovery, failure
+truthfulness, logout/session invalidation and rollback readiness. Do not expand
+the acceptance harness or treat absence of logs as success.
+
+Production promotion is outside TASK-157 and requires a new exact Owner work
+package after staging evidence is accepted.
+
+## Verification budget
+
+- Task activation: YAML structure, active task/claim/reference consistency,
+  exact docs scope, `git diff --check`, clean status and hosted quick gate only.
+- Read-only reconciliation: machine-readable sanitized metadata, exact command
+  and timestamp, zero-mutation declaration and independent comparison against
+  repository expectations.
+- Repository correction: only affected auth/security and direct consumer
+  suites; PostgreSQL matrix only if an otherwise prohibited schema/model change
+  is separately authorized.
+- Staging: exact artifact/revision, health, traffic, bounded provider smoke,
+  post-check and rollback evidence. Do not run emulator or complete acceptance
+  orchestration unless a concrete platform defect makes it necessary.
+
+## Acceptance and closeout
+
+- External preparation is independently classified without exposing restricted
+  identifiers or Secret payloads.
+- Every mutation, deployment and human provider action has its own exact Owner
+  approval and recorded post-check; ambiguous results use read-only recovery
+  diagnostics rather than replay.
+- Approved staging Google sign-in, linking and recovery either pass with
+  truthful failure/session behavior or close as blocked with a precise,
+  non-secret reason and unchanged production.
+- Any repository correction is independently reviewed, passes required hosted
+  CI and is integrated through the delivery group's single product-code PR.
+- Closeout records exact repository SHA, sanitized external-state delta,
+  verification, rollback state, remaining production gates and zero
+  unauthorized side effects. `PROJECT_STATE.md` and `HANDOFF.yaml` are updated;
+  `DECISIONS.md` changes only for a new cross-task Owner decision.
+
+## Status
+
+- 2026-08-25: Owner approved the proposed task direction and sanitized
+  read-only reconciliation. Task activation safety PR is in progress.
+- Next action after activation merge: Main Work performs Stage A only and stops
+  at Gate B or an earlier stop condition.
