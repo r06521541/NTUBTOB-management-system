@@ -142,6 +142,17 @@ def create_app(dependencies: Dependencies) -> Flask:
             raise MalformedRequest("game_id is malformed")
         return parsed
 
+    def event_id(value):
+        if not isinstance(value, str) or not value.startswith("event_"):
+            raise MalformedRequest("event_id is malformed")
+        try:
+            parsed = int(value[6:])
+        except ValueError:
+            raise MalformedRequest("event_id is malformed") from None
+        if not 1 <= parsed <= MAX_POSTGRESQL_BIGINT:
+            raise MalformedRequest("event_id is malformed")
+        return parsed
+
     def notification_id(value):
         if not isinstance(value, str) or not 14 <= len(value) <= 32:
             raise MalformedRequest("notification_id is malformed")
@@ -371,6 +382,19 @@ def create_app(dependencies: Dependencies) -> Flask:
             )
         )
 
+    @app.get("/api/v1/events")
+    def events():
+        raw_limit = request.args.get("limit", "20")
+        try:
+            limit = int(raw_limit)
+        except ValueError:
+            raise InvalidArgument("limit must be an integer") from None
+        return jsonify(
+            dependencies.basic.events_page(
+                authenticate(), request.args.get("cursor"), limit
+            )
+        )
+
     @app.get("/api/v1/notifications")
     def notifications():
         raw_limit = request.args.get("limit", "20")
@@ -466,6 +490,10 @@ def create_app(dependencies: Dependencies) -> Flask:
     @app.get("/api/v1/games/<game_key>")
     def game(game_key):
         return jsonify(dependencies.basic.game(authenticate(), game_id(game_key)))
+
+    @app.get("/api/v1/events/<event_key>")
+    def event(event_key):
+        return jsonify(dependencies.basic.event(authenticate(), event_id(event_key)))
 
     @app.get("/api/v1/games/<game_key>/attendance")
     def attendance(game_key):

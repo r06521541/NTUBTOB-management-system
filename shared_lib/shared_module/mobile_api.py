@@ -103,6 +103,7 @@ class MobilePrincipal:
 
 BASIC_CAPABILITIES = (
     "games:read",
+    "events:read",
     "attendance:reply:self",
     "notifications:read",
 )
@@ -401,6 +402,11 @@ class BasicApiService:
     def games(self, principal: MobilePrincipal):
         return self.data.scoped_games(principal.person_id, self.clock())
 
+    def events(self, principal: MobilePrincipal):
+        if "events:read" not in mobile_capabilities(principal):
+            raise PermissionDenied("event read capability required")
+        return self.data.scoped_events(principal.person_id, self.clock())
+
     def update_profile(self, principal: MobilePrincipal, display_name: str, key: str):
         if not isinstance(key, str) or not 16 <= len(key) <= 200:
             raise InvalidArgument("Idempotency-Key required")
@@ -648,6 +654,40 @@ class BasicApiService:
             "next_cursor": next_cursor,
         }
 
+    def events_page(
+        self, principal: MobilePrincipal, cursor: str | None, limit: int
+    ) -> dict:
+        if not 1 <= limit <= 100:
+            raise InvalidArgument("limit must be between 1 and 100")
+        offset = 0
+        if cursor:
+            if not isinstance(cursor, str) or len(cursor) > 256:
+                raise InvalidArgument("cursor is malformed")
+            try:
+                offset = int(
+                    base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)).decode(
+                        "ascii"
+                    )
+                )
+            except (binascii.Error, ValueError, UnicodeError):
+                raise InvalidArgument("cursor is malformed") from None
+            if offset < 0:
+                raise InvalidArgument("cursor is malformed")
+        events = self.events(principal)
+        page = events[offset : offset + limit]
+        next_offset = offset + len(page)
+        next_cursor = None
+        if next_offset < len(events):
+            next_cursor = (
+                base64.urlsafe_b64encode(str(next_offset).encode("ascii"))
+                .rstrip(b"=")
+                .decode("ascii")
+            )
+        return {
+            "items": [self._public_event(event) for event in page],
+            "next_cursor": next_cursor,
+        }
+
     def attendance_view(self, principal: MobilePrincipal, game_id: int) -> dict:
         self._game(principal, game_id)
         own = self.data.own_attendance_reply(principal.person_id, game_id)
@@ -757,6 +797,14 @@ class BasicApiService:
     def game(self, principal: MobilePrincipal, game_id: int):
         return self._public_game(self._game(principal, game_id))
 
+    def event(self, principal: MobilePrincipal, event_id: int):
+        if "events:read" not in mobile_capabilities(principal):
+            raise PermissionDenied("event read capability required")
+        event = self.data.scoped_event(principal.person_id, event_id, self.clock())
+        if event is None:
+            raise NotFound("event not found")
+        return self._public_event(event)
+
     def _game(self, principal: MobilePrincipal, game_id: int):
         game = self.data.scoped_game(principal.person_id, game_id, self.clock())
         if game is None:
@@ -773,6 +821,82 @@ class BasicApiService:
                 start.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
             )
         return result
+
+    @staticmethod
+    def _public_event(event: dict) -> dict:
+        def positive_opaque(prefix: str, value: object) -> str:
+            if type(value) is not int or not 1 <= value <= MAX_POSTGRESQL_BIGINT:
+                raise InvalidArgument(f"{prefix}_id is malformed")
+            return f"{prefix}_{value}"
+
+        def signed_game_opaque(value: object) -> str:
+            if (
+                type(value) is not int
+                or value == 0
+                or not -MAX_POSTGRESQL_BIGINT - 1 <= value <= MAX_POSTGRESQL_BIGINT
+            ):
+                raise InvalidArgument("game_id is malformed")
+            return f"game_{value}"
+
+        def utc(value: object) -> str | None:
+            if value is None:
+                return None
+            if not isinstance(value, datetime) or value.tzinfo is None:
+                raise InvalidArgument("stored event timestamp is malformed")
+            return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+        def bounded_text(value: object, field: str) -> str:
+            if not isinstance(value, str) or not 1 <= len(value) <= 200:
+                raise InvalidArgument(f"stored {field} is malformed")
+            return value
+
+        event_type = event.get("type")
+        if event_type not in {"game", "meal", "trip", "practice", "social", "other"}:
+            raise InvalidArgument("stored event type is malformed")
+        status = event.get("status")
+        if status not in {"published", "cancelled"}:
+            raise InvalidArgument("stored event status is malformed")
+
+        activities = []
+        for activity in event["activities"]:
+            linked_game_id = activity.get("linked_game_id")
+            activity_type = activity.get("type")
+            if activity_type not in {
+                "game",
+                "meal",
+                "transport",
+                "lodging",
+                "gathering",
+                "other",
+            }:
+                raise InvalidArgument("stored activity type is malformed")
+            position = activity.get("position")
+            if type(position) is not int:
+                raise InvalidArgument("stored activity position is malformed")
+            activities.append(
+                {
+                    "id": positive_opaque("activity", activity["id"]),
+                    "title": bounded_text(activity.get("title"), "activity title"),
+                    "type": activity_type,
+                    "position": position,
+                    "start_at": utc(activity["start_at"]),
+                    "end_at": utc(activity.get("end_at")),
+                    "linked_game_id": (
+                        signed_game_opaque(linked_game_id)
+                        if linked_game_id is not None
+                        else None
+                    ),
+                }
+            )
+        return {
+            "id": positive_opaque("event", event["id"]),
+            "title": bounded_text(event.get("title"), "event title"),
+            "type": event_type,
+            "status": status,
+            "start_at": utc(event["start_at"]),
+            "end_at": utc(event.get("end_at")),
+            "activities": activities,
+        }
 
     def attendance_reply(
         self,

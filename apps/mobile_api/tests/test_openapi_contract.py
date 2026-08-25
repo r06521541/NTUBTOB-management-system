@@ -28,6 +28,8 @@ class OpenApiContractTest(unittest.TestCase):
                 "/me",
                 "/games",
                 "/games/{game_id}",
+                "/events",
+                "/events/{event_id}",
                 "/games/{game_id}/attendance",
                 "/games/{game_id}/attendance-report",
                 "/games/{game_id}/attendance-reply",
@@ -276,6 +278,85 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(
             draft_game_destination["properties"]["game_id"]["maxLength"], 25
         )
+
+    def test_event_contract_is_snapshot_scoped_and_privacy_bounded(self):
+        schemas = self.contract["components"]["schemas"]
+        capabilities = schemas["Person"]["properties"]["capabilities"]["items"]["enum"]
+        self.assertIn("events:read", capabilities)
+        event = schemas["Event"]
+        self.assertEqual(
+            set(event["properties"]),
+            {
+                "id",
+                "title",
+                "type",
+                "status",
+                "start_at",
+                "end_at",
+                "activities",
+            },
+        )
+        self.assertEqual(
+            event["properties"]["status"]["enum"], ["published", "cancelled"]
+        )
+        event_parameter = self.contract["components"]["parameters"]["EventId"]
+        event_id_contracts = (
+            (
+                event_parameter["schema"],
+                event_parameter["description"],
+                "^event_[1-9][0-9]*$",
+                25,
+            ),
+            (
+                event["properties"]["id"],
+                event["properties"]["id"]["description"],
+                "^event_[1-9][0-9]*$",
+                25,
+            ),
+            (
+                schemas["EventActivity"]["properties"]["id"],
+                schemas["EventActivity"]["properties"]["id"]["description"],
+                "^activity_[1-9][0-9]*$",
+                28,
+            ),
+        )
+        for identifier, description, pattern, max_length in event_id_contracts:
+            with self.subTest(description=description):
+                self.assertEqual(identifier["pattern"], pattern)
+                self.assertEqual(identifier["maxLength"], max_length)
+                self.assertIn("1..9223372036854775807", description)
+                self.assertIn("leading zero", description)
+                self.assertIn("overflow", description)
+        linked_game = schemas["EventActivity"]["properties"]["linked_game_id"]
+        self.assertEqual(linked_game["pattern"], "^game_-?[1-9][0-9]*$")
+        self.assertEqual(linked_game["maxLength"], 25)
+        self.assertIn("nonzero signed 64-bit", linked_game["description"])
+        serialized = json.dumps(
+            {
+                "paths": {
+                    key: value
+                    for key, value in self.contract["paths"].items()
+                    if key.startswith("/events")
+                },
+                "event": event,
+                "activity": schemas["EventActivity"],
+            },
+            sort_keys=True,
+        )
+        self.assertIn("immutable invitee snapshot", serialized)
+        response_properties = set(event["properties"]) | set(
+            schemas["EventActivity"]["properties"]
+        )
+        for private in (
+            "provider_subject",
+            "invitees",
+            "eligibility",
+            "manager",
+            "audit",
+            "reason",
+            "attendance",
+        ):
+            self.assertNotIn(private, response_properties)
 
 
 if __name__ == "__main__":

@@ -182,6 +182,40 @@ Map<String, dynamic> gameJson(String id) => {
       'away_team': 'Away',
     };
 
+Map<String, dynamic> eventJson(
+  String id, {
+  String status = 'published',
+  String? linkedGameId = 'game_44',
+}) =>
+    {
+      'id': id,
+      'title': '移地訓練',
+      'type': 'trip',
+      'status': status,
+      'start_at': '2026-09-01T01:00:00Z',
+      'end_at': '2026-09-01T04:00:00Z',
+      'activities': [
+        {
+          'id': 'activity_2',
+          'title': '友誼賽',
+          'type': 'game',
+          'position': 2,
+          'start_at': '2026-09-01T02:00:00Z',
+          'end_at': '2026-09-01T04:00:00Z',
+          'linked_game_id': linkedGameId,
+        },
+        {
+          'id': 'activity_1',
+          'title': '集合',
+          'type': 'gathering',
+          'position': 1,
+          'start_at': '2026-09-01T01:00:00Z',
+          'end_at': '2026-09-01T01:30:00Z',
+          'linked_game_id': null,
+        },
+      ],
+    };
+
 Map<String, dynamic> mutationJson(String reply) => {
       'game_id': 'g',
       'reply': reply,
@@ -1556,6 +1590,172 @@ void main() {
     ).games();
     expect(games.map((game) => game.id), ['g1', 'g2']);
     expect(transport.calls.last.$2, '/games?cursor=next');
+  });
+
+  test('events parses ordered activities and follows canonical pagination',
+      () async {
+    final transport = ScriptedTransport()
+      ..responses.addAll([
+        ApiResponse(200, {
+          'items': [eventJson('event_1')],
+          'next_cursor': 'next',
+        }),
+        ApiResponse(200, {
+          'items': [eventJson('event_2', status: 'cancelled')],
+          'next_cursor': null,
+        }),
+      ]);
+    final store = MemoryStore();
+    final sessions = SessionController(
+      transport,
+      store,
+      'install',
+      SecureIds(),
+    );
+    await sessions.accept(session('access', 'refresh'));
+
+    final events = await BasicApi(
+      sessions,
+      store,
+      'install',
+      SecureIds(),
+    ).events();
+
+    expect(events.map((event) => event.id), ['event_1', 'event_2']);
+    expect(
+        events.first.activities.map((activity) => activity.position), [1, 2]);
+    expect(events.last.cancelled, isTrue);
+    expect(transport.calls.last.$2, '/events?cursor=next');
+  });
+
+  test('event detail sends only a canonical opaque id and rejects draft',
+      () async {
+    final transport = ScriptedTransport()
+      ..responses.add(ApiResponse(200, eventJson('event_44')));
+    final store = MemoryStore();
+    final sessions = SessionController(
+      transport,
+      store,
+      'install',
+      SecureIds(),
+    );
+    await sessions.accept(session('access', 'refresh'));
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+
+    expect((await api.event('event_44')).id, 'event_44');
+    expect(transport.calls.single.$2, '/events/event_44');
+    expect(
+      () => TeamEvent.fromJson(eventJson('event_45', status: 'draft')),
+      throwsA(isA<ContractException>()),
+    );
+  });
+
+  test('event detail rejects malformed opaque ids before transport', () async {
+    final transport = ScriptedTransport();
+    final store = MemoryStore();
+    final sessions = SessionController(
+      transport,
+      store,
+      'install',
+      SecureIds(),
+    );
+    await sessions.accept(session('access', 'refresh'));
+    final api = BasicApi(sessions, store, 'install', SecureIds());
+
+    for (final id in const [
+      'event-1',
+      'event/opaque',
+      'event_0',
+      'event_01',
+      'event_-1',
+      'event_9223372036854775808',
+    ]) {
+      await expectLater(api.event(id), throwsA(isA<ContractException>()));
+    }
+    expect(transport.calls, isEmpty);
+  });
+
+  test('event wire ids match signed-bigint OpenAPI bounds exactly', () {
+    final maximum = eventJson(
+      'event_9223372036854775807',
+      linkedGameId: 'game_-9223372036854775808',
+    );
+    final maximumActivities = maximum['activities'] as List<dynamic>;
+    (maximumActivities.first as Map<String, dynamic>)['id'] =
+        'activity_9223372036854775807';
+    expect(
+      TeamEvent.fromJson(maximum).activities.last.linkedGameId,
+      'game_-9223372036854775808',
+    );
+
+    for (final id in const [
+      'event-1',
+      'event/opaque',
+      'event_0',
+      'event_01',
+      'event_9223372036854775808',
+    ]) {
+      expect(
+        () => TeamEvent.fromJson(eventJson(id)),
+        throwsA(isA<ContractException>()),
+      );
+    }
+    for (final id in const [
+      'activity-1',
+      'activity_0',
+      'activity_01',
+      'activity_9223372036854775808',
+    ]) {
+      final invalid = eventJson('event_1');
+      ((invalid['activities'] as List<dynamic>).first
+          as Map<String, dynamic>)['id'] = id;
+      expect(
+        () => TeamEvent.fromJson(invalid),
+        throwsA(isA<ContractException>()),
+      );
+    }
+    for (final linkedGameId in const [
+      'game-visible',
+      'game_0',
+      'game_01',
+      'game_9223372036854775808',
+      'game_-9223372036854775809',
+    ]) {
+      expect(
+        () => TeamEvent.fromJson(
+          eventJson('event_1', linkedGameId: linkedGameId),
+        ),
+        throwsA(isA<ContractException>()),
+      );
+    }
+  });
+
+  test('event contract permits open ends and validates titles and types', () {
+    final openEnded = eventJson('event_1');
+    openEnded['end_at'] = null;
+    final activities = openEnded['activities'] as List<dynamic>;
+    (activities.first as Map<String, dynamic>)['end_at'] = null;
+    final parsed = TeamEvent.fromJson(openEnded);
+    expect(parsed.endAt, isNull);
+    expect(parsed.activities.last.endAt, isNull);
+
+    final badEventType = eventJson('event_2')..['type'] = 'transport';
+    final badEventTitle = eventJson('event_3')..['title'] = '';
+    final badActivityType = eventJson('event_4');
+    ((badActivityType['activities'] as List<dynamic>).first
+        as Map<String, dynamic>)['type'] = 'trip';
+    final badActivityTitle = eventJson('event_5');
+    ((badActivityTitle['activities'] as List<dynamic>).first
+        as Map<String, dynamic>)['title'] = List.filled(201, 'x').join();
+    for (final invalid in [
+      badEventType,
+      badEventTitle,
+      badActivityType,
+      badActivityTitle,
+    ]) {
+      expect(
+          () => TeamEvent.fromJson(invalid), throwsA(isA<ContractException>()));
+    }
   });
 
   test('cache is versioned, installation partitioned, and typed', () async {

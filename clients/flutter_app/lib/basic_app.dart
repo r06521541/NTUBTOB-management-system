@@ -53,10 +53,7 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   if (error is NetworkException) {
     return hasCache ? AuthViewState.offline : AuthViewState.recoverableError;
   }
-  if (error is SessionExpiredException ||
-      error is ApiError &&
-          (error.code == ApiErrorCode.sessionExpired ||
-              error.code == ApiErrorCode.unauthenticated)) {
+  if (isTerminalSessionFailure(error)) {
     return AuthViewState.sessionExpired;
   }
   if (error is StateError && error.message == 'signed out') {
@@ -64,6 +61,12 @@ AuthViewState classifyFailure(Object error, {required bool hasCache}) {
   }
   return AuthViewState.contractError;
 }
+
+bool isTerminalSessionFailure(Object error) =>
+    error is SessionExpiredException ||
+    error is ApiError &&
+        (error.code == ApiErrorCode.sessionExpired ||
+            error.code == ApiErrorCode.unauthenticated);
 
 bool canStartLogout(AuthViewState state, {required bool basicLoadInProgress}) =>
     state == AuthViewState.authenticated && !basicLoadInProgress;
@@ -1341,6 +1344,26 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 ),
               ),
             ),
+          if (widget.person.canReadEvents)
+            AppSurfaceCard(
+              child: ListTile(
+                key: const ValueKey('events-entry'),
+                leading: const Icon(Icons.event_note_outlined),
+                title: const Text('活動行程'),
+                subtitle: Text(widget.online ? '查看受邀活動與行程' : '離線時無法載入活動'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => EventListPage(
+                      api: widget.api,
+                      online: widget.online,
+                      principalScope: widget.person.id,
+                      visibleGames: widget.games,
+                      onTerminalSession: widget.onProfileTerminalSession,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           AppSurfaceCard(
             child: ListTile(
               key: const ValueKey('schedule-discovery-entry'),
@@ -1513,6 +1536,362 @@ class ScheduleCalendarProjection {
     }
     return groups;
   }
+}
+
+class EventListPage extends StatefulWidget {
+  const EventListPage({
+    super.key,
+    required this.api,
+    required this.online,
+    required this.principalScope,
+    required this.visibleGames,
+    this.onTerminalSession,
+  });
+
+  final BasicApi api;
+  final bool online;
+  final String principalScope;
+  final List<Game> visibleGames;
+  final Future<void> Function()? onTerminalSession;
+
+  @override
+  State<EventListPage> createState() => _EventListPageState();
+}
+
+class _EventListPageState extends State<EventListPage> {
+  List<TeamEvent>? _events;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.online) _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant EventListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.principalScope != widget.principalScope ||
+        !identical(oldWidget.api, widget.api) ||
+        oldWidget.online != widget.online) {
+      if (widget.online) {
+        _load();
+      } else {
+        setState(() {
+          _events = null;
+          _error = null;
+        });
+      }
+    }
+  }
+
+  bool _matches(AuthOperationContext operation) =>
+      mounted &&
+      operation.matches(
+        currentEpoch: widget.api.session.generation,
+        currentPersonId: widget.principalScope,
+      );
+
+  bool _samePrincipal(AuthOperationContext operation) =>
+      mounted &&
+      operation.personId == widget.principalScope &&
+      (widget.api.session.generation == operation.epoch ||
+          widget.api.session.generation == operation.epoch + 1);
+
+  Future<void> _load() async {
+    final operation = AuthOperationContext(
+      widget.api.session.generation,
+      widget.principalScope,
+    );
+    setState(() {
+      _events = null;
+      _error = null;
+    });
+    try {
+      final events = await widget.api.events();
+      if (!_matches(operation)) return;
+      setState(() => _events = events);
+    } on Object catch (error) {
+      if (isTerminalSessionFailure(error)) {
+        if (_samePrincipal(operation)) await widget.onTerminalSession?.call();
+      } else if (_matches(operation)) {
+        setState(() => _error = error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('活動行程')),
+        body: !widget.online
+            ? const Padding(
+                padding: EdgeInsets.all(AppSpacing.regular),
+                child: AppStatusPanel(
+                  key: ValueKey('events-offline-unavailable'),
+                  icon: Icons.cloud_off,
+                  title: '離線無法查看活動',
+                  message: '活動不會儲存在此裝置；連線後再試一次。',
+                ),
+              )
+            : _error != null
+                ? Padding(
+                    padding: const EdgeInsets.all(AppSpacing.regular),
+                    child: Column(
+                      children: [
+                        const AppStatusPanel(
+                          key: ValueKey('events-error'),
+                          icon: Icons.error_outline,
+                          title: '無法載入活動',
+                          message: '請確認網路連線後再試一次。',
+                        ),
+                        const SizedBox(height: AppSpacing.regular),
+                        FilledButton(
+                          key: const ValueKey('events-retry'),
+                          onPressed: _load,
+                          child: const Text('重試'),
+                        ),
+                      ],
+                    ),
+                  )
+                : _events == null
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          key: ValueKey('events-loading'),
+                        ),
+                      )
+                    : _events!.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.all(AppSpacing.regular),
+                            child: AppStatusPanel(
+                              key: ValueKey('events-empty'),
+                              icon: Icons.event_available_outlined,
+                              title: '目前沒有活動',
+                              message: '受邀且已發布的活動會顯示在這裡。',
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.all(AppSpacing.regular),
+                            itemCount: _events!.length,
+                            itemBuilder: (context, index) {
+                              final event = _events![index];
+                              return AppSurfaceCard(
+                                child: ListTile(
+                                  key: ValueKey('event-${event.id}'),
+                                  leading: Icon(event.cancelled
+                                      ? Icons.event_busy
+                                      : Icons.event_available),
+                                  title: Text(event.title),
+                                  subtitle:
+                                      Text(_eventMetadata(context, event)),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => EventDetailPage(
+                                        api: widget.api,
+                                        eventId: event.id,
+                                        principalScope: widget.principalScope,
+                                        visibleGames: widget.visibleGames,
+                                        onTerminalSession:
+                                            widget.onTerminalSession,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+      );
+}
+
+class EventDetailPage extends StatefulWidget {
+  const EventDetailPage({
+    super.key,
+    required this.api,
+    required this.eventId,
+    required this.principalScope,
+    required this.visibleGames,
+    this.onTerminalSession,
+  });
+
+  final BasicApi api;
+  final String eventId;
+  final String principalScope;
+  final List<Game> visibleGames;
+  final Future<void> Function()? onTerminalSession;
+
+  @override
+  State<EventDetailPage> createState() => _EventDetailPageState();
+}
+
+class _EventDetailPageState extends State<EventDetailPage> {
+  TeamEvent? _event;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant EventDetailPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.principalScope != widget.principalScope ||
+        oldWidget.eventId != widget.eventId ||
+        !identical(oldWidget.api, widget.api)) {
+      _load();
+    }
+  }
+
+  bool _matches(AuthOperationContext operation) =>
+      mounted &&
+      operation.matches(
+        currentEpoch: widget.api.session.generation,
+        currentPersonId: widget.principalScope,
+      );
+
+  bool _samePrincipal(AuthOperationContext operation) =>
+      mounted &&
+      operation.personId == widget.principalScope &&
+      (widget.api.session.generation == operation.epoch ||
+          widget.api.session.generation == operation.epoch + 1);
+
+  Future<void> _load() async {
+    final operation = AuthOperationContext(
+      widget.api.session.generation,
+      widget.principalScope,
+    );
+    setState(() {
+      _event = null;
+      _error = null;
+    });
+    try {
+      final event = await widget.api.event(widget.eventId);
+      if (!_matches(operation)) return;
+      setState(() => _event = event);
+    } on Object catch (error) {
+      if (isTerminalSessionFailure(error)) {
+        if (_samePrincipal(operation)) await widget.onTerminalSession?.call();
+      } else if (_matches(operation)) {
+        setState(() => _error = error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final event = _event;
+    return Scaffold(
+      appBar: AppBar(title: const Text('活動詳情')),
+      body: _error != null
+          ? Padding(
+              padding: const EdgeInsets.all(AppSpacing.regular),
+              child: Column(
+                children: [
+                  const AppStatusPanel(
+                    key: ValueKey('event-detail-error'),
+                    icon: Icons.error_outline,
+                    title: '無法載入活動詳情',
+                    message: '請確認網路連線後再試一次。',
+                  ),
+                  const SizedBox(height: AppSpacing.regular),
+                  FilledButton(onPressed: _load, child: const Text('重試')),
+                ],
+              ),
+            )
+          : event == null
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    key: ValueKey('event-detail-loading'),
+                  ),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(AppSpacing.regular),
+                  children: [
+                    Text(event.title,
+                        style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: AppSpacing.compact),
+                    Text(_eventMetadata(context, event)),
+                    if (event.cancelled) ...[
+                      const SizedBox(height: AppSpacing.regular),
+                      const AppStatusPanel(
+                        key: ValueKey('event-cancelled'),
+                        icon: Icons.event_busy,
+                        title: '活動已取消',
+                        message: '此活動與行程僅供查看。',
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.regular),
+                    Text('行程', style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: AppSpacing.compact),
+                    if (event.activities.isEmpty)
+                      const AppStatusPanel(
+                        key: ValueKey('activities-empty'),
+                        icon: Icons.schedule_outlined,
+                        title: '尚無行程',
+                        message: '此活動目前沒有可顯示的行程項目。',
+                      ),
+                    for (final activity in event.activities)
+                      _activityTile(context, activity),
+                  ],
+                ),
+    );
+  }
+
+  Widget _activityTile(BuildContext context, EventActivity activity) {
+    final game = visibleLinkedGame(activity.linkedGameId, widget.visibleGames);
+    return AppSurfaceCard(
+      child: ListTile(
+        key: ValueKey('activity-${activity.id}'),
+        leading: const Icon(Icons.timeline),
+        title: Text(activity.title),
+        subtitle: Text(_activityMetadata(context, activity)),
+        trailing: game == null ? null : const Icon(Icons.sports_basketball),
+        onTap: game == null
+            ? null
+            : () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => GameDetailPage(
+                      api: widget.api,
+                      gameId: game.id,
+                    ),
+                  ),
+                ),
+      ),
+    );
+  }
+}
+
+Game? visibleLinkedGame(String? linkedGameId, Iterable<Game> visibleGames) {
+  if (linkedGameId == null) return null;
+  for (final game in visibleGames) {
+    if (game.id == linkedGameId) return game;
+  }
+  return null;
+}
+
+String _eventMetadata(BuildContext context, TeamEvent event) {
+  final localizations = MaterialLocalizations.of(context);
+  final localStart = event.startAt.toLocal();
+  final localEnd = event.endAt?.toLocal();
+  final status = event.cancelled ? '已取消' : '已發布';
+  final start =
+      localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localStart));
+  final end = localEnd == null
+      ? ''
+      : '–${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(localEnd))}';
+  return '$status・${localizations.formatFullDate(localStart)} $start$end';
+}
+
+String _activityMetadata(BuildContext context, EventActivity activity) {
+  final localizations = MaterialLocalizations.of(context);
+  final start = activity.startAt.toLocal();
+  final end = activity.endAt?.toLocal();
+  final endLabel = end == null
+      ? ''
+      : '–${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(end))}';
+  return '${localizations.formatFullDate(start)} '
+      '${localizations.formatTimeOfDay(TimeOfDay.fromDateTime(start))}$endLabel';
 }
 
 class ScheduleDiscoveryPage extends StatefulWidget {
