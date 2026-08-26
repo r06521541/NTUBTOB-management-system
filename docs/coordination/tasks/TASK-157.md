@@ -208,6 +208,30 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   later bounded real-provider smoke remain Gate E human actions; this packet
   does not authorize production promotion.
 
+#### Gate B execution checkpoint — `staging_database_revision_mismatch`
+
+- Cloud Build `7bcb4b5f-354a-4c15-883f-d20f7e74ed4d` succeeded once and produced
+  exact digest
+  `sha256:a536d41b880f2abd3ac7fd58f2c01ea4e07e7c49bb3a2d6a71d469c5623dbc76`.
+- Candidate `mobile-api-staging-task157-bd8137b4` is Ready; its qualified image
+  digest, staging-only runtime identity, existing Secret references, scaling
+  and sole added Google audience correlation passed post-check. It received no
+  traffic before the one authorized promotion.
+- The single promotion produced `/health` 200 but the protected revision gate
+  returned 503. The bounded candidate log category was exact revision mismatch,
+  with no DSN／Secret／driver detail. The automatic rollback restored
+  `mobile-api-staging-task136b-898b0e` to exact 100%; candidate positive traffic
+  is zero.
+- The deployed staging broker attestation identifies exactly one existing
+  repository-external candidate approval matching the staging database identity
+  and 0008 target. The next operation is Owner-private input of the staging DB
+  URL and fictional tester provider subject to the existing
+  `tools.mobile_staging_data` recover／single-transaction upgrade path. Neither
+  value may enter chat, Git, argv, logs or an agent-readable artifact.
+- No retry, second build, second candidate deployment, provider/client change,
+  Secret/IAM/data mutation or production action occurred. Candidate/image and
+  evidence are retained; Gate E remains blocked until exact 0008 post-check.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
