@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 from urllib.parse import parse_qs, urlsplit
+
 from flask import Blueprint, Flask, session
 
 WEB_PORTAL_DIR = Path(__file__).resolve().parents[1]
@@ -21,15 +22,16 @@ from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
 from role_policy import ROLE_ADMIN, Principal  # noqa: E402
 
-from shared_lib.shared_module import (  # noqa: E402
+from shared_lib.shared_module import (
     attendance_reply as attendance_reply_service,
-)
-from shared_lib.shared_module.portal_data import (  # noqa: E402
+)  # noqa: E402
+from shared_lib.shared_module import event_read as event_read_contract  # noqa: E402
+from shared_lib.shared_module.portal_data import (
     local_database as portal_local_database,
-)
-from shared_lib.shared_module.portal_data import (  # noqa: E402
+)  # noqa: E402
+from shared_lib.shared_module.portal_data import (
     runtime as phase_c_runtime,
-)
+)  # noqa: E402
 
 
 class AdminAllowlistTest(unittest.TestCase):
@@ -89,6 +91,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             ),
             "shared_module.attendance_analyzer": cls.attendance_analyzer,
             "shared_module.attendance_reply": attendance_reply_service,
+            "shared_module.event_read": event_read_contract,
             "shared_module.settings": cls._module(
                 local_timezone=timezone(timedelta(hours=8))
             ),
@@ -2604,6 +2607,168 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("出席隊員".encode(), response.data)
         with self.client.session_transaction() as current_session:
             self.assertTrue(current_session.get("member_matching_csrf_token"))
+
+    def _event_repository(self, *, events=()):
+        repository = MagicMock()
+        principal = SimpleNamespace(
+            person=SimpleNamespace(
+                id=80,
+                member_id=7,
+                access_level="basic",
+                portal_status="active",
+            ),
+            identity=SimpleNamespace(id=81, status="linked"),
+        )
+        repository.resolve_line_principal.return_value = principal
+        repository.scoped_events.return_value = events
+        return repository, principal
+
+    @staticmethod
+    def _event_fixture(*, status="published"):
+        return {
+            "id": 7,
+            "title": "校友盃台中行",
+            "type": "trip",
+            "status": status,
+            "start_at": datetime(2026, 9, 12, 1, 30, tzinfo=timezone.utc),
+            "end_at": datetime(2026, 9, 13, 8, 0, tzinfo=timezone.utc),
+            "activities": (
+                {
+                    "id": 70,
+                    "title": "集合出發",
+                    "type": "gathering",
+                    "position": 1,
+                    "start_at": datetime(2026, 9, 12, 1, 30, tzinfo=timezone.utc),
+                    "end_at": None,
+                    "linked_game_id": None,
+                },
+                {
+                    "id": 71,
+                    "title": "校友盃第一戰",
+                    "type": "game",
+                    "position": 2,
+                    "start_at": datetime(2026, 9, 12, 4, 0, tzinfo=timezone.utc),
+                    "end_at": datetime(2026, 9, 12, 6, 0, tzinfo=timezone.utc),
+                    "linked_game_id": 23,
+                },
+            ),
+        }
+
+    def _login_for_events(self):
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fake-authenticated-user",
+                member_id=7,
+                person_id=80,
+                auth_identity_id=81,
+            )
+
+    def test_event_list_requires_authenticated_active_principal(self):
+        response = self.client.get("/events")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            parse_qs(urlsplit(response.headers["Location"]).query),
+            {"next": ["/events"]},
+        )
+
+    def test_event_list_renders_only_repository_scoped_public_projection(self):
+        self._login_for_events()
+        events = (
+            self._event_fixture(),
+            {**self._event_fixture(status="cancelled"), "id": 8, "title": "雨備聚餐"},
+        )
+        repository, _ = self._event_repository(events=events)
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/events")
+
+        self.assertEqual(response.status_code, 200)
+        page = response.data.decode()
+        self.assertIn("校友盃台中行", page)
+        self.assertIn("雨備聚餐", page)
+        self.assertIn("活動已取消", page)
+        self.assertIn("/events/event_7", page)
+        repository.scoped_events.assert_called_once_with(80)
+        for private_value in (
+            "invitee",
+            "eligibility",
+            "manager",
+            "override reason",
+            "provider_subject",
+        ):
+            self.assertNotIn(private_value, page)
+
+    def test_event_list_has_explicit_empty_and_safe_error_states(self):
+        self._login_for_events()
+        repository, _ = self._event_repository()
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            empty = self.client.get("/events")
+            repository.scoped_events.side_effect = RuntimeError(
+                "sentinel database address and private row"
+            )
+            failed = self.client.get("/events")
+
+        self.assertEqual(empty.status_code, 200)
+        self.assertIn("目前沒有近期活動".encode(), empty.data)
+        self.assertEqual(failed.status_code, 503)
+        self.assertIn("活動暫時無法載入".encode(), failed.data)
+        self.assertNotIn(b"sentinel", failed.data)
+
+    def test_event_detail_renders_ordered_timeline_and_visible_game_link(self):
+        self._login_for_events()
+        repository, _ = self._event_repository()
+        repository.scoped_event.return_value = self._event_fixture()
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/events/event_7")
+
+        self.assertEqual(response.status_code, 200)
+        page = response.data.decode()
+        self.assertLess(page.index("集合出發"), page.index("校友盃第一戰"))
+        self.assertIn('href="/games/23"', page)
+        self.assertIn("09:30", page)
+        repository.scoped_event.assert_called_once_with(80, 7)
+
+    def test_event_detail_rejects_noncanonical_or_unscoped_keys(self):
+        self._login_for_events()
+        repository, _ = self._event_repository()
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            for key in (
+                "event_0",
+                "event_07",
+                "event_-1",
+                "event_9223372036854775808",
+                "activity_7",
+            ):
+                with self.subTest(key=key):
+                    self.assertEqual(self.client.get(f"/events/{key}").status_code, 404)
+            repository.scoped_event.return_value = None
+            self.assertEqual(self.client.get("/events/event_9").status_code, 404)
+
+        repository.scoped_event.assert_called_once_with(80, 9)
+
+    def test_event_detail_returns_safe_unavailable_state_on_read_failure(self):
+        self._login_for_events()
+        repository, _ = self._event_repository()
+        repository.scoped_event.side_effect = RuntimeError(
+            "sentinel database address and private row"
+        )
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/events/event_7")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("活動暫時無法載入".encode(), response.data)
+        self.assertNotIn(b"sentinel", response.data)
+        repository.scoped_event.assert_called_once_with(80, 7)
 
     def test_game_reply_requires_csrf_and_uses_phase_c_repository(self):
         game = self.portal_game()

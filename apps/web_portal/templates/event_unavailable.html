@@ -1,0 +1,9 @@
+{% extends '_portal_base.html' %} {% block title %}活動暫時無法載入｜NTUBTOB{% endblock %}
+{% block content %}
+    <section class="portal-card portal-empty" role="alert">
+        <p class="portal-eyebrow">EVENTS</p>
+        <h1>活動暫時無法載入</h1>
+        <p>請稍後再試；其他球隊功能仍可繼續使用。</p>
+        <p><a class="portal-button portal-button-secondary" href="{{ url_for('member_dashboard') }}">返回首頁</a></p>
+    </section>
+{% endblock %}

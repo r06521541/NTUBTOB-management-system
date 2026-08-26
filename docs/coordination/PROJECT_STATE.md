@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `cd49e2038b1d804b3e3c729c510eb8c34df59efb`
+Repository 基準：`main` / `64b95e61e6fc24a17e99ac9b90207287ec835109`
 
 ## Active role lanes
 
@@ -54,14 +54,13 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
   與獨立 Web/Auth/DB、Flutter Auth review 均通過，且沒有 schema migration。撤回的 Main actor 曾回報部分
   provider-side preparation，但本次 repository recovery 未獨立驗證任何外部狀態；staging／production deployment、
   真 provider smoke 與 iOS signing 仍未完成，且 OAuth/provider、Secret/IAM 與部署動作持續受 Owner gate 約束。
-- TASK-157 已由 Owner 啟動為 L3 Google Auth staging rollout verification。第一階段只允許 Main Work 進行不含敏感
-  identifier／Secret payload 的唯讀 reconciliation；任何 provider、Secret/IAM、signing、build、staging deployment、
-  traffic 或真人登入／consent 依task與DEC-100進入相應gate。初次Web runtime唯讀檢查確認service健康但尚無Google
-  runtime metadata；未產生mutation。Artifact解析的Owner-managed isolated sandbox可依DEC-100使用exact identifiers
-  進行受控tool操作，並在完整boundary確認後自主build／deploy／traffic／OAuth metadata等sandbox工作；Secret payload、
-  human login、production、public access、billing、真實資料／通知與不可逆刪除仍為Owner gate。Owner最新指定的sandbox
-  project與checked-in candidate artifact不一致；目前只允許對Owner target進行唯讀reconciliation，mutation須等待artifact
-  correction／regeneration及preflight通過。
+- TASK-157 的 phase approval verifier 與 staging revision `0005/0006 -> 0008` fail-closed contract 已分別由 PR #187／#188
+  合併。staging Auth registration 已有人工作業回報；provider clients、tester、Secret/runtime binding、staging DB upgrade、
+  deployment 與 real-provider smoke 尚未完成，仍依 DEC-100／TASK-157 進入相應 Owner gate。
+- TASK-158 已由 PR #189 合併 Mobile API／Flutter Event read vertical slice：active Person 只看 immutable invitee snapshot
+  `included=true` 的 published／cancelled、non-ended Event 與 ordered Activity；linked Game 仍受既有 Game scope 限制。
+- TASK-159 進行 Web Portal read parity，重用同一 repository authorization 與公開 projection；範圍限列表、詳情、
+  timeline、empty/error/cancelled presentation，不包含 Event write、attendance、notification、schema 或 deploy。
 
 ## 已確認的 production 狀態
 
@@ -105,7 +104,8 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - 自然 Scheduler 執行與低流量環境的長期 observation 不足；不得以缺少 error log 推定所有通知情境都已覆蓋。
 - Identity maintenance 仍為 false；新 pending identity 的 match／ignore／remap 等正式操作需另行規劃啟用與驗證。
 - People role 尚未取代 runtime admin allowlist；officer／admin 的正式持久化權限切換仍屬 Phase D 之後工作。
-- Event／Activity、多場比賽、旅遊與 guest-player eligibility 尚停留在規劃／Demo，不代表正式 schema 或 production 功能。
+- Event／Activity schema 與 principal-scoped唯讀契約已建立，Mobile API／Flutter read surface 已整合；Web Portal parity
+  進行中。Event create/edit/publish/cancel、attendance、通知及 guest-player管理規則仍未成為 production功能。
 - Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation。部分外部
   provider preparation 僅有撤回 actor 的交棒回報，未經本次 repository recovery 驗證；部署與真 provider smoke
   仍未完成且需 Owner 明確核准。Apple 登入仍未實作。

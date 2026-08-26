@@ -1,33 +1,27 @@
-active_task: TASK-157
-status: in_progress
-next_actor: owner
+active_task: TASK-159
+status: ready_for_review
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 1b7d80a41a24c6fbf2ed693ed7d7b017527bf866
-head_commit: 1b7d80a41a24c6fbf2ed693ed7d7b017527bf866
+base_commit: 64b95e61e6fc24a17e99ac9b90207287ec835109
+head_commit: 64b95e61e6fc24a17e99ac9b90207287ec835109
 
 updated_by: main-work
-updated_at: 2026-08-25T00:00:00+08:00
+updated_at: 2026-08-26T08:30:00+08:00
 
 note: >
-  Owner activated TASK-157 to move the Google Auth repository implementation
-  toward a truthful staging result. DEC-100 now authorizes exact
-  artifact-derived sandbox identifiers and bounded build/deploy/traffic,
-  OAuth-metadata, runtime, fictional-data and service-account IAM operations
-  after preflight. Initial Web runtime metadata read found no Google runtime
-  configuration and made no mutation. Secret payload, human login/consent,
-  production, public access, billing, real data/notifications and irreversible
-  deletion remain Owner-reserved. Owner's current sandbox project does not
-  match the checked-in candidate artifact; read-only reconciliation may
-  continue against the Owner target, but mutation is blocked pending artifact
-  correction and preflight. The current Console session has no selected project
-  and returned permission denied; Owner must complete browser sign-in/account
-  selection and select the exact sandbox project before inventory resumes.
+  Owner selected Web Portal Event/Activity read parity after TASK-158 merged.
+  TASK-159 reuses the principal-scoped immutable invitee snapshot contract and
+  adds production-shaped list/detail/timeline presentation without schema,
+  Event mutation, notification, runtime, cloud, Secret, IAM, deployment or
+  production access. TASK-157 repository safety tooling is merged; staging
+  provider clients, tester, runtime binding, deployment and real-provider smoke
+  remain incomplete and Owner-gated for the next ordered delivery.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-157.md
-report: null
+task: docs/coordination/tasks/TASK-159.md
+report: docs/coordination/reports/TASK-159-CODEX.md
 review: null

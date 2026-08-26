@@ -100,6 +100,11 @@ if not DEMO_MODE_ENABLED:
         AttendanceReplyNotification,
         AttendanceReplyService,
     )
+    from shared_module.event_read import (
+        EventReadContractError,
+        parse_event_key,
+        project_public_event,
+    )
     from shared_module.message_templates.general_message import reply_text_mapping
     from shared_module.models.ballparks import Ballpark
     from shared_module.models.game_attendance_replies import GameAttendanceReply
@@ -474,6 +479,8 @@ def isolate_demo_from_production_data_routes():
         "ignore_line_user",
         "future_games",
         "member_dashboard",
+        "events",
+        "event_detail",
         "game_detail",
         "reply_to_game",
         "game_roster",
@@ -888,6 +895,144 @@ def latest_member_replies(member_id):
         ) > (current.updated_at, current.id):
             replies[reply.game_id] = reply
     return replies
+
+
+EVENT_TYPE_LABELS = {
+    "game": "賽事",
+    "meal": "聚餐",
+    "trip": "旅程",
+    "practice": "練習",
+    "social": "聚會",
+    "other": "其他活動",
+}
+ACTIVITY_TYPE_LABELS = {
+    "game": "賽事",
+    "meal": "用餐",
+    "transport": "交通",
+    "lodging": "住宿",
+    "gathering": "集合",
+    "other": "其他行程",
+}
+
+
+def _local_event_time(value):
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return parsed.astimezone(local_timezone)
+
+
+def _web_event_projection(event):
+    public = project_public_event(event)
+    public["type_label"] = EVENT_TYPE_LABELS[public["type"]]
+    public["start_datetime"] = _local_event_time(public["start_at"])
+    public["end_datetime"] = (
+        _local_event_time(public["end_at"]) if public["end_at"] else None
+    )
+    for activity in public["activities"]:
+        activity["type_label"] = ACTIVITY_TYPE_LABELS[activity["type"]]
+        activity["start_datetime"] = _local_event_time(activity["start_at"])
+        activity["end_datetime"] = (
+            _local_event_time(activity["end_at"]) if activity["end_at"] else None
+        )
+        linked_game_id = activity["linked_game_id"]
+        activity["linked_game_route_id"] = (
+            int(linked_game_id[5:])
+            if isinstance(linked_game_id, str)
+            and linked_game_id.startswith("game_")
+            and linked_game_id[5:].isascii()
+            and linked_game_id[5:].isdecimal()
+            and int(linked_game_id[5:]) > 0
+            else None
+        )
+    return public
+
+
+def _event_read_context():
+    cached = getattr(g, "portal_lifecycle_context", None)
+    if cached is None:
+        return None
+    repository, lifecycle_principal = cached
+    if lifecycle_principal.person.id != session.get(
+        "person_id"
+    ) or lifecycle_principal.identity.id != session.get("auth_identity_id"):
+        return None
+    return repository, lifecycle_principal
+
+
+def _event_template_context(lifecycle_principal):
+    return {
+        "can_manage_members": has_capability(get_current_principal(), MANAGE_MEMBERS),
+        "can_manage_games": _can_manage_games(lifecycle_principal),
+    }
+
+
+@app.get("/events")
+@member_required
+def events():
+    context = _event_read_context()
+    if context is None:
+        return render_template("event_unavailable.html"), 503
+    repository, lifecycle_principal = context
+    try:
+        projected_events = tuple(
+            _web_event_projection(event)
+            for event in repository.scoped_events(lifecycle_principal.person.id)
+        )
+    except Exception:
+        logger.warning("Event data is unavailable")
+        return (
+            render_template(
+                "event_unavailable.html",
+                **_event_template_context(lifecycle_principal),
+            ),
+            503,
+        )
+    return render_template(
+        "events.html",
+        events=projected_events,
+        **_event_template_context(lifecycle_principal),
+    )
+
+
+@app.get("/events/<event_key>")
+@member_required
+def event_detail(event_key):
+    try:
+        event_id = parse_event_key(event_key)
+    except EventReadContractError:
+        abort(404)
+    context = _event_read_context()
+    if context is None:
+        return render_template("event_unavailable.html"), 503
+    repository, lifecycle_principal = context
+    try:
+        event = repository.scoped_event(lifecycle_principal.person.id, event_id)
+    except Exception:
+        logger.warning("Event data is unavailable")
+        return (
+            render_template(
+                "event_unavailable.html",
+                **_event_template_context(lifecycle_principal),
+            ),
+            503,
+        )
+    if event is None:
+        abort(404)
+    try:
+        projected_event = _web_event_projection(event)
+    except EventReadContractError:
+        logger.warning("Event data is unavailable")
+        return (
+            render_template(
+                "event_unavailable.html",
+                **_event_template_context(lifecycle_principal),
+            ),
+            503,
+        )
+    return render_template(
+        "event_detail.html",
+        event=projected_event,
+        **_event_template_context(lifecycle_principal),
+    )
 
 
 @app.route("/dashboard")

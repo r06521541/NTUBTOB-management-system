@@ -1,0 +1,35 @@
+{% extends '_portal_base.html' %} {% block title %}活動｜NTUBTOB{% endblock %}
+{% block content %}
+    <section class="portal-title">
+        <p class="portal-eyebrow">EVENTS</p>
+        <h1>我的活動</h1>
+        <p>查看你受邀參加的近期活動與行程。</p>
+    </section>
+    {% if events %}
+        <div class="portal-event-list">
+            {% for event in events %}
+                <a class="portal-card portal-card-link portal-event-card{% if event.status == 'cancelled' %} portal-event-card-cancelled{% endif %}"
+                   href="{{ url_for('event_detail', event_key=event.id) }}">
+                    <div class="portal-event-date" aria-hidden="true">
+                        <span>{{ event.start_datetime.month }} 月</span>
+                        <strong>{{ event.start_datetime.day }}</strong>
+                    </div>
+                    <div class="portal-event-summary">
+                        <div class="portal-card-top">
+                            <span class="portal-eyebrow">{{ event.type_label }}</span>
+                            {% if event.status == 'cancelled' %}<span class="portal-badge portal-badge-declined">活動已取消</span>{% else %}<span class="portal-badge portal-badge-pending">{{ event.activities|length }} 項行程</span>{% endif %}
+                        </div>
+                        <h2>{{ event.title }}</h2>
+                        <p>{{ event.start_datetime.strftime('%H:%M') }}{% if event.end_datetime %}－{{ event.end_datetime.strftime('%m/%d %H:%M') }}{% endif %}</p>
+                    </div>
+                    <span class="portal-event-arrow" aria-hidden="true">→</span>
+                </a>
+            {% endfor %}
+        </div>
+    {% else %}
+        <section class="portal-card portal-empty">
+            <h2>目前沒有近期活動</h2>
+            <p>新的受邀活動發布後，會顯示在這裡。</p>
+        </section>
+    {% endif %}
+{% endblock %}

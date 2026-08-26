@@ -163,6 +163,20 @@ allowlist. Unknown roles, malformed identities, unknown capabilities, and an
 invalid admin allowlist fail closed. See
 `docs/planning/WEB_PORTAL_ACCESS_MATRIX.md` for the current route matrix.
 
+## Event and Activity read parity
+
+Authenticated active People can open `/events` to view only published or
+cancelled, non-ended Events whose immutable invitee snapshot includes them. The
+detail route uses canonical `event_<positive bigint>` keys and renders the
+ordered Activity timeline. Visibility, linked-Game redaction, and active-Person
+checks are owned by the shared portal-data repository; the Web Portal does not
+recompute eligibility or expose invitees, managers, audit data, identity data,
+or contact details. Empty and unavailable states are explicit and read-only.
+
+Event creation, editing, publishing, cancellation, attendance, and notification
+remain outside this surface. Repository tests do not prove Event-table runtime
+grants or deployment configuration.
+
 ## Production member account and logout
 
 Authenticated linked members can open `/account` to see the current Member
