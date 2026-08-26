@@ -293,6 +293,25 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   Auth／Security review and hosted PostgreSQL 15／16 gates before the same
   single-use Owner-private invocation may run.
 
+#### Gate B recovery checkpoint — `tester_lifecycle_timestamp`
+
+- After the broker-journal correction merged, the next Owner-private read-only
+  recovery stopped before Alembic／seed on the fictional tester `people` row;
+  database mutation count remained zero and the operation was not retried.
+- A complete sanitized semantic matrix checked every remaining fixture class.
+  All identity, role／audit, qualification, attendance, legacy, mobile, broker
+  and notification gates were exact. The sole difference was the tester
+  `updated_at`, and a follow-up boolean check proved it exactly matched the
+  final accepted role-lifecycle audit timestamp. No timestamp or row value
+  entered output or Git.
+- The bounded correction may accept only that exact lifecycle relationship:
+  baseline uses the seed anchor; a changed role lifecycle requires tester
+  `updated_at` to equal its final audit `created_at`. The original timestamp
+  remains part of the full-row pre／post fingerprint. Any unmatched timestamp
+  stays a pre-Alembic stop condition.
+- Resume requires the same focused／hosted PostgreSQL acceptance and independent
+  Auth／Security review before one final single-use Owner-private invocation.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
