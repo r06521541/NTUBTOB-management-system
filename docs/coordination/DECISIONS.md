@@ -272,6 +272,9 @@
   identifier並在browser／tool command內使用；不要求Owner逐項隱藏或人工比對。本機default project／region不同不
   構成blocker。Artifact與Owner exact target不一致時只允許對Owner target做唯讀reconciliation；任何mutation須先修正
   或重產artifact並重新通過preflight。
+- Artifact classes（2026-08-26 clarification）：baked broker build-context fixture與Google Auth provider approval不可
+  互換。前者維持其fictional broker deployment contract，絕不作為provider target authority；後者是repository外、
+  無Secret payload、短效且單次消耗的private approval，只能由provider preflight驗證後解析TASK-157的provider target。
 - Repository autonomy：Work／Codex可依DEC-076完成branch、commit、push、PR、CI與merge；本repository的一般
   coordination／authority payload push已獲Owner明確授權。Secret、credential、token與Secret payload仍不得提交。
 - Read-only autonomy：可自主查看sandbox Cloud Run、build、traffic、runtime env key、Secret reference metadata、IAM

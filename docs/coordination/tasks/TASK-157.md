@@ -63,6 +63,25 @@ identity or authorization boundaries.
   fingerprints and old session/worktree paths must not enter repository files,
   logs copied into reports or user-facing summaries.
 
+## Artifact authority boundary
+
+TASK-157 uses two non-interchangeable artifact classes:
+
+1. `apps/mobile_staging_broker/artifacts/candidate-approval.json` is the baked,
+   deliberately fictional broker build-context fixture. It remains governed by
+   its broker deployment contract and is never Google Auth provider target
+   authority.
+2. The Google Auth provider approval is a repository-external private approval
+   consumed only by `python -m tools.google_auth_staging_preflight` from the
+   repository root. It is assembled only after sanitized read-only inventory
+   and Owner target confirmation, remains outside Git, contains no Secret
+   payload, and is short-lived and single-use.
+
+For this task, “artifact-derived provider target” means only the verified
+private provider approval in item 2. A direct
+`python tools/google_auth_staging_preflight.py ...` import failure is not
+provider or cloud evidence and is not the canonical invocation.
+
 ## Execution stages and gates
 
 ### Stage A — sanitized read-only reconciliation
@@ -74,7 +93,8 @@ identity or authorization boundaries.
 1. Resolve only approved stable target aliases from repository authority and
    existing operator tooling, or use the Owner's latest exact sandbox target
    for read-only reconciliation; do not read `.env.yaml` or Secret payloads.
-2. Verify a single active account, then use artifact-derived project and
+2. Verify a single active account, then use the private provider-approval
+   project and
    explicit region/service flags for every cloud read; do not require or modify
    the local default project/region when DEC-100 resolves a different target.
 3. Read only the minimum provider/cloud metadata required to classify each
@@ -166,12 +186,16 @@ package after staging evidence is accepted.
   exact sandbox identifiers may be used in controlled tools, and bounded
   sandbox operations no longer require per-command approval.
 - 2026-08-25: Owner identified the current sandbox project, but it does not
-  match the checked-in candidate artifact. Owner target may be inspected
-  read-only; all mutation remains blocked until the artifact is corrected or
-  regenerated and passes the existing contract/preflight.
+  match the broker's checked-in fictional candidate fixture. That fixture is
+  not provider target authority. All mutation remains blocked until a verified
+  repository-external private provider approval is assembled from sanitized
+  inventory and passes the provider preflight.
 - 2026-08-25: The read-only Console guide reached a session with no selected
   project and a permission-denied Cloud Run view. This does not establish that
   the Owner target is absent; Owner must complete sign-in/account selection and
   select the exact sandbox project before browser inventory resumes. No
   mutation occurred.
-- Next action: complete Stage A and stop at Gate B or an earlier stop condition.
+- 2026-08-26: Stage C artifact-authority correction is in progress. No cloud
+  or provider mutation is authorized by this correction.
+- Next action: complete Stage C, then resume Stage A and stop at Gate B or an
+  earlier stop condition.

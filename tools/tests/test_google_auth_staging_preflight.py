@@ -308,6 +308,34 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             with self.assertRaises(ProviderApprovalError):
                 load_provider_approval(path, now=NOW)
 
+    def test_never_reads_or_accepts_baked_broker_fixture(self):
+        fixture = (
+            Path(__file__).resolve().parents[2]
+            / "apps/mobile_staging_broker/artifacts/candidate-approval.json"
+        )
+        self.assertTrue(fixture.is_file())
+        with patch(
+            "tools.google_auth_staging_preflight._read_opened_json"
+        ) as read_approval:
+            with self.assertRaises(ProviderApprovalError):
+                load_provider_approval(fixture, now=NOW)
+        read_approval.assert_not_called()
+
+    def test_module_entrypoint_is_canonical_and_fails_closed_without_packet(self):
+        repository = Path(__file__).resolve().parents[2]
+        result = subprocess.run(
+            [sys.executable, "-m", "tools.google_auth_staging_preflight"],
+            cwd=repository,
+            check=False,
+            text=True,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, "")
+        self.assertEqual(result.stderr, "ERROR: PROVIDER_APPROVAL_INVALID\n")
+
     def test_rejects_hardlinked_approval(self):
         self.write(approval())
         hardlink = Path(self.temp.name) / "hardlink.json"
