@@ -7,7 +7,9 @@ import hashlib
 import json
 import os
 import re
-from datetime import datetime, timezone
+import secrets
+import stat
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Sequence
 
@@ -24,6 +26,11 @@ try:
         StagingContractError,
         load_approval,
         validate_database_identity,
+    )
+    from .mobile_staging_broker_rollout import (
+        BrokerRolloutError,
+        _assert_path_chain_no_reparse,
+        _same_file_identity,
     )
     from .mobile_staging_seed import (
         ANCHOR,
@@ -42,6 +49,11 @@ except ImportError:  # pragma: no cover
         StagingContractError,
         load_approval,
         validate_database_identity,
+    )
+    from mobile_staging_broker_rollout import (
+        BrokerRolloutError,
+        _assert_path_chain_no_reparse,
+        _same_file_identity,
     )
     from mobile_staging_seed import (
         ANCHOR,
@@ -125,6 +137,9 @@ LEGACY_IDS = {
 MOBILE_FIXTURE_IDS = (-112003, -112002, -112001)
 OFFICER_PERSON_ID = -112001
 OFFICER_IDENTITY_ID = -112001
+TESTER_BINDING_OPERATION = "replace_fixture_line_subject"
+TESTER_BINDING_TTL_SECONDS = 15 * 60
+TESTER_BINDING_PACKET_MAX_BYTES = 4096
 OFFICER_AUDIT_IDS = {"grant": -119001, "restore": -119002}
 OFFICER_REQUEST_IDS = {
     "grant": "task-119-fictional-officer-grant",
@@ -1368,6 +1383,680 @@ def broker_reset_fixture_lifecycle(
     )
 
 
+def _subject_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _parse_binding_time(value: object) -> datetime:
+    if not isinstance(value, str):
+        raise StagingContractError("Tester binding packet time is invalid")
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise StagingContractError("Tester binding packet time is invalid") from None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise StagingContractError("Tester binding packet time is invalid")
+    return parsed.astimezone(timezone.utc)
+
+
+def _binding_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _validate_binding_validity(
+    packet: dict, observed: datetime, *, allow_expired_recovery: bool = False
+) -> None:
+    issued = _parse_binding_time(packet["issued_at"])
+    expires = _parse_binding_time(packet["expires_at"])
+    observed = observed.astimezone(timezone.utc)
+    duration_exact = (
+        0 < (expires - issued).total_seconds() <= TESTER_BINDING_TTL_SECONDS
+    )
+    if (
+        not duration_exact
+        or observed < issued
+        or (observed >= expires and not allow_expired_recovery)
+    ):
+        raise StagingContractError("Tester binding packet is expired or not yet valid")
+
+
+def _binding_no_reparse(path: Path) -> None:
+    try:
+        _assert_path_chain_no_reparse(path)
+    except (BrokerRolloutError, OSError, RuntimeError):
+        raise StagingContractError("Tester binding private path is invalid") from None
+
+
+def _require_canonical_binding_path(path: Path, *, file: bool) -> Path:
+    try:
+        declared = path
+        absolute = path.absolute()
+        if declared != absolute:
+            raise StagingContractError("Tester binding path is not canonical")
+        _binding_no_reparse(absolute)
+        resolved = absolute.resolve(strict=True)
+        if resolved != absolute:
+            raise StagingContractError("Tester binding path is not canonical")
+        repository = Path(__file__).resolve().parents[1]
+        if resolved == repository or resolved.is_relative_to(repository):
+            raise StagingContractError("Tester binding packet must stay outside Git")
+        _binding_no_reparse(resolved)
+        if file and not resolved.is_file():
+            raise StagingContractError("Tester binding private file is unavailable")
+        if not file and not resolved.is_dir():
+            raise StagingContractError(
+                "Tester binding private directory is unavailable"
+            )
+        return resolved
+    except StagingContractError:
+        raise
+    except (OSError, RuntimeError):
+        raise StagingContractError("Tester binding private path is invalid") from None
+
+
+def _require_binding_destination(path: Path) -> Path:
+    if path != path.absolute():
+        raise StagingContractError("Tester binding path is not canonical")
+    parent = _require_canonical_binding_path(path.parent, file=False)
+    if path.parent != parent or path.exists() or path.is_symlink():
+        raise StagingContractError("Tester binding destination is not exact")
+    _binding_no_reparse(path)
+    return parent / path.name
+
+
+def _binding_sidecar_path(packet_path: Path) -> Path:
+    return packet_path.with_name(packet_path.name + ".consumption.json")
+
+
+def _canonical_private_json(value: dict) -> bytes:
+    return (json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode(
+        "utf-8"
+    )
+
+
+def _same_opened_binding_identity(left: os.stat_result, right: os.stat_result) -> bool:
+    return _same_file_identity(left, right) and left.st_mtime_ns == right.st_mtime_ns
+
+
+def _opened_private_json(path: Path, max_bytes: int) -> tuple[dict, bytes]:
+    path = _require_canonical_binding_path(path, file=True)
+    flags = os.O_RDONLY
+    for optional in ("O_BINARY", "O_NOINHERIT", "O_NOFOLLOW"):
+        flags |= getattr(os, optional, 0)
+    descriptor: int | None = None
+    try:
+        descriptor = os.open(path, flags)
+        with os.fdopen(descriptor, "rb", closefd=True) as handle:
+            descriptor = None
+            opened_before = os.fstat(handle.fileno())
+            named_before = os.stat(path, follow_symlinks=False)
+            if (
+                opened_before.st_nlink != 1
+                or not stat.S_ISREG(opened_before.st_mode)
+                or getattr(opened_before, "st_file_attributes", 0) & 0x400
+                or not _same_opened_binding_identity(opened_before, named_before)
+            ):
+                raise StagingContractError(
+                    "Tester binding private file identity is invalid"
+                )
+            raw = handle.read(max_bytes + 1)
+            opened_after = os.fstat(handle.fileno())
+            named_after = os.stat(path, follow_symlinks=False)
+            _binding_no_reparse(path)
+            if not _same_opened_binding_identity(
+                opened_before, opened_after
+            ) or not _same_opened_binding_identity(opened_before, named_after):
+                raise StagingContractError(
+                    "Tester binding private file changed while reading"
+                )
+    except StagingContractError:
+        raise
+    except (OSError, RuntimeError):
+        raise StagingContractError(
+            "Tester binding private file is unavailable"
+        ) from None
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+    if not raw or len(raw) > max_bytes or b"\x00" in raw:
+        raise StagingContractError("Tester binding private file size is invalid")
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError):
+        raise StagingContractError("Tester binding private JSON is malformed") from None
+    return value, raw
+
+
+def _exclusive_private_write(path: Path, value: dict) -> os.stat_result:
+    path = _require_binding_destination(path)
+    payload = _canonical_private_json(value)
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    for optional in ("O_BINARY", "O_NOINHERIT", "O_NOFOLLOW"):
+        flags |= getattr(os, optional, 0)
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb", closefd=True) as handle:
+            descriptor = -1
+            opened = os.fstat(handle.fileno())
+            if (
+                opened.st_nlink != 1
+                or opened.st_size != 0
+                or not stat.S_ISREG(opened.st_mode)
+                or getattr(opened, "st_file_attributes", 0) & 0x400
+            ):
+                raise StagingContractError(
+                    "Tester binding private file identity is invalid"
+                )
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+            written = os.fstat(handle.fileno())
+            named = os.stat(path, follow_symlinks=False)
+            _binding_no_reparse(path)
+            if (
+                written.st_nlink != 1
+                or written.st_size != len(payload)
+                or not stat.S_ISREG(written.st_mode)
+                or getattr(written, "st_file_attributes", 0) & 0x400
+                or not _same_opened_binding_identity(written, named)
+            ):
+                raise StagingContractError(
+                    "Tester binding private file post-check failed"
+                )
+            return written
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def _load_binding_packet(
+    path: Path,
+    approval: dict,
+    *,
+    now: datetime | None = None,
+    allow_expired_recovery: bool = False,
+) -> tuple[dict, str, Path, str]:
+    if approval["approval_phase"] != "candidate":
+        raise StagingContractError("Tester binding requires candidate approval")
+    path = _require_canonical_binding_path(path, file=True)
+    packet, raw = _opened_private_json(path, TESTER_BINDING_PACKET_MAX_BYTES)
+    required = {
+        "schema_version",
+        "operation",
+        "database_identity_sha256",
+        "identity",
+        "old_subject_sha256",
+        "new_subject_sha256",
+        "issued_at",
+        "expires_at",
+        "nonce",
+        "one_shot",
+    }
+    identity = packet.get("identity") if isinstance(packet, dict) else None
+    if (
+        not isinstance(packet, dict)
+        or set(packet) != required
+        or packet["schema_version"] != 1
+        or packet["operation"] != TESTER_BINDING_OPERATION
+        or packet["database_identity_sha256"] != approval["database_identity_sha256"]
+        or identity
+        != {
+            "id": OFFICER_IDENTITY_ID,
+            "provider": "line",
+            "person_id": OFFICER_PERSON_ID,
+            "status": "linked",
+        }
+        or any(
+            re.fullmatch(r"[0-9a-f]{64}", packet.get(field, "")) is None
+            for field in ("old_subject_sha256", "new_subject_sha256", "nonce")
+        )
+        or packet["old_subject_sha256"] == packet["new_subject_sha256"]
+        or packet["one_shot"] is not True
+    ):
+        raise StagingContractError("Tester binding packet fields are not exact")
+    observed = (now or _binding_now()).astimezone(timezone.utc)
+    _validate_binding_validity(
+        packet, observed, allow_expired_recovery=allow_expired_recovery
+    )
+    canonical = _canonical_private_json(packet)
+    if raw != canonical:
+        raise StagingContractError("Tester binding packet is not canonical")
+    packet_sha256 = hashlib.sha256(canonical).hexdigest()
+    sidecar = _require_canonical_binding_path(_binding_sidecar_path(path), file=True)
+    consumption, consumption_raw = _opened_private_json(sidecar, 1024)
+    if not isinstance(consumption, dict):
+        raise StagingContractError("Tester binding consumption state is not exact")
+    allowed = {"schema_version", "packet_sha256", "state"}
+    if consumption.get("state") == "consumed":
+        allowed.add("consumed_at")
+        _parse_binding_time(consumption.get("consumed_at"))
+    if (
+        set(consumption) != allowed
+        or consumption.get("schema_version") != 1
+        or consumption.get("packet_sha256") != packet_sha256
+        or consumption.get("state") not in {"prepared", "consumed"}
+    ):
+        raise StagingContractError("Tester binding consumption state is not exact")
+    if consumption_raw != _canonical_private_json(consumption):
+        raise StagingContractError("Tester binding consumption state is not canonical")
+    return packet, packet_sha256, sidecar, consumption["state"]
+
+
+def _binding_row_state(
+    connection, packet: dict, new_subject: str, *, lock: bool = False
+) -> tuple[str, tuple, str]:
+    state = _database_state(connection, include_fingerprint=True)
+    if (
+        state["revision"] != REVISION
+        or state["database_state"] != "ready"
+        or state["fixture_state"] != "seeded"
+    ):
+        raise StagingContractError("Tester binding fixture is not exact")
+    row = (
+        connection.execute(
+            text(
+                "SELECT id, provider, provider_subject, person_id, status "
+                "FROM ntubtob.auth_identities WHERE id=:id"
+                + (" FOR UPDATE" if lock else "")
+            ),
+            {"id": OFFICER_IDENTITY_ID},
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if (
+        row is None
+        or {
+            "id": row["id"],
+            "provider": row["provider"],
+            "person_id": row["person_id"],
+            "status": row["status"],
+        }
+        != packet["identity"]
+    ):
+        raise StagingContractError("Tester binding identity row is not exact")
+    digest = _subject_sha256(row["provider_subject"])
+    if digest == packet["old_subject_sha256"]:
+        classification = "pending"
+    elif digest == packet["new_subject_sha256"]:
+        classification = "applied"
+    else:
+        raise StagingContractError("Tester binding subject is drifted")
+    collision_count = connection.scalar(
+        text(
+            "SELECT count(*) FROM ntubtob.auth_identities "
+            "WHERE provider_subject=:new_subject AND id<>:id"
+        ),
+        {"new_subject": new_subject, "id": OFFICER_IDENTITY_ID},
+    )
+    if collision_count != 0:
+        raise StagingContractError("Tester binding subject collides")
+    return classification, state["fixture_fingerprint"], row["provider_subject"]
+
+
+def _normalized_binding_fingerprint(fingerprint: tuple) -> tuple:
+    if not isinstance(fingerprint, tuple) or len(fingerprint) != 12:
+        raise StagingContractError("Tester binding fingerprint is not exact")
+    values = list(fingerprint)
+    if not isinstance(values[7], tuple):
+        raise StagingContractError("Tester binding fingerprint is not exact")
+    identities = list(values[7])
+    matches = [
+        index
+        for index, row in enumerate(identities)
+        if isinstance(row, tuple) and len(row) >= 3 and row[0] == OFFICER_IDENTITY_ID
+    ]
+    if len(matches) != 1:
+        raise StagingContractError("Tester binding fingerprint is not exact")
+    index = matches[0]
+    row = list(identities[index])
+    row[2] = "private-subject-redacted"
+    identities[index] = tuple(row)
+    values[7] = tuple(identities)
+    return tuple(values)
+
+
+def _mark_binding_consumed(
+    sidecar: Path, packet_sha256: str, *, now: datetime | None = None
+) -> None:
+    sidecar = _require_canonical_binding_path(sidecar, file=True)
+    parent = _require_canonical_binding_path(sidecar.parent, file=False)
+    current, _current_raw = _opened_private_json(sidecar, 1024)
+    if current != {
+        "schema_version": 1,
+        "packet_sha256": packet_sha256,
+        "state": "prepared",
+    }:
+        raise StagingContractError("Tester binding consumption state is not prepared")
+    parent_before = os.stat(parent, follow_symlinks=False)
+    sidecar_before = os.stat(sidecar, follow_symlinks=False)
+    if sidecar_before.st_nlink != 1 or not stat.S_ISREG(sidecar_before.st_mode):
+        raise StagingContractError("Tester binding consumption identity is invalid")
+    consumed_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    value = {
+        "schema_version": 1,
+        "packet_sha256": packet_sha256,
+        "state": "consumed",
+        "consumed_at": consumed_at.isoformat().replace("+00:00", "Z"),
+    }
+    temporary = sidecar.with_name(sidecar.name + "." + secrets.token_hex(8) + ".tmp")
+    written = _exclusive_private_write(temporary, value)
+    try:
+        _binding_no_reparse(sidecar)
+        parent_current = os.stat(parent, follow_symlinks=False)
+        sidecar_current = os.stat(sidecar, follow_symlinks=False)
+        if (parent_before.st_dev, parent_before.st_ino) != (
+            parent_current.st_dev,
+            parent_current.st_ino,
+        ) or not _same_opened_binding_identity(sidecar_before, sidecar_current):
+            raise StagingContractError("Tester binding consumption path changed")
+        os.replace(temporary, sidecar)
+        parent_after = os.stat(parent, follow_symlinks=False)
+        consumed_named = os.stat(sidecar, follow_symlinks=False)
+        _binding_no_reparse(sidecar)
+        if (parent_before.st_dev, parent_before.st_ino) != (
+            parent_after.st_dev,
+            parent_after.st_ino,
+        ) or not _same_opened_binding_identity(written, consumed_named):
+            raise StagingContractError(
+                "Tester binding consumption replace is ambiguous"
+            )
+    finally:
+        if temporary.exists():
+            try:
+                named = os.stat(temporary, follow_symlinks=False)
+                if _same_opened_binding_identity(written, named):
+                    temporary.unlink()
+            except OSError:
+                pass
+
+
+def prepare_tester_binding(
+    approval: dict,
+    database_url: str,
+    new_subject: str,
+    packet_path: Path,
+    *,
+    now: datetime | None = None,
+) -> dict:
+    if approval["approval_phase"] != "candidate":
+        raise StagingContractError(
+            "Tester binding preparation requires candidate approval"
+        )
+    new_subject = _officer_subject(new_subject)
+    identity = validate_database_identity(
+        database_url,
+        approval["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    packet_path = _require_binding_destination(packet_path)
+    sidecar = _binding_sidecar_path(packet_path)
+    _require_binding_destination(sidecar)
+    engine = create_engine(database_url)
+    try:
+        try:
+            with engine.connect() as connection:
+                transaction = connection.begin()
+                try:
+                    connection.execute(text("SET TRANSACTION READ ONLY"))
+                    state = _database_state(connection, include_fingerprint=True)
+                    if (
+                        state["revision"] != REVISION
+                        or state["database_state"] != "ready"
+                        or state["fixture_state"] != "seeded"
+                    ):
+                        raise StagingContractError(
+                            "Tester binding fixture is not exact"
+                        )
+                    row = (
+                        connection.execute(
+                            text(
+                                "SELECT id, provider, provider_subject, person_id, status "
+                                "FROM ntubtob.auth_identities WHERE id=:id"
+                            ),
+                            {"id": OFFICER_IDENTITY_ID},
+                        )
+                        .mappings()
+                        .one_or_none()
+                    )
+                    if row is None or {
+                        "id": row["id"],
+                        "provider": row["provider"],
+                        "person_id": row["person_id"],
+                        "status": row["status"],
+                    } != {
+                        "id": OFFICER_IDENTITY_ID,
+                        "provider": "line",
+                        "person_id": OFFICER_PERSON_ID,
+                        "status": "linked",
+                    }:
+                        raise StagingContractError(
+                            "Tester binding identity row is not exact"
+                        )
+                    old_subject = _officer_subject(row["provider_subject"])
+                    collision = connection.scalar(
+                        text(
+                            "SELECT count(*) FROM ntubtob.auth_identities "
+                            "WHERE provider_subject=:new_subject AND id<>:id"
+                        ),
+                        {"new_subject": new_subject, "id": OFFICER_IDENTITY_ID},
+                    )
+                    if collision != 0:
+                        raise StagingContractError("Tester binding subject collides")
+                    if old_subject == new_subject:
+                        return {
+                            "database_identity_sha256": identity.fingerprint,
+                            "operation": TESTER_BINDING_OPERATION,
+                            "state": "already_applied",
+                            "mutation": "none-read-only",
+                        }
+                finally:
+                    transaction.rollback()
+        except SQLAlchemyError:
+            raise StagingContractError(
+                "Tester binding preparation failed safely"
+            ) from None
+    finally:
+        engine.dispose()
+    issued = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    expires = issued + timedelta(seconds=TESTER_BINDING_TTL_SECONDS)
+    packet = {
+        "schema_version": 1,
+        "operation": TESTER_BINDING_OPERATION,
+        "database_identity_sha256": identity.fingerprint,
+        "identity": {
+            "id": OFFICER_IDENTITY_ID,
+            "provider": "line",
+            "person_id": OFFICER_PERSON_ID,
+            "status": "linked",
+        },
+        "old_subject_sha256": _subject_sha256(old_subject),
+        "new_subject_sha256": _subject_sha256(new_subject),
+        "issued_at": issued.isoformat().replace("+00:00", "Z"),
+        "expires_at": expires.isoformat().replace("+00:00", "Z"),
+        "nonce": secrets.token_hex(32),
+        "one_shot": True,
+    }
+    packet_sha256 = hashlib.sha256(_canonical_private_json(packet)).hexdigest()
+    _exclusive_private_write(packet_path, packet)
+    _exclusive_private_write(
+        sidecar,
+        {"schema_version": 1, "packet_sha256": packet_sha256, "state": "prepared"},
+    )
+    return {
+        "database_identity_sha256": identity.fingerprint,
+        "operation": TESTER_BINDING_OPERATION,
+        "state": "prepared",
+        "mutation": "none-read-only",
+    }
+
+
+def inspect_tester_binding(
+    approval: dict,
+    database_url: str,
+    new_subject: str,
+    packet_path: Path,
+    *,
+    now: datetime | None = None,
+    _allow_expired_recovery: bool = False,
+) -> dict:
+    new_subject = _officer_subject(new_subject)
+    packet, _packet_sha256, _sidecar, consumption = _load_binding_packet(
+        packet_path,
+        approval,
+        now=now,
+        allow_expired_recovery=_allow_expired_recovery,
+    )
+    if _subject_sha256(new_subject) != packet["new_subject_sha256"]:
+        raise StagingContractError("Private tester input does not match packet")
+    identity = validate_database_identity(
+        database_url,
+        packet["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            transaction = connection.begin()
+            try:
+                connection.execute(text("SET TRANSACTION READ ONLY"))
+                classification, _fingerprint, _subject = _binding_row_state(
+                    connection, packet, new_subject
+                )
+            finally:
+                transaction.rollback()
+    except SQLAlchemyError:
+        raise StagingContractError("Tester binding inventory failed safely") from None
+    finally:
+        engine.dispose()
+    if consumption == "consumed" and classification != "applied":
+        raise StagingContractError("Consumed tester binding state is drifted")
+    return {
+        "database_identity_sha256": identity.fingerprint,
+        "operation": TESTER_BINDING_OPERATION,
+        "state": ("completed" if consumption == "consumed" else classification),
+        "mutation": "none-read-only",
+    }
+
+
+def execute_tester_binding(
+    approval: dict,
+    database_url: str,
+    new_subject: str,
+    packet_path: Path,
+    *,
+    now: datetime | None = None,
+) -> dict:
+    new_subject = _officer_subject(new_subject)
+    packet, packet_sha256, sidecar, consumption = _load_binding_packet(
+        packet_path, approval, now=now
+    )
+    if consumption != "prepared":
+        raise StagingContractError("Tester binding packet was already consumed")
+    if _subject_sha256(new_subject) != packet["new_subject_sha256"]:
+        raise StagingContractError("Private tester input does not match packet")
+    validate_database_identity(
+        database_url,
+        packet["database_identity_sha256"],
+        approval["production_database_identity_sha256"],
+        approval["database_provider"],
+        approval["database_resource_id"],
+    )
+    engine = create_engine(database_url)
+    try:
+        try:
+            with engine.begin() as connection:
+                classification, before, old_subject = _binding_row_state(
+                    connection, packet, new_subject, lock=True
+                )
+                if classification != "pending":
+                    raise StagingContractError(
+                        "Tester binding is already applied; use recovery"
+                    )
+                _validate_binding_validity(
+                    packet,
+                    _binding_now(),
+                )
+                changed = connection.execute(
+                    text(
+                        "UPDATE ntubtob.auth_identities SET provider_subject=:new_subject "
+                        "WHERE id=:id AND provider='line' AND person_id=:person_id "
+                        "AND status='linked' AND provider_subject=:old_subject"
+                    ),
+                    {
+                        "new_subject": new_subject,
+                        "id": OFFICER_IDENTITY_ID,
+                        "person_id": OFFICER_PERSON_ID,
+                        "old_subject": old_subject,
+                    },
+                )
+                if changed.rowcount != 1:
+                    raise StagingContractError(
+                        "Tester binding update count is not exact"
+                    )
+                after_classification, after, _ = _binding_row_state(
+                    connection, packet, new_subject, lock=True
+                )
+                if after_classification != "applied" or _normalized_binding_fingerprint(
+                    before
+                ) != _normalized_binding_fingerprint(after):
+                    raise StagingContractError("Tester binding post-check failed")
+        except SQLAlchemyError:
+            raise StagingContractError(
+                "Tester binding mutation failed safely; recover before retry"
+            ) from None
+    finally:
+        engine.dispose()
+    post = inspect_tester_binding(
+        approval, database_url, new_subject, packet_path, now=now
+    )
+    if post["state"] != "applied":
+        raise StagingContractError("Tester binding committed state is ambiguous")
+    _mark_binding_consumed(sidecar, packet_sha256, now=now)
+    return {**post, "state": "completed", "mutation": "one-row-subject-update"}
+
+
+def recover_tester_binding(
+    approval: dict,
+    database_url: str,
+    new_subject: str,
+    packet_path: Path,
+    *,
+    now: datetime | None = None,
+) -> dict:
+    state = inspect_tester_binding(
+        approval,
+        database_url,
+        new_subject,
+        packet_path,
+        now=now,
+        _allow_expired_recovery=True,
+    )
+    observed = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    packet, packet_sha256, sidecar, consumption = _load_binding_packet(
+        packet_path,
+        approval,
+        now=now,
+        allow_expired_recovery=True,
+    )
+    if state["state"] == "pending" and not (
+        _parse_binding_time(packet["issued_at"])
+        <= observed
+        < _parse_binding_time(packet["expires_at"])
+    ):
+        raise StagingContractError("Expired tester binding was not applied")
+    if state["state"] == "applied":
+        if consumption != "prepared":
+            raise StagingContractError("Tester binding recovery state is not exact")
+        _mark_binding_consumed(sidecar, packet_sha256, now=now)
+        state = {**state, "state": "completed"}
+    return state
+
+
 def plan(approval: dict, database_url: str) -> dict:
     validate_database_identity(
         database_url,
@@ -2275,6 +2964,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--inspect-mobile-principal", action="store_true")
     parser.add_argument("--grant-officer", action="store_true")
     parser.add_argument("--restore-basic", action="store_true")
+    parser.add_argument("--prepare-tester-binding", action="store_true")
+    parser.add_argument("--inspect-tester-binding", action="store_true")
+    parser.add_argument("--execute-tester-binding", action="store_true")
+    parser.add_argument("--recover-tester-binding", action="store_true")
+    parser.add_argument("--binding-packet", type=Path)
     args = parser.parse_args(argv)
     try:
         approval = load_approval(args.approval)
@@ -2294,11 +2988,56 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.inspect_mobile_principal,
                 args.grant_officer,
                 args.restore_basic,
+                args.prepare_tester_binding,
+                args.inspect_tester_binding,
+                args.execute_tester_binding,
+                args.recover_tester_binding,
             )
         )
         if selected > 1:
             raise StagingContractError("Choose exactly one staging data action")
-        if args.execute_attendance_repair:
+        binding_actions = (
+            args.prepare_tester_binding,
+            args.inspect_tester_binding,
+            args.execute_tester_binding,
+            args.recover_tester_binding,
+        )
+        binding_count = sum(bool(value) for value in binding_actions)
+        if args.binding_packet is not None and binding_count != 1:
+            raise StagingContractError(
+                "Tester binding packet requires exactly one binding action"
+            )
+        if binding_count == 1 and args.binding_packet is None:
+            raise StagingContractError("Tester binding private packet path is required")
+        if args.prepare_tester_binding:
+            result = prepare_tester_binding(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_NEW_PROVIDER_SUBJECT", ""),
+                args.binding_packet,
+            )
+        elif args.inspect_tester_binding:
+            result = inspect_tester_binding(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_NEW_PROVIDER_SUBJECT", ""),
+                args.binding_packet,
+            )
+        elif args.execute_tester_binding:
+            result = execute_tester_binding(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_NEW_PROVIDER_SUBJECT", ""),
+                args.binding_packet,
+            )
+        elif args.recover_tester_binding:
+            result = recover_tester_binding(
+                approval,
+                database_url,
+                os.environ.get("MOBILE_STAGING_NEW_PROVIDER_SUBJECT", ""),
+                args.binding_packet,
+            )
+        elif args.execute_attendance_repair:
             result = execute_attendance_repair(approval, database_url)
         elif args.inspect_attendance_repair:
             result = attendance_repair_inventory(approval, database_url)

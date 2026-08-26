@@ -115,8 +115,55 @@ lifecycle reviewer before implementation.
 - stop conditions: any OAuth／provider／cloud mutation, private-key copy or link,
   raw identifier／fingerprint／Secret output, arbitrary external signer path,
   signer ambiguity, unrelated dirty path or inability to reject reparse paths
-- state: completed and independently accepted by Auth／Security; pending the
-  single hosted gate and merge before any staging rebuild／install
+- state: completed and independently accepted by Auth／Security; PR #198 merged
+  the registered-signer correction at base
+  `b57a405af83113a69d11c1ac5339f29b09695601`
+
+### Completed fictional tester binding recovery writer claim
+
+- claim_id: `task-157-tester-binding-recovery-writer-20260826`
+- lease_version: 1
+- actor_id: `/root/task157_tester_binding_writer`
+- role: `codex-writer`
+- scope: add one fail-closed, staging-only operation that can replace only the
+  fictional tester's exact LINE provider subject after the completed provider
+  flow proves the seeded subject does not match the Owner's fictional tester
+- owned paths: `tools/mobile_staging_data.py`,
+  `tools/tests/test_mobile_staging_operator.py` and this task
+- write: exact owned paths only; regression first, self-review and focused
+  tests; no database／provider／cloud execution, commit or push before Main
+  acceptance
+- report target: Main Work
+- stop conditions: production／unknown database identity, raw subject in
+  output／Git／argv, subject collision, non-exact fixture identity or history,
+  reparse／replay／expired private packet, multi-row or non-subject mutation,
+  ambiguous post-check or unrelated dirty path
+- state: implementation handoff complete and superseded by the fresh Gate E
+  backend correction writer claim below; no further write authority
+
+### Completed Gate E backend correction writer claim
+
+- claim_id: `task-157-gate-e-backend-correction-writer-20260827`
+- lease_version: 1
+- actor_id: `/root/task157_backend_correction_writer`
+- role: `codex-writer`
+- scope: reconstruct and validate the existing Gate E backend correction,
+  resolve the independent Auth／Data collision-order finding and preserve the
+  registered-signer merged-state authority
+- owned paths: this task; `shared_lib/shared_module/identity_linking.py`;
+  `shared_lib/shared_module/portal_data/mobile_repository.py`;
+  `shared_lib/tests/test_identity_linking.py`;
+  `tests/portal_data/test_mobile_api_foundation.py`;
+  `tools/mobile_staging_data.py` and
+  `tools/tests/test_mobile_staging_operator.py`
+- write: exact owned paths only; self-review and focused tests; Main Work is the
+  formal acceptor and Auth／Data performs the independent targeted re-review
+- report target: Main Work
+- stop conditions: any production／provider／cloud／runtime／Secret action,
+  weakened proof or collision guard, schema change, unrelated dirty path or
+  inability to preserve the existing correction
+- state: implementation complete and independently accepted by Auth／Data;
+  pending hosted evidence before merge or staging deployment
 
 ## Product outcome
 
@@ -401,6 +448,45 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   authorizes repository contract work only; rebuild／install／login remain later
   Gate E operations after independent Auth／Security acceptance.
 
+#### Gate E correction checkpoint — `fictional_tester_line_binding`
+
+- The accepted Google and LINE provider flows both returned to the staging App,
+  but the exact API classification remained `account_unavailable`. The bounded
+  diagnosis is a mismatch between the seeded fictional tester's LINE subject
+  and the Owner's fictional staging tester account; no provider, production or
+  schema change is required.
+- Recovery extends the existing mobile staging data adapter, not the broker
+  fixture or a new adapter. A read-only prepare step validates the complete
+  revision-0008 fixture and exact identity `-112001／line／-112001／linked`, rejects
+  any new-subject collision, and writes only old／new SHA-256 values to a
+  short-lived repository-external private packet with a nonce and one-shot
+  sidecar. Raw subjects remain hidden process input and never enter output,
+  Git, argv or logs.
+- Inspect remains read-only. Execute locks the exact row, changes only
+  `provider_subject` in one transaction, then requires the complete normalized
+  fixture／role／runtime fingerprint to be otherwise unchanged before marking
+  the packet consumed. Lost-response recovery may classify and consume an
+  already-applied exact result but must never replay DML. Prepare also returns
+  an idempotent, zero-mutation `already_applied` result when the exact tester row
+  already owns the private subject; a subject owned by any other row remains a
+  collision. Expired, consumed,
+  reparse, collision, drift, unknown-row or production identity states remain
+  fail closed.
+
+#### Gate E correction checkpoint — `real_provider_proof_snapshot`
+
+- The exact Google candidate request reached staging with `201`, while the LINE
+  proof request returned `500`. Read-only request metadata and executable code
+  identify a repository defect: the proof repository read `updated_at` from the
+  domain identity shape even though that shape deliberately omits persistence
+  timestamps.
+- The proof repository must re-read the exact linked ORM row under provider,
+  subject, status and Person binding before issuing a version-bound proof.
+  Encrypted proof IDs accept nonzero signed PostgreSQL bigint values so the
+  negative fictional staging fixture can complete; zero and out-of-range IDs
+  remain invalid. Confirmation still locks and revalidates both exact rows,
+  providers, Person binding and version hashes before any mutation.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
@@ -485,6 +571,7 @@ and retire／migrate／review Android debug/staging use before provider publishi
 - 2026-08-26: Stage D completed at database revision `0008`; the candidate is
   exact 100%, health and protected gates passed, and Gate E recovery behavior
   merged at `8c4d95105a474e07c687839a9b521cc310656a4f`.
-- Next action: accept the registered-signer launcher correction, then rebuild
-  and reinstall one staging APK before a single fresh Owner Google login. Do
-  not change OAuth clients or copy the existing private key.
+- Next action: independently re-review the Gate E backend correction and obtain
+  hosted evidence, then rebuild and reinstall one staging APK before a single
+  fresh Owner Google login. Do not change OAuth clients or copy the existing
+  private key.

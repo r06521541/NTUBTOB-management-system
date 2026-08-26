@@ -10,6 +10,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import MagicMock, Mock, patch
@@ -32,12 +33,20 @@ from tools.mobile_staging_data import (
     EXPECTED_TABLES,
     NOTIFICATION_TABLES,
     REVISION_TABLES,
+    TESTER_BINDING_OPERATION,
     _alembic_config,
+    _binding_sidecar_path,
     _bootstrap_empty_database,
+    _canonical_private_json,
     _classify_role_lifecycle,
     _database_state,
     _execute_officer_transition,
+    _load_binding_packet,
+    _mark_binding_consumed,
     _mobile_principal_state,
+    _normalized_binding_fingerprint,
+    _opened_private_json,
+    _require_binding_destination,
     _upgrade_known_database,
     attendance_repair_inventory,
 )
@@ -46,8 +55,10 @@ from tools.mobile_staging_data import (
     execute_attendance_repair,
     execute_fixture_lifecycle_reset,
     execute_runtime_residue_repair,
+    execute_tester_binding,
     fixture_lifecycle_inventory,
     grant_officer,
+    inspect_tester_binding,
     inventory,
 )
 from tools.mobile_staging_data import main as staging_data_main
@@ -55,7 +66,9 @@ from tools.mobile_staging_data import (
     mobile_principal_inventory,
     officer_inventory,
     plan,
+    prepare_tester_binding,
     recover,
+    recover_tester_binding,
     restore_basic,
     runtime_residue_inventory,
 )
@@ -69,6 +82,7 @@ from tools.mobile_staging_operator import (
     validate_build_context,
     validate_candidate,
 )
+from tools.mobile_staging_broker_rollout import BrokerRolloutError
 from tools.mobile_staging_preflight import cloud_inventory, database_inventory
 from tools.mobile_staging_seed import ANCHOR, FIXTURE_REPLY_AT
 from tools.mobile_staging_seed import REVISION as SEED_REVISION
@@ -209,6 +223,340 @@ def service(mode="update", candidate_percent=0):
 
 
 class ContractTest(unittest.TestCase):
+    @staticmethod
+    def _binding_packet(now: str = "2030-01-01T00:05:00Z") -> dict:
+        return {
+            "schema_version": 1,
+            "operation": TESTER_BINDING_OPERATION,
+            "database_identity_sha256": STAGING_HASH,
+            "identity": {
+                "id": -112001,
+                "provider": "line",
+                "person_id": -112001,
+                "status": "linked",
+            },
+            "old_subject_sha256": hashlib.sha256(b"old-private-subject").hexdigest(),
+            "new_subject_sha256": hashlib.sha256(b"new-private-subject").hexdigest(),
+            "issued_at": "2030-01-01T00:00:00Z",
+            "expires_at": "2030-01-01T00:15:00Z",
+            "nonce": "c" * 64,
+            "one_shot": True,
+        }
+
+    def _write_binding_packet(self, directory: str, packet: dict | None = None) -> Path:
+        path = Path(directory) / "task157-binding.private.json"
+        value = packet or self._binding_packet()
+        path.write_bytes(_canonical_private_json(value))
+        packet_sha256 = hashlib.sha256(_canonical_private_json(value)).hexdigest()
+        _binding_sidecar_path(path).write_bytes(
+            _canonical_private_json(
+                {
+                    "schema_version": 1,
+                    "packet_sha256": packet_sha256,
+                    "state": "prepared",
+                }
+            )
+        )
+        return path
+
+    def test_tester_binding_packet_is_exact_short_lived_and_outside_git(self):
+        observed = datetime(2030, 1, 1, 0, 5, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._write_binding_packet(directory)
+            packet, _digest, _sidecar, state = _load_binding_packet(
+                path, approval(), now=observed
+            )
+            self.assertEqual(
+                (packet["operation"], state), (TESTER_BINDING_OPERATION, "prepared")
+            )
+            alias = Path(directory) / "packet-hardlink.json"
+            os.link(path, alias)
+            with self.assertRaisesRegex(StagingContractError, "identity is invalid"):
+                _load_binding_packet(path, approval(), now=observed)
+            alias.unlink()
+            sidecar_alias = Path(directory) / "sidecar-hardlink.json"
+            os.link(_binding_sidecar_path(path), sidecar_alias)
+            with self.assertRaisesRegex(StagingContractError, "identity is invalid"):
+                _load_binding_packet(path, approval(), now=observed)
+            sidecar_alias.unlink()
+            nested = Path(directory) / "alias-parent"
+            nested.mkdir()
+            aliased = nested / ".." / path.name
+            with self.assertRaisesRegex(StagingContractError, "not canonical"):
+                _load_binding_packet(aliased, approval(), now=observed)
+            with patch(
+                "tools.mobile_staging_data._assert_path_chain_no_reparse",
+                side_effect=BrokerRolloutError("PATH_INVALID"),
+            ), self.assertRaisesRegex(StagingContractError, "path is invalid"):
+                _load_binding_packet(path, approval(), now=observed)
+            with patch(
+                "tools.mobile_staging_data._same_opened_binding_identity",
+                side_effect=[True, False],
+            ), self.assertRaisesRegex(StagingContractError, "changed while reading"):
+                _opened_private_json(path, 4096)
+            packet["expires_at"] = "2030-01-01T00:20:00Z"
+            path = self._write_binding_packet(directory, packet)
+            with self.assertRaisesRegex(StagingContractError, "expired"):
+                _load_binding_packet(path, approval(), now=observed)
+        repository_path = Path.cwd() / "task157-binding.private.json"
+        with self.assertRaisesRegex(StagingContractError, "outside Git"):
+            _require_binding_destination(repository_path)
+
+    def test_tester_binding_consumption_detects_atomic_replace_swap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = self._write_binding_packet(directory)
+            sidecar = _binding_sidecar_path(path)
+            with patch("tools.mobile_staging_data.os.replace"), self.assertRaisesRegex(
+                StagingContractError, "replace is ambiguous"
+            ):
+                _mark_binding_consumed(
+                    sidecar,
+                    hashlib.sha256(
+                        _canonical_private_json(self._binding_packet())
+                    ).hexdigest(),
+                    now=datetime(2030, 1, 1, 0, 5, tzinfo=timezone.utc),
+                )
+
+    def test_tester_binding_fingerprint_masks_only_exact_subject_column(self):
+        before = (
+            "seeded",
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+            ((-112001, "line", "old-private-subject", -112001, "linked"),),
+            True,
+            (),
+            (),
+            (),
+        )
+        after = (
+            "seeded",
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+            ((-112001, "line", "new-private-subject", -112001, "linked"),),
+            True,
+            (),
+            (),
+            (),
+        )
+        self.assertEqual(
+            _normalized_binding_fingerprint(before),
+            _normalized_binding_fingerprint(after),
+        )
+        drifted = list(after)
+        drifted[10] = (("unexpected-game-drift",),)
+        self.assertNotEqual(
+            _normalized_binding_fingerprint(before),
+            _normalized_binding_fingerprint(tuple(drifted)),
+        )
+
+    def test_tester_binding_execute_is_one_exact_update_and_no_raw_output(self):
+        private_subject = "new-private-subject"
+        packet = self._binding_packet()
+        before = (
+            "seeded",
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+            ((-112001, "line", "old-private-subject", -112001, "linked"),),
+            True,
+            (),
+            (),
+            (),
+        )
+        after = (
+            "seeded",
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+            ((-112001, "line", private_subject, -112001, "linked"),),
+            True,
+            (),
+            (),
+            (),
+        )
+        connection = MagicMock()
+        connection.execute.return_value.rowcount = 1
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = connection
+        with patch(
+            "tools.mobile_staging_data._load_binding_packet",
+            return_value=(packet, "d" * 64, Path("sidecar"), "prepared"),
+        ), patch("tools.mobile_staging_data.validate_database_identity"), patch(
+            "tools.mobile_staging_data.create_engine", return_value=engine
+        ), patch(
+            "tools.mobile_staging_data._binding_row_state",
+            side_effect=[
+                ("pending", before, "old-private-subject"),
+                ("applied", after, private_subject),
+            ],
+        ), patch(
+            "tools.mobile_staging_data.inspect_tester_binding",
+            return_value={
+                "database_identity_sha256": STAGING_HASH,
+                "operation": TESTER_BINDING_OPERATION,
+                "state": "applied",
+                "mutation": "none-read-only",
+            },
+        ), patch(
+            "tools.mobile_staging_data._mark_binding_consumed"
+        ) as consume, patch(
+            "tools.mobile_staging_data._binding_now",
+            return_value=datetime(2030, 1, 1, 0, 5, tzinfo=timezone.utc),
+        ):
+            result = execute_tester_binding(
+                approval(),
+                DATABASE_URL,
+                private_subject,
+                Path("packet"),
+                now=datetime(2030, 1, 1, 0, 5, tzinfo=timezone.utc),
+            )
+        self.assertEqual(result["state"], "completed")
+        self.assertNotIn(private_subject, json.dumps(result))
+        consume.assert_called_once()
+        update = next(
+            call
+            for call in connection.execute.call_args_list
+            if "UPDATE ntubtob.auth_identities SET provider_subject"
+            in str(call.args[0])
+        )
+        self.assertEqual(update.args[1]["id"], -112001)
+        self.assertEqual(update.args[1]["person_id"], -112001)
+
+    def test_tester_binding_execute_rechecks_ttl_after_row_lock(self):
+        packet = self._binding_packet()
+        connection = MagicMock()
+        engine = MagicMock()
+        engine.begin.return_value.__enter__.return_value = connection
+        before = (
+            "seeded",
+            (),
+            (),
+            (),
+            (),
+            (),
+            (),
+            ((-112001, "line", "old-private-subject", -112001, "linked"),),
+            True,
+            (),
+            (),
+            (),
+        )
+        with patch(
+            "tools.mobile_staging_data._load_binding_packet",
+            return_value=(packet, "d" * 64, Path("sidecar"), "prepared"),
+        ), patch("tools.mobile_staging_data.validate_database_identity"), patch(
+            "tools.mobile_staging_data.create_engine", return_value=engine
+        ), patch(
+            "tools.mobile_staging_data._binding_row_state",
+            return_value=("pending", before, "old-private-subject"),
+        ), patch(
+            "tools.mobile_staging_data._binding_now",
+            return_value=datetime(2030, 1, 1, 0, 16, tzinfo=timezone.utc),
+        ):
+            with self.assertRaisesRegex(StagingContractError, "expired"):
+                execute_tester_binding(
+                    approval(),
+                    DATABASE_URL,
+                    "new-private-subject",
+                    Path("packet"),
+                    now=datetime(2030, 1, 1, 0, 16, tzinfo=timezone.utc),
+                )
+        self.assertFalse(
+            any(
+                "UPDATE ntubtob.auth_identities" in str(call.args[0])
+                for call in connection.execute.call_args_list
+            )
+        )
+
+    def test_tester_binding_cli_keeps_private_subject_and_path_out_of_output(self):
+        private_subject = "new-private-subject"
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            packet_path = Path(directory) / "binding.private.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            result = {
+                "database_identity_sha256": STAGING_HASH,
+                "operation": TESTER_BINDING_OPERATION,
+                "state": "pending",
+                "mutation": "none-read-only",
+            }
+            with patch.dict(
+                os.environ,
+                {
+                    "MOBILE_STAGING_DATABASE_URL": DATABASE_URL,
+                    "MOBILE_STAGING_NEW_PROVIDER_SUBJECT": private_subject,
+                },
+                clear=True,
+            ), patch(
+                "tools.mobile_staging_data.inspect_tester_binding",
+                return_value=result,
+            ) as inspect_binding, patch(
+                "sys.stdout", new_callable=io.StringIO
+            ) as output:
+                self.assertEqual(
+                    staging_data_main(
+                        [
+                            "--approval",
+                            str(approval_path),
+                            "--binding-packet",
+                            str(packet_path),
+                            "--inspect-tester-binding",
+                        ]
+                    ),
+                    0,
+                )
+        inspect_binding.assert_called_once_with(
+            approval(), DATABASE_URL, private_subject, packet_path
+        )
+        encoded = output.getvalue()
+        self.assertNotIn(private_subject, encoded)
+        self.assertNotIn(str(packet_path), encoded)
+
+    def test_binding_packet_argument_rejects_nonbinding_and_multiple_actions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            approval_path = Path(directory) / "approval.json"
+            packet_path = Path(directory) / "binding.private.json"
+            approval_path.write_text(json.dumps(approval()), encoding="utf-8")
+            for arguments in (
+                ["--recover"],
+                ["--recover", "--inspect-tester-binding"],
+            ):
+                with self.subTest(arguments=arguments), patch(
+                    "tools.mobile_staging_data.recover"
+                ) as recover_mock, patch(
+                    "tools.mobile_staging_data.inspect_tester_binding"
+                ) as inspect_mock, patch(
+                    "sys.stderr", new_callable=io.StringIO
+                ):
+                    self.assertEqual(
+                        staging_data_main(
+                            [
+                                "--approval",
+                                str(approval_path),
+                                "--binding-packet",
+                                str(packet_path),
+                                *arguments,
+                            ]
+                        ),
+                        2,
+                    )
+                recover_mock.assert_not_called()
+                inspect_mock.assert_not_called()
+
     def test_staging_revision_contract_matches_mobile_api_readiness(self):
         self.assertEqual(REVISION, "0008_mobile_notification_delivery")
         self.assertEqual(SEED_REVISION, REVISION)
@@ -1300,6 +1648,105 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
         with self.engine.begin() as connection:
             command.downgrade(_alembic_config(Path.cwd(), connection), revision)
 
+    def test_tester_binding_replacement_is_exact_one_shot_and_retry_safe(self):
+        old_subject = "fake-private-tester-subject"
+        new_subject = "fake-private-owner-line-subject"
+        execute_staging_data(self.approval, TEST_DATABASE_URL, old_subject, Path.cwd())
+        now = datetime(2030, 1, 1, 0, 5, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as directory, patch(
+            "tools.mobile_staging_data._binding_now", return_value=now
+        ):
+            packet_path = Path(directory) / "binding.private.json"
+            prepared = prepare_tester_binding(
+                self.approval,
+                TEST_DATABASE_URL,
+                new_subject,
+                packet_path,
+                now=now,
+            )
+            self.assertEqual(prepared["state"], "prepared")
+            self.assertEqual(
+                inspect_tester_binding(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    new_subject,
+                    packet_path,
+                    now=now,
+                )["state"],
+                "pending",
+            )
+            completed = execute_tester_binding(
+                self.approval,
+                TEST_DATABASE_URL,
+                new_subject,
+                packet_path,
+                now=now,
+            )
+            self.assertEqual(completed["state"], "completed")
+            self.assertEqual(
+                recover_tester_binding(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    new_subject,
+                    packet_path,
+                    now=now,
+                )["state"],
+                "completed",
+            )
+            with self.assertRaisesRegex(StagingContractError, "already consumed"):
+                execute_tester_binding(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    new_subject,
+                    packet_path,
+                    now=now,
+                )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT provider_subject FROM ntubtob.auth_identities "
+                        "WHERE id=-112001"
+                    )
+                ),
+                new_subject,
+            )
+
+    def test_tester_binding_prepare_is_idempotent_when_subject_already_matches(self):
+        subject = "fake-private-owner-line-subject"
+        execute_staging_data(self.approval, TEST_DATABASE_URL, subject, Path.cwd())
+        with tempfile.TemporaryDirectory() as directory:
+            packet_path = Path(directory) / "binding.private.json"
+            result = prepare_tester_binding(
+                self.approval,
+                TEST_DATABASE_URL,
+                subject,
+                packet_path,
+            )
+            self.assertEqual(
+                (result["state"], result["mutation"]),
+                ("already_applied", "none-read-only"),
+            )
+            self.assertFalse(packet_path.exists())
+            self.assertFalse(Path(str(packet_path) + ".consumption.json").exists())
+            self.assertNotIn(subject, json.dumps(result))
+
+    def test_tester_binding_already_applied_still_rejects_other_row_collision(self):
+        subject = "fake-private-owner-line-subject"
+        execute_staging_data(self.approval, TEST_DATABASE_URL, subject, Path.cwd())
+        self._seed_google_recovery_history(subject=subject)
+        with tempfile.TemporaryDirectory() as directory:
+            packet_path = Path(directory) / "binding.private.json"
+            with self.assertRaisesRegex(StagingContractError, "subject collides"):
+                prepare_tester_binding(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    subject,
+                    packet_path,
+                )
+            self.assertFalse(packet_path.exists())
+            self.assertFalse(Path(str(packet_path) + ".consumption.json").exists())
+
     def _seed_mobile_runtime_history(
         self,
         *,
@@ -1398,8 +1845,7 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     },
                 )
 
-    def _seed_google_recovery_history(self):
-        subject = "fake-google-recovery-subject"
+    def _seed_google_recovery_history(self, subject="fake-google-recovery-subject"):
         pending_request = (
             "identity-pending-"
             + hashlib.sha256(f"google:{subject}".encode("utf-8")).hexdigest()[:32]
