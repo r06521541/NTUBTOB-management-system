@@ -1364,17 +1364,37 @@ def _canonical_fixture_fingerprint(
 ) -> tuple[str, tuple]:
     """Validate the complete owned fixture and return a secret-free fingerprint."""
     state = _fixture_state(connection)
-    extension_tables = (BROKER_TABLES | NOTIFICATION_TABLES) & REVISION_TABLES[revision]
+    broker_history_fingerprint = ()
+    if BROKER_TABLES <= REVISION_TABLES[revision]:
+        broker_rows = connection.execute(
+            text(
+                "SELECT * FROM ntubtob.staging_broker_operations "
+                "ORDER BY operation_id"
+            )
+        ).all()
+        if broker_rows and (
+            state != "seeded"
+            or any(
+                row._mapping["lifecycle_state"] != "postcheck_complete"
+                or row._mapping["reason_code"] is not None
+                for row in broker_rows
+            )
+        ):
+            raise StagingContractError(
+                "Remote staging broker history is not terminal; do not retry"
+            )
+        broker_history_fingerprint = tuple(map(tuple, broker_rows))
+    notification_tables = NOTIFICATION_TABLES & REVISION_TABLES[revision]
     if any(
         connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}"))
-        for table in extension_tables
+        for table in notification_tables
     ):
         raise StagingContractError(
             "Remote staging fixture contains owned runtime rows; do not retry"
         )
     legacy_fingerprint = _canonical_legacy_fingerprint(connection, state)
     if state == "clean":
-        return state, ("clean", legacy_fingerprint)
+        return state, ("clean", legacy_fingerprint, broker_history_fingerprint)
 
     people = connection.execute(
         text(
@@ -1606,6 +1626,7 @@ def _canonical_fixture_fingerprint(
         legacy_fingerprint,
         tuple(map(tuple, people)),
         audit_fingerprint,
+        broker_history_fingerprint,
         mobile_history_fingerprint,
         tuple(map(tuple, identities)),
         bool(tester_binding),

@@ -273,6 +273,26 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   the correction itself; the next Owner-private invocation must remain single
   use and occur only after the correction is merged.
 
+#### Gate B recovery checkpoint — `broker_journal_classification`
+
+- After the mobile-history correction merged, the next Owner-private read-only
+  recovery stopped before Alembic／seed because the `0006` broker journal was
+  nonempty. Database mutation count remained zero and the operation was not
+  retried.
+- One bounded sanitized read-only matrix proved exactly three broker rows, all
+  `postcheck_complete`; notification runtime tables were empty and the prior
+  exact mobile-history classification remained true. No operation ID,
+  fingerprint, timestamp, DSN, Secret, provider subject or row value entered
+  output or Git.
+- The bounded correction may preserve a nonempty broker journal only for a
+  seeded fixture when every row is terminal and has no reconciliation reason.
+  Every column is included in the in-memory pre／post fingerprint. Clean
+  fixtures, nonterminal／reconcile rows and any notification runtime row remain
+  fail-closed before or within the transactional upgrade.
+- Resume again requires focused PostgreSQL acceptance, independent
+  Auth／Security review and hosted PostgreSQL 15／16 gates before the same
+  single-use Owner-private invocation may run.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
