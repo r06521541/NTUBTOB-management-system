@@ -1432,6 +1432,32 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 )
             }
 
+    def _seed_terminal_broker_history(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.staging_broker_operations "
+                    "(operation_id, operation, target_state, inspect_fingerprint, "
+                    "lifecycle_state, inspected_at, confirmed_at, "
+                    "mutation_issued_at, completed_at, created_at, updated_at) "
+                    "VALUES ('task157-terminal-operation', 'grant', "
+                    "'ready_officer', :fingerprint, 'postcheck_complete', "
+                    "'2030-01-01T00:00:00Z', '2030-01-01T00:00:01Z', "
+                    "'2030-01-01T00:00:02Z', '2030-01-01T00:00:03Z', "
+                    "'2030-01-01T00:00:00Z', '2030-01-01T00:00:03Z')"
+                ),
+                {"fingerprint": "a" * 64},
+            )
+
+    def _broker_history_snapshot(self):
+        with self.engine.connect() as connection:
+            return connection.execute(
+                text(
+                    "SELECT * FROM ntubtob.staging_broker_operations "
+                    "ORDER BY operation_id"
+                )
+            ).all()
+
     def _grant_officer_with_mobile_history(self):
         execute_staging_data(
             self.approval,
@@ -1829,6 +1855,79 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             )
         with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
             with self.assertRaisesRegex(StagingContractError, "mobile history"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+
+    def test_0006_forward_upgrade_preserves_terminal_broker_history(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+        self._seed_terminal_broker_history()
+        broker_before = self._broker_history_snapshot()
+
+        before = recover(self.approval, TEST_DATABASE_URL)
+        self.assertEqual(before["outcome"], "upgrade_pending")
+        after = execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self.assertEqual(after["outcome"], "completed")
+        self.assertEqual(self._broker_history_snapshot(), broker_before)
+
+    def test_forward_upgrade_rejects_nonterminal_broker_history(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.staging_broker_operations "
+                    "(operation_id, operation, target_state, inspect_fingerprint, "
+                    "lifecycle_state, inspected_at, created_at, updated_at) "
+                    "VALUES ('task157-pending-operation', 'inspect', "
+                    "'ready_basic', :fingerprint, 'inspected', "
+                    "'2030-01-01T00:00:00Z', '2030-01-01T00:00:00Z', "
+                    "'2030-01-01T00:00:00Z')"
+                ),
+                {"fingerprint": "b" * 64},
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "not terminal"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+
+    def test_clean_forward_upgrade_rejects_terminal_broker_history(self):
+        self._downgrade_current_schema(FORWARD_REVISIONS[1])
+        self._seed_terminal_broker_history()
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "not terminal"):
                 execute_staging_data(
                     self.approval,
                     TEST_DATABASE_URL,
