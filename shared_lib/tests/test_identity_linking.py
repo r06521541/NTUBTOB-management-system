@@ -2,6 +2,8 @@ import base64
 import json
 import unittest
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import MagicMock, Mock, patch
 
 from shared_module.identity_linking import (
     IdentityLinkConflict,
@@ -12,6 +14,7 @@ from shared_module.identity_linking import (
 )
 from shared_module.mobile_api import HmacAccessTokenCodec
 from shared_module.mobile_api import AuthenticationError
+from shared_module.portal_data.mobile_repository import MobileRepository
 
 
 NOW = datetime(2026, 8, 24, 12, 0, 0, 123456, timezone.utc)
@@ -116,6 +119,43 @@ class IdentityLinkProofCodecTest(unittest.TestCase):
                 proof=proof,
             )
 
+    def test_fictional_negative_bigint_identity_proof_is_valid(self):
+        token = self.codec.issue_fresh_proof(
+            identity_id=-112001,
+            person_id=-112001,
+            provider="line",
+            identity_updated_at=NOW,
+            candidate_jti="candidate-jti-123456",
+            attempt_hash="d" * 64,
+            binding_hash="c" * 64,
+            jti="proof-jti-123456789",
+            now=NOW,
+        )
+        proof = self.codec.verify_fresh_proof(token, NOW)
+        self.assertEqual((proof.identity_id, proof.person_id), (-112001, -112001))
+
+    def test_zero_and_out_of_bigint_identity_proofs_are_rejected(self):
+        for identity_id, person_id in (
+            (0, 9),
+            (7, 0),
+            (-(2**63) - 1, 9),
+            (7, 2**63),
+        ):
+            with self.subTest(identity_id=identity_id, person_id=person_id):
+                token = self.codec.issue_fresh_proof(
+                    identity_id=identity_id,
+                    person_id=person_id,
+                    provider="line",
+                    identity_updated_at=NOW,
+                    candidate_jti="candidate-jti-123456",
+                    attempt_hash="d" * 64,
+                    binding_hash="c" * 64,
+                    jti="proof-jti-123456789",
+                    now=NOW,
+                )
+                with self.assertRaises(AuthenticationError):
+                    self.codec.verify_fresh_proof(token, NOW)
+
     def test_cross_provider_is_mandatory(self):
         candidate = self.codec.verify_candidate(
             self.codec.issue_candidate(
@@ -174,6 +214,28 @@ class IdentityLinkServiceTest(unittest.TestCase):
             result.mobile_public(), {"status": "already_linked", "session": None}
         )
         self.assertNotIn("23", str(result.mobile_public()))
+
+    def test_repository_proof_snapshot_uses_exact_orm_version_timestamp(self):
+        repository = MobileRepository(Mock())
+        repository.lifecycle.resolve_principal = Mock(
+            return_value=SimpleNamespace(
+                identity=SimpleNamespace(id=-112001, provider="line"),
+                person=SimpleNamespace(id=-112001, display_name="Fictional Tester"),
+            )
+        )
+        session = MagicMock()
+        session.__enter__.return_value = session
+        session.scalar.return_value = NOW
+        with patch(
+            "shared_module.portal_data.mobile_repository.Session",
+            return_value=session,
+        ):
+            snapshot = repository.linked_identity_for_proof(
+                "line", "private-subject", NOW
+            )
+        self.assertEqual(snapshot["updated_at"], NOW)
+        self.assertEqual(snapshot["identity_id"], -112001)
+        self.assertNotIn("private-subject", str(snapshot))
 
     def test_recovery_confirmation_passes_only_hashed_session_material(self):
         codec, repository = IdentityLinkProofCodec(b"k" * 32), _Repository()

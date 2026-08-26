@@ -7,6 +7,7 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 SHARED_LIB_ROOT = Path(__file__).resolve().parents[2] / "shared_lib"
 if str(SHARED_LIB_ROOT) not in sys.path:
@@ -14,7 +15,11 @@ if str(SHARED_LIB_ROOT) not in sys.path:
 
 from alembic import command
 from alembic.config import Config
-from shared_module.identity_linking import IdentityLinkConflict, IdentityLinkProofCodec
+from shared_module.identity_linking import (
+    IdentityLinkConflict,
+    IdentityLinkProofCodec,
+    IdentityLinkService,
+)
 from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
 from shared_module.portal_data.domain import ConflictError
 from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
@@ -185,6 +190,81 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                 )
             ).one()
         self.assertEqual(tuple(counts), (1, 1, 1, 1))
+
+    def test_service_recovery_accepts_fictional_negative_identity_ids(self):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(id, display_name, portal_access_level, portal_status, version, "
+                    "created_at, updated_at) VALUES "
+                    "(-112001, 'Fictional Tester', 'basic', 'active', 1, :now, :now)"
+                ),
+                {"now": NOW},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(id, provider, provider_subject, person_id, status, created_at, "
+                    "updated_at) VALUES "
+                    "(-112001, 'line', 'fake-fictional-line-subject', -112001, "
+                    "'linked', :now, :now)"
+                ),
+                {"now": NOW},
+            )
+        service = IdentityLinkService(
+            self.repository,
+            IdentityLinkProofCodec(b"k" * 32),
+            clock=lambda: NOW,
+            recovery_auth=SimpleNamespace(
+                token_factory=lambda: "fake-refresh-token-for-recovery-proof",
+                token_codec=HmacAccessTokenCodec(b"a" * 32),
+            ),
+        )
+        candidate = service.begin_candidate(
+            provider="google",
+            subject="fake-google-recovery-subject",
+            raw_assertion="fake-google-assertion",
+            attempt_id="fake-google-attempt",
+            binding="fake-installation-binding",
+        )
+        proof = service.issue_fresh_proof(
+            candidate_credential=candidate["candidate_credential"],
+            provider="line",
+            subject="fake-fictional-line-subject",
+            attempt_id="fake-line-proof-attempt",
+            binding="fake-installation-binding",
+        )
+        result = service.confirm_mobile(
+            candidate_credential=candidate["candidate_credential"],
+            proof_credential=proof["proof_credential"],
+            binding="fake-installation-binding",
+            outcome="recovery_link",
+            platform="android",
+        )
+        self.assertEqual(result.status, "linked")
+        self.assertIsNotNone(result.mobile_session)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT person_id, status FROM ntubtob.auth_identities "
+                        "WHERE provider='google' AND "
+                        "provider_subject='fake-google-recovery-subject'"
+                    )
+                ).one(),
+                (-112001, "linked"),
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.mobile_sessions "
+                        "WHERE person_id=-112001 AND auth_identity_id=-112001 "
+                        "AND status='active'"
+                    )
+                ),
+                1,
+            )
 
     def test_recovery_session_insert_failure_rolls_back_link_and_audit(self):
         codec, candidate, proof, candidate_id = self._google_candidate_proofs(

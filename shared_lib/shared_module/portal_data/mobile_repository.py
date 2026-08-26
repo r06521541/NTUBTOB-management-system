@@ -195,11 +195,23 @@ class MobileRepository:
         principal = self.lifecycle.resolve_principal(provider, subject, now)
         if principal is None:
             raise AuthenticationError("fresh linked identity required")
+        with Session(self.engine) as session:
+            updated_at = session.scalar(
+                select(AuthIdentityRecord.updated_at).where(
+                    AuthIdentityRecord.id == principal.identity.id,
+                    AuthIdentityRecord.provider == provider,
+                    AuthIdentityRecord.provider_subject == subject,
+                    AuthIdentityRecord.status == "linked",
+                    AuthIdentityRecord.person_id == principal.person.id,
+                )
+            )
+        if updated_at is None:
+            raise AuthenticationError("fresh linked identity required")
         return {
             "identity_id": principal.identity.id,
             "person_id": principal.person.id,
             "provider": principal.identity.provider,
-            "updated_at": principal.identity.updated_at,
+            "updated_at": updated_at,
             "display_name": principal.person.display_name,
         }
 

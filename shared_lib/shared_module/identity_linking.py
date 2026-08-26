@@ -13,7 +13,13 @@ from datetime import datetime, timedelta, timezone
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-from .mobile_api import AuthenticationError, Conflict, InvalidArgument, secret_hash
+from .mobile_api import (
+    MAX_POSTGRESQL_BIGINT,
+    AuthenticationError,
+    Conflict,
+    InvalidArgument,
+    secret_hash,
+)
 
 
 PROOF_TTL = timedelta(minutes=5)
@@ -197,7 +203,8 @@ class IdentityLinkProofCodec:
         self._validate_common(payload)
         if (
             type(payload["pid"]) is not int
-            or payload["pid"] <= 0
+            or payload["pid"] == 0
+            or not -MAX_POSTGRESQL_BIGINT - 1 <= payload["pid"] <= MAX_POSTGRESQL_BIGINT
             or not isinstance(payload["version"], str)
             or len(payload["version"]) != 64
             or not isinstance(payload["candidate"], str)
@@ -271,7 +278,8 @@ class IdentityLinkProofCodec:
     def _validate_common(payload: dict) -> None:
         if (
             type(payload["iid"]) is not int
-            or payload["iid"] <= 0
+            or payload["iid"] == 0
+            or not -MAX_POSTGRESQL_BIGINT - 1 <= payload["iid"] <= MAX_POSTGRESQL_BIGINT
             or payload["provider"] not in PROVIDERS
             or not isinstance(payload["jti"], str)
             or not 16 <= len(payload["jti"]) <= 100
