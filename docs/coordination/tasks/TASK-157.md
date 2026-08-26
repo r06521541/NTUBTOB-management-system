@@ -232,6 +232,27 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   Secret/IAM/data mutation or production action occurred. Candidate/image and
   evidence are retained; Gate E remains blocked until exact 0008 post-check.
 
+#### Gate B recovery checkpoint — `access_audit_lifecycle_classification`
+
+- Owner-private `--recover` reached the existing read-only fixture classifier
+  and stopped before Alembic／seed with exact category
+  `access_audit` drift. No database mutation or retry occurred.
+- Repository analysis found the forward-revision classifier still treated
+  `access_audit` as an immutable one-row seed table, while the accepted
+  TASK-119／TASK-126 Officer lifecycle is deliberately append-only and already
+  has a stricter full-shape validator in the same tool.
+- The bounded correction may admit only a complete recognized lifecycle whose
+  audit shapes, tester role/version and timestamps are exact; unknown, mixed,
+  missing or additional audit rows remain pre-Alembic stop conditions. The
+  complete lifecycle is part of the pre/post semantic fingerprint.
+- An already seeded forward revision must not be seeded again after the exact
+  fingerprint-preserving upgrade. A clean fixture retains the existing seed
+  path. This correction does not authorize staging re-execution by itself.
+- Resume requires focused isolated-PostgreSQL acceptance, one independent
+  Auth/Security verdict and a fresh single-use Owner-private execution gate.
+  The retained candidate/image may be reused; no second build or candidate
+  deployment is planned.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
