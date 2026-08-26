@@ -485,14 +485,16 @@ def _validate_shared_provider_boundary(value: object) -> None:
         },
         "Shared provider boundary fields are not exact",
     )
-    if boundary != {
-        "audience": "external",
-        "publishing_status": "testing",
-        "tester_restricted": True,
-        "tester_count": 1,
-        "staging_auth_platform": "frozen-non-authoritative",
-        "production_publish_review_gate": "review-web-and-retire-or-migrate-android",
-    }:
+    if (
+        boundary["audience"] != "external"
+        or boundary["publishing_status"] != "testing"
+        or boundary["tester_restricted"] is not True
+        or type(boundary["tester_count"]) is not int
+        or boundary["tester_count"] != 1
+        or boundary["staging_auth_platform"] != "frozen-non-authoritative"
+        or boundary["production_publish_review_gate"]
+        != "review-web-and-retire-or-migrate-android"
+    ):
         _fail("Shared provider boundary is not exact")
 
 
@@ -602,7 +604,7 @@ def _validate_reused_clients(value: object, web_hash: str, android_hash: str) ->
         common | {"build_category"},
         "Existing Android client fields are not exact",
     )
-    if web != {
+    if web["staging_callback_or_origin_mutation"] is not False or web != {
         "client_type": "web",
         "action": "reuse-existing",
         "owning_project": PRODUCTION_PROJECT,

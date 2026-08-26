@@ -1034,8 +1034,11 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         contract_mutations = (
             ("provider_boundary.staging_auth_platform", "configured"),
             ("provider_boundary.publishing_status", "production"),
+            ("provider_boundary.tester_restricted", 1),
+            ("provider_boundary.tester_count", True),
             ("inventory.callback_category", "staging"),
             ("existing_clients.0.callback_category", "staging"),
+            ("existing_clients.0.staging_callback_or_origin_mutation", 0),
             ("existing_clients.0.staging_callback_or_origin_mutation", True),
         )
         mutation_counts = tuple(
