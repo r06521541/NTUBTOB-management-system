@@ -30,12 +30,14 @@ class FakeTransport implements ApiTransport {
       });
     }
     if (path.contains('/candidates/')) {
-      return const ApiResponse(201, {'candidate_credential': 'candidate'});
+      return const ApiResponse(
+          201, {'candidate_credential': 'candidate', 'expires_in': 300});
     }
     if (path.contains('/proofs/')) {
       return const ApiResponse(201, {
         'proof_credential': 'proof',
-        'person': {'display_name': '安全帳戶'}
+        'person': {'display_name': '安全帳戶'},
+        'expires_in': 300,
       });
     }
     return confirmResponse ??
@@ -106,21 +108,78 @@ class AuthFlowTransport implements ApiTransport {
       return const ApiResponse(200, {'status': 'linked', 'session': null});
     }
     if (path.contains('/candidates/')) {
-      return const ApiResponse(201, {'candidate_credential': 'candidate'});
+      return const ApiResponse(
+          201, {'candidate_credential': 'candidate', 'expires_in': 300});
     }
     if (path.contains('/proofs/')) {
       return const ApiResponse(201, {
         'proof_credential': 'proof',
-        'person': {'display_name': 'Safe'}
+        'person': {'display_name': 'Safe'},
+        'expires_in': 300,
       });
     }
     throw StateError('unexpected path $path');
   }
 }
 
+class VariableExpiryTransport extends FakeTransport {
+  VariableExpiryTransport({required this.candidateTtl, required this.proofTtl});
+  final int candidateTtl, proofTtl;
+
+  @override
+  Future<ApiResponse> send(String method, String path,
+      {Map<String, String> headers = const {},
+      Map<String, dynamic>? body}) async {
+    calls.add(path);
+    if (path == '/auth/identities') {
+      return const ApiResponse(200, {
+        'items': [
+          {
+            'provider': 'line',
+            'label': 'LINE',
+            'linked_at': '2026-08-24T00:00:00Z'
+          }
+        ]
+      });
+    }
+    if (path.contains('/candidates/')) {
+      return ApiResponse(201,
+          {'candidate_credential': 'candidate', 'expires_in': candidateTtl});
+    }
+    if (path.contains('/proofs/')) {
+      return ApiResponse(201, {
+        'proof_credential': 'proof',
+        'person': {'display_name': 'Safe'},
+        'expires_in': proofTtl,
+      });
+    }
+    return const ApiResponse(200, {'status': 'linked', 'session': null});
+  }
+}
+
+class DelayedConfirmTransport extends FakeTransport {
+  final response = Completer<ApiResponse>();
+
+  @override
+  Future<ApiResponse> send(String method, String path,
+      {Map<String, String> headers = const {}, Map<String, dynamic>? body}) {
+    if (path.endsWith('/confirm')) {
+      calls.add(path);
+      return response.future;
+    }
+    return super.send(method, path, headers: headers, body: body);
+  }
+}
+
 class FixedIds extends SecureIds {
   @override
   String next() => 'attempt-1234567890';
+}
+
+class FakeClock {
+  DateTime value = DateTime.utc(2026, 8, 27, 10);
+  DateTime call() => value;
+  void advance(Duration duration) => value = value.add(duration);
 }
 
 void main() {
@@ -148,6 +207,131 @@ void main() {
     await tester.pump();
     expect(controller.candidateCredential, isNull);
     expect(credentials.clears, 1);
+  });
+
+  testWidgets('candidate shows its bounded completion window', (tester) async {
+    final api = FakeTransport(), clock = FakeClock();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: FakeCredentials(),
+        installationId: 'installation-1234',
+        ids: FixedIds(),
+        clock: clock.call,
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    await controller.loadLinkedMethods();
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: IdentityLinkPanel(
+                controller: controller, platform: 'android'))));
+
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('identity-link-expiry-guidance')),
+        findsOneWidget);
+    expect(find.textContaining('最長有效 5 分鐘'), findsOneWidget);
+  });
+
+  testWidgets('expired candidate stops before a second provider call',
+      (tester) async {
+    final api = FakeTransport(), credentials = FakeCredentials();
+    final clock = FakeClock();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: credentials,
+        installationId: 'installation-1234',
+        ids: FixedIds(),
+        clock: clock.call,
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    await controller.loadLinkedMethods();
+    await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+            body: IdentityLinkPanel(
+                controller: controller, platform: 'android'))));
+    await tester.tap(find.byKey(const ValueKey('identity-link-begin-google')));
+    await tester.pump();
+
+    clock.advance(const Duration(seconds: 301));
+    await tester.tap(find.byKey(const ValueKey('identity-link-proof-line')));
+    await tester.pump();
+
+    expect(credentials.calls, 1);
+    expect(api.calls.where((path) => path.contains('/proofs/')), isEmpty);
+    expect(controller.failure, IdentityLinkFailure.expired);
+    expect(find.text('連結流程已逾時，請重新開始。'), findsOneWidget);
+    expect(find.text('重新開始'), findsOneWidget);
+  });
+
+  test('expired proof pair stops before confirm mutation', () async {
+    final api = FakeTransport(), clock = FakeClock();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: FakeCredentials(),
+        installationId: 'installation-1234',
+        ids: FixedIds(),
+        clock: clock.call,
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    await controller.loadLinkedMethods();
+    await controller.begin(LoginProvider.google);
+    await controller.prove(LoginProvider.line);
+
+    clock.advance(const Duration(seconds: 301));
+    await controller.confirm(recovery: false, platform: 'android');
+
+    expect(api.calls.where((path) => path.endsWith('/confirm')), isEmpty);
+    expect(controller.failure, IdentityLinkFailure.expired);
+    expect(controller.stage, IdentityLinkStage.error);
+  });
+
+  test('proof cannot extend the earlier candidate deadline', () async {
+    final api = VariableExpiryTransport(candidateTtl: 120, proofTtl: 300);
+    final clock = FakeClock();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: FakeCredentials(),
+        installationId: 'installation-1234',
+        ids: FixedIds(),
+        clock: clock.call,
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    await controller.loadLinkedMethods();
+    await controller.begin(LoginProvider.google);
+    clock.advance(const Duration(seconds: 100));
+    await controller.prove(LoginProvider.line);
+
+    clock.advance(const Duration(seconds: 21));
+    await controller.confirm(recovery: false, platform: 'android');
+
+    expect(api.calls.where((path) => path.endsWith('/confirm')), isEmpty);
+    expect(controller.failure, IdentityLinkFailure.expired);
+  });
+
+  test('in-flight generic failure is not relabeled when deadline passes',
+      () async {
+    final api = DelayedConfirmTransport(), clock = FakeClock();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: FakeCredentials(),
+        installationId: 'installation-1234',
+        ids: FixedIds(),
+        clock: clock.call,
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    await controller.loadLinkedMethods();
+    await controller.begin(LoginProvider.google);
+    await controller.prove(LoginProvider.line);
+
+    final confirm = controller.confirm(recovery: false, platform: 'android');
+    clock.advance(const Duration(seconds: 301));
+    api.response.complete(const ApiResponse(500, {
+      'error': {'code': 'server_error'}
+    }));
+    await confirm;
+
+    expect(controller.failure, IdentityLinkFailure.generic);
   });
   testWidgets('offline never calls provider or backend', (tester) async {
     final api = FakeTransport(), credentials = FakeCredentials();
@@ -381,6 +565,7 @@ void main() {
     await controller.prove(LoginProvider.line);
     await controller.confirm(recovery: true, platform: 'android');
     expect(controller.stage, IdentityLinkStage.error);
+    expect(controller.failure, IdentityLinkFailure.generic);
     expect(controller.candidateCredential, isNull);
     expect(controller.proofCredential, isNull);
     expect(credentials.clears, 1);

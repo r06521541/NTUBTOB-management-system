@@ -511,7 +511,13 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       );
     } else if (mounted && result == IdentityLinkStage.error) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('連結流程失敗，請重新開始。')),
+        SnackBar(
+          content: Text(
+            controller.failure == IdentityLinkFailure.expired
+                ? '連結流程已逾時，請重新開始。'
+                : '連結流程失敗，請重新開始。',
+          ),
+        ),
       );
     }
   }
