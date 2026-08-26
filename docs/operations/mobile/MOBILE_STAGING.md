@@ -7,7 +7,11 @@ or distribution.
 
 ## Fixed boundary
 
-- Production project `ntubtob-schedule-405614` is always rejected.
+- Production project `ntubtob-schedule-405614` is always rejected as a
+  runtime, data or deployment target. TASK-157's shared-provider exception uses
+  it only as the External／Testing Google Auth provider under the dedicated
+  provider preflight; runtime, data and deployment remain isolated staging
+  targets.
 - Target service is `mobile-api-staging` in `asia-east1`, minimum instances 0,
   maximum 1 to 3. An update candidate receives no traffic; Cloud Run requires
   the first revision of a bootstrap service to receive 100% service traffic,
@@ -52,12 +56,13 @@ or distribution.
 ### Google Auth provider bootstrap preflight
 
 `tools/google_auth_staging_preflight.py` is an offline verifier for a separate,
-private provider-bootstrap approval. It performs no Google, cloud or network
-request and never creates a provider resource. Schema version 3 binds a
-canonical UUIDv4 approval ID, one-shot execution nonce, exact phase and complete
-observed pre-state to TASK-157, DEC-100, the stable Owner gate, and the active
-Main claim／lease. Inventory observation, not-before, and expiry timestamps use
-exact second-resolution UTC and each phase packet may span at most 30 minutes.
+private provider approval. It performs no Google, cloud or network request and
+never creates or modifies a provider resource. Executable schema version 4
+binds a canonical UUIDv4 approval ID, one-shot execution nonce, complete
+observed pre-state, exact provider/runtime pair, and existing-client correlation
+to TASK-157, DEC-100, the stable Owner gate, and the active Main claim／lease.
+Inventory observation, not-before, and expiry timestamps use exact
+second-resolution UTC and each packet may span at most 30 minutes.
 A private execution sidecar must consume the derived binding SHA-256; a
 previously consumed binding fails closed.
 The executable CLI uses a fixed, repository-external, machine-local and
@@ -103,35 +108,37 @@ new logon session, but TASK-157 does not implement that rekey operation.
 
 The approval path must remain outside the repository. The verifier rejects a
 symlink／reparse ancestor, hardlink, non-regular file, oversized input, and any
-opened-handle identity, size or modification-time drift. Its exact provider
-schema freezes the dedicated staging project, External／Testing consent screen,
-basic `openid`／`email`／`profile` scopes, one fictional tester target, and a
-complete phase-specific observed inventory. The Web and Android client aliases,
-display names, and inventory matching keys are fixed. The Web server client has
-no JavaScript origin or redirect URI; the Android client is for
-`tw.org.ntubtob.portal` with a canonical SHA-1 signer fingerprint.
+opened-handle identity, size or modification-time drift. The exact provider is
+`ntubtob-schedule-405614`, remains External／Testing and tester-restricted, while
+the exact runtime/data project is `ntubtob-mobile-staging`.
 
-Phase order and mutation vocabulary are exact:
+The packet must correlate exactly one existing Web production-candidate client
+and one existing Android debug/staging client without retaining raw identifiers
+in repository output. The Web client action is `reuse-existing` solely as the
+mobile staging server audience; its callback category is `production-only`, and
+no staging callback or JavaScript origin may be added. The Android client action
+is also `reuse-existing`. The partially configured Auth Platform in the staging
+project is frozen and non-authoritative.
 
-1. `registration` requires an unconfigured platform, unconfigured consent and
-   zero tester／Web／Android clients; it authorizes only one Auth Platform
-   registration plus one consent configuration.
-2. `web_client_create` requires registered platform, exact consent and zero
-   tester／Web／Android clients; it authorizes only one Web client create.
-3. `android_client_create` additionally requires exactly one matching Web client
-   and zero Android/tester clients; it authorizes only one Android client create.
-4. `tester_add` requires registered platform, exact consent, exactly one
-   matching Web and Android client, and zero testers; it authorizes only one
-   fictional tester add.
+Auth Platform registration, consent, tester, Web／Android client create／update／
+delete, callback/origin, Secret, IAM, public-access, billing, runtime, traffic
+and data mutation counts must all be exactly zero. This approval is architecture
+and ownership evidence only; it is not a mutation packet.
 
-Every other provider action and every Secret, IAM, public-access, billing,
-runtime and traffic mutation count must be zero. Unknown inventory, duplicates,
-cross-project ownership, completed-action reauthorization, skipped phase,
-target drift, non-exact counts, destructive rollback, and any production-project
-reference fail closed. Schema version 2 remains parseable only through the
-library for an existing bootstrap packet's dry reconciliation; the executable
-CLI rejects every v2 packet, including a newly timed reissue, and therefore v2
-cannot authorize work after phase progress exists.
+The CLI fails closed until read-only inventory proves all of the following:
+
+- production runtime has no Google identity key or Google Secret binding;
+- staging runtime identity is `staging_only`;
+- `secret_reference_project` is `staging_only` or `absent`;
+- `data_binding` is `staging_only`;
+- staging Google audience, server-client and Android-client bindings are absent
+  before the separately gated runtime-binding delivery.
+
+`unknown`, `production` or `mixed` Secret/data ownership, duplicate or
+non-correlated clients, a changed callback category, any provider/client
+mutation, or project-pair drift fails closed. Schema versions 2 and 3 remain
+parseable only through the library for dry reconciliation; the executable CLI
+rejects them and consumes only schema version 4.
 
 ```powershell
 python -m tools.google_auth_staging_preflight C:\private\google-auth-approval.json
@@ -139,9 +146,9 @@ python -m tools.google_auth_staging_preflight C:\private\google-auth-approval.js
 
 Success emits only `classification=PASS` and the canonical approval SHA-256.
 It never emits tester accounts, client identifiers, signer fingerprints,
-callback/origin data, Secret metadata or private file content. Provider
-execution remains a separate gate; rollback retains provider resources and
-evidence for explicit reconciliation rather than deleting them automatically.
+callback/origin data, Secret metadata or private file content. Runtime binding,
+deployment and real-provider smoke remain separate gates; rollback retains
+existing provider resources and evidence rather than deleting them.
 Argument and contract failures emit only `ERROR: PROVIDER_APPROVAL_INVALID`;
 usage output never repeats the private path or other argument values.
 Library callers may use `load_provider_approval` for offline dry validation and
@@ -149,6 +156,10 @@ inject a consumed-binding inventory for tests or sidecar reconciliation. That
 API does not consume the packet and is not execution-gate or mutation authority;
 only a successful CLI invocation with its retained atomic sidecar establishes
 consumption.
+
+Any later production Publish must explicitly review the reused Web
+production-candidate client and retire／migrate／review the Android debug/staging
+use. TASK-157 staging evidence cannot publish or validate production Auth.
 
 The LINE Login channel must remain `Developing`, under the same Provider as the
 related channels. Configure Mobile app identities `tw.org.ntubtob.portal` for

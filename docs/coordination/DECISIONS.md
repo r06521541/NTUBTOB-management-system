@@ -275,6 +275,13 @@
 - Artifact classes（2026-08-26 clarification）：baked broker build-context fixture與Google Auth provider approval不可
   互換。前者維持其fictional broker deployment contract，絕不作為provider target authority；後者是repository外、
   無Secret payload、短效且單次消耗的private approval，只能由provider preflight驗證後解析TASK-157的provider target。
+- Google Auth environment boundary（2026-08-26）：TASK-157採shared-provider／isolated-runtime。Google Auth Platform
+  固定使用primary project且維持External／Testing；既有production-candidate Web client只作staging mobile server
+  audience、保留production-only callback且不得增加staging callback/origin，既有Android debug/staging client原樣沿用。
+  Runtime與data固定在`ntubtob-mobile-staging`；該project內已部分設定的Auth Platform凍結且不具權威。本task的
+  Auth Platform、client、callback、consent與tester mutation均為零。Secret reference project為`staging_only`或
+  `absent`且data binding為`staging_only`前，private approval／CLI必須fail closed。未來production Publish須明確
+  review Web client並retire／migrate／review Android debug/staging用途；staging成功不構成production驗收。
 - Repository autonomy：Work／Codex可依DEC-076完成branch、commit、push、PR、CI與merge；本repository的一般
   coordination／authority payload push已獲Owner明確授權。Secret、credential、token與Secret payload仍不得提交。
 - Read-only autonomy：可自主查看sandbox Cloud Run、build、traffic、runtime env key、Secret reference metadata、IAM

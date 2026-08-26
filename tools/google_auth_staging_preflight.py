@@ -1,4 +1,4 @@
-"""Offline verifier for a private Google Auth staging bootstrap approval."""
+"""Offline verifier for a private Google Auth staging provider approval."""
 
 from __future__ import annotations
 
@@ -35,6 +35,9 @@ BASIC_SCOPES = ["openid", "email", "profile"]
 TASK_ID = "TASK-157"
 DECISION_ID = "DEC-100"
 OWNER_GATE_ID = "TASK-157-OWNER-GATE-GOOGLE-AUTH-SEPARATION-20260826"
+SHARED_PROVIDER_OWNER_GATE_ID = (
+    "TASK-157-OWNER-GATE-SHARED-PROVIDER-RUNTIME-SEPARATION-20260826"
+)
 MAIN_CLAIM_ID = "main-work-20260825"
 MAIN_LEASE_VERSION = 17
 PHASE_STATES = {
@@ -64,6 +67,7 @@ MAX_VALIDITY = timedelta(minutes=30)
 UTC_TIMESTAMP = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
 SHA1_FINGERPRINT = re.compile(r"^(?:[0-9A-F]{2}:){19}[0-9A-F]{2}$")
 EXECUTION_NONCE = re.compile(r"^[0-9a-f]{64}$")
+SHA256_VALUE = re.compile(r"^[0-9a-f]{64}$")
 ACCOUNT = re.compile(
     r"^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9]"
     r"(?:[A-Za-z0-9.-]{0,187}[A-Za-z0-9])?$"
@@ -176,7 +180,9 @@ def _parse_utc(value: object) -> datetime:
         _fail("Approval timestamp is invalid")
 
 
-def _validate_authority(value: object, approval_id: object) -> None:
+def _validate_authority(
+    value: object, approval_id: object, *, owner_gate_id: str = OWNER_GATE_ID
+) -> None:
     authority = _exact_object(
         value,
         {
@@ -191,7 +197,7 @@ def _validate_authority(value: object, approval_id: object) -> None:
     if authority != {
         "task_id": TASK_ID,
         "decision_id": DECISION_ID,
-        "owner_gate_id": OWNER_GATE_ID,
+        "owner_gate_id": owner_gate_id,
         "main_claim_id": MAIN_CLAIM_ID,
         "main_lease_version": MAIN_LEASE_VERSION,
     }:
@@ -466,10 +472,240 @@ def _validate_mutation_boundary(
         _fail("Rollback must retain provider resources and evidence")
 
 
+def _validate_shared_provider_boundary(value: object) -> None:
+    boundary = _exact_object(
+        value,
+        {
+            "audience",
+            "publishing_status",
+            "tester_restricted",
+            "tester_count",
+            "staging_auth_platform",
+            "production_publish_review_gate",
+        },
+        "Shared provider boundary fields are not exact",
+    )
+    if (
+        boundary["audience"] != "external"
+        or boundary["publishing_status"] != "testing"
+        or boundary["tester_restricted"] is not True
+        or type(boundary["tester_count"]) is not int
+        or boundary["tester_count"] != 1
+        or boundary["staging_auth_platform"] != "frozen-non-authoritative"
+        or boundary["production_publish_review_gate"]
+        != "review-web-and-retire-or-migrate-android"
+    ):
+        _fail("Shared provider boundary is not exact")
+
+
+def _validate_shared_runtime_boundary(value: object) -> None:
+    boundary = _exact_object(
+        value,
+        {
+            "runtime_identity_project",
+            "secret_reference_project",
+            "data_binding",
+            "production_google_identity_key_presence",
+            "production_google_secret_binding_presence",
+        },
+        "Shared runtime boundary fields are not exact",
+    )
+    if (
+        boundary["runtime_identity_project"] != "staging_only"
+        or boundary["secret_reference_project"] not in {"staging_only", "absent"}
+        or boundary["data_binding"] != "staging_only"
+        or boundary["production_google_identity_key_presence"] is not False
+        or boundary["production_google_secret_binding_presence"] is not False
+    ):
+        _fail("Shared runtime ownership is not proven safe")
+
+
+def _validate_shared_inventory(value: object) -> tuple[datetime, str, str]:
+    inventory = _exact_object(
+        value,
+        {
+            "status",
+            "observed_at",
+            "provider_project",
+            "runtime_project",
+            "web_client_count",
+            "android_client_count",
+            "duplicate_client_count",
+            "web_client_correlation",
+            "android_client_correlation",
+            "web_correlation_sha256",
+            "android_correlation_sha256",
+            "callback_category",
+            "staging_google_audience_key_presence",
+            "staging_google_server_client_key_presence",
+            "staging_google_android_client_key_presence",
+        },
+        "Shared provider inventory fields are not exact",
+    )
+    if (
+        inventory["status"] != "complete"
+        or inventory["provider_project"] != PRODUCTION_PROJECT
+        or inventory["runtime_project"] != STAGING_PROJECT
+        or inventory["web_client_count"] != 1
+        or inventory["android_client_count"] != 1
+        or inventory["duplicate_client_count"] != 0
+        or inventory["web_client_correlation"] != "exact-historical-match"
+        or inventory["android_client_correlation"] != "exact-historical-match"
+        or inventory["callback_category"] != "production-only"
+        or inventory["staging_google_audience_key_presence"] is not False
+        or inventory["staging_google_server_client_key_presence"] is not False
+        or inventory["staging_google_android_client_key_presence"] is not False
+    ):
+        _fail("Shared provider inventory is not exact")
+    for field in (
+        "web_client_count",
+        "android_client_count",
+        "duplicate_client_count",
+    ):
+        if type(inventory[field]) is not int:
+            _fail("Shared provider inventory counts are invalid")
+    web_hash = inventory["web_correlation_sha256"]
+    android_hash = inventory["android_correlation_sha256"]
+    if (
+        not isinstance(web_hash, str)
+        or not SHA256_VALUE.fullmatch(web_hash)
+        or not isinstance(android_hash, str)
+        or not SHA256_VALUE.fullmatch(android_hash)
+        or web_hash == android_hash
+    ):
+        _fail("Shared provider client correlation is invalid")
+    return _parse_utc(inventory["observed_at"]), web_hash, android_hash
+
+
+def _validate_reused_clients(value: object, web_hash: str, android_hash: str) -> None:
+    if not isinstance(value, list) or len(value) != 2:
+        _fail("Exactly two existing clients must be reused")
+    by_type: dict[str, dict] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            _fail("Existing client entry is malformed")
+        client_type = item.get("client_type")
+        if client_type in by_type or client_type not in {"web", "android"}:
+            _fail("Existing client types are not exact")
+        by_type[client_type] = item
+    common = {
+        "client_type",
+        "action",
+        "owning_project",
+        "correlation_sha256",
+    }
+    web = _exact_object(
+        by_type["web"],
+        common | {"role", "callback_category", "staging_callback_or_origin_mutation"},
+        "Existing Web client fields are not exact",
+    )
+    android = _exact_object(
+        by_type["android"],
+        common | {"build_category"},
+        "Existing Android client fields are not exact",
+    )
+    if web["staging_callback_or_origin_mutation"] is not False or web != {
+        "client_type": "web",
+        "action": "reuse-existing",
+        "owning_project": PRODUCTION_PROJECT,
+        "correlation_sha256": web_hash,
+        "role": "staging-server-audience",
+        "callback_category": "production-only",
+        "staging_callback_or_origin_mutation": False,
+    }:
+        _fail("Existing Web client reuse boundary is not exact")
+    if android != {
+        "client_type": "android",
+        "action": "reuse-existing",
+        "owning_project": PRODUCTION_PROJECT,
+        "correlation_sha256": android_hash,
+        "build_category": "android-debug-staging",
+    }:
+        _fail("Existing Android client reuse boundary is not exact")
+
+
+def _validate_zero_mutation_boundary(value: object) -> None:
+    count_fields = {
+        "auth_platform_registration_count",
+        "consent_configuration_count",
+        "tester_add_count",
+        "web_client_create_count",
+        "web_client_update_count",
+        "web_client_delete_count",
+        "android_client_create_count",
+        "android_client_update_count",
+        "android_client_delete_count",
+        "callback_or_origin_mutation_count",
+        "secret_mutation_count",
+        "iam_mutation_count",
+        "public_access_mutation_count",
+        "billing_mutation_count",
+        "runtime_mutation_count",
+        "traffic_mutation_count",
+        "data_mutation_count",
+    }
+    boundary = _exact_object(
+        value,
+        count_fields | {"rollback"},
+        "Shared-provider mutation boundary fields are not exact",
+    )
+    if any(
+        type(boundary[field]) is not int or boundary[field] != 0
+        for field in count_fields
+    ):
+        _fail("Shared-provider approval must authorize zero mutations")
+    if boundary["rollback"] != "retain-existing-provider-resources-and-evidence":
+        _fail("Shared-provider rollback boundary is not exact")
+
+
+def _validate_shared_provider_approval(
+    approval: dict, *, now: datetime, consumed_execution_bindings: Collection[str]
+) -> None:
+    if approval["owner_approved"] is not True:
+        _fail("Shared-provider approval is not Owner approved")
+    if (
+        approval["provider_project"] != PRODUCTION_PROJECT
+        or approval["runtime_project"] != STAGING_PROJECT
+    ):
+        _fail("Provider and runtime project pair is not exact")
+    _validate_authority(
+        approval["authority"],
+        approval["approval_id"],
+        owner_gate_id=SHARED_PROVIDER_OWNER_GATE_ID,
+    )
+    _validate_execution_binding(approval["execution_binding"])
+    observed_at, web_hash, android_hash = _validate_shared_inventory(
+        approval["inventory"]
+    )
+    _validate_validity(approval["validity"], observed_at, now)
+    _validate_shared_provider_boundary(approval["provider_boundary"])
+    _validate_shared_runtime_boundary(approval["runtime_boundary"])
+    _validate_reused_clients(approval["existing_clients"], web_hash, android_hash)
+    _validate_zero_mutation_boundary(approval["mutation_boundary"])
+    if execution_binding_sha256(approval) in consumed_execution_bindings:
+        _fail("Execution binding was already consumed")
+
+
 def execution_binding_sha256(approval: dict) -> str:
     approval_id = approval["approval_id"]
     nonce = approval["execution_binding"]["nonce"]
-    if approval.get("schema_version") == 3:
+    if approval.get("schema_version") == 4:
+        payload = json.dumps(
+            {
+                "approval_id": approval_id,
+                "nonce": nonce,
+                "schema_version": approval.get("schema_version"),
+                "phase": approval.get("phase"),
+                "inventory": approval.get("inventory"),
+                "provider_project": approval.get("provider_project"),
+                "runtime_project": approval.get("runtime_project"),
+                "runtime_boundary": approval.get("runtime_boundary"),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    elif approval.get("schema_version") == 3:
         payload = json.dumps(
             {
                 "approval_id": approval_id,
@@ -495,7 +731,7 @@ def load_provider_approval(
     """Load and validate one exact private provider-bootstrap approval."""
 
     raw = _read_opened_json(_require_private_path(path))
-    common_fields = {
+    legacy_fields = {
         "schema_version",
         "approval_id",
         "authority",
@@ -509,11 +745,37 @@ def load_provider_approval(
         "mutation_boundary",
     }
     schema_version = raw.get("schema_version")
-    if type(schema_version) is not int or schema_version not in {2, 3}:
+    if type(schema_version) is not int or schema_version not in {2, 3, 4}:
         _fail("Provider approval schema is not supported")
+    if schema_version == 4:
+        approval = _exact_object(
+            raw,
+            {
+                "schema_version",
+                "approval_id",
+                "authority",
+                "owner_approved",
+                "provider_project",
+                "runtime_project",
+                "validity",
+                "execution_binding",
+                "provider_boundary",
+                "runtime_boundary",
+                "inventory",
+                "existing_clients",
+                "mutation_boundary",
+            },
+            "Shared-provider approval fields are not exact",
+        )
+        _validate_shared_provider_approval(
+            approval,
+            now=now or datetime.now(timezone.utc),
+            consumed_execution_bindings=consumed_execution_bindings,
+        )
+        return approval
     approval = _exact_object(
         raw,
-        common_fields | ({"phase"} if schema_version == 3 else set()),
+        legacy_fields | ({"phase"} if schema_version == 3 else set()),
         "Provider approval fields are not exact",
     )
     if _contains_production_project(approval):
@@ -1110,8 +1372,8 @@ def _consume_cli_approval(
     *,
     _test_consumption_root: Path | None = None,
 ) -> Path:
-    if approval.get("schema_version") != 3 or approval.get("phase") not in PHASE_STATES:
-        _fail("Only progressive phase approvals may be consumed")
+    if approval.get("schema_version") != 4:
+        _fail("Only shared-provider approvals may be consumed")
     resolved_approval = _require_private_path(approval_path)
     resolved_parent = _require_private_path(resolved_approval.parent)
     if not resolved_parent.is_dir() or resolved_approval.parent != resolved_parent:
@@ -1228,8 +1490,8 @@ def main(
             now=effective_now,
             consumed_execution_bindings=consumed_execution_bindings,
         )
-        if approval["schema_version"] != 3:
-            _fail("Legacy full bootstrap approval is dry-validation only")
+        if approval["schema_version"] != 4:
+            _fail("Legacy provider approval is dry-validation only")
         _consume_cli_approval(
             args.approval,
             approval,

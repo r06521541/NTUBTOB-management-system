@@ -40,6 +40,23 @@ by task activation alone. A repository correction must receive a separate,
 non-overlapping writer claim and an independent auth/security or Flutter
 lifecycle reviewer before implementation.
 
+### Active Stage C writer claim
+
+- claim_id: `task-157-shared-provider-contract-writer-20260826`
+- lease_version: 1
+- actor_id: `/root/task157_shared_provider_writer`
+- role: `codex-writer`
+- scope: shared-provider architecture contract and fail-closed provider preflight
+- owned paths: DEC-100 clarification in `docs/coordination/DECISIONS.md`; this
+  task; `tools/google_auth_staging_preflight.py` and its focused test;
+  Google Auth provider-preflight section in
+  `docs/operations/mobile/MOBILE_STAGING.md`
+- write: exact owned paths only; commit and push the shared task branch
+- report target: Main Work
+- stop conditions: base／dirty scope drift, authority contradiction, any need
+  for provider／cloud／runtime／Secret action, or inability to preserve existing
+  private-path／one-shot／no-disclosure guards
+
 ## Product outcome
 
 Move the Google sign-in and LINE/Google identity linking/recovery implementation
@@ -56,9 +73,12 @@ identity or authorization boundaries.
   Web/Auth/DB Security plus Flutter Auth reviews passed before merge.
 - The revoked Main actor reported partial provider-side preparation and no
   deployment, traffic change or real-provider smoke.
-- This recovery has not independently verified external provider, Secret/IAM,
-  signing, revision or traffic state. Reported preparation is not acceptance
-  evidence and must not be repeated as confirmed fact.
+- Exact live/read-only correlation now verifies the primary Auth Platform is
+  External／Testing with one restricted tester and that its sole Web and Android
+  clients match the recorded production-candidate Web and Android debug/staging
+  clients. Production Google runtime bindings are absent; staging Secret
+  reference project and data-binding ownership remain unknown and are not
+  acceptance evidence.
 - Raw provider identifiers, client IDs, callback values, Secret names, key
   fingerprints and old session/worktree paths must not enter repository files,
   logs copied into reports or user-facing summaries.
@@ -93,10 +113,10 @@ provider or cloud evidence and is not the canonical invocation.
 1. Resolve only approved stable target aliases from repository authority and
    existing operator tooling, or use the Owner's latest exact sandbox target
    for read-only reconciliation; do not read `.env.yaml` or Secret payloads.
-2. Verify a single active account, then use the private provider-approval
-   project and
-   explicit region/service flags for every cloud read; do not require or modify
-   the local default project/region when DEC-100 resolves a different target.
+2. Verify the exact shared pair: provider project `ntubtob-schedule-405614`
+   remains External／Testing while runtime and data remain in
+   `ntubtob-mobile-staging`. Use explicit targets for every read; do not require
+   or modify local defaults.
 3. Read only the minimum provider/cloud metadata required to classify each
    expected Web, Android, iOS, callback, Secret-reference/IAM and staging item
    as confirmed, reported-but-unverified, missing, inconsistent or blocked.
@@ -122,12 +142,20 @@ delivery group; the task-activation safety PR is not reused as that PR.
 
 ### Stage D — standing-authorized isolated staging candidate
 
-After the artifact verifier and read-only checks confirm exact target, runtime
-identity, cost ceiling, public boundary and rollback, DEC-100 authorizes agent
-execution of existing fail-closed operators for sandbox build, candidate
-deployment, health check, traffic promotion／rollback, OAuth client／callback
-metadata, runtime env, existing Secret references, fictional data and bounded
-service-account IAM. Owner-reserved actions in DEC-100 remain Gate B.
+The accepted provider architecture reuses the exact existing Web
+production-candidate identity-link client only as the mobile staging server
+audience and the exact existing Android debug/staging client. The Web
+production-only callback remains unchanged; the staging Auth Platform remains
+frozen and non-authoritative. Auth Platform／client／callback／consent／tester
+mutation counts are exactly zero.
+
+This repository correction does not authorize runtime work. Before a private
+approval or executable CLI may pass, read-only evidence must prove
+`secret_reference_project` is `staging_only` or `absent`, `data_binding` is
+`staging_only`, production runtime has no Google identity key／Secret binding,
+and staging runtime identity belongs only to `ntubtob-mobile-staging`. Unknown,
+production or mixed ownership stops. Any later runtime binding, deploy,
+promotion or smoke remains a separate Gate B packet under DEC-100.
 
 ### Gate E — real-provider smoke
 
@@ -140,6 +168,8 @@ the acceptance harness or treat absence of logs as success.
 
 Production promotion is outside TASK-157 and requires a new exact Owner work
 package after staging evidence is accepted.
+That package must explicitly review the reused Web production-candidate client
+and retire／migrate／review Android debug/staging use before provider publishing.
 
 ## Verification budget
 
@@ -159,9 +189,10 @@ package after staging evidence is accepted.
 
 - External preparation is independently classified without exposing restricted
   identifiers or Secret payloads.
-- Every mutation, deployment and human provider action has its own exact Owner
-  approval and recorded post-check; ambiguous results use read-only recovery
-  diagnostics rather than replay.
+- Every mutation and deployment has an exact Gate B authority packet and
+  recorded post-check; Owner-reserved or human provider actions also have exact
+  Owner approval. Ambiguous results use read-only recovery diagnostics rather
+  than replay.
 - Approved staging Google sign-in, linking and recovery either pass with
   truthful failure/session behavior or close as blocked with a precise,
   non-secret reason and unchanged production.
@@ -195,7 +226,19 @@ package after staging evidence is accepted.
   the Owner target is absent; Owner must complete sign-in/account selection and
   select the exact sandbox project before browser inventory resumes. No
   mutation occurred.
-- 2026-08-26: Stage C artifact-authority correction is in progress. No cloud
-  or provider mutation is authorized by this correction.
-- Next action: complete Stage C, then resume Stage A and stop at Gate B or an
-  earlier stop condition.
+- 2026-08-26: Stage C artifact-authority correction merged. Subsequent exact
+  read-only reconciliation selected the primary External／Testing provider with
+  exact existing Web and Android client reuse while runtime/data remain isolated
+  in `ntubtob-mobile-staging`.
+- 2026-08-26: Shared-provider contract correction is in progress. Secret
+  reference and data-binding ownership remain unproven hard gates. No provider,
+  client, callback, consent, tester, runtime, Secret, deploy or smoke mutation is
+  authorized by this correction.
+- 2026-08-26: The claimed Stage C writer reconstructed executable schema v4,
+  preserved legacy schema 2／3 as dry-validation only, and completed focused
+  provider-preflight plus broker-fixture regressions. The immutable writer
+  commit still requires Main acceptance, one independent Auth/Security review
+  and the single hosted gate before integration.
+- Next action: complete and independently review this Stage C contract, then
+  prove the remaining runtime ownership categories before assembling or
+  consuming a private approval.

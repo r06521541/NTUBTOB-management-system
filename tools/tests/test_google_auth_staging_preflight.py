@@ -34,6 +34,7 @@ from tools.mobile_staging_broker_rollout import BrokerRolloutError
 
 
 PROJECT = "ntubtob-mobile-staging"
+PROVIDER_PROJECT = "ntubtob-schedule-405614"
 TESTER = "fictional.tester@example.invalid"
 FINGERPRINT = "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD"
 WEB_ALIAS = "google-auth-staging-web"
@@ -182,6 +183,108 @@ def phase_approval(phase: str) -> dict:
     ):
         value["mutation_boundary"][field] = int(field in PHASE_ACTION_FIELDS[phase])
     return value
+
+
+def shared_provider_approval() -> dict:
+    web_hash = "1" * 64
+    android_hash = "2" * 64
+    return {
+        "schema_version": 4,
+        "approval_id": "123e4567-e89b-42d3-a456-426614174000",
+        "authority": {
+            "task_id": "TASK-157",
+            "decision_id": "DEC-100",
+            "owner_gate_id": (
+                "TASK-157-OWNER-GATE-SHARED-PROVIDER-RUNTIME-SEPARATION-20260826"
+            ),
+            "main_claim_id": "main-work-20260825",
+            "main_lease_version": 17,
+        },
+        "owner_approved": True,
+        "provider_project": PROVIDER_PROJECT,
+        "runtime_project": PROJECT,
+        "validity": {
+            "not_before": "2026-08-26T00:05:00Z",
+            "expires_at": "2026-08-26T00:20:00Z",
+        },
+        "execution_binding": {
+            "nonce": "a" * 64,
+            "one_shot": True,
+            "consume_via": "private-sidecar",
+        },
+        "provider_boundary": {
+            "audience": "external",
+            "publishing_status": "testing",
+            "tester_restricted": True,
+            "tester_count": 1,
+            "staging_auth_platform": "frozen-non-authoritative",
+            "production_publish_review_gate": (
+                "review-web-and-retire-or-migrate-android"
+            ),
+        },
+        "runtime_boundary": {
+            "runtime_identity_project": "staging_only",
+            "secret_reference_project": "staging_only",
+            "data_binding": "staging_only",
+            "production_google_identity_key_presence": False,
+            "production_google_secret_binding_presence": False,
+        },
+        "inventory": {
+            "status": "complete",
+            "observed_at": "2026-08-26T00:00:00Z",
+            "provider_project": PROVIDER_PROJECT,
+            "runtime_project": PROJECT,
+            "web_client_count": 1,
+            "android_client_count": 1,
+            "duplicate_client_count": 0,
+            "web_client_correlation": "exact-historical-match",
+            "android_client_correlation": "exact-historical-match",
+            "web_correlation_sha256": web_hash,
+            "android_correlation_sha256": android_hash,
+            "callback_category": "production-only",
+            "staging_google_audience_key_presence": False,
+            "staging_google_server_client_key_presence": False,
+            "staging_google_android_client_key_presence": False,
+        },
+        "existing_clients": [
+            {
+                "client_type": "web",
+                "action": "reuse-existing",
+                "owning_project": PROVIDER_PROJECT,
+                "correlation_sha256": web_hash,
+                "role": "staging-server-audience",
+                "callback_category": "production-only",
+                "staging_callback_or_origin_mutation": False,
+            },
+            {
+                "client_type": "android",
+                "action": "reuse-existing",
+                "owning_project": PROVIDER_PROJECT,
+                "correlation_sha256": android_hash,
+                "build_category": "android-debug-staging",
+            },
+        ],
+        "mutation_boundary": {
+            "auth_platform_registration_count": 0,
+            "consent_configuration_count": 0,
+            "tester_add_count": 0,
+            "web_client_create_count": 0,
+            "web_client_update_count": 0,
+            "web_client_delete_count": 0,
+            "android_client_create_count": 0,
+            "android_client_update_count": 0,
+            "android_client_delete_count": 0,
+            "callback_or_origin_mutation_count": 0,
+            "secret_mutation_count": 0,
+            "iam_mutation_count": 0,
+            "public_access_mutation_count": 0,
+            "billing_mutation_count": 0,
+            "runtime_mutation_count": 0,
+            "traffic_mutation_count": 0,
+            "data_mutation_count": 0,
+            "rollback": "retain-existing-provider-resources-and-evidence",
+        },
+    }
 
 
 def approval_for_now(now: datetime, value: dict | None = None) -> dict:
@@ -374,7 +477,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 _read_opened_json(self.path)
 
     def test_cli_emits_only_classification_and_hash(self):
-        self.write(phase_approval("registration"))
+        self.write(shared_provider_approval())
         stdout = io.StringIO()
         with contextlib.redirect_stdout(stdout):
             result = self.execute()
@@ -385,7 +488,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             self.assertNotIn(private_value, stdout.getvalue())
         sidecar = json.loads(
             _consumed_sidecar_path(
-                phase_approval("registration"), self.consumption_root
+                shared_provider_approval(), self.consumption_root
             ).read_text("utf-8")
         )
         self.assertEqual(
@@ -398,9 +501,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
 
     def test_second_cli_process_is_rejected_after_first_pass(self):
         self.write(
-            approval_for_now(
-                datetime.now(timezone.utc), phase_approval("web_client_create")
-            )
+            approval_for_now(datetime.now(timezone.utc), shared_provider_approval())
         )
         repository = Path(__file__).resolve().parents[2]
         script = (
@@ -440,7 +541,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertNotIn(str(self.path), first.stdout + first.stderr + second.stderr)
 
     def test_identical_binding_copied_to_two_filenames_passes_once(self):
-        value = phase_approval("android_client_create")
+        value = shared_provider_approval()
         first_path = Path(self.temp.name) / "first-private.json"
         second_path = Path(self.temp.name) / "second-private.json"
         rendered = json.dumps(value)
@@ -468,7 +569,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertFalse(first == repository or first.is_relative_to(repository))
 
     def test_normal_cli_fails_closed_when_namespace_is_absent(self):
-        self.write(phase_approval("registration"))
+        self.write(shared_provider_approval())
         absent = Path(self.temp.name) / "absent-consumption"
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -663,9 +764,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             _verify_windows_private_acl(recreated)
 
     def test_concurrent_identical_binding_two_filenames_has_exactly_one_pass(self):
-        value = approval_for_now(
-            datetime.now(timezone.utc), phase_approval("tester_add")
-        )
+        value = approval_for_now(datetime.now(timezone.utc), shared_provider_approval())
         paths = [
             Path(self.temp.name) / f"concurrent-{index}.json" for index in range(2)
         ]
@@ -711,12 +810,12 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 consumption_root = directory / "consumed"
                 path = directory / "private-approval.json"
                 path.write_text(
-                    json.dumps(phase_approval("android_client_create")),
+                    json.dumps(shared_provider_approval()),
                     encoding="utf-8",
                 )
                 _bootstrap_consumption_root(consumption_root)
                 sidecar = _consumed_sidecar_path(
-                    phase_approval("android_client_create"), consumption_root
+                    shared_provider_approval(), consumption_root
                 )
                 sidecar.write_bytes(content)
                 stderr = io.StringIO()
@@ -730,7 +829,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 )
 
     def test_write_failure_leaves_sidecar_and_blocks_replay(self):
-        self.write(phase_approval("tester_add"))
+        self.write(shared_provider_approval())
         stderr = io.StringIO()
         with patch(
             "tools.google_auth_staging_preflight._write_sidecar_bytes",
@@ -739,7 +838,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             first = self.execute()
         self.assertEqual(first, 2)
         sidecar = _consumed_sidecar_path(
-            phase_approval("tester_add"), self.consumption_root
+            shared_provider_approval(), self.consumption_root
         )
         self.assertTrue(sidecar.exists())
         with contextlib.redirect_stderr(io.StringIO()):
@@ -748,7 +847,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertNotIn("PRIVATE-WRITE-SENTINEL", stderr.getvalue())
 
     def test_sidecar_reparse_boundary_fails_before_create(self):
-        self.write(phase_approval("web_client_create"))
+        self.write(shared_provider_approval())
         loaded = self.load()
         with patch(
             "tools.google_auth_staging_preflight._assert_path_chain_no_reparse",
@@ -764,7 +863,7 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
         self.assertFalse(_consumed_sidecar_path(loaded, self.consumption_root).exists())
 
     def test_consumption_namespace_inside_repository_is_rejected(self):
-        self.write(phase_approval("registration"))
+        self.write(shared_provider_approval())
         repository_namespace = Path(__file__).resolve().parents[2] / "tools"
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -797,8 +896,8 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
             self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
     def test_cli_contract_failure_is_fixed_and_redacted(self):
-        value = phase_approval("android_client_create")
-        value["planned_clients"][1]["sha1_fingerprint"] = "PRIVATE"
+        value = shared_provider_approval()
+        value["runtime_boundary"]["secret_reference_project"] = "PRIVATE"
         self.write(value)
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -893,6 +992,105 @@ class GoogleAuthStagingPreflightTest(unittest.TestCase):
                 with self.assertRaises(ProviderApprovalError):
                     self.load()
         self.assert_rejected("mutation_boundary.rollback", "delete-provider-resources")
+
+    def test_accepts_exact_shared_provider_and_isolated_runtime_contract(self):
+        value = shared_provider_approval()
+        self.write(value)
+        self.assertEqual(self.load(), value)
+
+    def test_shared_provider_requires_exact_project_pair_and_reuse(self):
+        mutations = (
+            ("provider_project", PROJECT),
+            ("runtime_project", PROVIDER_PROJECT),
+            ("inventory.provider_project", PROJECT),
+            ("inventory.runtime_project", PROVIDER_PROJECT),
+            ("inventory.web_client_correlation", "ambiguous"),
+            ("inventory.android_client_correlation", "ambiguous"),
+            ("inventory.duplicate_client_count", 1),
+            ("existing_clients.0.action", "create"),
+            ("existing_clients.0.owning_project", PROJECT),
+            ("existing_clients.0.correlation_sha256", "3" * 64),
+            ("existing_clients.0.role", "identity-link-callback"),
+            ("existing_clients.1.action", "create"),
+            ("existing_clients.1.build_category", "android-production"),
+        )
+        for field, replacement in mutations:
+            with self.subTest(field=field):
+                value = shared_provider_approval()
+                target = value
+                parts = field.split(".")
+                for part in parts[:-1]:
+                    target = target[int(part)] if part.isdigit() else target[part]
+                last = parts[-1]
+                if last.isdigit():
+                    target[int(last)] = replacement
+                else:
+                    target[last] = replacement
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_shared_provider_freezes_staging_auth_and_all_oauth_mutations(self):
+        contract_mutations = (
+            ("provider_boundary.staging_auth_platform", "configured"),
+            ("provider_boundary.publishing_status", "production"),
+            ("provider_boundary.tester_restricted", 1),
+            ("provider_boundary.tester_count", True),
+            ("inventory.callback_category", "staging"),
+            ("existing_clients.0.callback_category", "staging"),
+            ("existing_clients.0.staging_callback_or_origin_mutation", 0),
+            ("existing_clients.0.staging_callback_or_origin_mutation", True),
+        )
+        mutation_counts = tuple(
+            (f"mutation_boundary.{field}", 1)
+            for field in shared_provider_approval()["mutation_boundary"]
+            if field != "rollback"
+        )
+        for field, replacement in contract_mutations + mutation_counts:
+            with self.subTest(field=field):
+                value = shared_provider_approval()
+                target = value
+                parts = field.split(".")
+                for part in parts[:-1]:
+                    target = target[int(part)] if part.isdigit() else target[part]
+                target[parts[-1]] = replacement
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_shared_provider_allows_no_staging_secret_reference(self):
+        value = shared_provider_approval()
+        value["runtime_boundary"]["secret_reference_project"] = "absent"
+        self.write(value)
+        self.assertEqual(self.load(), value)
+
+    def test_shared_provider_runtime_ownership_unknown_or_mixed_fails_closed(self):
+        cases = (
+            ("secret_reference_project", "unknown"),
+            ("secret_reference_project", "production"),
+            ("secret_reference_project", "mixed"),
+            ("data_binding", "unknown"),
+            ("data_binding", "production"),
+            ("data_binding", "mixed"),
+            ("runtime_identity_project", "production"),
+            ("production_google_identity_key_presence", True),
+            ("production_google_secret_binding_presence", True),
+        )
+        for field, replacement in cases:
+            with self.subTest(field=field, replacement=replacement):
+                value = shared_provider_approval()
+                value["runtime_boundary"][field] = replacement
+                self.write(value)
+                with self.assertRaises(ProviderApprovalError):
+                    self.load()
+
+    def test_cli_rejects_superseded_isolated_provider_phase_packet(self):
+        self.write(phase_approval("tester_add"))
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            result = self.execute()
+        self.assertEqual((result, stdout.getvalue()), (2, ""))
+        self.assertEqual(stderr.getvalue(), "ERROR: PROVIDER_APPROVAL_INVALID\n")
 
     def test_accepts_each_exact_progressive_phase(self):
         for phase in PHASE_STATES:
