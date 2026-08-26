@@ -7,7 +7,11 @@ or distribution.
 
 ## Fixed boundary
 
-- Production project `ntubtob-schedule-405614` is always rejected.
+- Production project `ntubtob-schedule-405614` is always rejected as a
+  runtime, data or deployment target. TASK-157's shared-provider exception uses
+  it only as the External／Testing Google Auth provider under the dedicated
+  provider preflight; runtime, data and deployment remain isolated staging
+  targets.
 - Target service is `mobile-api-staging` in `asia-east1`, minimum instances 0,
   maximum 1 to 3. An update candidate receives no traffic; Cloud Run requires
   the first revision of a bootstrap service to receive 100% service traffic,
