@@ -40,7 +40,7 @@ by task activation alone. A repository correction must receive a separate,
 non-overlapping writer claim and an independent auth/security or Flutter
 lifecycle reviewer before implementation.
 
-### Active Stage C writer claim
+### Completed Stage C writer claim
 
 - claim_id: `task-157-shared-provider-contract-writer-20260826`
 - lease_version: 1
@@ -56,6 +56,24 @@ lifecycle reviewer before implementation.
 - stop conditions: base／dirty scope drift, authority contradiction, any need
   for provider／cloud／runtime／Secret action, or inability to preserve existing
   private-path／one-shot／no-disclosure guards
+- state: completed and independently accepted; PR #192 merged as
+  `bd8137b496dc6745bf6a6654d3437a7081c0020b`
+
+### Active Stage D operator claim
+
+- claim_id: `task-157-staging-rollout-operator-20260826`
+- lease_version: 1
+- actor_id: `01a03587-d263-7e92-9965-54816f38b8a3`
+- role: `task-operator`
+- scope: sanitized staging ownership evidence, private provider preflight,
+  bounded staging build／candidate／promotion／post-check／rollback and Gate E
+  handoff
+- write: this task branch and coordination closeout only; repository-external
+  private approval／consumption evidence; exact DEC-100 sandbox targets only
+- stop conditions: project／revision／digest／identity drift, non-staging Secret
+  or data ownership, provider/client mutation, production access, public-IAM
+  change, Secret payload, login／MFA／consent, ambiguous response or rollback
+  unavailability
 
 ## Product outcome
 
@@ -157,6 +175,39 @@ and staging runtime identity belongs only to `ntubtob-mobile-staging`. Unknown,
 production or mixed ownership stops. Any later runtime binding, deploy,
 promotion or smoke remains a separate Gate B packet under DEC-100.
 
+#### Active Gate B packet — `task157-stage-d-runtime-20260826`
+
+- repository source: exact clean
+  `bd8137b496dc6745bf6a6654d3437a7081c0020b`
+- target: `ntubtob-mobile-staging`／`asia-east1`／
+  `mobile-api-staging`; provider remains read-only in
+  `ntubtob-schedule-405614`
+- accepted preconditions: schema v4 provider approval canonical SHA-256
+  `bff02d2439605ff718b32052859f2087391a4a42f5611d12e2f3788bba6091d6`
+  consumed once; runtime identity／Secret references／data binding are
+  `staging_only`; production Google runtime bindings are absent
+- baseline: revision `mobile-api-staging-task136b-898b0e` Ready at exact 100%,
+  ingress `all`, max instances `1`; it is the rollback target
+- authorized actions and counts: one staging Cloud Build from the exact source;
+  one no-traffic candidate revision `mobile-api-staging-task157-bd8137b4` using
+  the exact built digest and existing staging-only runtime identity／Secret
+  references; add exactly one plain `MOBILE_API_GOOGLE_AUDIENCES` value for the
+  reused Web server audience; then at most one 100% sandbox traffic promotion
+- explicit zero counts: OAuth provider／client／callback／consent／tester,
+  Secret version／payload／reference, IAM／public access, database/schema/data,
+  production runtime／traffic and real notification mutations
+- post-check: build success and exact digest; candidate Ready with exact image,
+  identity, max instances, Secret refs and Google audience; baseline stays 100%
+  before promotion; after promotion candidate is exact 100%, `/health` is 2xx
+  and an unauthenticated protected request proves exact revision `0008`
+- rollback: on failed or ambiguous candidate post-check do not promote; after
+  promotion failure restore `mobile-api-staging-task136b-898b0e` to exact 100%
+  and verify it. Retain image, revision, provider resources and evidence; never
+  delete or recreate them automatically.
+- Owner-reserved boundary: Google login／account selection／MFA／consent and the
+  later bounded real-provider smoke remain Gate E human actions; this packet
+  does not authorize production promotion.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
@@ -230,15 +281,13 @@ and retire／migrate／review Android debug/staging use before provider publishi
   read-only reconciliation selected the primary External／Testing provider with
   exact existing Web and Android client reuse while runtime/data remain isolated
   in `ntubtob-mobile-staging`.
-- 2026-08-26: Shared-provider contract correction is in progress. Secret
-  reference and data-binding ownership remain unproven hard gates. No provider,
-  client, callback, consent, tester, runtime, Secret, deploy or smoke mutation is
-  authorized by this correction.
-- 2026-08-26: The claimed Stage C writer reconstructed executable schema v4,
-  preserved legacy schema 2／3 as dry-validation only, and completed focused
-  provider-preflight plus broker-fixture regressions. The immutable writer
-  commit still requires Main acceptance, one independent Auth/Security review
-  and the single hosted gate before integration.
-- Next action: complete and independently review this Stage C contract, then
-  prove the remaining runtime ownership categories before assembling or
-  consuming a private approval.
+- 2026-08-26: Shared-provider contract correction passed independent
+  Auth/Security review and hosted CI, then merged through PR #192 as
+  `bd8137b496dc6745bf6a6654d3437a7081c0020b`.
+- 2026-08-26: Fresh sanitized inventory proved production Google runtime
+  bindings absent and staging runtime identity／Secret-reference／exact-0008
+  data binding `staging_only`. The repository-external schema v4 approval was
+  consumed once and provider preflight returned `PASS`; no external mutation
+  occurred in those stages.
+- Next action: execute only the active Gate B packet, preserve the exact
+  rollback revision, and stop at Gate E for Owner human login／consent.
