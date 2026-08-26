@@ -1,6 +1,7 @@
 <nav class="member-nav" aria-label="會員功能導覽">
     <a href="{{ url_for('member_dashboard') }}">首頁</a>
     <a href="{{ url_for('future_games') }}">賽程</a>
+    <a href="{{ url_for('events') }}">活動</a>
     <a href="{{ url_for('attendance') }}">出席</a>
     <a href="{{ url_for('account') }}">我的帳號</a>
     {% if can_manage_members|default(false) %}

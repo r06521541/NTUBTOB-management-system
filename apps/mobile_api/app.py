@@ -7,12 +7,13 @@ from uuid import uuid4
 
 from flask import Flask, jsonify, request
 from shared_module.attendance_reply import AttendanceReplyNotification
+from shared_module.event_read import EventReadContractError, parse_event_key
 from shared_module.mobile_api import (
+    MAX_POSTGRESQL_BIGINT,
     AuthenticationError,
     BasicApiService,
     InvalidArgument,
     MalformedRequest,
-    MAX_POSTGRESQL_BIGINT,
     MobileApiError,
     MobileAuthService,
     NotFound,
@@ -143,15 +144,10 @@ def create_app(dependencies: Dependencies) -> Flask:
         return parsed
 
     def event_id(value):
-        if not isinstance(value, str) or not value.startswith("event_"):
-            raise MalformedRequest("event_id is malformed")
         try:
-            parsed = int(value[6:])
-        except ValueError:
+            return parse_event_key(value)
+        except EventReadContractError:
             raise MalformedRequest("event_id is malformed") from None
-        if not 1 <= parsed <= MAX_POSTGRESQL_BIGINT:
-            raise MalformedRequest("event_id is malformed")
-        return parsed
 
     def notification_id(value):
         if not isinstance(value, str) or not 14 <= len(value) <= 32:

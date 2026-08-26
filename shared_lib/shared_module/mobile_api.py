@@ -14,6 +14,7 @@ from enum import Enum
 from typing import Callable, Protocol
 
 from .attendance_reply import AttendanceReplyCommand, AttendanceReplyService
+from .event_read import EventReadContractError, project_public_event
 
 
 class MobileApiError(RuntimeError):
@@ -824,79 +825,10 @@ class BasicApiService:
 
     @staticmethod
     def _public_event(event: dict) -> dict:
-        def positive_opaque(prefix: str, value: object) -> str:
-            if type(value) is not int or not 1 <= value <= MAX_POSTGRESQL_BIGINT:
-                raise InvalidArgument(f"{prefix}_id is malformed")
-            return f"{prefix}_{value}"
-
-        def signed_game_opaque(value: object) -> str:
-            if (
-                type(value) is not int
-                or value == 0
-                or not -MAX_POSTGRESQL_BIGINT - 1 <= value <= MAX_POSTGRESQL_BIGINT
-            ):
-                raise InvalidArgument("game_id is malformed")
-            return f"game_{value}"
-
-        def utc(value: object) -> str | None:
-            if value is None:
-                return None
-            if not isinstance(value, datetime) or value.tzinfo is None:
-                raise InvalidArgument("stored event timestamp is malformed")
-            return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-
-        def bounded_text(value: object, field: str) -> str:
-            if not isinstance(value, str) or not 1 <= len(value) <= 200:
-                raise InvalidArgument(f"stored {field} is malformed")
-            return value
-
-        event_type = event.get("type")
-        if event_type not in {"game", "meal", "trip", "practice", "social", "other"}:
-            raise InvalidArgument("stored event type is malformed")
-        status = event.get("status")
-        if status not in {"published", "cancelled"}:
-            raise InvalidArgument("stored event status is malformed")
-
-        activities = []
-        for activity in event["activities"]:
-            linked_game_id = activity.get("linked_game_id")
-            activity_type = activity.get("type")
-            if activity_type not in {
-                "game",
-                "meal",
-                "transport",
-                "lodging",
-                "gathering",
-                "other",
-            }:
-                raise InvalidArgument("stored activity type is malformed")
-            position = activity.get("position")
-            if type(position) is not int:
-                raise InvalidArgument("stored activity position is malformed")
-            activities.append(
-                {
-                    "id": positive_opaque("activity", activity["id"]),
-                    "title": bounded_text(activity.get("title"), "activity title"),
-                    "type": activity_type,
-                    "position": position,
-                    "start_at": utc(activity["start_at"]),
-                    "end_at": utc(activity.get("end_at")),
-                    "linked_game_id": (
-                        signed_game_opaque(linked_game_id)
-                        if linked_game_id is not None
-                        else None
-                    ),
-                }
-            )
-        return {
-            "id": positive_opaque("event", event["id"]),
-            "title": bounded_text(event.get("title"), "event title"),
-            "type": event_type,
-            "status": status,
-            "start_at": utc(event["start_at"]),
-            "end_at": utc(event.get("end_at")),
-            "activities": activities,
-        }
+        try:
+            return project_public_event(event)
+        except EventReadContractError as error:
+            raise InvalidArgument(str(error)) from None
 
     def attendance_reply(
         self,

@@ -295,6 +295,7 @@ class MobileApiRouteTest(unittest.TestCase):
             self.client.get(f"/api/v1/events/{value}", headers=headers)
             for value in (
                 "event_0",
+                "event_07",
                 "event_nope",
                 "event_-1",
                 "event_9223372036854775808",

@@ -1,0 +1,32 @@
+{% extends '_portal_base.html' %} {% block title %}{{ event.title }}｜NTUBTOB{% endblock %}
+{% block content %}
+    <a class="portal-back-link" href="{{ url_for('events') }}">← 返回活動</a>
+    <section class="portal-card portal-event-detail-hero{% if event.status == 'cancelled' %} portal-event-card-cancelled{% endif %}">
+        <div>
+            <p class="portal-eyebrow">{{ event.type_label }}</p>
+            <h1>{{ event.title }}</h1>
+            <p>{{ event.start_datetime.year }} 年 {{ event.start_datetime.month }} 月 {{ event.start_datetime.day }} 日 · {{ event.start_datetime.strftime('%H:%M') }}{% if event.end_datetime %}－{{ event.end_datetime.strftime('%m/%d %H:%M') }}{% endif %}</p>
+        </div>
+        {% if event.status == 'cancelled' %}<span class="portal-badge portal-badge-declined">活動已取消</span>{% else %}<span class="portal-badge portal-badge-attending">已發布</span>{% endif %}
+    </section>
+    <section class="portal-section-heading">
+        <div><p class="portal-eyebrow">TIMELINE</p><h2>活動行程</h2></div>
+    </section>
+    {% if event.activities %}
+        <ol class="portal-event-timeline">
+            {% for activity in event.activities %}
+                <li class="portal-card portal-activity-card">
+                    <time datetime="{{ activity.start_at }}">{{ activity.start_datetime.strftime('%H:%M') }}</time>
+                    <div>
+                        <span class="portal-eyebrow">{{ activity.type_label }}</span>
+                        <h3>{{ activity.title }}</h3>
+                        {% if activity.end_datetime %}<p>至 {{ activity.end_datetime.strftime('%m/%d %H:%M') }}</p>{% endif %}
+                        {% if activity.linked_game_route_id %}<a href="{{ url_for('game_detail', game_id=activity.linked_game_route_id) }}">查看相關賽事 →</a>{% endif %}
+                    </div>
+                </li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <section class="portal-card portal-empty"><h2>尚無行程項目</h2><p>請留意後續活動資訊。</p></section>
+    {% endif %}
+{% endblock %}

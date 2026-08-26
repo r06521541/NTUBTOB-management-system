@@ -22,6 +22,7 @@
             </a>
             <nav class="portal-desktop-nav" aria-label="主要導覽">
                 <a href="{{ url_for('member_dashboard') }}">首頁</a>
+                <a href="{{ url_for('events') }}">活動</a>
                 <a href="{{ url_for('attendance') }}">出席</a>
                 <a href="{{ url_for('account') }}">個人</a>
                 {% if can_manage_games|default(false) %}
@@ -35,6 +36,7 @@
         <nav class="portal-bottom-nav{% if can_manage_games|default(false) %} portal-bottom-nav-management{% endif %}"
              aria-label="手機主要導覽">
             <a href="{{ url_for('member_dashboard') }}"><span aria-hidden="true">⌂</span>首頁</a>
+            <a href="{{ url_for('events') }}"><span aria-hidden="true">◇</span>活動</a>
             <a href="{{ url_for('attendance') }}"><span aria-hidden="true">✓</span>出席</a>
             <a href="{{ url_for('account') }}"><span aria-hidden="true">○</span>個人</a>
             {% if can_manage_games|default(false) %}<a href="{{ url_for('management_hub') }}"><span aria-hidden="true">◆</span>管理</a>{% endif %}

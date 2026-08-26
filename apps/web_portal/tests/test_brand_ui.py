@@ -33,15 +33,26 @@ class BrandUiContractTest(unittest.TestCase):
             with self.subTest(template=template_name):
                 template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
                 self.assertIn("filename='brand.css'", template)
-                self.assertLess(template.index("filename='brand.css'"), template.index(f"filename='{component_css}'"))
+                self.assertLess(
+                    template.index("filename='brand.css'"),
+                    template.index(f"filename='{component_css}'"),
+                )
 
-        production_base = (TEMPLATES_DIR / "_portal_base.html").read_text(encoding="utf-8")
+        production_base = (TEMPLATES_DIR / "_portal_base.html").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("filename='brand.css'", production_base)
         self.assertIn("filename='production_portal.css'", production_base)
-        self.assertLess(production_base.index("filename='brand.css'"), production_base.index("filename='production_portal.css'"))
+        self.assertLess(
+            production_base.index("filename='brand.css'"),
+            production_base.index("filename='production_portal.css'"),
+        )
 
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
-        self.assertGreater(demo_base.index("filename='brand.css'"), demo_base.index("filename='officer_nav.css'"))
+        self.assertGreater(
+            demo_base.index("filename='brand.css'"),
+            demo_base.index("filename='officer_nav.css'"),
+        )
 
     def test_auth_and_member_styles_use_shared_brand_tokens(self):
         auth_css = (STATIC_DIR / "auth.css").read_text(encoding="utf-8")
@@ -57,6 +68,7 @@ class BrandUiContractTest(unittest.TestCase):
         navigation = (TEMPLATES_DIR / "_member_nav.html").read_text(encoding="utf-8")
         self.assertIn("url_for('member_dashboard')", navigation)
         self.assertIn("url_for('future_games')", navigation)
+        self.assertIn("url_for('events')", navigation)
         self.assertIn("url_for('attendance')", navigation)
         self.assertIn("url_for('account')", navigation)
         member_css = (STATIC_DIR / "member_portal.css").read_text(encoding="utf-8")
@@ -98,7 +110,18 @@ class BrandUiContractTest(unittest.TestCase):
             with self.subTest(template=template_path.name):
                 template = template_path.read_text(encoding="utf-8")
                 self.assertNotIn("cdn.jsdelivr.net", template)
-        for template_name in ("dashboard.html", "future_games.html", "game_detail.html"):
+        for template_name in (
+            "dashboard.html",
+            "future_games.html",
+            "game_detail.html",
+        ):
+            template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
+            self.assertIn("extends '_portal_base.html'", template)
+        for template_name in (
+            "events.html",
+            "event_detail.html",
+            "event_unavailable.html",
+        ):
             template = (TEMPLATES_DIR / template_name).read_text(encoding="utf-8")
             self.assertIn("extends '_portal_base.html'", template)
 
@@ -117,11 +140,15 @@ class BrandUiContractTest(unittest.TestCase):
     def test_theme_color_and_notice_semantics_follow_brand_roles(self):
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
         brand_css = (STATIC_DIR / "brand.css").read_text(encoding="utf-8")
-        event_detail = (TEMPLATES_DIR / "demo" / "events" / "detail.html").read_text(encoding="utf-8")
+        event_detail = (TEMPLATES_DIR / "demo" / "events" / "detail.html").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn('name="theme-color" content="#29415d"', demo_base)
         self.assertNotIn('name="theme-color" content="#173f35"', demo_base)
-        self.assertIn(".metric.warning { background: var(--color-warning-soft)", brand_css)
+        self.assertIn(
+            ".metric.warning { background: var(--color-warning-soft)", brand_css
+        )
         self.assertIn(".notice.notice-danger", brand_css)
         self.assertIn('class="notice notice-danger"', event_detail)
 

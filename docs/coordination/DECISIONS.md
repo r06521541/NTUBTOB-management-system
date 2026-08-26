@@ -122,15 +122,17 @@
   LINE Notify、LINE Login、LINE webhook 與官方帳號訊息混稱為同一功能。
 - 真實通知、人工 invoke 或 broadcast 仍需 Owner 明確批准。
 
-## DEC-086：Event／Activity 尚未定案
+## DEC-086：Event／Activity 唯讀契約已定案，管理寫入仍未定案
 
-- 狀態：`active_planning`
+- 狀態：`active`
 - 生效：2026-08-09
-- 來源：`docs/planning/EVENT_MANAGEMENT_PLAN.md` 與 Owner 討論
+- 來源：`docs/planning/EVENT_MANAGEMENT_PLAN.md`、TASK-158 與 Owner 指示
 - Supersedes：無
-- 多元 Event、Activity、複合旅程、非聯盟比賽、聚餐、旅遊、交通住宿與 guest-player eligibility 已有 Demo／規劃。
+- Event／Activity schema 與 immutable `event_invitees` snapshot 已建立；TASK-158 定案 active Person 對
+  published／cancelled、non-ended Event、ordered Activity 與 scoped linked Game 的隱私受限唯讀契約。
+- Flutter／Mobile API 已實作該 read contract；Web Portal parity 只可重用相同 repository authorization，不得另行推導資格。
 - 幹部建立活動、邀請快照、資格異動、同行者／affiliate 參與與多場比賽隸屬旅程等規則尚未成為 production contract。
-- 不因 Demo 或 planning 文件直接建立 schema、migration、production route 或權限。
+- 不因既有 read contract 或 Demo 直接授權 create/edit/publish/cancel、attendance、notification、schema migration、deployment 或 production mutation。
 
 ## DEC-087：最小充分 CI 與 canonical checksum
 
