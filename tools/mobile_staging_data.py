@@ -276,7 +276,8 @@ def _fixture_audits(connection) -> list[dict]:
         connection.execute(
             text(
                 "SELECT id, action, actor_person_id, target_person_id, "
-                "auth_identity_id, before_state, after_state, reason, request_id "
+                "auth_identity_id, before_state, after_state, reason, request_id, "
+                "created_at "
                 "FROM ntubtob.access_audit WHERE target_person_id=:person "
                 "OR auth_identity_id=:identity ORDER BY "
                 "CASE id WHEN -119001 THEN 0 WHEN -119002 THEN 1 ELSE 2 END, id"
@@ -1317,13 +1318,20 @@ def _fixture_state(connection) -> str:
     expected["people"] = mobile_ids + LEGACY_IDS["people"]
     expected["auth_identities"] = mobile_ids
     expected["person_qualifications"] = mobile_ids + (1,)
+    if state == "seeded":
+        # A seeded fixture may carry the exact append-only TASK-119/TASK-126
+        # role lifecycle. Its complete shape is validated below rather than by
+        # an ID-only equality check.
+        expected.pop("access_audit")
     for table, ids in expected.items():
         if _ids(connection, table) != ids:
             raise StagingContractError(
                 f"Remote staging fixture table is drifted: {table}; do not retry"
             )
     empty_tables = (
-        (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES) - set(expected) - {"people"}
+        (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES)
+        - set(expected)
+        - {"people", "access_audit"}
     )
     if any(_ids(connection, table) for table in empty_tables):
         raise StagingContractError(
@@ -1398,17 +1406,39 @@ def _canonical_fixture_fingerprint(
             None,
             "虛構 Staging 測試員",
             None,
-            "basic",
             "active",
-            1,
             ANCHOR,
             ANCHOR,
         ),
     )
-    if tuple(map(tuple, people)) != expected_people:
+    actual_people = (
+        tuple(people[0]),
+        tuple(people[1]),
+        tuple(value for index, value in enumerate(people[2]) if index not in {4, 6}),
+    )
+    if actual_people != expected_people:
         raise StagingContractError(
             "Remote staging fixture people are drifted; do not retry"
         )
+
+    audits = _fixture_audits(connection)
+    expected_audit_ids = tuple(sorted((1, *(int(row["id"]) for row in audits))))
+    if _ids(connection, "access_audit") != expected_audit_ids or any(
+        row["created_at"] is None for row in audits
+    ):
+        raise StagingContractError(
+            "Remote staging fixture table is drifted: access_audit; do not retry"
+        )
+    tester = dict(people[2]._mapping)
+    try:
+        _classify_role_lifecycle(tester, audits)
+    except StagingContractError:
+        raise StagingContractError(
+            "Remote staging fixture table is drifted: access_audit; do not retry"
+        ) from None
+    audit_fingerprint = tuple(
+        tuple(row[field] for field in (*AUDIT_FIELDS, "created_at")) for row in audits
+    )
 
     identities = connection.execute(
         text(
@@ -1551,6 +1581,7 @@ def _canonical_fixture_fingerprint(
         "seeded",
         legacy_fingerprint,
         tuple(map(tuple, people)),
+        audit_fingerprint,
         tuple(map(tuple, identities)),
         bool(tester_binding),
         tuple(map(tuple, qualifications)),
@@ -1901,6 +1932,7 @@ def execute(
     if before["outcome"] == "completed":
         raise StagingContractError("Remote data operation already completed")
     engine = create_engine(database_url)
+    seed_required = True
     try:
         if before["outcome"] == "not_started":
             _bootstrap_empty_database(engine, root)
@@ -1923,7 +1955,9 @@ def execute(
                 raise StagingContractError(
                     "Remote staging forward-upgrade recovery failed"
                 )
-        seed(engine, private_subject)
+            seed_required = before["fixture_state"] == "clean"
+        if seed_required:
+            seed(engine, private_subject)
     except StagingContractError:
         raise
     except (SQLAlchemyError, StagingSeedError, UnicodeError):

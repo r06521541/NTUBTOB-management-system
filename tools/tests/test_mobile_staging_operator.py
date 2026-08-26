@@ -1660,6 +1660,129 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
         self.assertEqual(after["revision"], REVISION)
         self.assertEqual(after["fixture_state"], "seeded")
 
+    def test_forward_upgrade_preserves_restored_officer_lifecycle(self):
+        for previous_revision in FORWARD_REVISIONS:
+            with self.subTest(previous_revision=previous_revision):
+                with self.engine.begin() as connection:
+                    connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+                _bootstrap_empty_database(self.engine, Path.cwd())
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+                grant_officer(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                )
+                restore_basic(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                )
+                with self.engine.begin() as connection:
+                    command.downgrade(
+                        _alembic_config(Path.cwd(), connection), previous_revision
+                    )
+                with self.engine.connect() as connection:
+                    audits_before = connection.execute(
+                        text("SELECT * FROM ntubtob.access_audit ORDER BY id")
+                    ).all()
+
+                before = recover(self.approval, TEST_DATABASE_URL)
+                self.assertEqual(before["outcome"], "upgrade_pending")
+                self.assertEqual(before["revision"], previous_revision)
+                after = execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+                self.assertEqual(after["outcome"], "completed")
+                with self.engine.connect() as connection:
+                    self.assertEqual(
+                        connection.execute(
+                            text("SELECT * FROM ntubtob.access_audit ORDER BY id")
+                        ).all(),
+                        audits_before,
+                    )
+                    self.assertEqual(
+                        connection.execute(
+                            text(
+                                "SELECT portal_access_level, version FROM "
+                                "ntubtob.people WHERE id=-112001"
+                            )
+                        ).one(),
+                        ("basic", 3),
+                    )
+
+    def test_forward_upgrade_rejects_unknown_access_audit_before_alembic(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.access_audit "
+                    "(action, before_state, after_state, reason, request_id, "
+                    "created_at) VALUES ('access_changed', '{}'::json, '{}'::json, "
+                    "'unknown drift', 'task-157-unknown-drift', now())"
+                )
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "access_audit"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+
+    def test_forward_upgrade_preserves_active_officer_lifecycle(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        grant_officer(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+        after = execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self.assertEqual(after["outcome"], "completed")
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT portal_access_level, version FROM "
+                        "ntubtob.people WHERE id=-112001"
+                    )
+                ).one(),
+                ("officer", 2),
+            )
+
     def test_seeded_forward_upgrade_rejects_value_drift_before_alembic(self):
         _bootstrap_empty_database(self.engine, Path.cwd())
         execute_staging_data(
