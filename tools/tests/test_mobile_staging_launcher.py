@@ -210,7 +210,10 @@ class PowerShellContractTest(unittest.TestCase):
             invalid_cases = (
                 ({"unexpected": "field"}, "fields are not exact"),
                 ({"package_id": "tw.org.ntubtob.wrong"}, "identity is not exact"),
-                ({"android_user_homes": [r"C:\not-approved"]}, "outside the E drive"),
+                (
+                    {"android_user_homes": [r"C:\not-approved"]},
+                    "outside the approved signer homes",
+                ),
             )
             for index, (updates, expected) in enumerate(invalid_cases):
                 with self.subTest(expected=expected):
@@ -257,6 +260,43 @@ class PowerShellContractTest(unittest.TestCase):
             self.assertEqual(envelope["details"]["reason_code"], "CONFIG_INVALID")
             self.assertNotIn(str(root), governed.stdout + governed.stderr)
             self.assert_safe_output(governed)
+
+    def test_config_allows_only_the_canonical_registered_android_user_home(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            registered_home = Path(os.environ["USERPROFILE"]) / ".android"
+            valid = launcher_config()
+            valid["android_user_homes"] = [str(registered_home)]
+            valid_path = root / "registered.json"
+            valid_path.write_text(json.dumps(valid), encoding="utf-8")
+            result = self.run_harness(
+                f"""
+                $value=Load-LauncherConfig '{valid_path.as_posix()}'
+                Write-Output ('homes='+$value.android_user_homes.Count)
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("homes=1", result.stdout)
+
+            for index, external_home in enumerate(
+                (
+                    str(registered_home.parent / "other-android-home"),
+                    str(registered_home.parent / "nested" / ".." / ".android"),
+                    r"E:\task-123\nested\..\android-user",
+                )
+            ):
+                with self.subTest(external_home=external_home):
+                    invalid = launcher_config()
+                    invalid["android_user_homes"] = [external_home]
+                    invalid_path = root / f"external-{index}.json"
+                    invalid_path.write_text(json.dumps(invalid), encoding="utf-8")
+                    result = self.run_harness(
+                        f"""
+                        try {{ Load-LauncherConfig '{invalid_path.as_posix()}';exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                        """
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn("outside the approved signer homes", result.stdout)
 
     def test_config_requires_apkanalyzer_under_the_same_android_sdk(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -831,12 +871,16 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     f"""
                     function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {reported}';Stderr=''}} }}
                     $config={config}
-                    try {{ $value=Get-AllowlistedDebugSigner $config; Write-Output $value.Fingerprint }} catch {{ Write-Output ('ERROR='+$_.Exception.Message) }}
+                    try {{
+                        $value=Get-AllowlistedDebugSigner $config
+                        Write-Output ('matched='+([string]$value.Fingerprint -ceq [string]$config.signer_allowlist[0]))
+                        $value.Stream.Dispose()
+                    }} catch {{ Write-Output ('ERROR='+$_.Exception.Message) }}
                     """
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 if success:
-                    self.assertIn(FINGERPRINT, result.stdout)
+                    self.assertIn("matched=True", result.stdout)
                 else:
                     self.assertIn("Exactly one allowlisted debug signer", result.stdout)
                 for home in homes:
@@ -862,6 +906,101 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertIn("Exactly one allowlisted debug signer", result.stdout)
             self.assertNotIn("nested signer", result.stdout)
             self.assertNotIn(str(nested_key), result.stdout + result.stderr)
+
+    def test_signer_rejects_reparse_home_or_keystore_before_keytool(self):
+        with tempfile.TemporaryDirectory() as directory:
+            android_home = Path(directory) / "android-home"
+            android_home.mkdir()
+            (android_home / "debug.keystore").write_bytes(b"fake")
+            for reparse_target in ("home", "file"):
+                with self.subTest(reparse_target=reparse_target):
+                    result = self.run_harness(
+                        f"""
+                        $script:keytoolStarted=$false
+                        function Get-Item {{
+                            param([string]$LiteralPath,[switch]$Force)
+                            $isFile=$LiteralPath.EndsWith('debug.keystore',[StringComparison]::OrdinalIgnoreCase)
+                            $isReparse=$(if('{reparse_target}' -eq 'file'){{$isFile}}else{{-not $isFile}})
+                            $attributes=$(if($isReparse){{[IO.FileAttributes]::ReparsePoint}}elseif($isFile){{[IO.FileAttributes]::Normal}}else{{[IO.FileAttributes]::Directory}})
+                            return [pscustomobject]@{{PSIsContainer=(-not $isFile);Attributes=$attributes}}
+                        }}
+                        function Invoke-BoundedProcess {{ $script:keytoolStarted=$true;throw 'must not start' }}
+                        $config=[pscustomobject]@{{android_user_homes=@('{android_home.as_posix()}');keytool_executable='E:/mock/keytool.exe';signer_allowlist=@('{FINGERPRINT}')}}
+                        try {{ Get-AllowlistedDebugSigner $config;exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:keytoolStarted) }}
+                        """
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn(
+                        "Debug signer path contains a reparse point,started=False",
+                        result.stdout,
+                    )
+                    self.assertNotIn(str(android_home), result.stdout + result.stderr)
+
+    def test_signer_rejects_hardlink_count_before_keytool(self):
+        with tempfile.TemporaryDirectory() as directory:
+            android_home = Path(directory) / "android-home"
+            android_home.mkdir()
+            (android_home / "debug.keystore").write_bytes(b"fake")
+            result = self.run_harness(
+                f"""
+                $script:keytoolStarted=$false
+                function Get-WindowsFileIdentity {{
+                    return [pscustomobject]@{{FileIdentity='fixed';FileSize=4;LastWriteHigh=1;LastWriteLow=2;NumberOfLinks=2}}
+                }}
+                function Get-DebugSignerFingerprint {{ $script:keytoolStarted=$true;return '{FINGERPRINT}' }}
+                $config=[pscustomobject]@{{android_user_homes=@('{android_home.as_posix()}');keytool_executable='E:/mock/keytool.exe';signer_allowlist=@('{FINGERPRINT}')}}
+                try {{ Get-AllowlistedDebugSigner $config;exit 9 }} catch {{ Write-Output ($_.Exception.Message+',started='+$script:keytoolStarted) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(
+                "Debug signer hardlink count is not exact,started=False",
+                result.stdout,
+            )
+            self.assertNotIn(str(android_home), result.stdout + result.stderr)
+
+    def test_signer_handle_blocks_write_and_revalidation_detects_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            android_home = Path(directory) / "android-home"
+            android_home.mkdir()
+            keystore = android_home / "debug.keystore"
+            keystore.write_bytes(b"fake")
+            result = self.run_harness(
+                f"""
+                function Invoke-BoundedProcess {{ return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='SHA256: {FINGERPRINT}';Stderr=''}} }}
+                $config=[pscustomobject]@{{android_user_homes=@('{android_home.as_posix()}');keytool_executable='E:/mock/keytool.exe';signer_allowlist=@('{FINGERPRINT}')}}
+                $value=Get-AllowlistedDebugSigner $config
+                try {{
+                    $writer=[IO.FileStream]::new('{keystore.as_posix()}',[IO.FileMode]::Open,[IO.FileAccess]::Write,[IO.FileShare]::ReadWrite)
+                    $writer.Dispose();$blocked=$false
+                }} catch {{ $blocked=$true }}
+                $value.Stream.Dispose()
+                Write-Output ('writeBlocked='+$blocked)
+
+                $script:identityCall=0
+                function Get-WindowsFileIdentity {{
+                    $script:identityCall++
+                    $size=$(if($script:identityCall -eq 3){{5}}else{{4}})
+                    return [pscustomobject]@{{FileIdentity='fixed';FileSize=$size;LastWriteHigh=1;LastWriteLow=2;NumberOfLinks=1}}
+                }}
+                function Get-DebugSignerFingerprint {{ return '{FINGERPRINT}' }}
+                $held=[IO.FileStream]::new('{keystore.as_posix()}',[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+                $signer=[pscustomobject]@{{KeystorePath='{keystore.as_posix()}';Stream=$held;Fingerprint='{FINGERPRINT}';Identity=[pscustomobject]@{{FileIdentity='fixed';FileSize=4;LastWriteHigh=1;LastWriteLow=2;NumberOfLinks=1}}}}
+                try {{ Assert-DebugSignerStable $config $signer;exit 8 }} catch {{ Write-Output $_.Exception.Message }} finally {{ $held.Dispose() }}
+
+                function Get-WindowsFileIdentity {{ return [pscustomobject]@{{FileIdentity='fixed';FileSize=4;LastWriteHigh=1;LastWriteLow=2;NumberOfLinks=1}} }}
+                function Get-DebugSignerFingerprint {{ return ('B' * 64) }}
+                $held=[IO.FileStream]::new('{keystore.as_posix()}',[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+                $signer.Stream=$held
+                try {{ Assert-DebugSignerStable $config $signer;exit 7 }} catch {{ Write-Output $_.Exception.Message }} finally {{ $held.Dispose() }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("writeBlocked=True", result.stdout)
+            self.assertEqual(
+                result.stdout.count("Debug signer changed during verification"), 2
+            )
+            self.assertNotIn(str(android_home), result.stdout + result.stderr)
 
     def test_install_is_session_preserving_and_uses_only_install_r(self):
         result = self.run_harness(
@@ -950,7 +1089,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             $fingerprint=Get-ApkSignerFingerprint $config 'E:/task/app-debug.apk'
             if ($env:JAVA_HOME -cne '{stale_java}' -or $env:PATH -cne 'C:/stale-path-sentinel' -or $env:ANDROID_HOME -cne 'C:/stale-android-home-sentinel' -or $env:ANDROID_SDK_ROOT -cne 'C:/stale-android-sdk-root-sentinel') {{ throw 'Parent tool environment changed' }}
             if ($script:lastChildEnvironment.Count -ne 0) {{ throw 'APK Java environment was retained' }}
-            Write-Output ('package='+$package+',fingerprint='+$fingerprint+',calls='+$script:calls)
+            Write-Output ('package='+$package+',signerMatch='+($fingerprint -ceq '{FINGERPRINT}')+',calls='+$script:calls)
             foreach ($invalid in @('relative-jdk','C:/unapproved-jdk')) {{
                 $script:started=$false
                 function Invoke-BoundedProcess {{ $script:started=$true;throw 'must not start' }}
@@ -978,7 +1117,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(
-            f"package=tw.org.ntubtob.portal,fingerprint={FINGERPRINT},calls=2",
+            "package=tw.org.ntubtob.portal,signerMatch=True,calls=2",
             result.stdout,
         )
         self.assertEqual(
@@ -1080,7 +1219,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
-                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}'}} }}
+                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}';Stream=$null}} }}
+                function Assert-DebugSignerStable {{ param($Config,$Signer) }}
                 function Invoke-BoundedProcess {{
                     param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
                     [IO.Directory]::CreateDirectory('{output.parent.as_posix()}')|Out-Null
@@ -1117,7 +1257,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
                 function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
                 function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
-                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}'}} }}
+                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='{root.as_posix()}';Stream=$null}} }}
+                function Assert-DebugSignerStable {{ param($Config,$Signer) }}
                 function Invoke-BoundedProcess {{
                     param($Executable,$Arguments,$TimeoutSeconds,$ChildEnvironment,$WorkingDirectory)
                     [IO.Directory]::CreateDirectory('{output.parent.as_posix()}')|Out-Null
@@ -1216,13 +1357,56 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                     "mode",
                     "package",
                     "artifact_sha256",
-                    "signer_sha256",
+                    "signer_match",
                     "classification",
                     "retention_owner",
                 },
             )
             for sentinel in SENSITIVE_SENTINELS:
                 self.assertNotIn(sentinel, manifest)
+            self.assertNotIn(FINGERPRINT, manifest)
+
+    def test_build_revalidates_held_signer_before_and_after_flutter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshot = root / "snapshot"
+            app_root = snapshot / "clients" / "flutter_app"
+            build_output = (
+                app_root
+                / "build"
+                / "app"
+                / "outputs"
+                / "flutter-apk"
+                / "app-debug.apk"
+            )
+            app_root.mkdir(parents=True)
+            artifact = root / "evidence" / "app-debug.apk"
+            result = self.run_harness(
+                f"""
+                $script:stableCalls=0
+                function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
+                function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
+                function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
+                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='E:/approved-home';Stream=$null}} }}
+                function Assert-DebugSignerStable {{
+                    param($Config,$Signer)
+                    $script:stableCalls++
+                    if($script:stableCalls -eq 2){{throw 'Debug signer changed during verification'}}
+                }}
+                function Invoke-FlutterBuildProcess {{
+                    [IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
+                    [IO.File]::WriteAllBytes('{build_output.as_posix()}',[byte[]](1,2))
+                    return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{snapshot_root='{snapshot.as_posix()}';temp_root='{(root / 'temp').as_posix()}';evidence_root='{(root / 'evidence').as_posix()}'}}
+                try {{ Invoke-Build $config 'fake' '{FULL_SHA}';exit 9 }} catch {{ Write-Output ($_.Exception.Message+',calls='+$script:stableCalls+',output='+(Test-Path '{build_output.as_posix()}')+',artifact='+(Test-Path '{artifact.as_posix()}')) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(
+                "Debug signer changed during verification,calls=2,output=False,artifact=False",
+                result.stdout,
+            )
 
     def test_flutter_define_transport_separates_modes_and_rejects_secret_keys(self):
         sentinel = SENSITIVE_SENTINELS[0]
@@ -1957,6 +2141,19 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             self.assertNotIn("Launcher output failed", result.stdout + result.stderr)
             self.assertEqual(result.stderr, "")
 
+    def test_safe_json_rejects_raw_signer_fingerprint_fields(self):
+        result = self.run_harness(
+            f"""
+            try {{
+                Write-SafeJson ([ordered]@{{result='matched';signer_sha256='{FINGERPRINT}'}})
+                exit 9
+            }} catch {{ Write-Output $_.Exception.Message }}
+            """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Launcher output failed the sensitive-field gate", result.stdout)
+        self.assertNotIn(FINGERPRINT, result.stdout + result.stderr)
+
     def test_source_avoids_automatic_and_readonly_variable_collisions(self):
         source = LAUNCHER.read_text(encoding="utf-8")
         blocked = {
@@ -2228,6 +2425,10 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             "avdmanager create",
             "-wipe-data",
             "keytool -genkey",
+            "copy-item",
+            "mklink",
+            "-itemtype junction",
+            "-itemtype symboliclink",
             "get-process",
             "stop-process",
         ):

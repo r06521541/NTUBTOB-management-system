@@ -282,6 +282,14 @@
   Auth Platform、client、callback、consent與tester mutation均為零。Secret reference project為`staging_only`或
   `absent`且data binding為`staging_only`前，private approval／CLI必須fail closed。未來production Publish須明確
   review Web client並retire／migrate／review Android debug/staging用途；staging成功不構成production驗收。
+- Registered Android signer boundary（2026-08-26 clarification）：TASK-157沿用既有Android debug/staging client時，
+  launcher可明確選用目前OS user的canonical existing `.android` home，但所有declared E槽／external path都必須等於
+  canonical path，且每一ancestor與file均不得為reparse。唯一regular `debug.keystore`必須link count=1、匹配唯一
+  configured SHA-256 allowlist及產物signer；launcher以read-only／read-share-only handle持有同一file穿越build，並在
+  keytool與build前後重驗file identity／metadata／fingerprint。任意其他external／C槽path、dot-segment alias、hardlink、
+  reparse、multiple signer或drift皆fail closed；不得copy、link、generate、rotate或提交private key。Raw signer SHA-256只
+  可作in-memory比較，不得進manifest／launcher JSON／一般輸出。此contract不授權rebuild／install／login或任何
+  OAuth／provider mutation。
 - Repository autonomy：Work／Codex可依DEC-076完成branch、commit、push、PR、CI與merge；本repository的一般
   coordination／authority payload push已獲Owner明確授權。Secret、credential、token與Secret payload仍不得提交。
 - Read-only autonomy：可自主查看sandbox Cloud Run、build、traffic、runtime env key、Secret reference metadata、IAM

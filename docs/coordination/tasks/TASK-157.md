@@ -77,7 +77,7 @@ lifecycle reviewer before implementation.
 - state: completed; database revision `0008`, candidate exact 100%, health 200
   and unauthenticated protected 401 passed. No rollback was required.
 
-### Active Gate E recovery writer claim
+### Completed Gate E recovery writer claim
 
 - claim_id: `task-157-gate-e-recovery-writer-20260826`
 - lease_version: 1
@@ -95,6 +95,28 @@ lifecycle reviewer before implementation.
 - stop conditions: any automatic link／recovery, weakened two-provider proof,
   cross-Person ownership, production/provider/cloud/Secret action, schema
   change, unrelated dirty path or inability to preserve full-row fingerprints
+- state: completed and independently accepted; merged at
+  `8c4d95105a474e07c687839a9b521cc310656a4f`
+
+### Completed registered-signer contract writer claim
+
+- claim_id: `task-157-registered-signer-contract-writer-20260826`
+- lease_version: 1
+- actor_id: `/root/task157_registered_signer_writer`
+- role: `codex-writer`
+- scope: permit the exact existing Android debug signer already registered for
+  staging without copying or relinking its private key
+- owned paths: `tools/Invoke-MobileStaging.ps1`,
+  `tools/tests/test_mobile_staging_launcher.py`, this task and the DEC-100
+  clarification in `docs/coordination/DECISIONS.md`
+- write: exact owned paths only; regression first, self-review and focused tests;
+  no commit or push before Main Work acceptance
+- report target: Main Work
+- stop conditions: any OAuth／provider／cloud mutation, private-key copy or link,
+  raw identifier／fingerprint／Secret output, arbitrary external signer path,
+  signer ambiguity, unrelated dirty path or inability to reject reparse paths
+- state: completed and independently accepted by Auth／Security; pending the
+  single hosted gate and merge before any staging rebuild／install
 
 ## Product outcome
 
@@ -354,6 +376,31 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   or additional staging mutation is authorized until this correction passes
   independent Auth／Security review and hosted PostgreSQL 15／16 acceptance.
 
+#### Gate E correction checkpoint — `registered_android_signer_contract`
+
+- Sanitized read-only correlation proved the configured Android OAuth package
+  and signing category match the Owner's existing standard debug signer. The
+  isolated launcher signer did not match that registered category, and the
+  completed provider flow returned a truthful cancellation rather than a
+  staging session. No OAuth／provider mutation or third login replay with that
+  mismatched artifact is allowed.
+- The launcher may use the current OS user's canonical existing `.android`
+  directory only when it is explicitly selected in private launcher config,
+  every declared path equals its canonical path, no path ancestor or file is a
+  reparse point, and its single regular `debug.keystore` has link count one,
+  matches the sole configured SHA-256 allowlist entry and signs the produced
+  APK. The launcher holds one read-only／read-share-only file handle across the
+  Flutter build and revalidates identity, size, last-write metadata and the
+  in-memory fingerprint before／after keytool and build. Arbitrary external or
+  C-drive paths, aliases, dot-segment paths, hardlinks, reparse paths, drift and
+  multiple signers remain fail closed.
+- The private key must remain in place: no copy, junction, symbolic link,
+  generation, rotation or repository/evidence inclusion is permitted. Raw
+  signer SHA-256 remains only in memory for comparison; manifest, launcher JSON
+  and ordinary output expose only a match classification. This correction
+  authorizes repository contract work only; rebuild／install／login remain later
+  Gate E operations after independent Auth／Security acceptance.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
@@ -435,5 +482,9 @@ and retire／migrate／review Android debug/staging use before provider publishi
   data binding `staging_only`. The repository-external schema v4 approval was
   consumed once and provider preflight returned `PASS`; no external mutation
   occurred in those stages.
-- Next action: execute only the active Gate B packet, preserve the exact
-  rollback revision, and stop at Gate E for Owner human login／consent.
+- 2026-08-26: Stage D completed at database revision `0008`; the candidate is
+  exact 100%, health and protected gates passed, and Gate E recovery behavior
+  merged at `8c4d95105a474e07c687839a9b521cc310656a4f`.
+- Next action: accept the registered-signer launcher correction, then rebuild
+  and reinstall one staging APK before a single fresh Owner Google login. Do
+  not change OAuth clients or copy the existing private key.

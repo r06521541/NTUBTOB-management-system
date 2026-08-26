@@ -94,7 +94,7 @@ function Invoke-BoundedProcess {
 
 function Assert-NoSensitiveText {
     param([string]$Text)
-    if ($Text -match '(?i)(postgres(?:ql)?://|provider[_ -]?subject|bearer\s|id[_ -]?token|refresh[_ -]?token|assertion|keystore|storepass|keypass|api[_ -]?base[_ -]?url|line[_ -]?channel[_ -]?id)') {
+    if ($Text -match '(?i)(postgres(?:ql)?://|provider[_ -]?subject|bearer\s|id[_ -]?token|refresh[_ -]?token|assertion|keystore|storepass|keypass|signer[_ -]?(?:sha|fingerprint)|fingerprint|api[_ -]?base[_ -]?url|line[_ -]?channel[_ -]?id)') {
         Throw-Safe 'Launcher output failed the sensitive-field gate'
     }
 }
@@ -124,6 +124,25 @@ function Assert-TaskPath {
         Throw-Safe 'Path escapes the task-owned root'
     }
     return $full
+}
+
+function Test-ApprovedAndroidUserHomePath {
+    param([string]$Path)
+    if (-not [System.IO.Path]::IsPathRooted($Path)) { return $false }
+    try {
+        $candidate = [System.IO.Path]::GetFullPath($Path).TrimEnd('\')
+        $profileRoot = [System.Environment]::GetFolderPath('UserProfile')
+        $registeredRoot = [System.IO.Path]::GetFullPath((Join-Path $profileRoot '.android')).TrimEnd('\')
+    }
+    catch { return $false }
+    $declared = $Path.TrimEnd('\')
+    if ($candidate.StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $declared.Equals($candidate, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    return (
+        $candidate.Equals($registeredRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+        $declared.Equals($registeredRoot, [System.StringComparison]::OrdinalIgnoreCase)
+    )
 }
 
 function Load-LauncherConfig {
@@ -183,8 +202,8 @@ function Load-LauncherConfig {
         Throw-Safe 'Signer inventory is not exact'
     }
     foreach ($androidUserHomeCandidate in $homes) {
-        if (-not [System.IO.Path]::IsPathRooted([string]$androidUserHomeCandidate) -or -not ([string]$androidUserHomeCandidate).StartsWith('E:\', [System.StringComparison]::OrdinalIgnoreCase)) {
-            Throw-Safe 'Android user home is outside the E drive allowlist'
+        if (-not (Test-ApprovedAndroidUserHomePath ([string]$androidUserHomeCandidate))) {
+            Throw-Safe 'Android user home is outside the approved signer homes'
         }
     }
     foreach ($signer in $signers) {
@@ -670,25 +689,174 @@ function Get-ApkPackageIdentity {
     return $package
 }
 
+function Get-WindowsFileIdentity {
+    param([Microsoft.Win32.SafeHandles.SafeFileHandle]$Handle)
+    if (-not ('MobileStagingFileIdentity' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+public static class MobileStagingFileIdentity {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FileInformation {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool GetFileInformationByHandle(
+        SafeFileHandle handle,
+        out FileInformation information
+    );
+}
+'@
+    }
+    $information = [MobileStagingFileIdentity+FileInformation]::new()
+    if (-not [MobileStagingFileIdentity]::GetFileInformationByHandle($Handle, [ref]$information)) {
+        Throw-Safe 'Debug signer file identity is unavailable'
+    }
+    return [pscustomobject]@{
+        FileIdentity = ('{0:X8}:{1:X8}:{2:X8}' -f $information.VolumeSerialNumber, $information.FileIndexHigh, $information.FileIndexLow)
+        FileSize = ([uint64]$information.FileSizeHigh -shl 32) -bor [uint64]$information.FileSizeLow
+        LastWriteHigh = $information.LastWriteTime.dwHighDateTime
+        LastWriteLow = $information.LastWriteTime.dwLowDateTime
+        NumberOfLinks = [uint32]$information.NumberOfLinks
+    }
+}
+
+function Assert-NoReparseSignerPath {
+    param([string]$Path)
+    try { $cursor = [System.IO.Path]::GetFullPath($Path) }
+    catch { Throw-Safe 'Debug signer path is not canonical' }
+    while ($cursor) {
+        try { $item = Get-Item -LiteralPath $cursor -Force }
+        catch { Throw-Safe 'Debug signer path inspection failed safely' }
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            Throw-Safe 'Debug signer path contains a reparse point'
+        }
+        $parent = [System.IO.Directory]::GetParent($cursor)
+        if ($null -eq $parent) { break }
+        $cursor = $parent.FullName
+    }
+}
+
+function Test-ExactFileIdentity {
+    param([object]$Expected, [object]$Actual)
+    return (
+        [string]$Expected.FileIdentity -ceq [string]$Actual.FileIdentity -and
+        [uint64]$Expected.FileSize -eq [uint64]$Actual.FileSize -and
+        [int64]$Expected.LastWriteHigh -eq [int64]$Actual.LastWriteHigh -and
+        [int64]$Expected.LastWriteLow -eq [int64]$Actual.LastWriteLow -and
+        [uint32]$Expected.NumberOfLinks -eq 1 -and
+        [uint32]$Actual.NumberOfLinks -eq 1
+    )
+}
+
+function Get-DebugSignerFingerprint {
+    param([object]$Config, [string]$KeystorePath)
+    $result = Invoke-BoundedProcess ([string]$Config.keytool_executable) @('-list', '-v', '-keystore', $KeystorePath, '-alias', 'androiddebugkey', '-storepass', 'android', '-keypass', 'android') 30
+    if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Debug signer inventory failed safely' }
+    $certificateMatches = [regex]::Matches($result.Stdout, '(?im)SHA256:\s*([0-9A-F:]{64,95})')
+    if ($certificateMatches.Count -ne 1) { Throw-Safe 'Debug signer inventory is not exact' }
+    return (($certificateMatches[0].Groups[1].Value -replace ':', '').ToUpperInvariant())
+}
+
+function Assert-DebugSignerStable {
+    param([object]$Config, [object]$Signer)
+    Assert-NoReparseSignerPath ([string]$Signer.KeystorePath)
+    $heldBefore = Get-WindowsFileIdentity $Signer.Stream.SafeFileHandle
+    $pathStream = $null
+    try {
+        $pathStream = [System.IO.FileStream]::new(
+            [string]$Signer.KeystorePath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::Read
+        )
+        $pathIdentity = Get-WindowsFileIdentity $pathStream.SafeFileHandle
+    }
+    catch { Throw-Safe 'Debug signer stable path could not be reopened' }
+    finally { if ($null -ne $pathStream) { $pathStream.Dispose() } }
+    if (-not (Test-ExactFileIdentity $Signer.Identity $heldBefore) -or -not (Test-ExactFileIdentity $Signer.Identity $pathIdentity)) {
+        Throw-Safe 'Debug signer file identity changed'
+    }
+    $fingerprint = Get-DebugSignerFingerprint $Config ([string]$Signer.KeystorePath)
+    Assert-NoReparseSignerPath ([string]$Signer.KeystorePath)
+    $heldAfter = Get-WindowsFileIdentity $Signer.Stream.SafeFileHandle
+    $pathAfterStream = $null
+    try {
+        $pathAfterStream = [System.IO.FileStream]::new(
+            [string]$Signer.KeystorePath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::Read
+        )
+        $pathAfterIdentity = Get-WindowsFileIdentity $pathAfterStream.SafeFileHandle
+    }
+    catch { Throw-Safe 'Debug signer stable path could not be revalidated' }
+    finally { if ($null -ne $pathAfterStream) { $pathAfterStream.Dispose() } }
+    if (
+        $fingerprint -cne [string]$Signer.Fingerprint -or
+        -not (Test-ExactFileIdentity $Signer.Identity $heldAfter) -or
+        -not (Test-ExactFileIdentity $Signer.Identity $pathAfterIdentity)
+    ) {
+        Throw-Safe 'Debug signer changed during verification'
+    }
+}
+
 function Get-AllowlistedDebugSigner {
     param([object]$Config)
     $found = @()
-    foreach ($androidHome in @($Config.android_user_homes)) {
-        $keystore = Join-Path ([string]$androidHome) 'debug.keystore'
-        if (-not (Test-Path -LiteralPath $keystore -PathType Leaf)) { continue }
-        $result = Invoke-BoundedProcess ([string]$Config.keytool_executable) @('-list', '-v', '-keystore', $keystore, '-alias', 'androiddebugkey', '-storepass', 'android', '-keypass', 'android') 30
-        if ($result.TimedOut -or $result.ExitCode -ne 0) { Throw-Safe 'Debug signer inventory failed safely' }
-        $certificateMatches = [regex]::Matches($result.Stdout, '(?im)SHA256:\s*([0-9A-F:]{64,95})')
-        if ($certificateMatches.Count -ne 1) { Throw-Safe 'Debug signer inventory is not exact' }
-        $found += [pscustomobject]@{
-            Fingerprint = (($certificateMatches[0].Groups[1].Value -replace ':', '').ToUpperInvariant())
-            AndroidUserHome = [string]$androidHome
+    try {
+        foreach ($androidHome in @($Config.android_user_homes)) {
+            $keystore = Join-Path ([string]$androidHome) 'debug.keystore'
+            if (-not (Test-Path -LiteralPath $keystore -PathType Leaf)) { continue }
+            Assert-NoReparseSignerPath $keystore
+            $stream = $null
+            try {
+                $keystoreItem = Get-Item -LiteralPath $keystore -Force
+                if ($keystoreItem.PSIsContainer) { Throw-Safe 'Debug signer path is not a regular file' }
+                $stream = [System.IO.FileStream]::new(
+                    $keystore,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    [System.IO.FileShare]::Read
+                )
+                $identity = Get-WindowsFileIdentity $stream.SafeFileHandle
+                if ([uint32]$identity.NumberOfLinks -ne 1) { Throw-Safe 'Debug signer hardlink count is not exact' }
+                $fingerprint = Get-DebugSignerFingerprint $Config $keystore
+                $found += [pscustomobject]@{
+                    Fingerprint = $fingerprint
+                    AndroidUserHome = [string]$androidHome
+                    KeystorePath = $keystore
+                    Identity = $identity
+                    Stream = $stream
+                }
+                $stream = $null
+            }
+            finally { if ($null -ne $stream) { $stream.Dispose() } }
         }
+        if ($found.Count -ne 1 -or @($Config.signer_allowlist).Count -ne 1 -or [string]$found[0].Fingerprint -cne [string]$Config.signer_allowlist[0]) {
+            Throw-Safe 'Exactly one allowlisted debug signer is required'
+        }
+        Assert-DebugSignerStable $Config $found[0]
+        return $found[0]
     }
-    if ($found.Count -ne 1 -or @($Config.signer_allowlist).Count -ne 1 -or [string]$found[0].Fingerprint -cne [string]$Config.signer_allowlist[0]) {
-        Throw-Safe 'Exactly one allowlisted debug signer is required'
+    catch {
+        foreach ($signerCandidate in $found) {
+            if ($null -ne $signerCandidate.Stream) { $signerCandidate.Stream.Dispose() }
+        }
+        throw
     }
-    return $found[0]
 }
 
 function Get-ArtifactPath {
@@ -780,25 +948,30 @@ function Invoke-SignerCheck {
     $artifact = Get-ArtifactPath $Config
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { Throw-Safe 'Fresh APK artifact is unavailable' }
     [void](Get-ApkPackageIdentity $Config $artifact)
-    $approvedSigner = Get-AllowlistedDebugSigner $Config
-    $allowed = [string]$approvedSigner.Fingerprint
-    $artifactSigner = Get-ApkSignerFingerprint $Config $artifact
-    if ($artifactSigner -cne $allowed) { Throw-Safe 'Artifact signer does not match the allowlist' }
-    $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
-    [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
-    $installed = Join-Path $tempRoot 'installed.apk'
-    if (Test-Path -LiteralPath $installed) { Throw-Safe 'Stale installed APK evidence exists' }
+    $approvedSigner = $null
+    $installed = $null
     try {
+        $approvedSigner = Get-AllowlistedDebugSigner $Config
+        Assert-DebugSignerStable $Config $approvedSigner
+        $allowed = [string]$approvedSigner.Fingerprint
+        $artifactSigner = Get-ApkSignerFingerprint $Config $artifact
+        if ($artifactSigner -cne $allowed) { Throw-Safe 'Artifact signer does not match the allowlist' }
+        $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
+        [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
+        $installed = Join-Path $tempRoot 'installed.apk'
+        if (Test-Path -LiteralPath $installed) { Throw-Safe 'Stale installed APK evidence exists' }
         $path = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'shell', 'pm', 'path', $script:PackageId) 15
         if ($path.TimedOut -or $path.ExitCode -ne 0 -or $path.Stdout.Trim() -notmatch '^package:(/[^\r\n]+)$') { Throw-Safe 'Installed package path is unavailable' }
         $pull = Invoke-BoundedProcess ([string]$Config.adb_executable) @('-s', [string]$Config.serial, 'pull', $Matches[1], $installed) 60
         if ($pull.TimedOut -or $pull.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $installed -PathType Leaf)) { Throw-Safe 'Installed APK could not be inspected' }
         $installedSigner = Get-ApkSignerFingerprint $Config $installed
         if ($installedSigner -cne $allowed) { Throw-Safe 'Installed package signer does not match the allowlist' }
-        return [ordered]@{ action = 'signer-check'; result = 'matched'; signer_sha256 = $allowed }
+        Assert-DebugSignerStable $Config $approvedSigner
+        return [ordered]@{ action = 'signer-check'; result = 'matched'; signer_match = $true }
     }
     finally {
-        if (Test-Path -LiteralPath $installed) { Remove-Item -LiteralPath $installed -Force }
+        if ($installed -and (Test-Path -LiteralPath $installed)) { Remove-Item -LiteralPath $installed -Force }
+        if ($null -ne $approvedSigner -and $null -ne $approvedSigner.Stream) { $approvedSigner.Stream.Dispose() }
     }
 }
 
@@ -808,13 +981,14 @@ function Invoke-Build {
     $artifact = Get-ArtifactPath $Config
     $buildOutput = Join-Path ([string]$Config.snapshot_root) 'clients\flutter_app\build\app\outputs\flutter-apk\app-debug.apk'
     if ((Test-Path -LiteralPath $artifact) -or (Test-Path -LiteralPath $buildOutput)) { Throw-Safe 'Stale APK artifact must be removed by bounded cleanup first' }
-    $approvedSigner = Get-AllowlistedDebugSigner $Config
+    $approvedSigner = $null
     $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
     $evidenceRoot = Assert-TaskPath ([string]$Config.evidence_root) $script:TaskEvidenceRoot -AllowRoot
     [System.IO.Directory]::CreateDirectory($tempRoot) | Out-Null
     [System.IO.Directory]::CreateDirectory($evidenceRoot) | Out-Null
     $manifest = Join-Path $evidenceRoot 'artifact-manifest.json'
     try {
+        $approvedSigner = Get-AllowlistedDebugSigner $Config
         if ($SelectedMode -eq 'fake') {
             $values = [ordered]@{ APP_FLAVOR = 'development'; CLIENT_MODE = 'fake' }
         }
@@ -828,8 +1002,10 @@ function Invoke-Build {
             $values = [ordered]@{ APP_FLAVOR = 'staging'; CLIENT_MODE = 'real'; API_BASE_URL = $origin; LINE_CHANNEL_ID = $channel; GOOGLE_CLIENT_ID = $googleClient; GOOGLE_SERVER_CLIENT_ID = $googleServerClient }
         }
         $appRoot = Join-Path ([string]$Config.snapshot_root) 'clients\flutter_app'
+        Assert-DebugSignerStable $Config $approvedSigner
         $result = Invoke-FlutterBuildProcess $Config $values $SelectedMode $appRoot ([string]$approvedSigner.AndroidUserHome)
         if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $buildOutput -PathType Leaf)) { Throw-Safe 'Flutter build failed safely' }
+        Assert-DebugSignerStable $Config $approvedSigner
         Move-Item -LiteralPath $buildOutput -Destination $artifact
         $package = Get-ApkPackageIdentity $Config $artifact
         $fingerprint = Get-ApkSignerFingerprint $Config $artifact
@@ -840,18 +1016,19 @@ function Invoke-Build {
             mode = $SelectedMode
             package = $package
             artifact_sha256 = $hash
-            signer_sha256 = $fingerprint
+            signer_match = $true
             classification = 'PASS'
             retention_owner = 'TASK-123'
         }
         [System.IO.File]::WriteAllText($manifest, ($evidence | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
-        return [ordered]@{ action = 'build'; result = 'built'; commit = $ExpectedCommit; mode = $SelectedMode; package = $package; artifact_sha256 = $hash; signer_sha256 = $fingerprint }
+        return [ordered]@{ action = 'build'; result = 'built'; commit = $ExpectedCommit; mode = $SelectedMode; package = $package; artifact_sha256 = $hash; signer_match = $true }
     }
     catch {
         if (Test-Path -LiteralPath $artifact) { Remove-Item -LiteralPath $artifact -Force }
         throw
     }
     finally {
+        if ($null -ne $approvedSigner -and $null -ne $approvedSigner.Stream) { $approvedSigner.Stream.Dispose() }
         $origin = $null
         $channel = $null
         $values = $null
