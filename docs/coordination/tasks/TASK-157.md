@@ -253,6 +253,26 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   The retained candidate/image may be reused; no second build or candidate
   deployment is planned.
 
+#### Gate B recovery checkpoint — `mobile_history_classification`
+
+- After PR #193 merged, the next Owner-private read-only recovery stopped before
+  Alembic／seed with `Remote staging fixture contains unknown rows`; database
+  mutation count remained zero and the operation was not retried.
+- One bounded sanitized read-only matrix then proved revision `0006`, no
+  event／activity or identity-review rows, all five mobile runtime-history table
+  classes present, and the existing complete ownership validator returned
+  `mobile_history_exact=true`. No DSN, Secret, provider subject, row value or
+  token/hash value entered output or Git.
+- The remaining correction may exclude mobile tables from the generic
+  must-be-empty check only for a seeded fixture, then require the existing
+  all-rows-owned validator and include every mobile row in the in-memory
+  pre/post semantic fingerprint. A clean fixture still requires empty mobile
+  tables; cross-principal or partial history remains a pre-Alembic stop.
+- Resume again requires isolated PostgreSQL 15／16 acceptance and independent
+  Auth/Security review. No further staging read or mutation is authorized by
+  the correction itself; the next Owner-private invocation must remain single
+  use and occur only after the correction is merged.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
