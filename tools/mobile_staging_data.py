@@ -1328,10 +1328,16 @@ def _fixture_state(connection) -> str:
             raise StagingContractError(
                 f"Remote staging fixture table is drifted: {table}; do not retry"
             )
+    lifecycle_tables = {"people", "access_audit"}
+    if state == "seeded":
+        # Exact tester-owned mobile history is dynamic and is validated and
+        # fingerprinted below. A clean fixture still requires every mobile
+        # table to be empty.
+        lifecycle_tables |= MOBILE_TABLES
     empty_tables = (
         (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES)
         - set(expected)
-        - {"people", "access_audit"}
+        - lifecycle_tables
     )
     if any(_ids(connection, table) for table in empty_tables):
         raise StagingContractError(
@@ -1438,6 +1444,24 @@ def _canonical_fixture_fingerprint(
         ) from None
     audit_fingerprint = tuple(
         tuple(row[field] for field in (*AUDIT_FIELDS, "created_at")) for row in audits
+    )
+    if not _mobile_history_is_exact(connection):
+        raise StagingContractError(
+            "Remote staging fixture mobile history is drifted; do not retry"
+        )
+    mobile_history_fingerprint = tuple(
+        (
+            table,
+            tuple(
+                map(
+                    tuple,
+                    connection.execute(
+                        text(f"SELECT * FROM ntubtob.{table} ORDER BY id")
+                    ).all(),
+                )
+            ),
+        )
+        for table in sorted(MOBILE_TABLES)
     )
 
     identities = connection.execute(
@@ -1582,6 +1606,7 @@ def _canonical_fixture_fingerprint(
         legacy_fingerprint,
         tuple(map(tuple, people)),
         audit_fingerprint,
+        mobile_history_fingerprint,
         tuple(map(tuple, identities)),
         bool(tester_binding),
         tuple(map(tuple, qualifications)),

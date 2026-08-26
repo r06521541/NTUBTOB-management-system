@@ -1783,6 +1783,60 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                 ("officer", 2),
             )
 
+    def test_forward_upgrade_preserves_exact_mobile_history(self):
+        for previous_revision in FORWARD_REVISIONS:
+            with self.subTest(previous_revision=previous_revision):
+                with self.engine.begin() as connection:
+                    connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+                _bootstrap_empty_database(self.engine, Path.cwd())
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+                self._seed_mobile_runtime_history()
+                with self.engine.begin() as connection:
+                    command.downgrade(
+                        _alembic_config(Path.cwd(), connection), previous_revision
+                    )
+                mobile_before = self._mobile_history_snapshot()
+
+                before = recover(self.approval, TEST_DATABASE_URL)
+                self.assertEqual(before["outcome"], "upgrade_pending")
+                self.assertEqual(before["revision"], previous_revision)
+                after = execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+                self.assertEqual(after["outcome"], "completed")
+                self.assertEqual(self._mobile_history_snapshot(), mobile_before)
+
+    def test_forward_upgrade_rejects_cross_principal_mobile_history(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_mobile_runtime_history(cross_principal=True)
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "mobile history"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+
     def test_seeded_forward_upgrade_rejects_value_drift_before_alembic(self):
         _bootstrap_empty_database(self.engine, Path.cwd())
         execute_staging_data(
