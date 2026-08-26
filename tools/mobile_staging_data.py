@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -278,8 +280,8 @@ def _fixture_audits(connection) -> list[dict]:
                 "SELECT id, action, actor_person_id, target_person_id, "
                 "auth_identity_id, before_state, after_state, reason, request_id, "
                 "created_at "
-                "FROM ntubtob.access_audit WHERE target_person_id=:person "
-                "OR auth_identity_id=:identity ORDER BY "
+                "FROM ntubtob.access_audit WHERE action='access_changed' AND "
+                "(target_person_id=:person OR auth_identity_id=:identity) ORDER BY "
                 "CASE id WHEN -119001 THEN 0 WHEN -119002 THEN 1 ELSE 2 END, id"
             ),
             {"person": OFFICER_PERSON_ID, "identity": OFFICER_IDENTITY_ID},
@@ -312,6 +314,143 @@ def _legacy_fixture_audit(connection) -> bool:
     }
 
 
+def _google_recovery_fingerprint(connection) -> tuple:
+    """Accept only one complete Google recovery graph for the fictional tester."""
+    canonical_identities = list(
+        connection.execute(
+            text(
+                "SELECT id, provider, provider_subject, person_id, status, "
+                "created_at, updated_at FROM ntubtob.auth_identities "
+                "WHERE id = ANY(:fixture_ids) ORDER BY id"
+            ),
+            {"fixture_ids": list(MOBILE_FIXTURE_IDS)},
+        ).mappings()
+    )
+    if (
+        len(canonical_identities) != 3
+        or any(
+            row["provider"] != "line"
+            or row["person_id"] != row["id"]
+            or row["status"] != "linked"
+            or row["created_at"] != ANCHOR
+            or row["updated_at"] != ANCHOR
+            for row in canonical_identities
+        )
+        or canonical_identities[0]["provider_subject"] != "task112-fictional-teammate-b"
+        or canonical_identities[1]["provider_subject"] != "task112-fictional-teammate-a"
+        or not isinstance(canonical_identities[2]["provider_subject"], str)
+        or not 8 <= len(canonical_identities[2]["provider_subject"]) <= 255
+        or canonical_identities[2]["provider_subject"]
+        in {"task112-fictional-teammate-a", "task112-fictional-teammate-b"}
+    ):
+        raise StagingContractError("Canonical fictional identities are drifted")
+    identities = list(
+        connection.execute(
+            text(
+                "SELECT * FROM ntubtob.auth_identities "
+                "WHERE id <> ALL(:fixture_ids) ORDER BY id"
+            ),
+            {"fixture_ids": list(MOBILE_FIXTURE_IDS)},
+        ).mappings()
+    )
+    lifecycle_audits = list(
+        connection.execute(
+            text(
+                "SELECT * FROM ntubtob.access_audit "
+                "WHERE action IN ('identity_pending', 'identity_linked') "
+                "ORDER BY created_at, id"
+            )
+        ).mappings()
+    )
+    threads = list(
+        connection.execute(
+            text("SELECT * FROM ntubtob.identity_review_threads ORDER BY id")
+        ).mappings()
+    )
+    messages = list(
+        connection.execute(
+            text("SELECT * FROM ntubtob.identity_review_messages ORDER BY id")
+        ).mappings()
+    )
+    role_audits = _fixture_audits(connection)
+    expected_audit_ids = {
+        1,
+        *(int(row["id"]) for row in role_audits),
+        *(int(row["id"]) for row in lifecycle_audits),
+    }
+    if set(_ids(connection, "access_audit")) != expected_audit_ids:
+        raise StagingContractError("Google recovery audit graph is drifted")
+
+    if not identities:
+        if lifecycle_audits or threads or messages:
+            raise StagingContractError("Google recovery graph is partial")
+        return ()
+    if len(identities) != 1 or len(lifecycle_audits) != 2 or len(threads) != 1:
+        raise StagingContractError("Google recovery graph is partial or duplicated")
+    if messages:
+        raise StagingContractError("Google recovery graph contains unknown messages")
+
+    identity = identities[0]
+    pending, linked = lifecycle_audits
+    thread = threads[0]
+    subject = identity["provider_subject"]
+    pending_request = (
+        "identity-pending-"
+        + hashlib.sha256(f"google:{subject}".encode("utf-8")).hexdigest()[:32]
+    )
+    linked_request = linked["request_id"]
+    if (
+        identity["provider"] != "google"
+        or identity["person_id"] != OFFICER_PERSON_ID
+        or identity["status"] != "linked"
+        or not isinstance(subject, str)
+        or not 8 <= len(subject) <= 255
+        or identity["created_at"] is None
+        or identity["updated_at"] is None
+        or identity["created_at"] > identity["updated_at"]
+        or pending["action"] != "identity_pending"
+        or pending["actor_person_id"] is not None
+        or pending["target_person_id"] is not None
+        or pending["auth_identity_id"] != identity["id"]
+        or pending["before_state"] is not None
+        or pending["after_state"] != {"status": "pending"}
+        or pending["reason"] != "Google identity awaiting self-link confirmation"
+        or pending["request_id"] != pending_request
+        or pending["created_at"] != identity["created_at"]
+        or linked["action"] != "identity_linked"
+        or linked["actor_person_id"] != OFFICER_PERSON_ID
+        or linked["target_person_id"] != OFFICER_PERSON_ID
+        or linked["auth_identity_id"] != identity["id"]
+        or linked["before_state"] != {"status": "pending"}
+        or linked["after_state"]
+        != {
+            "status": "linked",
+            "source_provider": "line",
+            "target_provider": "google",
+            "outcome": "recovery_link",
+        }
+        or linked["reason"] != "Self-service cross-provider identity link"
+        or not isinstance(linked_request, str)
+        or re.fullmatch(r"identity-self-link-[0-9a-f]{40}", linked_request) is None
+        or linked["created_at"] != identity["updated_at"]
+        or pending["created_at"] > linked["created_at"]
+        or thread["auth_identity_id"] != identity["id"]
+        or thread["status"] != "closed"
+        or thread["last_applicant_message_at"] is not None
+        or thread["last_activity_at"] != linked["created_at"]
+        or thread["closed_at"] != linked["created_at"]
+        or thread["redacted_at"] is not None
+        or thread["created_at"] != pending["created_at"]
+        or thread["updated_at"] != linked["created_at"]
+    ):
+        raise StagingContractError("Google recovery graph is drifted")
+    return (
+        tuple(identity.values()),
+        tuple(tuple(row.values()) for row in lifecycle_audits),
+        tuple(thread.values()),
+    )
+
+
 def _officer_subject(value: str) -> str:
     try:
         return _validate_subject(value)
@@ -329,39 +468,65 @@ def _mobile_history_is_exact(connection) -> bool:
         (
             "mobile_sessions",
             "SELECT count(*) FROM ntubtob.mobile_sessions "
-            "WHERE auth_identity_id=-112001 AND person_id=-112001",
+            "s JOIN ntubtob.auth_identities i ON i.id=s.auth_identity_id "
+            "WHERE s.person_id=-112001 AND i.person_id=s.person_id "
+            "AND i.status='linked' AND i.provider IN ('line', 'google')",
         ),
         (
             "mobile_refresh_tokens",
             "SELECT count(*) FROM ntubtob.mobile_refresh_tokens t "
             "JOIN ntubtob.mobile_sessions s ON s.id=t.session_id "
-            "WHERE s.auth_identity_id=-112001 AND s.person_id=-112001",
+            "JOIN ntubtob.auth_identities i ON i.id=s.auth_identity_id "
+            "WHERE s.person_id=-112001 AND i.person_id=s.person_id "
+            "AND i.status='linked' AND i.provider IN ('line', 'google')",
         ),
         (
             "mobile_refresh_attempts",
             "SELECT count(*) FROM ntubtob.mobile_refresh_attempts a "
             "JOIN ntubtob.mobile_sessions s ON s.id=a.session_id "
-            "WHERE s.auth_identity_id=-112001 AND s.person_id=-112001",
+            "JOIN ntubtob.auth_identities i ON i.id=s.auth_identity_id "
+            "WHERE s.person_id=-112001 AND i.person_id=s.person_id "
+            "AND i.status='linked' AND i.provider IN ('line', 'google')",
         ),
         (
             "mobile_auth_exchanges",
             "SELECT count(*) FROM ntubtob.mobile_auth_exchanges e "
             "JOIN ntubtob.mobile_sessions s ON s.id=e.session_id "
-            "WHERE e.provider='line' AND s.auth_identity_id=-112001 "
-            "AND s.person_id=-112001",
+            "JOIN ntubtob.auth_identities i ON i.id=s.auth_identity_id "
+            "WHERE e.provider IN ('line', 'google') AND s.person_id=-112001 "
+            "AND i.person_id=s.person_id AND i.status='linked' "
+            "AND i.provider IN ('line', 'google')",
         ),
         (
             "mobile_idempotency_records",
             "SELECT count(*) FROM ntubtob.mobile_idempotency_records i "
             "JOIN ntubtob.mobile_sessions s ON s.id=i.session_id "
-            "WHERE i.person_id=-112001 AND s.auth_identity_id=-112001 "
-            "AND s.person_id=-112001",
+            "JOIN ntubtob.auth_identities a ON a.id=s.auth_identity_id "
+            "WHERE i.person_id=-112001 AND s.person_id=i.person_id "
+            "AND a.person_id=s.person_id AND a.status='linked' "
+            "AND a.provider IN ('line', 'google')",
         ),
     )
     for table, owned_query in checks:
         total = connection.scalar(text(f"SELECT count(*) FROM ntubtob.{table}"))
         if connection.scalar(text(owned_query)) != total:
             return False
+    google_exchanges = connection.scalar(
+        text(
+            "SELECT count(*) FROM ntubtob.mobile_auth_exchanges WHERE provider='google'"
+        )
+    )
+    if (
+        google_exchanges
+        and connection.scalar(
+            text(
+                "SELECT count(*) FROM ntubtob.auth_identities WHERE provider='google' "
+                "AND person_id=-112001 AND status='linked'"
+            )
+        )
+        != 1
+    ):
+        return False
     return True
 
 
@@ -499,7 +664,6 @@ def _officer_fixture_state(
     ]
     expected["games"] = MOBILE_FIXTURE_IDS + LEGACY_IDS["games"]
     expected["people"] = MOBILE_FIXTURE_IDS + LEGACY_IDS["people"]
-    expected["auth_identities"] = MOBILE_FIXTURE_IDS
     expected["person_qualifications"] = MOBILE_FIXTURE_IDS + (1,)
     # access_audit is deliberately classified below: its task-owned records are
     # append-only and are the only legitimate difference from the seed fixture.
@@ -513,13 +677,21 @@ def _officer_fixture_state(
     empty_tables = (
         (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES)
         - set(expected)
-        - {"people", "access_audit", "game_attendance_replies"}
+        - {
+            "people",
+            "access_audit",
+            "auth_identities",
+            "game_attendance_replies",
+            "identity_review_messages",
+            "identity_review_threads",
+        }
         - MOBILE_TABLES
     )
     if any(_ids(connection, table) for table in empty_tables):
         raise StagingContractError("Officer fixture contains unknown rows")
     if not _mobile_history_is_exact(connection):
         raise StagingContractError("Officer fixture mobile history is drifted")
+    _google_recovery_fingerprint(connection)
 
     people = (
         connection.execute(
@@ -718,13 +890,13 @@ def mobile_principal_inventory(approval: dict, database_url: str) -> dict:
                                 "count(*) FILTER (WHERE s.status='active') AS total, "
                                 "count(*) FILTER (WHERE s.status='active' "
                                 "AND s.person_id=-112001 "
-                                "AND s.auth_identity_id=-112001 "
-                                "AND i.status='linked' AND i.person_id=-112001) "
+                                "AND i.status='linked' AND i.person_id=s.person_id "
+                                "AND i.provider IN ('line', 'google')) "
                                 "AS expected_tuple, "
                                 "count(*) FILTER (WHERE s.status='active' "
                                 "AND s.person_id=-112001 AND ("
-                                "s.auth_identity_id=-112001 "
-                                "AND i.status='linked' AND i.person_id=-112001) "
+                                "i.status='linked' AND i.person_id=s.person_id "
+                                "AND i.provider IN ('line', 'google')) "
                                 "IS NOT TRUE) "
                                 "AS expected_person_binding_mismatch, "
                                 "count(*) FILTER (WHERE s.status='active' "
@@ -1316,7 +1488,6 @@ def _fixture_state(connection) -> str:
         mobile_ids + LEGACY_IDS["game_attendance_replies"]
     )
     expected["people"] = mobile_ids + LEGACY_IDS["people"]
-    expected["auth_identities"] = mobile_ids
     expected["person_qualifications"] = mobile_ids + (1,)
     if state == "seeded":
         # A seeded fixture may carry the exact append-only TASK-119/TASK-126
@@ -1333,7 +1504,11 @@ def _fixture_state(connection) -> str:
         # Exact tester-owned mobile history is dynamic and is validated and
         # fingerprinted below. A clean fixture still requires every mobile
         # table to be empty.
-        lifecycle_tables |= MOBILE_TABLES
+        lifecycle_tables |= MOBILE_TABLES | {
+            "auth_identities",
+            "identity_review_messages",
+            "identity_review_threads",
+        }
     empty_tables = (
         (LEGACY_TABLES | PORTAL_TABLES | MOBILE_TABLES)
         - set(expected)
@@ -1447,10 +1622,13 @@ def _canonical_fixture_fingerprint(
         )
 
     audits = _fixture_audits(connection)
-    expected_audit_ids = tuple(sorted((1, *(int(row["id"]) for row in audits))))
-    if _ids(connection, "access_audit") != expected_audit_ids or any(
-        row["created_at"] is None for row in audits
-    ):
+    try:
+        google_recovery_fingerprint = _google_recovery_fingerprint(connection)
+    except StagingContractError:
+        raise StagingContractError(
+            "Remote staging fixture Google recovery graph is drifted; do not retry"
+        ) from None
+    if any(row["created_at"] is None for row in audits):
         raise StagingContractError(
             "Remote staging fixture table is drifted: access_audit; do not retry"
         )
@@ -1535,6 +1713,14 @@ def _canonical_fixture_fingerprint(
         raise StagingContractError(
             "Remote staging fixture identity binding is drifted; do not retry"
         )
+    identity_fingerprint = tuple(
+        map(
+            tuple,
+            connection.execute(
+                text("SELECT * FROM ntubtob.auth_identities ORDER BY id")
+            ).all(),
+        )
+    )
 
     qualifications = connection.execute(
         text(
@@ -1630,9 +1816,10 @@ def _canonical_fixture_fingerprint(
         legacy_fingerprint,
         tuple(map(tuple, people)),
         audit_fingerprint,
+        google_recovery_fingerprint,
         broker_history_fingerprint,
         mobile_history_fingerprint,
-        tuple(map(tuple, identities)),
+        identity_fingerprint,
         bool(tester_binding),
         tuple(map(tuple, qualifications)),
         tuple(map(tuple, games)),

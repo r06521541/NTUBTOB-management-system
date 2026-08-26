@@ -1301,7 +1301,12 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             command.downgrade(_alembic_config(Path.cwd(), connection), revision)
 
     def _seed_mobile_runtime_history(
-        self, *, cross_principal=False, session_id="task120-fixture-session"
+        self,
+        *,
+        cross_principal=False,
+        session_id="task120-fixture-session",
+        identity_id=-112001,
+        exchange_provider="line",
     ):
         person_id = 1 if cross_principal else -112001
         label = session_id.rsplit("-", 1)[-1]
@@ -1312,13 +1317,14 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "(id, auth_identity_id, person_id, installation_id_hash, platform, "
                     "status, access_epoch, refresh_family_expires_at, revoked_at, "
                     "created_at, updated_at) VALUES "
-                    "(:session, -112001, :person, :installation, "
+                    "(:session, :identity, :person, :installation, "
                     "'android', 'revoked', 1, '2030-01-02T00:00:00Z', "
                     "'2030-01-01T00:00:00Z', '2030-01-01T00:00:00Z', "
                     "'2030-01-01T00:00:00Z')"
                 ),
                 {
                     "session": session_id,
+                    "identity": identity_id,
                     "person": person_id,
                     "installation": f"fake-installation-{label}",
                 },
@@ -1361,13 +1367,14 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     "INSERT INTO ntubtob.mobile_auth_exchanges "
                     "(provider, assertion_hash, login_attempt_hash, session_id, "
                     "expires_at, created_at) VALUES "
-                    "('line', :assertion, :attempt, :session, "
+                    "(:provider, :assertion, :attempt, :session, "
                     "'2030-01-02T00:00:00Z', "
                     "'2030-01-01T00:00:00Z')"
                 ),
                 {
                     "assertion": f"fake-assertion-{label}",
                     "attempt": f"fake-login-attempt-{label}",
+                    "provider": exchange_provider,
                     "session": session_id,
                 },
             )
@@ -1390,6 +1397,58 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                         "request": f"fake-idempotency-request-{label}-{number}",
                     },
                 )
+
+    def _seed_google_recovery_history(self):
+        subject = "fake-google-recovery-subject"
+        pending_request = (
+            "identity-pending-"
+            + hashlib.sha256(f"google:{subject}".encode("utf-8")).hexdigest()[:32]
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(id, provider, provider_subject, person_id, status, created_at, "
+                    "updated_at) VALUES (-112004, 'google', :subject, -112001, "
+                    "'linked', '2029-12-31T23:59:58Z', '2029-12-31T23:59:59Z')"
+                ),
+                {"subject": subject},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.identity_review_threads "
+                    "(id, auth_identity_id, status, last_applicant_message_at, "
+                    "last_activity_at, closed_at, redacted_at, created_at, updated_at) "
+                    "VALUES (-157001, -112004, 'closed', NULL, "
+                    "'2029-12-31T23:59:59Z', '2029-12-31T23:59:59Z', NULL, "
+                    "'2029-12-31T23:59:58Z', '2029-12-31T23:59:59Z')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.access_audit "
+                    "(id, action, actor_person_id, target_person_id, auth_identity_id, "
+                    "before_state, after_state, reason, request_id, created_at) VALUES "
+                    "(-157001, 'identity_pending', NULL, NULL, -112004, NULL, "
+                    '\'{"status": "pending"}\'::json, '
+                    "'Google identity awaiting self-link confirmation', :pending, "
+                    "'2029-12-31T23:59:58Z'), "
+                    "(-157002, 'identity_linked', -112001, -112001, -112004, "
+                    '\'{"status": "pending"}\'::json, '
+                    '\'{"status": "linked", "source_provider": "line", '
+                    '"target_provider": "google", '
+                    '"outcome": "recovery_link"}\'::json, '
+                    "'Self-service cross-provider identity link', "
+                    "'identity-self-link-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', "
+                    "'2029-12-31T23:59:59Z')"
+                ),
+                {"pending": pending_request},
+            )
+        self._seed_mobile_runtime_history(
+            session_id="task157-google-recovery-session",
+            identity_id=-112001,
+            exchange_provider="google",
+        )
 
     def _insert_runtime_residue(self, *, near_miss=False, additional=False):
         first_timestamp = (
@@ -2285,17 +2344,141 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             )
         self._assert_officer_state_unchanged()
 
-    def test_officer_restore_rejects_non_line_mobile_exchange(self):
-        self._grant_officer_with_mobile_history()
-        with self.engine.begin() as connection:
-            connection.execute(
-                text("UPDATE ntubtob.mobile_auth_exchanges SET provider='google'")
-            )
-        with self.assertRaisesRegex(StagingContractError, "mobile history is drifted"):
+    def test_officer_lifecycle_accepts_exact_same_person_google_recovery(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_google_recovery_history()
+        self._seed_mobile_runtime_history(
+            session_id="task157-google-login-session",
+            identity_id=-112004,
+            exchange_provider="google",
+        )
+        with self.engine.connect() as connection:
+            identity_before = connection.execute(
+                text("SELECT * FROM ntubtob.auth_identities ORDER BY id")
+            ).all()
+            thread_before = connection.execute(
+                text("SELECT * FROM ntubtob.identity_review_threads ORDER BY id")
+            ).all()
+        mobile_before = self._mobile_history_snapshot()
+
+        self.assertTrue(
+            grant_officer(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"]
+        )
+        self.assertTrue(
             restore_basic(
                 self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )["changed"]
+        )
+
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.execute(
+                    text("SELECT * FROM ntubtob.auth_identities ORDER BY id")
+                ).all(),
+                identity_before,
             )
-        self._assert_officer_state_unchanged()
+            self.assertEqual(
+                connection.execute(
+                    text("SELECT * FROM ntubtob.identity_review_threads ORDER BY id")
+                ).all(),
+                thread_before,
+            )
+        self.assertEqual(self._mobile_history_snapshot(), mobile_before)
+
+    def test_partial_google_recovery_graph_is_rejected(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(id, provider, provider_subject, person_id, status, created_at, "
+                    "updated_at) VALUES (-112004, 'google', 'fake-google-partial', "
+                    "-112001, 'linked', '2030-01-01T00:00:00Z', "
+                    "'2030-01-01T00:00:00Z')"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "Google recovery graph"):
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+
+    def test_cross_person_google_recovery_graph_is_rejected(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_google_recovery_history()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.auth_identities SET person_id=1 " "WHERE id=-112004"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "Google recovery graph"):
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+
+    def test_duplicate_google_identity_is_rejected(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_google_recovery_history()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(id, provider, provider_subject, person_id, status, created_at, "
+                    "updated_at) VALUES (-112005, 'google', "
+                    "'fake-google-duplicate', -112001, 'linked', "
+                    "'2030-01-01T00:00:00Z', '2030-01-01T00:00:00Z')"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "Google recovery graph"):
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
+
+    def test_google_recovery_unknown_review_message_is_rejected(self):
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        self._seed_google_recovery_history()
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.identity_review_messages "
+                    "(id, thread_id, sender_role, sender_person_id, body, "
+                    "body_redacted, created_at) VALUES "
+                    "(-157001, -157001, 'applicant', NULL, "
+                    "'fictional unexpected message', false, "
+                    "'2030-01-01T00:00:00Z')"
+                )
+            )
+        with self.assertRaisesRegex(StagingContractError, "Google recovery graph"):
+            officer_inventory(
+                self.approval, TEST_DATABASE_URL, "fake-private-tester-subject"
+            )
 
     def test_officer_restore_rejects_cross_principal_mobile_idempotency(self):
         self._grant_officer_with_mobile_history()

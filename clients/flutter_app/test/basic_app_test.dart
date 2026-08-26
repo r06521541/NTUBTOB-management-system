@@ -323,7 +323,7 @@ MobileNotification destinationNotification(Map<String, dynamic> destination) =>
     });
 
 void main() {
-  test('pending review and unknown recovery are mutually exclusive', () {
+  test('only explicit non-review identity states offer recovery', () {
     expect(
       shouldOfferIdentityRecovery(
           state: AuthViewState.identityPending,
@@ -337,9 +337,38 @@ void main() {
     );
     expect(
       shouldOfferIdentityRecovery(
+          state: AuthViewState.accountUnavailable,
+          pendingReviewCredential: null),
+      isTrue,
+    );
+    expect(
+      shouldOfferIdentityRecovery(
+          state: AuthViewState.accountUnavailable,
+          pendingReviewCredential: 'review-only-credential'),
+      isFalse,
+    );
+    expect(
+      shouldOfferIdentityRecovery(
           state: AuthViewState.loggedOut, pendingReviewCredential: null),
       isFalse,
     );
+  });
+
+  testWidgets('unlinked account exposes only the explicit recovery entry',
+      (tester) async {
+    var recoveryCalls = 0;
+    await tester.pumpWidget(MaterialApp(
+      home: AuthStatePanel(
+        state: AuthViewState.accountUnavailable,
+        onRecoverIdentity: () => recoveryCalls++,
+      ),
+    ));
+
+    expect(
+        find.byKey(const ValueKey('identity-recovery-entry')), findsOneWidget);
+    expect(recoveryCalls, 0);
+    await tester.tap(find.byKey(const ValueKey('identity-recovery-entry')));
+    expect(recoveryCalls, 1);
   });
 
   test('auth operation context rejects terminal epoch and person races', () {
