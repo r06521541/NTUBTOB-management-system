@@ -1434,13 +1434,12 @@ def _canonical_fixture_fingerprint(
             None,
             "active",
             ANCHOR,
-            ANCHOR,
         ),
     )
     actual_people = (
         tuple(people[0]),
         tuple(people[1]),
-        tuple(value for index, value in enumerate(people[2]) if index not in {4, 6}),
+        tuple(value for index, value in enumerate(people[2]) if index not in {4, 6, 8}),
     )
     if actual_people != expected_people:
         raise StagingContractError(
@@ -1462,6 +1461,11 @@ def _canonical_fixture_fingerprint(
         raise StagingContractError(
             "Remote staging fixture table is drifted: access_audit; do not retry"
         ) from None
+    expected_tester_updated_at = audits[-1]["created_at"] if audits else ANCHOR
+    if tester["updated_at"] != expected_tester_updated_at:
+        raise StagingContractError(
+            "Remote staging fixture people are drifted; do not retry"
+        )
     audit_fingerprint = tuple(
         tuple(row[field] for field in (*AUDIT_FIELDS, "created_at")) for row in audits
     )

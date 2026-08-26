@@ -1716,6 +1716,11 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                     audits_before = connection.execute(
                         text("SELECT * FROM ntubtob.access_audit ORDER BY id")
                     ).all()
+                    tester_updated_at_before = connection.scalar(
+                        text(
+                            "SELECT updated_at FROM ntubtob.people " "WHERE id=-112001"
+                        )
+                    )
 
                 before = recover(self.approval, TEST_DATABASE_URL)
                 self.assertEqual(before["outcome"], "upgrade_pending")
@@ -1743,6 +1748,15 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
                         ).one(),
                         ("basic", 3),
                     )
+                    self.assertEqual(
+                        connection.scalar(
+                            text(
+                                "SELECT updated_at FROM ntubtob.people "
+                                "WHERE id=-112001"
+                            )
+                        ),
+                        tester_updated_at_before,
+                    )
 
     def test_forward_upgrade_rejects_unknown_access_audit_before_alembic(self):
         _bootstrap_empty_database(self.engine, Path.cwd())
@@ -1766,6 +1780,39 @@ class EmptyDatabaseBootstrapIntegrationTest(unittest.TestCase):
             )
         with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
             with self.assertRaisesRegex(StagingContractError, "access_audit"):
+                execute_staging_data(
+                    self.approval,
+                    TEST_DATABASE_URL,
+                    "fake-private-tester-subject",
+                    Path.cwd(),
+                )
+        upgrade.assert_not_called()
+
+    def test_forward_upgrade_rejects_tester_timestamp_without_matching_audit(self):
+        _bootstrap_empty_database(self.engine, Path.cwd())
+        execute_staging_data(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+            Path.cwd(),
+        )
+        grant_officer(
+            self.approval,
+            TEST_DATABASE_URL,
+            "fake-private-tester-subject",
+        )
+        with self.engine.begin() as connection:
+            command.downgrade(
+                _alembic_config(Path.cwd(), connection), FORWARD_REVISIONS[1]
+            )
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET updated_at=updated_at + "
+                    "interval '1 second' WHERE id=-112001"
+                )
+            )
+        with patch("tools.mobile_staging_data.command.upgrade") as upgrade:
+            with self.assertRaisesRegex(StagingContractError, "people are drifted"):
                 execute_staging_data(
                     self.approval,
                     TEST_DATABASE_URL,
