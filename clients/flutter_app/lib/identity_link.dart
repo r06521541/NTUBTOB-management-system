@@ -14,6 +14,8 @@ enum IdentityLinkStage {
   error
 }
 
+enum IdentityLinkFailure { expired, generic }
+
 abstract interface class IdentityCredentialPort {
   Future<String?> authenticate(LoginProvider provider, {String? nonce});
   Future<void> clearPresentationState();
@@ -51,7 +53,9 @@ class IdentityLinkController extends ChangeNotifier {
       this.authorizedSend,
       this.onRecovered,
       this.onTerminalSession,
-      this.online = true});
+      this.online = true,
+      DateTime Function()? clock})
+      : clock = clock ?? DateTime.now;
   final ApiTransport transport;
   final IdentityCredentialPort credentials;
   final String installationId;
@@ -62,13 +66,26 @@ class IdentityLinkController extends ChangeNotifier {
   final Future<void> Function()? onRecovered;
   final Future<void> Function()? onTerminalSession;
   final bool online;
+  final DateTime Function() clock;
   IdentityLinkStage stage = IdentityLinkStage.idle;
+  IdentityLinkFailure? failure;
   String? candidateCredential, proofCredential;
   LoginProvider? candidateProvider, proofProvider;
   Map<String, dynamic>? safeSummary;
   List<LinkedLoginMethod> linkedMethods = const [];
   bool linkedMethodsLoaded = false;
   int _generation = 0;
+  DateTime? _expiresAt;
+
+  bool _isExpired() => _expiresAt != null && !clock().isBefore(_expiresAt!);
+
+  Future<void> _expire() async {
+    _retireLocal(clearLinkedMethods: false);
+    await _clearProviderState();
+    failure = IdentityLinkFailure.expired;
+    stage = IdentityLinkStage.error;
+    notifyListeners();
+  }
 
   Future<void> loadLinkedMethods() async {
     if (!online || linkedMethodsLoaded) return;
@@ -119,6 +136,7 @@ class IdentityLinkController extends ChangeNotifier {
         (!recovery && !linkedMethodsLoaded)) {
       return;
     }
+    failure = null;
     final generation = _generation;
     try {
       final nonce = provider == LoginProvider.line ? ids.next() : null;
@@ -140,18 +158,24 @@ class IdentityLinkController extends ChangeNotifier {
             if (nonce != null) 'nonce': nonce,
           });
       if (generation != _generation) return;
+      final expiresIn = response.body?['expires_in'];
       if (response.status != 201 ||
-          response.body?['candidate_credential'] is! String) {
+          response.body?['candidate_credential'] is! String ||
+          expiresIn is! int ||
+          expiresIn <= 0 ||
+          expiresIn > 300) {
         throw const ContractException('invalid candidate');
       }
       candidateCredential = response.body!['candidate_credential'] as String;
       candidateProvider = provider;
+      _expiresAt = clock().add(Duration(seconds: expiresIn));
       stage = IdentityLinkStage.candidateReady;
       notifyListeners();
     } on Object {
       if (generation != _generation) return;
       _retireLocal(clearLinkedMethods: false);
       await _clearProviderState();
+      failure = IdentityLinkFailure.generic;
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
@@ -163,11 +187,19 @@ class IdentityLinkController extends ChangeNotifier {
         provider == candidateProvider) {
       return;
     }
+    if (_isExpired()) {
+      await _expire();
+      return;
+    }
     final generation = _generation;
     try {
       final nonce = provider == LoginProvider.line ? ids.next() : null;
       final token = await credentials.authenticate(provider, nonce: nonce);
       if (generation != _generation) return;
+      if (_isExpired()) {
+        await _expire();
+        return;
+      }
       if (token == null) {
         await cancel();
         return;
@@ -181,20 +213,29 @@ class IdentityLinkController extends ChangeNotifier {
         if (nonce != null) 'nonce': nonce,
       });
       if (generation != _generation) return;
+      final expiresIn = response.body?['expires_in'];
       if (response.status != 201 ||
           response.body?['proof_credential'] is! String ||
-          response.body?['person'] is! Map) {
+          response.body?['person'] is! Map ||
+          expiresIn is! int ||
+          expiresIn <= 0 ||
+          expiresIn > 300) {
         throw const ContractException('invalid proof');
       }
       proofCredential = response.body!['proof_credential'] as String;
       proofProvider = provider;
       safeSummary = Map<String, dynamic>.from(response.body!['person'] as Map);
+      final proofExpiry = clock().add(Duration(seconds: expiresIn));
+      if (_expiresAt == null || proofExpiry.isBefore(_expiresAt!)) {
+        _expiresAt = proofExpiry;
+      }
       stage = IdentityLinkStage.proofReady;
       notifyListeners();
     } on Object {
       if (generation != _generation) return;
       _retireLocal(clearLinkedMethods: false);
       await _clearProviderState();
+      failure = IdentityLinkFailure.generic;
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
@@ -203,6 +244,10 @@ class IdentityLinkController extends ChangeNotifier {
   Future<void> confirm(
       {required bool recovery, required String platform}) async {
     if (!online || stage != IdentityLinkStage.proofReady) {
+      return;
+    }
+    if (_isExpired()) {
+      await _expire();
       return;
     }
     stage = IdentityLinkStage.confirming;
@@ -250,6 +295,7 @@ class IdentityLinkController extends ChangeNotifier {
       }
       _retireLocal(clearLinkedMethods: true);
       await _clearProviderState();
+      failure = null;
       stage = IdentityLinkStage.completed;
       notifyListeners();
     } on Object catch (error) {
@@ -264,6 +310,7 @@ class IdentityLinkController extends ChangeNotifier {
       }
       _retireLocal(clearLinkedMethods: true);
       await _clearProviderState();
+      failure = IdentityLinkFailure.generic;
       stage = IdentityLinkStage.error;
       notifyListeners();
     }
@@ -272,6 +319,7 @@ class IdentityLinkController extends ChangeNotifier {
   Future<void> cancel() async {
     if (!_isActiveFlow) return;
     _retireLocal(clearLinkedMethods: true);
+    failure = null;
     stage = IdentityLinkStage.cancelled;
     notifyListeners();
     try {
@@ -288,6 +336,7 @@ class IdentityLinkController extends ChangeNotifier {
 
   Future<void> terminal() async {
     _retireLocal(clearLinkedMethods: true);
+    failure = null;
     stage = IdentityLinkStage.idle;
     notifyListeners();
     await _clearProviderState();
@@ -320,6 +369,7 @@ class IdentityLinkController extends ChangeNotifier {
     candidateProvider = null;
     proofProvider = null;
     safeSummary = null;
+    _expiresAt = null;
     if (clearLinkedMethods) {
       linkedMethods = const [];
       linkedMethodsLoaded = false;
@@ -383,11 +433,18 @@ class IdentityLinkPanel extends StatelessWidget {
           if (!controller.online)
             const Text('離線唯讀，無法新增登入方式', key: ValueKey('identity-link-offline')),
           if (!recovery && controller.stage == IdentityLinkStage.error) ...[
-            const Text('無法載入登入方式，請重試。', key: ValueKey('identity-link-error')),
+            Text(
+              controller.failure == IdentityLinkFailure.expired
+                  ? '連結流程已逾時，請重新開始。'
+                  : '無法載入登入方式，請重試。',
+              key: const ValueKey('identity-link-error'),
+            ),
             OutlinedButton(
               key: const ValueKey('identity-link-retry'),
               onPressed: controller.retrySelfLink,
-              child: const Text('重試'),
+              child: Text(controller.failure == IdentityLinkFailure.expired
+                  ? '重新開始'
+                  : '重試'),
             ),
           ],
           if (controller.stage == IdentityLinkStage.idle && controller.online)
@@ -418,6 +475,12 @@ class IdentityLinkPanel extends StatelessWidget {
                     controller.confirm(recovery: recovery, platform: platform),
                 child: Text(recovery ? '確認追認並登入' : '確認新增登入方式')),
           ],
+          if (controller.stage == IdentityLinkStage.candidateReady ||
+              controller.stage == IdentityLinkStage.proofReady)
+            const Text(
+              '安全憑證最長有效 5 分鐘；請儘速完成，逾時後需重新開始。',
+              key: ValueKey('identity-link-expiry-guidance'),
+            ),
           if (controller.stage != IdentityLinkStage.idle &&
               const {
                 IdentityLinkStage.candidateReady,

@@ -487,6 +487,21 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   remain invalid. Confirmation still locks and revalidates both exact rows,
   providers, Person binding and version hashes before any mutation.
 
+#### Gate E correction checkpoint — `visible_identity_link_expiry`
+
+- Real-provider dogfood proved the candidate endpoint succeeded, but a LINE
+  proof submitted after the five-minute candidate window returned a truthful
+  `401`; the existing Flutter UI exposed only a generic retry message and did
+  not tell the Owner that the short-lived flow had expired.
+- Candidate and proof responses remain bounded to the existing maximum
+  300-second contract. Flutter now displays that completion window, keeps the
+  earlier of the candidate/proof deadlines, and fails locally before provider
+  reauthentication or confirmation when the pair is already expired.
+- Expiry retires all in-memory credentials and provider presentation state,
+  performs no proof／confirm request, and presents an explicit restart action.
+  Token lifetime, backend wire schema, provider configuration and staging data
+  remain unchanged.
+
 ### Gate E — real-provider smoke
 
 Human login, consent, credential entry or account selection is
