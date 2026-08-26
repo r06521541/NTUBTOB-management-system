@@ -92,7 +92,9 @@ bool shouldOfferIdentityRecovery({
   required AuthViewState state,
   required String? pendingReviewCredential,
 }) =>
-    state == AuthViewState.identityPending && pendingReviewCredential == null;
+    (state == AuthViewState.identityPending ||
+        state == AuthViewState.accountUnavailable) &&
+    pendingReviewCredential == null;
 
 class AuthStatePanel extends StatelessWidget {
   const AuthStatePanel({
@@ -138,7 +140,8 @@ class AuthStatePanel extends StatelessWidget {
                   state == AuthViewState.exchanging,
               liveRegion: true,
             ),
-            if (state == AuthViewState.identityPending &&
+            if ((state == AuthViewState.identityPending ||
+                    state == AuthViewState.accountUnavailable) &&
                 onRecoverIdentity != null)
               TextButton(
                 key: const ValueKey('identity-recovery-entry'),

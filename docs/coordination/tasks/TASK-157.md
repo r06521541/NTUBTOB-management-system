@@ -59,7 +59,7 @@ lifecycle reviewer before implementation.
 - state: completed and independently accepted; PR #192 merged as
   `bd8137b496dc6745bf6a6654d3437a7081c0020b`
 
-### Active Stage D operator claim
+### Completed Stage D operator claim
 
 - claim_id: `task-157-staging-rollout-operator-20260826`
 - lease_version: 1
@@ -74,6 +74,27 @@ lifecycle reviewer before implementation.
   or data ownership, provider/client mutation, production access, public-IAM
   change, Secret payload, login／MFA／consent, ambiguous response or rollback
   unavailability
+- state: completed; database revision `0008`, candidate exact 100%, health 200
+  and unauthenticated protected 401 passed. No rollback was required.
+
+### Active Gate E recovery writer claim
+
+- claim_id: `task-157-gate-e-recovery-writer-20260826`
+- lease_version: 1
+- actor_id: `/root/task157_gate_e_recovery_writer`
+- role: `codex-writer`
+- scope: make the existing two-provider recovery flow reachable from the
+  truthful unlinked-Google state and make governed staging history ownership
+  accept any exact identity belonging to the same fictional Person
+- owned paths: `clients/flutter_app/lib/basic_app.dart`,
+  `clients/flutter_app/test/basic_app_test.dart`, `tools/mobile_staging_data.py`,
+  `tools/tests/test_mobile_staging_operator.py`
+- write: exact owned paths only; self-review, focused tests, commit and push the
+  shared task branch
+- report target: Main Work
+- stop conditions: any automatic link／recovery, weakened two-provider proof,
+  cross-Person ownership, production/provider/cloud/Secret action, schema
+  change, unrelated dirty path or inability to preserve full-row fingerprints
 
 ## Product outcome
 
@@ -311,6 +332,27 @@ promotion or smoke remains a separate Gate B packet under DEC-100.
   stays a pre-Alembic stop condition.
 - Resume requires the same focused／hosted PostgreSQL acceptance and independent
   Auth／Security review before one final single-use Owner-private invocation.
+
+#### Gate E correction checkpoint — `reachable_recovery_and_history_ownership`
+
+- Database revision `0008`, candidate exact 100%, `/health` 200 and the
+  unauthenticated protected 401 gate passed without rollback. Provider, client,
+  callback, consent and tester mutation counts remain zero.
+- Read-only Gate E design found that a truthful unlinked Google login ends in
+  `accountUnavailable`, while the existing explicit recovery entry covered
+  only the separate pending-identity state. It also found that the governed
+  staging history validator accepted only sessions owned by the seeded LINE
+  identity and would reject a later same-Person Google session.
+- The bounded correction adds only an explicit manual recovery entry for
+  `accountUnavailable` without a review credential. The existing two distinct
+  provider actions and explicit confirmation remain mandatory.
+- Staging history may accept only one complete same-Person Google recovery
+  graph: the linked identity, pending／linked audits, closed review thread with
+  no messages and all owned mobile rows must be exact and fully fingerprinted.
+  Partial, duplicate, cross-Person or unknown rows remain fail closed.
+- No login, consent, identity link, provider, schema, cloud, Secret, production
+  or additional staging mutation is authorized until this correction passes
+  independent Auth／Security review and hosted PostgreSQL 15／16 acceptance.
 
 ### Gate E — real-provider smoke
 

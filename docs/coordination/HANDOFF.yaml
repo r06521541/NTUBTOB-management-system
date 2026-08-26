@@ -1,27 +1,27 @@
-active_task: TASK-159
-status: ready_for_review
-next_actor: main-work
+active_task: TASK-157
+status: in_progress
+next_actor: codex-writer
 
-claim_id: main-work-20260825
-lease_version: 17
-actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
+claim_id: task-157-gate-e-recovery-writer-20260826
+lease_version: 1
+actor_id: /root/task157_gate_e_recovery_writer
 
-base_commit: 64b95e61e6fc24a17e99ac9b90207287ec835109
-head_commit: 64b95e61e6fc24a17e99ac9b90207287ec835109
+base_commit: b4dc62d9007d1526ae5cdbf29ab9dd08dfb798b9
+head_commit: b4dc62d9007d1526ae5cdbf29ab9dd08dfb798b9
 
 updated_by: main-work
-updated_at: 2026-08-26T08:30:00+08:00
+updated_at: 2026-08-26T18:10:00+08:00
 
 note: >
-  Owner selected Web Portal Event/Activity read parity after TASK-158 merged.
-  TASK-159 reuses the principal-scoped immutable invitee snapshot contract and
-  adds production-shaped list/detail/timeline presentation without schema,
-  Event mutation, notification, runtime, cloud, Secret, IAM, deployment or
-  production access. TASK-157 repository safety tooling is merged; staging
-  provider clients, tester, runtime binding, deployment and real-provider smoke
-  remain incomplete and Owner-gated for the next ordered delivery.
+  TASK-159 is already integrated in the current main history. TASK-157 staging
+  database revision 0008 and candidate promotion now pass health and protected
+  revision checks. Gate E read-only design found that the existing recovery UI
+  is unreachable from the truthful unlinked-Google state and governed staging
+  history assumes only the LINE identity. Owner authorized completing the
+  same delivery series. The active bounded writer corrects only those two
+  fail-closed gaps before any human provider login or identity mutation.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-159.md
-report: docs/coordination/reports/TASK-159-CODEX.md
+task: docs/coordination/tasks/TASK-157.md
+report: null
 review: null
