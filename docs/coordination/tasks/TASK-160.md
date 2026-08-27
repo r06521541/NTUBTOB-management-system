@@ -10,12 +10,14 @@
 - repository_authority: `305ed4b3d6bb8d2954e944eb13af17f5994e4e9f`
 - production_or_real_data: prohibited
 
-## Active execution claim
+## Completed writer claim
 
 - role: `codex-writer`
 - claim_id: `task-160-web-portal-cleanup-writer-20260827`
 - lease_version: 1
 - actor_id: `codex-writer:task160-web-portal-cleanup`
+- state: `completed`
+- implementation_commit: `29ae8e2d064ed823af479e82e59f657a1916364d`
 - scope: repository-only Web Portal reliability and management UX cleanup
 - owned paths:
   - `apps/web_portal/app.py`
@@ -58,3 +60,10 @@
 - 初版 diff 後由一位獨立 Auth／Identity reviewer 檢查 session、CSRF、eligible target、maintenance fail-closed 與資料不洩漏。
 - Main 做實際 diff 與關鍵 regressions 驗收；final PR 使用一次 change-selected hosted CI。
 - 不使用 browser/provider、production data、cloud、runtime、Secret、emulator 或 deployment。
+
+## Acceptance status
+
+- Writer affected complete：212 passed／2 Windows platform skips。
+- Independent Auth／Identity correction review：ACCEPT；無 blocking finding。
+- Main targeted `test_admin_security.py`：116 passed。
+- Repository implementation accepted；等待 single final PR hosted gate，尚未部署。

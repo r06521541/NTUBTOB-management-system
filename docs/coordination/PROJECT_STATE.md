@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `4df98b867a05d2bda7786c7306fab079836caacc`
+Repository 基準：`main` / `305ed4b3d6bb8d2954e944eb13af17f5994e4e9f`
 
 ## Active role lanes
 
@@ -24,6 +24,11 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 未完成 repository work，可安全封存。Flutter Domain lane 未被撤回，持續有效。
 
 ## 目前摘要
+
+- TASK-160 repository implementation 已通過 writer complete suite、獨立 Auth／Identity review 與 Main targeted
+  verification，等待 single final PR hosted gate。它收斂桌面 LINE session transaction、Dashboard reply CSRF、
+  active-default People、pending identity chooser 與同日賽事分組；production deployment、identity maintenance runtime
+  flag、provider／Secret／正式資料仍未授權。
 
 - Flutter client foundation、native LINE/mobile API、Basic/Officer唯讀功能、schedule usability及帳號／資料狀態頁皆已整合；
   Google 登入與跨 provider identity recovery repository delivery 亦已由 PR #180 合併。Production mobile deployment、
