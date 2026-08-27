@@ -1,25 +1,24 @@
-active_task: TASK-161
-status: completed
+active_task: TASK-162
+status: ready_for_pr
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: afc479814abeec9c2b7a02be99ee7c5dabc5e666
-head_commit: afc479814abeec9c2b7a02be99ee7c5dabc5e666
+base_commit: 5d389f6c7c293a362551111a5be025ca058d9d60
+head_commit: 220d84bf528106d1c35ba761a871f2fd02066e5d
 
 updated_by: main-work
-updated_at: 2026-08-27T12:40:00+08:00
+updated_at: 2026-08-27T13:45:00+08:00
 
 note: >
-  TASK-161 is complete. PR #205 merged as
-  afc479814abeec9c2b7a02be99ee7c5dabc5e666 after all required hosted gates.
-  Owner approved the exact production packet; web-portal-00050-zkl is Ready at
-  100% traffic with identity maintenance enabled and identity-link disabled.
-  Post-checks passed and rollback was not required.
+  TASK-162 implementation, affected tests, independent Accessibility/State
+  review and Main risk review are accepted. Same-day games share one full card
+  macro; Dashboard replies fail closed until the site confirmation controller is
+  ready. Proceed with the single hosted PR gate; deployment remains separate.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-161.md
-report: docs/coordination/reports/TASK-161-CODEX.md
-review: docs/coordination/reviews/TASK-161-WORK.md
+task: docs/coordination/tasks/TASK-162.md
+report: docs/coordination/reports/TASK-162-CODEX.md
+review: docs/coordination/reviews/TASK-162-WORK.md
