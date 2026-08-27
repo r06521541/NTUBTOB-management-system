@@ -2,7 +2,7 @@
 
 ## Verdict
 
-`accepted_pending_hosted_ci`
+`accepted`
 
 Main reviewed the actual diff at implementation commit
 `29ae8e2d064ed823af479e82e59f657a1916364d` against TASK-160. The change remains
@@ -33,8 +33,8 @@ cloud, runtime, Secret, schema, notification or production-data mutation.
   from root passed and no source correction was needed.
 - `py_compile`, Black formatter API and `git diff --check`: passed per writer.
 
-## Remaining gate
+## Final integration
 
-One final PR hosted CI must pass before merge. Production deployment and enabling
-identity maintenance remain separate Owner-exact gates and are not authorized by
-this review.
+Hosted Quick repository gate、Web Portal tests與CI final gate均通過；PR #203已
+squash merge為`e7f9a54a0f1214456732fe3093640a0e6b1195b0`。Production deployment
+與啟用identity maintenance仍是獨立Owner-exact gates，不因本次驗收而獲授權。
