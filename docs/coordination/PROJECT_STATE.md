@@ -25,13 +25,14 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-161 repository implementation與獨立Auth/Security review已完成，為TASK-160 production deployment增加identity-link
-  明確disabled的fail-closed契約並將Make收斂至canonical wrapper；尚待唯一hosted PR gate。此修正不啟用provider、
-  不新增Secret，production execution仍需DEC-078 exact Owner gate。
+- TASK-161 已由 PR #205 合併並完成 production deployment：Web Portal 以 exact merged artifact 更新至
+  `web-portal-00050-zkl`，identity maintenance維持true、identity-link明確disabled，六個identity-link runtime keys缺席；
+  Ready／100% traffic／public invoker／runtime identity／四個既有Secret references及HTTP post-check均通過，未需rollback。
+  未修改provider、Secret、IAM或正式資料。
 - TASK-160 已由 PR #203 合併：桌面 LINE 登入建立 fresh browser-bound transaction且不改 LINE in-app、Dashboard
   reply CSRF可用、People預設只顯示active、pending identity chooser只列eligible Member，並將同日賽事歸入同一
-  比賽日。Writer／獨立 Auth／Identity review／Main及hosted gates均通過；production deployment、identity maintenance
-  runtime flag、provider／Secret／正式資料仍未授權。
+  比賽日。Writer／獨立 Auth／Identity review／Main及hosted gates均通過，且已由TASK-161部署；provider／Secret／
+  正式資料未修改。
 
 - Flutter client foundation、native LINE/mobile API、Basic/Officer唯讀功能、schedule usability及帳號／資料狀態頁皆已整合；
   Google 登入與跨 provider identity recovery repository delivery 亦已由 PR #180 合併。Production mobile deployment、
@@ -91,7 +92,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - Web Portal、LINE webhook、notify cron 的 Phase C flag 已啟用，freeze 已解除。2026-08-27 唯讀 inventory 證實
   Web Portal identity maintenance flag 已為 true；production identity-link plain configuration仍不完整／未啟用。
 - 已確認的 production revisions：
-  - Web Portal：`web-portal-00049-qfx`，100% latest-ready traffic；image tag對應repository commit `35b9e2460ca47489af44b537beca764258cbbd4d`。
+  - Web Portal：`web-portal-00050-zkl`，100% traffic；image tag對應repository commit `afc479814abeec9c2b7a02be99ee7c5dabc5e666`。
   - LINE webhook：`line-webhook-handler-00013-yab`，100% traffic。
   - Notify cron：`notify-cronjob-service-00017-qms`，100% traffic，維持 private。
 - Web Portal 與 LINE webhook 維持必要的 public ingress；LINE webhook 必須驗證 signature。
