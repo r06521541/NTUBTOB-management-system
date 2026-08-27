@@ -2,7 +2,7 @@
 
 ## Verdict
 
-`accepted_pending_hosted_ci`
+`accepted_merged`
 
 ## Accepted behavior
 
@@ -19,8 +19,9 @@
 - Independent Data／Authorization review：correction round 2 final `ACCEPT`；snapshot atomicity／serialization、typed key、exact replay及minimal manager projection均無剩餘blocker。
 - Main focused：2項request replay／boundary regressions與2項Web confirmation/static contract passed；首次直接module命令因class name／Web test cwd錯誤未啟動測試，改用supported exact targets後通過。
 - Hosted run `33075904432`：PostgreSQL 15／16未通過；failure限定於三個upgrade-to-head assertion仍期待`0008`，以及Phase C reset以`head -> downgrade 0003`碰到`0009`刻意保留的audit constraint。Writer correction改為current head `0009` assertion與真正重建isolated legacy schema；此紀錄不是hosted acceptance。
+- Final hosted run `33077406624`：PostgreSQL 15／16及全部selected gates passed；PR #209 conflict-free merged as `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`。
 
 ## Remaining gates and limits
 
-- Final PR 必須以新一輪hosted PostgreSQL 15／16補足本機skip的migration／transaction evidence；run `33075904432` 維持failed evidence，不能作為gate通過。
+- Repository delivery已完成；run `33075904432` 維持failed evidence，final acceptance以run `33077406624`為準。
 - Merge不授權production schema rollout、deployment、real data、notification、Secret、IAM或cloud mutation。
