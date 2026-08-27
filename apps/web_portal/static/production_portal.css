@@ -249,7 +249,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-button-secondary { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); }
 .portal-button-secondary:hover { border-color: var(--brand-primary); background: var(--brand-primary-soft); }
 .portal-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.portal-same-day-games { margin-top: 16px; }
+.portal-same-day-games { display: grid; gap: 16px; margin-top: 16px; }
 .portal-game-card { display: grid; gap: 12px; padding: 20px; transition: box-shadow .2s, transform .2s; }
 .portal-game-card:hover { transform: translateY(-2px); }
 .portal-game-card-link { display: grid; gap: 8px; text-decoration: none; }
@@ -292,7 +292,15 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-reply-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .portal-reply-button { min-height: 64px; padding: 8px; border: 1px solid var(--color-border); border-radius: 14px; background: var(--color-surface); color: var(--color-text); font: inherit; font-weight: 800; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease; }
 .portal-reply-button:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgb(0 0 0 / 8%); }
+.portal-reply-button:disabled { cursor: not-allowed; opacity: .58; transform: none; box-shadow: none; }
 .portal-reply-button[aria-pressed="true"] { border-color: var(--brand-primary); background: var(--brand-primary); color: white; box-shadow: 0 8px 18px rgb(54 101 210 / 22%); }
+.portal-reply-confirmation { width: min(92vw, 520px); max-height: 86vh; padding: 0; overflow: auto; z-index: 1200; border: 0; background: transparent; color: var(--color-text); }
+.portal-reply-confirmation:not([open]) { display: none; }
+.portal-reply-confirmation::backdrop { background: rgb(8 22 43 / 58%); backdrop-filter: blur(2px); }
+.portal-reply-confirmation[data-fallback-open="true"] { position: fixed; inset: 0; display: grid; place-items: center; width: 100%; max-width: none; height: 100%; max-height: none; background: rgb(8 22 43 / 58%); }
+.portal-reply-confirmation-card { display: grid; gap: 14px; width: min(92vw, 520px); max-width: 100%; padding: 26px; border-radius: 22px; background: var(--color-surface); box-shadow: 0 24px 64px rgb(0 0 0 / 28%); }
+.portal-reply-confirmation-card h2, .portal-reply-confirmation-card p { margin: 0; }
+.portal-reply-confirmation-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 .portal-roster-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-top: 16px; }
 .portal-roster-card { padding: 24px; }
 .portal-roster-card h2 { margin-top: 0; }

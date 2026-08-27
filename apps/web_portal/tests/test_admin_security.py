@@ -2794,7 +2794,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
             name="Fresh Member"
         )
         self.game_model.search_for_invited.return_value = [first, same_day, later]
-        self.reply_model.search_by_member_id.return_value = []
+        self.reply_model.search_by_member_id.return_value = [
+            SimpleNamespace(
+                id=1,
+                game_id=24,
+                reply=3,
+                updated_at=datetime.now(timezone.utc),
+            )
+        ]
         self.login()
 
         response = self.client.get("/dashboard")
@@ -2809,6 +2816,27 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertLess(upcoming, page.index("隔日對手"))
         for game_id in (23, 24, 25):
             self.assertIn(f'action="/games/{game_id}/attendance"', page)
+        featured_cards = re.findall(
+            r'<article class="portal-card portal-featured-game".*?</article>',
+            page,
+            re.DOTALL,
+        )
+        self.assertEqual(len(featured_cards), 2)
+        for game_id, card in zip((23, 24), featured_cards):
+            with self.subTest(game_id=game_id):
+                self.assertIn("portal-date-tile", card)
+                self.assertIn("portal-featured-game-hit-area", card)
+                self.assertIn(f'action="/games/{game_id}/attendance"', card)
+                self.assertIn("data-dashboard-reply-form", card)
+                self.assertEqual(card.count('name="reply"'), 5)
+                self.assertIn("先守（三壘側）", card)
+        self.assertIn("晚到", featured_cards[1])
+        self.assertEqual(page.count("data-dashboard-reply-dialog"), 1)
+        reply_buttons = re.findall(
+            r'<button class="portal-reply-button".*?</button>', page, re.DOTALL
+        )
+        self.assertEqual(len(reply_buttons), 15)
+        self.assertTrue(all(" disabled" in button for button in reply_buttons))
 
     def test_dashboard_renders_weather_inside_calendar_day_window(self):
         self.member_model.search_by_id.return_value = SimpleNamespace(
