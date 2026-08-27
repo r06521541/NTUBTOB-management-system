@@ -384,6 +384,11 @@ class PowerShellContractTest(unittest.TestCase):
                 "state=basic,login=0,basic=1,officer=0,enabled=0,disabled=1",
             ),
             (
+                "偵錯權限投影：一般使用者；報表讀取：停用；來源：fresh_server（伺服器最新驗證）"
+                "&#10;一般使用者&#10;報表讀取：停用；來源：fresh_server（伺服器最新驗證）",
+                "state=basic,login=0,basic=1,officer=0,enabled=0,disabled=1",
+            ),
+            (
                 "偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）",
                 "state=officer_report_enabled,login=0,basic=0,officer=1,enabled=1,disabled=0",
             ),
@@ -610,6 +615,11 @@ class PowerShellContractTest(unittest.TestCase):
             (
                 '<node content-desc="偵錯權限投影：一般使用者；報表讀取：啟用；來源：fresh_server（伺服器最新驗證）"/>',
                 "inconsistent",
+            ),
+            (
+                '<node content-desc="偵錯權限投影：一般使用者；報表讀取：停用；來源：fresh_server（伺服器最新驗證）'
+                '&#10;幹部&#10;報表讀取：停用；來源：fresh_server（伺服器最新驗證）"/>',
+                "mismatched merged semantics",
             ),
             (
                 '<node content-desc="偵錯權限投影：幹部；報表讀取：啟用；來源：fresh_server（離線快取，非權威）"/>',

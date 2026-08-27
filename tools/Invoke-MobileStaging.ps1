@@ -498,7 +498,8 @@ function Get-AllowlistedUiCounts {
     $sourceSeparator = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yb5L6G5rqQ77ya'))
     $openParen = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yI'))
     $closeParen = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('77yJ'))
-    $principalPattern = '^' + [regex]::Escape($projectionPrefix) + '(?<role>' + [regex]::Escape($basicRole) + '|' + [regex]::Escape($officerRole) + ')' + [regex]::Escape($reportSeparator) + '(?<report>' + [regex]::Escape($enabledReport) + '|' + [regex]::Escape($disabledReport) + ')' + [regex]::Escape($sourceSeparator) + '(?<provenance>fresh_server|offline_cache|unknown)' + [regex]::Escape($openParen) + '(?<provenance_label>' + [regex]::Escape($freshLabel) + '|' + [regex]::Escape($offlineLabel) + '|' + [regex]::Escape($unknownLabel) + ')' + [regex]::Escape($closeParen) + '$'
+    $principalVisibleSuffix = '(?:\r?\n\k<role>\r?\n' + [regex]::Escape($reportSeparator.Substring(1)) + '\k<report>' + [regex]::Escape($sourceSeparator) + '\k<provenance>' + [regex]::Escape($openParen) + '\k<provenance_label>' + [regex]::Escape($closeParen) + ')?'
+    $principalPattern = '^' + [regex]::Escape($projectionPrefix) + '(?<role>' + [regex]::Escape($basicRole) + '|' + [regex]::Escape($officerRole) + ')' + [regex]::Escape($reportSeparator) + '(?<report>' + [regex]::Escape($enabledReport) + '|' + [regex]::Escape($disabledReport) + ')' + [regex]::Escape($sourceSeparator) + '(?<provenance>fresh_server|offline_cache|unknown)' + [regex]::Escape($openParen) + '(?<provenance_label>' + [regex]::Escape($freshLabel) + '|' + [regex]::Escape($offlineLabel) + '|' + [regex]::Escape($unknownLabel) + ')' + [regex]::Escape($closeParen) + $principalVisibleSuffix + '$'
     $principalNodes = @(
         $nodes | Where-Object {
             $label = [string]$_.GetAttribute('content-desc')
