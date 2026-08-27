@@ -89,7 +89,7 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
               RAISE EXCEPTION 'audit rows are append-only';
             END;
             """,
-            "CREATE TRIGGER event_audit_append_only BEFORE UPDATE OR DELETE ON "
+            "CREATE TRIGGER event_audit_append_only BEFORE DELETE OR UPDATE ON "
             "ntubtob.event_audit FOR EACH ROW EXECUTE FUNCTION "
             "ntubtob.reject_audit_mutation()",
         )

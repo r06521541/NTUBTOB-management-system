@@ -23,3 +23,8 @@
 
 - PostgreSQL 15／16 isolated integration、independent Data／Security review與hosted gate尚未完成；本report不授權或宣稱production migration／deployment。
 - 未呼叫gcloud、未連線任何database、未讀Secret/private env、未部署、未修改production資料或發送通知。
+
+## Hosted diagnosis
+
+- PR #211 run `33084910566`的PostgreSQL 15／16都在0008 append-only precheck停止；migration尚未執行。根因是`pg_get_triggerdef(..., true)`固定輸出canonical event順序`BEFORE DELETE OR UPDATE`，而初版operator沿用migration source順序`BEFORE UPDATE OR DELETE`。
+- 修正只同步canonical expected definition與unit fixture；tgtype=27、function schema／args／return／language／body fingerprint及其餘安全gate均未放寬。修正後hosted PostgreSQL 15／16尚待重跑，不宣稱通過。
