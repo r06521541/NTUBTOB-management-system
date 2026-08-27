@@ -60,6 +60,13 @@
 - Main 做 focused contract與Web mutation regressions、diff/scope review；接受後只跑一次 hosted change-selected full gate。
 - 本 task merge 不授權 schema rollout、deployment、通知或其他外部 mutation。
 
+## Acceptance status
+
+- Writer evidence：repository／migration 22 passed；PostgreSQL 19 skipped（本機無isolated DB）；Web Portal 221/221 passed；compile、Node、formatter API與diff check passed。
+- Independent Data／Authorization review：兩輪bounded correction後 `ACCEPT`；無剩餘snapshot、transaction、typed-key、replay、privacy或rollback blocker。
+- Main local acceptance：focused replay／boundary與Web confirmation contracts passed；等待final PR hosted PostgreSQL 15／16與change-selected gates。
+- External mutation：none；merge不授權production schema rollout、deployment、real data或notification。
+
 ## Writer checkpoint
 
 - state: `correction_round_1_ready_for_independent_review`
