@@ -586,7 +586,19 @@ and retire／migrate／review Android debug/staging use before provider publishi
 - 2026-08-26: Stage D completed at database revision `0008`; the candidate is
   exact 100%, health and protected gates passed, and Gate E recovery behavior
   merged at `8c4d95105a474e07c687839a9b521cc310656a4f`.
-- Next action: independently re-review the Gate E backend correction and obtain
-  hosted evidence, then rebuild and reinstall one staging APK before a single
-  fresh Owner Google login. Do not change OAuth clients or copy the existing
-  private key.
+- 2026-08-27: PR #201 merged as
+  `4df98b867a05d2bda7786c7306fab079836caacc` after independent Auth/Data
+  acceptance and hosted full CI. The launcher now accepts only the exact
+  Android merged-accessibility serialization while retaining same-role,
+  same-report and same-provenance fail-closed matching.
+- 2026-08-27: One bounded fictional staging smoke completed. The existing LINE
+  Person linked the approved Google identity within the visible five-minute
+  window; a fresh server read showed both providers. Logout invalidated the
+  LINE session, and normal Google login authenticated the same Person with a
+  fresh-server basic projection. The staging revision/runtime was retained;
+  rollback was not triggered.
+- Closeout: `completed`. OAuth clients, provider configuration, tester state,
+  Secret payloads, IAM, production runtime/data and production traffic were not
+  changed by Gate E. Production deployment／publishing／smoke and the explicit
+  Web production-candidate plus Android debug/staging client review remain a
+  separate future Owner-gated delivery.

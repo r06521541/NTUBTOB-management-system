@@ -1,24 +1,29 @@
 active_task: TASK-157
-status: in_progress
+status: completed
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 8c4d95105a474e07c687839a9b521cc310656a4f
-head_commit: 8c4d95105a474e07c687839a9b521cc310656a4f
+base_commit: 4df98b867a05d2bda7786c7306fab079836caacc
+head_commit: 4df98b867a05d2bda7786c7306fab079836caacc
 
 updated_by: main-work
-updated_at: 2026-08-26T20:35:00+08:00
+updated_at: 2026-08-27T09:45:42+08:00
 
 note: >
-  TASK-157 staging database revision 0008, candidate promotion and Gate E
-  recovery behavior are integrated. Independent Auth/Security review accepted
-  the registered-signer launcher correction: it reuses the exact existing
-  Android debug signer without copying or linking its private key and removes
-  raw signer output. Main Work owns the single hosted gate and merge; only
-  merged main may rebuild/install before one fresh Owner Google login.
+  TASK-157 is complete on fictional staging. Database revision 0008, runtime
+  deployment and the accepted shared-provider contract remain isolated from
+  production. One bounded Android emulator smoke linked the existing LINE
+  Person to Google, verified both providers through a fresh server read,
+  invalidated the LINE session on logout and authenticated the same Person by
+  Google. PR #201 fixed the exact merged-accessibility status serialization;
+  independent Auth/Data review and hosted CI passed. Production runtime
+  binding/deployment/smoke and primary provider publishing remain separate
+  Owner gates; that delivery must also review the reused Web
+  production-candidate client and retire/migrate/review Android debug/staging
+  client use.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-157.md

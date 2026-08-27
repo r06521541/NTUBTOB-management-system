@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-25
+更新時間：2026-08-27
 
 維護角色：Main Work
 
-Repository 基準：`main` / `64b95e61e6fc24a17e99ac9b90207287ec835109`
+Repository 基準：`main` / `4df98b867a05d2bda7786c7306fab079836caacc`
 
 ## Active role lanes
 
@@ -51,16 +51,18 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
   offline cache lifecycle。範圍限 Flutter repository integration；不改 backend/schema，不使用 emulator/staging/provider。
 - PR #180 已合併為 `cd49e2038b1d804b3e3c729c510eb8c34df59efb`，完成 Google 登入、LINE／Google 跨 provider
   登入方式連結與陌生登入追認，以及 Web／Mobile／Flutter release-readiness plumbing；合併前 12 項 hosted checks
-  與獨立 Web/Auth/DB、Flutter Auth review 均通過，且沒有 schema migration。撤回的 Main actor 曾回報部分
-  provider-side preparation，但本次 repository recovery 未獨立驗證任何外部狀態；staging／production deployment、
-  真 provider smoke 與 iOS signing 仍未完成，且 OAuth/provider、Secret/IAM 與部署動作持續受 Owner gate 約束。
-- TASK-157 的 phase approval verifier 與 staging revision `0005/0006 -> 0008` fail-closed contract 已分別由 PR #187／#188
-  合併。staging Auth registration 已有人工作業回報；provider clients、tester、Secret/runtime binding、staging DB upgrade、
-  deployment 與 real-provider smoke 尚未完成，仍依 DEC-100／TASK-157 進入相應 Owner gate。
+  與獨立 Web/Auth/DB、Flutter Auth review 均通過，且沒有 schema migration。該 PR 當時不代表任何外部 rollout；
+  後續 TASK-157 才完成隔離 staging deployment 與真 provider smoke。Production deployment／provider publishing與
+  iOS signing仍未完成，且 OAuth/provider、Secret/IAM與production部署持續受Owner gate約束。
+- TASK-157 已完成 fictional staging rollout 與 real-provider smoke。Staging DB 為 revision `0008`；shared primary
+  External／Testing provider沿用既有Web server audience與Android debug/staging client，runtime/data維持在
+  `ntubtob-mobile-staging`。Android emulator 已驗證 LINE Person 連結 Google、fresh server 雙 provider 狀態、LINE session
+  登出失效及 Google 登入同一 Person；PR #201 的 accessibility status 修正與 hosted full gate均通過。未修改 OAuth
+  client／provider設定，未觸及production；production deployment／provider publishing／client promotion仍是未來Owner gate。
 - TASK-158 已由 PR #189 合併 Mobile API／Flutter Event read vertical slice：active Person 只看 immutable invitee snapshot
   `included=true` 的 published／cancelled、non-ended Event 與 ordered Activity；linked Game 仍受既有 Game scope 限制。
-- TASK-159 進行 Web Portal read parity，重用同一 repository authorization 與公開 projection；範圍限列表、詳情、
-  timeline、empty/error/cancelled presentation，不包含 Event write、attendance、notification、schema 或 deploy。
+- TASK-159 Web Portal read parity 已由 PR #190 合併，重用同一 repository authorization 與公開 projection；列表、詳情、
+  timeline、empty/error/cancelled presentation已完成，不包含 Event write、attendance、notification、schema 或 deploy。
 
 ## 已確認的 production 狀態
 
@@ -104,11 +106,12 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - 自然 Scheduler 執行與低流量環境的長期 observation 不足；不得以缺少 error log 推定所有通知情境都已覆蓋。
 - Identity maintenance 仍為 false；新 pending identity 的 match／ignore／remap 等正式操作需另行規劃啟用與驗證。
 - People role 尚未取代 runtime admin allowlist；officer／admin 的正式持久化權限切換仍屬 Phase D 之後工作。
-- Event／Activity schema 與 principal-scoped唯讀契約已建立，Mobile API／Flutter read surface 已整合；Web Portal parity
-  進行中。Event create/edit/publish/cancel、attendance、通知及 guest-player管理規則仍未成為 production功能。
-- Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation。部分外部
-  provider preparation 僅有撤回 actor 的交棒回報，未經本次 repository recovery 驗證；部署與真 provider smoke
-  仍未完成且需 Owner 明確核准。Apple 登入仍未實作。
+- Event／Activity schema 與 principal-scoped唯讀契約已建立，Mobile API／Flutter／Web Portal read surface 均已整合。
+  Event create/edit/publish/cancel、attendance、通知及 guest-player管理規則仍未成為 production功能。
+- Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation，TASK-157亦已
+  完成隔離staging deployment與單一fictional tester real-provider smoke。這不驗證或啟用production；primary provider
+  publishing、production runtime binding／deployment、Android debug/staging client退役或遷移及production smoke仍需
+  未來Owner明確核准。Apple 登入仍未實作。
 - Attendance 首次載入可能受 Cloud Run／資料庫 cold path 影響；現階段接受延遲，後續應先量測再改架構。
 
 ## 下一階段候選方向
