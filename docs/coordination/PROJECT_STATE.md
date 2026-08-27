@@ -25,6 +25,8 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
+- TASK-162 repository implementation與獨立Accessibility/State review已完成：同日賽事統一使用完整Dashboard game card，
+  所有Dashboard出席POST先經站內可存取確認對話框，JS不可用時fail closed；尚待hosted PR gate，尚未部署。
 - TASK-161 已由 PR #205 合併並完成 production deployment：Web Portal 以 exact merged artifact 更新至
   `web-portal-00050-zkl`，identity maintenance維持true、identity-link明確disabled，六個identity-link runtime keys缺席；
   Ready／100% traffic／public invoker／runtime identity／四個既有Secret references及HTTP post-check均通過，未需rollback。

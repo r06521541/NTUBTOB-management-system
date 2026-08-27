@@ -137,6 +137,46 @@ class BrandUiContractTest(unittest.TestCase):
         self.assertNotIn(">查看賽事</a>", template)
         self.assertNotIn(">出席總覽</a>", template)
 
+    def test_dashboard_reply_confirmation_is_site_native_and_progressive(self):
+        template = (TEMPLATES_DIR / "dashboard.html").read_text(encoding="utf-8")
+        base = (TEMPLATES_DIR / "_portal_base.html").read_text(encoding="utf-8")
+        script = (STATIC_DIR / "dashboard_reply.js").read_text(encoding="utf-8")
+        css = (STATIC_DIR / "production_portal.css").read_text(encoding="utf-8")
+
+        self.assertIn("data-dashboard-reply-form", template)
+        self.assertIn("data-dashboard-reply-dialog", template)
+        self.assertEqual(template.count("data-dashboard-reply-dialog"), 1)
+        self.assertIn("filename='dashboard_reply.js'", base)
+        self.assertNotIn("window.confirm", script)
+        for contract in (
+            "event.submitter",
+            "event.preventDefault()",
+            "dialog.showModal",
+            'dialog.setAttribute("open", "")',
+            "form.requestSubmit(submitter)",
+            'dialog.addEventListener("cancel"',
+            'document.addEventListener("keydown"',
+            'event.key === "Tab"',
+            "initiator.focus()",
+        ):
+            with self.subTest(contract=contract):
+                self.assertIn(contract, script)
+        self.assertIn(".portal-reply-confirmation", css)
+        self.assertIn("z-index: 1200", css)
+        self.assertIn(".portal-featured-game .portal-reply-form-row", css)
+        self.assertIn("z-index: 2", css)
+        self.assertIn("disabled", template)
+        required_parts_guard = (
+            "if (!gameLabel || !statusLabel || !cancelButton || !confirmButton) return;"
+        )
+        self.assertIn(required_parts_guard, script)
+        self.assertIn("button.disabled = false", script)
+        self.assertGreater(
+            script.index("button.disabled = false"),
+            script.index('confirmButton.addEventListener("click"'),
+        )
+        self.assertIn(".portal-reply-button:disabled", css)
+
     def test_theme_color_and_notice_semantics_follow_brand_roles(self):
         demo_base = (TEMPLATES_DIR / "demo" / "base.html").read_text(encoding="utf-8")
         brand_css = (STATIC_DIR / "brand.css").read_text(encoding="utf-8")
