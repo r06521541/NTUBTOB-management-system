@@ -66,4 +66,5 @@
 - Writer affected complete：212 passed／2 Windows platform skips。
 - Independent Auth／Identity correction review：ACCEPT；無 blocking finding。
 - Main targeted `test_admin_security.py`：116 passed。
-- Repository implementation accepted；等待 single final PR hosted gate，尚未部署。
+- Hosted Web Portal／final gates通過；PR #203 已 squash merge為
+  `e7f9a54a0f1214456732fe3093640a0e6b1195b0`。Repository delivery completed，尚未部署。
