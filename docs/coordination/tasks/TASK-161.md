@@ -52,4 +52,11 @@
 - explicit mode: enabled preserves the six-input identity contract; disabled rejects all six inputs
 - disabled runtime proof: filtered env, Cloud Build removal, Ready revision absence, and HTTP 404 post-check
 - canonical entry: Make delegates to the complete Python wrapper and has no direct Cloud Build or temporary-env path
-- external mutation: none; no provider, Secret, IAM, runtime or production operation was performed
+- repository acceptance phase external mutation: none; production execution occurred only under the later exact Owner packet recorded below
+
+## Production outcome
+
+- Owner approved exact target `ntubtob-schedule-405614`／`asia-east1`／`web-portal`, artifact `afc479814abeec9c2b7a02be99ee7c5dabc5e666` and rollback `web-portal-00049-qfx`.
+- Cloud Build succeeded; Ready revision `web-portal-00050-zkl` serves 100% traffic with Phase C=true, freeze=false, identity maintenance=true and identity-link disabled.
+- Independent post-check confirmed public invoker, existing runtime identity, four base Secret references, all six identity-link keys absent, `/`=200, `/demo/`=404 and `/identity-recovery`=404.
+- Rollback was not required. No provider, Secret, IAM or production-data mutation occurred.

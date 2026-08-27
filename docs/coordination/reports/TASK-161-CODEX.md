@@ -12,7 +12,9 @@
 - Independent Auth/Security：ACCEPT，兩個P1及一個blocking-doc均已閉合。
 - Main：三個disabled-mode wrapper regressions passed；supported deployment-contract discover 8/8 passed。先前一個package-qualified Web test invocation因既有`config` import harness失敗，改用repository支援的discover命令後通過。
 
-## External effects and remaining gate
+## Production result
 
-- 本交付尚未建立PR／merge／deploy，也未存取Secret payload、修改provider／IAM／runtime／traffic或正式資料。
-- Production執行仍需merged immutable SHA、exact target/config/rollback packet與Owner依DEC-078確認。
+- PR #205 merged為`afc479814abeec9c2b7a02be99ee7c5dabc5e666`，required hosted gates全數通過。
+- Owner依DEC-078批准exact packet後，production Web Portal部署至`web-portal-00050-zkl`；Ready、100% traffic、IAM、runtime identity、四個既有Secret reference分類、flags及HTTP post-check全數通過。
+- Identity maintenance=true；identity-link=disabled且六個runtime keys缺席。Rollback未使用。
+- 未讀Secret payload，未修改provider、Secret、IAM或正式資料。
