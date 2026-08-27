@@ -15,10 +15,11 @@
 - `py -3.10 -m unittest tests.portal_data.test_repository_contract tests.portal_data.test_event_management_migration -v`：41 outcomes，in-memory 20 passed、migration 2 passed、PostgreSQL 19 skipped（本機未設定 isolated database URL）。
 - `py -3.10 -m unittest discover -s apps/web_portal/tests -v`：221/221 passed。
 - Hosted correction direct suites：Phase C artifact 10/10 passed；migration readiness static 9/9 passed；Event migration 2/2 passed；兩個 canonical `verify` commands皆通過。Verifier只接受唯一 `0009_event_management_writes` head，並持續拒絕 additional／divergent heads；Phase C SQL artifact/checksum與 mobile staging/broker revision pins未修改。
+- Hosted run `33075904432` 的 PostgreSQL 15／16 jobs 未通過：upgrade-to-head tests仍把 `0008` 當 current revision，且 Phase C fixture reset透過 `head -> downgrade 0003` 遇到 `0009`刻意保留的 audit constraint。修正僅更新三個 test expectations，並改為 drop isolated schema、重建既有 fictional legacy fixture、再 upgrade至`0003`；不宣稱 PostgreSQL 已通過。
 - Python compile、`node --check apps/web_portal/static/event_management.js`、selected Black check與`git diff --check` passed。
 
 ## Remaining gates
 
-- PostgreSQL 15／16 migration/constraint evidence由 hosted gate補足；本報告不宣稱本機 PostgreSQL integration 已執行。
+- PostgreSQL 15／16 migration/constraint evidence仍須由 hosted rerun補足；本報告不把 failed run `33075904432` 或本機 skip 宣稱為通過。
 - 等待 independent Data／Authorization reviewer 與 Main acceptance；尚未建立 PR、roll out schema、deploy或操作正式資料。
 - 零 runtime、cloud、Secret、IAM、provider、notification 或 production mutation。

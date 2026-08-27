@@ -32,6 +32,7 @@ from tools.portal_data_phase_c_readiness import (
     verify_repository_artifacts,
     verify_sql as verify_evidence_sql,
 )
+from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -40,11 +41,11 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 
 def reset_phase_c_readiness_database(engine, config) -> None:
-    """Remove newer audit fixtures before exercising the 0004 downgrade."""
-    command.upgrade(config, "head")
+    """Rebuild the isolated legacy fixture without relying on later downgrades."""
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE ntubtob.access_audit"))
-    command.downgrade(config, "0003_legacy_bigint_activity_game")
+        connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+    setup_legacy_fixture()
+    command.upgrade(config, "0003_legacy_bigint_activity_game")
 
 
 def valid_rows(schema):

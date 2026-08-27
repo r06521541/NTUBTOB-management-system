@@ -69,11 +69,12 @@
 - Main local acceptance：focused replay／boundary與Web confirmation contracts passed；等待final PR hosted PostgreSQL 15／16與change-selected gates。
 - External mutation：none；merge不授權production schema rollout、deployment、real data或notification。
 - Hosted correction：PR #209 first run confirmed Web and unaffected service gates pass, but the pre-existing Phase C／migration-readiness verifiers still classified the new single Alembic head as unexpected. Their exact head/revision-chain contracts and direct regressions are added to this task; mobile staging revision pins remain unchanged.
+- Hosted run `33075904432` reached PostgreSQL 15／16 tests but did **not** pass：three upgrade-to-head assertions still expected `0008`，and the Phase C reset helper used `head -> downgrade 0003` even though `0009` intentionally preserves the expanded audit constraint on downgrade. The correction updates test expectations to `0009` and rebuilds a real isolated legacy fixture before upgrading to `0003`; hosted PostgreSQL evidence remains pending rerun.
 
 ## Writer checkpoint
 
 - state: `correction_round_1_ready_for_independent_review`
 - delivered: Event draft/basic edit、Activity CRUD/contiguous ordering、aggregated eligibility counts + minimal manager person projection、audited include/exclude override、immutable publish snapshot、audited published edit/cancel，以及 Web Officer/Admin management flow。
 - local evidence: repository/migration 22 passed（PostgreSQL contract 19 skipped because no isolated local URL）；Web Portal complete suite 221 passed；Python compile、Node syntax、selected Black formatter API與`git diff --check` passed。
-- remaining acceptance: independent Data／Authorization review、Main focused acceptance、hosted PostgreSQL 15／16 and change-selected full gate。
+- remaining acceptance: hosted PostgreSQL 15／16 and change-selected full gate rerun；run `33075904432` is failed evidence, not acceptance。
 - external result: zero schema rollout、runtime/cloud/Secret/notification/production mutation。
