@@ -900,6 +900,50 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertEqual(next_url, "/future-games")
         self.assertEqual(state_nonce, fallback_nonce)
 
+    def test_browser_fallback_clears_existing_portal_session_before_new_transaction(
+        self,
+    ):
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="existing-user",
+                member_id=7,
+                person_id=70,
+                auth_identity_id=71,
+                member_matching_csrf_token="old-csrf",
+                oauth_state_nonce="old-nonce",
+                next_url="/account",
+            )
+
+        response = self.client.get("/line/login?mode=browser&next=/future-games")
+        state = parse_qs(urlsplit(response.headers["Location"]).query)["state"][0]
+
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(set(current_session), {"oauth_state_nonce"})
+            fresh_nonce = current_session["oauth_state_nonce"]
+        next_url, state_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key, state, "/attendance"
+        )
+        self.assertEqual(next_url, "/future-games")
+        self.assertEqual(state_nonce, fresh_nonce)
+        self.assertNotEqual(fresh_nonce, "old-nonce")
+
+    def test_normal_login_does_not_clear_existing_portal_session(self):
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="existing-user",
+                member_id=7,
+                member_matching_csrf_token="existing-csrf",
+            )
+
+        self.client.get("/line/login?next=/future-games")
+
+        with self.client.session_transaction() as current_session:
+            self.assertEqual(current_session["user_id"], "existing-user")
+            self.assertEqual(current_session["member_id"], 7)
+            self.assertEqual(
+                current_session["member_matching_csrf_token"], "existing-csrf"
+            )
+
     def test_unknown_or_ambiguous_login_mode_fails_closed(self):
         for query in (
             "mode=automatic",
@@ -1223,6 +1267,180 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertNotIn("identity_id", item)
             self.assertNotIn("audit", item)
             self.assertNotIn("available_members", item)
+
+    def test_people_filter_preserves_explicit_inactive_view_across_pagination(self):
+        self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.person_directory.return_value = tuple(
+            {
+                "person_id": person_id,
+                "display_name": f"Member {person_id}",
+                "formal_name": f"Member {person_id}",
+                "member_id": person_id,
+                "portal_status": "inactive" if person_id == 99 else "active",
+                "status": "inactive" if person_id == 99 else "active",
+            }
+            for person_id in range(73, 100)
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            active_only = self.client.get("/manage/people?q=Member")
+            second_page = self.client.get(
+                "/manage/people?q=Member&show_inactive=1&page=2"
+            )
+
+        self.assertNotIn(b"Member 99", active_only.data)
+        self.assertIn(b"Member 99", second_page.data)
+        self.assertIn(
+            b'href="/manage/people?q=Member&amp;show_inactive=1&amp;page=1"',
+            second_page.data,
+        )
+
+    def test_pending_identity_chooser_lists_only_eligible_member_targets(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "identities": (
+                {
+                    "identity_id": 72,
+                    "nickname": "New LINE User",
+                    "identity_status": "pending",
+                    "ignored": False,
+                    "stale": False,
+                    "person_id": None,
+                    "review_status": "open",
+                },
+            ),
+            "people": (
+                {
+                    "person_id": 80,
+                    "member_id": 8,
+                    "display_name": "Active Target",
+                    "formal_name": "Active Target",
+                    "status": "active",
+                },
+                {
+                    "person_id": 81,
+                    "member_id": 9,
+                    "display_name": "Inactive Target",
+                    "formal_name": "Inactive Target",
+                    "status": "inactive",
+                },
+                {
+                    "person_id": 82,
+                    "member_id": 10,
+                    "display_name": "Disabled Target",
+                    "formal_name": "Disabled Target",
+                    "status": "disabled",
+                },
+                {
+                    "person_id": 83,
+                    "member_id": None,
+                    "display_name": "No Member Link",
+                    "formal_name": "No Member Link",
+                    "status": "active",
+                },
+            ),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        environment = {
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+        }
+        with patch.dict(os.environ, environment), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            page = self.client.get("/manage/pending-identities")
+            forged = self.client.post(
+                "/identity-admin/action",
+                data={
+                    "csrf_token": token,
+                    "identity_id": "72",
+                    "member_id": "10",
+                    "action": "approve_member",
+                    "reason": "Verified existing membership",
+                    "request_id": "identity-action-72-test",
+                },
+            )
+
+        html_page = page.get_data(as_text=True)
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("請選擇既有成員", html_page)
+        self.assertIn('value="8"', html_page)
+        self.assertIn('value="9"', html_page)
+        self.assertIn("Inactive Target（非活躍，配對後會啟用）", html_page)
+        self.assertNotIn("Disabled Target", html_page)
+        self.assertNotIn("No Member Link", html_page)
+        rendered_forms = re.findall(r"<form\b.*?</form>", html_page, re.DOTALL)
+        member_form = next(
+            form for form in rendered_forms if 'value="approve_member"' in form
+        )
+        non_member_form = next(
+            form for form in rendered_forms if 'value="approve_non_member"' in form
+        )
+        self.assertIn('name="member_id" required', member_form)
+        self.assertNotIn('name="member_id"', non_member_form)
+        for independent_action in ("approve_non_member", "ignore", "reject"):
+            self.assertIn(f'value="{independent_action}"', non_member_form)
+        self.assertEqual(forged.status_code, 400)
+        repository.approve_member.assert_not_called()
+
+    def test_pending_identity_chooser_has_disabled_empty_state(self):
+        self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        repository.admin_dashboard.return_value = {
+            "identities": (
+                {
+                    "identity_id": 72,
+                    "nickname": "New LINE User",
+                    "identity_status": "pending",
+                    "ignored": False,
+                    "stale": False,
+                    "person_id": None,
+                    "review_status": "open",
+                },
+            ),
+            "people": (),
+            "audit": (),
+        }
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            response = self.client.get("/manage/pending-identities")
+
+        page = response.get_data(as_text=True)
+        self.assertIn("目前沒有可配對的既有成員", page)
+        self.assertRegex(page, r'<select name="member_id"[^>]*disabled')
+        self.assertRegex(page, r'value="approve_member"[^>]*disabled')
 
     def test_match_rejects_malformed_transport_before_repository_lookup(self):
         token = self.get_csrf_token()
@@ -2554,6 +2772,43 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertIn("下一場準備好了嗎".encode(), response.data)
         self.assertIn("示範隊".encode(), response.data)
         self.assertIn('href="/games/23"'.encode(), response.data)
+        with self.client.session_transaction() as current_session:
+            csrf_token = current_session["member_matching_csrf_token"]
+        self.assertIn(f'name="csrf_token" value="{csrf_token}"'.encode(), response.data)
+
+    def test_dashboard_groups_all_games_on_first_calendar_day_before_later_games(self):
+        first = self.portal_game(23)
+        first.away_team = "第一場對手"
+        first.get_opponent = lambda: "第一場對手"
+        same_day = self.portal_game(24)
+        same_day.start_datetime = first.start_datetime + timedelta(hours=3)
+        same_day.away_team = "同日第二場對手"
+        same_day.get_opponent = lambda: "同日第二場對手"
+        same_day.get_formatted_start_time_with_colon = lambda: "22:00"
+        later = self.portal_game(25)
+        later.start_datetime = first.start_datetime + timedelta(days=1)
+        later.away_team = "隔日對手"
+        later.get_opponent = lambda: "隔日對手"
+        later.get_formatted_date = lambda: "8/11（二）"
+        self.member_model.search_by_id.return_value = SimpleNamespace(
+            name="Fresh Member"
+        )
+        self.game_model.search_for_invited.return_value = [first, same_day, later]
+        self.reply_model.search_by_member_id.return_value = []
+        self.login()
+
+        response = self.client.get("/dashboard")
+
+        page = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 200)
+        next_day = page.index('data-dashboard-group="next-game-day"')
+        upcoming = page.index('data-dashboard-group="upcoming"')
+        self.assertLess(next_day, page.index("第一場對手"))
+        self.assertLess(page.index("第一場對手"), page.index("同日第二場對手"))
+        self.assertLess(page.index("同日第二場對手"), upcoming)
+        self.assertLess(upcoming, page.index("隔日對手"))
+        for game_id in (23, 24, 25):
+            self.assertIn(f'action="/games/{game_id}/attendance"', page)
 
     def test_dashboard_renders_weather_inside_calendar_day_window(self):
         self.member_model.search_by_id.return_value = SimpleNamespace(

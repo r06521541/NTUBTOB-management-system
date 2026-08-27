@@ -39,6 +39,7 @@
                 <a class="portal-button portal-button-secondary" href="{{ url_for('local_preview_identity_review') }}">查看核可對話效果</a>
             {% else %}
             <form method="post" action="{{ url_for('identity_admin_action') }}">
+                <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                 <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
                 <input type="hidden"
@@ -76,17 +77,6 @@
                     <button name="action"
                             value="approve_non_member"
                             {% if not identity_maintenance_enabled %}disabled{% endif %}>核可為非會員</button>
-                    <label>
-                        或配對會員
-                        <select name="member_id">
-                            {% for person in dashboard.people if person.member_id %}
-                                <option value="{{ person.member_id }}">{{ person.formal_name or person.display_name }}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
-                    <button name="action"
-                            value="approve_member"
-                            {% if not identity_maintenance_enabled %}disabled{% endif %}>核可會員</button>
                     <button name="action"
                             value="{{ 'unignore' if item.ignored else 'ignore' }}"
                             {% if not identity_maintenance_enabled %}disabled{% endif %}>
@@ -108,9 +98,39 @@
                             item.identity_status == 'disabled' else '停用身分' }}
                     </button>
                 {% endif %}
+                </fieldset>
             </form>
+            {% if not item.person_id %}
+                <form method="post" action="{{ url_for('identity_admin_action') }}">
+                    <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                        <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
+                        <input type="hidden"
+                               name="request_id"
+                               value="identity-member-{{ item.identity_id }}-{{ request_nonce }}" />
+                        <label>
+                            配對至既有成員
+                            <select name="member_id" required{% if not eligible_member_targets %} disabled{% endif %}>
+                                <option value="" selected disabled>請選擇既有成員</option>
+                                {% for person in eligible_member_targets %}
+                                    <option value="{{ person.member_id }}">{{ person.formal_name or person.display_name }}{% if person.status == 'inactive' %}（非活躍，配對後會啟用）{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        {% if not eligible_member_targets %}<p class="portal-muted" role="status">目前沒有可配對的既有成員。</p>{% endif %}
+                        <label>
+                            配對原因
+                            <input name="reason" minlength="3" maxlength="300" required />
+                        </label>
+                        <button name="action"
+                                value="approve_member"
+                                {% if not identity_maintenance_enabled or not eligible_member_targets %}disabled{% endif %}>核可會員</button>
+                    </fieldset>
+                </form>
+            {% endif %}
             {% if item.person_id and item.identity_id != current_identity_id %}
                 <form method="post" action="{{ url_for('identity_admin_action') }}">
+                    <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                     <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
                     <input type="hidden"
@@ -118,9 +138,9 @@
                            value="identity-remap-{{ item.identity_id }}-{{ request_nonce }}" />
                     <label>
                         重新配對至現有成員
-                        <select name="member_id" required>
+                        <select name="member_id" required{% if not eligible_member_targets %} disabled{% endif %}>
                             <option value="" selected disabled>請選擇目標成員</option>
-                            {% for person in dashboard.people if person.member_id and
+                            {% for person in eligible_member_targets if
                                 person.person_id != item.person_id %}
                                 <option value="{{ person.member_id }}">
                                     {{ person.formal_name or person.display_name }} · {{ person.status
@@ -141,12 +161,14 @@
                     <button name="action"
                             value="remap"
                             {% if not identity_maintenance_enabled %}disabled{% endif %}>確認重新配對</button>
+                    </fieldset>
                 </form>
             {% elif item.identity_id == current_identity_id %}
                 <p>目前登入使用的 LINE 身分不可重新配對。</p>
             {% endif %}
             {% if item.review_status == 'open' %}
                 <form method="post" action="{{ url_for('identity_admin_action') }}">
+                    <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                     <input type="hidden" name="identity_id" value="{{ item.identity_id }}" />
                     <input type="hidden"
@@ -158,6 +180,7 @@
                         <textarea name="message" minlength="1" maxlength="1000" required></textarea>
                     </label>
                     <button {% if not identity_maintenance_enabled %}disabled{% endif %}>送出</button>
+                    </fieldset>
                 </form>
             {% endif %}
             {% endif %}
@@ -183,6 +206,7 @@
                             %}
                         </p>
                         <form method="post" action="{{ url_for('identity_admin_action') }}">
+                            <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                             <input type="hidden" name="person_id" value="{{ person.person_id }}" />
                             <input type="hidden"
@@ -213,8 +237,10 @@
                             <button name="action"
                                     value="profile"
                                     {% if not identity_maintenance_enabled %}disabled{% endif %}>更新資料</button>
+                            </fieldset>
                         </form>
                         <form method="post" action="{{ url_for('identity_admin_action') }}">
+                            <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                             <input type="hidden" name="person_id" value="{{ person.person_id }}" />
                             <input type="hidden"
@@ -232,8 +258,10 @@
                             <button name="action"
                                     value="person_status"
                                     {% if not identity_maintenance_enabled %}disabled{% endif %}>更新 Person 狀態</button>
+                            </fieldset>
                         </form>
                         <form method="post" action="{{ url_for('identity_admin_action') }}">
+                            <fieldset class="portal-control-fieldset"{% if not identity_maintenance_enabled %} disabled{% endif %}>
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                             <input type="hidden" name="person_id" value="{{ person.person_id }}" />
                             <input type="hidden"
@@ -263,6 +291,7 @@
                             <button name="action"
                                     value="revoke_qualification"
                                     {% if not identity_maintenance_enabled %}disabled{% endif %}>撤銷</button>
+                            </fieldset>
                         </form>
                         </article>
                     {% endfor %}

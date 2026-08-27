@@ -1,31 +1,25 @@
-active_task: TASK-157
-status: completed
+active_task: TASK-160
+status: ready_for_review
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 4df98b867a05d2bda7786c7306fab079836caacc
-head_commit: 4df98b867a05d2bda7786c7306fab079836caacc
+base_commit: 305ed4b3d6bb8d2954e944eb13af17f5994e4e9f
+head_commit: 29ae8e2d064ed823af479e82e59f657a1916364d
 
 updated_by: main-work
-updated_at: 2026-08-27T09:45:42+08:00
+updated_at: 2026-08-27T10:43:00+08:00
 
 note: >
-  TASK-157 is complete on fictional staging. Database revision 0008, runtime
-  deployment and the accepted shared-provider contract remain isolated from
-  production. One bounded Android emulator smoke linked the existing LINE
-  Person to Google, verified both providers through a fresh server read,
-  invalidated the LINE session on logout and authenticated the same Person by
-  Google. PR #201 fixed the exact merged-accessibility status serialization;
-  independent Auth/Data review and hosted CI passed. Production runtime
-  binding/deployment/smoke and primary provider publishing remain separate
-  Owner gates; that delivery must also review the reused Web
-  production-candidate client and retire/migrate/review Android debug/staging
-  client use.
+  TASK-160 repository implementation is accepted after writer affected-complete
+  tests, independent Auth/Identity review and Main targeted verification. The
+  single final PR and hosted gate remain. Production deployment, runtime flag
+  changes, provider/cloud/Secret access and real-data mutation remain outside
+  this delivery.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-157.md
-report: null
-review: null
+task: docs/coordination/tasks/TASK-160.md
+report: docs/coordination/reports/TASK-160-CODEX.md
+review: docs/coordination/reviews/TASK-160-WORK.md

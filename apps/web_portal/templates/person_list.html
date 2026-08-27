@@ -15,6 +15,7 @@
             <label>
                 人員、會員或暱稱<input name="q" value="{{ query }}" maxlength="120" /></label><label><input type="checkbox" name="show_inactive" value="1"{% if show_inactive %} checked{% endif %} /> 顯示非 active 人員</label><button class="portal-button portal-button-primary" type="submit">套用</button>
             </form>
+            <p class="portal-muted">{% if show_inactive %}目前同時顯示 active 與非 active 人員。{% else %}目前只顯示 active 人員。{% endif %}</p>
             <p class="portal-muted">第 {{ page }} / {{ total_pages }} 頁</p>
         </section>
         <section class="portal-section-heading">
