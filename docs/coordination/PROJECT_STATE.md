@@ -25,8 +25,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-162 repository implementation與獨立Accessibility/State review已完成：同日賽事統一使用完整Dashboard game card，
-  所有Dashboard出席POST先經站內可存取確認對話框，JS不可用時fail closed；尚待hosted PR gate，尚未部署。
+- TASK-162 已由 PR #207 合併並部署至production `web-portal-00051-p4z`：同日賽事統一使用完整Dashboard game card，
+  所有Dashboard出席POST先經站內可存取確認對話框，JS不可用時fail closed。Ready／100% traffic／public invoker／
+  runtime identity／四個既有Secret references與HTTP post-check均通過，未需rollback；未修改backend、provider、Secret、IAM或正式資料。
 - TASK-161 已由 PR #205 合併並完成 production deployment：Web Portal 以 exact merged artifact 更新至
   `web-portal-00050-zkl`，identity maintenance維持true、identity-link明確disabled，六個identity-link runtime keys缺席；
   Ready／100% traffic／public invoker／runtime identity／四個既有Secret references及HTTP post-check均通過，未需rollback。
@@ -94,7 +95,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - Web Portal、LINE webhook、notify cron 的 Phase C flag 已啟用，freeze 已解除。2026-08-27 唯讀 inventory 證實
   Web Portal identity maintenance flag 已為 true；production identity-link plain configuration仍不完整／未啟用。
 - 已確認的 production revisions：
-  - Web Portal：`web-portal-00050-zkl`，100% traffic；image tag對應repository commit `afc479814abeec9c2b7a02be99ee7c5dabc5e666`。
+  - Web Portal：`web-portal-00051-p4z`，100% traffic；image tag對應repository commit `91e5722c49f88aafb6f3792e96436a49f3665039`。
   - LINE webhook：`line-webhook-handler-00013-yab`，100% traffic。
   - Notify cron：`notify-cronjob-service-00017-qms`，100% traffic，維持 private。
 - Web Portal 與 LINE webhook 維持必要的 public ingress；LINE webhook 必須驗證 signature。
