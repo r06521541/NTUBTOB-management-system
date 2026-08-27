@@ -25,6 +25,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
+- TASK-164 已由Owner授權，將先補受控的production 0008→0009 operator，再部署exact merged Web Portal。Cloud Run唯讀
+  preflight確認rollback revision為`web-portal-00051-p4z`且既有traffic／IAM／runtime flags／Secret-reference categories正常；
+  尚未讀取Secret payload、查詢或修改production DB、部署、發通知或操作正式資料。
 - TASK-163 已由 PR #209 合併為 `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`：active Officer／Admin 可管理
   Event草稿、Activity行程、資格池與人工override，發布immutable invitee snapshot，並稽核published edit／cancel。
   Hosted run `33077406624` 的PostgreSQL 15／16及全部selected gates通過；尚未roll out schema、部署、發通知或操作正式資料。
