@@ -1,24 +1,24 @@
-active_task: TASK-162
-status: completed
+active_task: TASK-163
+status: ready_for_review
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 91e5722c49f88aafb6f3792e96436a49f3665039
-head_commit: 91e5722c49f88aafb6f3792e96436a49f3665039
+base_commit: 4d4b3502451544f5b9efeb9c2bfd4c605d6385a2
+head_commit: 224d165f1c11278ec8d654fba377278428618af2
 
 updated_by: main-work
-updated_at: 2026-08-27T14:10:00+08:00
+updated_at: 2026-08-27T16:20:00+08:00
 
 note: >
-  TASK-162 is complete. PR #207 merged as
-  91e5722c49f88aafb6f3792e96436a49f3665039 after all required hosted gates.
-  Owner approved the exact production packet; web-portal-00051-p4z is Ready at
-  100% traffic. Post-checks passed and rollback was not required.
+  TASK-163 implementation commit 224d165f1c11278ec8d654fba377278428618af2
+  passed writer evidence and independent Data/Authorization review after two
+  bounded correction rounds. Main accepted the local diff; hosted PostgreSQL
+  and Web gates remain before merge. No deployment or external mutation is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-162.md
-report: docs/coordination/reports/TASK-162-CODEX.md
-review: docs/coordination/reviews/TASK-162-WORK.md
+task: docs/coordination/tasks/TASK-163.md
+report: docs/coordination/reports/TASK-163-CODEX.md
+review: docs/coordination/reviews/TASK-163-WORK.md

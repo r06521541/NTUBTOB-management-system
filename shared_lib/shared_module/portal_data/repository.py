@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import threading
 from collections import Counter
 from datetime import datetime, timezone
 from typing import Iterable, Protocol
 
-from sqlalchemy import Engine, and_, func, or_, select, text, update
+from sqlalchemy import Engine, and_, delete, func, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -23,6 +25,7 @@ from .domain import (
     ConflictError,
     Invitee,
     Person,
+    ValidationError,
     is_qualification_active,
     require_choice,
     require_reason,
@@ -30,6 +33,7 @@ from .domain import (
 )
 from .models import (
     AccessAuditRecord,
+    ActivityRecord,
     AuthIdentityRecord,
     EventAttendanceReplyRecord,
     EventAuditRecord,
@@ -41,6 +45,53 @@ from .models import (
     PersonQualificationRecord,
     PersonRecord,
 )
+
+EVENT_TYPES = frozenset({"game", "meal", "trip", "practice", "social", "other"})
+ACTIVITY_TYPES = frozenset(
+    {"game", "meal", "transport", "lodging", "gathering", "other"}
+)
+
+
+def _bounded_text(value: str, field: str, maximum: int = 200) -> str:
+    cleaned = value.strip()
+    if not 1 <= len(cleaned) <= maximum:
+        raise ValidationError(f"{field} must contain 1 to {maximum} characters")
+    return cleaned
+
+
+def _event_times(start_at: datetime, end_at: datetime | None) -> None:
+    if start_at.tzinfo is None or (end_at is not None and end_at.tzinfo is None):
+        raise ValidationError("event timestamps must be timezone-aware")
+    if end_at is not None and end_at <= start_at:
+        raise ValidationError("event end must follow start")
+
+
+def _request_id(value: str) -> str:
+    cleaned = value.strip()
+    if not 1 <= len(cleaned) <= 100:
+        raise ValidationError("request id must contain 1 to 100 characters")
+    return cleaned
+
+
+def _operation_details(
+    operation: str, payload: dict, *, target_id: int | None = None
+) -> dict:
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=lambda value: (
+            value.isoformat() if isinstance(value, datetime) else value
+        ),
+    ).encode("utf-8")
+    details = {
+        "operation": operation,
+        "fingerprint": hashlib.sha256(encoded).hexdigest(),
+    }
+    if target_id is not None:
+        details["target_id"] = target_id
+    return details
 
 
 def utc_now() -> datetime:
@@ -116,7 +167,68 @@ class TeamPortalRepository(Protocol):
         event_type: str,
         start_at: datetime,
         eligibility: Iterable[str],
+        end_at: datetime | None = None,
     ) -> int: ...
+
+    def managed_events(self, actor_id: int) -> tuple[dict, ...]: ...
+    def managed_event(self, actor_id: int, event_id: int) -> dict: ...
+    def eligibility_preview(self, actor_id: int, event_id: int) -> dict: ...
+
+    def update_event(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        event_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        eligibility: Iterable[str],
+        expected_version: int,
+        request_id: str,
+    ) -> dict: ...
+
+    def add_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str | None = None,
+    ) -> int: ...
+
+    def update_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str,
+    ) -> None: ...
+
+    def delete_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        request_id: str | None = None,
+    ) -> None: ...
+
+    def move_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        direction: str,
+        request_id: str | None = None,
+    ) -> None: ...
+
+    def cancel_event(self, actor_id: int, event_id: int, request_id: str) -> dict: ...
+    def event_audits(self, event_id: int) -> tuple[dict, ...]: ...
 
     def publish_event(
         self, actor_id: int, event_id: int, request_id: str
@@ -130,6 +242,7 @@ class TeamPortalRepository(Protocol):
         action: str,
         participation_category: str,
         reason: str,
+        request_id: str,
     ) -> None: ...
 
     def event_invitees(self, event_id: int) -> list[Invitee]: ...
@@ -156,6 +269,7 @@ class InMemoryTeamPortalRepository:
         self.audits: list[dict] = []
         self.audit_requests: set[str] = set()
         self.events: dict[int, dict] = {}
+        self.activities: dict[int, dict] = {}
         self.overrides: dict[tuple[int, int], dict] = {}
         self.invitees: dict[tuple[int, int], Invitee] = {}
         self.replies: dict[tuple[int, int], str] = {}
@@ -263,11 +377,13 @@ class InMemoryTeamPortalRepository:
             validate_guest_period(valid_from, valid_until)
         if valid_from and valid_until and valid_until <= valid_from:
             raise ConflictError("qualification validity is inverted")
-        self.qualifications[(person_id, qualification)] = {
-            "status": "active",
-            "valid_from": valid_from,
-            "valid_until": valid_until,
-        }
+        with self._lock:
+            self.get_person(person_id)
+            self.qualifications[(person_id, qualification)] = {
+                "status": "active",
+                "valid_from": valid_from,
+                "valid_until": valid_until,
+            }
 
     def approve_identity(
         self,
@@ -446,10 +562,11 @@ class InMemoryTeamPortalRepository:
 
     def revoke_qualification(self, person_id: int, qualification: str) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
-        row = self.qualifications.get((person_id, qualification))
-        if row is None:
-            raise ConflictError("qualification not found")
-        row["status"] = "revoked"
+        with self._lock:
+            row = self.qualifications.get((person_id, qualification))
+            if row is None:
+                raise ConflictError("qualification not found")
+            row["status"] = "revoked"
 
     def create_event(
         self,
@@ -458,23 +575,439 @@ class InMemoryTeamPortalRepository:
         event_type: str,
         start_at: datetime,
         eligibility: Iterable[str],
+        end_at: datetime | None = None,
     ) -> int:
-        self._require_event_manager(actor_id)
+        title = _bounded_text(title, "event title")
+        require_choice(event_type, EVENT_TYPES, "event type")
+        _event_times(start_at, end_at)
         rules = {
             require_choice(value, QUALIFICATIONS, "qualification")
             for value in eligibility
         }
         if not rules:
             raise ConflictError("event eligibility cannot be empty")
-        event_id = self._next("event")
-        self.events[event_id] = {
-            "title": title,
-            "event_type": event_type,
-            "start_at": start_at,
-            "status": "draft",
-            "eligibility": rules,
+        with self._lock:
+            self._require_event_manager(actor_id)
+            event_id = self._next("event")
+            self.events[event_id] = {
+                "id": event_id,
+                "title": title,
+                "event_type": event_type,
+                "start_at": start_at,
+                "end_at": end_at,
+                "status": "draft",
+                "eligibility": rules,
+                "version": 1,
+                "created_by_person_id": actor_id,
+                "published_at": None,
+            }
+            return event_id
+
+    def _event_for_manager(self, actor_id: int, event_id: int) -> dict:
+        self._require_event_manager(actor_id)
+        event = self.events.get(event_id)
+        if event is None:
+            raise ConflictError("event not found")
+        return event
+
+    def _event_projection(self, event: dict) -> dict:
+        event_id = event["id"]
+        return {
+            **copy.deepcopy(event),
+            "eligibility": tuple(sorted(event["eligibility"])),
+            "activities": tuple(
+                copy.deepcopy(activity)
+                for activity in sorted(
+                    (
+                        row
+                        for row in self.activities.values()
+                        if row["event_id"] == event_id
+                    ),
+                    key=lambda row: (row["position"], row["id"]),
+                )
+            ),
         }
-        return event_id
+
+    def managed_events(self, actor_id: int) -> tuple[dict, ...]:
+        self._require_event_manager(actor_id)
+        return tuple(
+            self._event_projection(event)
+            for event in sorted(
+                self.events.values(), key=lambda row: (row["start_at"], row["id"])
+            )
+        )
+
+    def managed_event(self, actor_id: int, event_id: int) -> dict:
+        return self._event_projection(self._event_for_manager(actor_id, event_id))
+
+    def eligibility_preview(self, actor_id: int, event_id: int) -> dict:
+        event = self._event_for_manager(actor_id, event_id)
+        counts: Counter[str] = Counter()
+        candidates = []
+        eligible_person_ids = set()
+        for person in self.people.values():
+            if not person.can_use_portal:
+                continue
+            matches = self.qualifications_for_person(person.id) & event["eligibility"]
+            if matches:
+                eligible_person_ids.add(person.id)
+                for qualification in matches:
+                    counts[qualification] += 1
+            candidates.append(
+                {"person_id": person.id, "display_name": person.display_name}
+            )
+        return {
+            "qualification_counts": dict(sorted(counts.items())),
+            "candidate_count": len(eligible_person_ids),
+            "candidates": tuple(sorted(candidates, key=lambda row: row["person_id"])),
+            "override_targets": tuple(
+                {"person_id": person.id, "display_name": person.display_name}
+                for person in sorted(self.people.values(), key=lambda row: row.id)
+                if person.can_use_portal
+            ),
+            "overrides": tuple(
+                {
+                    "person_id": person_id,
+                    "action": override["action"],
+                    "participation_category": override["category"],
+                    "reason": override["reason"],
+                }
+                for (target_event_id, person_id), override in sorted(
+                    self.overrides.items()
+                )
+                if target_event_id == event_id
+            ),
+        }
+
+    def _append_event_audit(
+        self,
+        actor_id: int,
+        event_id: int,
+        action: str,
+        request_id: str,
+        details: dict | None = None,
+        reason: str | None = None,
+    ) -> bool:
+        request_id = _request_id(request_id)
+        if request_id in self.audit_requests:
+            existing = next(
+                row for row in self.audits if row.get("request_id") == request_id
+            )
+            if (
+                existing.get("event_id") == event_id
+                and existing.get("actor") == actor_id
+                and existing.get("action") == action
+                and existing.get("details") == details
+                and existing.get("reason") == reason
+            ):
+                return False
+            raise ConflictError("event request id already used")
+        self.audits.append(
+            {
+                "event_id": event_id,
+                "actor": actor_id,
+                "action": action,
+                "request_id": request_id,
+                "details": copy.deepcopy(details),
+                "reason": reason,
+            }
+        )
+        self.audit_requests.add(request_id)
+        return True
+
+    def update_event(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        event_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        eligibility: Iterable[str],
+        expected_version: int,
+        request_id: str,
+    ) -> dict:
+        title = _bounded_text(title, "event title")
+        require_choice(event_type, EVENT_TYPES, "event type")
+        _event_times(start_at, end_at)
+        rules = {
+            require_choice(value, QUALIFICATIONS, "qualification")
+            for value in eligibility
+        }
+        if not rules:
+            raise ConflictError("event eligibility cannot be empty")
+        details = _operation_details(
+            "event_update",
+            {
+                "title": title,
+                "event_type": event_type,
+                "start_at": start_at,
+                "end_at": end_at,
+                "eligibility": sorted(rules),
+                "expected_version": expected_version,
+            },
+            target_id=event_id,
+        )
+        with self._lock:
+            event = self._event_for_manager(actor_id, event_id)
+            if event["status"] == "published" and request_id in self.audit_requests:
+                if not self._append_event_audit(
+                    actor_id, event_id, "edited", request_id, details
+                ):
+                    return self._event_projection(event)
+            if event["status"] == "cancelled":
+                raise ConflictError("cancelled event cannot be edited")
+            if (
+                type(expected_version) is not int
+                or event["version"] != expected_version
+            ):
+                raise ConflictError("event version conflict")
+            if event["status"] == "published" and not self._append_event_audit(
+                actor_id,
+                event_id,
+                "edited",
+                request_id,
+                details,
+            ):
+                return self._event_projection(event)
+            event.update(
+                title=title,
+                event_type=event_type,
+                start_at=start_at,
+                end_at=end_at,
+                version=event["version"] + 1,
+            )
+            if event["status"] == "draft":
+                event["eligibility"] = rules
+            return self._event_projection(event)
+
+    def add_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str | None = None,
+    ) -> int:
+        title = _bounded_text(title, "activity title")
+        require_choice(activity_type, ACTIVITY_TYPES, "activity type")
+        _event_times(start_at, end_at)
+        details = _operation_details(
+            "activity_add",
+            {
+                "title": title,
+                "activity_type": activity_type,
+                "start_at": start_at,
+                "end_at": end_at,
+            },
+        )
+        with self._lock:
+            event = self._event_for_manager(actor_id, event_id)
+            if event["status"] == "cancelled":
+                raise ConflictError("cancelled event cannot be edited")
+            if event["status"] == "published":
+                if request_id is None:
+                    raise ConflictError("published edit request id required")
+                request_id = _request_id(request_id)
+                if request_id in self.audit_requests:
+                    existing = next(
+                        row
+                        for row in self.audits
+                        if row.get("request_id") == request_id
+                    )
+                    if (
+                        existing.get("event_id") == event_id
+                        and existing.get("actor") == actor_id
+                        and existing.get("action") == "edited"
+                        and existing.get("details", {}).get("operation")
+                        == details["operation"]
+                        and existing.get("details", {}).get("fingerprint")
+                        == details["fingerprint"]
+                    ):
+                        return existing["details"]["target_id"]
+                    raise ConflictError("event request id already used")
+            positions = [
+                row["position"]
+                for row in self.activities.values()
+                if row["event_id"] == event_id
+            ]
+            activity_id = self._next("activity")
+            self.activities[activity_id] = {
+                "id": activity_id,
+                "event_id": event_id,
+                "title": title,
+                "activity_type": activity_type,
+                "position": max(positions, default=0) + 1,
+                "start_at": start_at,
+                "end_at": end_at,
+                "game_id": None,
+            }
+            if event["status"] == "published":
+                self._append_event_audit(
+                    actor_id,
+                    event_id,
+                    "edited",
+                    request_id,
+                    {**details, "target_id": activity_id},
+                )
+            event["version"] += 1
+            return activity_id
+
+    def _activity_for_event(self, event_id: int, activity_id: int) -> dict:
+        activity = self.activities.get(activity_id)
+        if activity is None or activity["event_id"] != event_id:
+            raise ConflictError("activity does not belong to event")
+        return activity
+
+    def update_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str,
+    ) -> None:
+        title = _bounded_text(title, "activity title")
+        require_choice(activity_type, ACTIVITY_TYPES, "activity type")
+        _event_times(start_at, end_at)
+        details = _operation_details(
+            "activity_update",
+            {
+                "title": title,
+                "activity_type": activity_type,
+                "start_at": start_at,
+                "end_at": end_at,
+            },
+            target_id=activity_id,
+        )
+        with self._lock:
+            event = self._event_for_manager(actor_id, event_id)
+            activity = self._activity_for_event(event_id, activity_id)
+            if event["status"] == "cancelled":
+                raise ConflictError("cancelled event cannot be edited")
+            if event["status"] == "published" and not self._append_event_audit(
+                actor_id, event_id, "edited", request_id, details
+            ):
+                return
+            activity.update(
+                title=title,
+                activity_type=activity_type,
+                start_at=start_at,
+                end_at=end_at,
+            )
+            event["version"] += 1
+
+    def _normalize_activity_positions(self, event_id: int) -> None:
+        rows = sorted(
+            (row for row in self.activities.values() if row["event_id"] == event_id),
+            key=lambda row: (row["position"], row["id"]),
+        )
+        for position, row in enumerate(rows, 1):
+            row["position"] = position
+
+    def delete_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        request_id: str | None = None,
+    ) -> None:
+        details = _operation_details("activity_delete", {}, target_id=activity_id)
+        with self._lock:
+            event = self._event_for_manager(actor_id, event_id)
+            if event["status"] == "cancelled":
+                raise ConflictError("cancelled event cannot be edited")
+            if event["status"] == "published":
+                if request_id is None:
+                    raise ConflictError("published edit request id required")
+                if not self._append_event_audit(
+                    actor_id, event_id, "edited", request_id, details
+                ):
+                    return
+            self._activity_for_event(event_id, activity_id)
+            del self.activities[activity_id]
+            self._normalize_activity_positions(event_id)
+            event["version"] += 1
+
+    def move_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        direction: str,
+        request_id: str | None = None,
+    ) -> None:
+        if direction not in {"up", "down"}:
+            raise ConflictError("invalid activity direction")
+        details = _operation_details(
+            "activity_move", {"direction": direction}, target_id=activity_id
+        )
+        with self._lock:
+            event = self._event_for_manager(actor_id, event_id)
+            activity = self._activity_for_event(event_id, activity_id)
+            if event["status"] == "cancelled":
+                raise ConflictError("cancelled event cannot be edited")
+            if event["status"] == "published":
+                if request_id is None:
+                    raise ConflictError("published edit request id required")
+                request_id = _request_id(request_id)
+                if request_id in self.audit_requests:
+                    if not self._append_event_audit(
+                        actor_id, event_id, "edited", request_id, details
+                    ):
+                        return
+            rows = sorted(
+                (
+                    row
+                    for row in self.activities.values()
+                    if row["event_id"] == event_id
+                ),
+                key=lambda row: (row["position"], row["id"]),
+            )
+            index = rows.index(activity)
+            target_index = index + (-1 if direction == "up" else 1)
+            if target_index < 0 or target_index >= len(rows):
+                return
+            if event["status"] == "published":
+                if not self._append_event_audit(
+                    actor_id, event_id, "edited", request_id, details
+                ):
+                    return
+            rows[index]["position"], rows[target_index]["position"] = (
+                rows[target_index]["position"],
+                rows[index]["position"],
+            )
+            event["version"] += 1
+
+    def cancel_event(self, actor_id: int, event_id: int, request_id: str) -> dict:
+        with self._lock:
+            event = self._event_for_manager(actor_id, event_id)
+            if request_id in self.audit_requests:
+                if not self._append_event_audit(
+                    actor_id, event_id, "cancelled", request_id
+                ):
+                    return self._event_projection(event)
+            if event["status"] == "cancelled":
+                return self._event_projection(event)
+            if event["status"] != "published":
+                raise ConflictError("published event required")
+            if not self._append_event_audit(
+                actor_id, event_id, "cancelled", request_id
+            ):
+                return self._event_projection(event)
+            event["status"] = "cancelled"
+            event["version"] += 1
+            return self._event_projection(event)
+
+    def event_audits(self, event_id: int) -> tuple[dict, ...]:
+        return tuple(
+            copy.deepcopy(row) for row in self.audits if row.get("event_id") == event_id
+        )
 
     def set_invitee_override(
         self,
@@ -484,21 +1017,43 @@ class InMemoryTeamPortalRepository:
         action: str,
         participation_category: str,
         reason: str,
+        request_id: str,
     ) -> None:
-        self._require_event_manager(actor_id)
-        self.get_person(person_id)
         if action not in {"include", "exclude"}:
             raise ConflictError("invalid override")
         if participation_category not in QUALIFICATIONS | {"other"}:
             raise ConflictError("invalid participation category")
-        if self.events.get(event_id, {}).get("status") != "draft":
-            raise ConflictError("only draft events accept overrides")
-        self.overrides[(event_id, person_id)] = {
-            "action": action,
-            "category": participation_category,
-            "actor": actor_id,
-            "reason": require_reason(reason),
-        }
+        reason = require_reason(reason)
+        details = _operation_details(
+            "override",
+            {
+                "person_id": person_id,
+                "action": action,
+                "participation_category": participation_category,
+                "reason": reason,
+            },
+            target_id=person_id,
+        )
+        with self._lock:
+            self._require_event_manager(actor_id)
+            self.get_person(person_id)
+            if self.events.get(event_id, {}).get("status") != "draft":
+                raise ConflictError("only draft events accept overrides")
+            if not self._append_event_audit(
+                actor_id,
+                event_id,
+                "invitee_included" if action == "include" else "invitee_excluded",
+                request_id,
+                details,
+                reason,
+            ):
+                return
+            self.overrides[(event_id, person_id)] = {
+                "action": action,
+                "category": participation_category,
+                "actor": actor_id,
+                "reason": reason,
+            }
 
     def publish_event(
         self, actor_id: int, event_id: int, request_id: str
@@ -508,11 +1063,28 @@ class InMemoryTeamPortalRepository:
             event = self.events.get(event_id)
             if event is None:
                 raise ConflictError("event not found")
+            request_id = _request_id(request_id)
+            details = _operation_details(
+                "publish", {"eligibility": sorted(event["eligibility"])}
+            )
+            if request_id in self.audit_requests:
+                existing = next(
+                    row for row in self.audits if row.get("request_id") == request_id
+                )
+                if (
+                    existing.get("event_id") == event_id
+                    and existing.get("actor") == actor_id
+                    and existing.get("action") == "published"
+                    and existing.get("details") == details
+                ):
+                    return self.event_invitees(event_id)
+                raise ConflictError("event request id already used")
             if event["status"] == "published":
                 return self.event_invitees(event_id)
             if event["status"] != "draft":
                 raise ConflictError("draft event required")
             now = utc_now()
+            snapshot_invitees = {}
             for person in self.people.values():
                 if not person.can_use_portal:
                     continue
@@ -530,21 +1102,44 @@ class InMemoryTeamPortalRepository:
                         )
                         if value in matches
                     )
-                    self.invitees[(event_id, person.id)] = Invitee(
+                    snapshot_invitees[(event_id, person.id)] = Invitee(
                         event_id, person.id, True, "qualification", category
                     )
             for (override_event_id, person_id), override in self.overrides.items():
                 if override_event_id != event_id:
                     continue
-                self.invitees[(event_id, person_id)] = Invitee(
+                snapshot_invitees[(event_id, person_id)] = Invitee(
                     event_id,
                     person_id,
                     override["action"] == "include",
                     f"manual_{override['action']}",
                     override["category"],
                 )
-            event["status"] = "published"
-            event["published_at"] = now
+            next_invitees = dict(self.invitees)
+            next_invitees.update(snapshot_invitees)
+            next_event = copy.deepcopy(event)
+            next_event["status"] = "published"
+            next_event["published_at"] = now
+            next_event["version"] += 1
+            next_audits = list(self.audits)
+            next_audits.append(
+                {
+                    "event_id": event_id,
+                    "actor": actor_id,
+                    "action": "published",
+                    "request_id": request_id,
+                    "details": details,
+                    "reason": None,
+                }
+            )
+            next_audit_requests = set(self.audit_requests)
+            next_audit_requests.add(request_id)
+            next_events = dict(self.events)
+            next_events[event_id] = next_event
+            self.invitees = next_invitees
+            self.audits = next_audits
+            self.audit_requests = next_audit_requests
+            self.events = next_events
             return self.event_invitees(event_id)
 
     def event_invitees(self, event_id: int) -> list[Invitee]:
@@ -609,6 +1204,7 @@ class PostgresTeamPortalRepository:
     """PostgreSQL adapter used only when explicitly constructed by local tests."""
 
     ADMIN_LOCK_KEY = 0x4E545542
+    EVENT_SNAPSHOT_LOCK_KEY = ADMIN_LOCK_KEY + 0x100000
 
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -673,6 +1269,10 @@ class PostgresTeamPortalRepository:
         require_choice(status, PORTAL_STATUSES, "portal status")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+            )
             row = PersonRecord(
                 display_name=display_name,
                 portal_access_level=access_level,
@@ -780,6 +1380,10 @@ class PostgresTeamPortalRepository:
             validate_guest_period(valid_from, valid_until)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+            )
             row = session.scalar(
                 select(PersonQualificationRecord).where(
                     PersonQualificationRecord.person_id == person_id,
@@ -966,6 +1570,10 @@ class PostgresTeamPortalRepository:
                     text("SELECT pg_advisory_xact_lock(:key)"),
                     {"key": self.ADMIN_LOCK_KEY},
                 )
+                session.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+                )
                 self._require_admin(session, actor_id, for_update=True)
                 target = session.scalar(
                     select(PersonRecord)
@@ -1020,6 +1628,10 @@ class PostgresTeamPortalRepository:
                     text("SELECT pg_advisory_xact_lock(:key)"),
                     {"key": self.ADMIN_LOCK_KEY},
                 )
+                session.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+                )
                 self._require_admin(session, actor_id, for_update=True)
                 target = session.scalar(
                     select(PersonRecord)
@@ -1069,6 +1681,10 @@ class PostgresTeamPortalRepository:
     def revoke_qualification(self, person_id: int, qualification: str) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+            )
             row = session.scalar(
                 select(PersonQualificationRecord)
                 .where(
@@ -1089,7 +1705,11 @@ class PostgresTeamPortalRepository:
         event_type: str,
         start_at: datetime,
         eligibility: Iterable[str],
+        end_at: datetime | None = None,
     ) -> int:
+        title = _bounded_text(title, "event title")
+        require_choice(event_type, EVENT_TYPES, "event type")
+        _event_times(start_at, end_at)
         rules = {
             require_choice(value, QUALIFICATIONS, "qualification")
             for value in eligibility
@@ -1098,13 +1718,17 @@ class PostgresTeamPortalRepository:
             raise ConflictError("event eligibility cannot be empty")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+            )
             self._require_event_manager(session, actor_id)
             event = EventRecord(
                 title=title,
                 event_type=event_type,
                 status="draft",
                 start_at=start_at,
-                end_at=None,
+                end_at=end_at,
                 created_by_person_id=actor_id,
                 published_at=None,
                 version=1,
@@ -1121,6 +1745,583 @@ class PostgresTeamPortalRepository:
                 )
             return event.id
 
+    @staticmethod
+    def _managed_event_projection(
+        event: EventRecord,
+        activities: Iterable[ActivityRecord],
+        eligibility: Iterable[str],
+    ) -> dict:
+        return {
+            "id": event.id,
+            "title": event.title,
+            "event_type": event.event_type,
+            "status": event.status,
+            "start_at": event.start_at,
+            "end_at": event.end_at,
+            "published_at": event.published_at,
+            "version": event.version,
+            "created_by_person_id": event.created_by_person_id,
+            "eligibility": tuple(sorted(eligibility)),
+            "activities": tuple(
+                {
+                    "id": row.id,
+                    "event_id": row.event_id,
+                    "title": row.title,
+                    "activity_type": row.activity_type,
+                    "position": row.position,
+                    "start_at": row.start_at,
+                    "end_at": row.end_at,
+                    "game_id": row.game_id,
+                }
+                for row in activities
+            ),
+        }
+
+    def _managed_event_in_session(self, session: Session, event_id: int) -> dict:
+        event = session.get(EventRecord, event_id)
+        if event is None:
+            raise ConflictError("event not found")
+        activities = session.scalars(
+            select(ActivityRecord)
+            .where(ActivityRecord.event_id == event_id)
+            .order_by(ActivityRecord.position, ActivityRecord.id)
+        ).all()
+        eligibility = session.scalars(
+            select(EventEligibilityRuleRecord.qualification).where(
+                EventEligibilityRuleRecord.event_id == event_id
+            )
+        ).all()
+        return self._managed_event_projection(event, activities, eligibility)
+
+    def managed_events(self, actor_id: int) -> tuple[dict, ...]:
+        with Session(self.engine) as session:
+            self._require_event_manager(session, actor_id)
+            events = session.scalars(
+                select(EventRecord).order_by(EventRecord.start_at, EventRecord.id)
+            ).all()
+            return tuple(
+                self._managed_event_in_session(session, event.id) for event in events
+            )
+
+    def managed_event(self, actor_id: int, event_id: int) -> dict:
+        with Session(self.engine) as session:
+            self._require_event_manager(session, actor_id)
+            return self._managed_event_in_session(session, event_id)
+
+    def eligibility_preview(self, actor_id: int, event_id: int) -> dict:
+        now = utc_now()
+        with Session(self.engine) as session:
+            self._require_event_manager(session, actor_id)
+            event = session.get(EventRecord, event_id)
+            if event is None:
+                raise ConflictError("event not found")
+            rules = set(
+                session.scalars(
+                    select(EventEligibilityRuleRecord.qualification).where(
+                        EventEligibilityRuleRecord.event_id == event_id
+                    )
+                )
+            )
+            rows = session.execute(
+                select(
+                    PersonQualificationRecord.person_id,
+                    PersonQualificationRecord.qualification,
+                )
+                .join(
+                    PersonRecord, PersonRecord.id == PersonQualificationRecord.person_id
+                )
+                .where(
+                    PersonQualificationRecord.qualification.in_(rules),
+                    PersonQualificationRecord.status == "active",
+                    PersonRecord.portal_status == "active",
+                    PersonRecord.portal_access_level.in_(ACCESS_LEVELS),
+                    or_(
+                        PersonQualificationRecord.valid_from.is_(None),
+                        PersonQualificationRecord.valid_from <= now,
+                    ),
+                    or_(
+                        PersonQualificationRecord.valid_until.is_(None),
+                        PersonQualificationRecord.valid_until > now,
+                    ),
+                )
+                .order_by(PersonQualificationRecord.person_id)
+            ).all()
+            counts = Counter(qualification for _, qualification in rows)
+            eligible_person_ids = {row[0] for row in rows}
+            overrides = session.scalars(
+                select(EventInviteeOverrideRecord)
+                .where(EventInviteeOverrideRecord.event_id == event_id)
+                .order_by(EventInviteeOverrideRecord.person_id)
+            ).all()
+            override_targets = session.execute(
+                select(PersonRecord.id, PersonRecord.display_name)
+                .where(
+                    PersonRecord.portal_status == "active",
+                    PersonRecord.portal_access_level.in_(ACCESS_LEVELS),
+                )
+                .order_by(PersonRecord.id)
+            ).all()
+            candidates = tuple(
+                {"person_id": person_id, "display_name": display_name}
+                for person_id, display_name in override_targets
+            )
+            return {
+                "qualification_counts": dict(sorted(counts.items())),
+                "candidate_count": len(eligible_person_ids),
+                "candidates": candidates,
+                "override_targets": tuple(dict(candidate) for candidate in candidates),
+                "overrides": tuple(
+                    {
+                        "person_id": row.person_id,
+                        "action": row.action,
+                        "participation_category": row.participation_category,
+                        "reason": row.reason,
+                    }
+                    for row in overrides
+                ),
+            }
+
+    @staticmethod
+    def _existing_event_audit(
+        session: Session, request_id: str
+    ) -> EventAuditRecord | None:
+        return session.scalar(
+            select(EventAuditRecord).where(EventAuditRecord.request_id == request_id)
+        )
+
+    @staticmethod
+    def _add_event_audit(
+        session: Session,
+        *,
+        event_id: int,
+        actor_id: int,
+        action: str,
+        request_id: str,
+        details: dict | None = None,
+        reason: str | None = None,
+    ) -> None:
+        session.add(
+            EventAuditRecord(
+                event_id=event_id,
+                actor_person_id=actor_id,
+                action=action,
+                reason=reason or f"event {action} by authorized manager",
+                request_id=request_id,
+                details=details,
+                created_at=utc_now(),
+            )
+        )
+
+    def update_event(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        event_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        eligibility: Iterable[str],
+        expected_version: int,
+        request_id: str,
+    ) -> dict:
+        title = _bounded_text(title, "event title")
+        require_choice(event_type, EVENT_TYPES, "event type")
+        _event_times(start_at, end_at)
+        request_id = _request_id(request_id)
+        rules = {
+            require_choice(value, QUALIFICATIONS, "qualification")
+            for value in eligibility
+        }
+        if not rules:
+            raise ConflictError("event eligibility cannot be empty")
+        details = _operation_details(
+            "event_update",
+            {
+                "title": title,
+                "event_type": event_type,
+                "start_at": start_at,
+                "end_at": end_at,
+                "eligibility": sorted(rules),
+                "expected_version": expected_version,
+            },
+            target_id=event_id,
+        )
+        with Session(self.engine) as session, session.begin():
+            self._require_event_manager(session, actor_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
+            if event is None:
+                raise ConflictError("event not found")
+            existing = self._existing_event_audit(session, request_id)
+            if existing is not None:
+                if (
+                    existing.event_id == event_id
+                    and existing.actor_person_id == actor_id
+                    and existing.action == "edited"
+                    and existing.details == details
+                ):
+                    return self._managed_event_in_session(session, event_id)
+                raise ConflictError("event request id already used")
+            if event.status == "cancelled":
+                raise ConflictError("cancelled event cannot be edited")
+            if type(expected_version) is not int or event.version != expected_version:
+                raise ConflictError("event version conflict")
+            event.title = title
+            event.event_type = event_type
+            event.start_at = start_at
+            event.end_at = end_at
+            event.updated_at = utc_now()
+            event.version += 1
+            if event.status == "draft":
+                session.execute(
+                    delete(EventEligibilityRuleRecord).where(
+                        EventEligibilityRuleRecord.event_id == event_id
+                    )
+                )
+                session.add_all(
+                    EventEligibilityRuleRecord(event_id=event_id, qualification=value)
+                    for value in sorted(rules)
+                )
+            else:
+                self._add_event_audit(
+                    session,
+                    event_id=event_id,
+                    actor_id=actor_id,
+                    action="edited",
+                    request_id=request_id,
+                    details=details,
+                )
+            session.flush()
+            return self._managed_event_in_session(session, event_id)
+
+    def add_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str | None = None,
+    ) -> int:
+        title = _bounded_text(title, "activity title")
+        require_choice(activity_type, ACTIVITY_TYPES, "activity type")
+        _event_times(start_at, end_at)
+        details = _operation_details(
+            "activity_add",
+            {
+                "title": title,
+                "activity_type": activity_type,
+                "start_at": start_at,
+                "end_at": end_at,
+            },
+        )
+        with Session(self.engine) as session, session.begin():
+            self._require_event_manager(session, actor_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
+            if event is None or event.status == "cancelled":
+                raise ConflictError("editable event required")
+            if event.status == "published":
+                if request_id is None:
+                    raise ConflictError("published edit request id required")
+                request_id = _request_id(request_id)
+                existing = self._existing_event_audit(session, request_id)
+                if existing is not None:
+                    if (
+                        existing.event_id == event_id
+                        and existing.actor_person_id == actor_id
+                        and existing.action == "edited"
+                        and existing.details.get("operation") == details["operation"]
+                        and existing.details.get("fingerprint")
+                        == details["fingerprint"]
+                    ):
+                        return existing.details["target_id"]
+                    raise ConflictError("event request id already used")
+            position = (
+                session.scalar(
+                    select(func.max(ActivityRecord.position)).where(
+                        ActivityRecord.event_id == event_id
+                    )
+                )
+                or 0
+            ) + 1
+            activity = ActivityRecord(
+                event_id=event_id,
+                title=title,
+                activity_type=activity_type,
+                position=position,
+                start_at=start_at,
+                end_at=end_at,
+                game_id=None,
+            )
+            session.add(activity)
+            event.version += 1
+            event.updated_at = utc_now()
+            session.flush()
+            if event.status == "published":
+                self._add_event_audit(
+                    session,
+                    event_id=event_id,
+                    actor_id=actor_id,
+                    action="edited",
+                    request_id=request_id,
+                    details={**details, "target_id": activity.id},
+                )
+            return activity.id
+
+    def _locked_activity(
+        self, session: Session, event_id: int, activity_id: int
+    ) -> ActivityRecord:
+        activity = session.scalar(
+            select(ActivityRecord)
+            .where(
+                ActivityRecord.id == activity_id,
+                ActivityRecord.event_id == event_id,
+            )
+            .with_for_update()
+        )
+        if activity is None:
+            raise ConflictError("activity does not belong to event")
+        return activity
+
+    def update_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str,
+    ) -> None:
+        title = _bounded_text(title, "activity title")
+        require_choice(activity_type, ACTIVITY_TYPES, "activity type")
+        _event_times(start_at, end_at)
+        request_id = _request_id(request_id)
+        details = _operation_details(
+            "activity_update",
+            {
+                "title": title,
+                "activity_type": activity_type,
+                "start_at": start_at,
+                "end_at": end_at,
+            },
+            target_id=activity_id,
+        )
+        with Session(self.engine) as session, session.begin():
+            self._require_event_manager(session, actor_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
+            if event is None or event.status == "cancelled":
+                raise ConflictError("editable event required")
+            activity = self._locked_activity(session, event_id, activity_id)
+            existing = self._existing_event_audit(session, request_id)
+            if existing is not None:
+                if (
+                    existing.event_id == event_id
+                    and existing.actor_person_id == actor_id
+                    and existing.action == "edited"
+                    and existing.details == details
+                ):
+                    return
+                raise ConflictError("event request id already used")
+            activity.title = title
+            activity.activity_type = activity_type
+            activity.start_at = start_at
+            activity.end_at = end_at
+            event.version += 1
+            event.updated_at = utc_now()
+            if event.status == "published":
+                self._add_event_audit(
+                    session,
+                    event_id=event_id,
+                    actor_id=actor_id,
+                    action="edited",
+                    request_id=request_id,
+                    details=details,
+                )
+
+    def delete_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        request_id: str | None = None,
+    ) -> None:
+        details = _operation_details("activity_delete", {}, target_id=activity_id)
+        with Session(self.engine) as session, session.begin():
+            self._require_event_manager(session, actor_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
+            if event is None or event.status == "cancelled":
+                raise ConflictError("editable event required")
+            if event.status == "published":
+                if request_id is None:
+                    raise ConflictError("published edit request id required")
+                request_id = _request_id(request_id)
+                existing = self._existing_event_audit(session, request_id)
+                if existing is not None:
+                    if (
+                        existing.event_id == event_id
+                        and existing.actor_person_id == actor_id
+                        and existing.action == "edited"
+                        and existing.details == details
+                    ):
+                        return
+                    raise ConflictError("event request id already used")
+                self._add_event_audit(
+                    session,
+                    event_id=event_id,
+                    actor_id=actor_id,
+                    action="edited",
+                    request_id=request_id,
+                    details=details,
+                )
+            activity = self._locked_activity(session, event_id, activity_id)
+            removed_position = activity.position
+            session.delete(activity)
+            session.flush()
+            remaining = session.scalars(
+                select(ActivityRecord)
+                .where(
+                    ActivityRecord.event_id == event_id,
+                    ActivityRecord.position > removed_position,
+                )
+                .order_by(ActivityRecord.position, ActivityRecord.id)
+                .with_for_update()
+            ).all()
+            for row in remaining:
+                row.position = -row.id
+            session.flush()
+            for position, row in enumerate(remaining, removed_position):
+                row.position = position
+            event.version += 1
+            event.updated_at = utc_now()
+
+    def move_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        direction: str,
+        request_id: str | None = None,
+    ) -> None:
+        if direction not in {"up", "down"}:
+            raise ConflictError("invalid activity direction")
+        details = _operation_details(
+            "activity_move", {"direction": direction}, target_id=activity_id
+        )
+        with Session(self.engine) as session, session.begin():
+            self._require_event_manager(session, actor_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
+            if event is None or event.status == "cancelled":
+                raise ConflictError("editable event required")
+            activity = self._locked_activity(session, event_id, activity_id)
+            if event.status == "published":
+                if request_id is None:
+                    raise ConflictError("published edit request id required")
+                request_id = _request_id(request_id)
+                existing = self._existing_event_audit(session, request_id)
+                if existing is not None:
+                    if (
+                        existing.event_id == event_id
+                        and existing.actor_person_id == actor_id
+                        and existing.action == "edited"
+                        and existing.details == details
+                    ):
+                        return
+                    raise ConflictError("event request id already used")
+            target_position = activity.position + (-1 if direction == "up" else 1)
+            target = session.scalar(
+                select(ActivityRecord)
+                .where(
+                    ActivityRecord.event_id == event_id,
+                    ActivityRecord.position == target_position,
+                )
+                .with_for_update()
+            )
+            if target is None:
+                return
+            if event.status == "published":
+                self._add_event_audit(
+                    session,
+                    event_id=event_id,
+                    actor_id=actor_id,
+                    action="edited",
+                    request_id=request_id,
+                    details=details,
+                )
+            original = activity.position
+            activity.position = -activity.id
+            target.position = -target.id
+            session.flush()
+            activity.position = target_position
+            target.position = original
+            event.version += 1
+            event.updated_at = utc_now()
+
+    def cancel_event(self, actor_id: int, event_id: int, request_id: str) -> dict:
+        request_id = _request_id(request_id)
+        with Session(self.engine) as session, session.begin():
+            self._require_event_manager(session, actor_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
+            if event is None:
+                raise ConflictError("event not found")
+            existing = self._existing_event_audit(session, request_id)
+            if existing is not None:
+                if (
+                    existing.event_id == event_id
+                    and existing.actor_person_id == actor_id
+                    and existing.action == "cancelled"
+                ):
+                    return self._managed_event_in_session(session, event_id)
+                raise ConflictError("event request id already used")
+            if event.status == "cancelled":
+                return self._managed_event_in_session(session, event_id)
+            if event.status != "published":
+                raise ConflictError("published event required")
+            event.status = "cancelled"
+            event.version += 1
+            event.updated_at = utc_now()
+            self._add_event_audit(
+                session,
+                event_id=event_id,
+                actor_id=actor_id,
+                action="cancelled",
+                request_id=request_id,
+            )
+            session.flush()
+            return self._managed_event_in_session(session, event_id)
+
+    def event_audits(self, event_id: int) -> tuple[dict, ...]:
+        with Session(self.engine) as session:
+            rows = session.scalars(
+                select(EventAuditRecord)
+                .where(EventAuditRecord.event_id == event_id)
+                .order_by(EventAuditRecord.id)
+            ).all()
+            return tuple(
+                {
+                    "event_id": row.event_id,
+                    "actor": row.actor_person_id,
+                    "action": row.action,
+                    "request_id": row.request_id,
+                    "details": row.details,
+                    "reason": row.reason,
+                }
+                for row in rows
+            )
+
     def set_invitee_override(
         self,
         actor_id: int,
@@ -1129,18 +2330,52 @@ class PostgresTeamPortalRepository:
         action: str,
         participation_category: str,
         reason: str,
+        request_id: str,
     ) -> None:
         if action not in {"include", "exclude"}:
             raise ConflictError("invalid override")
         if participation_category not in QUALIFICATIONS | {"other"}:
             raise ConflictError("invalid participation category")
         reason = require_reason(reason)
+        request_id = _request_id(request_id)
+        details = _operation_details(
+            "override",
+            {
+                "person_id": person_id,
+                "action": action,
+                "participation_category": participation_category,
+                "reason": reason,
+            },
+            target_id=person_id,
+        )
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+            )
             self._require_event_manager(session, actor_id)
-            event = session.get(EventRecord, event_id)
+            event = session.scalar(
+                select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+            )
             if event is None or event.status != "draft":
                 raise ConflictError("draft event required")
+            if session.get(PersonRecord, person_id) is None:
+                raise ConflictError("person not found")
+            existing_audit = self._existing_event_audit(session, request_id)
+            audit_action = (
+                "invitee_included" if action == "include" else "invitee_excluded"
+            )
+            if existing_audit is not None:
+                if (
+                    existing_audit.event_id == event_id
+                    and existing_audit.actor_person_id == actor_id
+                    and existing_audit.action == audit_action
+                    and existing_audit.details == details
+                    and existing_audit.reason == reason
+                ):
+                    return
+                raise ConflictError("event request id already used")
             session.execute(
                 insert(EventInviteeOverrideRecord)
                 .values(
@@ -1163,26 +2398,32 @@ class PostgresTeamPortalRepository:
                     },
                 )
             )
+            self._add_event_audit(
+                session,
+                event_id=event_id,
+                actor_id=actor_id,
+                action=audit_action,
+                request_id=request_id,
+                details=details,
+                reason=reason,
+            )
 
     def publish_event(
         self, actor_id: int, event_id: int, request_id: str
     ) -> list[Invitee]:
+        request_id = _request_id(request_id)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            self._require_event_manager(session, actor_id)
             session.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.ADMIN_LOCK_KEY + event_id},
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
             )
+            self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
             )
             if event is None:
                 raise ConflictError("event not found")
-            if event.status == "published":
-                return self._event_invitees(session, event_id)
-            if event.status != "draft":
-                raise ConflictError("draft event required")
             rules = set(
                 session.scalars(
                     select(EventEligibilityRuleRecord.qualification).where(
@@ -1190,6 +2431,23 @@ class PostgresTeamPortalRepository:
                     )
                 )
             )
+            details = _operation_details("publish", {"eligibility": sorted(rules)})
+            existing_audit = self._existing_event_audit(session, request_id)
+            if existing_audit is not None:
+                if (
+                    existing_audit.event_id == event_id
+                    and existing_audit.actor_person_id == actor_id
+                    and existing_audit.action == "published"
+                    and existing_audit.details == details
+                ):
+                    return self._event_invitees(session, event_id)
+                raise ConflictError("event request id already used")
+            if event.status == "published":
+                return self._event_invitees(session, event_id)
+            if event.status != "draft":
+                raise ConflictError("draft event required")
+            if not rules:
+                raise ConflictError("event eligibility cannot be empty")
             qualification_rows = session.execute(
                 select(
                     PersonQualificationRecord.person_id,
@@ -1280,7 +2538,7 @@ class PostgresTeamPortalRepository:
                     action="published",
                     reason="publish event invitee snapshot",
                     request_id=request_id,
-                    details={"eligibility": sorted(rules)},
+                    details=details,
                     created_at=now,
                 )
             )

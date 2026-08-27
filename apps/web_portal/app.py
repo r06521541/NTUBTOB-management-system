@@ -165,10 +165,23 @@ def inject_portal_copy():
         and isinstance(session.get("user_id"), str)
     ):
         can_manage_games = _game_management_context() is not None
+    lifecycle_context = getattr(g, "portal_lifecycle_context", None)
+    lifecycle_person = lifecycle_context[1].person if lifecycle_context else None
+    can_manage_events = bool(
+        lifecycle_person is not None
+        and getattr(
+            lifecycle_person,
+            "status",
+            getattr(lifecycle_person, "portal_status", None),
+        )
+        == "active"
+        and lifecycle_person.access_level in {"officer", "admin"}
+    )
     return {
         "portal_copy": PORTAL_COPY,
         "lineup_identity_key": lineup_identity_key,
         "can_manage_games": can_manage_games,
+        "can_manage_events": can_manage_events,
         "can_manage_people": can_manage_people,
         "portal_schedule_endpoint": (
             "game_command_center" if can_manage_games else "future_games"
@@ -922,6 +935,96 @@ ACTIVITY_TYPE_LABELS = {
     "gathering": "集合",
     "other": "其他行程",
 }
+EVENT_ELIGIBILITY_LABELS = {
+    "team_player": "正式球員",
+    "guest_player": "客座球員",
+    "affiliate": "校友／親友",
+    "staff": "隊務人員",
+}
+
+
+def _parse_management_key(value, prefix):
+    if not isinstance(value, str) or not value.startswith(prefix):
+        abort(404)
+    candidate = "event_" + value[len(prefix) :]
+    try:
+        return parse_event_key(candidate)
+    except EventReadContractError:
+        abort(404)
+
+
+def _parse_event_datetime(name, *, required=True):
+    value = request.form.get(name, "").strip()
+    if not value and not required:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        abort(400)
+    if parsed.tzinfo is not None:
+        abort(400)
+    return parsed.replace(tzinfo=local_timezone)
+
+
+def _event_management_context():
+    context = _event_read_context()
+    if context is None:
+        abort(503)
+    repository, principal = context
+    if getattr(
+        principal.person,
+        "status",
+        getattr(principal.person, "portal_status", None),
+    ) != "active" or principal.person.access_level not in {"officer", "admin"}:
+        abort(403)
+    return repository, principal
+
+
+def _event_management_service():
+    repository, _ = _event_management_context()
+    from shared_module.portal_data.repository import PostgresTeamPortalRepository
+    from shared_module.portal_data.services import PortalDataService
+
+    return PortalDataService(PostgresTeamPortalRepository(repository.engine))
+
+
+def _event_management_projection(event):
+    projected = dict(event)
+    projected["start_local"] = event["start_at"].astimezone(local_timezone)
+    projected["end_local"] = (
+        event["end_at"].astimezone(local_timezone) if event["end_at"] else None
+    )
+    projected["type_label"] = EVENT_TYPE_LABELS[event["event_type"]]
+    projected["activities"] = tuple(
+        {
+            **activity,
+            "type_label": ACTIVITY_TYPE_LABELS[activity["activity_type"]],
+            "start_local": activity["start_at"].astimezone(local_timezone),
+            "end_local": (
+                activity["end_at"].astimezone(local_timezone)
+                if activity["end_at"]
+                else None
+            ),
+        }
+        for activity in event["activities"]
+    )
+    return projected
+
+
+def _event_write_failure(error):
+    from shared_module.portal_data.domain import (
+        AuthorizationError as PortalAuthorizationError,
+        ConflictError as PortalConflictError,
+        ValidationError as PortalValidationError,
+    )
+
+    if isinstance(error, PortalAuthorizationError):
+        abort(403)
+    if isinstance(error, PortalValidationError):
+        abort(400)
+    if isinstance(error, PortalConflictError):
+        abort(409)
+    raise error
 
 
 def _local_event_time(value):
@@ -1042,6 +1145,236 @@ def event_detail(event_key):
         event=projected_event,
         **_event_template_context(lifecycle_principal),
     )
+
+
+@app.get("/manage/events")
+@member_required
+def manage_events():
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        managed = tuple(
+            _event_management_projection(event)
+            for event in service.managed_events(principal.person.id)
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return render_template(
+        "event_management.html",
+        events=managed,
+        csrf_token=get_or_create_csrf_token(),
+        event_types=EVENT_TYPE_LABELS,
+        eligibility_labels=EVENT_ELIGIBILITY_LABELS,
+    )
+
+
+@app.post("/manage/events/new")
+@member_required
+def create_managed_event():
+    require_valid_csrf()
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        event_id = service.create_event(
+            principal.person.id,
+            request.form.get("title", ""),
+            request.form.get("event_type", ""),
+            _parse_event_datetime("start_at"),
+            request.form.getlist("eligibility"),
+            _parse_event_datetime("end_at", required=False),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=f"event_{event_id}"))
+
+
+def _managed_event_page(event_id):
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        event = _event_management_projection(
+            service.managed_event(principal.person.id, event_id)
+        )
+        preview = service.eligibility_preview(principal.person.id, event_id)
+    except Exception as error:
+        return _event_write_failure(error)
+    return render_template(
+        "event_management_edit.html",
+        event=event,
+        preview=preview,
+        csrf_token=get_or_create_csrf_token(),
+        new_request_id=lambda: secrets.token_urlsafe(24),
+        event_types=EVENT_TYPE_LABELS,
+        activity_types=ACTIVITY_TYPE_LABELS,
+        eligibility_labels=EVENT_ELIGIBILITY_LABELS,
+    )
+
+
+@app.get("/manage/events/<event_key>")
+@member_required
+def edit_managed_event(event_key):
+    return _managed_event_page(_parse_management_key(event_key, "event_"))
+
+
+@app.post("/manage/events/<event_key>")
+@member_required
+def update_managed_event(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    _, principal = _event_management_context()
+    try:
+        expected_version = int(request.form.get("version", ""))
+    except ValueError:
+        abort(400)
+    service = _event_management_service()
+    try:
+        service.update_event(
+            principal.person.id,
+            event_id,
+            request.form.get("title", ""),
+            request.form.get("event_type", ""),
+            _parse_event_datetime("start_at"),
+            _parse_event_datetime("end_at", required=False),
+            request.form.getlist("eligibility"),
+            expected_version,
+            request.form.get("request_id", ""),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/activities")
+@member_required
+def add_managed_activity(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.add_activity(
+            principal.person.id,
+            event_id,
+            request.form.get("title", ""),
+            request.form.get("activity_type", ""),
+            _parse_event_datetime("start_at"),
+            _parse_event_datetime("end_at", required=False),
+            request.form.get("request_id") or None,
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/activities/<activity_key>")
+@member_required
+def update_managed_activity(event_key, activity_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    activity_id = _parse_management_key(activity_key, "activity_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.update_activity(
+            principal.person.id,
+            event_id,
+            activity_id,
+            request.form.get("title", ""),
+            request.form.get("activity_type", ""),
+            _parse_event_datetime("start_at"),
+            _parse_event_datetime("end_at", required=False),
+            request.form.get("request_id", ""),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/activities/<activity_key>/action")
+@member_required
+def managed_activity_action(event_key, activity_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    activity_id = _parse_management_key(activity_key, "activity_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    action = request.form.get("action", "")
+    try:
+        if action == "delete":
+            service.delete_activity(
+                principal.person.id,
+                event_id,
+                activity_id,
+                request_id=request.form.get("request_id") or None,
+            )
+        elif action in {"up", "down"}:
+            service.move_activity(
+                principal.person.id,
+                event_id,
+                activity_id,
+                action,
+                request_id=request.form.get("request_id") or None,
+            )
+        else:
+            abort(400)
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/overrides")
+@member_required
+def set_managed_event_override(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    person_id = _parse_management_key(request.form.get("person_key"), "person_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.set_invitee_override(
+            principal.person.id,
+            event_id,
+            person_id,
+            request.form.get("action", ""),
+            request.form.get("participation_category", ""),
+            request.form.get("reason", ""),
+            request.form.get("request_id", ""),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/publish")
+@member_required
+def publish_managed_event(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.publish_event(
+            principal.person.id, event_id, request.form.get("request_id", "")
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/cancel")
+@member_required
+def cancel_managed_event(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.cancel_event(
+            principal.person.id, event_id, request.form.get("request_id", "")
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
 
 
 @app.route("/dashboard")
@@ -2081,6 +2414,7 @@ def management_hub():
     return render_template(
         "management_hub.html",
         can_manage_games=True,
+        can_manage_events=True,
         can_manage_people=has_capability(get_current_principal(), MANAGE_MEMBERS),
     )
 

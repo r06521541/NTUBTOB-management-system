@@ -9,10 +9,14 @@
         <link rel="stylesheet" href="{{ url_for('static', filename='brand.css') }}" />
         <link rel="stylesheet"
               href="{{ url_for('static', filename='production_portal.css') }}" />
+        <link rel="stylesheet" href="{{ url_for('static', filename='events.css') }}" />
+        <link rel="stylesheet"
+              href="{{ url_for('static', filename='event_management.css') }}" />
         <script src="{{ url_for('static', filename='game_lineup.js') }}" defer></script>
         <script src="{{ url_for('static', filename='portal_loading.js') }}" defer></script>
         <script src="{{ url_for('static', filename='dashboard_weather.js') }}" defer></script>
         <script src="{{ url_for('static', filename='dashboard_reply.js') }}" defer></script>
+        <script src="{{ url_for('static', filename='event_management.js') }}" defer></script>
     </head>
     <body data-lineup-identity="{{ lineup_identity_key }}">
         <header class="portal-header">
@@ -28,19 +32,21 @@
                 <a href="{{ url_for('account') }}">個人</a>
                 {% if can_manage_games|default(false) %}
                     <a href="{{ url_for('management_hub') }}">管理</a>
+                {% elif can_manage_events|default(false) %}
+                    <a href="{{ url_for('manage_events') }}">活動管理</a>
                 {% endif %}
             </nav>
         </header>
         <main class="portal-shell">
             {% block content %}{% endblock %}
         </main>
-        <nav class="portal-bottom-nav{% if can_manage_games|default(false) %} portal-bottom-nav-management{% endif %}"
+        <nav class="portal-bottom-nav{% if can_manage_games|default(false) or can_manage_events|default(false) %} portal-bottom-nav-management{% endif %}"
              aria-label="手機主要導覽">
             <a href="{{ url_for('member_dashboard') }}"><span aria-hidden="true">⌂</span>首頁</a>
             <a href="{{ url_for('events') }}"><span aria-hidden="true">◇</span>活動</a>
             <a href="{{ url_for('attendance') }}"><span aria-hidden="true">✓</span>出席</a>
             <a href="{{ url_for('account') }}"><span aria-hidden="true">○</span>個人</a>
-            {% if can_manage_games|default(false) %}<a href="{{ url_for('management_hub') }}"><span aria-hidden="true">◆</span>管理</a>{% endif %}
+            {% if can_manage_games|default(false) %}<a href="{{ url_for('management_hub') }}"><span aria-hidden="true">◆</span>管理</a>{% elif can_manage_events|default(false) %}<a href="{{ url_for('manage_events') }}"><span aria-hidden="true">◆</span>活動管理</a>{% endif %}
         </nav>
         <div class="portal-loading-overlay"
              data-portal-loading

@@ -11,6 +11,13 @@
             <h2>賽務管理</h2>
             <p>查看比賽、出席洞察與守位試排。</p>
         </a>
+        {% if can_manage_events %}
+        <a class="portal-card portal-card-link portal-game-card"
+           href="{{ url_for('manage_events') }}">
+            <h2>活動管理</h2>
+            <p>建立活動、編排行程與固定發布邀請快照。</p>
+        </a>
+        {% endif %}
         {% if can_manage_people %}
         <a class="portal-card portal-card-link portal-game-card"
            href="{{ url_for('admin_people') }}">

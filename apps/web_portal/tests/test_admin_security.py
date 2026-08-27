@@ -3053,6 +3053,210 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertNotIn(b"sentinel", response.data)
         repository.scoped_event.assert_called_once_with(80, 7)
 
+    def _event_management_service(self, *, status="draft"):
+        service = MagicMock()
+        service.managed_events.return_value = ()
+        service.managed_event.return_value = {
+            "id": 7,
+            "title": "虛構管理活動",
+            "event_type": "trip",
+            "status": status,
+            "start_at": datetime(2026, 9, 12, 1, 0, tzinfo=timezone.utc),
+            "end_at": datetime(2026, 9, 13, 8, 0, tzinfo=timezone.utc),
+            "version": 2,
+            "eligibility": ("team_player",),
+            "activities": (),
+        }
+        service.eligibility_preview.return_value = {
+            "qualification_counts": {"team_player": 3},
+            "candidate_count": 3,
+            "candidates": ({"person_id": 10, "display_name": "虛構人工邀請對象"},),
+            "overrides": (),
+        }
+        return service
+
+    def test_event_management_create_requires_csrf_and_uses_server_actor(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        principal.person.access_level = "officer"
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "event-csrf"
+        payload = {
+            "title": "台中移地活動",
+            "event_type": "trip",
+            "start_at": "2026-09-12T09:00",
+            "eligibility": "team_player",
+        }
+        service.create_event.return_value = 7
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            missing = self.client.post("/manage/events/new", data=payload)
+            saved = self.client.post(
+                "/manage/events/new", data={**payload, "csrf_token": "event-csrf"}
+            )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(saved.status_code, 302)
+        self.assertEqual(saved.headers["Location"], "/manage/events/event_7")
+        args = service.create_event.call_args.args
+        self.assertEqual(args[:3], (80, "台中移地活動", "trip"))
+        self.assertEqual(args[3].utcoffset(), timedelta(hours=8))
+
+    def test_event_management_basic_and_unknown_roles_fail_before_service(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            for access_level in ("basic", "owner", ""):
+                with self.subTest(access_level=access_level):
+                    principal.person.access_level = access_level
+                    self.assertEqual(self.client.get("/manage/events").status_code, 403)
+
+        service.managed_events.assert_not_called()
+
+    def test_event_management_rejects_noncanonical_keys_before_repository_call(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        principal.person.access_level = "admin"
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            for key in ("event_0", "event_07", "7", "event_-1"):
+                self.assertEqual(
+                    self.client.get(f"/manage/events/{key}").status_code, 404
+                )
+        service.managed_event.assert_not_called()
+
+    def test_event_management_post_keys_require_exact_prefix_and_canonical_range(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        principal.person.access_level = "admin"
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "event-csrf"
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            for key in (
+                "activity_7",
+                "event_0",
+                "event_07",
+                "event_9223372036854775808",
+            ):
+                with self.subTest(event_key=key):
+                    response = self.client.post(
+                        f"/manage/events/{key}/publish",
+                        data={"csrf_token": "event-csrf", "request_id": "invalid"},
+                    )
+                    self.assertEqual(response.status_code, 404)
+            for key in (
+                "event_7",
+                "person_7",
+                "activity_0",
+                "activity_07",
+                "activity_9223372036854775808",
+            ):
+                with self.subTest(activity_key=key):
+                    response = self.client.post(
+                        f"/manage/events/event_7/activities/{key}/action",
+                        data={
+                            "csrf_token": "event-csrf",
+                            "action": "delete",
+                        },
+                    )
+                    self.assertEqual(response.status_code, 404)
+            for key in (
+                "event_7",
+                "activity_7",
+                "person_0",
+                "person_07",
+                "person_9223372036854775808",
+            ):
+                with self.subTest(person_key=key):
+                    response = self.client.post(
+                        "/manage/events/event_7/overrides",
+                        data={"csrf_token": "event-csrf", "person_key": key},
+                    )
+                    self.assertEqual(response.status_code, 404)
+        service.publish_event.assert_not_called()
+        service.delete_activity.assert_not_called()
+        service.set_invitee_override.assert_not_called()
+
+    def test_event_management_renders_preview_and_explicit_publish_confirmation(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        principal.person.access_level = "officer"
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            response = self.client.get("/manage/events/event_7")
+
+        page = response.data.decode()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("資格池預覽", page)
+        self.assertIn("符合 3 人", page)
+        self.assertIn("虛構人工邀請對象（人員 #10）", page)
+        self.assertIn('action="/manage/events/event_7/publish"', page)
+        self.assertIn("發布時固定邀請快照", page)
+        self.assertNotIn("不得出現在預覽的姓名", page)
+
+    def test_event_publish_and_cancel_are_csrf_post_redirect_get_without_notification(
+        self,
+    ):
+        self._login_for_events()
+        service = self._event_management_service(status="published")
+        repository, principal = self._event_repository()
+        principal.person.access_level = "admin"
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "event-csrf"
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            published = self.client.post(
+                "/manage/events/event_7/publish",
+                data={"csrf_token": "event-csrf", "request_id": "publish-web-1"},
+            )
+            cancelled = self.client.post(
+                "/manage/events/event_7/cancel",
+                data={"csrf_token": "event-csrf", "request_id": "cancel-web-1"},
+            )
+
+        self.assertEqual(published.status_code, 302)
+        self.assertEqual(cancelled.status_code, 302)
+        service.publish_event.assert_called_once_with(80, 7, "publish-web-1")
+        service.cancel_event.assert_called_once_with(80, 7, "cancel-web-1")
+        self.notifier.notify_management_message.assert_not_called()
+
     def test_game_reply_requires_csrf_and_uses_phase_c_repository(self):
         game = self.portal_game()
         game.start_datetime = datetime.now(timezone.utc) + timedelta(hours=6)

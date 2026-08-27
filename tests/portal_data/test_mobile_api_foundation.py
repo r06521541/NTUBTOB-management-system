@@ -661,7 +661,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0008_mobile_notification_delivery",
+                "0009_event_management_writes",
             )
             tables = set(
                 connection.scalars(

@@ -1146,7 +1146,8 @@ class EventAuditRecord(PortalDataBase):
     __table_args__ = (
         UniqueConstraint("request_id", name="uq_event_audit_request"),
         CheckConstraint(
-            "action IN ('published', 'invitee_included', 'invitee_excluded')",
+            "action IN ('published', 'edited', 'cancelled', "
+            "'invitee_included', 'invitee_excluded')",
             name="ck_event_audit_action",
         ),
         CheckConstraint(

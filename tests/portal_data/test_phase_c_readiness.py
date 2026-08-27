@@ -32,6 +32,7 @@ from tools.portal_data_phase_c_readiness import (
     verify_repository_artifacts,
     verify_sql as verify_evidence_sql,
 )
+from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -40,11 +41,11 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 
 def reset_phase_c_readiness_database(engine, config) -> None:
-    """Remove newer audit fixtures before exercising the 0004 downgrade."""
-    command.upgrade(config, "head")
+    """Rebuild the isolated legacy fixture without relying on later downgrades."""
     with engine.begin() as connection:
-        connection.execute(text("TRUNCATE TABLE ntubtob.access_audit"))
-    command.downgrade(config, "0003_legacy_bigint_activity_game")
+        connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+    setup_legacy_fixture()
+    command.upgrade(config, "0003_legacy_bigint_activity_game")
 
 
 def valid_rows(schema):
@@ -192,7 +193,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
     def test_migration_verifier_rejects_an_additional_head(self):
         scripts = Mock()
         scripts.get_heads.return_value = [
-            "0004_phase_c_identity_lifecycle",
+            "0009_event_management_writes",
             "fake_additional_head",
         ]
         with patch(
@@ -204,7 +205,19 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             ):
                 verify_migration_artifact()
 
-    def test_migration_verifier_accepts_the_mobile_notification_delivery_head(self):
+    def test_migration_verifier_rejects_a_divergent_single_head(self):
+        scripts = Mock()
+        scripts.get_heads.return_value = ["0008_mobile_notification_delivery"]
+        with patch(
+            "tools.portal_data_phase_c_migration.ScriptDirectory.from_config",
+            return_value=scripts,
+        ):
+            with self.assertRaisesRegex(
+                PhaseCMigrationError, "unexpected Alembic heads"
+            ):
+                verify_migration_artifact()
+
+    def test_migration_verifier_accepts_the_single_event_management_head(self):
         verify_migration_artifact()
 
 
