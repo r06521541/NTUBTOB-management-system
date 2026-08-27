@@ -1,25 +1,25 @@
-# TASK-164 Codex Report
+# TASK-164 Codex report
 
-## Status
+## Delivery delta
 
-`operator_implementation_in_progress`
+- 新增production Event migration operator，只允許`0008_mobile_notification_delivery`至`0009_event_management_writes`的單次Alembic transaction；以transaction advisory lock序列化，pre／post exact驗constraint、append-only trigger、Event tables RLS與zero policy。
+- Append-only gate同時綁定`ntubtob` function schema、零參數、trigger return type、PL/pgSQL、canonical body SHA-256及exact BEFORE UPDATE OR DELETE FOR EACH ROW trigger definition；同字面值但不同body／timing／level均拒絕。
+- `dry-run`使用read-only transaction且不執行migration；execute要求hidden short-lived acknowledgement，且以`pg_stat_xact_user_tables`驗證除Alembic revision外application-table DML為零。Already-forward、divergent、catalog drift與partial state全部fail closed，不提供retry。
+- 新增no-disclosure launcher：dry-run與execute都只允許clean且HEAD=origin/main的exact merged `main`，execute再要求approved SHA；active gcloud account、exact project／region／service／Ready revision／100% traffic／runtime identity／public boundary與production flags／Secret-reference categories均須通過。Hidden URL只在記憶體中與Ready revision的DSN host／port／database／user逐欄比對，不讀既有private env或Secret payload。
+- Repository authority baseline為`aa614ab57423f589d318bc96c627d5f5a1b61bb5`；Cloud target鎖定當前production rollback revision `web-portal-00051-p4z`，任何先行rollout或target drift均停止。
+- Private URL只接受唯一scalar `sslmode=require|verify-ca|verify-full`；缺省、disabled、unknown、duplicate或額外query parameter均拒絕。
+- Canonical-LF checksums與material manifest鎖定launcher、operator、既有0009 migration及其Alembic execution boundary；未修改0009或Web deployment wrapper。
 
-## Established boundary
+## Verification
 
-- Approved source baseline：`aa614ab57423f589d318bc96c627d5f5a1b61bb5`。
-- Production Web rollback revision：`web-portal-00051-p4z`。
-- Runtime vector保持Phase C=true、rollout freeze=false、identity maintenance=true、identity-link disabled。
-- 只允許exact production 0008→0009 schema transition與後續exact merged Web deployment；不發通知、不做正式資料DML、不改Secret／IAM／provider。
+- `py -3.10 -m unittest tools.tests.test_production_event_management_rollout tests.portal_data.test_event_management_rollout -v`：14 unit passed；3 isolated PostgreSQL tests skipped（本機無`PORTAL_DATA_TEST_DATABASE_URL`／`PORTAL_DATA_DATABASE_URL`）。
+- `py -3.10 -m unittest tests.portal_data.test_event_management_migration tests.portal_data.test_migration_readiness -v`：11 passed；6 isolated PostgreSQL tests skipped。
+- `py -3.10 -m py_compile ...`：passed。
+- Black formatter API逐檔比對4個Python owned paths：clean（Windows多檔CLI停滯後已終止本輪exact processes，未略過檢查）。
+- `py -3.10 -m isort --check-only ...`：passed。
+- `git diff --check`：passed。
 
-## Evidence so far
+## Remaining gates
 
-- Repository Web deployment dry-run passed。
-- Event migration與migration-readiness static tests passed；需要isolated PostgreSQL的本機項目skip，已有TASK-163 hosted PostgreSQL 15／16基礎證據。
-- Production Web control-plane inventory為exact project／service、latest Ready與100% traffic一致、public invoker／runtime identity存在、4個base Secret references存在，且identity-link keys absent。
-- Production database尚未連線或修改；Secret payload未讀取或輸出。
-
-## Remaining
-
-- Writer operator implementation／self-test／commit handoff。
-- Independent Data／Security review、Main acceptance、PR／hosted PostgreSQL 15／16。
-- Owner-hidden private input、production migration postcheck、Web deployment／postcheck，以及durable closeout。
+- PostgreSQL 15／16 isolated integration、independent Data／Security review與hosted gate尚未完成；本report不授權或宣稱production migration／deployment。
+- 未呼叫gcloud、未連線任何database、未讀Secret/private env、未部署、未修改production資料或發送通知。

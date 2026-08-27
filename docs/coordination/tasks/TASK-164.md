@@ -54,3 +54,10 @@
 - PR #209 final hosted run `33077406624` 全綠；0009 repository migration已驗收合併。
 - Web production read-only preflight：exact project／service、latest Ready=`web-portal-00051-p4z`、100% traffic、public invoker、runtime identity與4個base Secret references存在；Phase C=true、freeze=false、identity maintenance=true、identity-link keys absent。
 - Repository dry-run passed；未讀取Secret payload、未查production DB、未執行cloud／database mutation。
+
+## Writer delivery checkpoint
+
+- Repository operator以canonical-LF checksum鎖定launcher、operator、既有0009 migration、Alembic env與config；不修改migration或deployment wrapper。
+- Launcher只允許clean且同步origin/main的exact merged `main`進行dry-run或execute，從隱藏prompt接收private URL，並以read-only Cloud Run Ready revision metadata將DSN host／port／database／user逐欄比對；不讀Secret payload、不輸出account、URL、env list或Secret reference。
+- Execute僅接受clean exact merged `main`／`origin/main`與Owner批准full SHA；資料庫端只接受exact 0008舊constraint／append-only／RLS／zero-policy狀態，單一transaction升到0009並證明application-table DML為零。Already-forward、divergent、drift或不確定狀態均停止且不retry。
+- Local Python 3.10 unit／static evidence已通過；本機沒有isolated PostgreSQL URL，因此PostgreSQL integration保留為hosted PostgreSQL 15／16 gate，尚未宣稱通過。
