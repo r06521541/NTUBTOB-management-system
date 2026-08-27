@@ -1,5 +1,5 @@
 active_task: TASK-163
-status: ready_for_review
+status: completed
 next_actor: main-work
 
 claim_id: main-work-20260825
@@ -7,16 +7,17 @@ lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 4d4b3502451544f5b9efeb9c2bfd4c605d6385a2
-head_commit: 224d165f1c11278ec8d654fba377278428618af2
+head_commit: c1dd1e3e75e373da6991748b8e34ab63d86b1c25
 
 updated_by: main-work
-updated_at: 2026-08-27T16:20:00+08:00
+updated_at: 2026-08-27T21:40:00+08:00
 
 note: >
-  TASK-163 implementation commit 224d165f1c11278ec8d654fba377278428618af2
-  passed writer evidence and independent Data/Authorization review after two
-  bounded correction rounds. Main accepted the local diff; hosted PostgreSQL
-  and Web gates remain before merge. No deployment or external mutation is authorized.
+  TASK-163 merged through PR #209 as c1dd1e3e75e373da6991748b8e34ab63d86b1c25
+  after writer evidence, independent Data/Authorization acceptance, Main review,
+  and hosted run 33077406624 passed PostgreSQL 15/16 and every selected gate.
+  The writer claim is complete. No deployment, schema rollout, notification,
+  production data, Secret, IAM, or other external mutation is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-163.md

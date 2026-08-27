@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `4d4b3502451544f5b9efeb9c2bfd4c605d6385a2`
+Repository 基準：`main` / `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`
 
 ## Active role lanes
 
@@ -25,8 +25,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-163 已啟動為下一個 L3 delivery：active Officer／Admin 的 Event 草稿、Activity 行程編排、資格池預覽、
-  immutable invitee snapshot發布與取消。發布／取消不發通知；本輪不授權production schema、runtime或real-data mutation。
+- TASK-163 已由 PR #209 合併為 `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`：active Officer／Admin 可管理
+  Event草稿、Activity行程、資格池與人工override，發布immutable invitee snapshot，並稽核published edit／cancel。
+  Hosted run `33077406624` 的PostgreSQL 15／16及全部selected gates通過；尚未roll out schema、部署、發通知或操作正式資料。
 - TASK-162 已由 PR #207 合併並部署至production `web-portal-00051-p4z`：同日賽事統一使用完整Dashboard game card，
   所有Dashboard出席POST先經站內可存取確認對話框，JS不可用時fail closed。Ready／100% traffic／public invoker／
   runtime identity／四個既有Secret references與HTTP post-check均通過，未需rollback；未修改backend、provider、Secret、IAM或正式資料。
