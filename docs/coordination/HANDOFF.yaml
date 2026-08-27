@@ -1,22 +1,22 @@
 active_task: TASK-162
-status: ready_for_pr
+status: completed
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 5d389f6c7c293a362551111a5be025ca058d9d60
-head_commit: 220d84bf528106d1c35ba761a871f2fd02066e5d
+base_commit: 91e5722c49f88aafb6f3792e96436a49f3665039
+head_commit: 91e5722c49f88aafb6f3792e96436a49f3665039
 
 updated_by: main-work
-updated_at: 2026-08-27T13:45:00+08:00
+updated_at: 2026-08-27T14:10:00+08:00
 
 note: >
-  TASK-162 implementation, affected tests, independent Accessibility/State
-  review and Main risk review are accepted. Same-day games share one full card
-  macro; Dashboard replies fail closed until the site confirmation controller is
-  ready. Proceed with the single hosted PR gate; deployment remains separate.
+  TASK-162 is complete. PR #207 merged as
+  91e5722c49f88aafb6f3792e96436a49f3665039 after all required hosted gates.
+  Owner approved the exact production packet; web-portal-00051-p4z is Ready at
+  100% traffic. Post-checks passed and rollback was not required.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-162.md

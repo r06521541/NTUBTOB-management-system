@@ -49,7 +49,14 @@
 - Writer affected evidence: `test_admin_security.py` 116/116 passed; Brand UI 9/9 passed; Node syntax, Black formatter API, Python compile and `git diff --check` passed.
 - Independent Web Accessibility/State review: ACCEPT after closing a P1 no-JS bypass; server-rendered buttons now remain disabled until the complete dialog controller initializes.
 - Main evidence: Brand confirmation contract and Node syntax passed; supported root-level `test_admin_security.py` discover 116/116 passed. One earlier direct-module invocation failed only because that harness did not expose `shared_lib`, then the supported invocation passed.
-- External mutation: none; no deployment, cloud, provider, Secret, schema, notification or production-data operation occurred.
+- Repository acceptance phase external mutation: none; production execution occurred only under the later exact Owner packet recorded below.
+
+## Production outcome
+
+- Owner approved exact target `ntubtob-schedule-405614`／`asia-east1`／`web-portal`, artifact `91e5722c49f88aafb6f3792e96436a49f3665039` and rollback `web-portal-00050-zkl`.
+- Cloud Build succeeded; Ready revision `web-portal-00051-p4z` serves 100% traffic with Phase C=true, freeze=false, identity maintenance=true and identity-link disabled.
+- Independent post-check confirmed public invoker, existing runtime identity, four base Secret references and all six identity-link keys absent; `/`=200, `/demo/`=404 and `/identity-recovery`=404.
+- Rollback was not required. No backend, provider, Secret, IAM or production-data mutation occurred.
 
 ## Writer implementation checkpoint
 

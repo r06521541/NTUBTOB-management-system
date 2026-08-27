@@ -12,7 +12,9 @@
 - Independent Accessibility/State：ACCEPT，P1 no-JS bypass已閉合。
 - Main：Brand dialog contract與Node syntax passed；root-level supported admin/security discover 116/116 passed。一次direct-module invocation因既有`shared_lib` import harness失敗，改用supported invocation後通過。
 
-## Boundary
+## Production result
 
-- Repository-only；尚未建立PR／merge／deploy。
-- Backend、CSRF、notification、schema、provider、Secret與production data均未修改。
+- PR #207 merged為`91e5722c49f88aafb6f3792e96436a49f3665039`，required hosted gates全數通過。
+- Owner依DEC-078批准exact packet後，production Web Portal部署至`web-portal-00051-p4z`；Ready、100% traffic、IAM、runtime identity、四個既有Secret reference分類、flags及HTTP post-check全數通過。
+- Identity maintenance=true；identity-link=disabled且六個runtime keys缺席。Rollback未使用。
+- 未修改backend、provider、Secret、IAM或正式資料。
