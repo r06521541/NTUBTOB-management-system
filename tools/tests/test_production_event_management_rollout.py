@@ -80,6 +80,13 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
             "O",
             27,
             0,
+            "",
+            None,
+            0,
+            None,
+            None,
+            False,
+            False,
             "ntubtob",
             0,
             True,
@@ -89,19 +96,23 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
               RAISE EXCEPTION 'audit rows are append-only';
             END;
             """,
-            "CREATE TRIGGER event_audit_append_only BEFORE DELETE OR UPDATE ON "
-            "ntubtob.event_audit FOR EACH ROW EXECUTE FUNCTION "
-            "ntubtob.reject_audit_mutation()",
         )
         connection = MagicMock()
         connection.execute.return_value.all.return_value = [expected]
         operator._validate_append_only(connection)
 
         drift_cases = (
-            expected[:3] + ("public",) + expected[4:],
-            expected[:7] + ("BEGIN RETURN NEW; END;",) + expected[8:],
+            expected[:10] + ("public",) + expected[11:],
+            expected[:14] + ("BEGIN RETURN NEW; END;",) + expected[15:],
             expected[:1] + (25,) + expected[2:],
             expected[:1] + (26,) + expected[2:],
+            expected[:3] + ("2",) + expected[4:],
+            expected[:4] + ("fake-when-clause",) + expected[5:],
+            expected[:5] + (1,) + expected[6:],
+            expected[:6] + ("old_rows",) + expected[7:],
+            expected[:7] + ("new_rows",) + expected[8:],
+            expected[:8] + (True,) + expected[9:],
+            expected[:9] + (True,) + expected[10:],
         )
         for drift in drift_cases:
             with self.subTest(drift=drift):

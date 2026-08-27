@@ -3,7 +3,7 @@
 ## Delivery delta
 
 - 新增production Event migration operator，只允許`0008_mobile_notification_delivery`至`0009_event_management_writes`的單次Alembic transaction；以transaction advisory lock序列化，pre／post exact驗constraint、append-only trigger、Event tables RLS與zero policy。
-- Append-only gate同時綁定`ntubtob` function schema、零參數、trigger return type、PL/pgSQL、canonical body SHA-256及exact BEFORE UPDATE OR DELETE FOR EACH ROW trigger definition；同字面值但不同body／timing／level均拒絕。
+- Append-only gate同時綁定`ntubtob` function schema、零參數、trigger return type、PL/pgSQL、canonical body SHA-256及版本穩定的trigger catalog邊界；enabled／event timing／row level、UPDATE OF columns／WHEN clause／constraint／transition tables／deferrability任一漂移均拒絕。
 - `dry-run`使用read-only transaction且不執行migration；execute要求hidden short-lived acknowledgement，且以`pg_stat_xact_user_tables`驗證除Alembic revision外application-table DML為零。Already-forward、divergent、catalog drift與partial state全部fail closed，不提供retry。
 - 新增no-disclosure launcher：dry-run與execute都只允許clean且HEAD=origin/main的exact merged `main`，execute再要求approved SHA；active gcloud account、exact project／region／service／Ready revision／100% traffic／runtime identity／public boundary與production flags／Secret-reference categories均須通過。Hidden URL只在記憶體中與Ready revision的DSN host／port／database／user逐欄比對，不讀既有private env或Secret payload。
 - Repository authority baseline為`aa614ab57423f589d318bc96c627d5f5a1b61bb5`；Cloud target鎖定當前production rollback revision `web-portal-00051-p4z`，任何先行rollout或target drift均停止。
@@ -27,4 +27,5 @@
 ## Hosted diagnosis
 
 - PR #211 run `33084910566`的PostgreSQL 15／16都在0008 append-only precheck停止；migration尚未執行。根因是`pg_get_triggerdef(..., true)`固定輸出canonical event順序`BEFORE DELETE OR UPDATE`，而初版operator沿用migration source順序`BEFORE UPDATE OR DELETE`。
-- 修正只同步canonical expected definition與unit fixture；tgtype=27、function schema／args／return／language／body fingerprint及其餘安全gate均未放寬。修正後hosted PostgreSQL 15／16尚待重跑，不宣稱通過。
+- PR #211第二次run `33085996379`的PostgreSQL 15／16仍在同一precheck停止，migration同樣未執行；這證明deparsed trigger definition不適合作為跨版本exact contract。
+- 改為直接驗證版本穩定的`pg_trigger`／`pg_proc`目錄欄位：保留enabled／`tgtype=27`／function schema／args／return／language／body fingerprint，並新增`tgattr`、`tgqual`、`tgconstraint`、`tgoldtable`、`tgnewtable`、`tgdeferrable`、`tginitdeferred`的exact gates；移除`pg_get_triggerdef`字串依賴。修正後hosted PostgreSQL 15／16尚待重跑，不宣稱通過。

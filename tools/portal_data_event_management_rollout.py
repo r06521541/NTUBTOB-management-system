@@ -163,9 +163,10 @@ def _canonical_sql(value: str) -> str:
 def _validate_append_only(connection: Connection) -> None:
     rows = connection.execute(
         text(
-            "SELECT t.tgenabled,t.tgtype,t.tgnargs,fn_ns.nspname,p.pronargs,"
-            "p.prorettype='trigger'::regtype,l.lanname,p.prosrc,"
-            "pg_get_triggerdef(t.oid,true) "
+            "SELECT t.tgenabled,t.tgtype,t.tgnargs,t.tgattr::text,t.tgqual,"
+            "t.tgconstraint,t.tgoldtable,t.tgnewtable,t.tgdeferrable,"
+            "t.tginitdeferred,fn_ns.nspname,p.pronargs,"
+            "p.prorettype='trigger'::regtype,l.lanname,p.prosrc "
             "FROM pg_trigger t "
             "JOIN pg_class c ON c.oid=t.tgrelid "
             "JOIN pg_namespace n ON n.oid=c.relnamespace "
@@ -183,18 +184,19 @@ def _validate_append_only(connection: Connection) -> None:
         enabled,
         trigger_type,
         trigger_args,
+        update_columns,
+        when_clause,
+        constraint_oid,
+        old_transition_table,
+        new_transition_table,
+        deferrable,
+        initially_deferred,
         function_schema,
         function_args,
         returns_trigger,
         language,
         body,
-        definition,
     ) = rows[0]
-    expected_definition = (
-        "CREATE TRIGGER event_audit_append_only BEFORE DELETE OR UPDATE ON "
-        "ntubtob.event_audit FOR EACH ROW EXECUTE FUNCTION "
-        "ntubtob.reject_audit_mutation()"
-    )
     body_digest = (
         hashlib.sha256(_canonical_sql(body).encode("utf-8")).hexdigest()
         if isinstance(body, str)
@@ -204,13 +206,18 @@ def _validate_append_only(connection: Connection) -> None:
         enabled != "O"
         or trigger_type != 27
         or trigger_args != 0
+        or update_columns != ""
+        or when_clause is not None
+        or constraint_oid != 0
+        or old_transition_table is not None
+        or new_transition_table is not None
+        or deferrable is not False
+        or initially_deferred is not False
         or function_schema != "ntubtob"
         or function_args != 0
         or returns_trigger is not True
         or language != "plpgsql"
         or body_digest != APPEND_ONLY_BODY_SHA256
-        or not isinstance(definition, str)
-        or _canonical_sql(definition) != expected_definition
     ):
         raise RolloutError("event audit append-only boundary drifted")
 
