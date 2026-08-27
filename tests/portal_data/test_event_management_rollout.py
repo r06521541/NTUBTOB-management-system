@@ -44,6 +44,7 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
             connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
             connection.execute(text(LEGACY_FIXTURE_SQL))
         self._upgrade("0008_mobile_notification_delivery")
+        self.engine.dispose()
 
     def test_dry_run_is_read_only_and_execute_is_atomic_with_zero_application_dml(self):
         with self.engine.begin() as connection:
