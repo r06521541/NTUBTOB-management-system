@@ -25,8 +25,6 @@ steps:
       validate_secret_ref '${_WEB_PORTAL_LINE_LOGIN_SECRET_REF}' LINE_LOGIN_CHANNEL_SECRET
       validate_secret_ref '${_WEB_PORTAL_SESSION_SECRET_REF}' SECRET_KEY
       validate_secret_ref '${_WEB_PORTAL_WEATHER_SECRET_REF}' WEATHER_API_KEY
-      validate_pinned_secret_ref '${_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}' WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET
-      validate_pinned_secret_ref '${_WEB_IDENTITY_LINK_LINE_SECRET_REF}' WEB_IDENTITY_LINK_LINE_CLIENT_SECRET
       validate_boolean() {
         case "$$1" in
           true|false) ;;
@@ -39,10 +37,27 @@ steps:
       grep -Fqx "PORTAL_DATA_PHASE_C_ENABLED: \"${_PORTAL_DATA_PHASE_C_ENABLED}\"" .env.yaml
       grep -Fqx "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED: \"${_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED}\"" .env.yaml
       grep -Fqx "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED: \"${_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED}\"" .env.yaml
-      grep -Eq '^WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID: "[0-9A-Za-z][0-9A-Za-z._-]{5,255}"$' .env.yaml
-      grep -Eq '^WEB_IDENTITY_LINK_LINE_CLIENT_ID: "[0-9A-Za-z][0-9A-Za-z._-]{5,255}"$' .env.yaml
-      grep -Eq '^WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI: "https://[A-Za-z0-9.-]+(:[1-9][0-9]{0,4})?/api/v1/auth/identity-link/web/callback/google"$' .env.yaml
-      grep -Eq '^WEB_IDENTITY_LINK_LINE_REDIRECT_URI: "https://[A-Za-z0-9.-]+(:[1-9][0-9]{0,4})?/api/v1/auth/identity-link/web/callback/line"$' .env.yaml
+      case '${_WEB_IDENTITY_LINK_MODE}' in
+        enabled)
+          validate_pinned_secret_ref '${_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}' WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET
+          validate_pinned_secret_ref '${_WEB_IDENTITY_LINK_LINE_SECRET_REF}' WEB_IDENTITY_LINK_LINE_CLIENT_SECRET
+          grep -Eq '^WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID: "[0-9A-Za-z][0-9A-Za-z._-]{5,255}"$' .env.yaml
+          grep -Eq '^WEB_IDENTITY_LINK_LINE_CLIENT_ID: "[0-9A-Za-z][0-9A-Za-z._-]{5,255}"$' .env.yaml
+          grep -Eq '^WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI: "https://[A-Za-z0-9.-]+(:[1-9][0-9]{0,4})?/api/v1/auth/identity-link/web/callback/google"$' .env.yaml
+          grep -Eq '^WEB_IDENTITY_LINK_LINE_REDIRECT_URI: "https://[A-Za-z0-9.-]+(:[1-9][0-9]{0,4})?/api/v1/auth/identity-link/web/callback/line"$' .env.yaml
+          ;;
+        disabled)
+          if [[ -n '${_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}' || -n '${_WEB_IDENTITY_LINK_LINE_SECRET_REF}' ]]; then
+            echo "identity-link inputs must be absent when disabled" >&2
+            exit 2
+          fi
+          if grep -Eq '^[[:space:]]*WEB_IDENTITY_LINK_(GOOGLE|LINE)_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)[[:space:]]*:' .env.yaml; then
+            echo "identity-link runtime keys must be absent when disabled" >&2
+            exit 2
+          fi
+          ;;
+        *) echo "_WEB_IDENTITY_LINK_MODE must be enabled or disabled" >&2; exit 2 ;;
+      esac
 
   - name: 'gcr.io/cloud-builders/docker'
     args: [
@@ -64,9 +79,17 @@ steps:
     args:
     - '-c'
     - |
+      secret_bindings="DSN_PASSWORD=supabase-database-password:latest,LINE_LOGIN_CHANNEL_SECRET=${_WEB_PORTAL_LINE_LOGIN_SECRET_REF},SECRET_KEY=${_WEB_PORTAL_SESSION_SECRET_REF},WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF}"
+      identity_cleanup=()
+      if [[ '${_WEB_IDENTITY_LINK_MODE}' == 'enabled' ]]; then
+        secret_bindings+=",WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET=${_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF},WEB_IDENTITY_LINK_LINE_CLIENT_SECRET=${_WEB_IDENTITY_LINK_LINE_SECRET_REF}"
+      else
+        identity_cleanup=(--remove-secrets=WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET,WEB_IDENTITY_LINK_LINE_CLIENT_SECRET)
+      fi
       gcloud run deploy ${_SERVICE_NAME} \
         --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/management-system-docker-repo/${_SERVICE_NAME}-image:${_IMAGE_TAG} \
-        --update-secrets=DSN_PASSWORD=supabase-database-password:latest,LINE_LOGIN_CHANNEL_SECRET=${_WEB_PORTAL_LINE_LOGIN_SECRET_REF},SECRET_KEY=${_WEB_PORTAL_SESSION_SECRET_REF},WEATHER_API_KEY=${_WEB_PORTAL_WEATHER_SECRET_REF},WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET=${_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF},WEB_IDENTITY_LINK_LINE_CLIENT_SECRET=${_WEB_IDENTITY_LINK_LINE_SECRET_REF} \
+        --update-secrets="$$secret_bindings" \
+        "$${identity_cleanup[@]}" \
         --region ${_REGION} \
         --platform managed \
         --allow-unauthenticated \
@@ -76,3 +99,7 @@ steps:
 
 options:
   substitutionOption: 'ALLOW_LOOSE'
+
+substitutions:
+  _WEB_IDENTITY_LINK_GOOGLE_SECRET_REF: ''
+  _WEB_IDENTITY_LINK_LINE_SECRET_REF: ''

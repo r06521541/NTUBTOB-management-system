@@ -43,6 +43,21 @@ ROLLOUT_ENV_KEYS = (
     "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED",
     "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED",
 )
+IDENTITY_LINK_PLAIN_KEYS = frozenset(
+    {
+        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID",
+        "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI",
+        "WEB_IDENTITY_LINK_LINE_CLIENT_ID",
+        "WEB_IDENTITY_LINK_LINE_REDIRECT_URI",
+    }
+)
+IDENTITY_LINK_SECRET_KEYS = frozenset(
+    {
+        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET",
+        "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET",
+    }
+)
+IDENTITY_LINK_ENV_KEYS = IDENTITY_LINK_PLAIN_KEYS | IDENTITY_LINK_SECRET_KEYS
 REQUIRED_PLAIN_KEYS = frozenset(
     {
         "DSN_DATABASE",
@@ -51,10 +66,6 @@ REQUIRED_PLAIN_KEYS = frozenset(
         "DSN_UID",
         "LINE_LOGIN_CHANNEL_ID",
         "WEB_PORTAL_ADMIN_MEMBER_IDS",
-        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID",
-        "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI",
-        "WEB_IDENTITY_LINK_LINE_CLIENT_ID",
-        "WEB_IDENTITY_LINK_LINE_REDIRECT_URI",
     }
 )
 TERMINAL_BUILD_STATUSES = frozenset(
@@ -205,6 +216,49 @@ def identity_plain_values(
     }
 
 
+def identity_link_configuration(
+    mode: str,
+    google_identity_secret_ref: Optional[str],
+    line_identity_secret_ref: Optional[str],
+    google_client_id: Optional[str],
+    google_redirect_uri: Optional[str],
+    line_client_id: Optional[str],
+    line_redirect_uri: Optional[str],
+) -> tuple[Optional[str], Optional[str], Dict[str, str]]:
+    inputs = (
+        google_identity_secret_ref,
+        line_identity_secret_ref,
+        google_client_id,
+        google_redirect_uri,
+        line_client_id,
+        line_redirect_uri,
+    )
+    if mode == "disabled":
+        if any(value is not None for value in inputs):
+            raise DeploymentError(
+                "Disabled identity-link mode rejects identity-link inputs"
+            )
+        return None, None, {}
+    if mode != "enabled":
+        raise DeploymentError("Identity-link mode must be exactly enabled or disabled")
+    if not all(isinstance(value, str) and value for value in inputs):
+        raise DeploymentError("Enabled identity-link configuration is incomplete")
+    return (
+        validate_version_pinned_secret_ref(
+            google_identity_secret_ref, "Google identity-link Secret reference"
+        ),
+        validate_version_pinned_secret_ref(
+            line_identity_secret_ref, "LINE identity-link Secret reference"
+        ),
+        identity_plain_values(
+            google_client_id,
+            google_redirect_uri,
+            line_client_id,
+            line_redirect_uri,
+        ),
+    )
+
+
 def validate_callback_origins(values: Dict[str, str], service_url: str) -> None:
     parsed_service = urlsplit(service_url)
     if (
@@ -244,8 +298,8 @@ def write_filtered_env(
     lines = source.read_text(encoding="utf-8").splitlines(keepends=True)
     excluded = (
         EXCLUDED_ENV_KEYS
+        | IDENTITY_LINK_ENV_KEYS
         | frozenset(ROLLOUT_ENV_KEYS if rollout_values else ())
-        | frozenset(identity_values or ())
     )
     filtered = [line for line in lines if parse_env_key(line) not in excluded]
     if rollout_values is not None:
@@ -256,12 +310,7 @@ def write_filtered_env(
             for key in ROLLOUT_ENV_KEYS
         )
     if identity_values is not None:
-        if set(identity_values) != {
-            "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID",
-            "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI",
-            "WEB_IDENTITY_LINK_LINE_CLIENT_ID",
-            "WEB_IDENTITY_LINK_LINE_REDIRECT_URI",
-        }:
+        if identity_values and set(identity_values) != IDENTITY_LINK_PLAIN_KEYS:
             raise DeploymentError("Approved identity-link configuration is incomplete")
         filtered.extend(
             f'{key}: "{identity_values[key]}"\n' for key in sorted(identity_values)
@@ -299,6 +348,7 @@ def preflight(
     phase_c_enabled: Optional[str] = None,
     rollout_freeze_enabled: Optional[str] = None,
     identity_maintenance_enabled: Optional[str] = None,
+    identity_link_mode: Optional[str] = None,
     google_identity_secret_ref: Optional[str] = None,
     line_identity_secret_ref: Optional[str] = None,
     google_client_id: Optional[str] = None,
@@ -325,24 +375,18 @@ def preflight(
         validate_secret_ref(session_secret_ref, "Session Secret reference")
     if weather_secret_ref is not None:
         validate_secret_ref(weather_secret_ref, "Weather Secret reference")
-    if google_identity_secret_ref is not None:
-        validate_version_pinned_secret_ref(
-            google_identity_secret_ref, "Google identity-link Secret reference"
-        )
-    if line_identity_secret_ref is not None:
-        validate_version_pinned_secret_ref(
-            line_identity_secret_ref, "LINE identity-link Secret reference"
-        )
-    oauth_values = (
+    identity_inputs = (
+        google_identity_secret_ref,
+        line_identity_secret_ref,
         google_client_id,
         google_redirect_uri,
         line_client_id,
         line_redirect_uri,
     )
-    if any(value is not None for value in oauth_values):
-        if not all(oauth_values):
-            raise DeploymentError("Identity-link plain configuration is incomplete")
-        identity_plain_values(*oauth_values)
+    if identity_link_mode is not None or any(
+        value is not None for value in identity_inputs
+    ):
+        identity_link_configuration(identity_link_mode, *identity_inputs)
     for value, label in (
         (phase_c_enabled, "Phase C flag"),
         (rollout_freeze_enabled, "Rollout freeze flag"),
@@ -431,8 +475,9 @@ def validate_revision_contract(
     session_secret_ref: str,
     weather_secret_ref: str,
     rollout_values: Dict[str, str],
-    google_identity_secret_ref: str,
-    line_identity_secret_ref: str,
+    identity_link_mode: str,
+    google_identity_secret_ref: Optional[str],
+    line_identity_secret_ref: Optional[str],
     oauth_plain_values: Dict[str, str],
 ) -> None:
     if not revision_ready(revision):
@@ -455,9 +500,14 @@ def validate_revision_contract(
         "LINE_LOGIN_CHANNEL_SECRET": line_secret_ref,
         "SECRET_KEY": session_secret_ref,
         "WEATHER_API_KEY": weather_secret_ref,
-        "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": google_identity_secret_ref,
-        "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": line_identity_secret_ref,
     }
+    if identity_link_mode == "enabled":
+        expected_secrets.update(
+            {
+                "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": google_identity_secret_ref,
+                "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": line_identity_secret_ref,
+            }
+        )
     for name, reference in expected_secrets.items():
         if secret_reference(by_name.get(name, {})) != reference:
             raise DeploymentError(
@@ -467,12 +517,20 @@ def validate_revision_contract(
         entry = by_name.get(name, {})
         if "value" not in entry or secret_reference(entry) is not None:
             raise DeploymentError(f"Runtime plain configuration is missing: {name}")
-    for name, expected_value in oauth_plain_values.items():
-        entry = by_name.get(name, {})
-        if entry.get("value") != expected_value or secret_reference(entry) is not None:
-            raise DeploymentError(
-                f"Runtime identity-link configuration is invalid for {name}"
-            )
+    if identity_link_mode == "enabled":
+        for name, expected_value in oauth_plain_values.items():
+            entry = by_name.get(name, {})
+            if (
+                entry.get("value") != expected_value
+                or secret_reference(entry) is not None
+            ):
+                raise DeploymentError(
+                    f"Runtime identity-link configuration is invalid for {name}"
+                )
+    elif any(name in by_name for name in IDENTITY_LINK_ENV_KEYS):
+        raise DeploymentError(
+            "Runtime identity-link configuration must be absent when disabled"
+        )
     for name, expected_value in rollout_values.items():
         entry = by_name.get(name, {})
         if entry.get("value") != expected_value or secret_reference(entry) is not None:
@@ -493,8 +551,9 @@ def revision_converged(
     session_secret_ref: str,
     weather_secret_ref: str,
     rollout_values: Dict[str, str],
-    google_identity_secret_ref: str,
-    line_identity_secret_ref: str,
+    identity_link_mode: str,
+    google_identity_secret_ref: Optional[str],
+    line_identity_secret_ref: Optional[str],
     oauth_plain_values: Dict[str, str],
     runner: Runner,
 ) -> Optional[tuple[dict, str]]:
@@ -555,6 +614,7 @@ def revision_converged(
         session_secret_ref,
         weather_secret_ref,
         rollout_values,
+        identity_link_mode,
         google_identity_secret_ref,
         line_identity_secret_ref,
         oauth_plain_values,
@@ -571,8 +631,9 @@ def poll_revision(
     session_secret_ref: str,
     weather_secret_ref: str,
     rollout_values: Dict[str, str],
-    google_identity_secret_ref: str,
-    line_identity_secret_ref: str,
+    identity_link_mode: str,
+    google_identity_secret_ref: Optional[str],
+    line_identity_secret_ref: Optional[str],
     oauth_plain_values: Dict[str, str],
     runner: Runner,
     timeout: float,
@@ -591,6 +652,7 @@ def poll_revision(
             session_secret_ref,
             weather_secret_ref,
             rollout_values,
+            identity_link_mode,
             google_identity_secret_ref,
             line_identity_secret_ref,
             oauth_plain_values,
@@ -689,12 +751,13 @@ def execute_deployment(
     phase_c_enabled: str,
     rollout_freeze_enabled: str,
     identity_maintenance_enabled: str,
-    google_identity_secret_ref: str,
-    line_identity_secret_ref: str,
-    google_client_id: str,
-    google_redirect_uri: str,
-    line_client_id: str,
-    line_redirect_uri: str,
+    identity_link_mode: str,
+    google_identity_secret_ref: Optional[str],
+    line_identity_secret_ref: Optional[str],
+    google_client_id: Optional[str],
+    google_redirect_uri: Optional[str],
+    line_client_id: Optional[str],
+    line_redirect_uri: Optional[str],
     runner: Runner = run_command,
     http_get: HttpGet = http_status,
     clock: Clock = time.monotonic,
@@ -714,6 +777,7 @@ def execute_deployment(
         phase_c_enabled,
         rollout_freeze_enabled,
         identity_maintenance_enabled,
+        identity_link_mode,
         google_identity_secret_ref,
         line_identity_secret_ref,
         google_client_id,
@@ -734,13 +798,14 @@ def execute_deployment(
     weather_secret_ref = validate_secret_ref(
         weather_secret_ref, "Weather Secret reference"
     )
-    google_identity_secret_ref = validate_version_pinned_secret_ref(
-        google_identity_secret_ref, "Google identity-link Secret reference"
-    )
-    line_identity_secret_ref = validate_version_pinned_secret_ref(
-        line_identity_secret_ref, "LINE identity-link Secret reference"
-    )
-    oauth_plain_values = identity_plain_values(
+    (
+        google_identity_secret_ref,
+        line_identity_secret_ref,
+        oauth_plain_values,
+    ) = identity_link_configuration(
+        identity_link_mode,
+        google_identity_secret_ref,
+        line_identity_secret_ref,
         google_client_id,
         google_redirect_uri,
         line_client_id,
@@ -803,7 +868,8 @@ def execute_deployment(
         baseline_service_url = baseline.get("status", {}).get("url")
         if not isinstance(baseline_service_url, str):
             raise DeploymentError("Cloud Run service URL is missing or invalid")
-        validate_callback_origins(oauth_plain_values, baseline_service_url)
+        if identity_link_mode == "enabled":
+            validate_callback_origins(oauth_plain_values, baseline_service_url)
 
         command_output(
             runner,
@@ -820,21 +886,26 @@ def execute_deployment(
             env_source, temporary_env, rollout_values, oauth_plain_values
         )
 
-        substitutions = ",".join(
-            (
-                f"_SERVICE_NAME={SERVICE}",
-                f"_REGION={REGION}",
-                f"_IMAGE_TAG={approved_commit}",
-                f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={line_secret_ref}",
-                f"_WEB_PORTAL_SESSION_SECRET_REF={session_secret_ref}",
-                f"_WEB_PORTAL_WEATHER_SECRET_REF={weather_secret_ref}",
-                f"_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF={google_identity_secret_ref}",
-                f"_WEB_IDENTITY_LINK_LINE_SECRET_REF={line_identity_secret_ref}",
-                f"_PORTAL_DATA_PHASE_C_ENABLED={phase_c_enabled}",
-                f"_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED={rollout_freeze_enabled}",
-                f"_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED={identity_maintenance_enabled}",
+        substitution_values = [
+            f"_SERVICE_NAME={SERVICE}",
+            f"_REGION={REGION}",
+            f"_IMAGE_TAG={approved_commit}",
+            f"_WEB_PORTAL_LINE_LOGIN_SECRET_REF={line_secret_ref}",
+            f"_WEB_PORTAL_SESSION_SECRET_REF={session_secret_ref}",
+            f"_WEB_PORTAL_WEATHER_SECRET_REF={weather_secret_ref}",
+            f"_PORTAL_DATA_PHASE_C_ENABLED={phase_c_enabled}",
+            f"_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED={rollout_freeze_enabled}",
+            f"_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED={identity_maintenance_enabled}",
+            f"_WEB_IDENTITY_LINK_MODE={identity_link_mode}",
+        ]
+        if identity_link_mode == "enabled":
+            substitution_values.extend(
+                (
+                    f"_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF={google_identity_secret_ref}",
+                    f"_WEB_IDENTITY_LINK_LINE_SECRET_REF={line_identity_secret_ref}",
+                )
             )
-        )
+        substitutions = ",".join(substitution_values)
         build_id = command_output(
             runner,
             [
@@ -888,6 +959,7 @@ def execute_deployment(
             session_secret_ref,
             weather_secret_ref,
             rollout_values,
+            identity_link_mode,
             google_identity_secret_ref,
             line_identity_secret_ref,
             oauth_plain_values,
@@ -945,7 +1017,14 @@ def execute_deployment(
         identity_recovery_status = http_get(
             service_url.rstrip("/") + "/identity-recovery", http_timeout
         )
-        if root_status != 200 or demo_status != 404 or identity_recovery_status != 200:
+        expected_identity_recovery_status = (
+            200 if identity_link_mode == "enabled" else 404
+        )
+        if (
+            root_status != 200
+            or demo_status != 404
+            or identity_recovery_status != expected_identity_recovery_status
+        ):
             raise DeploymentError("Web Portal HTTP verification failed")
         return {
             "build_id": build_id,
@@ -995,6 +1074,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--phase-c-enabled")
     parser.add_argument("--rollout-freeze-enabled")
     parser.add_argument("--identity-maintenance-enabled")
+    parser.add_argument("--identity-link-mode")
     parser.add_argument("--google-identity-secret-ref")
     parser.add_argument("--line-identity-secret-ref")
     parser.add_argument("--google-client-id")
@@ -1006,7 +1086,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    execution_values = (
+    required_execution_values = (
         args.approved_commit,
         args.rollback_revision,
         args.line_login_secret_ref,
@@ -1015,6 +1095,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         args.phase_c_enabled,
         args.rollout_freeze_enabled,
         args.identity_maintenance_enabled,
+        args.identity_link_mode,
+    )
+    identity_execution_values = (
         args.google_identity_secret_ref,
         args.line_identity_secret_ref,
         args.google_client_id,
@@ -1024,8 +1107,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     try:
         if args.execute:
-            if not all(execution_values):
-                raise DeploymentError("--execute requires every exact approval input")
+            if not all(required_execution_values):
+                raise DeploymentError(
+                    "--execute requires every base approval input and identity-link mode"
+                )
+            identity_link_configuration(
+                args.identity_link_mode, *identity_execution_values
+            )
             result = execute_deployment(
                 repository_root(),
                 args.approved_commit,
@@ -1036,6 +1124,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 args.phase_c_enabled,
                 args.rollout_freeze_enabled,
                 args.identity_maintenance_enabled,
+                args.identity_link_mode,
                 args.google_identity_secret_ref,
                 args.line_identity_secret_ref,
                 args.google_client_id,
@@ -1045,7 +1134,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             )
             print(json.dumps(result, sort_keys=True))
         else:
-            if any(execution_values):
+            if any(
+                value is not None
+                for value in required_execution_values + identity_execution_values
+            ):
                 raise DeploymentError("Execution-only arguments require --execute")
             preflight(repository_root())
             print(

@@ -270,18 +270,20 @@ python -m unittest discover -s apps/web_portal/tests -v
 ## Deployment preflight
 
 The repository deployment target filters `DSN_PASSWORD`,
-`LINE_LOGIN_CHANNEL_SECRET`, `SECRET_KEY`, and both identity-link provider client
-secrets out of the temporary non-secret
+`LINE_LOGIN_CHANNEL_SECRET`, `SECRET_KEY`, `WEATHER_API_KEY`, and both
+identity-link provider client secrets out of the temporary non-secret
 environment file. `.dockerignore` prevents that temporary file from entering the
 container image. `WEB_PORTAL_ADMIN_MEMBER_IDS` remains a non-secret runtime
 setting; never commit real production values.
 
-Deployment requires version-pinned Secret Manager references, four approved
-plain identity-link values, and an exact
-40-character Git commit SHA. The references identify Secret Manager resources
-and versions; they are not Secret values:
+Deployment requires an explicit `WEB_IDENTITY_LINK_MODE=enabled|disabled` and an
+exact 40-character Git commit SHA. Enabled mode also requires version-pinned
+Secret Manager references and four approved plain identity-link values. The
+references identify Secret Manager resources and versions; they are not Secret
+values:
 
 ```sh
+WEB_PORTAL_ROLLBACK_REVISION=<EXACT_READY_REVISION> \
 make deploy-web-portal \
   IMAGE_TAG=<FULL_40_CHARACTER_GIT_SHA> \
   WEB_PORTAL_LINE_LOGIN_SECRET_REF=<SECRET_RESOURCE:VERSION> \
@@ -290,6 +292,7 @@ make deploy-web-portal \
   PORTAL_DATA_PHASE_C_ENABLED=true \
   PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false \
   WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=false \
+  WEB_IDENTITY_LINK_MODE=enabled \
   WEB_IDENTITY_LINK_GOOGLE_SECRET_REF=<SECRET_RESOURCE:VERSION> \
   WEB_IDENTITY_LINK_LINE_SECRET_REF=<SECRET_RESOURCE:VERSION> \
   WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID=<APPROVED_CLIENT_ID> \
@@ -298,12 +301,40 @@ make deploy-web-portal \
   WEB_IDENTITY_LINK_LINE_REDIRECT_URI=https://<APPROVED_ORIGIN>/api/v1/auth/identity-link/web/callback/line
 ```
 
-Missing references, placeholders, or a non-commit image tag fail before build or
-deployment. Both identity-link redirect URIs must use the exact origin returned
-by the target Cloud Run service's `status.url`; the wrapper rejects a different
-host before build. Custom domains are not accepted by this path until a separate
-Owner-approved domain inventory and mapping verification contract exists. Do not
-run this command without an Owner-approved production work
-package. Repository tests only verify the static deployment contract; they do
-not prove that Secret resources exist, that runtime IAM can access them, or that
-the image builds and runs in Cloud Run.
+Disabled mode must omit all six identity-link arguments while retaining the base
+deployment inputs:
+
+```sh
+WEB_PORTAL_ROLLBACK_REVISION=<EXACT_READY_REVISION> \
+make deploy-web-portal \
+  IMAGE_TAG=<FULL_40_CHARACTER_GIT_SHA> \
+  WEB_PORTAL_LINE_LOGIN_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  WEB_PORTAL_SESSION_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  WEB_PORTAL_WEATHER_SECRET_REF=<SECRET_RESOURCE:VERSION> \
+  PORTAL_DATA_PHASE_C_ENABLED=true \
+  PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=false \
+  WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=false \
+  WEB_IDENTITY_LINK_MODE=disabled
+```
+
+The disabled contract filters the four plain identity settings, removes both
+identity Secret bindings, rejects any supplied identity input, verifies all six
+keys are absent from the Ready revision, and requires `/identity-recovery` to
+return 404. Enabled mode continues to require `/identity-recovery` to return 200.
+
+`make deploy-web-portal` is only a thin entry to
+`tools/deploy_web_portal.py --execute`; it does not create its own environment
+file or invoke Cloud Build directly. Therefore both documented modes always use
+the wrapper's immutable digest, Ready revision, runtime identity, IAM, traffic,
+HTTP and exact rollback checks. `cloudbuild.yaml` is an internal execution unit
+submitted only by that wrapper, not a standalone production deployment path.
+
+Missing references, placeholders, mixed mode inputs, or a non-commit image tag
+fail before build or deployment. In enabled mode, both redirect URIs must use the
+exact origin returned by the target Cloud Run service's `status.url`; the wrapper
+rejects a different host before build. Custom domains are not accepted by this
+path until a separate Owner-approved domain inventory and mapping verification
+contract exists. Do not run either command without an Owner-approved production
+work package. Repository tests only verify the deployment contract; they do not
+prove that Secret resources exist, that runtime IAM can access them, or that the
+image builds and runs in Cloud Run.

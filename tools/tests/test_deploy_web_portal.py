@@ -30,6 +30,8 @@ LINE_REDIRECT = SERVICE_URL + "/api/v1/auth/identity-link/web/callback/line"
 PHASE_C_ENABLED = "true"
 ROLLOUT_FREEZE_ENABLED = "false"
 IDENTITY_MAINTENANCE_ENABLED = "false"
+IDENTITY_LINK_MODE_ENABLED = "enabled"
+IDENTITY_LINK_MODE_DISABLED = "disabled"
 
 
 class FakeClock:
@@ -112,6 +114,8 @@ class FakeRunner:
         rollout_states=None,
         already_promoted=False,
         service_url=SERVICE_URL,
+        identity_link_mode=IDENTITY_LINK_MODE_ENABLED,
+        disabled_identity_drift=None,
     ):
         self.root = root
         self.dirty = dirty
@@ -132,6 +136,8 @@ class FakeRunner:
         self.service_describes = 0
         self.promoted = already_promoted
         self.service_url = service_url
+        self.identity_link_mode = identity_link_mode
+        self.disabled_identity_drift = disabled_identity_drift
 
     def env_entries(self):
         entries = [
@@ -144,6 +150,16 @@ class FakeRunner:
             "WEB_IDENTITY_LINK_LINE_CLIENT_ID": LINE_CLIENT_ID,
             "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": LINE_REDIRECT,
         }
+        if self.identity_link_mode == IDENTITY_LINK_MODE_DISABLED:
+            entries = [
+                entry
+                for entry in entries
+                if entry["name"] not in deploy.IDENTITY_LINK_PLAIN_KEYS
+            ]
+        else:
+            entries.extend(
+                {"name": name, "value": value} for name, value in exact_plain.items()
+            )
         for entry in entries:
             if entry["name"] in exact_plain:
                 entry["value"] = exact_plain[entry["name"]]
@@ -155,6 +171,12 @@ class FakeRunner:
             "WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET": GOOGLE_IDENTITY_REF,
             "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": LINE_IDENTITY_REF,
         }
+        if self.identity_link_mode == IDENTITY_LINK_MODE_DISABLED:
+            references = {
+                name: reference
+                for name, reference in references.items()
+                if name not in deploy.IDENTITY_LINK_SECRET_KEYS
+            }
         if self.secret_override:
             references.update(self.secret_override)
         for name, reference in references.items():
@@ -175,6 +197,8 @@ class FakeRunner:
         entries.extend(
             {"name": name, "value": value} for name, value in rollout_values.items()
         )
+        if self.disabled_identity_drift:
+            entries.append(self.disabled_identity_drift)
         return entries
 
     def __call__(self, arguments, cwd):
@@ -312,7 +336,26 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
     def temporary_env(self):
         return self.root / "apps" / "web_portal" / ".env.yaml"
 
-    def execute(self, runner, http_get=None, **kwargs):
+    def execute(
+        self,
+        runner,
+        http_get=None,
+        *,
+        identity_link_mode=IDENTITY_LINK_MODE_ENABLED,
+        **kwargs,
+    ):
+        identity_inputs = (
+            (
+                GOOGLE_IDENTITY_REF,
+                LINE_IDENTITY_REF,
+                GOOGLE_CLIENT_ID,
+                GOOGLE_REDIRECT,
+                LINE_CLIENT_ID,
+                LINE_REDIRECT,
+            )
+            if identity_link_mode == IDENTITY_LINK_MODE_ENABLED
+            else (None,) * 6
+        )
         return deploy.execute_deployment(
             self.root,
             SHA,
@@ -323,12 +366,8 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             PHASE_C_ENABLED,
             ROLLOUT_FREEZE_ENABLED,
             IDENTITY_MAINTENANCE_ENABLED,
-            GOOGLE_IDENTITY_REF,
-            LINE_IDENTITY_REF,
-            GOOGLE_CLIENT_ID,
-            GOOGLE_REDIRECT,
-            LINE_CLIENT_ID,
-            LINE_REDIRECT,
+            identity_link_mode,
+            *identity_inputs,
             runner=runner,
             http_get=http_get
             or (lambda url, timeout: 404 if url.endswith("/demo/") else 200),
@@ -397,6 +436,45 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
 
         with self.assertRaisesRegex(deploy.DeploymentError, "service URL"):
             deploy.validate_callback_origins(values, SERVICE_URL + "/unexpected")
+
+    def test_identity_link_mode_requires_exact_mode_specific_inputs(self):
+        enabled = deploy.identity_link_configuration(
+            IDENTITY_LINK_MODE_ENABLED,
+            GOOGLE_IDENTITY_REF,
+            LINE_IDENTITY_REF,
+            GOOGLE_CLIENT_ID,
+            GOOGLE_REDIRECT,
+            LINE_CLIENT_ID,
+            LINE_REDIRECT,
+        )
+        self.assertEqual(enabled[0], GOOGLE_IDENTITY_REF)
+        self.assertEqual(
+            enabled[2]["WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID"], GOOGLE_CLIENT_ID
+        )
+        self.assertEqual(
+            deploy.identity_link_configuration(
+                IDENTITY_LINK_MODE_DISABLED,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ),
+            (None, None, {}),
+        )
+        for mode, inputs in (
+            ("", (None,) * 6),
+            ("off", (None,) * 6),
+            (IDENTITY_LINK_MODE_ENABLED, (None,) * 6),
+            (
+                IDENTITY_LINK_MODE_DISABLED,
+                (None, None, GOOGLE_CLIENT_ID, None, None, None),
+            ),
+        ):
+            with self.subTest(mode=mode, inputs=inputs):
+                with self.assertRaises(deploy.DeploymentError):
+                    deploy.identity_link_configuration(mode, *inputs)
 
     def test_execute_rejects_callback_origin_drift_before_build(self):
         runner = FakeRunner(self.root, service_url="https://other.example")
@@ -570,6 +648,7 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
         )
         self.assertNotIn(b"\r\n", self.temporary_env.read_bytes())
         rendered = self.temporary_env.read_text(encoding="utf-8")
+        self.assertNotIn("WEATHER_API_KEY", rendered)
         self.assertNotIn("fixture-google-secret", rendered)
         self.assertNotIn("fixture-line-identity-secret", rendered)
 
@@ -584,6 +663,103 @@ class WebPortalDeploymentWrapperTests(unittest.TestCase):
             self.assertEqual(rendered.count(name + ":"), 1)
             self.assertIn(f'{name}: "{value}"', rendered)
         self.assertNotIn("CLIENT_SECRET", rendered)
+
+    def test_filtered_env_disabled_mode_omits_all_six_identity_keys(self):
+        source = self.root / "envs" / "web_portal" / ".env.yaml"
+        with source.open("a", encoding="utf-8") as fixture:
+            fixture.write(
+                'WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID: "stale-google"\n'
+                'WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI: "https://stale.invalid/google"\n'
+                'WEB_IDENTITY_LINK_LINE_CLIENT_ID: "stale-line"\n'
+                'WEB_IDENTITY_LINK_LINE_REDIRECT_URI: "https://stale.invalid/line"\n'
+            )
+        deploy.write_filtered_env(source, self.temporary_env, identity_values={})
+        rendered = self.temporary_env.read_text(encoding="utf-8")
+        for name in deploy.IDENTITY_LINK_ENV_KEYS:
+            self.assertNotIn(name, rendered)
+
+    def test_disabled_mode_rejects_identity_input_before_cloud_build(self):
+        runner = FakeRunner(self.root, identity_link_mode=IDENTITY_LINK_MODE_DISABLED)
+        with self.assertRaises(deploy.DeploymentError):
+            deploy.execute_deployment(
+                self.root,
+                SHA,
+                ROLLBACK,
+                LINE_REF,
+                SESSION_REF,
+                WEATHER_REF,
+                PHASE_C_ENABLED,
+                ROLLOUT_FREEZE_ENABLED,
+                IDENTITY_MAINTENANCE_ENABLED,
+                IDENTITY_LINK_MODE_DISABLED,
+                GOOGLE_IDENTITY_REF,
+                None,
+                None,
+                None,
+                None,
+                None,
+                runner=runner,
+                check_tools=False,
+            )
+        self.assertFalse(
+            any(
+                command[:3] == ["gcloud", "builds", "submit"]
+                for command, _ in runner.commands
+            )
+        )
+
+    def test_disabled_mode_omits_identity_inputs_and_requires_recovery_404(self):
+        runner = FakeRunner(self.root, identity_link_mode=IDENTITY_LINK_MODE_DISABLED)
+        calls = []
+
+        def disabled_http(url, timeout):
+            calls.append(url)
+            return 404 if url.endswith(("/demo/", "/identity-recovery")) else 200
+
+        result = self.execute(
+            runner,
+            disabled_http,
+            identity_link_mode=IDENTITY_LINK_MODE_DISABLED,
+        )
+        build = next(
+            command
+            for command, _ in runner.commands
+            if command[:3] == ["gcloud", "builds", "submit"]
+        )
+        substitutions = build[build.index("--substitutions") + 1]
+        self.assertIn("_WEB_IDENTITY_LINK_MODE=disabled", substitutions)
+        self.assertNotIn("_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF", substitutions)
+        self.assertNotIn("_WEB_IDENTITY_LINK_LINE_SECRET_REF", substitutions)
+        self.assertEqual(
+            result["http_status"],
+            {"/": 200, "/demo/": 404, "/identity-recovery": 404},
+        )
+        self.assertEqual(len(calls), 3)
+
+    def test_disabled_mode_rejects_any_identity_key_in_ready_revision(self):
+        for drift in (
+            {"name": "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID", "value": "stale"},
+            {
+                "name": "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET",
+                "valueFrom": {"secretKeyRef": {"name": "stale-secret", "key": "1"}},
+            },
+        ):
+            with self.subTest(name=drift["name"]):
+                runner = FakeRunner(
+                    self.root,
+                    identity_link_mode=IDENTITY_LINK_MODE_DISABLED,
+                    disabled_identity_drift=drift,
+                )
+                with self.assertRaisesRegex(
+                    deploy.DeploymentStageError, "revision_convergence"
+                ):
+                    self.execute(
+                        runner,
+                        identity_link_mode=IDENTITY_LINK_MODE_DISABLED,
+                    )
+                self.assertFalse(
+                    any("update-traffic" in command for command, _ in runner.commands)
+                )
 
     def test_success_uses_fixed_context_single_substitution_argument_and_http_once(
         self,

@@ -234,7 +234,8 @@ python tools/deploy_web_portal.py
 py -3.10 tools/deploy_web_portal.py
 ```
 
-Owner 核准一次性的 exact deployment work package 後，才可使用：
+Owner 核准一次性的 exact deployment work package 後，identity-link enabled
+部署才可使用完整六項 provider inputs：
 
 ```text
 python tools/deploy_web_portal.py --execute \
@@ -245,7 +246,29 @@ python tools/deploy_web_portal.py --execute \
   --weather-secret-ref <RESOURCE:VERSION> \
   --phase-c-enabled <true|false> \
   --rollout-freeze-enabled <true|false> \
-  --identity-maintenance-enabled <true|false>
+  --identity-maintenance-enabled <true|false> \
+  --identity-link-mode enabled \
+  --google-identity-secret-ref <PINNED_RESOURCE:NUMERIC_VERSION> \
+  --line-identity-secret-ref <PINNED_RESOURCE:NUMERIC_VERSION> \
+  --google-client-id <APPROVED_CLIENT_ID> \
+  --google-redirect-uri <EXACT_SERVICE_ORIGIN>/api/v1/auth/identity-link/web/callback/google \
+  --line-client-id <APPROVED_CLIENT_ID> \
+  --line-redirect-uri <EXACT_SERVICE_ORIGIN>/api/v1/auth/identity-link/web/callback/line
+```
+
+Identity-link disabled 部署必須完全省略上述六項 provider inputs：
+
+```text
+python tools/deploy_web_portal.py --execute \
+  --approved-commit <FULL_40_CHARACTER_SHA> \
+  --rollback-revision <EXACT_WEB_PORTAL_REVISION> \
+  --line-login-secret-ref <RESOURCE:VERSION> \
+  --session-secret-ref <RESOURCE:VERSION> \
+  --weather-secret-ref <RESOURCE:VERSION> \
+  --phase-c-enabled <true|false> \
+  --rollout-freeze-enabled <true|false> \
+  --identity-maintenance-enabled <true|false> \
+  --identity-link-mode disabled
 ```
 
 Wrapper 固定 project `ntubtob-schedule-405614`、region `asia-east1`、service
@@ -254,23 +277,61 @@ submission 取得 build ID，再做有 timeout 的 bounded polling；substitutio
 以單一 subprocess argument 傳遞，不依賴 PowerShell 或 shell 的逗號解析。
 
 Build `SUCCESS` 後仍須驗證 immutable digest、new revision Ready、100% traffic、
-public invoker、沿用的 runtime identity、四個 runtime Secret references（包含 database password）、plain
-runtime key classifications、exact rollout flag vector 與 production demo gate 缺席。最後只做一次不跟隨
-redirect、也不讀 response body 的 `GET /`（200）與 `GET /demo/`（404）。部署後
-驗證失敗時，只能把 traffic 切回 CLI 已核准且通過 prefix 驗證的 exact revision；
-rollback 成功與失敗必須分開回報。Temporary `.env.yaml` 在所有成功與失敗路徑
-都由 `finally` 清除。
+public invoker、沿用的 runtime identity、plain runtime key classifications、exact
+rollout flag vector 與 production demo gate 缺席。兩種 mode 都驗證 database、LINE
+Login session 與 weather 等四個 base runtime Secret references；enabled 另外驗證兩個
+identity provider Secret references及四個 plain identity keys，disabled 則要求這六個
+identity keys 全部不存在。最後只做一次不跟隨 redirect、也不讀 response body 的
+`GET /`（200）、`GET /demo/`（404）及 `GET /identity-recovery`（enabled 200；
+disabled 404）。部署後驗證失敗時，只能把 traffic 切回 CLI 已核准且通過 prefix
+驗證的 exact revision；rollback 成功與失敗必須分開回報。Temporary `.env.yaml`
+在所有成功與失敗路徑都由 `finally` 清除。
 
 Wrapper 的存在與 dry-run 成功不代表 deployment、HTTP、Secret metadata query 或
 rollback 已獲批准。TASK-028 只建立 repository 工具，未執行 `--execute`。
 
-Legacy Make 入口仍存在，但不提供上述跨平台 async polling 與完整驗證契約：
+Make 入口只是上述 canonical wrapper 的薄層，必須提供同一組 exact inputs；它不自行
+建立 temporary env、提交 Cloud Build 或縮減驗證：
 
 ```text
-make deploy-web-portal
+make deploy-web-portal \
+  IMAGE_TAG=<FULL_40_CHARACTER_SHA> \
+  WEB_PORTAL_ROLLBACK_REVISION=<EXACT_WEB_PORTAL_REVISION> \
+  WEB_PORTAL_LINE_LOGIN_SECRET_REF=<RESOURCE:VERSION> \
+  WEB_PORTAL_SESSION_SECRET_REF=<RESOURCE:VERSION> \
+  WEB_PORTAL_WEATHER_SECRET_REF=<RESOURCE:VERSION> \
+  PORTAL_DATA_PHASE_C_ENABLED=<true|false> \
+  PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=<true|false> \
+  WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=<true|false> \
+  WEB_IDENTITY_LINK_MODE=enabled \
+  WEB_IDENTITY_LINK_GOOGLE_SECRET_REF=<PINNED_RESOURCE:NUMERIC_VERSION> \
+  WEB_IDENTITY_LINK_LINE_SECRET_REF=<PINNED_RESOURCE:NUMERIC_VERSION> \
+  WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID=<APPROVED_CLIENT_ID> \
+  WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI=<EXACT_GOOGLE_CALLBACK> \
+  WEB_IDENTITY_LINK_LINE_CLIENT_ID=<APPROVED_CLIENT_ID> \
+  WEB_IDENTITY_LINK_LINE_REDIRECT_URI=<EXACT_LINE_CALLBACK>
 ```
 
-必要參數為 40 字元 `IMAGE_TAG`、`WEB_PORTAL_LINE_LOGIN_SECRET_REF`、`WEB_PORTAL_SESSION_SECRET_REF`、`WEB_PORTAL_WEATHER_SECRET_REF` 與三個 exact boolean rollout flags。三個 Secret 輸入只能是 resource/version references，不得是 Secret values；flags 只能是小寫 `true`／`false`，並須與 temporary env 及新 revision 完全一致。正式工作包還必須確認 callback URL、public boundary、Secret IAM、目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、Cloud Build、Secret lookup 或 Cloud Run deployment。
+Disabled 使用相同 base variables、設定 `WEB_IDENTITY_LINK_MODE=disabled`，並完全
+省略上述六項 `WEB_IDENTITY_LINK_*` variables：
+
+```text
+make deploy-web-portal \
+  IMAGE_TAG=<FULL_40_CHARACTER_SHA> \
+  WEB_PORTAL_ROLLBACK_REVISION=<EXACT_WEB_PORTAL_REVISION> \
+  WEB_PORTAL_LINE_LOGIN_SECRET_REF=<RESOURCE:VERSION> \
+  WEB_PORTAL_SESSION_SECRET_REF=<RESOURCE:VERSION> \
+  WEB_PORTAL_WEATHER_SECRET_REF=<RESOURCE:VERSION> \
+  PORTAL_DATA_PHASE_C_ENABLED=<true|false> \
+  PORTAL_DATA_ROLLOUT_FREEZE_ENABLED=<true|false> \
+  WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED=<true|false> \
+  WEB_IDENTITY_LINK_MODE=disabled
+```
+
+三個 base Secret 輸入及 enabled 的兩個 identity Secret 輸入只能是 resource/version
+references，不得是 Secret values。正式工作包仍須確認 public boundary、Secret IAM、
+目前 revision 與 rollback target。Repository contract tests 不會執行 Docker build、
+Cloud Build、Secret lookup 或 Cloud Run deployment。
 
 ### 7.4 Update game schedule function
 
@@ -298,7 +359,10 @@ make deploy-line-webhook-handler
 
 ## 8. Temporary file 與失敗清理
 
-三個 app Make targets 都在 Cloud Build 成功後才刪除 service directory 的 `.env.yaml`。若 legacy build/deploy 中途失敗，清理步驟可能不會執行。Scheduled services wrapper 則以 `finally` 保證暫存 env 清理。
+Legacy scheduled-service Make targets 仍可能只在 Cloud Build 成功後刪除 service
+directory 的 `.env.yaml`；若 legacy build/deploy 中途失敗，清理步驟可能不會執行。
+Scheduled-services wrapper 與 Web Portal canonical wrapper 都以 `finally` 保證暫存
+env 在成功及失敗路徑清除；`make deploy-web-portal` 只委派後者，不另建暫存 env。
 
 無論成功或失敗都必須：
 

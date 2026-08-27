@@ -66,9 +66,11 @@ WEB_PORTAL_NAME = web-portal
 WEB_PORTAL_LINE_LOGIN_SECRET_REF ?=
 WEB_PORTAL_SESSION_SECRET_REF ?=
 WEB_PORTAL_WEATHER_SECRET_REF ?=
+WEB_PORTAL_ROLLBACK_REVISION ?=
 PORTAL_DATA_PHASE_C_ENABLED ?=
 PORTAL_DATA_ROLLOUT_FREEZE_ENABLED ?=
 WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED ?=
+WEB_IDENTITY_LINK_MODE ?=
 WEB_IDENTITY_LINK_GOOGLE_SECRET_REF ?=
 WEB_IDENTITY_LINK_LINE_SECRET_REF ?=
 WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID ?=
@@ -83,35 +85,24 @@ update-shared-lib-for-deploy-web-portal:
 		apps/${DIR_WEB_PORTAL}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
 
 deploy-web-portal:
-	@printf '%s\n' "${WEB_PORTAL_LINE_LOGIN_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$$' || (echo "WEB_PORTAL_LINE_LOGIN_SECRET_REF must be a resource:version reference" >&2; exit 2)
-	@printf '%s\n' "${WEB_PORTAL_SESSION_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$$' || (echo "WEB_PORTAL_SESSION_SECRET_REF must be a resource:version reference" >&2; exit 2)
-	@printf '%s\n' "${WEB_PORTAL_WEATHER_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[A-Za-z0-9][A-Za-z0-9._-]*$$' || (echo "WEB_PORTAL_WEATHER_SECRET_REF must be a resource:version reference" >&2; exit 2)
-	@printf '%s\n' "${PORTAL_DATA_PHASE_C_ENABLED}" | grep -Eq '^(true|false)$$' || (echo "PORTAL_DATA_PHASE_C_ENABLED must be true or false" >&2; exit 2)
-	@printf '%s\n' "${PORTAL_DATA_ROLLOUT_FREEZE_ENABLED}" | grep -Eq '^(true|false)$$' || (echo "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED must be true or false" >&2; exit 2)
-	@printf '%s\n' "${WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED}" | grep -Eq '^(true|false)$$' || (echo "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED must be true or false" >&2; exit 2)
-	@printf '%s\n' "${WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[1-9][0-9]*$$' || (echo "WEB_IDENTITY_LINK_GOOGLE_SECRET_REF must be a version-pinned resource reference" >&2; exit 2)
-	@printf '%s\n' "${WEB_IDENTITY_LINK_LINE_SECRET_REF}" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]*:[1-9][0-9]*$$' || (echo "WEB_IDENTITY_LINK_LINE_SECRET_REF must be a version-pinned resource reference" >&2; exit 2)
-	@printf '%s\n' "${WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID}" | grep -Eq '^[0-9A-Za-z][0-9A-Za-z._-]{5,255}$$' || (echo "WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID is invalid" >&2; exit 2)
-	@printf '%s\n' "${WEB_IDENTITY_LINK_LINE_CLIENT_ID}" | grep -Eq '^[0-9A-Za-z][0-9A-Za-z._-]{5,255}$$' || (echo "WEB_IDENTITY_LINK_LINE_CLIENT_ID is invalid" >&2; exit 2)
-	@printf '%s\n' "${WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI}" | grep -Eq '^https://[A-Za-z0-9.-]+(:[1-9][0-9]{0,4})?/api/v1/auth/identity-link/web/callback/google$$' || (echo "WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI is invalid" >&2; exit 2)
-	@printf '%s\n' "${WEB_IDENTITY_LINK_LINE_REDIRECT_URI}" | grep -Eq '^https://[A-Za-z0-9.-]+(:[1-9][0-9]{0,4})?/api/v1/auth/identity-link/web/callback/line$$' || (echo "WEB_IDENTITY_LINK_LINE_REDIRECT_URI is invalid" >&2; exit 2)
-	@printf '%s' "${IMAGE_TAG}" | grep -Eq '^[0-9a-f]{40}$$' || (echo "IMAGE_TAG must be a 40-character Git commit SHA" >&2; exit 2)
-	make build-shared-lib
-	mkdir -p apps/${DIR_WEB_PORTAL}/dist
-	cp $(SHARED_LIB_DIR)/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz \
-		apps/${DIR_WEB_PORTAL}/dist/shared_lib-${SHARED_LIB_VERSION}.tar.gz
-
-	@echo "Building Docker image..."
-	@trap 'rm -f apps/${DIR_WEB_PORTAL}/.env.yaml' EXIT; \
-		grep -vE '^[[:space:]]*(DSN_PASSWORD|LINE_LOGIN_CHANNEL_SECRET|SECRET_KEY|WEB_IDENTITY_LINK_GOOGLE_CLIENT_SECRET|WEB_IDENTITY_LINK_LINE_CLIENT_SECRET|WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID|WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI|WEB_IDENTITY_LINK_LINE_CLIENT_ID|WEB_IDENTITY_LINK_LINE_REDIRECT_URI)[[:space:]]*:' \
-			envs/${DIR_WEB_PORTAL}/.env.yaml \
-			> apps/${DIR_WEB_PORTAL}/.env.yaml; \
-		printf '%s\n' \
-			'WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID: "${WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID}"' \
-			'WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI: "${WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI}"' \
-			'WEB_IDENTITY_LINK_LINE_CLIENT_ID: "${WEB_IDENTITY_LINK_LINE_CLIENT_ID}"' \
-			'WEB_IDENTITY_LINK_LINE_REDIRECT_URI: "${WEB_IDENTITY_LINK_LINE_REDIRECT_URI}"' \
-			>> apps/${DIR_WEB_PORTAL}/.env.yaml; \
-		(cd apps/${DIR_WEB_PORTAL} && gcloud builds submit --region=${REGION} \
-			--config cloudbuild.yaml \
-			--substitutions=_SERVICE_NAME="${WEB_PORTAL_NAME}",_REGION="${REGION}",_IMAGE_TAG="${IMAGE_TAG}",_WEB_PORTAL_LINE_LOGIN_SECRET_REF="${WEB_PORTAL_LINE_LOGIN_SECRET_REF}",_WEB_PORTAL_SESSION_SECRET_REF="${WEB_PORTAL_SESSION_SECRET_REF}",_WEB_PORTAL_WEATHER_SECRET_REF="${WEB_PORTAL_WEATHER_SECRET_REF}",_PORTAL_DATA_PHASE_C_ENABLED="${PORTAL_DATA_PHASE_C_ENABLED}",_PORTAL_DATA_ROLLOUT_FREEZE_ENABLED="${PORTAL_DATA_ROLLOUT_FREEZE_ENABLED}",_WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED="${WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED}",_WEB_IDENTITY_LINK_GOOGLE_SECRET_REF="${WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}",_WEB_IDENTITY_LINK_LINE_SECRET_REF="${WEB_IDENTITY_LINK_LINE_SECRET_REF}" .)
+	@set -- \
+		--execute \
+		--approved-commit "${IMAGE_TAG}" \
+		--rollback-revision "${WEB_PORTAL_ROLLBACK_REVISION}" \
+		--line-login-secret-ref "${WEB_PORTAL_LINE_LOGIN_SECRET_REF}" \
+		--session-secret-ref "${WEB_PORTAL_SESSION_SECRET_REF}" \
+		--weather-secret-ref "${WEB_PORTAL_WEATHER_SECRET_REF}" \
+		--phase-c-enabled "${PORTAL_DATA_PHASE_C_ENABLED}" \
+		--rollout-freeze-enabled "${PORTAL_DATA_ROLLOUT_FREEZE_ENABLED}" \
+		--identity-maintenance-enabled "${WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED}" \
+		--identity-link-mode "${WEB_IDENTITY_LINK_MODE}"; \
+	if [ -n "${WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}${WEB_IDENTITY_LINK_LINE_SECRET_REF}${WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID}${WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI}${WEB_IDENTITY_LINK_LINE_CLIENT_ID}${WEB_IDENTITY_LINK_LINE_REDIRECT_URI}" ]; then \
+		set -- "$$@" \
+			--google-identity-secret-ref "${WEB_IDENTITY_LINK_GOOGLE_SECRET_REF}" \
+			--line-identity-secret-ref "${WEB_IDENTITY_LINK_LINE_SECRET_REF}" \
+			--google-client-id "${WEB_IDENTITY_LINK_GOOGLE_CLIENT_ID}" \
+			--google-redirect-uri "${WEB_IDENTITY_LINK_GOOGLE_REDIRECT_URI}" \
+			--line-client-id "${WEB_IDENTITY_LINK_LINE_CLIENT_ID}" \
+			--line-redirect-uri "${WEB_IDENTITY_LINK_LINE_REDIRECT_URI}"; \
+	fi; \
+	python tools/deploy_web_portal.py "$$@"
