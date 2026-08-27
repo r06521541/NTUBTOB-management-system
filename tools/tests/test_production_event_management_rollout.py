@@ -102,22 +102,28 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
         operator._validate_append_only(connection)
 
         drift_cases = (
-            expected[:10] + ("public",) + expected[11:],
-            expected[:14] + ("BEGIN RETURN NEW; END;",) + expected[15:],
-            expected[:1] + (25,) + expected[2:],
-            expected[:1] + (26,) + expected[2:],
-            expected[:3] + ("2",) + expected[4:],
-            expected[:4] + ("fake-when-clause",) + expected[5:],
-            expected[:5] + (1,) + expected[6:],
-            expected[:6] + ("old_rows",) + expected[7:],
-            expected[:7] + ("new_rows",) + expected[8:],
-            expected[:8] + (True,) + expected[9:],
-            expected[:9] + (True,) + expected[10:],
+            (
+                expected[:10] + ("public",) + expected[11:],
+                "function_identity",
+            ),
+            (
+                expected[:14] + ("BEGIN RETURN NEW; END;",) + expected[15:],
+                "function_body",
+            ),
+            (expected[:1] + (25,) + expected[2:], "trigger_core"),
+            (expected[:1] + (26,) + expected[2:], "trigger_core"),
+            (expected[:3] + ("2",) + expected[4:], "trigger_columns"),
+            (expected[:4] + ("fake-when-clause",) + expected[5:], "trigger_when"),
+            (expected[:5] + (1,) + expected[6:], "trigger_constraint"),
+            (expected[:6] + ("old_rows",) + expected[7:], "trigger_transition"),
+            (expected[:7] + ("new_rows",) + expected[8:], "trigger_transition"),
+            (expected[:8] + (True,) + expected[9:], "trigger_deferrability"),
+            (expected[:9] + (True,) + expected[10:], "trigger_deferrability"),
         )
-        for drift in drift_cases:
-            with self.subTest(drift=drift):
+        for drift, reason in drift_cases:
+            with self.subTest(reason=reason):
                 connection.execute.return_value.all.return_value = [drift]
-                with self.assertRaises(operator.RolloutError):
+                with self.assertRaisesRegex(operator.RolloutError, reason):
                     operator._validate_append_only(connection)
 
     def test_runtime_contract_accepts_exact_ready_service_without_disclosure(self):

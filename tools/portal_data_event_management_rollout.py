@@ -202,24 +202,27 @@ def _validate_append_only(connection: Connection) -> None:
         if isinstance(body, str)
         else ""
     )
+    if enabled != "O" or trigger_type != 27 or trigger_args != 0:
+        raise RolloutError("event audit append-only mismatch: trigger_core")
+    if update_columns != "":
+        raise RolloutError("event audit append-only mismatch: trigger_columns")
+    if when_clause is not None:
+        raise RolloutError("event audit append-only mismatch: trigger_when")
+    if constraint_oid != 0:
+        raise RolloutError("event audit append-only mismatch: trigger_constraint")
+    if old_transition_table is not None or new_transition_table is not None:
+        raise RolloutError("event audit append-only mismatch: trigger_transition")
+    if deferrable is not False or initially_deferred is not False:
+        raise RolloutError("event audit append-only mismatch: trigger_deferrability")
     if (
-        enabled != "O"
-        or trigger_type != 27
-        or trigger_args != 0
-        or update_columns != ""
-        or when_clause is not None
-        or constraint_oid != 0
-        or old_transition_table is not None
-        or new_transition_table is not None
-        or deferrable is not False
-        or initially_deferred is not False
-        or function_schema != "ntubtob"
+        function_schema != "ntubtob"
         or function_args != 0
         or returns_trigger is not True
         or language != "plpgsql"
-        or body_digest != APPEND_ONLY_BODY_SHA256
     ):
-        raise RolloutError("event audit append-only boundary drifted")
+        raise RolloutError("event audit append-only mismatch: function_identity")
+    if body_digest != APPEND_ONLY_BODY_SHA256:
+        raise RolloutError("event audit append-only mismatch: function_body")
 
 
 def _logging_safe(connection: Connection) -> bool:
