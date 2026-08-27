@@ -1,25 +1,26 @@
-active_task: TASK-163
-status: completed
-next_actor: main-work
+active_task: TASK-164
+status: in_progress
+next_actor: codex-writer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 4d4b3502451544f5b9efeb9c2bfd4c605d6385a2
-head_commit: c1dd1e3e75e373da6991748b8e34ab63d86b1c25
+base_commit: aa614ab57423f589d318bc96c627d5f5a1b61bb5
+head_commit: aa614ab57423f589d318bc96c627d5f5a1b61bb5
 
 updated_by: main-work
-updated_at: 2026-08-27T21:40:00+08:00
+updated_at: 2026-08-27T21:51:00+08:00
 
 note: >
-  TASK-163 merged through PR #209 as c1dd1e3e75e373da6991748b8e34ab63d86b1c25
-  after writer evidence, independent Data/Authorization acceptance, Main review,
-  and hosted run 33077406624 passed PostgreSQL 15/16 and every selected gate.
-  The writer claim is complete. No deployment, schema rollout, notification,
-  production data, Secret, IAM, or other external mutation is authorized.
+  Owner authorized TASK-164 to roll out TASK-163 to production. Repository work
+  first adds an exact, no-disclosure 0008-to-0009 operator because the standard
+  Alembic entry intentionally rejects remote databases. No production database
+  or runtime mutation occurs before that operator is reviewed, merged and passes
+  hosted PostgreSQL 15/16. Notifications, Secret payloads, IAM and real-data DML
+  remain prohibited.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-163.md
-report: docs/coordination/reports/TASK-163-CODEX.md
-review: docs/coordination/reviews/TASK-163-WORK.md
+task: docs/coordination/tasks/TASK-164.md
+report: docs/coordination/reports/TASK-164-CODEX.md
+review: null
