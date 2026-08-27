@@ -1,26 +1,25 @@
-active_task: TASK-160
-status: completed
+active_task: TASK-161
+status: ready_for_pr
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: e7f9a54a0f1214456732fe3093640a0e6b1195b0
-head_commit: e7f9a54a0f1214456732fe3093640a0e6b1195b0
+base_commit: 70d9df4f4479561a9a8da59efd10a56dce1e4105
+head_commit: b86b15a79af76552c43622bc44868db50061432a
 
 updated_by: main-work
-updated_at: 2026-08-27T10:46:00+08:00
+updated_at: 2026-08-27T12:20:00+08:00
 
 note: >
-  TASK-160 is complete in PR #203 at merge commit
-  e7f9a54a0f1214456732fe3093640a0e6b1195b0. Writer affected-complete tests,
-  independent Auth/Identity review, Main targeted verification and hosted Web
-  Portal/final gates passed. Production deployment, runtime flag changes,
-  provider/cloud/Secret access and real-data mutation remain separate Owner
-  gates.
+  TASK-161 implementation and independent Auth/Security review are accepted.
+  Make now delegates the canonical wrapper; enabled mode remains strict and
+  disabled mode proves all six identity-link runtime keys absent. Proceed with
+  the single hosted PR gate. Production execution remains a separate exact Owner
+  gate under DEC-078.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-160.md
-report: docs/coordination/reports/TASK-160-CODEX.md
-review: docs/coordination/reviews/TASK-160-WORK.md
+task: docs/coordination/tasks/TASK-161.md
+report: docs/coordination/reports/TASK-161-CODEX.md
+review: docs/coordination/reviews/TASK-161-WORK.md

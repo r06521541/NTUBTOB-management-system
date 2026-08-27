@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `e7f9a54a0f1214456732fe3093640a0e6b1195b0`
+Repository 基準：`main` / `70d9df4f4479561a9a8da59efd10a56dce1e4105`
 
 ## Active role lanes
 
@@ -25,6 +25,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
+- TASK-161 repository implementation與獨立Auth/Security review已完成，為TASK-160 production deployment增加identity-link
+  明確disabled的fail-closed契約並將Make收斂至canonical wrapper；尚待唯一hosted PR gate。此修正不啟用provider、
+  不新增Secret，production execution仍需DEC-078 exact Owner gate。
 - TASK-160 已由 PR #203 合併：桌面 LINE 登入建立 fresh browser-bound transaction且不改 LINE in-app、Dashboard
   reply CSRF可用、People預設只顯示active、pending identity chooser只列eligible Member，並將同日賽事歸入同一
   比賽日。Writer／獨立 Auth／Identity review／Main及hosted gates均通過；production deployment、identity maintenance
@@ -85,10 +88,10 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ### Runtime 與服務
 
-- Web Portal、LINE webhook、notify cron 的 Phase C flag 已啟用，freeze 已解除；identity maintenance flag 仍維持
-  false，除非後續任務以新的精確邊界啟用。
-- Phase C activation 時的 production revisions：
-  - Web Portal：`web-portal-00046-g8v`，100% traffic。
+- Web Portal、LINE webhook、notify cron 的 Phase C flag 已啟用，freeze 已解除。2026-08-27 唯讀 inventory 證實
+  Web Portal identity maintenance flag 已為 true；production identity-link plain configuration仍不完整／未啟用。
+- 已確認的 production revisions：
+  - Web Portal：`web-portal-00049-qfx`，100% latest-ready traffic；image tag對應repository commit `35b9e2460ca47489af44b537beca764258cbbd4d`。
   - LINE webhook：`line-webhook-handler-00013-yab`，100% traffic。
   - Notify cron：`notify-cronjob-service-00017-qms`，100% traffic，維持 private。
 - Web Portal 與 LINE webhook 維持必要的 public ingress；LINE webhook 必須驗證 signature。
@@ -109,7 +112,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - 啟用 56 位 Person 後尚未由 Owner 做一次一般瀏覽器與 LINE in-app browser 的人工登入／頁面 smoke；production
   post-check 已證明資料狀態，但不等於使用者端完整操作驗收。
 - 自然 Scheduler 執行與低流量環境的長期 observation 不足；不得以缺少 error log 推定所有通知情境都已覆蓋。
-- Identity maintenance 仍為 false；新 pending identity 的 match／ignore／remap 等正式操作需另行規劃啟用與驗證。
+- Identity maintenance 已在live Web Portal為true；TASK-160的新管理UX尚待本次production deployment與post-check。
 - People role 尚未取代 runtime admin allowlist；officer／admin 的正式持久化權限切換仍屬 Phase D 之後工作。
 - Event／Activity schema 與 principal-scoped唯讀契約已建立，Mobile API／Flutter／Web Portal read surface 均已整合。
   Event create/edit/publish/cancel、attendance、通知及 guest-player管理規則仍未成為 production功能。
