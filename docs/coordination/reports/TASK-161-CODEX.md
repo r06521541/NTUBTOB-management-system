@@ -16,4 +16,3 @@
 
 - 本交付尚未建立PR／merge／deploy，也未存取Secret payload、修改provider／IAM／runtime／traffic或正式資料。
 - Production執行仍需merged immutable SHA、exact target/config/rollback packet與Owner依DEC-078確認。
-
