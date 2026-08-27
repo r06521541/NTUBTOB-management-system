@@ -23,4 +23,3 @@
 
 - Final PR 必須以hosted PostgreSQL 15／16補足本機skip的migration／transaction evidence，並通過change-selected Web gates。
 - Merge不授權production schema rollout、deployment、real data、notification、Secret、IAM或cloud mutation。
-

@@ -14,6 +14,7 @@
 
 - `py -3.10 -m unittest tests.portal_data.test_repository_contract tests.portal_data.test_event_management_migration -v`：41 outcomes，in-memory 20 passed、migration 2 passed、PostgreSQL 19 skipped（本機未設定 isolated database URL）。
 - `py -3.10 -m unittest discover -s apps/web_portal/tests -v`：221/221 passed。
+- Hosted correction direct suites：Phase C artifact 10/10 passed；migration readiness static 9/9 passed；Event migration 2/2 passed；兩個 canonical `verify` commands皆通過。Verifier只接受唯一 `0009_event_management_writes` head，並持續拒絕 additional／divergent heads；Phase C SQL artifact/checksum與 mobile staging/broker revision pins未修改。
 - Python compile、`node --check apps/web_portal/static/event_management.js`、selected Black check與`git diff --check` passed。
 
 ## Remaining gates

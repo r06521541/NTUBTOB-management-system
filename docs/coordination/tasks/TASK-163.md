@@ -24,6 +24,8 @@
   - `shared_lib/shared_module/portal_data/repository.py`
   - `shared_lib/shared_module/portal_data/services.py`
   - direct repository／migration tests under `tests/portal_data/`
+  - `tools/portal_data_phase_c_migration.py`
+  - `tools/portal_data_migration_readiness.py`
   - `apps/web_portal/app.py`
   - Event management templates／styles／scripts and direct Web Portal tests
   - `docs/coordination/tasks/TASK-163.md`
@@ -66,6 +68,7 @@
 - Independent Data／Authorization review：兩輪bounded correction後 `ACCEPT`；無剩餘snapshot、transaction、typed-key、replay、privacy或rollback blocker。
 - Main local acceptance：focused replay／boundary與Web confirmation contracts passed；等待final PR hosted PostgreSQL 15／16與change-selected gates。
 - External mutation：none；merge不授權production schema rollout、deployment、real data或notification。
+- Hosted correction：PR #209 first run confirmed Web and unaffected service gates pass, but the pre-existing Phase C／migration-readiness verifiers still classified the new single Alembic head as unexpected. Their exact head/revision-chain contracts and direct regressions are added to this task; mobile staging revision pins remain unchanged.
 
 ## Writer checkpoint
 

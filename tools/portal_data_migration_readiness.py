@@ -27,6 +27,7 @@ EXPECTED_REVISIONS = (
     "0006_staging_broker_operation_journal",
     "0007_mobile_notifications",
     "0008_mobile_notification_delivery",
+    "0009_event_management_writes",
 )
 EXPECTED_TABLES = {
     "access_audit",

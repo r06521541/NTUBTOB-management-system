@@ -192,7 +192,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
     def test_migration_verifier_rejects_an_additional_head(self):
         scripts = Mock()
         scripts.get_heads.return_value = [
-            "0004_phase_c_identity_lifecycle",
+            "0009_event_management_writes",
             "fake_additional_head",
         ]
         with patch(
@@ -204,7 +204,19 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             ):
                 verify_migration_artifact()
 
-    def test_migration_verifier_accepts_the_mobile_notification_delivery_head(self):
+    def test_migration_verifier_rejects_a_divergent_single_head(self):
+        scripts = Mock()
+        scripts.get_heads.return_value = ["0008_mobile_notification_delivery"]
+        with patch(
+            "tools.portal_data_phase_c_migration.ScriptDirectory.from_config",
+            return_value=scripts,
+        ):
+            with self.assertRaisesRegex(
+                PhaseCMigrationError, "unexpected Alembic heads"
+            ):
+                verify_migration_artifact()
+
+    def test_migration_verifier_accepts_the_single_event_management_head(self):
         verify_migration_artifact()
 
 
