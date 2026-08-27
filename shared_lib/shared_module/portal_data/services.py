@@ -69,7 +69,133 @@ class PortalDataService:
         event_type: str,
         start_at: datetime,
         eligibility: Iterable[str],
+        end_at: datetime | None = None,
     ) -> int:
         return self.repository.create_event(
-            actor_id, title, event_type, start_at, eligibility
+            actor_id, title, event_type, start_at, eligibility, end_at
         )
+
+    def managed_events(self, actor_id: int) -> tuple[dict, ...]:
+        return self.repository.managed_events(actor_id)
+
+    def managed_event(self, actor_id: int, event_id: int) -> dict:
+        return self.repository.managed_event(actor_id, event_id)
+
+    def eligibility_preview(self, actor_id: int, event_id: int) -> dict:
+        return self.repository.eligibility_preview(actor_id, event_id)
+
+    def update_event(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        event_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        eligibility: Iterable[str],
+        expected_version: int,
+        request_id: str,
+    ) -> dict:
+        return self.repository.update_event(
+            actor_id,
+            event_id,
+            title,
+            event_type,
+            start_at,
+            end_at,
+            eligibility,
+            expected_version,
+            request_id,
+        )
+
+    def add_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str | None = None,
+    ) -> int:
+        return self.repository.add_activity(
+            actor_id,
+            event_id,
+            title,
+            activity_type,
+            start_at,
+            end_at,
+            request_id,
+        )
+
+    def update_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        title: str,
+        activity_type: str,
+        start_at: datetime,
+        end_at: datetime | None,
+        request_id: str,
+    ) -> None:
+        self.repository.update_activity(
+            actor_id,
+            event_id,
+            activity_id,
+            title,
+            activity_type,
+            start_at,
+            end_at,
+            request_id,
+        )
+
+    def delete_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        request_id: str | None = None,
+    ) -> None:
+        self.repository.delete_activity(
+            actor_id, event_id, activity_id, request_id=request_id
+        )
+
+    def move_activity(
+        self,
+        actor_id: int,
+        event_id: int,
+        activity_id: int,
+        direction: str,
+        request_id: str | None = None,
+    ) -> None:
+        self.repository.move_activity(
+            actor_id,
+            event_id,
+            activity_id,
+            direction,
+            request_id=request_id,
+        )
+
+    def set_invitee_override(
+        self,
+        actor_id: int,
+        event_id: int,
+        person_id: int,
+        action: str,
+        participation_category: str,
+        reason: str,
+        request_id: str,
+    ) -> None:
+        self.repository.set_invitee_override(
+            actor_id,
+            event_id,
+            person_id,
+            action,
+            participation_category,
+            reason,
+            request_id,
+        )
+
+    def cancel_event(self, actor_id: int, event_id: int, request_id: str) -> dict:
+        return self.repository.cancel_event(actor_id, event_id, request_id)

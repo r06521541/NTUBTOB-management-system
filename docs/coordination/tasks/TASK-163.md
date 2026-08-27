@@ -39,7 +39,7 @@
 ## Required behavior
 
 1. Active Officer／Admin 可建立 Event 草稿、編輯基本資料及新增／編輯／刪除／排序 Activity；basic、inactive、principal mismatch 與未知角色一律在任何資料 mutation 前拒絕。
-2. 草稿必須選至少一種 qualification eligibility。管理畫面提供去識別化的資格池預覽與人工 include／exclude override；override 必填 3–300 字理由。
+2. 草稿必須選至少一種 qualification eligibility。資格計數維持聚合；人工 include／exclude selector 僅投影操作必要的 `display_name` 與不透明 person key，不得帶出聯絡方式、provider identity 或其他 PII；override 必填 3–300 字理由。
 3. 發布由單一明確確認 POST 完成，不要求第二位幹部。Repository 以單一 transaction 鎖定 Event、重驗 actor、產生 immutable `event_invitees` snapshot、append audit 並切換為 published；相同 request id／已發布重送不得重複 snapshot 或 audit。
 4. Published Event 可修改標題、類型、起訖與 Activity itinerary，但不得重新計算或暗改 invitee snapshot；所有 published edit 必須 append audit。Published Event 可明確取消且保留 snapshot；取消不可自動通知。
 5. Event 與 Activity 時間使用 timezone-aware Asia/Taipei 輸入／顯示與 UTC persistence。Activity 必須隸屬同一 Event、position 唯一且連續；linked Game 本輪只保留既有 read contract，不新增 crawler、去重或 manual Game 寫入。
@@ -60,3 +60,10 @@
 - Main 做 focused contract與Web mutation regressions、diff/scope review；接受後只跑一次 hosted change-selected full gate。
 - 本 task merge 不授權 schema rollout、deployment、通知或其他外部 mutation。
 
+## Writer checkpoint
+
+- state: `correction_round_1_ready_for_independent_review`
+- delivered: Event draft/basic edit、Activity CRUD/contiguous ordering、aggregated eligibility counts + minimal manager person projection、audited include/exclude override、immutable publish snapshot、audited published edit/cancel，以及 Web Officer/Admin management flow。
+- local evidence: repository/migration 22 passed（PostgreSQL contract 19 skipped because no isolated local URL）；Web Portal complete suite 221 passed；Python compile、Node syntax、selected Black formatter API與`git diff --check` passed。
+- remaining acceptance: independent Data／Authorization review、Main focused acceptance、hosted PostgreSQL 15／16 and change-selected full gate。
+- external result: zero schema rollout、runtime/cloud/Secret/notification/production mutation。
