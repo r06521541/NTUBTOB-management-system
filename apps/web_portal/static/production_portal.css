@@ -206,6 +206,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-card { border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-card); }
 .account-card { padding: 24px; margin: 14px 0; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); box-shadow: var(--shadow-card); }
 .account-card form { display: grid; gap: 12px; margin-top: 14px; }
+.account-card .portal-control-fieldset { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 0; border: 0; }
 .account-card label { display: grid; gap: 6px; color: var(--color-muted); font-weight: 750; }
 .account-card input, .account-card select, .account-card textarea { min-height: 44px; max-width: 100%; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); font: inherit; }
 .account-card button { min-height: 44px; padding: 10px 14px; border: 0; border-radius: var(--radius-control); background: var(--brand-primary); color: white; font: inherit; font-weight: 800; }
@@ -248,6 +249,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .portal-button-secondary { border: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-text); }
 .portal-button-secondary:hover { border-color: var(--brand-primary); background: var(--brand-primary-soft); }
 .portal-card-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.portal-same-day-games { margin-top: 16px; }
 .portal-game-card { display: grid; gap: 12px; padding: 20px; transition: box-shadow .2s, transform .2s; }
 .portal-game-card:hover { transform: translateY(-2px); }
 .portal-game-card-link { display: grid; gap: 8px; text-decoration: none; }

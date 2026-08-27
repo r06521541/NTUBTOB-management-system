@@ -222,6 +222,13 @@ def attendance_for_games(games, name_style):
     return mappings
 
 
+def _game_calendar_date(game):
+    start_datetime = game.start_datetime
+    if start_datetime.tzinfo is None:
+        start_datetime = start_datetime.replace(tzinfo=local_timezone)
+    return start_datetime.astimezone(local_timezone).date()
+
+
 def phase_c_repository():
     if not is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return None
@@ -655,6 +662,8 @@ def line_login():
         (next_values[0] if next_values else None) or session.pop("next_url", None),
         url_for("attendance"),
     )
+    if browser_fallback:
+        session.clear()
     nonce = secrets.token_urlsafe(16)
     session["oauth_state_nonce"] = nonce
     state = create_oauth_state(
@@ -1056,7 +1065,21 @@ def member_dashboard():
     unanswered_count = sum(item["reply"] is None for item in game_cards)
     weather = None
     weather_pending = False
-    next_game = game_cards[0] if game_cards else None
+    next_game_day = ()
+    later_games = game_cards
+    if game_cards:
+        first_game_date = _game_calendar_date(game_cards[0]["game"])
+        next_game_day = tuple(
+            item
+            for item in game_cards
+            if _game_calendar_date(item["game"]) == first_game_date
+        )
+        later_games = tuple(
+            item
+            for item in game_cards
+            if _game_calendar_date(item["game"]) != first_game_date
+        )
+    next_game = next_game_day[0] if next_game_day else None
     if next_game and FICTIONAL_DEMO_MODE_ENABLED:
         weather = fictional_dashboard_forecast()
     elif next_game and is_weather_window(
@@ -1069,9 +1092,11 @@ def member_dashboard():
         next_game=next_game,
         weather=weather,
         weather_pending=weather_pending,
-        games=game_cards[1:4],
+        same_day_games=next_game_day[1:],
+        games=later_games[:3],
         unanswered_count=unanswered_count,
         reply_text_mapping=reply_text_mapping,
+        csrf_token=get_or_create_csrf_token(),
         can_manage_members=has_capability(get_current_principal(), MANAGE_MEMBERS),
         can_manage_games=_can_manage_games(lifecycle_principal),
     )
@@ -1336,11 +1361,13 @@ def index():
     repository = phase_c_repository()
     actor_person_id = session.get("person_id")
     if repository is not None and isinstance(actor_person_id, int):
+        dashboard = _fictional_identity_dashboard(
+            repository.admin_dashboard(actor_person_id)
+        )
         return render_template(
             "identity_admin.html",
-            dashboard=_fictional_identity_dashboard(
-                repository.admin_dashboard(actor_person_id)
-            ),
+            dashboard=dashboard,
+            eligible_member_targets=_eligible_member_targets(dashboard["people"]),
             csrf_token=get_or_create_csrf_token(),
             request_nonce=secrets.token_urlsafe(16),
             identity_maintenance_enabled=is_identity_maintenance_enabled(
@@ -1414,6 +1441,22 @@ def _fictional_identity_dashboard(dashboard):
         "identities": (sample_identity, *dashboard["identities"]),
         "audit": (*sample_audit, *dashboard["audit"]),
     }
+
+
+def _eligible_member_targets(people):
+    return tuple(
+        {
+            "person_id": person.get("person_id"),
+            "member_id": person["member_id"],
+            "display_name": person.get("display_name"),
+            "formal_name": person.get("formal_name"),
+            "status": person["status"],
+        }
+        for person in people
+        if type(person.get("member_id")) is int
+        and person["member_id"] > 0
+        and person.get("status") in {"active", "inactive"}
+    )
 
 
 def _is_portal_data_domain_error(error):
@@ -1577,6 +1620,7 @@ def admin_pending_identities():
             "people": dashboard["people"],
             "audit": dashboard["audit"] if FICTIONAL_DEMO_MODE_ENABLED else (),
         },
+        eligible_member_targets=_eligible_member_targets(dashboard["people"]),
         csrf_token=get_or_create_csrf_token(),
         request_nonce=secrets.token_urlsafe(16),
         identity_maintenance_enabled=is_identity_maintenance_enabled(
@@ -1820,14 +1864,19 @@ def identity_admin_action():
         request_id = _required_request_id("member-create-")
     identity_id = request.form.get("identity_id", type=int)
     person_id = request.form.get("person_id", type=int)
-    remap_member_id = None
+    target_member_id = None
+    if action in {"approve_member", "remap"}:
+        target_member_id = _required_positive_form_int("member_id")
+        eligible_member_ids = {
+            item["member_id"]
+            for item in _eligible_member_targets(
+                repository.admin_dashboard(actor_person_id)["people"]
+            )
+        }
+        if target_member_id not in eligible_member_ids:
+            abort(400)
     if action == "remap":
-        remap_member_id = request.form.get("member_id", type=int)
-        if (
-            identity_id is None
-            or remap_member_id is None
-            or request.form.getlist("confirm_remap") != ["yes"]
-        ):
+        if identity_id is None or request.form.getlist("confirm_remap") != ["yes"]:
             abort(400)
     try:
         if action == "approve_non_member" and identity_id is not None:
@@ -1847,7 +1896,7 @@ def identity_admin_action():
             repository.approve_member(
                 actor_person_id,
                 identity_id,
-                request.form.get("member_id", type=int),
+                target_member_id,
                 reason,
                 request_id,
             )
@@ -1897,7 +1946,7 @@ def identity_admin_action():
             repository.remap_member_identity(
                 actor_person_id,
                 identity_id,
-                remap_member_id,
+                target_member_id,
                 reason,
                 request_id,
                 current_identity_id=session.get("auth_identity_id"),
