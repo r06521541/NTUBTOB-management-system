@@ -306,9 +306,19 @@
 - Failure handling：artifact verifier失敗、target無法唯一解析、identity／cost／public／rollback boundary漂移、
   credential失效、輸出無法安全處理或mutation結果不確定時停止；不確定mutation不得重送，先執行獨立唯讀reconcile。
 
+## DEC-101：Event 發布固定邀請快照且與通知分離
+
+- 狀態：`active`
+- 生效：2026-08-27
+- 來源：Owner 對下一個產品交付的核准、`docs/planning/EVENT_MANAGEMENT_PLAN.md`、TASK-163
+- Supersedes：DEC-086 中「管理寫入仍未定案」的角色、發布、邀請快照及發布後修改部分；attendance、notification、guest-player與crawler ownership仍未定案
+- 決策：active Officer與Admin可建立、編輯、發布及取消Event，不要求第二位幹部覆核。發布以單一transaction依當下qualification與audited manual override建立immutable `event_invitees` snapshot；發布後資格變化與Event／Activity編輯都不得暗改snapshot。
+- Invariants：published edit與cancel必須audit；cancel保留snapshot。發布、編輯與取消皆不自動發通知，通知必須是未來獨立、可預覽且具idempotency的操作。linked Game維持既有read/source ownership，不因Event Builder取得crawler或Game寫入權。
+- Non-goals：本決策不授權production schema/runtime/data mutation、Event／Activity attendance、guest同行者、真實通知、deployment或cloud／Secret／IAM操作。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-100`，下一個新決策從 `DEC-101` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-101`，下一個新決策從 `DEC-102` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。
