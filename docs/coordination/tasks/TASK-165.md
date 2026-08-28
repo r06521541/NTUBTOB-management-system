@@ -15,7 +15,7 @@
 - claim_id: `task-165-event-management-authority-writer-20260828`
 - lease_version: 2
 - actor_id: `/root/task160_web_portal_writer`
-- state: `completed_pending_review`
+- state: `completed`
 - report_to: `main-work`
 - scope: Web Portal and shared repository Event-management authority alignment
 - owned paths:
@@ -53,3 +53,10 @@
 - The management hub uses that same capability for the Event entry while preserving the existing, separately bounded game-management gate.
 - Regressions cover allowlisted persisted-basic access, denial of non-allowlisted persisted officer/admin access, local fictional preview compatibility, inactive/unlinked fail-closed behavior, constructor policy wiring, and hub／global-navigation／route consistency.
 - Writer verification evidence is recorded in the task report. Independent Auth／Identity and Data／Auth reviews accepted the corrected boundary; hosted PostgreSQL／Web CI, PR and any deployment remain Main／Owner gates.
+
+## Closeout
+
+- PR #213 passed hosted run `33164033852`, including PostgreSQL 15／16, Web Portal and final gate, then squash-merged as `9c7b82b3857a20c6e53f99d108264a04726aac2f`.
+- Owner separately authorized the exact production deployment. Cloud Build `ba69d5d1-9386-4a3d-ab98-4df0466b0c93` produced `web-portal-00053-wzw` with the merge SHA image tag and digest `sha256:827e41b1bd42038b9684ed93d0f5e71cd97e32f3b60b53f9fdb9083da8ede0f8`.
+- The new revision is Ready with 100% traffic. Runtime identity, four existing Secret references, non-empty admin allowlist, flags and public invoker remained unchanged; identity-link keys remain absent. HTTP checks returned `/` 200, `/demo/` 404, `/identity-recovery` 404 and unauthenticated `/manage/events` 302. Rollback was not required.
+- No production Event was created, no database write was executed, and no Secret, IAM, provider or notification mutation occurred.

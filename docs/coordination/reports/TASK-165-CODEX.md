@@ -22,5 +22,6 @@
 ## Remaining gates
 
 - Independent Auth／Identity and Data／Auth reviews accepted after the Web-global-navigation and real repository-guard findings were corrected.
-- Hosted PostgreSQL／Web CI, PR and deployment remain Main／Owner gates.
-- No database, cloud/runtime, Secret, IAM, provider, notification or production mutation is authorized.
+- PR #213 hosted run `33164033852` passed PostgreSQL 15／16, Web Portal and final gate; the PR merged as `9c7b82b3857a20c6e53f99d108264a04726aac2f`.
+- Owner-authorized deployment completed as `web-portal-00053-wzw` from Cloud Build `ba69d5d1-9386-4a3d-ab98-4df0466b0c93`; post-check passed and rollback was not required.
+- Owner may now perform the bounded authenticated product smoke by opening Activity management and creating an unmistakably labelled test Event. No such Event or other production-data mutation was performed by the agent.

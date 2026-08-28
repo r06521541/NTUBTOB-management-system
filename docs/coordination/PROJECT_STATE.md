@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `6b0aa7e556d25cb906bf12f4ea0c7eed57705f13`
+Repository 基準：`main` / `9c7b82b3857a20c6e53f99d108264a04726aac2f`
 
 ## Active role lanes
 
@@ -25,12 +25,8 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-165 lease 2 已完成Web與shared repository authorization hotfix：production Event管理routes、hub與全域導覽統一使用runtime allowlist所解析的request principal及`MANAGE_EVENTS` capability；PostgreSQL repository亦重複檢查active Person與linked allowlisted Member，persisted officer/admin fallback只在local fictional preview顯式啟用。獨立Auth／Identity及Data／Auth review已接受，待hosted PostgreSQL／Web CI；本task未執行deployment、database、cloud、Secret、IAM或通知。
-- TASK-164 recovery 已由Owner授權：首次production唯讀執行接受private target但證明live revision不是原假設的0008，
-  因此在任何migration前安全停止，Web仍為`web-portal-00051-p4z`。現由lease 2重建exact 0004→0009 operator；須先通過
-  independent review與hosted PostgreSQL 15／16，才可重新請求單次production執行。Data／Security五輪adversarial
-  review已`ACCEPT`，PR #212 hosted run `33146838260`（含PostgreSQL 15／16與final gate）全綠，待merge後才可重新請求Owner批准單次production執行。未修改production DB／runtime、
-  未讀Secret payload、未部署、未發通知或操作正式資料。
+- TASK-165 已由PR #213合併為`9c7b82b3857a20c6e53f99d108264a04726aac2f`並部署至production `web-portal-00053-wzw`：Event管理routes、hub、全域導覽及PostgreSQL repository統一依runtime allowlist與`MANAGE_EVENTS`授權，persisted role fallback只限local fictional preview。Hosted PostgreSQL 15／16、Web及final gate全綠；Ready／100% traffic、runtime identity、四個Secret references、admin allowlist、flags、public IAM與HTTP post-check均通過，未需rollback。未建立Event、寫入database、修改Secret／IAM／provider或發通知。
+- TASK-164 recovery 已由PR #212合併為`6b0aa7e556d25cb906bf12f4ea0c7eed57705f13`；受控operator將production schema由`0004_phase_c_identity_lifecycle`依序升至`0009_event_management_writes`，application DML count為0，並部署`web-portal-00052-xcg`。該revision現為TASK-165的healthy rollback基準；未建立Event、發通知或修改Secret／IAM／provider。
 - TASK-163 已由 PR #209 合併為 `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`：active Officer／Admin 可管理
   Event草稿、Activity行程、資格池與人工override，發布immutable invitee snapshot，並稽核published edit／cancel。
   Hosted run `33077406624` 的PostgreSQL 15／16及全部selected gates通過；尚未roll out schema、部署、發通知或操作正式資料。
@@ -90,7 +86,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 ### 資料庫與身分資料
 
 - PostgreSQL schema：`ntubtob`。
-- Alembic revision：`0004_phase_c_identity_lifecycle`。
+- Alembic revision：`0009_event_management_writes`。
 - Phase A 建立 portal-data schema boundary；新表採 RLS enabled／zero-policy 的 fail-closed 基準。
 - Phase B 完成 deterministic backfill：197 People／Member links、56 LINE identities、56 active `team_player`、309 筆
   append-only audits；當時 strict post-check 無 orphan、duplicate 或 qualification drift。
@@ -104,7 +100,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - Web Portal、LINE webhook、notify cron 的 Phase C flag 已啟用，freeze 已解除。2026-08-27 唯讀 inventory 證實
   Web Portal identity maintenance flag 已為 true；production identity-link plain configuration仍不完整／未啟用。
 - 已確認的 production revisions：
-  - Web Portal：`web-portal-00051-p4z`，100% traffic；image tag對應repository commit `91e5722c49f88aafb6f3792e96436a49f3665039`。
+  - Web Portal：`web-portal-00053-wzw`，100% traffic；image tag對應repository commit `9c7b82b3857a20c6e53f99d108264a04726aac2f`。
   - LINE webhook：`line-webhook-handler-00013-yab`，100% traffic。
   - Notify cron：`notify-cronjob-service-00017-qms`，100% traffic，維持 private。
 - Web Portal 與 LINE webhook 維持必要的 public ingress；LINE webhook 必須驗證 signature。
