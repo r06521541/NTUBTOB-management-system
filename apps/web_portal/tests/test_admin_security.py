@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, urlencode, urlsplit
 
 from flask import Blueprint, Flask, session
 
@@ -166,6 +166,38 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         self.assertIsNotNone(match)
         return html.unescape(match.group(1))
+
+    def commit_browser_login_bootstrap(self, client, response):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        bootstrap_location = response.headers["Location"]
+        self.assertEqual(
+            urlsplit(bootstrap_location).path, "/line/login/browser/bootstrap"
+        )
+        self.assertEqual(
+            f"{urlsplit(bootstrap_location).scheme}://"
+            f"{urlsplit(bootstrap_location).netloc}",
+            canonical_origin,
+        )
+        return client.get(bootstrap_location)
+
+    def browser_bootstrap_envelope(self, response):
+        query = parse_qs(urlsplit(response.headers["Location"]).query)
+        self.assertEqual(set(query), {"initiation"})
+        return query["initiation"][0]
+
+    def complete_browser_login_bootstrap(self, client, response):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        bootstrap = self.commit_browser_login_bootstrap(client, response)
+        authorization_location = bootstrap.headers["Location"]
+        self.assertEqual(
+            urlsplit(authorization_location).path, "/line/login/browser/authorize"
+        )
+        self.assertEqual(
+            f"{urlsplit(authorization_location).scheme}://"
+            f"{urlsplit(authorization_location).netloc}",
+            canonical_origin,
+        )
+        return client.get(authorization_location)
 
     def assert_no_management_side_effects(self):
         self.line_user_model.search_all_unknowns.assert_not_called()
@@ -798,6 +830,48 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.assertNotIn("oauth_state_nonce", callback_session)
             self.assertNotIn("next_url", callback_session)
 
+    def test_callback_rejection_logs_only_fixed_reason_categories(self):
+        state = create_oauth_state(
+            self.app.secret_key,
+            "/attendance",
+            "sentinel-state-nonce",
+        )
+        cases = (
+            ("tampered-sentinel-state", None, "state_invalid_or_expired"),
+            (state, None, "session_nonce_missing"),
+            (state, "sentinel-other-nonce", "session_nonce_mismatch"),
+        )
+        for callback_state, session_nonce, expected_category in cases:
+            with self.subTest(expected_category=expected_category):
+                client = self.app.test_client()
+                if session_nonce is not None:
+                    with client.session_transaction() as current_session:
+                        current_session["oauth_state_nonce"] = session_nonce
+                with patch.object(
+                    self.app_module.requests, "post"
+                ) as token_request, self.assertLogs("app", level="WARNING") as captured:
+                    response = client.get(
+                        f"/line/callback?code=sentinel-code&state={callback_state}"
+                    )
+
+                self.assertEqual(response.status_code, 400)
+                token_request.assert_not_called()
+                self.assertEqual(
+                    captured.output,
+                    [
+                        "WARNING:app:line_login_rejected "
+                        f"category={expected_category}"
+                    ],
+                )
+                diagnostic = "\n".join(captured.output)
+                for sentinel in (
+                    "sentinel-code",
+                    "sentinel-state-nonce",
+                    "sentinel-other-nonce",
+                    "tampered-sentinel-state",
+                ):
+                    self.assertNotIn(sentinel, diagnostic)
+
     def test_line_login_replaces_ambiguous_return_path(self):
         response = self.client.get("/line/login?next=/%255cattacker.example")
         state = parse_qs(urlsplit(response.headers["Location"]).query)["state"][0]
@@ -847,7 +921,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
             self.app.secret_key, normal_query["state"][0], "/attendance"
         )
 
-        browser = self.client.get(browser_href)
+        browser_bootstrap = self.client.get(browser_href)
+        browser = self.complete_browser_login_bootstrap(self.client, browser_bootstrap)
         browser_query = parse_qs(urlsplit(browser.headers["Location"]).query)
         browser_return, browser_nonce = self.app_module.load_oauth_state(
             self.app.secret_key, browser_query["state"][0], "/attendance"
@@ -875,7 +950,8 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertNotIn("disable_auto_login", authorization_query)
 
     def test_explicit_browser_fallback_disables_auto_login(self):
-        response = self.client.get("/line/login?mode=browser&next=/future-games")
+        bootstrap = self.client.get("/line/login?mode=browser&next=/future-games")
+        response = self.complete_browser_login_bootstrap(self.client, bootstrap)
         authorization_query = parse_qs(urlsplit(response.headers["Location"]).query)
         self.assertEqual(authorization_query["disable_auto_login"], ["true"])
 
@@ -885,12 +961,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             normal_nonce = current_session["oauth_state_nonce"]
 
-        fallback = self.client.get("/line/login?mode=browser&next=/future-games")
+        bootstrap = self.client.get("/line/login?mode=browser&next=/future-games")
+        committed = self.commit_browser_login_bootstrap(self.client, bootstrap)
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            fallback_nonce = current_session["oauth_state_nonce"]
+            self.assertEqual(current_session["next_url"], "/future-games")
+            self.assertIs(current_session["oauth_browser_bootstrap_pending"], True)
+        fallback = self.client.get(committed.headers["Location"])
         fallback_state = parse_qs(urlsplit(fallback.headers["Location"]).query)[
             "state"
         ][0]
-        with self.client.session_transaction() as current_session:
-            fallback_nonce = current_session["oauth_state_nonce"]
 
         self.assertNotEqual(normal_nonce, fallback_nonce)
         self.assertNotEqual(normal_state, fallback_state)
@@ -903,7 +986,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_browser_fallback_clears_existing_portal_session_before_new_transaction(
         self,
     ):
-        with self.client.session_transaction() as current_session:
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
             current_session.update(
                 user_id="existing-user",
                 member_id=7,
@@ -914,12 +1000,31 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 next_url="/account",
             )
 
-        response = self.client.get("/line/login?mode=browser&next=/future-games")
+        bootstrap = self.client.get("/line/login?mode=browser&next=/future-games")
+        committed = self.commit_browser_login_bootstrap(self.client, bootstrap)
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            self.assertEqual(
+                set(current_session),
+                {
+                    "oauth_browser_bootstrap_consumed",
+                    "oauth_browser_bootstrap_pending",
+                    "oauth_state_nonce",
+                    "next_url",
+                },
+            )
+            fresh_nonce = current_session["oauth_state_nonce"]
+        response = self.client.get(committed.headers["Location"])
         state = parse_qs(urlsplit(response.headers["Location"]).query)["state"][0]
 
-        with self.client.session_transaction() as current_session:
-            self.assertEqual(set(current_session), {"oauth_state_nonce"})
-            fresh_nonce = current_session["oauth_state_nonce"]
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            self.assertEqual(
+                set(current_session),
+                {"oauth_browser_bootstrap_consumed", "oauth_state_nonce"},
+            )
         next_url, state_nonce = self.app_module.load_oauth_state(
             self.app.secret_key, state, "/attendance"
         )
@@ -956,14 +1061,293 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 self.assertNotIn("Location", response.headers)
 
     def test_browser_fallback_replaces_external_return_path(self):
-        response = self.client.get(
+        bootstrap = self.client.get(
             "/line/login?mode=browser&next=https://attacker.example/path"
         )
+        response = self.complete_browser_login_bootstrap(self.client, bootstrap)
         state = parse_qs(urlsplit(response.headers["Location"]).query)["state"][0]
         next_url, _ = self.app_module.load_oauth_state(
             self.app.secret_key, state, "/attendance"
         )
         self.assertEqual(next_url, "/attendance")
+
+    def test_desktop_login_canonicalizes_host_before_callback_bound_session(self):
+        class SerializableMember(int):
+            @property
+            def id(self):
+                return int(self)
+
+        client = self.app.test_client()
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        first = client.get(
+            "/line/login?mode=browser&next=/attendance",
+            base_url="https://alternate.example",
+        )
+        self.assertEqual(
+            f"{urlsplit(first.headers['Location']).scheme}://"
+            f"{urlsplit(first.headers['Location']).netloc}",
+            canonical_origin,
+        )
+        self.assertNotIn("access.line.me", first.headers["Location"])
+
+        bootstrap = self.commit_browser_login_bootstrap(client, first)
+        with client.session_transaction(base_url=canonical_origin) as current_session:
+            nonce = current_session["oauth_state_nonce"]
+        authorization = client.get(bootstrap.headers["Location"])
+        authorization_query = parse_qs(
+            urlsplit(authorization.headers["Location"]).query
+        )
+        state = authorization_query["state"][0]
+        return_path, state_nonce = self.app_module.load_oauth_state(
+            self.app.secret_key, state, "/attendance"
+        )
+        self.assertEqual((return_path, state_nonce), ("/attendance", nonce))
+
+        self.line_user_model.search_by_id.return_value = SimpleNamespace(member_id=7)
+        self.member_model.search_by_id.return_value = SerializableMember(7)
+        token_response = MagicMock()
+        token_response.json.return_value = {"access_token": "fake-access-token"}
+        profile_response = MagicMock()
+        profile_response.json.return_value = {
+            "userId": "fake-authenticated-user",
+            "displayName": "Demo User",
+        }
+        with patch.object(
+            self.app_module.requests, "post", return_value=token_response
+        ), patch.object(self.app_module.requests, "get", return_value=profile_response):
+            callback = client.get(
+                f"/line/callback?code=fake-code&state={state}",
+                base_url=canonical_origin,
+            )
+
+        self.assertEqual(callback.status_code, 302)
+        self.assertEqual(callback.headers["Location"], "/attendance")
+        with client.session_transaction(base_url=canonical_origin) as current_session:
+            self.assertEqual(current_session["user_id"], "fake-authenticated-user")
+            self.assertEqual(current_session["member_id"], 7)
+
+    def test_browser_authorization_rejects_direct_or_invalid_bootstrap_safely(self):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        sentinels = (
+            "sentinel-state",
+            "sentinel-nonce",
+            "sentinel-code",
+            "sentinel-cookie",
+            "https://attacker.example/private",
+            "sentinel-identity",
+        )
+        cases = (
+            {},
+            {
+                "oauth_browser_bootstrap_pending": True,
+                "oauth_state_nonce": "sentinel-nonce",
+                "next_url": "https://attacker.example/private",
+            },
+        )
+        for session_values in cases:
+            with self.subTest(session_values=bool(session_values)):
+                client = self.app.test_client()
+                with client.session_transaction(
+                    base_url=canonical_origin
+                ) as current_session:
+                    current_session.update(session_values)
+                with patch.object(
+                    self.app_module, "create_oauth_state"
+                ) as create_state, self.assertLogs("app", level="WARNING") as captured:
+                    response = client.get(
+                        "/line/login/browser/authorize?state=sentinel-state"
+                        "&code=sentinel-code&cookie=sentinel-cookie",
+                        base_url=canonical_origin,
+                    )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertNotIn("Location", response.headers)
+                create_state.assert_not_called()
+                self.assertEqual(
+                    captured.output,
+                    [
+                        "WARNING:app:line_login_rejected "
+                        "category=browser_bootstrap_invalid"
+                    ],
+                )
+                diagnostic = "\n".join(captured.output)
+                for sentinel in sentinels:
+                    self.assertNotIn(sentinel, diagnostic)
+
+    def test_canonical_bootstrap_host_check_does_not_depend_on_wsgi_scheme(self):
+        canonical_host = urlsplit(self.app_module.LINE_REDIRECT_URI).netloc
+        with self.app.test_request_context(
+            "/line/login/browser/bootstrap?next=/attendance",
+            base_url=f"http://{canonical_host}",
+        ):
+            self.assertTrue(self.app_module.is_canonical_line_callback_origin())
+
+        generated = self.client.get(
+            "/line/login?mode=browser&next=/attendance",
+            base_url="http://alternate.example",
+        )
+        self.assertEqual(urlsplit(generated.headers["Location"]).scheme, "https")
+
+    def test_browser_bootstrap_rejects_wrong_origin_before_state_creation(self):
+        canonical_start = self.client.get("/line/login?mode=browser&next=/attendance")
+        bootstrap_parts = urlsplit(canonical_start.headers["Location"])
+        with self.client.session_transaction(
+            base_url="https://alternate.example"
+        ) as current_session:
+            current_session["sentinel"] = "preserved"
+        with patch.object(
+            self.app_module, "create_oauth_state"
+        ) as create_state, self.assertLogs("app", level="WARNING") as captured:
+            response = self.client.get(
+                f"{bootstrap_parts.path}?{bootstrap_parts.query}",
+                base_url="https://alternate.example",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("Location", response.headers)
+        create_state.assert_not_called()
+        self.assertEqual(
+            captured.output,
+            ["WARNING:app:line_login_rejected " "category=browser_bootstrap_invalid"],
+        )
+        with self.client.session_transaction(
+            base_url="https://alternate.example"
+        ) as current_session:
+            self.assertEqual(current_session["sentinel"], "preserved")
+
+    def test_browser_bootstrap_requires_valid_signed_initiation_before_session_clear(
+        self,
+    ):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        valid_start = self.client.get(
+            "/line/login?mode=browser&next=/future-games",
+            base_url="https://alternate.example",
+        )
+        valid_envelope = self.browser_bootstrap_envelope(valid_start)
+        serializer = self.app_module.URLSafeTimedSerializer(
+            self.app.secret_key,
+            salt=self.app_module.BROWSER_BOOTSTRAP_INITIATION_SALT,
+        )
+        wrong_purpose = serializer.dumps(
+            {
+                "purpose": "oauth-callback",
+                "next": "/future-games",
+                "nonce": "fake-initiation-nonce",
+            }
+        )
+        malformed_payload = serializer.dumps(
+            {"purpose": "line-browser-bootstrap", "next": "/future-games"}
+        )
+        cases = (
+            "",
+            "unsigned-value",
+            f"{valid_envelope}tampered",
+            wrong_purpose,
+            malformed_payload,
+        )
+        for initiation in cases:
+            with self.subTest(initiation=bool(initiation)):
+                client = self.app.test_client()
+                with client.session_transaction(
+                    base_url=canonical_origin
+                ) as current_session:
+                    current_session["sentinel"] = "preserved"
+                    current_session["oauth_state_nonce"] = "old-nonce"
+                query = f"?initiation={initiation}" if initiation else ""
+                with patch.object(
+                    self.app_module, "create_oauth_state"
+                ) as create_state:
+                    response = client.get(
+                        f"/line/login/browser/bootstrap{query}",
+                        base_url=canonical_origin,
+                    )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertNotIn("Location", response.headers)
+                create_state.assert_not_called()
+                with client.session_transaction(
+                    base_url=canonical_origin
+                ) as current_session:
+                    self.assertEqual(current_session["sentinel"], "preserved")
+                    self.assertEqual(current_session["oauth_state_nonce"], "old-nonce")
+
+    def test_browser_bootstrap_rejects_expired_initiation_before_session_clear(self):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        with patch("itsdangerous.timed.time.time", return_value=2_000_000_000):
+            initiation = self.app_module.create_browser_bootstrap_initiation(
+                "/attendance"
+            )
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            current_session["sentinel"] = "preserved"
+        with patch(
+            "itsdangerous.timed.time.time",
+            return_value=(
+                2_000_000_000
+                + self.app_module.BROWSER_BOOTSTRAP_INITIATION_MAX_AGE_SECONDS
+                + 1
+            ),
+        ), patch.object(self.app_module, "create_oauth_state") as create_state:
+            response = self.client.get(
+                "/line/login/browser/bootstrap?"
+                + urlencode({"initiation": initiation}),
+                base_url=canonical_origin,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        create_state.assert_not_called()
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            self.assertEqual(current_session["sentinel"], "preserved")
+
+    def test_browser_bootstrap_rejects_same_browser_replay_before_session_clear(self):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        start = self.client.get("/line/login?mode=browser&next=/attendance")
+        bootstrap_url = start.headers["Location"]
+        first = self.client.get(bootstrap_url)
+        self.assertEqual(first.status_code, 302)
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            current_session["sentinel"] = "preserved"
+            nonce = current_session["oauth_state_nonce"]
+
+        with patch.object(self.app_module, "create_oauth_state") as create_state:
+            replay = self.client.get(bootstrap_url)
+
+        self.assertEqual(replay.status_code, 400)
+        self.assertNotIn("Location", replay.headers)
+        create_state.assert_not_called()
+        with self.client.session_transaction(
+            base_url=canonical_origin
+        ) as current_session:
+            self.assertEqual(current_session["sentinel"], "preserved")
+            self.assertEqual(current_session["oauth_state_nonce"], nonce)
+
+    def test_browser_bootstrap_initiation_cannot_be_loaded_as_callback_state(self):
+        initiation = self.app_module.create_browser_bootstrap_initiation("/attendance")
+
+        with self.assertRaises(self.app_module.InvalidOAuthState):
+            self.app_module.load_oauth_state(
+                self.app.secret_key, initiation, "/attendance"
+            )
+
+    def test_rejection_logging_failure_does_not_change_fail_closed_response(self):
+        canonical_origin = self.app_module.LINE_REDIRECT_URI.rsplit("/", 2)[0]
+        with patch.object(
+            self.app_module.logger,
+            "warning",
+            side_effect=RuntimeError("fake logging failure"),
+        ):
+            response = self.client.get(
+                "/line/login/browser/authorize",
+                base_url=canonical_origin,
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("Location", response.headers)
 
     def test_production_session_cookie_has_explicit_security_attributes(self):
         response = self.client.get("/line/login")

@@ -5,10 +5,11 @@ import os
 import secrets
 from datetime import datetime, time, timedelta, timezone
 from functools import wraps
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import messages
 import requests
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from admin_security import (
     admin_required,
     capability_required,
@@ -192,7 +193,11 @@ def inject_portal_copy():
 
 
 LEGACY_SESSION_COOKIE_NAME = "session"
-OAUTH_SESSION_KEYS = ("oauth_state_nonce", "next_url")
+OAUTH_SESSION_KEYS = (
+    "oauth_state_nonce",
+    "next_url",
+    "oauth_browser_bootstrap_pending",
+)
 LEGACY_IDENTITY_SESSION_KEYS = ("member", "display_name")
 AUTHENTICATED_IDENTITY_SESSION_KEYS = ("user_id", "member_id")
 PHASE_C_SESSION_KEYS = ("person_id", "auth_identity_id", "member_id", "user_id")
@@ -467,10 +472,25 @@ app.config.from_mapping(cache_config)
 cache = Cache(app)
 
 LINE_REDIRECT_URI = "https://web-portal-7uz453jt3a-de.a.run.app/line/callback"
+_LINE_REDIRECT_PARTS = urlsplit(LINE_REDIRECT_URI)
+LINE_CALLBACK_ORIGIN = f"{_LINE_REDIRECT_PARTS.scheme}://{_LINE_REDIRECT_PARTS.netloc}"
 
 LINE_AUTH_URL = "https://access.line.me/oauth2/v2.1/authorize"
 LINE_TOKEN_URL = "https://api.line.me/oauth2/v2.1/token"
 LINE_USER_INFO_URL = "https://api.line.me/v2/profile"
+BROWSER_BOOTSTRAP_INITIATION_SALT = "line-browser-bootstrap-initiation-v1"
+BROWSER_BOOTSTRAP_INITIATION_PURPOSE = "line-browser-bootstrap"
+BROWSER_BOOTSTRAP_INITIATION_MAX_AGE_SECONDS = 120
+BROWSER_BOOTSTRAP_CONSUMED_SESSION_KEY = "oauth_browser_bootstrap_consumed"
+BROWSER_BOOTSTRAP_CONSUMED_LIMIT = 8
+LINE_LOGIN_REJECTION_CATEGORIES = frozenset(
+    {
+        "state_invalid_or_expired",
+        "session_nonce_missing",
+        "session_nonce_mismatch",
+        "browser_bootstrap_invalid",
+    }
+)
 
 
 discord_notify_helper = (
@@ -670,15 +690,30 @@ def line_login():
     if len(next_values) > 1:
         return "Invalid return path", 400
 
+    # Browser fallback must first land on the fixed callback origin so its
+    # fresh nonce is committed to the same cookie jar used by the callback.
+    if browser_fallback:
+        return_path = safe_return_path(
+            next_values[0] if next_values else None,
+            url_for("attendance"),
+        )
+        initiation = create_browser_bootstrap_initiation(return_path)
+        return redirect(
+            f"{LINE_CALLBACK_ORIGIN}"
+            f"{url_for('line_browser_login_bootstrap', initiation=initiation)}"
+        )
+
     # 生成隨機的 state
     return_path = safe_return_path(
         (next_values[0] if next_values else None) or session.pop("next_url", None),
         url_for("attendance"),
     )
-    if browser_fallback:
-        session.clear()
     nonce = secrets.token_urlsafe(16)
     session["oauth_state_nonce"] = nonce
+    return line_authorization_redirect(return_path, nonce, browser_fallback=False)
+
+
+def line_authorization_redirect(return_path, nonce, *, browser_fallback):
     state = create_oauth_state(
         app.secret_key,
         return_path,
@@ -698,6 +733,122 @@ def line_login():
     return redirect(login_url)
 
 
+def create_browser_bootstrap_initiation(return_path):
+    serializer = URLSafeTimedSerializer(
+        app.secret_key,
+        salt=BROWSER_BOOTSTRAP_INITIATION_SALT,
+    )
+    return serializer.dumps(
+        {
+            "purpose": BROWSER_BOOTSTRAP_INITIATION_PURPOSE,
+            "next": return_path,
+            "nonce": secrets.token_urlsafe(16),
+        }
+    )
+
+
+def load_browser_bootstrap_initiation(value):
+    if not isinstance(value, str) or not value:
+        return None
+    serializer = URLSafeTimedSerializer(
+        app.secret_key,
+        salt=BROWSER_BOOTSTRAP_INITIATION_SALT,
+    )
+    try:
+        payload = serializer.loads(
+            value,
+            max_age=BROWSER_BOOTSTRAP_INITIATION_MAX_AGE_SECONDS,
+        )
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(payload, dict) or set(payload) != {"purpose", "next", "nonce"}:
+        return None
+    return_path = payload.get("next")
+    initiation_nonce = payload.get("nonce")
+    if (
+        payload.get("purpose") != BROWSER_BOOTSTRAP_INITIATION_PURPOSE
+        or not isinstance(return_path, str)
+        or safe_return_path(return_path, "") != return_path
+        or not isinstance(initiation_nonce, str)
+        or not initiation_nonce
+    ):
+        return None
+    return return_path
+
+
+def reject_browser_login_bootstrap(*, clear_transaction=True):
+    if clear_transaction:
+        for key in OAUTH_SESSION_KEYS:
+            session.pop(key, None)
+    log_line_login_rejection("browser_bootstrap_invalid")
+    return "Login transaction unavailable", 400
+
+
+def log_line_login_rejection(category):
+    if category not in LINE_LOGIN_REJECTION_CATEGORIES:
+        return
+    try:
+        logger.warning("line_login_rejected category=%s", category)
+    except Exception:
+        pass
+
+
+def is_canonical_line_callback_origin():
+    return request.host == _LINE_REDIRECT_PARTS.netloc
+
+
+@app.get("/line/login/browser/bootstrap")
+def line_browser_login_bootstrap():
+    initiation_values = request.args.getlist("initiation")
+    if (
+        not is_canonical_line_callback_origin()
+        or len(request.args) != 1
+        or len(initiation_values) != 1
+    ):
+        return reject_browser_login_bootstrap(clear_transaction=False)
+    initiation = initiation_values[0]
+    return_path = load_browser_bootstrap_initiation(initiation)
+    if return_path is None:
+        return reject_browser_login_bootstrap(clear_transaction=False)
+
+    consumed = session.get(BROWSER_BOOTSTRAP_CONSUMED_SESSION_KEY, [])
+    if not isinstance(consumed, list) or any(
+        not isinstance(item, str) or len(item) != 64 for item in consumed
+    ):
+        return reject_browser_login_bootstrap(clear_transaction=False)
+    initiation_digest = hashlib.sha256(initiation.encode("utf-8")).hexdigest()
+    if initiation_digest in consumed:
+        return reject_browser_login_bootstrap(clear_transaction=False)
+    consumed = consumed[-(BROWSER_BOOTSTRAP_CONSUMED_LIMIT - 1) :] + [initiation_digest]
+
+    session.clear()
+    session[BROWSER_BOOTSTRAP_CONSUMED_SESSION_KEY] = consumed
+    session["oauth_state_nonce"] = secrets.token_urlsafe(16)
+    session["next_url"] = return_path
+    session["oauth_browser_bootstrap_pending"] = True
+    return redirect(f"{LINE_CALLBACK_ORIGIN}{url_for('line_browser_login_authorize')}")
+
+
+@app.get("/line/login/browser/authorize")
+def line_browser_login_authorize():
+    nonce = session.get("oauth_state_nonce")
+    return_path = session.get("next_url")
+    if (
+        not is_canonical_line_callback_origin()
+        or request.args
+        or session.get("oauth_browser_bootstrap_pending") is not True
+        or not isinstance(nonce, str)
+        or not nonce
+        or not isinstance(return_path, str)
+        or safe_return_path(return_path, "") != return_path
+    ):
+        return reject_browser_login_bootstrap()
+
+    session.pop("oauth_browser_bootstrap_pending", None)
+    session.pop("next_url", None)
+    return line_authorization_redirect(return_path, nonce, browser_fallback=True)
+
+
 @app.route("/line/callback")
 def line_callback():
     code = request.args.get("code")
@@ -711,12 +862,15 @@ def line_callback():
             url_for("attendance"),
         )
     except InvalidOAuthState:
+        log_line_login_rejection("state_invalid_or_expired")
         return invalid_oauth_state_response(url_for("attendance"))
 
     session_nonce = session.pop("oauth_state_nonce", None)
-    if not isinstance(session_nonce, str) or not hmac.compare_digest(
-        state_nonce, session_nonce
-    ):
+    if not isinstance(session_nonce, str):
+        log_line_login_rejection("session_nonce_missing")
+        return invalid_oauth_state_response(next_url)
+    if not hmac.compare_digest(state_nonce, session_nonce):
+        log_line_login_rejection("session_nonce_mismatch")
         return invalid_oauth_state_response(next_url)
 
     if not code:

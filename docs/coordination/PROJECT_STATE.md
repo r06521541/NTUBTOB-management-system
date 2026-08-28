@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `9c7b82b3857a20c6e53f99d108264a04726aac2f`
+Repository 基準：`main` / `98687a736d0f910132185c7ac1128ddbb89748b3`
 
 ## Active role lanes
 
@@ -25,6 +25,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
+- TASK-166 repository實作已通過writer完整Web 237 tests、獨立Auth／Security rereview與Main風險抽查：桌面登入先切至固定callback origin，以短效簽章且防同瀏覽器重播的initiation落地session，再前往LINE；state／nonce／TTL／safe-return及LINE in-app行為維持不變。Hosted CI／PR／部署／Owner桌面驗收仍待完成，尚未操作provider／Secret／正式資料。
 - TASK-165 已由PR #213合併為`9c7b82b3857a20c6e53f99d108264a04726aac2f`並部署至production `web-portal-00053-wzw`：Event管理routes、hub、全域導覽及PostgreSQL repository統一依runtime allowlist與`MANAGE_EVENTS`授權，persisted role fallback只限local fictional preview。Hosted PostgreSQL 15／16、Web及final gate全綠；Ready／100% traffic、runtime identity、四個Secret references、admin allowlist、flags、public IAM與HTTP post-check均通過，未需rollback。未建立Event、寫入database、修改Secret／IAM／provider或發通知。
 - TASK-164 recovery 已由PR #212合併為`6b0aa7e556d25cb906bf12f4ea0c7eed57705f13`；受控operator將production schema由`0004_phase_c_identity_lifecycle`依序升至`0009_event_management_writes`，application DML count為0，並部署`web-portal-00052-xcg`。該revision現為TASK-165的healthy rollback基準；未建立Event、發通知或修改Secret／IAM／provider。
 - TASK-163 已由 PR #209 合併為 `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`：active Officer／Admin 可管理
