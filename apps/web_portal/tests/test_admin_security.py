@@ -3090,7 +3090,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         }
         service.create_event.return_value = 7
         with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
         ), patch.object(
             self.app_module, "phase_c_repository", return_value=repository
         ), patch.object(
@@ -3126,13 +3131,235 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         service.managed_events.assert_not_called()
 
+    def test_event_management_production_uses_allowlist_not_persisted_role(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        cases = (
+            ("basic", "7", 200),
+            ("officer", "", 403),
+            ("admin", "", 403),
+        )
+        for access_level, allowlist, expected in cases:
+            with self.subTest(access_level=access_level, allowlist=allowlist):
+                principal.person.access_level = access_level
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                    },
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ), patch.object(
+                    self.app_module,
+                    "_event_management_service",
+                    return_value=service,
+                ):
+                    response = self.client.get("/manage/events")
+                self.assertEqual(response.status_code, expected)
+
+        self.assertEqual(service.managed_events.call_count, 1)
+
+    def test_event_management_local_preview_keeps_persisted_event_roles(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        for access_level, expected in (
+            ("officer", 200),
+            ("admin", 200),
+            ("basic", 403),
+        ):
+            with self.subTest(access_level=access_level):
+                principal.person.access_level = access_level
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                    },
+                ), patch.object(
+                    self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ), patch.object(
+                    self.app_module,
+                    "_event_management_service",
+                    return_value=service,
+                ):
+                    response = self.client.get("/manage/events")
+                self.assertEqual(response.status_code, expected)
+
+        self.assertEqual(service.managed_events.call_count, 2)
+
+    def test_event_management_service_wires_runtime_authority_policy(self):
+        cases = (
+            (False, "basic", "7", frozenset({7}), False),
+            (True, "officer", "", frozenset(), True),
+        )
+        for (
+            local_preview,
+            access_level,
+            allowlist,
+            expected_ids,
+            expected_mode,
+        ) in cases:
+            with self.subTest(local_preview=local_preview):
+                self._login_for_events()
+                repository, principal = self._event_repository()
+                principal.person.access_level = access_level
+                adapter = MagicMock()
+                service = MagicMock()
+                service.managed_events.return_value = ()
+                repository_constructor = MagicMock(return_value=adapter)
+                service_constructor = MagicMock(return_value=service)
+                repository_module = self._module(
+                    PostgresTeamPortalRepository=repository_constructor
+                )
+                services_module = self._module(PortalDataService=service_constructor)
+                with patch.dict(
+                    os.environ,
+                    {
+                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                    },
+                ), patch.object(
+                    self.app_module,
+                    "LOCAL_PREVIEW_MODE_ENABLED",
+                    local_preview,
+                ), patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ), patch.dict(
+                    sys.modules,
+                    {
+                        "shared_module.portal_data.repository": repository_module,
+                        "shared_module.portal_data.services": services_module,
+                    },
+                ):
+                    response = self.client.get("/manage/events")
+
+                self.assertEqual(response.status_code, 200)
+                repository_constructor.assert_called_once_with(
+                    repository.engine,
+                    expected_ids,
+                    allow_persisted_event_managers=expected_mode,
+                )
+                service_constructor.assert_called_once_with(adapter)
+                service.managed_events.assert_called_once_with(80)
+
+    def test_event_management_keeps_lifecycle_and_identity_checks_fail_closed(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            principal.person.portal_status = "inactive"
+            self.assertEqual(self.client.get("/manage/events").status_code, 403)
+
+            principal.person.portal_status = "active"
+            principal.identity.id = 999
+            self.assertEqual(self.client.get("/manage/events").status_code, 302)
+
+        service.managed_events.assert_not_called()
+        with self.client.session_transaction() as current_session:
+            self.assertNotIn("person_id", current_session)
+            self.assertNotIn("auth_identity_id", current_session)
+
+    def test_portal_navigation_uses_canonical_event_capability_in_production(self):
+        cases = (
+            ("basic", "7", "active", True),
+            ("officer", "", "active", False),
+            ("admin", "", "active", False),
+            ("basic", "7", "inactive", False),
+        )
+        for access_level, allowlist, status, expected in cases:
+            with self.subTest(
+                access_level=access_level,
+                allowlist=allowlist,
+                status=status,
+            ):
+                repository, principal = self._event_repository()
+                principal.person.access_level = access_level
+                principal.person.portal_status = status
+                with self.app.test_request_context("/events"):
+                    session.update(
+                        user_id="fake-authenticated-user",
+                        member_id=7,
+                        person_id=80,
+                        auth_identity_id=81,
+                    )
+                    with patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                        },
+                    ), patch.object(
+                        self.app_module,
+                        "phase_c_repository",
+                        return_value=repository,
+                    ):
+                        self.assertIsNotNone(self.app_module.get_current_principal())
+                        portal_context = self.app_module.inject_portal_copy()
+
+                self.assertEqual(portal_context["can_manage_events"], expected)
+
+    def test_portal_navigation_keeps_local_preview_event_roles(self):
+        for access_level, expected in (
+            ("officer", True),
+            ("admin", True),
+            ("basic", False),
+        ):
+            with self.subTest(access_level=access_level):
+                repository, principal = self._event_repository()
+                principal.person.access_level = access_level
+                with self.app.test_request_context("/events"):
+                    session.update(
+                        user_id="fake-authenticated-user",
+                        member_id=7,
+                        person_id=80,
+                        auth_identity_id=81,
+                    )
+                    with patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                        },
+                    ), patch.object(
+                        self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+                    ), patch.object(
+                        self.app_module,
+                        "phase_c_repository",
+                        return_value=repository,
+                    ):
+                        self.assertIsNotNone(self.app_module.get_current_principal())
+                        portal_context = self.app_module.inject_portal_copy()
+
+                self.assertEqual(portal_context["can_manage_events"], expected)
+
     def test_event_management_rejects_noncanonical_keys_before_repository_call(self):
         self._login_for_events()
         service = self._event_management_service()
         repository, principal = self._event_repository()
         principal.person.access_level = "admin"
         with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
         ), patch.object(
             self.app_module, "phase_c_repository", return_value=repository
         ), patch.object(
@@ -3152,7 +3379,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             current_session["member_matching_csrf_token"] = "event-csrf"
         with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
         ), patch.object(
             self.app_module, "phase_c_repository", return_value=repository
         ), patch.object(
@@ -3209,7 +3441,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository, principal = self._event_repository()
         principal.person.access_level = "officer"
         with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
         ), patch.object(
             self.app_module, "phase_c_repository", return_value=repository
         ), patch.object(
@@ -3236,7 +3473,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             current_session["member_matching_csrf_token"] = "event-csrf"
         with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
         ), patch.object(
             self.app_module, "phase_c_repository", return_value=repository
         ), patch.object(
@@ -3913,11 +4155,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
         cases = (
-            ("basic", "", 403, False),
-            ("officer", "", 200, False),
-            ("basic", "7", 200, True),
+            ("basic", "", 403, False, False),
+            ("officer", "", 200, False, False),
+            ("basic", "7", 200, True, True),
         )
-        for access, allowlist, expected, people_visible in cases:
+        for access, allowlist, expected, people_visible, events_visible in cases:
             with self.subTest(access=access, allowlist=allowlist):
                 repository.resolve_line_principal.return_value = self.command_principal(
                     access
@@ -3937,6 +4179,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     self.assertIn("賽務管理".encode(), response.data)
                     self.assertEqual(
                         "人員管理".encode() in response.data, people_visible
+                    )
+                    self.assertEqual(
+                        "活動管理".encode() in response.data, events_visible
                     )
                     self.assertIn('href="/manage/games"'.encode(), response.data)
 

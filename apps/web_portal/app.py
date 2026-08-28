@@ -71,6 +71,7 @@ from local_preview import (
 )
 from performance_diagnostics import AttendanceTiming
 from role_policy import (
+    MANAGE_EVENTS,
     MANAGE_MEMBERS,
     MANAGE_PENDING_IDENTITIES,
     MANAGE_QUALIFICATIONS,
@@ -168,14 +169,14 @@ def inject_portal_copy():
     lifecycle_context = getattr(g, "portal_lifecycle_context", None)
     lifecycle_person = lifecycle_context[1].person if lifecycle_context else None
     can_manage_events = bool(
-        lifecycle_person is not None
+        has_capability(principal, MANAGE_EVENTS)
+        and lifecycle_person is not None
         and getattr(
             lifecycle_person,
             "status",
             getattr(lifecycle_person, "portal_status", None),
         )
         == "active"
-        and lifecycle_person.access_level in {"officer", "admin"}
     )
     return {
         "portal_copy": PORTAL_COPY,
@@ -430,14 +431,13 @@ def game_management_required(view):
             or type(session.get("auth_identity_id")) is not int
         ) and not (isinstance(session.get("user_id"), str) and session.get("user_id")):
             return redirect(url_for("redirect_to_login", next=request.path))
+        principal = get_current_principal()
+        if principal is None:
+            abort(403)
         context = _game_management_context()
         if context is None:
             abort(403)
         g.game_management_context = context
-        g.portal_principal = WebPrincipal(
-            role=ROLE_ADMIN if context[2] == "admin" else ROLE_OFFICER,
-            member_id=context[1].person.member_id,
-        )
         return view(*args, **kwargs)
 
     return protected_view
@@ -967,15 +967,20 @@ def _parse_event_datetime(name, *, required=True):
 
 
 def _event_management_context():
+    if not has_capability(get_current_principal(), MANAGE_EVENTS):
+        abort(403)
     context = _event_read_context()
     if context is None:
         abort(503)
     repository, principal = context
-    if getattr(
-        principal.person,
-        "status",
-        getattr(principal.person, "portal_status", None),
-    ) != "active" or principal.person.access_level not in {"officer", "admin"}:
+    if (
+        getattr(
+            principal.person,
+            "status",
+            getattr(principal.person, "portal_status", None),
+        )
+        != "active"
+    ):
         abort(403)
     return repository, principal
 
@@ -985,7 +990,13 @@ def _event_management_service():
     from shared_module.portal_data.repository import PostgresTeamPortalRepository
     from shared_module.portal_data.services import PortalDataService
 
-    return PortalDataService(PostgresTeamPortalRepository(repository.engine))
+    return PortalDataService(
+        PostgresTeamPortalRepository(
+            repository.engine,
+            parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
+            allow_persisted_event_managers=LOCAL_PREVIEW_MODE_ENABLED,
+        )
+    )
 
 
 def _event_management_projection(event):
@@ -1148,7 +1159,7 @@ def event_detail(event_key):
 
 
 @app.get("/manage/events")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def manage_events():
     _, principal = _event_management_context()
     service = _event_management_service()
@@ -1169,7 +1180,7 @@ def manage_events():
 
 
 @app.post("/manage/events/new")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def create_managed_event():
     require_valid_csrf()
     _, principal = _event_management_context()
@@ -1211,13 +1222,13 @@ def _managed_event_page(event_id):
 
 
 @app.get("/manage/events/<event_key>")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def edit_managed_event(event_key):
     return _managed_event_page(_parse_management_key(event_key, "event_"))
 
 
 @app.post("/manage/events/<event_key>")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def update_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1245,7 +1256,7 @@ def update_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/activities")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def add_managed_activity(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1267,7 +1278,7 @@ def add_managed_activity(event_key):
 
 
 @app.post("/manage/events/<event_key>/activities/<activity_key>")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def update_managed_activity(event_key, activity_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1291,7 +1302,7 @@ def update_managed_activity(event_key, activity_key):
 
 
 @app.post("/manage/events/<event_key>/activities/<activity_key>/action")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def managed_activity_action(event_key, activity_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1323,7 +1334,7 @@ def managed_activity_action(event_key, activity_key):
 
 
 @app.post("/manage/events/<event_key>/overrides")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def set_managed_event_override(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1346,7 +1357,7 @@ def set_managed_event_override(event_key):
 
 
 @app.post("/manage/events/<event_key>/publish")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def publish_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1362,7 +1373,7 @@ def publish_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/cancel")
-@member_required
+@capability_required(MANAGE_EVENTS)
 def cancel_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -2414,7 +2425,7 @@ def management_hub():
     return render_template(
         "management_hub.html",
         can_manage_games=True,
-        can_manage_events=True,
+        can_manage_events=has_capability(get_current_principal(), MANAGE_EVENTS),
         can_manage_people=has_capability(get_current_principal(), MANAGE_MEMBERS),
     )
 

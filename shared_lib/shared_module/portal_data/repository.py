@@ -1206,8 +1206,18 @@ class PostgresTeamPortalRepository:
     ADMIN_LOCK_KEY = 0x4E545542
     EVENT_SNAPSHOT_LOCK_KEY = ADMIN_LOCK_KEY + 0x100000
 
-    def __init__(self, engine: Engine):
+    def __init__(
+        self,
+        engine: Engine,
+        event_manager_member_ids: Iterable[int] = (),
+        *,
+        allow_persisted_event_managers: bool = False,
+    ):
         self.engine = engine
+        self.event_manager_member_ids = frozenset(
+            int(value) for value in event_manager_member_ids
+        )
+        self.allow_persisted_event_managers = allow_persisted_event_managers is True
 
     @staticmethod
     def _person(row: PersonRecord) -> Person:
@@ -1240,12 +1250,23 @@ class PostgresTeamPortalRepository:
         person = session.scalar(
             select(PersonRecord).where(PersonRecord.id == person_id).with_for_update()
         )
+        member_id = session.scalar(
+            select(LegacyMemberRecord.id)
+            .where(LegacyMemberRecord.person_id == person_id)
+            .with_for_update()
+        )
         if (
             person is None
             or person.portal_status != "active"
-            or person.portal_access_level not in {"officer", "admin"}
+            or (
+                member_id not in self.event_manager_member_ids
+                and not (
+                    self.allow_persisted_event_managers
+                    and person.portal_access_level in {"officer", "admin"}
+                )
+            )
         ):
-            raise AuthorizationError("active officer or admin required")
+            raise AuthorizationError("active event manager required")
         return person
 
     def get_person(self, person_id: int) -> Person:
