@@ -155,9 +155,9 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
             (
                 "constraint_definition",
                 "ALTER TABLE ntubtob.mobile_sessions "
-                "DROP CONSTRAINT ck_mobile_session_status; "
+                "DROP CONSTRAINT ck_mobile_sessions_status; "
                 "ALTER TABLE ntubtob.mobile_sessions "
-                "ADD CONSTRAINT ck_mobile_session_status CHECK (TRUE)",
+                "ADD CONSTRAINT ck_mobile_sessions_status CHECK (TRUE)",
                 "check definition",
             ),
             (
@@ -255,7 +255,7 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
                 "trigger",
                 "ALTER TABLE ntubtob.mobile_notifications DISABLE TRIGGER "
                 "mobile_notification_content_immutable",
-                "trigger fingerprint",
+                "trigger definition",
             ),
         )
         for label, mutation, reason in cases:
