@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-27
+更新時間：2026-08-28
 
 維護角色：Main Work
 
-Repository 基準：`main` / `39be8134739c2b0881e522af851c2973780d2027`
+Repository 基準：`main` / `6b0aa7e556d25cb906bf12f4ea0c7eed57705f13`
 
 ## Active role lanes
 
@@ -25,6 +25,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
+- TASK-165 lease 2 已完成Web與shared repository authorization hotfix：production Event管理routes、hub與全域導覽統一使用runtime allowlist所解析的request principal及`MANAGE_EVENTS` capability；PostgreSQL repository亦重複檢查active Person與linked allowlisted Member，persisted officer/admin fallback只在local fictional preview顯式啟用。獨立Auth／Identity及Data／Auth review已接受，待hosted PostgreSQL／Web CI；本task未執行deployment、database、cloud、Secret、IAM或通知。
 - TASK-164 recovery 已由Owner授權：首次production唯讀執行接受private target但證明live revision不是原假設的0008，
   因此在任何migration前安全停止，Web仍為`web-portal-00051-p4z`。現由lease 2重建exact 0004→0009 operator；須先通過
   independent review與hosted PostgreSQL 15／16，才可重新請求單次production執行。Data／Security五輪adversarial

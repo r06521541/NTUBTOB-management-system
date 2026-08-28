@@ -780,7 +780,90 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
                     """
                 )
             )
-        self.repository = PostgresTeamPortalRepository(self.engine)
+        self.repository = PostgresTeamPortalRepository(
+            self.engine, allow_persisted_event_managers=True
+        )
+
+    def test_event_manager_allowlist_accepts_linked_basic_person(self):
+        actor = self.repository.create_person(
+            "虛構白名單管理員", access_level="basic", member_id=7001
+        )
+        production_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids=(7001,)
+        )
+
+        event_id = production_repository.create_event(
+            actor.id,
+            "虛構白名單活動",
+            "other",
+            datetime.now(timezone.utc) + timedelta(days=1),
+            ("staff",),
+        )
+
+        self.assertIsInstance(event_id, int)
+
+    def test_event_manager_allowlist_rejects_nonallowlisted_persisted_roles(self):
+        production_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids=(7001,)
+        )
+        for access_level in ("officer", "admin"):
+            with self.subTest(access_level=access_level):
+                actor = self.repository.create_person(
+                    f"虛構非白名單{access_level}",
+                    access_level=access_level,
+                    member_id=7002,
+                )
+                with self.assertRaises(AuthorizationError):
+                    production_repository.create_event(
+                        actor.id,
+                        "不得建立的活動",
+                        "other",
+                        datetime.now(timezone.utc) + timedelta(days=1),
+                        ("staff",),
+                    )
+                with self.engine.begin() as connection:
+                    connection.execute(
+                        text("UPDATE ntubtob.members SET person_id=NULL WHERE id=7002")
+                    )
+
+    def test_event_manager_preview_mode_accepts_persisted_role(self):
+        actor = self.repository.create_person("虛構預覽幹部", access_level="officer")
+
+        event_id = self.repository.create_event(
+            actor.id,
+            "虛構預覽活動",
+            "other",
+            datetime.now(timezone.utc) + timedelta(days=1),
+            ("staff",),
+        )
+
+        self.assertIsInstance(event_id, int)
+
+    def test_event_manager_allowlist_rejects_inactive_or_unlinked_person(self):
+        production_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids=(7001,)
+        )
+        inactive = self.repository.create_person(
+            "虛構停用管理員",
+            access_level="basic",
+            status="inactive",
+            member_id=7001,
+        )
+        unlinked = self.repository.create_person(
+            "虛構未連結管理員", access_level="admin"
+        )
+
+        for actor in (inactive, unlinked):
+            with self.subTest(person_id=actor.id), self.assertRaises(
+                AuthorizationError
+            ):
+                production_repository.create_event(
+                    actor.id,
+                    "不得建立的活動",
+                    "other",
+                    datetime.now(timezone.utc) + timedelta(days=1),
+                    ("staff",),
+                )
 
     def test_member_backfill_is_idempotent(self):
         first = self.repository.backfill_members(fake_admin_member_ids=(7001,))
