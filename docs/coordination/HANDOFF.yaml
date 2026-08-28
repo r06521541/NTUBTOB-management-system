@@ -1,29 +1,27 @@
-active_task: TASK-165
-status: completed
+active_task: TASK-166
+status: accepted_pending_hosted_ci
 next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 6b0aa7e556d25cb906bf12f4ea0c7eed57705f13
-head_commit: 9c7b82b3857a20c6e53f99d108264a04726aac2f
+base_commit: 98687a736d0f910132185c7ac1128ddbb89748b3
+head_commit: 98687a736d0f910132185c7ac1128ddbb89748b3
 
 updated_by: main-work
-updated_at: 2026-08-28T18:55:00+08:00
+updated_at: 2026-08-29T00:08:00+08:00
 
 note: >
-  TASK-165 lease 2 aligns both Web and shared PostgreSQL Event-management
-  authority. Production composition passes the runtime Member allowlist with
-  persisted-role fallback disabled; local fictional preview enables it
-  explicitly. Routes, hub and global navigation use the canonical capability,
-  while lifecycle/identity/repository guards remain fail closed. Independent
-  reviews accepted and PR #213 hosted run 33164033852 passed, including
-  PostgreSQL 15/16. Merge 9c7b82b was deployed as web-portal-00053-wzw with
-  100% traffic and no rollback. No database write, Secret/IAM/provider change,
-  notification or production Event mutation occurred.
+  Owner reproduced a desktop LINE Login continuity failure: the first callback
+  reached the expired-state page and only a second full provider transaction
+  established the Portal session. TASK-166 now canonicalizes desktop initiation
+  to the fixed callback origin and commits a signed, short-lived, replay-bounded
+  session bootstrap before leaving for LINE. Writer full Web tests and
+  independent Auth/Security rereview passed; hosted CI remains. Provider,
+  Secret, production runtime/data and deployment remain untouched.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-165.md
-report: docs/coordination/reports/TASK-165-CODEX.md
-review: docs/coordination/reviews/TASK-165-WORK.md
+task: docs/coordination/tasks/TASK-166.md
+report: docs/coordination/reports/TASK-166-CODEX.md
+review: pending

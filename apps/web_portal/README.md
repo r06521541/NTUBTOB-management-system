@@ -80,13 +80,35 @@ off to the LINE app and return in a different cookie context, so that path is
 best-effort rather than guaranteed. A QR code is not a workable fallback on the
 same phone.
 
-On desktop, **使用電腦瀏覽器登入** starts a separate fresh transaction with
-auto-login disabled, allowing LINE to present its supported account or QR-code
-flow. The underlying `mode=browser` route remains available, but the UI does not
-present it as a reliable mobile recovery path. No User-Agent detection, custom
-scheme, or external script is used. Android external-browser behavior remains
-unverified; stable support for mobile browsers outside LINE would require a
-separately designed authentication provider such as Google or Apple.
+On desktop, **使用電腦瀏覽器登入** first creates a two-minute signed initiation
+envelope with a distinct serializer salt. Its payload contains only an exact
+purpose, validated local return path, and random initiation nonce; it cannot be
+used as callback OAuth state. The browser redirects with that envelope to the
+fixed origin derived from `LINE_REDIRECT_URI`. Only after the canonical bootstrap
+validates the signature, age, exact payload, host, and same-browser replay marker
+does it clear the old Portal session and commit a fresh browser-bound OAuth nonce
+plus return path. The following same-origin authorize request consumes that
+bootstrap and leaves for LINE. An unsigned, tampered, expired, wrong-purpose,
+malformed, wrong-origin, replayed, or missing-bootstrap request fails before
+session clearing, OAuth-state creation, or LINE authorization. This ordering
+ensures that the callback returns to the same cookie origin that stored the nonce
+even if login was initiated through an alternate Portal host.
+
+The desktop authorization keeps LINE's supported `disable_auto_login=true`
+fallback; it does not add a second OAuth transaction or force an extra provider
+reauthentication step. Normal LINE in-app authorization remains a single request
+and continues to allow auto-login. The UI does not present desktop mode as a
+reliable mobile recovery path. No User-Agent detection, custom scheme, or
+external script is used. Android external-browser behavior remains unverified;
+stable support for mobile browsers outside LINE would require a separately
+designed authentication provider such as Google or Apple.
+
+Rejected login transactions emit only `line_login_rejected` with one fixed
+category: `state_invalid_or_expired`, `session_nonce_missing`,
+`session_nonce_mismatch`, or `browser_bootstrap_invalid`. Logging is best-effort
+and cannot change the fail-closed response. These categories must never be
+expanded with state, nonce, authorization code, cookie, URL, identity or
+provider-response data.
 
 ### Team Operations prototype
 
