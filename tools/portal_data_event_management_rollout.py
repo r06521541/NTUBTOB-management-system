@@ -1186,6 +1186,42 @@ def _expression_fingerprint(value: object) -> tuple[object, ...]:
             parts = _split_boolean(tokens, operator)
             if parts:
                 return (operator, *(parse(part) for part in parts))
+        depth = 0
+        between_positions: list[int] = []
+        top_level_and_positions: list[int] = []
+        for index, token in enumerate(tokens):
+            if token == "(":
+                depth += 1
+            elif token == ")":
+                depth -= 1
+            elif depth == 0 and token == "between":
+                between_positions.append(index)
+            elif depth == 0 and token == "and":
+                top_level_and_positions.append(index)
+        if len(between_positions) > 1:
+            raise RolloutError("unsupported material expression syntax")
+        if between_positions:
+            between_at = between_positions[0]
+            following_and = [
+                index for index in top_level_and_positions if index > between_at
+            ]
+            between_and_at = following_and[0] if following_and else None
+            if (
+                between_at == 0
+                or between_and_at is None
+                or between_and_at == between_at + 1
+                or between_and_at == len(tokens) - 1
+                or len(following_and) != 1
+            ):
+                raise RolloutError("unsupported material expression syntax")
+            subject = tokens[:between_at]
+            lower = tokens[between_at + 1 : between_and_at]
+            upper = tokens[between_and_at + 1 :]
+            return (
+                "and",
+                parse((*subject, ">=", *lower)),
+                parse((*subject, "<=", *upper)),
+            )
         return ("leaf", *(token for token in tokens if token not in {"(", ")"}))
 
     tokens = _expression_tokens(value)

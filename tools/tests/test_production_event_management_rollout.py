@@ -258,6 +258,42 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
                 "'revoked'::character varying]::text[])"
             ),
         )
+        self.assertEqual(
+            operator._expression_fingerprint("length(btrim(title)) BETWEEN 1 AND 120"),
+            operator._expression_fingerprint(
+                "(length(btrim(title::text)) >= 1) AND "
+                "(length(btrim(title::text)) <= 120)"
+            ),
+        )
+        for malformed in (
+            "BETWEEN 1 AND 2",
+            "value BETWEEN AND 2",
+            "value BETWEEN 1 AND",
+            "value BETWEEN 1 AND other BETWEEN 2 AND 3",
+            "value BETWEEN 1 AND 2 BETWEEN 3 AND 4",
+        ):
+            with self.subTest(malformed=malformed), self.assertRaisesRegex(
+                operator.RolloutError, "unsupported"
+            ):
+                operator._expression_fingerprint(malformed)
+        grouped = "(x BETWEEN 1 AND 2) OR (y BETWEEN 3 AND 4)"
+        expanded = "((x >= 1) AND (x <= 2)) OR ((y >= 3) AND (y <= 4))"
+        self.assertEqual(
+            operator._expression_fingerprint(grouped),
+            operator._expression_fingerprint(expanded),
+        )
+        self.assertNotEqual(
+            operator._expression_fingerprint(grouped),
+            operator._expression_fingerprint(
+                "((x >= 1) AND (x <= 3)) OR ((y >= 3) AND (y <= 4))"
+            ),
+        )
+        self.assertNotEqual(
+            operator._expression_fingerprint(grouped),
+            operator._expression_fingerprint(
+                "(x >= 1) AND ((x <= 2) OR (y >= 3)) AND (y <= 4)"
+            ),
+        )
 
     def test_material_indexes_reject_missing_or_drifted_index(self):
         expected = {
