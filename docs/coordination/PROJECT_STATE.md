@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`
+Repository 基準：`main` / `39be8134739c2b0881e522af851c2973780d2027`
 
 ## Active role lanes
 
@@ -25,9 +25,11 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-164 已由Owner授權，將先補受控的production 0008→0009 operator，再部署exact merged Web Portal。Cloud Run唯讀
-  preflight確認rollback revision為`web-portal-00051-p4z`且既有traffic／IAM／runtime flags／Secret-reference categories正常；
-  尚未讀取Secret payload、查詢或修改production DB、部署、發通知或操作正式資料。
+- TASK-164 recovery 已由Owner授權：首次production唯讀執行接受private target但證明live revision不是原假設的0008，
+  因此在任何migration前安全停止，Web仍為`web-portal-00051-p4z`。現由lease 2重建exact 0004→0009 operator；須先通過
+  independent review與hosted PostgreSQL 15／16，才可重新請求單次production執行。Data／Security五輪adversarial
+  review已`ACCEPT`，hosted gate待PR。未修改production DB／runtime、
+  未讀Secret payload、未部署、未發通知或操作正式資料。
 - TASK-163 已由 PR #209 合併為 `c1dd1e3e75e373da6991748b8e34ab63d86b1c25`：active Officer／Admin 可管理
   Event草稿、Activity行程、資格池與人工override，發布immutable invitee snapshot，並稽核published edit／cancel。
   Hosted run `33077406624` 的PostgreSQL 15／16及全部selected gates通過；尚未roll out schema、部署、發通知或操作正式資料。

@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import re
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -9,6 +10,12 @@ from tools import portal_data_event_management_rollout as operator
 
 
 class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
+    @staticmethod
+    def _rows(values):
+        result = MagicMock()
+        result.all.return_value = values
+        return result
+
     def test_artifacts_are_canonical_and_locked(self):
         launcher.verify_artifacts()
 
@@ -125,6 +132,287 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
                 connection.execute.return_value.all.return_value = [drift]
                 with self.assertRaisesRegex(operator.RolloutError, reason):
                     operator._validate_append_only(connection)
+
+    def test_phase_c_fingerprint_rejects_wrong_table_or_definition(self):
+        for fingerprint in (
+            ("wrong-table", *operator.PHASE_C_FINGERPRINTS[1:]),
+            (
+                operator.PHASE_C_FINGERPRINTS[0],
+                "wrong-definition",
+                operator.PHASE_C_FINGERPRINTS[2],
+            ),
+        ):
+            connection = MagicMock()
+            connection.execute.return_value.one.return_value = fingerprint
+            with self.subTest(fingerprint=fingerprint), self.assertRaisesRegex(
+                operator.RolloutError, "identity catalog fingerprint"
+            ):
+                operator._phase_c_identity_safe(connection)
+
+    def test_material_columns_reject_wrong_type_and_default(self):
+        exact = [
+            (table, column, *attributes)
+            for table, columns in operator.FUTURE_COLUMN_ATTRIBUTES.items()
+            for column, attributes in columns.items()
+        ]
+        for offset, value in ((2, "text"), (6, "ALWAYS"), (7, True)):
+            drift = list(exact)
+            row = list(drift[0])
+            row[offset] = value
+            drift[0] = tuple(row)
+            connection = MagicMock()
+            connection.execute.return_value.all.return_value = drift
+            with self.subTest(offset=offset), self.assertRaisesRegex(
+                operator.RolloutError, "column fingerprint"
+            ):
+                operator._material_columns_safe(connection)
+
+    def test_material_constraints_reject_wrong_table_and_definition(self):
+        exact = []
+        for name, (
+            table,
+            kind,
+            columns,
+            references,
+            expression,
+        ) in operator.MATERIAL_CONSTRAINTS.items():
+            ref_schema, ref_table, ref_columns, delete, update, match = references or (
+                None,
+                None,
+                (),
+                "a",
+                "a",
+                "s",
+            )
+            exact.append(
+                (
+                    table,
+                    name,
+                    kind,
+                    True,
+                    False,
+                    False,
+                    list(columns),
+                    ref_schema,
+                    ref_table,
+                    list(ref_columns),
+                    delete,
+                    update,
+                    match,
+                    expression,
+                )
+            )
+        check_at = next(index for index, row in enumerate(exact) if row[2] == "c")
+        foreign_key_at = next(index for index, row in enumerate(exact) if row[2] == "f")
+        for label, offset, value in (
+            ("table", 0, "wrong_table"),
+            ("definition", 13, "true"),
+        ):
+            drift = list(exact)
+            row = list(drift[check_at])
+            row[offset] = value
+            drift[check_at] = tuple(row)
+            connection = MagicMock()
+            connection.execute.return_value.all.return_value = drift
+            with self.subTest(label=label), self.assertRaises(operator.RolloutError):
+                operator._material_constraints_safe(connection)
+        for label, offset, value in (
+            ("reference_schema", 7, "public"),
+            ("update_action", 11, "c"),
+            ("match_type", 12, "f"),
+        ):
+            drift = list(exact)
+            row = list(drift[foreign_key_at])
+            row[offset] = value
+            drift[foreign_key_at] = tuple(row)
+            connection = MagicMock()
+            connection.execute.return_value.all.return_value = drift
+            with self.subTest(label=label), self.assertRaisesRegex(
+                operator.RolloutError, "constraint reference"
+            ):
+                operator._material_constraints_safe(connection)
+
+    def test_expression_fingerprint_preserves_boolean_grouping(self):
+        left = "a AND (b OR c) AND d"
+        right = "(a AND b) OR (c AND d)"
+        self.assertNotEqual(
+            operator._expression_fingerprint(left),
+            operator._expression_fingerprint(right),
+        )
+        for left, right in (
+            ("provider = 'fake'", "provider = 'FAKE'"),
+            ("value ~ '^[a-f]+$'", "value !~ '^[a-f]+$'"),
+            ("attempt_count BETWEEN 1 AND 5", "attempt_count BETWEEN -1 AND 5"),
+        ):
+            with self.subTest(left=left, right=right):
+                self.assertNotEqual(
+                    operator._expression_fingerprint(left),
+                    operator._expression_fingerprint(right),
+                )
+        with self.assertRaisesRegex(operator.RolloutError, "unsupported"):
+            operator._expression_fingerprint("provider = @unknown")
+        self.assertEqual(
+            operator._expression_fingerprint("status IN ('active','revoked')"),
+            operator._expression_fingerprint(
+                "status = ANY (ARRAY['active'::character varying,"
+                "'revoked'::character varying]::text[])"
+            ),
+        )
+
+    def test_material_indexes_reject_missing_or_drifted_index(self):
+        expected = {
+            name: (table, True, kind == "p", columns, None, (0,) * len(columns))
+            for name, (
+                table,
+                kind,
+                columns,
+                _,
+                _,
+            ) in operator.MATERIAL_CONSTRAINTS.items()
+            if kind in {"p", "u"}
+        }
+        expected.update(
+            {
+                name: (table, unique, False, columns, predicate, order)
+                for name, (table, unique, columns, predicate, order) in (
+                    operator.EXPLICIT_MATERIAL_INDEXES.items()
+                )
+            }
+        )
+        exact = [
+            (
+                name,
+                table,
+                unique,
+                primary,
+                True,
+                True,
+                True,
+                True,
+                "btree",
+                list(columns),
+                list(order),
+                predicate,
+            )
+            for name, (
+                table,
+                unique,
+                primary,
+                columns,
+                predicate,
+                order,
+            ) in expected.items()
+        ]
+        for drift in (
+            exact[:-1],
+            [(*exact[0][:-3], ["wrong_column"], *exact[0][-2:]), *exact[1:]],
+            [(*exact[0][:-2], [1], exact[0][-1]), *exact[1:]],
+        ):
+            connection = MagicMock()
+            connection.execute.return_value.all.return_value = drift
+            with self.assertRaises(operator.RolloutError):
+                operator._material_indexes_safe(connection)
+
+    def test_material_routines_reject_function_body_and_trigger_drift(self):
+        functions = [
+            (
+                1001,
+                "reject_mobile_notification_mutation",
+                0,
+                True,
+                "plpgsql",
+                "f",
+                False,
+                False,
+                "v",
+                False,
+                False,
+                "u",
+                True,
+                0,
+                True,
+                "BEGIN RAISE EXCEPTION 'mobile notification content is immutable'; END;",
+            ),
+            (
+                1002,
+                "reject_mobile_notification_audit_mutation",
+                0,
+                True,
+                "plpgsql",
+                "f",
+                False,
+                False,
+                "v",
+                False,
+                False,
+                "u",
+                True,
+                0,
+                True,
+                "BEGIN RAISE EXCEPTION 'mobile notification audit is append-only'; END;",
+            ),
+        ]
+        triggers = [
+            (
+                "mobile_notifications",
+                "mobile_notification_content_immutable",
+                "O",
+                27,
+                0,
+                "",
+                None,
+                0,
+                None,
+                None,
+                False,
+                False,
+                "ntubtob",
+                1001,
+                "reject_mobile_notification_mutation",
+            ),
+            (
+                "mobile_notification_publish_audits",
+                "mobile_notification_audit_immutable",
+                "O",
+                27,
+                0,
+                "",
+                None,
+                0,
+                None,
+                None,
+                False,
+                False,
+                "ntubtob",
+                1002,
+                "reject_mobile_notification_audit_mutation",
+            ),
+        ]
+        for function_rows, trigger_rows in (
+            ([(*functions[0][:-1], "BEGIN RETURN NEW; END;"), functions[1]], triggers),
+            (
+                [
+                    (*functions[0][:7], True, *functions[0][8:]),
+                    functions[1],
+                ],
+                triggers,
+            ),
+            (
+                functions,
+                [
+                    (*triggers[0][:-3], "public", 9001, triggers[0][-1]),
+                    triggers[1],
+                ],
+            ),
+            (functions, [(*triggers[0][:3], 25, *triggers[0][4:]), triggers[1]]),
+        ):
+            connection = MagicMock()
+            connection.execute.side_effect = [
+                self._rows(function_rows),
+                self._rows(trigger_rows),
+            ]
+            with self.assertRaises(operator.RolloutError):
+                operator._material_routines_safe(connection)
 
     def test_runtime_contract_accepts_exact_ready_service_without_disclosure(self):
         service = {
@@ -365,11 +653,68 @@ class ProductionEventManagementRolloutUnitTests(unittest.TestCase):
                 acknowledgement=None,
                 engine_factory=MagicMock(),
             )
+        self.assertEqual(
+            operator.EXECUTION_ACKNOWLEDGEMENT,
+            "EXECUTE TASK-164 0004 TO 0009",
+        )
+
+    def test_recovery_precheck_rejects_existing_future_objects(self):
+        connection = MagicMock()
+        with patch.object(
+            operator, "_current_revision", return_value=operator.SOURCE_REVISION
+        ), patch.object(operator, "_logging_safe", return_value=True), patch.object(
+            operator, "_catalog_safe"
+        ), patch.object(
+            operator, "_phase_c_identity_safe"
+        ), patch.object(
+            operator,
+            "_future_objects_absent",
+            side_effect=operator.RolloutError("future migration objects already exist"),
+        ), self.assertRaisesRegex(
+            operator.RolloutError, "future migration objects"
+        ):
+            operator._run_locked(connection, execute=False)
+
+    def test_recovery_execute_runs_one_chain_and_all_postchecks(self):
+        connection = MagicMock()
+        migration_runner = MagicMock()
+        with patch.object(
+            operator,
+            "_current_revision",
+            side_effect=[operator.SOURCE_REVISION, operator.TARGET_REVISION],
+        ), patch.object(operator, "_logging_safe", return_value=True), patch.object(
+            operator, "_catalog_safe"
+        ) as catalog, patch.object(
+            operator, "_phase_c_identity_safe"
+        ) as identity, patch.object(
+            operator, "_future_objects_absent"
+        ) as absent, patch.object(
+            operator, "_future_schema_safe"
+        ) as future, patch.object(
+            operator, "_application_dml_count", side_effect=[0, 0]
+        ):
+            result = operator._run_locked(
+                connection, execute=True, migration_runner=migration_runner
+            )
+        self.assertEqual(result["source_revision"], operator.SOURCE_REVISION)
+        migration_runner.assert_called_once_with(connection)
+        absent.assert_called_once_with(connection)
+        future.assert_called_once_with(connection)
+        self.assertEqual(identity.call_count, 2)
+        self.assertEqual(
+            [call.args[1] for call in catalog.call_args_list],
+            [operator.OLD_ACTIONS, operator.NEW_ACTIONS],
+        )
 
     def test_migration_source_contains_no_application_dml(self):
-        source = operator.MIGRATION.read_text(encoding="utf-8").upper()
-        for token in ("INSERT INTO", "UPDATE ", "DELETE FROM"):
-            self.assertNotIn(token, source)
+        for migration in operator.MIGRATIONS:
+            source = migration.read_text(encoding="utf-8").upper()
+            self.assertIsNone(
+                re.search(
+                    r"(?m)^\s*(?:INSERT\s+INTO|UPDATE\s+NTUBTOB\.|DELETE\s+FROM)",
+                    source,
+                )
+            )
 
 
 if __name__ == "__main__":

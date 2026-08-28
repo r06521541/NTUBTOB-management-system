@@ -1,24 +1,25 @@
 active_task: TASK-164
-status: in_progress
-next_actor: codex-writer
+status: ready_for_review
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: aa614ab57423f589d318bc96c627d5f5a1b61bb5
-head_commit: aa614ab57423f589d318bc96c627d5f5a1b61bb5
+base_commit: 39be8134739c2b0881e522af851c2973780d2027
+head_commit: 39be8134739c2b0881e522af851c2973780d2027
 
 updated_by: main-work
-updated_at: 2026-08-27T21:51:00+08:00
+updated_at: 2026-08-28T01:00:00+08:00
 
 note: >
-  Owner authorized TASK-164 to roll out TASK-163 to production. Repository work
-  first adds an exact, no-disclosure 0008-to-0009 operator because the standard
-  Alembic entry intentionally rejects remote databases. No production database
-  or runtime mutation occurs before that operator is reviewed, merged and passes
-  hosted PostgreSQL 15/16. Notifications, Secret payloads, IAM and real-data DML
-  remain prohibited.
+  Owner authorized TASK-164 recovery after the first read-only production check
+  proved the live database was not the assumed 0008 source. Lease 1 is revoked;
+  lease 2 rebuilt the no-disclosure operator for exact 0004-to-0009. Independent
+  Data/Security review accepted after five adversarial rounds; Main focused and
+  adjacent checks pass. Hosted PostgreSQL 15/16 remains the required merge gate
+  before any new production attempt. No migration or deployment occurred.
+  Notifications, Secret payloads, IAM and real-data DML remain prohibited.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-164.md
