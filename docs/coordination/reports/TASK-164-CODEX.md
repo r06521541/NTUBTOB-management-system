@@ -21,7 +21,7 @@
 
 ## Remaining gates
 
-- Independent Data／Security reviewer經五輪adversarial review後`ACCEPT`；PostgreSQL 15／16 isolated hosted gate尚未完成。本report不授權或宣稱production migration／deployment。
+- Independent Data／Security reviewer經五輪adversarial review後`ACCEPT`；PR #212 hosted run `33146838260`的PostgreSQL 15／16、全部selected jobs與final gate均通過。本report不授權或宣稱production migration／deployment；merge後仍須重新取得Owner對exact merged SHA的單次production執行批准。
 - 未呼叫gcloud、未連線任何database、未讀Secret/private env、未部署、未修改production資料或發送通知。
 
 ## Recovery source evidence
@@ -34,6 +34,7 @@
 - Hosted run `33145074357`的PostgreSQL 15／16均在target schema postcheck以`future migration check definition drifted`停止。原因是migration中的三個`BETWEEN` checks經PostgreSQL parse tree／`pg_get_expr`正規化為等價的`>= lower AND <= upper`，而repository expected fingerprint仍保留`BETWEEN` leaf。Canonicalizer現在只對布林層分割後含單一、完整top-level `subject BETWEEN lower AND upper`的節點建立同一個AND AST；缺subject／lower／upper、未分組chained/multiple BETWEEN或未知token均fail closed，分組後的多個合法BETWEEN仍可各自正規化。Regressions涵蓋真實deparsed等價、changed bound/grouping不等價與所有malformed shapes。Run中的後續drift cases因同一baseline mismatch被遮蔽，不能視為其獨立結果；修正後hosted matrix尚待重跑。
 - Hosted run `33145963873`確認clean baseline在PostgreSQL 15／16均已通過；剩餘失敗只來自兩個test defects：constraint drift fixture將實際`ck_mobile_sessions_status`誤拼為singular，導致mutation前即`UndefinedObject`；disabled trigger由verifier正確分類為`trigger definition drifted`，而test誤期待`trigger fingerprint`。本輪只修正fixture名稱與expected reason，未改verifier或migration；完整matrix仍待重跑。
 - Hosted run `33146385519`在PostgreSQL 15／16都只剩同一個constraint drift test失敗：fixture以`CHECK(TRUE)`替換status check後，PostgreSQL catalog的`conkey`正確變為empty，因此verifier先以`future migration constraint fingerprint drifted`拒絕，而test誤期待較後面的`check definition`分類。本輪只將expected reason對齊此精確fail-closed順序，未改verifier或migration；完整matrix仍待重跑。
+- Hosted run `33146838260`最終全綠：PostgreSQL 15／16 clean 0004→0009、atomic rollback與所有material drift rejection均通過；Flutter、Web、各service、deployment tooling、quick gate與CI final gate亦通過。此證據只驗收repository operator，不代表production已migration或部署。
 
 ## Lease 1 hosted diagnosis
 

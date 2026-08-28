@@ -62,5 +62,5 @@ Lease 1 已完成原0008→0009 operator並於PR #211合併；2026-08-28首次pr
 - Repository operator recovery須以canonical-LF checksum鎖定launcher、operator、既有0005–0009 migrations、Alembic env與config；不修改既有migration或deployment wrapper。
 - Launcher只允許clean且同步origin/main的exact merged `main`進行dry-run或execute，從隱藏prompt接收private URL，並以read-only Cloud Run Ready revision metadata將DSN host／port／database／user逐欄比對；不讀Secret payload、不輸出account、URL、env list或Secret reference。
 - Execute僅接受clean exact merged `main`／`origin/main`與Owner批准full SHA；資料庫端只接受exact 0004及所有0005–0009 touched-object前置邊界，單一transaction升到0009並證明application-table DML為零。Already-forward、divergent、drift或不確定狀態均停止且不retry。
-- Local Python 3.10 unit／static evidence已通過；本機沒有isolated PostgreSQL URL，因此PostgreSQL integration保留為hosted PostgreSQL 15／16 gate，尚未宣稱通過。
-- Independent Data／Security reviewer經五輪adversarial review後`ACCEPT`；Main focused 28 outcomes（22 passed、6 local PostgreSQL skipped）、adjacent 17 outcomes（11 passed、6 skipped）、artifact與diff checks通過。Hosted PostgreSQL 15／16仍是merge前required gate。
+- Local Python 3.10 unit／static evidence已通過；本機沒有isolated PostgreSQL URL，PostgreSQL integration由PR #212 hosted run `33146838260`的PostgreSQL 15／16 matrix補足並通過。
+- Independent Data／Security reviewer經五輪adversarial review後`ACCEPT`；Main focused 28 outcomes（22 passed、6 local PostgreSQL skipped）、adjacent 17 outcomes（11 passed、6 skipped）、artifact與diff checks通過。PR #212 hosted run `33146838260`全部selected jobs與final gate通過；仍須merge到exact `main`後重新請求Owner批准production執行。
