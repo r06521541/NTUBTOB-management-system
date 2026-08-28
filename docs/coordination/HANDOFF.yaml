@@ -1,16 +1,16 @@
 active_task: TASK-165
-status: ready_for_ci
+status: completed
 next_actor: main-work
 
-claim_id: task-165-event-management-authority-writer-20260828
-lease_version: 2
-actor_id: /root/task160_web_portal_writer
+claim_id: main-work-20260825
+lease_version: 17
+actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 6b0aa7e556d25cb906bf12f4ea0c7eed57705f13
-head_commit: 6b0aa7e556d25cb906bf12f4ea0c7eed57705f13
+head_commit: 9c7b82b3857a20c6e53f99d108264a04726aac2f
 
-updated_by: task-165-event-management-authority-writer-20260828
-updated_at: 2026-08-28T17:46:47+08:00
+updated_by: main-work
+updated_at: 2026-08-28T18:55:00+08:00
 
 note: >
   TASK-165 lease 2 aligns both Web and shared PostgreSQL Event-management
@@ -18,10 +18,12 @@ note: >
   persisted-role fallback disabled; local fictional preview enables it
   explicitly. Routes, hub and global navigation use the canonical capability,
   while lifecycle/identity/repository guards remain fail closed. Independent
-  Auth/Identity and Data/Auth reviews accepted; hosted CI remains. No deployment, database, cloud, Secret,
-  IAM, provider or notification action was performed or authorized.
+  reviews accepted and PR #213 hosted run 33164033852 passed, including
+  PostgreSQL 15/16. Merge 9c7b82b was deployed as web-portal-00053-wzw with
+  100% traffic and no rollback. No database write, Secret/IAM/provider change,
+  notification or production Event mutation occurred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-165.md
 report: docs/coordination/reports/TASK-165-CODEX.md
-review: null
+review: docs/coordination/reviews/TASK-165-WORK.md
