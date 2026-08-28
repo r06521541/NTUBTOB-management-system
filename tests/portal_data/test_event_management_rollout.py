@@ -158,7 +158,7 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
                 "DROP CONSTRAINT ck_mobile_sessions_status; "
                 "ALTER TABLE ntubtob.mobile_sessions "
                 "ADD CONSTRAINT ck_mobile_sessions_status CHECK (TRUE)",
-                "check definition",
+                "constraint fingerprint",
             ),
             (
                 "constraint_boolean_grouping",
