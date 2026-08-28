@@ -1,4 +1,4 @@
-"""No-disclosure launcher for the TASK-164 production 0008-to-0009 rollout."""
+"""No-disclosure launcher for the TASK-164 production 0004-to-0009 rollout."""
 
 from __future__ import annotations
 
@@ -100,7 +100,7 @@ def verify_artifacts() -> None:
     paths = {
         ARTIFACT.name: ARTIFACT,
         operator.ARTIFACT.name: operator.ARTIFACT,
-        operator.MIGRATION.name: operator.MIGRATION,
+        **{migration.name: migration for migration in operator.MIGRATIONS},
         "env.py": ROOT / "migrations" / "env.py",
         "alembic.ini": ROOT / "alembic.ini",
     }

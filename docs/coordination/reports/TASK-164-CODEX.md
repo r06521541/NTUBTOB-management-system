@@ -2,17 +2,17 @@
 
 ## Delivery delta
 
-- 新增production Event migration operator，只允許`0008_mobile_notification_delivery`至`0009_event_management_writes`的單次Alembic transaction；以transaction advisory lock序列化，pre／post exact驗constraint、append-only trigger、Event tables RLS與zero policy。
+- Recovery lease 2將production operator重建為只允許exact `0004_phase_c_identity_lifecycle`至`0009_event_management_writes`的單次Alembic transaction；以transaction advisory lock序列化，precheck以既有accepted catalog fingerprints鎖定Event／Phase C touched columns、所有constraints（含access-audit action）與indexes及0005–0008 future-object absence；postcheck exact revision、column attributes/default/identity、constraints/FKs/checks、btree indexes/order/predicate、RLS／zero-policy／new-table emptiness。
 - Append-only gate同時綁定`ntubtob` function schema、零參數、trigger return type、PL/pgSQL、canonical body SHA-256及版本穩定的trigger catalog邊界；enabled／event timing／row level、UPDATE OF columns／WHEN clause／constraint／transition tables／deferrability任一漂移均拒絕。
 - `dry-run`使用read-only transaction且不執行migration；execute要求hidden short-lived acknowledgement，且以`pg_stat_xact_user_tables`驗證除Alembic revision外application-table DML為零。Already-forward、divergent、catalog drift與partial state全部fail closed，不提供retry。
 - 新增no-disclosure launcher：dry-run與execute都只允許clean且HEAD=origin/main的exact merged `main`，execute再要求approved SHA；active gcloud account、exact project／region／service／Ready revision／100% traffic／runtime identity／public boundary與production flags／Secret-reference categories均須通過。Hidden URL只在記憶體中與Ready revision的DSN host／port／database／user逐欄比對，不讀既有private env或Secret payload。
-- Repository authority baseline為`aa614ab57423f589d318bc96c627d5f5a1b61bb5`；Cloud target鎖定當前production rollback revision `web-portal-00051-p4z`，任何先行rollout或target drift均停止。
+- Repository recovery branch base為`39be8134739c2b0881e522af851c2973780d2027`；Cloud target鎖定當前production rollback revision `web-portal-00051-p4z`，任何先行rollout或target drift均停止。
 - Private URL只接受唯一scalar `sslmode=require|verify-ca|verify-full`；缺省、disabled、unknown、duplicate或額外query parameter均拒絕。
-- Canonical-LF checksums與material manifest鎖定launcher、operator、既有0009 migration及其Alembic execution boundary；未修改0009或Web deployment wrapper。
+- Canonical-LF checksums與material manifest鎖定launcher、operator、既有0005–0009 migrations及其Alembic execution boundary；五個migration均無application-table DML，未修改migration或Web deployment wrapper。
 
 ## Verification
 
-- `py -3.10 -m unittest tools.tests.test_production_event_management_rollout tests.portal_data.test_event_management_rollout -v`：14 unit passed；3 isolated PostgreSQL tests skipped（本機無`PORTAL_DATA_TEST_DATABASE_URL`／`PORTAL_DATA_DATABASE_URL`）。
+- `py -3.10 -m unittest tools.tests.test_production_event_management_rollout tests.portal_data.test_event_management_rollout -v`：22 unit passed；6 isolated PostgreSQL tests skipped（本機無`PORTAL_DATA_TEST_DATABASE_URL`／`PORTAL_DATA_DATABASE_URL`）；PG regressions涵蓋wrong-table Phase C constraint，以及target column type/default/identity generation、constraint definition/boolean grouping、FK update action、index、function body/security與trigger漂移。
 - `py -3.10 -m unittest tests.portal_data.test_event_management_migration tests.portal_data.test_migration_readiness -v`：11 passed；6 isolated PostgreSQL tests skipped。
 - `py -3.10 -m py_compile ...`：passed。
 - Black formatter API逐檔比對4個Python owned paths：clean（Windows多檔CLI停滯後已終止本輪exact processes，未略過檢查）。
@@ -21,10 +21,22 @@
 
 ## Remaining gates
 
-- PostgreSQL 15／16 isolated integration、independent Data／Security review與hosted gate尚未完成；本report不授權或宣稱production migration／deployment。
+- Independent Data／Security reviewer經五輪adversarial review後`ACCEPT`；PR #212 hosted run `33146838260`的PostgreSQL 15／16、全部selected jobs與final gate均通過。本report不授權或宣稱production migration／deployment；merge後仍須重新取得Owner對exact merged SHA的單次production執行批准。
 - 未呼叫gcloud、未連線任何database、未讀Secret/private env、未部署、未修改production資料或發送通知。
 
-## Hosted diagnosis
+## Recovery source evidence
+
+- Main以既有受控唯讀inventory確認`classification=REVISION_VERIFIED_READ_ONLY`、`current_revision=0004_phase_c_identity_lifecycle`、`mutation_count=0`；本report只記去識別化分類，不含database target或credential。此證據解除lease 1的錯誤0008 source premise，並精確支持lease 2的0004→0009 recovery contract。
+
+## Lease 2 review corrections
+
+- Independent review要求postcheck不得只驗object名稱。修正後column fingerprint包含identity generation；FK包含exact referenced schema/relation、delete/update/match；CHECK與partial-index expression使用total lexer及保留AND/OR樹狀分組的canonical fingerprint，精確保留quoted literal大小寫、否定regex operator與signed number，任何未消耗token/cast均fail closed；function identity另綁定kind、set-returning、security definer、volatility、strict、leakproof、parallel、config、default args及variadic旗標，trigger並以function schema與已驗證function OID關聯。這些gate拒絕跨schema同名table/function替換，均保留原有fail-closed邊界且未修改migration。
+- Hosted run `33145074357`的PostgreSQL 15／16均在target schema postcheck以`future migration check definition drifted`停止。原因是migration中的三個`BETWEEN` checks經PostgreSQL parse tree／`pg_get_expr`正規化為等價的`>= lower AND <= upper`，而repository expected fingerprint仍保留`BETWEEN` leaf。Canonicalizer現在只對布林層分割後含單一、完整top-level `subject BETWEEN lower AND upper`的節點建立同一個AND AST；缺subject／lower／upper、未分組chained/multiple BETWEEN或未知token均fail closed，分組後的多個合法BETWEEN仍可各自正規化。Regressions涵蓋真實deparsed等價、changed bound/grouping不等價與所有malformed shapes。Run中的後續drift cases因同一baseline mismatch被遮蔽，不能視為其獨立結果；修正後hosted matrix尚待重跑。
+- Hosted run `33145963873`確認clean baseline在PostgreSQL 15／16均已通過；剩餘失敗只來自兩個test defects：constraint drift fixture將實際`ck_mobile_sessions_status`誤拼為singular，導致mutation前即`UndefinedObject`；disabled trigger由verifier正確分類為`trigger definition drifted`，而test誤期待`trigger fingerprint`。本輪只修正fixture名稱與expected reason，未改verifier或migration；完整matrix仍待重跑。
+- Hosted run `33146385519`在PostgreSQL 15／16都只剩同一個constraint drift test失敗：fixture以`CHECK(TRUE)`替換status check後，PostgreSQL catalog的`conkey`正確變為empty，因此verifier先以`future migration constraint fingerprint drifted`拒絕，而test誤期待較後面的`check definition`分類。本輪只將expected reason對齊此精確fail-closed順序，未改verifier或migration；完整matrix仍待重跑。
+- Hosted run `33146838260`最終全綠：PostgreSQL 15／16 clean 0004→0009、atomic rollback與所有material drift rejection均通過；Flutter、Web、各service、deployment tooling、quick gate與CI final gate亦通過。此證據只驗收repository operator，不代表production已migration或部署。
+
+## Lease 1 hosted diagnosis
 
 - PR #211 run `33084910566`的PostgreSQL 15／16都在0008 append-only precheck停止；migration尚未執行。根因是`pg_get_triggerdef(..., true)`固定輸出canonical event順序`BEFORE DELETE OR UPDATE`，而初版operator沿用migration source順序`BEFORE UPDATE OR DELETE`。
 - PR #211第二次run `33085996379`的PostgreSQL 15／16仍在同一precheck停止，migration同樣未執行；這證明deparsed trigger definition不適合作為跨版本exact contract。
