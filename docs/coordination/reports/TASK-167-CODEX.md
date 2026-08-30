@@ -25,3 +25,8 @@
 
 - Initial verdict: `REQUEST_CHANGES`. The reviewer proved that direct `signer-check`／`install` could bypass the build-only ABI gate and that zero-byte runtime entries were accepted by name alone.
 - Lease-2 correction revalidates the candidate before package／signer acceptance, removes an ABI-invalid candidate, and requires each runtime entry to be unique, non-empty and completely readable. Focused 4/4 and the complete launcher suite 61/61 passed; rereview remains pending.
+
+## Independent review lease 3
+
+- Lease-2 rereview found that .NET could read a corrupted `ZIP_STORED` payload to its declared length without validating CRC. The gate now computes CRC32 while streaming each runtime and compares it with the archive entry metadata.
+- A valid three-runtime stored ZIP with one arm64 payload byte flipped and its old CRC retained is rejected before package, signer or ADB install; the invalid candidate is removed. Focused 4/4 and the complete launcher suite 61/61 passed; rereview remains pending.
