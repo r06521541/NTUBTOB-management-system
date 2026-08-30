@@ -19,6 +19,7 @@ $script:ExpectedRevision = '0008_mobile_notification_delivery'
 $script:ProductionProject = 'ntubtob-schedule-405614'
 $script:FullShaPattern = '^[0-9a-f]{40}$'
 $script:FingerprintPattern = '^[0-9A-F]{64}$'
+$script:RequiredApkRuntimeAbis = @('armeabi-v7a', 'arm64-v8a', 'x86_64')
 $script:TaskEvidenceRoot = 'E:\codex-evidence\task-123'
 $script:TaskTempRoot = 'E:\codex-temp\task-123'
 $script:RoutineActions = @('help', 'preflight', 'avd-start', 'status', 'cleanup-artifact', 'build', 'signer-check', 'install', 'cold-launch', 'health', 'stop', 'cleanup')
@@ -921,7 +922,10 @@ function Invoke-FlutterBuildProcess {
         $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
         $appDataRoot = Assert-TaskPath (Join-Path $tempRoot 'flutter-appdata') $tempRoot
         [System.IO.Directory]::CreateDirectory($appDataRoot) | Out-Null
-        $buildArguments = @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') + $defineArguments
+        $buildArguments = @(
+            '--suppress-analytics', 'build', 'apk', '--debug',
+            '--target-platform', 'android-arm,android-arm64,android-x64'
+        ) + $defineArguments
         return Invoke-BoundedProcess ([string]$Config.flutter_executable) $buildArguments 600 @{
             APPDATA = $appDataRoot
             ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
@@ -943,11 +947,99 @@ function Invoke-FlutterBuildProcess {
     }
 }
 
+function Assert-ApkRuntimeLibraries {
+    param([string]$Artifact)
+    if (-not (Test-Path -LiteralPath $Artifact -PathType Leaf)) {
+        Throw-Safe 'Fresh APK artifact is unavailable'
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (-not ('Ntubtob.MobileStagingCrc32' -as [type])) {
+        Add-Type -TypeDefinition @'
+namespace Ntubtob {
+    public static class MobileStagingCrc32 {
+        public static uint Compute(System.IO.Stream stream, out long length) {
+            uint crc = 0xFFFFFFFFu;
+            length = 0;
+            byte[] buffer = new byte[81920];
+            int count;
+            while ((count = stream.Read(buffer, 0, buffer.Length)) > 0) {
+                length += count;
+                for (int index = 0; index < count; index++) {
+                    crc ^= buffer[index];
+                    for (int bit = 0; bit < 8; bit++) {
+                        crc = (crc & 1u) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+                    }
+                }
+            }
+            return ~crc;
+        }
+    }
+}
+'@
+    }
+    $archive = $null
+    try {
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($Artifact)
+        foreach ($abi in $script:RequiredApkRuntimeAbis) {
+            $runtimePath = "lib/$abi/libflutter.so"
+            $runtimeEntries = @($archive.Entries | Where-Object { [string]$_.FullName -ceq $runtimePath })
+            if ($runtimeEntries.Count -ne 1) {
+                Throw-Safe 'Fresh APK runtime ABI coverage is incomplete'
+            }
+            $runtimeEntry = $runtimeEntries[0]
+            if ([long]$runtimeEntry.Length -lt 1 -or [long]$runtimeEntry.CompressedLength -lt 1) {
+                Throw-Safe 'Fresh APK runtime ABI coverage is malformed'
+            }
+            $crcField = $runtimeEntry.GetType().GetField('_crc32', [System.Reflection.BindingFlags]'Instance,NonPublic')
+            if ($null -eq $crcField) { Throw-Safe 'Fresh APK runtime ABI coverage is unavailable' }
+            [uint32]$expectedCrc32 = $crcField.GetValue($runtimeEntry)
+            $runtimeStream = $null
+            try {
+                $runtimeStream = $runtimeEntry.Open()
+                [long]$bytesRead = 0
+                [uint32]$actualCrc32 = [Ntubtob.MobileStagingCrc32]::Compute($runtimeStream, [ref]$bytesRead)
+                if ($bytesRead -ne [long]$runtimeEntry.Length -or $actualCrc32 -ne $expectedCrc32) {
+                    Throw-Safe 'Fresh APK runtime ABI coverage is malformed'
+                }
+            }
+            finally {
+                if ($null -ne $runtimeStream) { $runtimeStream.Dispose() }
+            }
+        }
+    }
+    catch [System.InvalidOperationException] { throw }
+    catch { Throw-Safe 'Fresh APK runtime ABI coverage is unavailable' }
+    finally { if ($null -ne $archive) { $archive.Dispose() } }
+}
+
+function Get-BinarySha256 {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Throw-Safe 'Binary artifact is unavailable'
+    }
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        return (($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('X2') }) -join '')
+    }
+    finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
+    }
+}
+
 function Invoke-SignerCheck {
     param([object]$Config)
     Assert-OnlyApprovedSerial $Config
     $artifact = Get-ArtifactPath $Config
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { Throw-Safe 'Fresh APK artifact is unavailable' }
+    try { Assert-ApkRuntimeLibraries $artifact }
+    catch {
+        if (Test-Path -LiteralPath $artifact -PathType Leaf) { Remove-Item -LiteralPath $artifact -Force }
+        throw
+    }
     [void](Get-ApkPackageIdentity $Config $artifact)
     $approvedSigner = $null
     $installed = $null
@@ -1008,10 +1100,11 @@ function Invoke-Build {
         if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $buildOutput -PathType Leaf)) { Throw-Safe 'Flutter build failed safely' }
         Assert-DebugSignerStable $Config $approvedSigner
         Move-Item -LiteralPath $buildOutput -Destination $artifact
+        Assert-ApkRuntimeLibraries $artifact
         $package = Get-ApkPackageIdentity $Config $artifact
         $fingerprint = Get-ApkSignerFingerprint $Config $artifact
         if ($fingerprint -cne [string]$approvedSigner.Fingerprint) { Throw-Safe 'Fresh artifact signer is not allowlisted' }
-        $hash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash
+        $hash = Get-BinarySha256 $artifact
         $evidence = [ordered]@{
             accepted_commit = $ExpectedCommit
             mode = $SelectedMode
