@@ -1,31 +1,27 @@
-active_task: TASK-167
-status: accepted_pending_hosted_ci
-next_actor: main-work
+active_task: TASK-168
+status: in_progress
+next_actor: codex-writer
 
-claim_id: main-work-20260825
-lease_version: 17
-actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
+claim_id: task-168-event-attendance-writer-20260830
+lease_version: 1
+actor_id: /root/task168_event_attendance_writer
 
-base_commit: 0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961
-head_commit: 577ecef1cadb0653c613f57d45616674281673f9
+base_commit: 10d7cee44b6bd6ff2edb456518a129ebb3692443
+head_commit: 10d7cee44b6bd6ff2edb456518a129ebb3692443
 
 updated_by: main-work
-updated_at: 2026-08-30T21:46:45+08:00
+updated_at: 2026-08-30T22:18:03+08:00
 
 note: >
-  TASK-166 was merged and deployed successfully. TASK-167 reproduced an accepted
-  staging APK crash on Android 15 arm64: the artifact contained libflutter.so
-  only for x86_64. The bounded correction now builds arm, arm64 and x64 together
-  and rejects any APK missing a required Flutter runtime. Focused regressions,
-  regenerated artifact checks, replacement install and physical cold launch
-  passed. Personal provider login was intentionally not attempted on the
-  borrowed device. Lease 3 gates signer-check/install before package or signer
-  acceptance, rejects duplicate/empty/unreadable runtimes, verifies each runtime
-  payload CRC32 and removes invalid candidates. Focused 4/4 and complete launcher
-  61/61 passed; independent Flutter/release-artifact rereview accepted lease 3.
-  Hosted CI, PR/merge and final borrowed-device cleanup remain.
+  TASK-167 passed hosted CI, merged through PR #216 as
+  10d7cee44b6bd6ff2edb456518a129ebb3692443, and completed exact borrowed-device
+  package cleanup. TASK-168 is now active. Event and non-linked-Game Activity
+  replies use the existing three-state contract; linked Game Activities reuse
+  the existing five-state Game attendance source and are excluded from apply-all.
+  This repository round has no schema, notification, provider, cloud, production
+  data or deployment authority.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-167.md
-report: docs/coordination/reports/TASK-167-CODEX.md
-review: docs/coordination/reviews/TASK-167-WORK.md
+task: docs/coordination/tasks/TASK-168.md
+report: docs/coordination/reports/TASK-168-CODEX.md
+review: docs/coordination/reviews/TASK-168-WORK.md
