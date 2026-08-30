@@ -3,14 +3,14 @@ status: in_progress
 next_actor: codex-writer
 
 claim_id: task-168-event-attendance-writer-20260830
-lease_version: 1
+lease_version: 2
 actor_id: /root/task168_event_attendance_writer
 
 base_commit: 10d7cee44b6bd6ff2edb456518a129ebb3692443
-head_commit: 10d7cee44b6bd6ff2edb456518a129ebb3692443
+head_commit: b9d247fc770d7f23d86bd8ba0db8aea2f64366ae
 
 updated_by: main-work
-updated_at: 2026-08-30T22:18:03+08:00
+updated_at: 2026-08-30T22:28:00+08:00
 
 note: >
   TASK-167 passed hosted CI, merged through PR #216 as
@@ -18,6 +18,8 @@ note: >
   package cleanup. TASK-168 is now active. Event and non-linked-Game Activity
   replies use the existing three-state contract; linked Game Activities reuse
   the existing five-state Game attendance source and are excluded from apply-all.
+  Lease 2 includes the existing lifecycle, Mobile application-service and Flutter
+  transport/model files required to preserve those canonical boundaries.
   This repository round has no schema, notification, provider, cloud, production
   data or deployment authority.
 

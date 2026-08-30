@@ -14,15 +14,17 @@
 - actor_id: `/root/task168_event_attendance_writer`
 - role: `codex-writer`
 - claim_id: `task-168-event-attendance-writer-20260830`
-- lease_version: 1
+- lease_version: 2
 - scope: repository-only Event／Activity attendance persistence、Mobile API、Web Portal、Flutter與直接測試
 - owned_paths:
   - `shared_lib/shared_module/portal_data/repository.py`
+  - `shared_lib/shared_module/portal_data/identity_lifecycle.py`
   - `shared_lib/shared_module/event_read.py`
+  - `shared_lib/shared_module/mobile_api.py`
   - direct shared／portal-data attendance tests
-  - `apps/mobile_api/app.py`, `apps/mobile_api/openapi.json` and direct tests
+  - `apps/mobile_api/app.py`, `apps/mobile_api/bootstrap.py`, `apps/mobile_api/openapi.json` and direct tests
   - `apps/web_portal/app.py`, Event templates/styles/scripts and direct tests
-  - `clients/flutter_app/lib/basic_app.dart`, `clients/flutter_app/test/basic_app_test.dart`
+  - `clients/flutter_app/lib/basic_app.dart`, `clients/flutter_app/lib/integration.dart` and direct tests
   - `docs/coordination/reports/TASK-168-CODEX.md`
 - write: exact branch and owned paths only；writer可commit／push handoff，Main負責acceptance、PR、CI與merge
 - stop_conditions: schema／migration need、既有Game attendance必須被重寫或雙寫、idempotency無法沿用durable boundary、通知／provider／Secret／cloud／production need、或unexpected dirty overlap
@@ -58,3 +60,7 @@
 ## Owner-approved product decision
 
 - 2026-08-30：Event／一般 Activity 保留三態；linked Game 保留既有五態。套用全部排除 linked Game，兩種回覆可在同一 Event 畫面完成，但不得互相覆寫或重複儲存。
+
+## Claim revisions
+
+- Lease 2：初始唯讀盤點確認 canonical Event persistence、Mobile service/idempotency 與 Flutter transport/model 分別位於 `identity_lifecycle.py`、`mobile_api.py` 與 `integration.dart`；將這些既有 service-boundary 檔案及 direct tests 納入 owned paths，避免 route／widget 直接繞過 application service。產品範圍、schema與外部操作邊界不變。
