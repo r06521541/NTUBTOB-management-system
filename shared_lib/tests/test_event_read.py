@@ -39,6 +39,16 @@ class EventReadContractTest(unittest.TestCase):
                 "status": "published",
                 "start_at": datetime(2026, 9, 1, tzinfo=timezone.utc),
                 "end_at": None,
+                "attendance": {
+                    "own_reply": "maybe",
+                    "counts": {
+                        "attending": 1,
+                        "not_attending": 0,
+                        "maybe": 1,
+                        "unanswered": 2,
+                    },
+                    "activities": {91: None},
+                },
                 "invitees": "private sentinel",
                 "activities": (
                     {
@@ -57,12 +67,67 @@ class EventReadContractTest(unittest.TestCase):
 
         self.assertEqual(
             set(projected),
-            {"id", "title", "type", "status", "start_at", "end_at", "activities"},
+            {
+                "id",
+                "title",
+                "type",
+                "status",
+                "start_at",
+                "end_at",
+                "attendance",
+                "activities",
+            },
         )
         self.assertEqual(projected["id"], "event_9")
         self.assertEqual(projected["activities"][0]["id"], "activity_91")
         self.assertEqual(projected["activities"][0]["linked_game_id"], "game_23")
+        self.assertIsNone(projected["activities"][0]["attendance"])
+        self.assertEqual(projected["attendance"]["own_reply"], "maybe")
         self.assertNotIn("private sentinel", repr(projected))
+
+    def test_linked_game_cannot_duplicate_activity_attendance(self):
+        with self.assertRaises(EventReadContractError):
+            project_public_event(
+                {
+                    "id": 1,
+                    "title": "Trip",
+                    "type": "trip",
+                    "status": "published",
+                    "start_at": datetime(2026, 9, 1, tzinfo=timezone.utc),
+                    "end_at": None,
+                    "attendance": {
+                        "own_reply": None,
+                        "counts": {
+                            "attending": 0,
+                            "not_attending": 0,
+                            "maybe": 0,
+                            "unanswered": 1,
+                        },
+                        "activities": {
+                            2: {
+                                "own_reply": "attending",
+                                "counts": {
+                                    "attending": 1,
+                                    "not_attending": 0,
+                                    "maybe": 0,
+                                    "unanswered": 0,
+                                },
+                            }
+                        },
+                    },
+                    "activities": (
+                        {
+                            "id": 2,
+                            "title": "Game",
+                            "type": "game",
+                            "position": 1,
+                            "start_at": datetime(2026, 9, 1, tzinfo=timezone.utc),
+                            "end_at": None,
+                            "linked_game_id": 44,
+                        },
+                    ),
+                }
+            )
 
     def test_malformed_stored_shapes_fail_as_contract_errors(self):
         for value in (

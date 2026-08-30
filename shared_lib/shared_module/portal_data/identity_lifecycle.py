@@ -2630,6 +2630,7 @@ class IdentityLifecycleRepository:
             activities_by_event: dict[int, list[dict]] = {
                 event_id: [] for event_id in event_ids
             }
+            activities = ()
             if event_ids:
                 activities = session.scalars(
                     select(ActivityRecord)
@@ -2656,6 +2657,22 @@ class IdentityLifecycleRepository:
                             ),
                         }
                     )
+            from .repository import PostgresTeamPortalRepository
+
+            published_events = tuple(
+                event for event in events if event.status == "published"
+            )
+            attendance_by_event = (
+                PostgresTeamPortalRepository._event_attendance_batch_in_session(
+                    session,
+                    person_id,
+                    published_events,
+                    activities,
+                    now,
+                )
+                if published_events
+                else {}
+            )
             return tuple(
                 {
                     "id": event.id,
@@ -2664,6 +2681,11 @@ class IdentityLifecycleRepository:
                     "status": event.status,
                     "start_at": event.start_at,
                     "end_at": event.end_at,
+                    "attendance": (
+                        attendance_by_event[event.id]
+                        if event.status == "published"
+                        else None
+                    ),
                     "activities": tuple(activities_by_event[event.id]),
                 }
                 for event in events
@@ -2679,6 +2701,43 @@ class IdentityLifecycleRepository:
                 if event["id"] == event_id
             ),
             None,
+        )
+
+    def event_attendance(
+        self, person_id: int, event_id: int, at: datetime | None = None
+    ) -> dict:
+        from .repository import PostgresTeamPortalRepository
+
+        return PostgresTeamPortalRepository(self.engine).event_attendance(
+            person_id, event_id, at
+        )
+
+    def reply_to_event_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        reply: str,
+        apply_all: bool,
+        at: datetime | None = None,
+    ) -> dict:
+        from .repository import PostgresTeamPortalRepository
+
+        return PostgresTeamPortalRepository(self.engine).reply_to_event_attendance(
+            person_id, event_id, reply, apply_all, at
+        )
+
+    def reply_to_activity_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        activity_id: int,
+        reply: str,
+        at: datetime | None = None,
+    ) -> dict:
+        from .repository import PostgresTeamPortalRepository
+
+        return PostgresTeamPortalRepository(self.engine).reply_to_activity_attendance(
+            person_id, event_id, activity_id, reply, at
         )
 
     def own_attendance_reply(self, person_id: int, game_id: int) -> int | None:

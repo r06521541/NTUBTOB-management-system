@@ -39,6 +39,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> reveal(WidgetTester tester, Finder finder) async {
+    if (finder.evaluate().isEmpty) {
+      await tester.scrollUntilVisible(
+        finder,
+        400,
+        scrollable: find.byType(Scrollable).last,
+      );
+    } else {
+      await tester.ensureVisible(finder);
+    }
+    await tester.pumpAndSettle();
+  }
+
   test('fake composition selects production demo and real stays bootstrap', () {
     final fake = entrypoint.composeRoot(config(ClientMode.fake));
     final real = entrypoint.composeRoot(config(ClientMode.real));
@@ -84,6 +97,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('demo-connectivity-offline')));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('offline-read-only')), findsOneWidget);
+      await reveal(tester, find.byKey(const ValueKey('game-game_901')));
       expect(
         tester
             .widget<ListTile>(find.byKey(const ValueKey('game-game_901')))
@@ -112,6 +126,7 @@ void main() {
     await pumpDemo(tester, probe: probe);
     final initialAttendanceReads = probe.attendanceReads;
 
+    await reveal(tester, find.byKey(const ValueKey('game-game_901')));
     await tester.tap(find.byKey(const ValueKey('game-game_901')));
     await tester.pumpAndSettle();
 
@@ -129,6 +144,111 @@ void main() {
     expect(probe.attendanceReads, initialAttendanceReads + 2);
     expect(probe.unexpectedTransportCalls, 0);
   });
+
+  testWidgets(
+    'production demo Event keeps three-state Activities and linked Game single-source',
+    (tester) async {
+      final probe = ProductionDemoProbe();
+      await pumpDemo(tester, probe: probe);
+
+      await tester.ensureVisible(find.byKey(const ValueKey('events-entry')));
+      await tester.tap(find.byKey(const ValueKey('events-entry')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('event-event_901')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('event-event_901')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('activity-activity_901-reply-attending')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('activity-activity_903-reply-attending')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(
+          const ValueKey('activity-activity_903-game-reply-arriving_late'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('event-reply-attending-apply-all')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('確認回覆'));
+      await tester.pumpAndSettle();
+      expect(find.text('出席回覆已儲存。'), findsOneWidget);
+      expect(find.text('目前：參加'), findsOneWidget);
+      expect(probe.eventReplyMutations, 1);
+      expect(probe.activityReplyMutations, 0);
+      expect(probe.replyMutations, 0);
+      expect(probe.lastApplyToActivities, isTrue);
+      expect(probe.lastEventReply, EventAttendanceReply.attending);
+      expect(
+        probe.appliedOrdinaryActivityIds,
+        {'activity_901', 'activity_902'},
+      );
+
+      await tester.tap(
+        find.byKey(const ValueKey('activity-activity_901-reply-maybe')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('確認回覆'));
+      await tester.pumpAndSettle();
+      expect(probe.activityReplyMutations, 1);
+      expect(probe.lastActivityReply, EventAttendanceReply.maybe);
+
+      await tester.tap(
+        find.byKey(
+          const ValueKey('activity-activity_903-game-reply-attending'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('確認回覆'));
+      await tester.pumpAndSettle();
+      expect(probe.replyMutations, 1);
+      expect(probe.eventReplyMutations, 1);
+      expect(probe.unexpectedTransportCalls, 0);
+    },
+  );
+
+  for (final fixture in [
+    (
+      value: ProductionDemoEventMutationFixture.failure,
+      expected: '回覆未儲存，請稍後重試。',
+    ),
+    (
+      value: ProductionDemoEventMutationFixture.uncertain,
+      expected: '結果尚未確認，請重新整理後再判斷，請勿改送另一個選項。',
+    ),
+  ]) {
+    testWidgets(
+      'production Event ${fixture.value.name} remains fictional and fail closed',
+      (tester) async {
+        final probe = ProductionDemoProbe();
+        probe.eventMutationFixture = fixture.value;
+        await pumpDemo(tester, probe: probe);
+        await tester.ensureVisible(find.byKey(const ValueKey('events-entry')));
+        await tester.tap(find.byKey(const ValueKey('events-entry')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('event-event_901')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('event-reply-maybe')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('確認回覆'));
+        await tester.pumpAndSettle();
+
+        expect(find.text(fixture.expected), findsOneWidget);
+        expect(find.text('出席回覆已儲存。'), findsNothing);
+        expect(probe.eventReplyMutations, 1);
+        expect(probe.unexpectedTransportCalls, 0);
+      },
+    );
+  }
 
   testWidgets('production demo composes bounded member action scenarios',
       (tester) async {
@@ -161,6 +281,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('demo-data-empty')));
     await tester.pumpAndSettle();
+    await reveal(tester, find.byKey(const ValueKey('action-home-empty')));
     expect(find.byKey(const ValueKey('action-home-empty')), findsOneWidget);
     expect(probe.unexpectedTransportCalls, 0);
   });

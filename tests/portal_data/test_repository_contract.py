@@ -4,6 +4,7 @@ import os
 import threading
 import unittest
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 from sqlalchemy import create_engine, text
 
@@ -259,6 +260,110 @@ class RepositoryContractMixin:
         )
         with self.assertRaises(AuthorizationError):
             self.repository.reply_to_event(event_id, late_player.id, "attending")
+
+    def test_event_attendance_is_atomic_and_excludes_linked_game_activity(self):
+        start = datetime.now(timezone.utc) + timedelta(days=2)
+        officer = self.repository.create_person("虛構活動幹部", access_level="officer")
+        player = self.repository.create_person(
+            "虛構活動球員", qualifications=("team_player",)
+        )
+        event_id = self.repository.create_event(
+            officer.id, "虛構複合活動", "trip", start, ("team_player",)
+        )
+        ordinary_id = self.repository.add_activity(
+            officer.id, event_id, "集合", "gathering", start, None
+        )
+        linked_id = self.repository.add_activity(
+            officer.id,
+            event_id,
+            "友誼賽",
+            "game",
+            start + timedelta(hours=1),
+            None,
+        )
+        if hasattr(self.repository, "activities"):
+            self.repository.activities[linked_id]["game_id"] = 44
+        else:
+            with self.repository.engine.begin() as connection:
+                connection.execute(text("INSERT INTO ntubtob.games (id) VALUES (44)"))
+                connection.execute(
+                    text(
+                        "UPDATE ntubtob.activities SET game_id=44 WHERE id=:activity_id"
+                    ),
+                    {"activity_id": linked_id},
+                )
+        self.repository.publish_event(
+            officer.id, event_id, "publish-attendance-contract"
+        )
+
+        changed = self.repository.reply_to_event_attendance(
+            player.id, event_id, "attending", True, start - timedelta(days=1)
+        )
+        state = self.repository.event_attendance(
+            player.id, event_id, start - timedelta(days=1)
+        )
+        self.assertTrue(changed["changed"])
+        self.assertEqual(state["own_reply"], "attending")
+        self.assertEqual(state["activities"][ordinary_id]["own_reply"], "attending")
+        self.assertIsNone(state["activities"][linked_id])
+
+        with self.assertRaises(ConflictError):
+            self.repository.reply_to_activity_attendance(
+                player.id,
+                event_id,
+                linked_id,
+                "maybe",
+                start - timedelta(days=1),
+            )
+        state = self.repository.event_attendance(
+            player.id, event_id, start - timedelta(days=1)
+        )
+        self.assertIsNone(state["activities"][linked_id])
+
+    def test_event_attendance_rechecks_active_and_open_state(self):
+        now = datetime.now(timezone.utc)
+        admin = self.repository.create_person("虛構出席管理員", access_level="admin")
+        player = self.repository.create_person(
+            "虛構待停用球員", qualifications=("team_player",)
+        )
+        event_id = self.repository.create_event(
+            admin.id,
+            "虛構狀態活動",
+            "practice",
+            now + timedelta(days=2),
+            ("team_player",),
+        )
+        self.repository.publish_event(admin.id, event_id, "publish-status-event")
+        self.repository.change_status(
+            admin.id,
+            player.id,
+            "disabled",
+            "停用虛構出席者",
+            "disable-attendance-player",
+        )
+        with self.assertRaises(AuthorizationError):
+            self.repository.reply_to_event_attendance(
+                player.id, event_id, "attending", False, now
+            )
+
+        active = self.repository.create_person(
+            "虛構取消活動球員", qualifications=("team_player",)
+        )
+        cancelled_id = self.repository.create_event(
+            admin.id,
+            "虛構取消活動",
+            "practice",
+            now + timedelta(days=3),
+            ("team_player",),
+        )
+        self.repository.publish_event(
+            admin.id, cancelled_id, "publish-cancelled-attendance"
+        )
+        self.repository.cancel_event(admin.id, cancelled_id, "cancel-attendance-event")
+        with self.assertRaises(ConflictError):
+            self.repository.reply_to_event_attendance(
+                active.id, cancelled_id, "attending", False, now
+            )
 
     def test_manual_include_and_exclude_are_snapshotted(self):
         officer = self.repository.create_person("虛構幹部", access_level="officer")
@@ -736,6 +841,72 @@ class InMemoryRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
         self.assertEqual(
             repository.managed_event(officer.id, event_id)["status"], "draft"
         )
+
+
+class EventAttendanceBatchContractTests(unittest.TestCase):
+    def test_batch_projection_uses_fixed_queries_and_keeps_linked_game_empty(self):
+        now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        events = (
+            SimpleNamespace(
+                id=1,
+                status="published",
+                start_at=now + timedelta(days=1),
+                end_at=now + timedelta(days=2),
+            ),
+            SimpleNamespace(
+                id=2,
+                status="published",
+                start_at=now + timedelta(days=3),
+                end_at=None,
+            ),
+        )
+        activities = (
+            SimpleNamespace(id=101, event_id=1, game_id=None),
+            SimpleNamespace(id=102, event_id=1, game_id=44),
+            SimpleNamespace(id=201, event_id=2, game_id=None),
+        )
+
+        class FixedBatchSession:
+            def __init__(self):
+                self.query_count = 0
+                self.scalar_batches = iter(
+                    (
+                        (
+                            SimpleNamespace(
+                                event_id=1, person_id=10, reply="attending"
+                            ),
+                            SimpleNamespace(event_id=1, person_id=11, reply="maybe"),
+                        ),
+                        (
+                            SimpleNamespace(
+                                activity_id=101, person_id=10, reply="maybe"
+                            ),
+                        ),
+                    )
+                )
+
+            def execute(self, _statement):
+                self.query_count += 1
+                return ((1, 10), (1, 11), (2, 10))
+
+            def scalars(self, _statement):
+                self.query_count += 1
+                return next(self.scalar_batches)
+
+        session = FixedBatchSession()
+        attendance = PostgresTeamPortalRepository._event_attendance_batch_in_session(
+            session, 10, events, activities, now
+        )
+
+        self.assertEqual(session.query_count, 3)
+        self.assertEqual(attendance[1]["own_reply"], "attending")
+        self.assertEqual(
+            attendance[1]["counts"],
+            {"attending": 1, "maybe": 1, "not_attending": 0, "unanswered": 0},
+        )
+        self.assertEqual(attendance[1]["activities"][101]["own_reply"], "maybe")
+        self.assertIsNone(attendance[1]["activities"][102])
+        self.assertEqual(attendance[2]["counts"]["unanswered"], 1)
 
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")

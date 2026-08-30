@@ -3292,6 +3292,31 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     @staticmethod
     def _event_fixture(*, status="published"):
+        attendance = (
+            {
+                "own_reply": "maybe",
+                "counts": {
+                    "attending": 1,
+                    "not_attending": 0,
+                    "maybe": 1,
+                    "unanswered": 2,
+                },
+                "activities": {
+                    70: {
+                        "own_reply": None,
+                        "counts": {
+                            "attending": 0,
+                            "not_attending": 0,
+                            "maybe": 0,
+                            "unanswered": 4,
+                        },
+                    },
+                    71: None,
+                },
+            }
+            if status == "published"
+            else None
+        )
         return {
             "id": 7,
             "title": "校友盃台中行",
@@ -3299,6 +3324,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "status": status,
             "start_at": datetime(2026, 9, 12, 1, 30, tzinfo=timezone.utc),
             "end_at": datetime(2026, 9, 13, 8, 0, tzinfo=timezone.utc),
+            "attendance": attendance,
             "activities": (
                 {
                     "id": 70,
@@ -3399,7 +3425,51 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.assertLess(page.index("集合出發"), page.index("校友盃第一戰"))
         self.assertIn('href="/games/23"', page)
         self.assertIn("09:30", page)
+        self.assertIn('action="/events/event_7/attendance"', page)
+        self.assertIn(
+            'action="/events/event_7/activities/activity_70/attendance"', page
+        )
+        self.assertIn('name="return_event" value="event_7"', page)
+        self.assertIn("linked Game", page)
         repository.scoped_event.assert_called_once_with(80, 7)
+
+    def test_event_attendance_posts_require_csrf_and_use_prg(self):
+        self._login_for_events()
+        repository, _ = self._event_repository()
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "event-reply-csrf"
+        with patch.dict(
+            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            missing = self.client.post(
+                "/events/event_7/attendance", data={"reply": "attending"}
+            )
+            event = self.client.post(
+                "/events/event_7/attendance",
+                data={
+                    "csrf_token": "event-reply-csrf",
+                    "reply": "maybe",
+                    "apply_all": "true",
+                },
+            )
+            activity = self.client.post(
+                "/events/event_7/activities/activity_70/attendance",
+                data={
+                    "csrf_token": "event-reply-csrf",
+                    "reply": "not_attending",
+                },
+            )
+
+        self.assertEqual(missing.status_code, 400)
+        self.assertEqual(event.status_code, 302)
+        self.assertEqual(event.headers["Location"], "/events/event_7")
+        self.assertEqual(activity.status_code, 302)
+        repository.reply_to_event_attendance.assert_called_once_with(
+            80, 7, "maybe", True
+        )
+        repository.reply_to_activity_attendance.assert_called_once_with(
+            80, 7, 70, "not_attending"
+        )
 
     def test_event_detail_rejects_noncanonical_or_unscoped_keys(self):
         self._login_for_events()
@@ -3910,6 +3980,35 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.notifier.notify_management_message.assert_called_once_with(
             f"緊急！Demo Member臨時回覆{game.generate_short_summary_for_team()}這場：\n會出席"
         )
+
+    def test_linked_game_reply_validates_event_scope_and_returns_with_prg(self):
+        game = self.portal_game()
+        game.start_datetime = datetime.now(timezone.utc) + timedelta(hours=6)
+        self.game_model.search_by_id.return_value = game
+        repository = MagicMock()
+        repository.scoped_event.return_value = self._event_fixture()
+        self.login()
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70, member_matching_csrf_token="reply-csrf"
+            )
+
+        with patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ):
+            response = self.client.post(
+                "/games/23/attendance",
+                data={
+                    "reply": "3",
+                    "csrf_token": "reply-csrf",
+                    "return_event": "event_7",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], "/events/event_7")
+        repository.scoped_event.assert_called_once_with(70, 7)
+        repository.reply_to_game.assert_called_once_with(70, 23, 3)
 
     def test_unchanged_game_reply_does_not_notify(self):
         game = self.portal_game()
