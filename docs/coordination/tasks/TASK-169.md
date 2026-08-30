@@ -43,6 +43,7 @@
 - owned_paths:
   - `clients/flutter_app/ios/**`
   - `clients/flutter_app/lib/support_app_info.dart`
+  - `clients/flutter_app/test/basic_app_test.dart`
   - `clients/flutter_app/test/support_app_info_test.dart`
   - `docs/releases/**`
   - `docs/README.md`
@@ -70,4 +71,3 @@ Both writers may edit only their owned paths, must self-review／self-test, and 
 - Need for real signing key/password, Play Console/App Store Connect login, developer-account purchase, raw provider/client data, Secret payload, cloud/production/runtime/deployment, store upload/publish or personal-device data.
 - Cross-writer path overlap, unresolved package/bundle identity conflict, or inability to make release validation fail closed without introducing real configuration.
 - A stopped lane records a bounded gap and returns to Main; it does not authorize a workaround or block safe independent work in the other lane.
-

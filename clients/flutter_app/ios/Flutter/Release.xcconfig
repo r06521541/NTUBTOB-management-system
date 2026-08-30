@@ -1,2 +1,4 @@
 #include "Generated.xcconfig"
 #include? "AuthConfig.xcconfig"
+#include? "StoreReleaseConfig.xcconfig"
+#include "StoreReleaseContract.xcconfig"

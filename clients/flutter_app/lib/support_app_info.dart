@@ -43,8 +43,10 @@ class SupportAppInfoPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             const _InfoSection(
-              title: '帳號協助',
-              body: '如需更正帳號資料或申請刪除帳號，請透過既有球隊聯絡管道向管理員提出申請；管理員會協助確認後續處理方式。',
+              key: ValueKey('account-deletion-request'),
+              title: '帳號與刪除申請',
+              body:
+                  '如需更正資料或刪除帳號，請透過既有球隊聯絡管道向管理員提出「帳號刪除申請」，並說明想處理的帳號。管理員會先確認申請人與處理範圍；請不要傳送密碼、登入權杖或其他機密資料。登出 App 不會刪除帳號或伺服器資料。',
             ),
             const _InfoSection(
               title: '資料使用與隱私',
@@ -75,7 +77,7 @@ class SupportAppInfoPage extends StatelessWidget {
 }
 
 class _InfoSection extends StatelessWidget {
-  const _InfoSection({required this.title, required this.body});
+  const _InfoSection({super.key, required this.title, required this.body});
 
   final String title;
   final String body;

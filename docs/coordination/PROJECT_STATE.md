@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `cabdbcd039c9d526adb21fd8b11e145cd48f2574`
+Repository 基準：`main` / `d59663781c5602e1699f812d5a953cec12e0eeb4`
 
 ## Active role lanes
 
@@ -25,7 +25,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-169 已啟動：近期目標為 Android Basic-only Google Play Closed Testing readiness，並建立iOS TestFlight／Sign in with Apple repository contract與store compliance matrix。本輪只做repository artifacts、tests與CI，不操作store、signing Secret、provider、cloud、production或deployment。
+- TASK-169 已完成 writer 實作並進入獨立 Release／Security review：近期目標為 Android Basic-only Google Play Closed Testing readiness，並建立iOS TestFlight／Sign in with Apple repository contract與store compliance matrix。本輪只做repository artifacts、tests與CI，不操作store、signing Secret、provider、cloud、production或deployment。
 - TASK-168 已由 PR #217 合併為 `cabdbcd039c9d526adb21fd8b11e145cd48f2574`：Event／一般 Activity 採既有三態出席；linked Game 在同一 Event 畫面沿用既有五態 Game attendance，套用全部明確排除 linked Game，且兩者不得互相覆寫或重複儲存。獨立 Data／Authorization review及全部selected hosted gates通過；未執行 schema、通知或部署。
 - TASK-167 已由PR #216合併為`10d7cee44b6bd6ff2edb456518a129ebb3692443`：staging APK同時包含arm／arm64／x64 Flutter runtime，build與install acceptance會驗證唯一、非空、可完整讀取且CRC32一致；Android 15 arm64實機替換安裝與冷啟動通過，之後已移除exact package。Hosted全部selected gates通過，借用裝置未登入個人provider帳號。
 - TASK-166 已由PR #215合併為`0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961`並部署至production `web-portal-00054-rtp`：桌面登入先切至固定callback origin，以短效簽章且防同瀏覽器重播的initiation落地session，再前往LINE；state／nonce／TTL／safe-return及LINE in-app行為維持不變。Production pre-provider smoke通過且未接觸LINE provider；未操作Secret或正式資料。

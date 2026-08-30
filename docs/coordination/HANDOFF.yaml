@@ -1,6 +1,6 @@
 active_task: TASK-169
 status: in_progress
-next_actor: parallel-codex-writers
+next_actor: release-security-reviewer
 
 claim_id: main-work-20260825
 lease_version: 17
@@ -13,14 +13,14 @@ updated_by: main-work
 updated_at: 2026-08-31T01:39:00+08:00
 
 note: >
-  TASK-169 is active as one repository-only mobile store readiness delivery.
-  Two bounded writers have disjoint Android release and iOS/store-compliance
-  packages under the task document; Main retains integration and acceptance.
+  TASK-169 writers completed the repository-only mobile store readiness
+  delivery and Main integration checks passed. One independent Release/Security
+  reviewer must accept the immutable integration commit before the ready PR.
   The target is Android Basic-only Closed Testing readiness plus an iOS
   TestFlight/Sign in with Apple contract. No store, signing Secret, provider,
   cloud, production or deployment action is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-169.md
-report: pending
+report: docs/coordination/reports/TASK-169-ANDROID.md; docs/coordination/reports/TASK-169-IOS-COMPLIANCE.md
 review: pending

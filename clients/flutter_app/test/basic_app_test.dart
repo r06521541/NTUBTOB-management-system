@@ -1222,7 +1222,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('支援與 App 資訊'), findsOneWidget);
-    expect(find.text('未提供'), findsNWidgets(2));
+    final versionRow = find.byKey(const ValueKey('app-version-metadata'));
+    final buildRow = find.byKey(const ValueKey('app-build-metadata'));
+    await tester.scrollUntilVisible(buildRow, 200);
+    expect(versionRow, findsOneWidget);
+    expect(buildRow, findsOneWidget);
+    expect(
+      find.descendant(of: versionRow, matching: find.text('App 版本')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: versionRow, matching: find.text('未提供')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: buildRow, matching: find.text('Build')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: buildRow, matching: find.text('未提供')),
+      findsOneWidget,
+    );
     expect((api.session.api as QueueTransport).calls, isEmpty);
   });
 

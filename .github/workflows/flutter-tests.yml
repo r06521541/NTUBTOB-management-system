@@ -8,9 +8,9 @@ permissions:
 
 jobs:
   test:
-    name: Flutter 3.47.0 gate
+    name: Flutter 3.47.0 / Android API 36 gate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: clients/flutter_app
@@ -29,6 +29,9 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      - name: Install Android API 36
+        run: sdkmanager "platforms;android-36"
+
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed .
 
@@ -38,8 +41,89 @@ jobs:
       - name: Run all tests
         run: flutter test
 
+      - name: Run mobile release tooling tests
+        working-directory: ${{ github.workspace }}
+        run: python3 -m unittest tools.tests.test_mobile_release -v
+
       - name: Build fake Android debug APK
         run: >-
           flutter build apk --debug
           --dart-define=APP_FLAVOR=development
           --dart-define=CLIENT_MODE=fake
+
+      - name: Prove unsigned release fails closed
+        run: |
+          if flutter build appbundle --release \
+            --dart-define=APP_FLAVOR=production \
+            --dart-define=CLIENT_MODE=real \
+            --dart-define=RELEASE_SCOPE=basic \
+            --dart-define=API_BASE_URL=https://mobile-release.invalid \
+            --dart-define=LINE_CHANNEL_ID=12345 \
+            --dart-define=GOOGLE_CLIENT_ID=android-contract.apps.googleusercontent.com \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=server-contract.apps.googleusercontent.com; then
+            echo "unsigned Android release unexpectedly succeeded" >&2
+            exit 1
+          fi
+
+      - name: Create an external fictional contract-test signer
+        shell: bash
+        env:
+          CONTRACT_KEYSTORE: ${{ runner.temp }}/mobile-release-contract.jks
+          CONTRACT_ALIAS: mobile-release-contract
+        run: |
+          set -euo pipefail
+          CONTRACT_PASSWORD="$(openssl rand -hex 16)"
+          echo "::add-mask::$CONTRACT_PASSWORD"
+          keytool -genkeypair -noprompt \
+            -keystore "$CONTRACT_KEYSTORE" \
+            -storepass "$CONTRACT_PASSWORD" \
+            -keypass "$CONTRACT_PASSWORD" \
+            -alias "$CONTRACT_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=Fictional Contract Test,OU=CI Only,O=Invalid,C=ZZ"
+          fingerprint="$(keytool -list -v \
+            -keystore "$CONTRACT_KEYSTORE" \
+            -storepass "$CONTRACT_PASSWORD" \
+            -alias "$CONTRACT_ALIAS" \
+            | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' \
+            | tr -d ':' \
+            | tr '[:upper:]' '[:lower:]')"
+          if [[ ! "$fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "fictional signer fingerprint extraction failed" >&2
+            exit 1
+          fi
+          echo "CONTRACT_KEYSTORE=$CONTRACT_KEYSTORE" >> "$GITHUB_ENV"
+          echo "CONTRACT_PASSWORD=$CONTRACT_PASSWORD" >> "$GITHUB_ENV"
+          echo "CONTRACT_SIGNER_SHA256=$fingerprint" >> "$GITHUB_ENV"
+
+      - name: Build signed contract-test Android App Bundle
+        env:
+          MOBILE_RELEASE_CONTRACT_TEST: "true"
+          MOBILE_RELEASE_APPLICATION_ID: tw.org.ntubtob.portal.contracttest
+          MOBILE_RELEASE_VERSION_NAME: 0.1.0
+          MOBILE_RELEASE_VERSION_CODE: "1"
+          MOBILE_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/mobile-release-contract.jks
+          MOBILE_RELEASE_KEY_ALIAS: mobile-release-contract
+        run: |
+          set -euo pipefail
+          MOBILE_RELEASE_STORE_PASSWORD="$CONTRACT_PASSWORD" \
+          MOBILE_RELEASE_KEY_PASSWORD="$CONTRACT_PASSWORD" \
+            flutter build appbundle --release \
+              --dart-define=APP_FLAVOR=production \
+              --dart-define=CLIENT_MODE=real \
+              --dart-define=RELEASE_SCOPE=basic \
+              --dart-define=API_BASE_URL=https://mobile-release.invalid \
+              --dart-define=LINE_CHANNEL_ID=12345 \
+              --dart-define=GOOGLE_CLIENT_ID=android-contract.apps.googleusercontent.com \
+              --dart-define=GOOGLE_SERVER_CLIENT_ID=server-contract.apps.googleusercontent.com
+
+      - name: Inspect signed contract-test Android App Bundle
+        working-directory: ${{ github.workspace }}
+        run: >-
+          python3 -m tools.mobile_release inspect-aab
+          --artifact clients/flutter_app/build/app/outputs/bundle/release/app-release.aab
+          --mode contract-test
+          --expected-package tw.org.ntubtob.portal.contracttest
+          --expected-version-name 0.1.0
+          --expected-version-code 1
+          --expected-signer-sha256 "$CONTRACT_SIGNER_SHA256"
