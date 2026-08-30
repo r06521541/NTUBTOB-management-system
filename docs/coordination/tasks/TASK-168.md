@@ -14,7 +14,7 @@
 - actor_id: `/root/task168_event_attendance_writer`
 - role: `codex-writer`
 - claim_id: `task-168-event-attendance-writer-20260830`
-- lease_version: 2
+- lease_version: 3
 - scope: repository-only Event／Activity attendance persistence、Mobile API、Web Portal、Flutter與直接測試
 - owned_paths:
   - `shared_lib/shared_module/portal_data/repository.py`
@@ -24,7 +24,7 @@
   - direct shared／portal-data attendance tests
   - `apps/mobile_api/app.py`, `apps/mobile_api/bootstrap.py`, `apps/mobile_api/openapi.json` and direct tests
   - `apps/web_portal/app.py`, Event templates/styles/scripts and direct tests
-  - `clients/flutter_app/lib/basic_app.dart`, `clients/flutter_app/lib/integration.dart` and direct tests
+  - `clients/flutter_app/lib/basic_app.dart`, `clients/flutter_app/lib/integration.dart`, `clients/flutter_app/lib/production_demo.dart` and direct tests including `clients/flutter_app/test/production_demo_test.dart`
   - `docs/coordination/reports/TASK-168-CODEX.md`
 - write: exact branch and owned paths only；writer可commit／push handoff，Main負責acceptance、PR、CI與merge
 - stop_conditions: schema／migration need、既有Game attendance必須被重寫或雙寫、idempotency無法沿用durable boundary、通知／provider／Secret／cloud／production need、或unexpected dirty overlap
@@ -64,3 +64,4 @@
 ## Claim revisions
 
 - Lease 2：初始唯讀盤點確認 canonical Event persistence、Mobile service/idempotency 與 Flutter transport/model 分別位於 `identity_lifecycle.py`、`mobile_api.py` 與 `integration.dart`；將這些既有 service-boundary 檔案及 direct tests 納入 owned paths，避免 route／widget 直接繞過 application service。產品範圍、schema與外部操作邊界不變。
+- Lease 3：獨立 Data／Authorization review 指出 production-shaped Flutter fake 尚未提供 TASK-168 Event capability、deterministic fixtures與stateful success/failure scenarios；將 `production_demo.dart`、其直接測試及必要相鄰 fake-mode test納入 correction scope。只補 reviewer 唯一 finding，不擴張 production/runtime/schema邊界。
