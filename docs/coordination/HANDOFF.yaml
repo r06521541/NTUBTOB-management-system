@@ -1,5 +1,5 @@
 active_task: TASK-167
-status: lease_3_complete_pending_independent_rereview
+status: accepted_pending_hosted_ci
 next_actor: main-work
 
 claim_id: main-work-20260825
@@ -10,7 +10,7 @@ base_commit: 0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961
 head_commit: 577ecef1cadb0653c613f57d45616674281673f9
 
 updated_by: main-work
-updated_at: 2026-08-30T21:24:26+08:00
+updated_at: 2026-08-30T21:46:45+08:00
 
 note: >
   TASK-166 was merged and deployed successfully. TASK-167 reproduced an accepted
@@ -22,9 +22,10 @@ note: >
   borrowed device. Lease 3 gates signer-check/install before package or signer
   acceptance, rejects duplicate/empty/unreadable runtimes, verifies each runtime
   payload CRC32 and removes invalid candidates. Focused 4/4 and complete launcher
-  61/61 passed; independent rereview and hosted CI remain.
+  61/61 passed; independent Flutter/release-artifact rereview accepted lease 3.
+  Hosted CI, PR/merge and final borrowed-device cleanup remain.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-167.md
 report: docs/coordination/reports/TASK-167-CODEX.md
-review: pending
+review: docs/coordination/reviews/TASK-167-WORK.md

@@ -19,7 +19,7 @@
 
 - No personal LINE／Google account was entered on the borrowed device. Provider login, identity linking, notifications and production behavior were not revalidated by this physical-device check.
 - No provider, Secret, IAM, database, production runtime or cloud resource was modified. One read-only staging service-origin lookup supplied the existing controlled build input.
-- Independent Flutter/release-artifact review, hosted CI, PR/merge and final borrowed-device cleanup remain pending.
+- Independent Flutter/release-artifact lease-3 rereview accepted. Hosted CI, PR/merge and final borrowed-device cleanup remain pending.
 
 ## Independent review lease 2
 
@@ -29,4 +29,4 @@
 ## Independent review lease 3
 
 - Lease-2 rereview found that .NET could read a corrupted `ZIP_STORED` payload to its declared length without validating CRC. The gate now computes CRC32 while streaming each runtime and compares it with the archive entry metadata.
-- A valid three-runtime stored ZIP with one arm64 payload byte flipped and its old CRC retained is rejected before package, signer or ADB install; the invalid candidate is removed. Focused 4/4 and the complete launcher suite 61/61 passed; rereview remains pending.
+- A valid three-runtime stored ZIP with one arm64 payload byte flipped and its old CRC retained is rejected before package, signer or ADB install; the invalid candidate is removed. Focused 4/4 and the complete launcher suite 61/61 passed; final rereview verdict is `ACCEPT`.

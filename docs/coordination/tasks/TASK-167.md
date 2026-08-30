@@ -53,3 +53,9 @@ The previously accepted staging APK installed on one Owner-authorized borrowed A
 - Corrected staging artifact: package and allowlisted signer exact; checksum matches manifest; all three required runtime libraries present.
 - Replacement install passed; process remained alive after five seconds and the bounded app-only diagnostic found zero fatal crash entries.
 - LINE／Google login was intentionally not attempted because it would require placing a personal provider account on a borrowed device. Prior emulator staging provider evidence is not reclassified as physical-device evidence.
+
+## Acceptance status
+
+- Independent review requested two bounded corrections: signer-check/install now cannot bypass the ABI gate, and runtime integrity now verifies CRC32 rather than trusting ZIP names or declared length.
+- Final independent Flutter/release-artifact verdict: `ACCEPT`; focused 4/4, complete launcher 61/61 and `git diff --check` passed.
+- Hosted CI, single PR/merge and final borrowed-device cleanup remain pending.

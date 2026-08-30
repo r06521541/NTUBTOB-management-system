@@ -25,7 +25,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-167 已重現並修正 staging APK 的實機 ABI 缺口：舊 artifact 只有 x86_64 `libflutter.so`，會在 Android 15 arm64 啟動即終止。受控 build 現同時產生arm／arm64／x64 runtime並在接受前逐一驗證；新 artifact checksum／package／signer及三ABI gate通過，實機替換安裝與冷啟動亦通過。借用裝置未登入個人LINE／Google，provider smoke不冒充實機證據；repository變更仍待獨立review／hosted CI／PR。
+- TASK-167 已重現並修正 staging APK 的實機 ABI 缺口：舊 artifact 只有 x86_64 `libflutter.so`，會在 Android 15 arm64 啟動即終止。受控 build 現同時產生arm／arm64／x64 runtime，並在build與install acceptance前驗證唯一、非空、可完整讀取且CRC32一致；新 artifact checksum／package／signer及三ABI gate通過，實機替換安裝與冷啟動亦通過。借用裝置未登入個人LINE／Google，provider smoke不冒充實機證據；獨立Flutter/release-artifact review已接受，hosted CI／PR仍待完成。
 - TASK-166 已由PR #215合併為`0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961`並部署至production `web-portal-00054-rtp`：桌面登入先切至固定callback origin，以短效簽章且防同瀏覽器重播的initiation落地session，再前往LINE；state／nonce／TTL／safe-return及LINE in-app行為維持不變。Production pre-provider smoke通過且未接觸LINE provider；未操作Secret或正式資料。
 - TASK-165 已由PR #213合併為`9c7b82b3857a20c6e53f99d108264a04726aac2f`並部署至production `web-portal-00053-wzw`：Event管理routes、hub、全域導覽及PostgreSQL repository統一依runtime allowlist與`MANAGE_EVENTS`授權，persisted role fallback只限local fictional preview。Hosted PostgreSQL 15／16、Web及final gate全綠；Ready／100% traffic、runtime identity、四個Secret references、admin allowlist、flags、public IAM與HTTP post-check均通過，未需rollback。未建立Event、寫入database、修改Secret／IAM／provider或發通知。
 - TASK-164 recovery 已由PR #212合併為`6b0aa7e556d25cb906bf12f4ea0c7eed57705f13`；受控operator將production schema由`0004_phase_c_identity_lifecycle`依序升至`0009_event_management_writes`，application DML count為0，並部署`web-portal-00052-xcg`。該revision現為TASK-165的healthy rollback基準；未建立Event、發通知或修改Secret／IAM／provider。
@@ -115,8 +115,9 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 - TASK-087 PR #98 已通過 hosted PostgreSQL 15／16、各服務 suites、deployment tooling 與 final gate，並 squash
   merge 為 `ab1efa1579c688e71720b471ea1b3b5226447adc`。
-- 一般 Git 操作具有 Owner standing authorization；production deployment、production DB mutation、Secret／IAM／
-  Scheduler／cloud resource 變更與真實通知仍需個別明確批准。
+- 一般 Git 操作具有 Owner standing authorization。Owner另於2026-08-30明確授權各branch push至exact origin
+  `https://github.com/r06521541/NTUBTOB-management-system.git`，直到task開始前另行限制或撤回；此授權不包含
+  PR merge、production deployment、production DB mutation、Secret／IAM／Scheduler／cloud resource變更或真實通知。
 
 ## 尚未驗證與已知限制
 
