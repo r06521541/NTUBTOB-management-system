@@ -22,7 +22,10 @@
 - Hosted Flutter CI retains the fake debug build, proves an unconfigured
   release fails, creates only an ephemeral visibly fictional signer outside
   the repository, builds the isolated `.contracttest` AAB with reserved values,
-  and inspects it without upload or artifact retention.
+  and inspects it without upload or artifact retention. API 36 setup discovers
+  only executable command-line tools inside the canonical `ANDROID_SDK_ROOT`,
+  `ANDROID_HOME`, or standard hosted-runner SDK root, installs exactly the API
+  36 platform, and fails if the tool or installed package cannot be verified.
 
 ## Verification
 
@@ -35,6 +38,9 @@
   cases passed; the Git Bash process used by the aggregate-script test exited
   with Windows `0xC0000142` before evaluating the script, so that one local
   environment-dependent case is not claimed as passed.
+- Hosted run `33329539898`: every other selected job passed, but the Flutter
+  job stopped at the pre-correction bare `sdkmanager` command with exit 127.
+  This correction has repository tests only and has not been rerun hosted.
 - `git diff --check`: passed (line-ending conversion warnings only).
 - `python -m black --check ...`: not run because Black is not installed in the
   active Windows Python.
@@ -43,8 +49,8 @@
 
 - This host has no Flutter/Dart or Android SDK command available, so the new
   Kotlin DSL and signed contract-test AAB build/inspection require the pinned
-  hosted Flutter gate. A passing tool fixture does not substitute for that
-  build evidence.
+  hosted Flutter gate. The corrected SDK discovery/install path also requires
+  that rerun; passing repository tests do not substitute for hosted evidence.
 - A future Closed Testing candidate still requires Owner-approved real HTTPS
   configuration, existing package/version decision, external signing material,
   signer fingerprint, Play Console access, real-device verification, and store

@@ -30,7 +30,76 @@ jobs:
         run: flutter pub get
 
       - name: Install Android API 36
-        run: sdkmanager "platforms;android-36"
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_roots=()
+          add_sdk_root() {
+            local candidate_root="$1"
+            if [[ -z "$candidate_root" || "$candidate_root" != /* || ! -d "$candidate_root" ]]; then
+              return
+            fi
+            local resolved_root
+            resolved_root="$(realpath -e "$candidate_root")"
+            local existing_root
+            for existing_root in "${sdk_roots[@]}"; do
+              if [[ "$existing_root" == "$resolved_root" ]]; then
+                return
+              fi
+            done
+            sdk_roots+=("$resolved_root")
+          }
+          for candidate_root in \
+            "${ANDROID_SDK_ROOT:-}" \
+            "${ANDROID_HOME:-}" \
+            "/usr/local/lib/android/sdk"; do
+            add_sdk_root "$candidate_root"
+          done
+
+          sdkmanager_path=""
+          sdk_root=""
+          for approved_root in "${sdk_roots[@]}"; do
+            candidates=("$approved_root/cmdline-tools/latest/bin/sdkmanager")
+            if [[ -d "$approved_root/cmdline-tools" ]]; then
+              while IFS= read -r -d '' candidate; do
+                candidates+=("$candidate")
+              done < <(
+                find "$approved_root/cmdline-tools" \
+                  -mindepth 3 -maxdepth 3 -type f -name sdkmanager -print0 \
+                  | sort -z -V -r
+              )
+            fi
+            candidates+=("$approved_root/tools/bin/sdkmanager")
+            for candidate in "${candidates[@]}"; do
+              if [[ ! -x "$candidate" ]]; then
+                continue
+              fi
+              candidate_real="$(realpath -e "$candidate")"
+              case "$candidate_real" in
+                "$approved_root"/*) ;;
+                *) continue ;;
+              esac
+              sdkmanager_path="$candidate_real"
+              sdk_root="$approved_root"
+              break 2
+            done
+          done
+          if [[ -z "$sdkmanager_path" || -z "$sdk_root" ]]; then
+            echo "Android sdkmanager was not found in approved SDK roots" >&2
+            exit 1
+          fi
+
+          echo "Android SDK root: $sdk_root"
+          echo "Android sdkmanager: $sdkmanager_path"
+          "$sdkmanager_path" --sdk_root="$sdk_root" --version
+          "$sdkmanager_path" --sdk_root="$sdk_root" "platforms;android-36"
+          if [[ \
+            ! -f "$sdk_root/platforms/android-36/package.xml" && \
+            ! -f "$sdk_root/platforms/android-36/source.properties" \
+          ]]; then
+            echo "Android API 36 installation was not materialized" >&2
+            exit 1
+          fi
 
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed .

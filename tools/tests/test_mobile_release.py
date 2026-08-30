@@ -343,7 +343,19 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         source = (ROOT / ".github/workflows/flutter-tests.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn('"platforms;android-36"', source)
+        for fragment in (
+            '"${ANDROID_SDK_ROOT:-}"',
+            '"${ANDROID_HOME:-}"',
+            '"/usr/local/lib/android/sdk"',
+            'realpath -e "$candidate"',
+            '"$sdkmanager_path" --sdk_root="$sdk_root" "platforms;android-36"',
+            "Android sdkmanager was not found in approved SDK roots",
+            "Android API 36 installation was not materialized",
+        ):
+            self.assertIn(fragment, source)
+        self.assertNotIn('run: sdkmanager "platforms;android-36"', source)
+        self.assertNotIn("curl ", source)
+        self.assertNotIn("wget ", source)
         self.assertIn("MOBILE_RELEASE_CONTRACT_TEST: \"true\"", source)
         self.assertIn("flutter build appbundle --release", source)
         self.assertIn("python3 -m tools.mobile_release inspect-aab", source)
