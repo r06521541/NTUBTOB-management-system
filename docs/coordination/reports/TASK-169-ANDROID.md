@@ -7,9 +7,10 @@
 - `release` Gradle tasks fail before compilation unless the approved package,
   pubspec version name/code, production/real/Basic-only Dart defines, HTTPS
   origin, distinct provider client IDs, and all external signing fields are
-  present and consistent. The exact six Flutter 3.47.0-owned version metadata
-  defines are accepted and validated separately; missing or additional defines
-  still fail closed. Candidate mode rejects local/reserved endpoints,
+  present and consistent. The two Flutter 3.47.0-owned build identity defines
+  and exact six version metadata defines are accepted and validated separately;
+  missing or additional defines still fail closed. Candidate mode rejects
+  local/reserved endpoints,
   debug-shaped provider/signing identities, in-repository keystores, and the
   isolated contract-test identity.
 - `pubspec.yaml` now carries the explicit initial build number
@@ -41,13 +42,13 @@
   cases passed; the Git Bash process used by the aggregate-script test exited
   with Windows `0xC0000142` before evaluating the script, so that one local
   environment-dependent case is not claimed as passed.
-- Hosted run `33329839160` at immutable SHA
-  `6c745f226d5f198a5c4553cf499ddb1230bb9be2`: API 36 installation and every
+- Hosted run `33330448997` at immutable SHA
+  `02b1265e2384dc8b4d9dae1555a0344b93d19c7e`: API 36 installation and every
   earlier selected check passed, then the signed contract-test AAB stopped at
-  `android/app/build.gradle.kts` line 99 because Flutter 3.47.0 appends six
-  reserved version metadata defines to the seven workflow-provided defines.
-  This exact-key correction has repository tests only and has not been rerun
-  hosted.
+  `android/app/build.gradle.kts` line 107. Flutter 3.47.0 also appends
+  `FLUTTER_BUILD_NAME` and `FLUTTER_BUILD_NUMBER`, derived from `pubspec.yaml`,
+  before its six version metadata defines. This exact 15-key correction has
+  repository tests only and has not been rerun hosted.
 - `git diff --check`: passed (line-ending conversion warnings only).
 - `python -m black --check ...`: not run because Black is not installed in the
   active Windows Python.

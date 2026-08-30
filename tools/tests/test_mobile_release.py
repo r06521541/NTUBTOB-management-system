@@ -340,6 +340,8 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         for key in (
+            "FLUTTER_BUILD_NAME",
+            "FLUTTER_BUILD_NUMBER",
             "FLUTTER_VERSION",
             "FLUTTER_CHANNEL",
             "FLUTTER_GIT_URL",
@@ -349,8 +351,14 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         ):
             self.assertIn(f'"{key}"', source)
         self.assertIn(
-            "defines.keys != requiredReleaseDefines + flutterMetadataDefines",
+            "defines.keys != requiredReleaseDefines + flutterBuildDefines + flutterMetadataDefines",
             source,
+        )
+        self.assertIn(
+            'requiredDefine("FLUTTER_BUILD_NAME") != expectedVersionName', source
+        )
+        self.assertIn(
+            'requiredDefine("FLUTTER_BUILD_NUMBER") != expectedVersionCode', source
         )
         self.assertIn('defines["FLUTTER_VERSION"] != "3.47.0"', source)
         self.assertIn('defines["FLUTTER_CHANNEL"] != "stable"', source)
@@ -360,6 +368,8 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         )
         self.assertIn('Regex("^[0-9a-f]{10}$")', source)
         self.assertIn('requiredDefine("FLUTTER_DART_VERSION")', source)
+        self.assertNotIn('"FLUTTER_APP_FLAVOR"', source)
+        self.assertNotIn('"FLUTTER_ENABLED_FEATURE_FLAGS"', source)
 
     def test_pubspec_has_explicit_android_version_code(self):
         source = (ROOT / "clients/flutter_app/pubspec.yaml").read_text(encoding="utf-8")

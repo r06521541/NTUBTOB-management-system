@@ -95,6 +95,10 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         "GOOGLE_CLIENT_ID",
         "GOOGLE_SERVER_CLIENT_ID",
     )
+    val flutterBuildDefines = setOf(
+        "FLUTTER_BUILD_NAME",
+        "FLUTTER_BUILD_NUMBER",
+    )
     val flutterMetadataDefines = setOf(
         "FLUTTER_VERSION",
         "FLUTTER_CHANNEL",
@@ -103,7 +107,7 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         "FLUTTER_ENGINE_REVISION",
         "FLUTTER_DART_VERSION",
     )
-    if (defines.keys != requiredReleaseDefines + flutterMetadataDefines) {
+    if (defines.keys != requiredReleaseDefines + flutterBuildDefines + flutterMetadataDefines) {
         throw GradleException("Android release dart-defines are missing or unexpected")
     }
     fun requiredDefine(name: String): String {
@@ -113,6 +117,12 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
             throw GradleException("$name is empty or padded")
         }
         return value
+    }
+    if (
+        requiredDefine("FLUTTER_BUILD_NAME") != expectedVersionName ||
+        requiredDefine("FLUTTER_BUILD_NUMBER") != expectedVersionCode
+    ) {
+        throw GradleException("Android release Flutter build version differs from pubspec.yaml")
     }
     val revisionPattern = Regex("^[0-9a-f]{10}$")
     val dartVersionPattern = Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
