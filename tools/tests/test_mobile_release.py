@@ -335,6 +335,32 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             self.assertIn(fragment, source)
         self.assertNotIn("signingConfigs.getByName(\"debug\")", source)
 
+    def test_android_release_accepts_only_pinned_flutter_metadata_defines(self):
+        source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
+            encoding="utf-8"
+        )
+        for key in (
+            "FLUTTER_VERSION",
+            "FLUTTER_CHANNEL",
+            "FLUTTER_GIT_URL",
+            "FLUTTER_FRAMEWORK_REVISION",
+            "FLUTTER_ENGINE_REVISION",
+            "FLUTTER_DART_VERSION",
+        ):
+            self.assertIn(f'"{key}"', source)
+        self.assertIn(
+            "defines.keys != requiredReleaseDefines + flutterMetadataDefines",
+            source,
+        )
+        self.assertIn('defines["FLUTTER_VERSION"] != "3.47.0"', source)
+        self.assertIn('defines["FLUTTER_CHANNEL"] != "stable"', source)
+        self.assertIn(
+            'defines["FLUTTER_GIT_URL"] != "https://github.com/flutter/flutter.git"',
+            source,
+        )
+        self.assertIn('Regex("^[0-9a-f]{10}$")', source)
+        self.assertIn('requiredDefine("FLUTTER_DART_VERSION")', source)
+
     def test_pubspec_has_explicit_android_version_code(self):
         source = (ROOT / "clients/flutter_app/pubspec.yaml").read_text(encoding="utf-8")
         self.assertRegex(source, r"(?m)^version: [0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$")

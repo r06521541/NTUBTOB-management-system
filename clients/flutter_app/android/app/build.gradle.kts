@@ -86,7 +86,7 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
     }
 
     val defines = decodeDartDefines(providers.gradleProperty("dart-defines").orNull)
-    val expectedDefines = setOf(
+    val requiredReleaseDefines = setOf(
         "APP_FLAVOR",
         "CLIENT_MODE",
         "RELEASE_SCOPE",
@@ -95,7 +95,15 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         "GOOGLE_CLIENT_ID",
         "GOOGLE_SERVER_CLIENT_ID",
     )
-    if (defines.keys != expectedDefines) {
+    val flutterMetadataDefines = setOf(
+        "FLUTTER_VERSION",
+        "FLUTTER_CHANNEL",
+        "FLUTTER_GIT_URL",
+        "FLUTTER_FRAMEWORK_REVISION",
+        "FLUTTER_ENGINE_REVISION",
+        "FLUTTER_DART_VERSION",
+    )
+    if (defines.keys != requiredReleaseDefines + flutterMetadataDefines) {
         throw GradleException("Android release dart-defines are missing or unexpected")
     }
     fun requiredDefine(name: String): String {
@@ -105,6 +113,18 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
             throw GradleException("$name is empty or padded")
         }
         return value
+    }
+    val revisionPattern = Regex("^[0-9a-f]{10}$")
+    val dartVersionPattern = Regex("^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
+    if (
+        defines["FLUTTER_VERSION"] != "3.47.0" ||
+        defines["FLUTTER_CHANNEL"] != "stable" ||
+        defines["FLUTTER_GIT_URL"] != "https://github.com/flutter/flutter.git" ||
+        !revisionPattern.matches(requiredDefine("FLUTTER_FRAMEWORK_REVISION")) ||
+        !revisionPattern.matches(requiredDefine("FLUTTER_ENGINE_REVISION")) ||
+        !dartVersionPattern.matches(requiredDefine("FLUTTER_DART_VERSION"))
+    ) {
+        throw GradleException("Android release Flutter metadata is missing, unexpected, or unpinned")
     }
     if (requiredDefine("APP_FLAVOR") != "production") {
         throw GradleException("Android release APP_FLAVOR must be production")

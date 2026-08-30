@@ -7,7 +7,9 @@
 - `release` Gradle tasks fail before compilation unless the approved package,
   pubspec version name/code, production/real/Basic-only Dart defines, HTTPS
   origin, distinct provider client IDs, and all external signing fields are
-  present and consistent. Candidate mode rejects local/reserved endpoints,
+  present and consistent. The exact six Flutter 3.47.0-owned version metadata
+  defines are accepted and validated separately; missing or additional defines
+  still fail closed. Candidate mode rejects local/reserved endpoints,
   debug-shaped provider/signing identities, in-repository keystores, and the
   isolated contract-test identity.
 - `pubspec.yaml` now carries the explicit initial build number
@@ -29,28 +31,33 @@
 
 ## Verification
 
-- `python -m unittest tools.tests.test_mobile_release -v`: 12/12 passed,
+- `python -m unittest tools.tests.test_mobile_release -v`: 13/13 passed,
   including a real temporary JDK keytool/jarsigner round trip and rejection of
-  an unsigned `classes2.dex` appended after signing.
+  an unsigned `classes2.dex` appended after signing, plus the pinned Flutter
+  metadata define contract.
 - `python -m py_compile tools/mobile_release.py tools/tests/test_mobile_release.py`:
   passed.
 - `python -m unittest tools.tests.test_ci_workflow_contract -v`: 10 contract
   cases passed; the Git Bash process used by the aggregate-script test exited
   with Windows `0xC0000142` before evaluating the script, so that one local
   environment-dependent case is not claimed as passed.
-- Hosted run `33329539898`: every other selected job passed, but the Flutter
-  job stopped at the pre-correction bare `sdkmanager` command with exit 127.
-  This correction has repository tests only and has not been rerun hosted.
+- Hosted run `33329839160` at immutable SHA
+  `6c745f226d5f198a5c4553cf499ddb1230bb9be2`: API 36 installation and every
+  earlier selected check passed, then the signed contract-test AAB stopped at
+  `android/app/build.gradle.kts` line 99 because Flutter 3.47.0 appends six
+  reserved version metadata defines to the seven workflow-provided defines.
+  This exact-key correction has repository tests only and has not been rerun
+  hosted.
 - `git diff --check`: passed (line-ending conversion warnings only).
 - `python -m black --check ...`: not run because Black is not installed in the
   active Windows Python.
 
 ## Remaining gates and risk
 
-- This host has no Flutter/Dart or Android SDK command available, so the new
-  Kotlin DSL and signed contract-test AAB build/inspection require the pinned
-  hosted Flutter gate. The corrected SDK discovery/install path also requires
-  that rerun; passing repository tests do not substitute for hosted evidence.
+- This host has no Flutter/Dart or Android SDK command available, so the
+  corrected Kotlin DSL and signed contract-test AAB build/inspection require
+  the pinned hosted Flutter gate; passing repository tests do not substitute
+  for hosted evidence.
 - A future Closed Testing candidate still requires Owner-approved real HTTPS
   configuration, existing package/version decision, external signing material,
   signer fingerprint, Play Console access, real-device verification, and store
