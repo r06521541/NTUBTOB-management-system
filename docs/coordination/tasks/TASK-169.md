@@ -79,7 +79,8 @@ Both writers may edit only their owned paths, must self-review／self-test, and 
 - Hosted run `33331387388` passed every selected gate, including Flutter
   format/analyze/tests, Android API 36, the signed fictional contract-test AAB,
   strict artifact inspection and PostgreSQL 15/16.
-- PR #219 is the unique delivery PR and was verified mergeable/conflict-free.
-  This task becomes completed when that accepted PR is merged; no store upload,
-  signing Secret, provider, cloud, production or deployment action is part of
-  the merge.
+- Delivery PR #219 merged conflict-free as
+  `053888692ec1a5d6b7e2893c1f90c1d8320544d5`; final hosted run `33331935470`
+  passed on its accepted head. TASK-169 is complete. No store upload, signing
+  Secret, provider, cloud, production or deployment action was part of the
+  merge.
