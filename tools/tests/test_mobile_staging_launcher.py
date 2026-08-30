@@ -99,22 +99,54 @@ class PowerShellContractTest(unittest.TestCase):
             root = Path(directory)
             complete = root / "complete.apk"
             incomplete = root / "incomplete.apk"
+            empty = root / "empty.apk"
+            corrupt = root / "corrupt.apk"
             with zipfile.ZipFile(complete, "w") as archive:
                 for abi in ("armeabi-v7a", "arm64-v8a", "x86_64"):
                     archive.writestr(f"lib/{abi}/libflutter.so", b"runtime")
             with zipfile.ZipFile(incomplete, "w") as archive:
                 archive.writestr("lib/x86_64/libflutter.so", b"runtime")
+            with zipfile.ZipFile(empty, "w") as archive:
+                for abi in ("armeabi-v7a", "arm64-v8a", "x86_64"):
+                    archive.writestr(f"lib/{abi}/libflutter.so", b"")
+            corrupt.write_bytes(b"not-a-zip")
 
             result = self.run_harness(
                 f"""
                 Assert-ApkRuntimeLibraries '{complete.as_posix()}'
                 Write-Output 'complete=PASS'
                 try {{ Assert-ApkRuntimeLibraries '{incomplete.as_posix()}'; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                try {{ Assert-ApkRuntimeLibraries '{empty.as_posix()}'; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                try {{ Assert-ApkRuntimeLibraries '{corrupt.as_posix()}'; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
                 """
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("complete=PASS", result.stdout)
             self.assertIn("Fresh APK runtime ABI coverage is incomplete", result.stdout)
+            self.assertIn("Fresh APK runtime ABI coverage is malformed", result.stdout)
+            self.assertIn("Fresh APK runtime ABI coverage is unavailable", result.stdout)
+
+    def test_signer_check_gates_runtime_abis_before_package_and_removes_candidate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "candidate.apk"
+            artifact.write_bytes(b"candidate")
+            result = self.run_harness(
+                f"""
+                $script:abiCalls=0
+                $script:packageCalls=0
+                function Assert-OnlyApprovedSerial {{ param($Config) }}
+                function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
+                function Assert-ApkRuntimeLibraries {{ param($Artifact) $script:abiCalls++; throw [InvalidOperationException]::new('Fresh APK runtime ABI coverage is incomplete') }}
+                function Get-ApkPackageIdentity {{ param($Config,$ApkPath) $script:packageCalls++; return 'tw.org.ntubtob.portal' }}
+                $config=[pscustomobject]@{{}}
+                try {{ Invoke-SignerCheck $config; exit 9 }} catch {{ Write-Output ($_.Exception.Message+',abiCalls='+$script:abiCalls+',packageCalls='+$script:packageCalls+',artifact='+(Test-Path -LiteralPath '{artifact.as_posix()}')) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(
+                "Fresh APK runtime ABI coverage is incomplete,abiCalls=1,packageCalls=0,artifact=False",
+                result.stdout,
+            )
 
     def test_build_removes_artifact_when_runtime_abi_coverage_is_incomplete(self):
         with tempfile.TemporaryDirectory() as directory:

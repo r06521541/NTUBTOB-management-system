@@ -956,11 +956,32 @@ function Assert-ApkRuntimeLibraries {
     $archive = $null
     try {
         $archive = [System.IO.Compression.ZipFile]::OpenRead($Artifact)
-        $entries = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
-        foreach ($entry in $archive.Entries) { [void]$entries.Add([string]$entry.FullName) }
         foreach ($abi in $script:RequiredApkRuntimeAbis) {
-            if (-not $entries.Contains("lib/$abi/libflutter.so")) {
+            $runtimePath = "lib/$abi/libflutter.so"
+            $runtimeEntries = @($archive.Entries | Where-Object { [string]$_.FullName -ceq $runtimePath })
+            if ($runtimeEntries.Count -ne 1) {
                 Throw-Safe 'Fresh APK runtime ABI coverage is incomplete'
+            }
+            $runtimeEntry = $runtimeEntries[0]
+            if ([long]$runtimeEntry.Length -lt 1 -or [long]$runtimeEntry.CompressedLength -lt 1) {
+                Throw-Safe 'Fresh APK runtime ABI coverage is malformed'
+            }
+            $runtimeStream = $null
+            try {
+                $runtimeStream = $runtimeEntry.Open()
+                $buffer = [byte[]]::new(81920)
+                [long]$bytesRead = 0
+                do {
+                    $count = $runtimeStream.Read($buffer, 0, $buffer.Length)
+                    $bytesRead += $count
+                } while ($count -gt 0)
+                if ($bytesRead -ne [long]$runtimeEntry.Length) {
+                    Throw-Safe 'Fresh APK runtime ABI coverage is malformed'
+                }
+            }
+            finally {
+                if ($null -ne $runtimeStream) { $runtimeStream.Dispose() }
+                $buffer = $null
             }
         }
     }
@@ -992,6 +1013,11 @@ function Invoke-SignerCheck {
     Assert-OnlyApprovedSerial $Config
     $artifact = Get-ArtifactPath $Config
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) { Throw-Safe 'Fresh APK artifact is unavailable' }
+    try { Assert-ApkRuntimeLibraries $artifact }
+    catch {
+        if (Test-Path -LiteralPath $artifact -PathType Leaf) { Remove-Item -LiteralPath $artifact -Force }
+        throw
+    }
     [void](Get-ApkPackageIdentity $Config $artifact)
     $approvedSigner = $null
     $installed = $null
