@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-28
+更新時間：2026-08-31
 
 維護角色：Main Work
 
-Repository 基準：`main` / `10d7cee44b6bd6ff2edb456518a129ebb3692443`
+Repository 基準：`main` / `cabdbcd039c9d526adb21fd8b11e145cd48f2574`
 
 ## Active role lanes
 
@@ -25,7 +25,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-168 已啟動：Event／一般 Activity 採既有三態出席；linked Game 在同一 Event 畫面沿用既有五態 Game attendance，套用全部明確排除 linked Game，且兩者不得互相覆寫或重複儲存。本輪限 repository delivery，不含 schema、通知或部署。
+- TASK-168 已由 PR #217 合併為 `cabdbcd039c9d526adb21fd8b11e145cd48f2574`：Event／一般 Activity 採既有三態出席；linked Game 在同一 Event 畫面沿用既有五態 Game attendance，套用全部明確排除 linked Game，且兩者不得互相覆寫或重複儲存。獨立 Data／Authorization review及全部selected hosted gates通過；未執行 schema、通知或部署。
 - TASK-167 已由PR #216合併為`10d7cee44b6bd6ff2edb456518a129ebb3692443`：staging APK同時包含arm／arm64／x64 Flutter runtime，build與install acceptance會驗證唯一、非空、可完整讀取且CRC32一致；Android 15 arm64實機替換安裝與冷啟動通過，之後已移除exact package。Hosted全部selected gates通過，借用裝置未登入個人provider帳號。
 - TASK-166 已由PR #215合併為`0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961`並部署至production `web-portal-00054-rtp`：桌面登入先切至固定callback origin，以短效簽章且防同瀏覽器重播的initiation落地session，再前往LINE；state／nonce／TTL／safe-return及LINE in-app行為維持不變。Production pre-provider smoke通過且未接觸LINE provider；未操作Secret或正式資料。
 - TASK-165 已由PR #213合併為`9c7b82b3857a20c6e53f99d108264a04726aac2f`並部署至production `web-portal-00053-wzw`：Event管理routes、hub、全域導覽及PostgreSQL repository統一依runtime allowlist與`MANAGE_EVENTS`授權，persisted role fallback只限local fictional preview。Hosted PostgreSQL 15／16、Web及final gate全綠；Ready／100% traffic、runtime identity、四個Secret references、admin allowlist、flags、public IAM與HTTP post-check均通過，未需rollback。未建立Event、寫入database、修改Secret／IAM／provider或發通知。
@@ -127,8 +127,8 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - 自然 Scheduler 執行與低流量環境的長期 observation 不足；不得以缺少 error log 推定所有通知情境都已覆蓋。
 - Identity maintenance 已在live Web Portal為true；TASK-160的新管理UX尚待本次production deployment與post-check。
 - People role 尚未取代 runtime admin allowlist；officer／admin 的正式持久化權限切換仍屬 Phase D 之後工作。
-- Event／Activity schema、principal-scoped read及create/edit/publish/cancel已成為production功能；TASK-168正在交付
-  Event／一般Activity三態出席與linked Game五態single-source整合。通知及guest-player管理規則仍未成為production功能。
+- Event／Activity schema、principal-scoped read及create/edit/publish/cancel已成為production功能；TASK-168已完成
+  Event／一般Activity三態出席與linked Game五態single-source repository整合，但尚未部署。通知及guest-player管理規則仍未成為production功能。
 - Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation，TASK-157亦已
   完成隔離staging deployment與單一fictional tester real-provider smoke。這不驗證或啟用production；primary provider
   publishing、production runtime binding／deployment、Android debug/staging client退役或遷移及production smoke仍需

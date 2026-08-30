@@ -28,11 +28,12 @@
 
 ## Remaining gates
 
-- No PostgreSQL runtime or hosted database matrix was run in this initial writer pass; the direct in-memory repository contract covers atomic apply-all exclusion and mutation-time active/open revalidation, while PostgreSQL integration remains a Main/hosted gate.
-- Independent review, hosted CI, PR/merge and deployment remain pending.
+- Independent Data／Authorization rereview accepted immutable implementation commit `d7d1fbc9755e1aa66d26b47ff46ea475368ae063` with no actionable findings.
+- PR #217 passed every selected hosted gate, including Flutter and PostgreSQL 15／16, and merged as `cabdbcd039c9d526adb21fd8b11e145cd48f2574`.
+- Deployment remains a separate Owner-gated delivery and was not performed by TASK-168.
 - No schema/migration, notification behavior for Event/ordinary Activity, provider, Secret, IAM, cloud resource, production database or production runtime was changed.
 
 ## Ready handoff
 
 - Main rereview accepted the fixed-query attendance batch, linked Game exclusion and transaction-time active/open revalidation; its targeted regression sample passed 3/3 and `git diff --check` was clean.
-- Writer self-review confirmed the complete diff is limited to TASK-168 lease-3 owned implementation, direct tests and this single report. The branch is ready for the shared-branch handoff commit and push; PR, hosted CI, PostgreSQL runtime and deployment remain Main/Owner gates.
+- Writer self-review confirmed the complete diff was limited to TASK-168 lease-3 owned implementation, direct tests and this single report. The writer claim is complete and repository coordination has returned to Main Work.
