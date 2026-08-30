@@ -335,6 +335,26 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             self.assertIn(fragment, source)
         self.assertNotIn("signingConfigs.getByName(\"debug\")", source)
 
+    def test_android_generated_contract_uses_variant_sources_api(self):
+        source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
+            encoding="utf-8"
+        )
+        for fragment in (
+            "abstract class GenerateMobileReleaseContract : DefaultTask()",
+            "@get:OutputDirectory",
+            "androidComponents",
+            'selector().withBuildType("release")',
+            "variant.sources.assets",
+            "addGeneratedSourceDirectory(",
+            "GenerateMobileReleaseContract::outputDirectory",
+        ):
+            self.assertIn(fragment, source)
+        self.assertNotIn(
+            'sourceSets.getByName("release").assets.srcDir', source
+        )
+        self.assertNotIn('it.name == "mergeReleaseAssets"', source)
+        self.assertNotIn("android.sourceset.disallowProvider", source)
+
     def test_android_release_accepts_only_pinned_flutter_metadata_defines(self):
         source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
             encoding="utf-8"

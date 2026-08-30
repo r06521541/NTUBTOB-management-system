@@ -2,6 +2,13 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -19,6 +26,21 @@ class MobileReleaseConfig(
     val apiOrigin: String,
     val contractTest: Boolean,
 )
+
+abstract class GenerateMobileReleaseContract : DefaultTask() {
+    @get:Input
+    abstract val contractContents: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val output = outputDirectory.file("mobile-release-contract.properties").get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(contractContents.get(), StandardCharsets.UTF_8)
+    }
+}
 
 fun requiredReleaseEnvironment(name: String, secret: Boolean = false): String {
     val value = System.getenv(name)
@@ -301,44 +323,42 @@ android {
             }
         }
     }
+}
 
-    mobileReleaseConfig?.let {
-        sourceSets.getByName("release").assets.srcDir(releaseContractDirectory)
+val generateMobileReleaseContract = mobileReleaseConfig?.let { config ->
+    val values = sortedMapOf(
+        "api_origin" to config.apiOrigin,
+        "app_flavor" to "production",
+        "application_id" to config.applicationId,
+        "client_mode" to "real",
+        "compile_sdk" to "36",
+        "contract_test" to config.contractTest.toString(),
+        "release_scope" to "basic",
+        "schema" to "1",
+        "target_sdk" to "36",
+        "version_code" to config.versionCode.toString(),
+        "version_name" to config.versionName,
+    )
+    tasks.register<GenerateMobileReleaseContract>("generateMobileReleaseContract") {
+        contractContents.set(
+            values.entries.joinToString(separator = "\n", postfix = "\n") {
+                "${it.key}=${it.value}"
+            },
+        )
+        outputDirectory.set(releaseContractDirectory)
     }
 }
 
-mobileReleaseConfig?.let { config ->
-    val generateMobileReleaseContract = tasks.register("generateMobileReleaseContract") {
-        val contractFile = releaseContractDirectory.map {
-            it.file("mobile-release-contract.properties")
-        }
-        outputs.file(contractFile)
-        doLast {
-            val output = contractFile.get().asFile
-            output.parentFile.mkdirs()
-            val values = sortedMapOf(
-                "api_origin" to config.apiOrigin,
-                "app_flavor" to "production",
-                "application_id" to config.applicationId,
-                "client_mode" to "real",
-                "compile_sdk" to "36",
-                "contract_test" to config.contractTest.toString(),
-                "release_scope" to "basic",
-                "schema" to "1",
-                "target_sdk" to "36",
-                "version_code" to config.versionCode.toString(),
-                "version_name" to config.versionName,
-            )
-            output.writeText(
-                values.entries.joinToString(separator = "\n", postfix = "\n") {
-                    "${it.key}=${it.value}"
-                },
-                StandardCharsets.UTF_8,
+androidComponents {
+    onVariants(selector().withBuildType("release")) { variant ->
+        generateMobileReleaseContract?.let { taskProvider ->
+            val releaseAssets = variant.sources.assets
+                ?: throw GradleException("Android release assets source API is unavailable")
+            releaseAssets.addGeneratedSourceDirectory(
+                taskProvider,
+                GenerateMobileReleaseContract::outputDirectory,
             )
         }
-    }
-    tasks.matching { it.name == "mergeReleaseAssets" }.configureEach {
-        dependsOn(generateMobileReleaseContract)
     }
 }
 

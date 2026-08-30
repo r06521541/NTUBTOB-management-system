@@ -22,6 +22,8 @@
   exact signer SHA-256, and strict JDK verification of every archive entry
   without accepting a signing password. The strict verifier trusts only a
   temporary copy of the already fingerprint-approved public certificate.
+  The generated asset is registered through the AGP 9.1 Variant Sources API,
+  which supplies the generator-to-asset merge task dependency automatically.
 - Hosted Flutter CI retains the fake debug build, proves an unconfigured
   release fails, creates only an ephemeral visibly fictional signer outside
   the repository, builds the isolated `.contracttest` AAB with reserved values,
@@ -32,23 +34,23 @@
 
 ## Verification
 
-- `python -m unittest tools.tests.test_mobile_release -v`: 13/13 passed,
+- `python -m unittest tools.tests.test_mobile_release -v`: 14/14 passed,
   including a real temporary JDK keytool/jarsigner round trip and rejection of
   an unsigned `classes2.dex` appended after signing, plus the pinned Flutter
-  metadata define contract.
+  metadata define and generated asset registration contracts.
 - `python -m py_compile tools/mobile_release.py tools/tests/test_mobile_release.py`:
   passed.
 - `python -m unittest tools.tests.test_ci_workflow_contract -v`: 10 contract
   cases passed; the Git Bash process used by the aggregate-script test exited
   with Windows `0xC0000142` before evaluating the script, so that one local
   environment-dependent case is not claimed as passed.
-- Hosted run `33330448997` at immutable SHA
-  `02b1265e2384dc8b4d9dae1555a0344b93d19c7e`: API 36 installation and every
-  earlier selected check passed, then the signed contract-test AAB stopped at
-  `android/app/build.gradle.kts` line 107. Flutter 3.47.0 also appends
-  `FLUTTER_BUILD_NAME` and `FLUTTER_BUILD_NUMBER`, derived from `pubspec.yaml`,
-  before its six version metadata defines. This exact 15-key correction has
-  repository tests only and has not been rerun hosted.
+- Hosted run `33330910917` at immutable SHA
+  `8fa7b43563f2cca3a895633da1f03deafff9ca2a`: API 36 installation, the exact
+  Dart define contract, and every earlier selected check passed. The signed
+  contract-test AAB then stopped at `android/app/build.gradle.kts` line 306
+  because AGP 9.1 rejects a Provider passed to the legacy Android SourceSet
+  API. The Variant Sources API correction has repository tests only and has
+  not been rerun hosted.
 - `git diff --check`: passed (line-ending conversion warnings only).
 - `python -m black --check ...`: not run because Black is not installed in the
   active Windows Python.
