@@ -19,6 +19,7 @@ $script:ExpectedRevision = '0008_mobile_notification_delivery'
 $script:ProductionProject = 'ntubtob-schedule-405614'
 $script:FullShaPattern = '^[0-9a-f]{40}$'
 $script:FingerprintPattern = '^[0-9A-F]{64}$'
+$script:RequiredApkRuntimeAbis = @('armeabi-v7a', 'arm64-v8a', 'x86_64')
 $script:TaskEvidenceRoot = 'E:\codex-evidence\task-123'
 $script:TaskTempRoot = 'E:\codex-temp\task-123'
 $script:RoutineActions = @('help', 'preflight', 'avd-start', 'status', 'cleanup-artifact', 'build', 'signer-check', 'install', 'cold-launch', 'health', 'stop', 'cleanup')
@@ -921,7 +922,10 @@ function Invoke-FlutterBuildProcess {
         $tempRoot = Assert-TaskPath ([string]$Config.temp_root) $script:TaskTempRoot -AllowRoot
         $appDataRoot = Assert-TaskPath (Join-Path $tempRoot 'flutter-appdata') $tempRoot
         [System.IO.Directory]::CreateDirectory($appDataRoot) | Out-Null
-        $buildArguments = @('--suppress-analytics', 'build', 'apk', '--debug', '--target-platform', 'android-x64') + $defineArguments
+        $buildArguments = @(
+            '--suppress-analytics', 'build', 'apk', '--debug',
+            '--target-platform', 'android-arm,android-arm64,android-x64'
+        ) + $defineArguments
         return Invoke-BoundedProcess ([string]$Config.flutter_executable) $buildArguments 600 @{
             APPDATA = $appDataRoot
             ANDROID_SDK_ROOT = [string]$Config.android_sdk_root
@@ -940,6 +944,46 @@ function Invoke-FlutterBuildProcess {
         $buildArguments = $null
         $tempRoot = $null
         $appDataRoot = $null
+    }
+}
+
+function Assert-ApkRuntimeLibraries {
+    param([string]$Artifact)
+    if (-not (Test-Path -LiteralPath $Artifact -PathType Leaf)) {
+        Throw-Safe 'Fresh APK artifact is unavailable'
+    }
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = $null
+    try {
+        $archive = [System.IO.Compression.ZipFile]::OpenRead($Artifact)
+        $entries = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+        foreach ($entry in $archive.Entries) { [void]$entries.Add([string]$entry.FullName) }
+        foreach ($abi in $script:RequiredApkRuntimeAbis) {
+            if (-not $entries.Contains("lib/$abi/libflutter.so")) {
+                Throw-Safe 'Fresh APK runtime ABI coverage is incomplete'
+            }
+        }
+    }
+    catch [System.InvalidOperationException] { throw }
+    catch { Throw-Safe 'Fresh APK runtime ABI coverage is unavailable' }
+    finally { if ($null -ne $archive) { $archive.Dispose() } }
+}
+
+function Get-BinarySha256 {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Throw-Safe 'Binary artifact is unavailable'
+    }
+    $stream = $null
+    $sha256 = $null
+    try {
+        $stream = [System.IO.File]::OpenRead($Path)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        return (($sha256.ComputeHash($stream) | ForEach-Object { $_.ToString('X2') }) -join '')
+    }
+    finally {
+        if ($null -ne $sha256) { $sha256.Dispose() }
+        if ($null -ne $stream) { $stream.Dispose() }
     }
 }
 
@@ -1008,10 +1052,11 @@ function Invoke-Build {
         if ($result.TimedOut -or $result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $buildOutput -PathType Leaf)) { Throw-Safe 'Flutter build failed safely' }
         Assert-DebugSignerStable $Config $approvedSigner
         Move-Item -LiteralPath $buildOutput -Destination $artifact
+        Assert-ApkRuntimeLibraries $artifact
         $package = Get-ApkPackageIdentity $Config $artifact
         $fingerprint = Get-ApkSignerFingerprint $Config $artifact
         if ($fingerprint -cne [string]$approvedSigner.Fingerprint) { Throw-Safe 'Fresh artifact signer is not allowlisted' }
-        $hash = (Get-FileHash -LiteralPath $artifact -Algorithm SHA256).Hash
+        $hash = Get-BinarySha256 $artifact
         $evidence = [ordered]@{
             accepted_commit = $ExpectedCommit
             mode = $SelectedMode

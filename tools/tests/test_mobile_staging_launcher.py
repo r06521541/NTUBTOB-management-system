@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -92,6 +93,69 @@ class PowerShellContractTest(unittest.TestCase):
             "logcat",
         ):
             self.assertNotIn(field, combined)
+
+    def test_apk_runtime_library_gate_requires_all_supported_abis(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            complete = root / "complete.apk"
+            incomplete = root / "incomplete.apk"
+            with zipfile.ZipFile(complete, "w") as archive:
+                for abi in ("armeabi-v7a", "arm64-v8a", "x86_64"):
+                    archive.writestr(f"lib/{abi}/libflutter.so", b"runtime")
+            with zipfile.ZipFile(incomplete, "w") as archive:
+                archive.writestr("lib/x86_64/libflutter.so", b"runtime")
+
+            result = self.run_harness(
+                f"""
+                Assert-ApkRuntimeLibraries '{complete.as_posix()}'
+                Write-Output 'complete=PASS'
+                try {{ Assert-ApkRuntimeLibraries '{incomplete.as_posix()}'; exit 9 }} catch {{ Write-Output $_.Exception.Message }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("complete=PASS", result.stdout)
+            self.assertIn("Fresh APK runtime ABI coverage is incomplete", result.stdout)
+
+    def test_build_removes_artifact_when_runtime_abi_coverage_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            snapshot = root / "snapshot"
+            app_root = snapshot / "clients" / "flutter_app"
+            build_output = (
+                app_root
+                / "build"
+                / "app"
+                / "outputs"
+                / "flutter-apk"
+                / "app-debug.apk"
+            )
+            artifact = root / "evidence" / "app-debug.apk"
+            incomplete = root / "incomplete.apk"
+            app_root.mkdir(parents=True)
+            with zipfile.ZipFile(incomplete, "w") as archive:
+                archive.writestr("lib/x86_64/libflutter.so", b"runtime")
+
+            result = self.run_harness(
+                f"""
+                function Assert-Snapshot {{ param($Config,$ExpectedCommit) }}
+                function Assert-TaskPath {{ param($Path,$ExactRoot,[switch]$AllowRoot) return $Path }}
+                function Get-ArtifactPath {{ param($Config) return '{artifact.as_posix()}' }}
+                function Get-AllowlistedDebugSigner {{ return [pscustomobject]@{{Fingerprint='{FINGERPRINT}';AndroidUserHome='E:/approved-home';Stream=$null}} }}
+                function Assert-DebugSignerStable {{ param($Config,$Signer) }}
+                function Invoke-FlutterBuildProcess {{
+                    [IO.Directory]::CreateDirectory('{build_output.parent.as_posix()}')|Out-Null
+                    Copy-Item -LiteralPath '{incomplete.as_posix()}' -Destination '{build_output.as_posix()}'
+                    return [pscustomobject]@{{TimedOut=$false;ExitCode=0;Stdout='';Stderr=''}}
+                }}
+                $config=[pscustomobject]@{{snapshot_root='{snapshot.as_posix()}';temp_root='{(root / 'temp').as_posix()}';evidence_root='{(root / 'evidence').as_posix()}'}}
+                try {{ Invoke-Build $config 'fake' '{FULL_SHA}'; exit 9 }} catch {{ Write-Output ($_.Exception.Message+',artifact='+(Test-Path -LiteralPath '{artifact.as_posix()}')) }}
+                """
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn(
+                "Fresh APK runtime ABI coverage is incomplete,artifact=False",
+                result.stdout,
+            )
 
     def test_parser_and_complete_action_matrix(self):
         parser = subprocess.run(
@@ -1332,6 +1396,8 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                         if ([string]$actual[$index] -cne [string]$expected[$index]) {{ throw 'Build define arguments are not exact' }}
                     }}
                     if (@($Arguments | Where-Object {{ $_ -like '--dart-define-from-file=*' }}).Count -ne 0) {{ throw 'Build transport is not direct' }}
+                    $targetIndex=[Array]::IndexOf([object[]]$Arguments,'--target-platform')
+                    if ($targetIndex -lt 0 -or [string]$Arguments[$targetIndex+1] -cne 'android-arm,android-arm64,android-x64') {{ throw 'Build target platforms are not exact' }}
                     if ([string]$ChildEnvironment.ANDROID_USER_HOME -cne '{android_user_home.as_posix()}') {{ throw 'Build child Android user home is not exact' }}
                     if (-not [string]::Equals([IO.Path]::GetFullPath([string]$ChildEnvironment.APPDATA),[IO.Path]::GetFullPath('{(temp_root / 'flutter-appdata').as_posix()}'),[StringComparison]::OrdinalIgnoreCase)) {{ throw 'Build child APPDATA is not exact' }}
                     if ($ChildEnvironment.ContainsKey('HOME') -or $ChildEnvironment.ContainsKey('USERPROFILE')) {{ throw 'Build child home variables were altered' }}
@@ -1341,6 +1407,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
                 }}
                 function Get-ApkSignerFingerprint {{ param($Config,$ApkPath) return '{FINGERPRINT}' }}
                 function Get-ApkPackageIdentity {{ param($Config,$ApkPath) return 'tw.org.ntubtob.portal' }}
+                function Assert-ApkRuntimeLibraries {{ param($Artifact) }}
                 $config=[pscustomobject]@{{
                     snapshot_root='{snapshot.as_posix()}';temp_root='{temp_root.as_posix()}';
                     evidence_root='{evidence.as_posix()}';flutter_executable='E:/mock/flutter.cmd';
