@@ -39,6 +39,25 @@ expect_status() {
   fi
 }
 
+expect_validator_source() {
+  expected="$1"
+  label="$2"
+  if ! grep -Fq "$expected" "$validator"; then
+    printf 'FAIL: %s (missing fixed validator source contract: %s)\n' \
+      "$label" "$expected" >&2
+    exit 1
+  fi
+}
+
+# Windows does not execute macOS tooling. These assertions lock the Darwin
+# branch to a fixed plist-aware binary and exact colon-path element checks.
+expect_validator_source '/usr/libexec/PlistBuddy' \
+  'Darwin uses the fixed macOS plist inspector'
+expect_validator_source 'Print :com.apple.developer.applesignin:0' \
+  'Darwin reads the first Apple entitlement array element'
+expect_validator_source 'Print :com.apple.developer.applesignin:1' \
+  'Darwin rejects a second Apple entitlement array element'
+
 fake_defines="$(encode_defines \
   APP_FLAVOR=development \
   CLIENT_MODE=fake \

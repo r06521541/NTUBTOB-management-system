@@ -193,15 +193,23 @@ apple_entitlement_value() {
   entitlements_file="$1"
   kernel_name="$(/usr/bin/uname -s 2>/dev/null || printf 'unknown')"
   if [ "$kernel_name" = Darwin ]; then
-    [ -x /usr/bin/plutil ] || \
+    [ -x /usr/libexec/PlistBuddy ] || \
       fail 'macOS plist validator is unavailable'
-    entitlement_type="$(/usr/bin/plutil \
-      -type com.apple.developer.applesignin \
+    entitlement_container="$(/usr/libexec/PlistBuddy \
+      -c 'Print :com.apple.developer.applesignin' \
       "$entitlements_file" 2>/dev/null)" || return 1
-    [ "$entitlement_type" = array ] || return 1
-    /usr/bin/plutil \
-      -extract com.apple.developer.applesignin raw -o - \
-      "$entitlements_file" 2>/dev/null
+    [ "$(printf '%s\n' "$entitlement_container" | sed -n '1p')" = 'Array {' ] || \
+      return 1
+    first_entitlement="$(/usr/libexec/PlistBuddy \
+      -c 'Print :com.apple.developer.applesignin:0' \
+      "$entitlements_file" 2>/dev/null)" || return 1
+    [ "$first_entitlement" = Default ] || return 1
+    if /usr/libexec/PlistBuddy \
+        -c 'Print :com.apple.developer.applesignin:1' \
+        "$entitlements_file" >/dev/null 2>&1; then
+      return 1
+    fi
+    printf 'Default\n'
     return
   fi
   portable_apple_entitlement_value "$entitlements_file"

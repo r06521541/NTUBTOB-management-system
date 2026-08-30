@@ -20,8 +20,9 @@
 3. `DART_DEFINES`改為完整掃描：拒絕malformed/non-canonical base64、binary/multiline、無`key=value`、
    release-critical duplicate/mixed keys；fake不得夾帶service config，real必須各有一組API/LINE/Google
    config，同時保留其他合法Flutter/system define。
-4. Apple entitlement不再用獨立grep：Darwin固定使用`/usr/bin/plutil`檢查key type與關聯值，
-   non-Darwin regression使用strict portable key→array parser；`Default`只在其他key時明確拒絕。
+4. Apple entitlement不再用獨立grep：Darwin固定使用`/usr/libexec/PlistBuddy`與exact colon path，
+   要求container為Array、element 0精確為`Default`且element 1不存在；non-Darwin regression使用strict
+   portable key→array parser，並靜態鎖定Darwin的fixed tool/commands，不假稱已執行macOS。
 5. private store config與Apple entitlement只提供空白／未綁定example；真實team、profile、identity、provider、
    certificate、password與Secret均未加入repository。
 6. 支援頁明示「帳號刪除申請」、安全申請內容與「登出不等於刪除」；沒有假稱已提供backend deletion或store-complete
@@ -36,7 +37,7 @@
   - PASS：21組fictional contract vectors，含fake/staging non-distribution Debug／Profile、Debug不得claim TestFlight、
     TestFlight success、missing/mixed/signing/bundle failures、目前production blocked、repository-ready但runtime
     missing blocked、private/CLI readiness override blocked、duplicate/mixed/malformed DART_DEFINES、unexpected service define、
-    Apple entitlement wrong-key association及future complete fictional vector。
+    Apple entitlement wrong-key association、Darwin fixed PlistBuddy command contract及future complete fictional vector。
 - `Invoke-FlutterToolchain.ps1 flutter test test/integration_test.dart test/support_app_info_test.dart`
   - PASS：61 tests；包含既有iOS Google/private scheme build-phase regression與support UX。
 - `Invoke-FlutterToolchain.ps1 flutter analyze lib/support_app_info.dart test/support_app_info_test.dart`
@@ -62,7 +63,7 @@ contract全通過。獨立reviewer後續證實first-match parser可忽略後續�
 
 - 本機是Windows，未執行macOS/Xcode archive、CocoaPods、codesign/profile inspection、TestFlight upload/install、
   iOS真機、App Store Connect、App Review或provider操作；不得將本report視為上述證據。
-- Darwin `/usr/bin/plutil`分支仍需未來macOS runner證據；當Apple delivery實作時還必須對最終signed archive
+- Darwin `/usr/libexec/PlistBuddy`分支仍需未來macOS runner證據；當Apple delivery實作時還必須對最終signed archive
   做entitlement inspection，source plist structural PASS不等於codesigned artifact PASS。
 - Sign in with Apple client/backend/linking/recovery尚未實作；actual entitlement未建立或綁定，Apple provider/App ID未設定。
 - Play Data Safety／Apple App Privacy表單、store metadata/URLs/screenshots、可由reviewer啟動的帳號刪除request lifecycle、

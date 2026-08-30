@@ -72,13 +72,18 @@ Only after that review may a production build supply
 validator is one precondition, not App Store, Xcode, signing, or runtime proof.
 
 For a production vector on macOS, entitlement validation uses the fixed
-`/usr/bin/plutil` path to require the Apple key to be an array whose extracted
-value is exactly `Default`; a `Default` string under another key is rejected.
+`/usr/libexec/PlistBuddy` path and exact colon paths. It requires the Apple key
+container to be an array, element 0 to equal `Default`, and element 1 to be
+absent; a `Default` string under another key or a second array value is rejected.
 The deterministic non-Darwin shell regression uses a strict portable
 key-to-array association parser, but that fallback is not macOS or codesign
 evidence. The future Apple delivery must additionally inspect the entitlement
 embedded in the signed archive; validating the source plist alone cannot prove
 what was codesigned.
+
+The non-Darwin test locks the fixed PlistBuddy path and both array-element
+commands as a source contract. It does not execute PlistBuddy or claim macOS
+evidence; the Darwin branch still requires a future macOS runner check.
 
 ## Local deterministic check
 
