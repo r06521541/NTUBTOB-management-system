@@ -8,8 +8,11 @@
 - base: `10d7cee44b6bd6ff2edb456518a129ebb3692443`
 - branch: `codex/task-168-event-attendance-vertical-slice`
 - report_to: `main-work`
+- status: `completed`
+- merged_pr: `#217`
+- merge_commit: `cabdbcd039c9d526adb21fd8b11e145cd48f2574`
 
-## Active writer claim
+## Completed writer claim
 
 - actor_id: `/root/task168_event_attendance_writer`
 - role: `codex-writer`
@@ -65,3 +68,9 @@
 
 - Lease 2：初始唯讀盤點確認 canonical Event persistence、Mobile service/idempotency 與 Flutter transport/model 分別位於 `identity_lifecycle.py`、`mobile_api.py` 與 `integration.dart`；將這些既有 service-boundary 檔案及 direct tests 納入 owned paths，避免 route／widget 直接繞過 application service。產品範圍、schema與外部操作邊界不變。
 - Lease 3：獨立 Data／Authorization review 指出 production-shaped Flutter fake 尚未提供 TASK-168 Event capability、deterministic fixtures與stateful success/failure scenarios；將 `production_demo.dart`、其直接測試及必要相鄰 fake-mode test納入 correction scope。只補 reviewer 唯一 finding，不擴張 production/runtime/schema邊界。
+
+## Completion
+
+- Implementation commit `d7d1fbc9755e1aa66d26b47ff46ea475368ae063` received independent Data／Authorization `ACCEPT` with no remaining actionable findings.
+- PR #217 passed every selected hosted gate, including Flutter and PostgreSQL 15／16, and merged as `cabdbcd039c9d526adb21fd8b11e145cd48f2574`.
+- Writer lease 3 is complete. Deployment, production data, schema, notification, provider, Secret and cloud operations remain outside this task.
