@@ -953,6 +953,30 @@ function Assert-ApkRuntimeLibraries {
         Throw-Safe 'Fresh APK artifact is unavailable'
     }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
+    if (-not ('Ntubtob.MobileStagingCrc32' -as [type])) {
+        Add-Type -TypeDefinition @'
+namespace Ntubtob {
+    public static class MobileStagingCrc32 {
+        public static uint Compute(System.IO.Stream stream, out long length) {
+            uint crc = 0xFFFFFFFFu;
+            length = 0;
+            byte[] buffer = new byte[81920];
+            int count;
+            while ((count = stream.Read(buffer, 0, buffer.Length)) > 0) {
+                length += count;
+                for (int index = 0; index < count; index++) {
+                    crc ^= buffer[index];
+                    for (int bit = 0; bit < 8; bit++) {
+                        crc = (crc & 1u) != 0 ? (crc >> 1) ^ 0xEDB88320u : crc >> 1;
+                    }
+                }
+            }
+            return ~crc;
+        }
+    }
+}
+'@
+    }
     $archive = $null
     try {
         $archive = [System.IO.Compression.ZipFile]::OpenRead($Artifact)
@@ -966,22 +990,20 @@ function Assert-ApkRuntimeLibraries {
             if ([long]$runtimeEntry.Length -lt 1 -or [long]$runtimeEntry.CompressedLength -lt 1) {
                 Throw-Safe 'Fresh APK runtime ABI coverage is malformed'
             }
+            $crcField = $runtimeEntry.GetType().GetField('_crc32', [System.Reflection.BindingFlags]'Instance,NonPublic')
+            if ($null -eq $crcField) { Throw-Safe 'Fresh APK runtime ABI coverage is unavailable' }
+            [uint32]$expectedCrc32 = $crcField.GetValue($runtimeEntry)
             $runtimeStream = $null
             try {
                 $runtimeStream = $runtimeEntry.Open()
-                $buffer = [byte[]]::new(81920)
                 [long]$bytesRead = 0
-                do {
-                    $count = $runtimeStream.Read($buffer, 0, $buffer.Length)
-                    $bytesRead += $count
-                } while ($count -gt 0)
-                if ($bytesRead -ne [long]$runtimeEntry.Length) {
+                [uint32]$actualCrc32 = [Ntubtob.MobileStagingCrc32]::Compute($runtimeStream, [ref]$bytesRead)
+                if ($bytesRead -ne [long]$runtimeEntry.Length -or $actualCrc32 -ne $expectedCrc32) {
                     Throw-Safe 'Fresh APK runtime ABI coverage is malformed'
                 }
             }
             finally {
                 if ($null -ne $runtimeStream) { $runtimeStream.Dispose() }
-                $buffer = $null
             }
         }
     }
