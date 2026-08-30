@@ -1,5 +1,5 @@
 active_task: TASK-167
-status: implementation_complete_pending_independent_review
+status: lease_2_complete_pending_independent_rereview
 next_actor: main-work
 
 claim_id: main-work-20260825
@@ -7,10 +7,10 @@ lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961
-head_commit: 0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961
+head_commit: 4f14c634067716d63579d54eeaaa597ed6f0deb5
 
 updated_by: main-work
-updated_at: 2026-08-30T20:50:00+08:00
+updated_at: 2026-08-30T21:11:01+08:00
 
 note: >
   TASK-166 was merged and deployed successfully. TASK-167 reproduced an accepted
@@ -19,7 +19,10 @@ note: >
   and rejects any APK missing a required Flutter runtime. Focused regressions,
   regenerated artifact checks, replacement install and physical cold launch
   passed. Personal provider login was intentionally not attempted on the
-  borrowed device; independent review and hosted CI remain.
+  borrowed device. Lease 2 now gates signer-check/install before package or
+  signer acceptance, rejects duplicate/empty/unreadable runtimes and removes
+  invalid candidates. Focused 4/4 and complete launcher 61/61 passed; independent
+  rereview and hosted CI remain.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-167.md

@@ -9,8 +9,8 @@
 
 ## Verification
 
-- Focused ABI/build contract: 3 passed.
-- Full launcher contract: 60 passed after the test process selected the Windows PowerShell module directories. The first environment-default run had 56 passes and 3 unaffected private-confirmation failures because Windows PowerShell 5.1 selected an incompatible PowerShell 7 Security module; no system setting or repository workaround was introduced.
+- Focused ABI/build contract after lease 2: 4 passed.
+- Full launcher contract before lease-2 review correction: 60 passed after the test process selected the Windows PowerShell module directories. The first environment-default run had 57 passes and 3 unaffected private-confirmation failures because Windows PowerShell 5.1 selected an incompatible PowerShell 7 Security module; no system setting or repository workaround was introduced.
 - `git diff --check`: passed, with expected Windows LF→CRLF checkout warnings only.
 - Controlled universal staging build: passed; package and allowlisted signer exact, checksum matched the regenerated manifest, and `libflutter.so` was present for `armeabi-v7a`, `arm64-v8a` and `x86_64`.
 - Android 15／API 35 arm64 physical device: replacement install passed; cold-launch process remained alive after five seconds with zero bounded fatal app crash entries.
@@ -20,3 +20,8 @@
 - No personal LINE／Google account was entered on the borrowed device. Provider login, identity linking, notifications and production behavior were not revalidated by this physical-device check.
 - No provider, Secret, IAM, database, production runtime or cloud resource was modified. One read-only staging service-origin lookup supplied the existing controlled build input.
 - Independent Flutter/release-artifact review, hosted CI, PR/merge and final borrowed-device cleanup remain pending.
+
+## Independent review lease 2
+
+- Initial verdict: `REQUEST_CHANGES`. The reviewer proved that direct `signer-check`／`install` could bypass the build-only ABI gate and that zero-byte runtime entries were accepted by name alone.
+- Lease-2 correction revalidates the candidate before package／signer acceptance, removes an ABI-invalid candidate, and requires each runtime entry to be unique, non-empty and completely readable. Focused 4/4 and the complete launcher suite 61/61 passed; rereview remains pending.
