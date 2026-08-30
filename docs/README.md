@@ -38,6 +38,12 @@ TASK-088～122 位於 `coordination/archive/mobile-foundation-2026-08/`，TASK-1
 - `operations/data/TASK-049-SUPABASE-CATALOG-SANITIZED.md`：TASK-049 去識別化的
   production schema catalog，供本機 migration fixture 與 review 使用；不含資料列或憑證。
 
+## Release readiness
+
+- `releases/MOBILE_RELEASE_MATRIX.md`：去識別化的 Android Closed Testing／公開版與 iOS
+  TestFlight／公開版 gate matrix；區分 repository evidence 與未來 store、signing、真機、provider
+  及 production Owner gate，不代表已上傳或可發布。
+
 部署文件記錄歷史證據；真正部署前仍須重新查證 exact commit、revision、traffic、identity 與 Secret reference metadata，並取得當次 Owner 授權。
 
 ## 本機開發

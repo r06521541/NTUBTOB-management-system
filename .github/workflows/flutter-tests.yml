@@ -8,9 +8,9 @@ permissions:
 
 jobs:
   test:
-    name: Flutter 3.47.0 gate
+    name: Flutter 3.47.0 / Android API 36 gate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: clients/flutter_app
@@ -29,6 +29,78 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      - name: Install Android API 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_roots=()
+          add_sdk_root() {
+            local candidate_root="$1"
+            if [[ -z "$candidate_root" || "$candidate_root" != /* || ! -d "$candidate_root" ]]; then
+              return
+            fi
+            local resolved_root
+            resolved_root="$(realpath -e "$candidate_root")"
+            local existing_root
+            for existing_root in "${sdk_roots[@]}"; do
+              if [[ "$existing_root" == "$resolved_root" ]]; then
+                return
+              fi
+            done
+            sdk_roots+=("$resolved_root")
+          }
+          for candidate_root in \
+            "${ANDROID_SDK_ROOT:-}" \
+            "${ANDROID_HOME:-}" \
+            "/usr/local/lib/android/sdk"; do
+            add_sdk_root "$candidate_root"
+          done
+
+          sdkmanager_path=""
+          sdk_root=""
+          for approved_root in "${sdk_roots[@]}"; do
+            candidates=("$approved_root/cmdline-tools/latest/bin/sdkmanager")
+            if [[ -d "$approved_root/cmdline-tools" ]]; then
+              while IFS= read -r -d '' candidate; do
+                candidates+=("$candidate")
+              done < <(
+                find "$approved_root/cmdline-tools" \
+                  -mindepth 3 -maxdepth 3 -type f -name sdkmanager -print0 \
+                  | sort -z -V -r
+              )
+            fi
+            candidates+=("$approved_root/tools/bin/sdkmanager")
+            for candidate in "${candidates[@]}"; do
+              if [[ ! -x "$candidate" ]]; then
+                continue
+              fi
+              candidate_real="$(realpath -e "$candidate")"
+              case "$candidate_real" in
+                "$approved_root"/*) ;;
+                *) continue ;;
+              esac
+              sdkmanager_path="$candidate_real"
+              sdk_root="$approved_root"
+              break 2
+            done
+          done
+          if [[ -z "$sdkmanager_path" || -z "$sdk_root" ]]; then
+            echo "Android sdkmanager was not found in approved SDK roots" >&2
+            exit 1
+          fi
+
+          echo "Android SDK root: $sdk_root"
+          echo "Android sdkmanager: $sdkmanager_path"
+          "$sdkmanager_path" --sdk_root="$sdk_root" --version
+          "$sdkmanager_path" --sdk_root="$sdk_root" "platforms;android-36"
+          if [[ \
+            ! -f "$sdk_root/platforms/android-36/package.xml" && \
+            ! -f "$sdk_root/platforms/android-36/source.properties" \
+          ]]; then
+            echo "Android API 36 installation was not materialized" >&2
+            exit 1
+          fi
+
       - name: Check formatting
         run: dart format --output=none --set-exit-if-changed .
 
@@ -38,8 +110,89 @@ jobs:
       - name: Run all tests
         run: flutter test
 
+      - name: Run mobile release tooling tests
+        working-directory: ${{ github.workspace }}
+        run: python3 -m unittest tools.tests.test_mobile_release -v
+
       - name: Build fake Android debug APK
         run: >-
           flutter build apk --debug
           --dart-define=APP_FLAVOR=development
           --dart-define=CLIENT_MODE=fake
+
+      - name: Prove unsigned release fails closed
+        run: |
+          if flutter build appbundle --release \
+            --dart-define=APP_FLAVOR=production \
+            --dart-define=CLIENT_MODE=real \
+            --dart-define=RELEASE_SCOPE=basic \
+            --dart-define=API_BASE_URL=https://mobile-release.invalid \
+            --dart-define=LINE_CHANNEL_ID=12345 \
+            --dart-define=GOOGLE_CLIENT_ID=android-contract.apps.googleusercontent.com \
+            --dart-define=GOOGLE_SERVER_CLIENT_ID=server-contract.apps.googleusercontent.com; then
+            echo "unsigned Android release unexpectedly succeeded" >&2
+            exit 1
+          fi
+
+      - name: Create an external fictional contract-test signer
+        shell: bash
+        env:
+          CONTRACT_KEYSTORE: ${{ runner.temp }}/mobile-release-contract.jks
+          CONTRACT_ALIAS: mobile-release-contract
+        run: |
+          set -euo pipefail
+          CONTRACT_PASSWORD="$(openssl rand -hex 16)"
+          echo "::add-mask::$CONTRACT_PASSWORD"
+          keytool -genkeypair -noprompt \
+            -keystore "$CONTRACT_KEYSTORE" \
+            -storepass "$CONTRACT_PASSWORD" \
+            -keypass "$CONTRACT_PASSWORD" \
+            -alias "$CONTRACT_ALIAS" \
+            -keyalg RSA -keysize 2048 -validity 2 \
+            -dname "CN=Fictional Contract Test,OU=CI Only,O=Invalid,C=ZZ"
+          fingerprint="$(keytool -list -v \
+            -keystore "$CONTRACT_KEYSTORE" \
+            -storepass "$CONTRACT_PASSWORD" \
+            -alias "$CONTRACT_ALIAS" \
+            | sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' \
+            | tr -d ':' \
+            | tr '[:upper:]' '[:lower:]')"
+          if [[ ! "$fingerprint" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "fictional signer fingerprint extraction failed" >&2
+            exit 1
+          fi
+          echo "CONTRACT_KEYSTORE=$CONTRACT_KEYSTORE" >> "$GITHUB_ENV"
+          echo "CONTRACT_PASSWORD=$CONTRACT_PASSWORD" >> "$GITHUB_ENV"
+          echo "CONTRACT_SIGNER_SHA256=$fingerprint" >> "$GITHUB_ENV"
+
+      - name: Build signed contract-test Android App Bundle
+        env:
+          MOBILE_RELEASE_CONTRACT_TEST: "true"
+          MOBILE_RELEASE_APPLICATION_ID: tw.org.ntubtob.portal.contracttest
+          MOBILE_RELEASE_VERSION_NAME: 0.1.0
+          MOBILE_RELEASE_VERSION_CODE: "1"
+          MOBILE_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/mobile-release-contract.jks
+          MOBILE_RELEASE_KEY_ALIAS: mobile-release-contract
+        run: |
+          set -euo pipefail
+          MOBILE_RELEASE_STORE_PASSWORD="$CONTRACT_PASSWORD" \
+          MOBILE_RELEASE_KEY_PASSWORD="$CONTRACT_PASSWORD" \
+            flutter build appbundle --release \
+              --dart-define=APP_FLAVOR=production \
+              --dart-define=CLIENT_MODE=real \
+              --dart-define=RELEASE_SCOPE=basic \
+              --dart-define=API_BASE_URL=https://mobile-release.invalid \
+              --dart-define=LINE_CHANNEL_ID=12345 \
+              --dart-define=GOOGLE_CLIENT_ID=android-contract.apps.googleusercontent.com \
+              --dart-define=GOOGLE_SERVER_CLIENT_ID=server-contract.apps.googleusercontent.com
+
+      - name: Inspect signed contract-test Android App Bundle
+        working-directory: ${{ github.workspace }}
+        run: >-
+          python3 -m tools.mobile_release inspect-aab
+          --artifact clients/flutter_app/build/app/outputs/bundle/release/app-release.aab
+          --mode contract-test
+          --expected-package tw.org.ntubtob.portal.contracttest
+          --expected-version-name 0.1.0
+          --expected-version-code 1
+          --expected-signer-sha256 "$CONTRACT_SIGNER_SHA256"

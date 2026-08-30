@@ -245,13 +245,15 @@
 			inputPaths = (
 				"$(SRCROOT)/Runner/Info.plist",
 				"$(SRCROOT)/validate_auth_config.sh",
+				"$(SRCROOT)/validate_store_release_config.sh",
+				"$(SRCROOT)/Flutter/StoreReleaseContract.xcconfig",
 			);
 			name = "Validate Auth Config";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/bin/sh \"$SRCROOT/validate_auth_config.sh\"";
+			shellScript = "/bin/sh \"$SRCROOT/validate_store_release_config.sh\"\n/bin/sh \"$SRCROOT/validate_auth_config.sh\"";
 		};
 		3B06AD1E1E4923F5004D2608 /* Thin Binary */ = {
 			isa = PBXShellScriptBuildPhase;

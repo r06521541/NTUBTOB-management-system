@@ -21,7 +21,7 @@ subprojects {
         afterEvaluate {
             extensions.configure<com.android.build.api.dsl.LibraryExtension> {
                 // 2.7.2 pins 33, while its resolved AndroidX metadata requires 34+.
-                compileSdk = 35
+                compileSdk = 36
             }
         }
     }

@@ -1,0 +1,7 @@
+// Copy to the gitignored StoreReleaseConfig.xcconfig only in an
+// Owner-approved macOS/Xcode build environment. Never commit real values.
+IOS_DISTRIBUTION_CHANNEL=
+IOS_EXTERNAL_SIGNING_READY=NO
+DEVELOPMENT_TEAM=
+PROVISIONING_PROFILE_SPECIFIER=
+APPLE_PROVIDER_CONFIGURED_EXTERNALLY=NO

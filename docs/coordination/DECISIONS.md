@@ -326,9 +326,18 @@
 - Invariants：Event「套用全部」只更新非 linked-Game Activity，不自動映射或覆寫 Game 回覆；Event、Activity與Game mutation都由server重驗active included invitee及資源狀態。統計與UI必須區分整體意向、一般行程與Game回覆。
 - Non-goals：不因本決策授權schema／migration、通知、provider、Secret、cloud、production data mutation或deployment；linked Game與legacy Game attendance的停止條件、通知及來源ownership維持既有契約。
 
+## DEC-103：Mobile release先收斂Android Closed Testing並正式採用Sign in with Apple
+
+- 狀態：`active`
+- 生效：2026-08-31
+- 來源：Owner 對 TASK-169 夜間長時間交付的明確核准、現行Flutter／staging evidence與商店release gap
+- 決策：近期release目標是Android Basic-only Google Play Closed Testing；Officer／Admin、push、deep-link delivery與匿名crash reporting保留為公開版前gate。iOS公開版正式採用Sign in with Apple，不以App Review例外作為release strategy，並先完成TestFlight／identity contract再做provider rollout。
+- Invariants：Android release必須target API 36、使用repository外部signing material且fail closed；iOS必須在macOS／Xcode／真機取得獨立證據。所有store、provider、production backend與signing material操作仍需未來精確Owner gate。
+- Non-goals：本決策不授權keystore／certificate建立或讀取、Play Console／App Store Connect、OAuth/provider、Secret、IAM、cloud、production、deployment、store upload／publish或真實通知。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-102`，下一個新決策從 `DEC-103` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-103`，下一個新決策從 `DEC-104` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

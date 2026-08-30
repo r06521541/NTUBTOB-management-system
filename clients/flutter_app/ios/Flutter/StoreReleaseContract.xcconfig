@@ -1,0 +1,5 @@
+// Repository-owned release contract. Do not override these values from a
+// private xcconfig. A future reviewed Apple-login implementation must update
+// APPLE_SIGN_IN_REPOSITORY_STATUS together with runtime tests and entitlements.
+IOS_RELEASE_CONTRACT_VERSION=1
+APPLE_SIGN_IN_REPOSITORY_STATUS=not_implemented
