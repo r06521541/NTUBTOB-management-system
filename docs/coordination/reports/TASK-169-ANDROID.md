@@ -44,23 +44,19 @@
   cases passed; the Git Bash process used by the aggregate-script test exited
   with Windows `0xC0000142` before evaluating the script, so that one local
   environment-dependent case is not claimed as passed.
-- Hosted run `33330910917` at immutable SHA
-  `8fa7b43563f2cca3a895633da1f03deafff9ca2a`: API 36 installation, the exact
-  Dart define contract, and every earlier selected check passed. The signed
-  contract-test AAB then stopped at `android/app/build.gradle.kts` line 306
-  because AGP 9.1 rejects a Provider passed to the legacy Android SourceSet
-  API. The Variant Sources API correction has repository tests only and has
-  not been rerun hosted.
+- Hosted run `33331387388` at immutable SHA
+  `ab07b665a3812d59459e04df6792432930e3bd43`: every selected gate passed,
+  including API 36 installation, Flutter format/analyze/tests, the unconfigured
+  release fail-closed proof, ephemeral fictional signer creation, signed
+  contract-test AAB build and strict artifact inspection.
 - `git diff --check`: passed (line-ending conversion warnings only).
 - `python -m black --check ...`: not run because Black is not installed in the
   active Windows Python.
 
 ## Remaining gates and risk
 
-- This host has no Flutter/Dart or Android SDK command available, so the
-  corrected Kotlin DSL and signed contract-test AAB build/inspection require
-  the pinned hosted Flutter gate; passing repository tests do not substitute
-  for hosted evidence.
+- Windows local evidence did not execute Flutter/Android, but the pinned hosted
+  runner supplied the required API 36 Gradle/AAB and inspection evidence above.
 - A future Closed Testing candidate still requires Owner-approved real HTTPS
   configuration, existing package/version decision, external signing material,
   signer fingerprint, Play Console access, real-device verification, and store

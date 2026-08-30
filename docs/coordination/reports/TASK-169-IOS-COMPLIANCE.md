@@ -4,7 +4,7 @@
 - claim: `task-169-ios-compliance-writer-20260831` / lease 1
 - authority checkpoint: `aec506662eb15a7efd8f1830216d2f243b819ffd`
 - branch: `codex/task-169-mobile-store-readiness`
-- state: ready for Main integration review; uncommitted by task instruction
+- state: accepted repository-only contract pending merge of PR #219
 
 ## Delivered
 

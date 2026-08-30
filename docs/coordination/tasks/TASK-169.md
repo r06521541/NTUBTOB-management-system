@@ -71,3 +71,15 @@ Both writers may edit only their owned paths, must self-review／self-test, and 
 - Need for real signing key/password, Play Console/App Store Connect login, developer-account purchase, raw provider/client data, Secret payload, cloud/production/runtime/deployment, store upload/publish or personal-device data.
 - Cross-writer path overlap, unresolved package/bundle identity conflict, or inability to make release validation fail closed without introducing real configuration.
 - A stopped lane records a bounded gap and returns to Main; it does not authorize a workaround or block safe independent work in the other lane.
+
+## Acceptance and closeout
+
+- Independent Release/Security review accepted immutable implementation SHA
+  `ab07b665a3812d59459e04df6792432930e3bd43` with no findings.
+- Hosted run `33331387388` passed every selected gate, including Flutter
+  format/analyze/tests, Android API 36, the signed fictional contract-test AAB,
+  strict artifact inspection and PostgreSQL 15/16.
+- PR #219 is the unique delivery PR and was verified mergeable/conflict-free.
+  This task becomes completed when that accepted PR is merged; no store upload,
+  signing Secret, provider, cloud, production or deployment action is part of
+  the merge.

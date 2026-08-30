@@ -1,26 +1,28 @@
 active_task: TASK-169
-status: in_progress
-next_actor: release-security-reviewer
+status: accepted_pending_merge
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: d59663781c5602e1699f812d5a953cec12e0eeb4
-head_commit: d59663781c5602e1699f812d5a953cec12e0eeb4
+head_commit: ab07b665a3812d59459e04df6792432930e3bd43
 
 updated_by: main-work
-updated_at: 2026-08-31T01:39:00+08:00
+updated_at: 2026-08-31T03:47:10+08:00
 
 note: >
-  TASK-169 writers completed the repository-only mobile store readiness
-  delivery and Main integration checks passed. One independent Release/Security
-  reviewer must accept the immutable integration commit before the ready PR.
-  The target is Android Basic-only Closed Testing readiness plus an iOS
-  TestFlight/Sign in with Apple contract. No store, signing Secret, provider,
-  cloud, production or deployment action is authorized.
+  TASK-169 repository-only mobile store readiness delivery is accepted pending
+  merge of the unique PR #219. Independent Release/Security review accepted
+  immutable implementation SHA ab07b665a3812d59459e04df6792432930e3bd43,
+  and hosted run 33331387388 passed every selected gate, including Android API
+  36, signed fictional contract-test AAB build and artifact inspection. The
+  delivery does not upload or authorize any store candidate. No store, signing
+  Secret, provider, cloud, production or deployment action occurred or is
+  authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-169.md
 report: docs/coordination/reports/TASK-169-ANDROID.md; docs/coordination/reports/TASK-169-IOS-COMPLIANCE.md
-review: pending
+review: accepted by task169-release-security-review at ab07b665a3812d59459e04df6792432930e3bd43
