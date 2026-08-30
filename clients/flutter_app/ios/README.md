@@ -25,6 +25,14 @@ and build values, a non-debug bundle identity, code signing enabled, and
 non-empty team/profile/expanded signing identity values supplied by Xcode.
 The validator never prints those values.
 
+The validator scans every `DART_DEFINES` entry before selecting a mode. Empty,
+malformed, non-canonical, binary/multiline, or non-`key=value` entries fail;
+release-critical environment, service-auth, and Apple keys must occur exactly
+once when required. Development fake mode rejects service definitions, while
+real mode requires the API, LINE, and two Google definitions. Other
+syntactically valid Flutter/system definitions may coexist and do not affect
+the release decision.
+
 ## Private build configuration
 
 `Flutter/StoreReleaseConfig.xcconfig.example` is a key-name template. Copy it
@@ -62,6 +70,15 @@ complete all of the following before changing the repository marker to
 Only after that review may a production build supply
 `APPLE_SIGN_IN_RUNTIME_IMPLEMENTED=true` in `DART_DEFINES`. The repository
 validator is one precondition, not App Store, Xcode, signing, or runtime proof.
+
+For a production vector on macOS, entitlement validation uses the fixed
+`/usr/bin/plutil` path to require the Apple key to be an array whose extracted
+value is exactly `Default`; a `Default` string under another key is rejected.
+The deterministic non-Darwin shell regression uses a strict portable
+key-to-array association parser, but that fallback is not macOS or codesign
+evidence. The future Apple delivery must additionally inspect the entitlement
+embedded in the signed archive; validating the source plist alone cannot prove
+what was codesigned.
 
 ## Local deterministic check
 

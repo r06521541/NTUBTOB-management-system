@@ -15,17 +15,196 @@ decode_define() {
   fi
 }
 
-dart_define() {
-  requested="$1"
+app_flavor=''
+client_mode=''
+api_base_url=''
+line_channel_id=''
+google_client_id=''
+google_server_client_id=''
+apple_runtime_implemented=''
+app_flavor_seen=false
+client_mode_seen=false
+api_base_url_seen=false
+line_channel_id_seen=false
+google_client_id_seen=false
+google_server_client_id_seen=false
+apple_runtime_implemented_seen=false
+
+scan_dart_defines() {
+  raw_defines="${DART_DEFINES:-}"
+  case "$raw_defines" in
+    ''|,*|*,|*,,*) fail 'DART_DEFINES is missing or contains an empty entry' ;;
+  esac
+
   old_ifs="$IFS"
   IFS=,
-  for encoded in ${DART_DEFINES:-}; do
-    decoded="$(decode_define "$encoded")" || continue
+  # Encoded entries use only the base64 alphabet, so pathname expansion cannot
+  # alter this intentional comma split.
+  set -- $raw_defines
+  IFS="$old_ifs"
+
+  newline='
+'
+  carriage_return="$(printf '\r')"
+  for encoded in "$@"; do
+    printf '%s\n' "$encoded" | grep -Eq '^[A-Za-z0-9+/]+={0,2}$' || \
+      fail 'DART_DEFINES contains malformed base64'
+    [ $((${#encoded} % 4)) -eq 0 ] || \
+      fail 'DART_DEFINES contains malformed base64 length'
+    framed="$(decode_define "$encoded" && printf '__DART_DEFINE_END__')" || \
+      fail 'DART_DEFINES contains undecodable base64'
+    decoded="${framed%__DART_DEFINE_END__}"
+    canonical="$(printf '%s' "$decoded" | /usr/bin/base64 | tr -d '\r\n')"
+    [ "$canonical" = "$encoded" ] || \
+      fail 'DART_DEFINES contains non-canonical or binary data'
     case "$decoded" in
-      "$requested="*) printf '%s' "${decoded#*=}"; IFS="$old_ifs"; return 0 ;;
+      *"$newline"*|*"$carriage_return"*) \
+        fail 'DART_DEFINES contains a multi-line decoded entry' ;;
+      *=*) ;;
+      *) fail 'DART_DEFINES contains a decoded entry without key/value syntax' ;;
+    esac
+    if printf '%s' "$decoded" | LC_ALL=C grep -q '[[:cntrl:]]'; then
+      fail 'DART_DEFINES contains decoded control characters'
+    fi
+    key="${decoded%%=*}"
+    value="${decoded#*=}"
+    printf '%s\n' "$key" | grep -Eq '^[A-Za-z_][A-Za-z0-9_.-]*$' || \
+      fail 'DART_DEFINES contains an invalid decoded key'
+
+    case "$key" in
+      APP_FLAVOR)
+        [ "$app_flavor_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate APP_FLAVOR'
+        app_flavor_seen=true
+        app_flavor="$value"
+        ;;
+      CLIENT_MODE)
+        [ "$client_mode_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate CLIENT_MODE'
+        client_mode_seen=true
+        client_mode="$value"
+        ;;
+      API_BASE_URL)
+        [ "$api_base_url_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate API_BASE_URL'
+        api_base_url_seen=true
+        api_base_url="$value"
+        ;;
+      LINE_CHANNEL_ID)
+        [ "$line_channel_id_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate LINE_CHANNEL_ID'
+        line_channel_id_seen=true
+        line_channel_id="$value"
+        ;;
+      GOOGLE_CLIENT_ID)
+        [ "$google_client_id_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate GOOGLE_CLIENT_ID'
+        google_client_id_seen=true
+        google_client_id="$value"
+        ;;
+      GOOGLE_SERVER_CLIENT_ID)
+        [ "$google_server_client_id_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate GOOGLE_SERVER_CLIENT_ID'
+        google_server_client_id_seen=true
+        google_server_client_id="$value"
+        ;;
+      APPLE_SIGN_IN_RUNTIME_IMPLEMENTED)
+        [ "$apple_runtime_implemented_seen" = false ] || \
+          fail 'DART_DEFINES contains duplicate APPLE_SIGN_IN_RUNTIME_IMPLEMENTED'
+        apple_runtime_implemented_seen=true
+        apple_runtime_implemented="$value"
+        ;;
+      *)
+        # Flutter/system and non-release application definitions may coexist;
+        # they are syntactically validated but do not influence this contract.
+        ;;
     esac
   done
-  IFS="$old_ifs"
+
+  [ "$app_flavor_seen" = true ] || \
+    fail 'DART_DEFINES is missing APP_FLAVOR'
+  [ "$client_mode_seen" = true ] || \
+    fail 'DART_DEFINES is missing CLIENT_MODE'
+}
+
+require_real_client_defines() {
+  [ "$api_base_url_seen" = true ] && [ -n "$api_base_url" ] && \
+    [ "$line_channel_id_seen" = true ] && [ -n "$line_channel_id" ] && \
+    [ "$google_client_id_seen" = true ] && [ -n "$google_client_id" ] && \
+    [ "$google_server_client_id_seen" = true ] && \
+    [ -n "$google_server_client_id" ] || \
+    fail 'real iOS builds require each service DART_DEFINE exactly once'
+}
+
+portable_apple_entitlement_value() {
+  awk '
+    function trimmed(value) {
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      return value
+    }
+    {
+      line = trimmed($0)
+      if (line == "<key>com.apple.developer.applesignin</key>") {
+        if (found) {
+          invalid = 1
+          exit 1
+        }
+        found = 1
+        state = 1
+        next
+      }
+      if (state == 1) {
+        if (line == "" || line ~ /^<!--.*-->$/) next
+        if (line != "<array>") {
+          invalid = 1
+          exit 1
+        }
+        state = 2
+        next
+      }
+      if (state == 2) {
+        if (line == "" || line ~ /^<!--.*-->$/) next
+        if (line == "<string>Default</string>") {
+          defaults++
+          next
+        }
+        if (line == "</array>") {
+          if (defaults != 1) {
+            invalid = 1
+            exit 1
+          }
+          complete = 1
+          state = 3
+          next
+        }
+        invalid = 1
+        exit 1
+      }
+    }
+    END {
+      if (invalid || found != 1 || complete != 1 || state != 3) exit 1
+      print "Default"
+    }
+  ' "$1"
+}
+
+apple_entitlement_value() {
+  entitlements_file="$1"
+  kernel_name="$(/usr/bin/uname -s 2>/dev/null || printf 'unknown')"
+  if [ "$kernel_name" = Darwin ]; then
+    [ -x /usr/bin/plutil ] || \
+      fail 'macOS plist validator is unavailable'
+    entitlement_type="$(/usr/bin/plutil \
+      -type com.apple.developer.applesignin \
+      "$entitlements_file" 2>/dev/null)" || return 1
+    [ "$entitlement_type" = array ] || return 1
+    /usr/bin/plutil \
+      -extract com.apple.developer.applesignin raw -o - \
+      "$entitlements_file" 2>/dev/null
+    return
+  fi
+  portable_apple_entitlement_value "$entitlements_file"
 }
 
 require_external_value() {
@@ -36,9 +215,7 @@ require_external_value() {
   esac
 }
 
-app_flavor="$(dart_define APP_FLAVOR)"
-client_mode="$(dart_define CLIENT_MODE)"
-apple_runtime_implemented="$(dart_define APPLE_SIGN_IN_RUNTIME_IMPLEMENTED)"
+scan_dart_defines
 configuration="${CONFIGURATION:-}"
 distribution_channel="${IOS_DISTRIBUTION_CHANNEL:-}"
 contract_file="${SRCROOT:-}/Flutter/StoreReleaseContract.xcconfig"
@@ -64,6 +241,12 @@ esac
   fail 'resolved Sign in with Apple status does not match repository source'
 
 if [ "$app_flavor" = development ] && [ "$client_mode" = fake ]; then
+  if [ "$api_base_url_seen" = true ] || [ "$line_channel_id_seen" = true ] || \
+      [ "$google_client_id_seen" = true ] || \
+      [ "$google_server_client_id_seen" = true ] || \
+      [ "$apple_runtime_implemented_seen" = true ]; then
+    fail 'development fake iOS builds must not contain service DART_DEFINES'
+  fi
   [ "$non_distribution_configuration" = true ] || \
     fail 'development fake iOS builds must use a non-distribution configuration'
   [ -z "$distribution_channel" ] || \
@@ -77,6 +260,24 @@ if [ "$app_flavor" = development ] && [ "$client_mode" = fake ]; then
   [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ] || \
     fail 'development fake iOS builds must not receive a signing identity'
   exit 0
+fi
+
+if { [ "$app_flavor" = staging ] || [ "$app_flavor" = production ]; } && \
+    [ "$client_mode" = real ]; then
+  require_real_client_defines
+fi
+
+if [ "$app_flavor" = staging ] && \
+    [ "$apple_runtime_implemented_seen" = true ]; then
+  fail 'staging iOS builds must not claim Apple runtime implementation'
+fi
+if [ "$app_flavor" = production ]; then
+  if [ "$repository_status" = ready ]; then
+    [ "$apple_runtime_implemented_seen" = true ] || \
+      fail 'public iOS release is missing the Apple runtime implementation marker'
+  elif [ "$apple_runtime_implemented_seen" = true ]; then
+    fail 'Apple runtime implementation marker conflicts with repository status'
+  fi
 fi
 
 if [ "$app_flavor" = staging ] && [ "$client_mode" = real ] && \
@@ -140,7 +341,7 @@ fi
 entitlements="${SRCROOT:-}/Runner/Runner.entitlements"
 [ -f "$entitlements" ] || \
   fail 'public iOS release is missing the reviewed Apple sign-in entitlements file'
-grep -Fq '<key>com.apple.developer.applesignin</key>' "$entitlements" || \
-  fail 'public iOS release is missing the Sign in with Apple entitlement'
-grep -Fq '<string>Default</string>' "$entitlements" || \
-  fail 'public iOS release has an invalid Sign in with Apple entitlement mode'
+apple_entitlement="$(apple_entitlement_value "$entitlements")" || \
+  fail 'public iOS release has an invalid Sign in with Apple entitlement structure'
+[ "$apple_entitlement" = Default ] || \
+  fail 'public iOS release has an invalid Sign in with Apple entitlement value'

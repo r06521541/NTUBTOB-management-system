@@ -17,20 +17,26 @@
    `APPLE_SIGN_IN_REPOSITORY_STATUS=not_implemented`；validator直接讀該檔並要求resolved Xcode值一致，private／
    command-line build setting均無法覆寫，因此production/App Store build fail closed。未來即使經review改為`ready`，仍須
    runtime marker、external provider readiness與受review的entitlement才可通過。
-3. private store config與Apple entitlement只提供空白／未綁定example；真實team、profile、identity、provider、
+3. `DART_DEFINES`改為完整掃描：拒絕malformed/non-canonical base64、binary/multiline、無`key=value`、
+   release-critical duplicate/mixed keys；fake不得夾帶service config，real必須各有一組API/LINE/Google
+   config，同時保留其他合法Flutter/system define。
+4. Apple entitlement不再用獨立grep：Darwin固定使用`/usr/bin/plutil`檢查key type與關聯值，
+   non-Darwin regression使用strict portable key→array parser；`Default`只在其他key時明確拒絕。
+5. private store config與Apple entitlement只提供空白／未綁定example；真實team、profile、identity、provider、
    certificate、password與Secret均未加入repository。
-4. 支援頁明示「帳號刪除申請」、安全申請內容與「登出不等於刪除」；沒有假稱已提供backend deletion或store-complete
+6. 支援頁明示「帳號刪除申請」、安全申請內容與「登出不等於刪除」；沒有假稱已提供backend deletion或store-complete
    流程。
-5. `MOBILE_RELEASE_MATRIX.md`分開Android Closed Testing、Android public、iOS TestFlight與iOS public，涵蓋
+7. `MOBILE_RELEASE_MATRIX.md`分開Android Closed Testing、Android public、iOS TestFlight與iOS public，涵蓋
    privacy、Play Data Safety／Apple App Privacy、帳號刪除、metadata、signing、真機、push、deep link、匿名crash、
    production backend、review／rollback；所有外部證據未知時一律`BLOCKED`。
 
 ## Verification
 
 - `C:\Program Files\Git\bin\bash.exe clients/flutter_app/ios/tests/validate_store_release_config_test.sh`
-  - PASS：14組fictional contract vectors，含fake/staging non-distribution Debug／Profile、Debug不得claim TestFlight、
+  - PASS：21組fictional contract vectors，含fake/staging non-distribution Debug／Profile、Debug不得claim TestFlight、
     TestFlight success、missing/mixed/signing/bundle failures、目前production blocked、repository-ready但runtime
-    missing blocked、private/CLI readiness override blocked、future complete fictional vector。
+    missing blocked、private/CLI readiness override blocked、duplicate/mixed/malformed DART_DEFINES、unexpected service define、
+    Apple entitlement wrong-key association及future complete fictional vector。
 - `Invoke-FlutterToolchain.ps1 flutter test test/integration_test.dart test/support_app_info_test.dart`
   - PASS：61 tests；包含既有iOS Google/private scheme build-phase regression與support UX。
 - `Invoke-FlutterToolchain.ps1 flutter analyze lib/support_app_info.dart test/support_app_info_test.dart`
@@ -47,7 +53,8 @@ Test-first red/green紀錄：support文字增加後首次focused test因Build ti
 內嵌`.debug.` bundle regression首次證實validator未拒絕，改為segment-aware pattern；self-review另發現staging Debug
 既有Debug／Profile開發路徑被誤阻，先補red regression後限縮為無distribution claim才可執行；最後以完整fictional
 Apple vector證實resolved build setting原可覆寫repository marker，改為直接讀repository source並要求一致後，最終14組
-contract全通過。Git Bash及Flutter
+contract全通過。獨立reviewer後續證實first-match parser可忽略後續衝突define，且entitlement獨立grep未綁定key/value；
+本輪先取得兩個RED，再以完整scan與plist-aware/portable structural關聯修正至21組全通過。Git Bash及Flutter
 第一次在sandbox內分別因Win32 signal pipe／toolchain lock permission失敗，依環境指引在核准的sandbox外重跑成功；沒有
 殘留產品失敗。
 
@@ -55,6 +62,8 @@ contract全通過。Git Bash及Flutter
 
 - 本機是Windows，未執行macOS/Xcode archive、CocoaPods、codesign/profile inspection、TestFlight upload/install、
   iOS真機、App Store Connect、App Review或provider操作；不得將本report視為上述證據。
+- Darwin `/usr/bin/plutil`分支仍需未來macOS runner證據；當Apple delivery實作時還必須對最終signed archive
+  做entitlement inspection，source plist structural PASS不等於codesigned artifact PASS。
 - Sign in with Apple client/backend/linking/recovery尚未實作；actual entitlement未建立或綁定，Apple provider/App ID未設定。
 - Play Data Safety／Apple App Privacy表單、store metadata/URLs/screenshots、可由reviewer啟動的帳號刪除request lifecycle、
   push/deep-link delivery、匿名crash receipt與production backend仍須未來Owner-gated work package。
@@ -73,6 +82,7 @@ contract全通過。Git Bash及Flutter
 - `clients/flutter_app/ios/tests/validate_store_release_config_test.sh`
 - `clients/flutter_app/ios/validate_store_release_config.sh`
 - `clients/flutter_app/lib/support_app_info.dart`
+- `clients/flutter_app/test/basic_app_test.dart`
 - `clients/flutter_app/test/support_app_info_test.dart`
 - `docs/README.md`
 - `docs/releases/MOBILE_RELEASE_MATRIX.md`
