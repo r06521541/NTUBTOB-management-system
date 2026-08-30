@@ -17,12 +17,23 @@ enum ProductionDemoConnectivity { online, offline }
 
 enum ProductionDemoDataState { populated, resolved, actionError, empty, error }
 
+enum ProductionDemoEventMutationFixture { success, failure, uncertain }
+
 class ProductionDemoProbe {
   int unexpectedTransportCalls = 0;
   int gameReads = 0;
   int attendanceReads = 0;
   int reportReads = 0;
   int replyMutations = 0;
+  int eventReads = 0;
+  int eventReplyMutations = 0;
+  int activityReplyMutations = 0;
+  bool? lastApplyToActivities;
+  EventAttendanceReply? lastEventReply;
+  EventAttendanceReply? lastActivityReply;
+  final Set<String> appliedOrdinaryActivityIds = {};
+  ProductionDemoEventMutationFixture eventMutationFixture =
+      ProductionDemoEventMutationFixture.success;
 }
 
 class ProductionDemoApp extends DemoApp {
@@ -94,6 +105,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   ];
   static const _basicPerson = Person('fictional-basic', '虛構一般使用者', [
     'games:read',
+    'events:read',
     'attendance:reply:self',
     'notifications:read',
   ]);
@@ -102,6 +114,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
       '虛構幹部',
       [
         'games:read',
+        'events:read',
         'attendance:reply:self',
         'attendance:report:read',
         'notifications:read',
@@ -467,6 +480,11 @@ class _ProductionDemoApi extends BasicApi {
   final List<Game> _games;
   ProductionDemoDataState actionScenario = ProductionDemoDataState.populated;
   AttendanceReply _ownReply = AttendanceReply.undecided;
+  EventAttendanceReply? _eventReply;
+  final Map<String, EventAttendanceReply?> _activityReplies = {
+    'activity_901': null,
+    'activity_902': EventAttendanceReply.maybe,
+  };
 
   Game _findGame(String id) => _games.firstWhere(
         (game) => game.id == id,
@@ -477,6 +495,135 @@ class _ProductionDemoApi extends BasicApi {
   Future<Game> game(String id) async {
     probe.gameReads++;
     return _findGame(id);
+  }
+
+  EventAttendance _eventAttendance(EventAttendanceReply? reply) =>
+      EventAttendance(reply, {
+        'attending': reply == EventAttendanceReply.attending ? 1 : 0,
+        'not_attending': reply == EventAttendanceReply.notAttending ? 1 : 0,
+        'maybe': reply == EventAttendanceReply.maybe ? 1 : 0,
+        'unanswered': reply == null ? 1 : 0,
+      });
+
+  TeamEvent _fictionalEvent() => TeamEvent(
+        id: 'event_901',
+        title: '虛構秋季交流活動',
+        type: 'trip',
+        status: 'published',
+        startAt: DateTime.utc(2026, 9, 12, 5, 30),
+        endAt: DateTime.utc(2026, 9, 12, 10),
+        attendance: _eventAttendance(_eventReply),
+        activities: [
+          EventActivity(
+            id: 'activity_901',
+            title: '虛構集合',
+            type: 'gathering',
+            position: 1,
+            startAt: DateTime.utc(2026, 9, 12, 5, 30),
+            endAt: DateTime.utc(2026, 9, 12, 6),
+            attendance: _eventAttendance(_activityReplies['activity_901']),
+          ),
+          EventActivity(
+            id: 'activity_902',
+            title: '虛構賽後餐敘',
+            type: 'meal',
+            position: 2,
+            startAt: DateTime.utc(2026, 9, 12, 9),
+            endAt: DateTime.utc(2026, 9, 12, 10),
+            attendance: _eventAttendance(_activityReplies['activity_902']),
+          ),
+          EventActivity(
+            id: 'activity_903',
+            title: '虛構交流賽',
+            type: 'game',
+            position: 3,
+            startAt: DateTime.utc(2026, 9, 12, 6, 30),
+            endAt: DateTime.utc(2026, 9, 12, 8, 30),
+            linkedGameId: 'game_901',
+          ),
+        ],
+      );
+
+  @override
+  Future<EventPage> eventPage({String? cursor}) async {
+    probe.eventReads++;
+    if (cursor != null) return const EventPage([], null);
+    return EventPage([_fictionalEvent()], null);
+  }
+
+  @override
+  Future<TeamEvent> event(String id) async {
+    probe.eventReads++;
+    if (id != 'event_901') {
+      throw const ContractException('unknown fictional event');
+    }
+    return _fictionalEvent();
+  }
+
+  void _eventMutationFixture() {
+    switch (probe.eventMutationFixture) {
+      case ProductionDemoEventMutationFixture.success:
+        return;
+      case ProductionDemoEventMutationFixture.failure:
+        throw const NetworkException();
+      case ProductionDemoEventMutationFixture.uncertain:
+        throw const EventMutationUncertainException();
+    }
+  }
+
+  @override
+  Future<EventAttendanceMutation> replyToEvent(
+    String eventId,
+    EventAttendanceReply reply, {
+    required bool applyToActivities,
+    required bool online,
+  }) async {
+    if (!online) throw const OfflineReadOnlyException();
+    if (eventId != 'event_901') {
+      throw const ContractException('unknown fictional event');
+    }
+    probe.eventReplyMutations++;
+    _eventMutationFixture();
+    probe.lastEventReply = reply;
+    probe.lastApplyToActivities = applyToActivities;
+    _eventReply = reply;
+    if (applyToActivities) {
+      for (final activityId in _activityReplies.keys) {
+        _activityReplies[activityId] = reply;
+        probe.appliedOrdinaryActivityIds.add(activityId);
+      }
+    }
+    return EventAttendanceMutation(
+      _fictionalEvent(),
+      null,
+      true,
+      false,
+    );
+  }
+
+  @override
+  Future<EventAttendanceMutation> replyToActivity(
+    String eventId,
+    String activityId,
+    EventAttendanceReply reply, {
+    required bool online,
+  }) async {
+    if (!online) throw const OfflineReadOnlyException();
+    if (eventId != 'event_901' || !_activityReplies.containsKey(activityId)) {
+      throw const ContractException(
+        'unknown or linked fictional Event activity',
+      );
+    }
+    probe.activityReplyMutations++;
+    _eventMutationFixture();
+    probe.lastActivityReply = reply;
+    _activityReplies[activityId] = reply;
+    return EventAttendanceMutation(
+      _fictionalEvent(),
+      activityId,
+      true,
+      false,
+    );
   }
 
   @override

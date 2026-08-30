@@ -8,6 +8,7 @@ EVENT_STATUSES = frozenset({"published", "cancelled"})
 ACTIVITY_TYPES = frozenset(
     {"game", "meal", "transport", "lodging", "gathering", "other"}
 )
+EVENT_ATTENDANCE_REPLIES = frozenset({"attending", "not_attending", "maybe"})
 
 
 class EventReadContractError(ValueError):
@@ -65,6 +66,27 @@ def project_public_event(event: dict) -> dict:
             raise EventReadContractError(f"stored {field} is malformed")
         return value
 
+    def attendance(value: object, field: str) -> dict | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise EventReadContractError(f"stored {field} attendance is malformed")
+        own_reply = value.get("own_reply")
+        counts = value.get("counts")
+        if own_reply is not None and own_reply not in EVENT_ATTENDANCE_REPLIES:
+            raise EventReadContractError(f"stored {field} attendance is malformed")
+        expected = EVENT_ATTENDANCE_REPLIES | {"unanswered"}
+        if (
+            not isinstance(counts, dict)
+            or set(counts) != expected
+            or any(type(counts[key]) is not int or counts[key] < 0 for key in expected)
+        ):
+            raise EventReadContractError(f"stored {field} attendance is malformed")
+        return {
+            "own_reply": own_reply,
+            "counts": {key: counts[key] for key in sorted(expected)},
+        }
+
     event_type = event.get("type")
     if event_type not in EVENT_TYPES:
         raise EventReadContractError("stored event type is malformed")
@@ -75,6 +97,18 @@ def project_public_event(event: dict) -> dict:
     source_activities = event.get("activities")
     if not isinstance(source_activities, (list, tuple)):
         raise EventReadContractError("stored activities are malformed")
+    source_attendance = event.get("attendance")
+    if source_attendance is None:
+        event_attendance = None
+        activity_attendance = {}
+    elif not isinstance(source_attendance, dict):
+        raise EventReadContractError("stored event attendance is malformed")
+    else:
+        activity_attendance = source_attendance.get("activities")
+        if not isinstance(activity_attendance, dict):
+            raise EventReadContractError("stored activity attendance is malformed")
+        event_attendance = attendance(source_attendance, "event")
+
     activities = []
     for activity in source_activities:
         if not isinstance(activity, dict):
@@ -88,9 +122,26 @@ def project_public_event(event: dict) -> dict:
         position = activity.get("position")
         if type(position) is not int:
             raise EventReadContractError("stored activity position is malformed")
+        activity_id = activity.get("id")
+        projected_activity_attendance = (
+            None
+            if linked_game_id is not None
+            else (
+                attendance(activity_attendance.get(activity_id), "activity")
+                if source_attendance is not None
+                else None
+            )
+        )
+        if (
+            linked_game_id is not None
+            and activity_attendance.get(activity_id) is not None
+        ):
+            raise EventReadContractError(
+                "linked Game attendance must not be duplicated"
+            )
         activities.append(
             {
-                "id": positive_opaque("activity", activity.get("id")),
+                "id": positive_opaque("activity", activity_id),
                 "title": bounded_text(activity.get("title"), "activity title"),
                 "type": activity_type,
                 "position": position,
@@ -101,6 +152,7 @@ def project_public_event(event: dict) -> dict:
                     if linked_game_id is not None
                     else None
                 ),
+                "attendance": projected_activity_attendance,
             }
         )
     if event.get("start_at") is None:
@@ -112,5 +164,6 @@ def project_public_event(event: dict) -> dict:
         "status": status,
         "start_at": utc(event.get("start_at")),
         "end_at": utc(event.get("end_at")),
+        "attendance": event_attendance,
         "activities": activities,
     }

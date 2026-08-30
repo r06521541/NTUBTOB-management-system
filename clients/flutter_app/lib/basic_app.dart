@@ -1735,6 +1735,8 @@ class EventDetailPage extends StatefulWidget {
 class _EventDetailPageState extends State<EventDetailPage> {
   TeamEvent? _event;
   Object? _error;
+  bool _saving = false;
+  String? _mutationMessage;
 
   @override
   void initState() {
@@ -1773,6 +1775,7 @@ class _EventDetailPageState extends State<EventDetailPage> {
     setState(() {
       _event = null;
       _error = null;
+      _mutationMessage = null;
     });
     try {
       final event = await widget.api.event(widget.eventId);
@@ -1785,6 +1788,97 @@ class _EventDetailPageState extends State<EventDetailPage> {
         setState(() => _error = error);
       }
     }
+  }
+
+  Future<bool> _confirm(String target, String reply) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('確認出席回覆'),
+          content: Text('$target 將更新為「$reply」。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('確認回覆'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
+
+  Future<void> _save(Future<void> Function() operation) async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _mutationMessage = null;
+    });
+    try {
+      await operation();
+      await _load();
+      if (mounted) setState(() => _mutationMessage = '出席回覆已儲存。');
+    } on EventMutationUncertainException catch (_) {
+      if (mounted) {
+        setState(() => _mutationMessage = '結果尚未確認，請重新整理後再判斷，請勿改送另一個選項。');
+      }
+    } on MutationUncertainException catch (_) {
+      if (mounted) {
+        setState(() => _mutationMessage = '結果尚未確認，請重新整理後再判斷，請勿改送另一個選項。');
+      }
+    } on Object catch (error) {
+      if (isTerminalSessionFailure(error)) {
+        await widget.onTerminalSession?.call();
+      } else if (mounted) {
+        setState(() => _mutationMessage = '回覆未儲存，請稍後重試。');
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _replyEvent(EventAttendanceReply reply, bool applyAll) async {
+    final event = _event;
+    if (event == null ||
+        !await _confirm(event.title, _eventReplyLabel(reply))) {
+      return;
+    }
+    await _save(() async {
+      await widget.api.replyToEvent(
+        event.id,
+        reply,
+        applyToActivities: applyAll,
+        online: true,
+      );
+    });
+  }
+
+  Future<void> _replyActivity(
+    EventActivity activity,
+    EventAttendanceReply reply,
+  ) async {
+    final event = _event;
+    if (event == null ||
+        !await _confirm(activity.title, _eventReplyLabel(reply))) {
+      return;
+    }
+    await _save(() async {
+      await widget.api.replyToActivity(
+        event.id,
+        activity.id,
+        reply,
+        online: true,
+      );
+    });
+  }
+
+  Future<void> _replyLinkedGame(Game game, AttendanceReply reply) async {
+    if (!await _confirm('linked Game', _replyLabel(reply))) return;
+    await _save(() async {
+      await widget.api.reply(game.id, reply, online: true);
+    });
   }
 
   @override
@@ -1830,6 +1924,43 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         message: '此活動與行程僅供查看。',
                       ),
                     ],
+                    if (event.attendance != null) ...[
+                      const SizedBox(height: AppSpacing.regular),
+                      Text('整體活動出席',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      Text(
+                          '目前：${_eventReplyLabel(event.attendance!.ownReply)}'),
+                      Wrap(
+                        spacing: AppSpacing.compact,
+                        runSpacing: AppSpacing.compact,
+                        children: [
+                          for (final reply in EventAttendanceReply.values) ...[
+                            FilledButton.tonal(
+                              key: ValueKey('event-reply-${reply.wire}'),
+                              onPressed: _saving
+                                  ? null
+                                  : () => _replyEvent(reply, false),
+                              child: Text(_eventReplyLabel(reply)),
+                            ),
+                            OutlinedButton(
+                              key: ValueKey(
+                                  'event-reply-${reply.wire}-apply-all'),
+                              onPressed: _saving
+                                  ? null
+                                  : () => _replyEvent(reply, true),
+                              child: Text('${_eventReplyLabel(reply)}並套用一般行程'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                    if (_mutationMessage != null) ...[
+                      const SizedBox(height: AppSpacing.compact),
+                      Text(
+                        _mutationMessage!,
+                        key: const ValueKey('event-mutation-message'),
+                      ),
+                    ],
                     const SizedBox(height: AppSpacing.regular),
                     Text('行程', style: Theme.of(context).textTheme.titleLarge),
                     const SizedBox(height: AppSpacing.compact),
@@ -1850,26 +1981,81 @@ class _EventDetailPageState extends State<EventDetailPage> {
   Widget _activityTile(BuildContext context, EventActivity activity) {
     final game = visibleLinkedGame(activity.linkedGameId, widget.visibleGames);
     return AppSurfaceCard(
-      child: ListTile(
-        key: ValueKey('activity-${activity.id}'),
-        leading: const Icon(Icons.timeline),
-        title: Text(activity.title),
-        subtitle: Text(_activityMetadata(context, activity)),
-        trailing: game == null ? null : const Icon(Icons.sports_basketball),
-        onTap: game == null
-            ? null
-            : () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => GameDetailPage(
-                      api: widget.api,
-                      gameId: game.id,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            key: ValueKey('activity-${activity.id}'),
+            leading: const Icon(Icons.timeline),
+            title: Text(activity.title),
+            subtitle: Text(_activityMetadata(context, activity)),
+            trailing: game == null ? null : const Icon(Icons.sports_basketball),
+            onTap: game == null
+                ? null
+                : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => GameDetailPage(
+                          api: widget.api,
+                          gameId: game.id,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
+          ),
+          if (activity.attendance != null)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.regular,
+                right: AppSpacing.regular,
+                bottom: AppSpacing.regular,
+              ),
+              child: Wrap(
+                spacing: AppSpacing.compact,
+                children: [
+                  for (final reply in EventAttendanceReply.values)
+                    OutlinedButton(
+                      key: ValueKey(
+                          'activity-${activity.id}-reply-${reply.wire}'),
+                      onPressed: _saving
+                          ? null
+                          : () => _replyActivity(activity, reply),
+                      child: Text(_eventReplyLabel(reply)),
+                    ),
+                ],
+              ),
+            ),
+          if (game != null)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: AppSpacing.regular,
+                right: AppSpacing.regular,
+                bottom: AppSpacing.regular,
+              ),
+              child: Wrap(
+                spacing: AppSpacing.compact,
+                children: [
+                  for (final reply in AttendanceReply.values)
+                    OutlinedButton(
+                      key: ValueKey(
+                          'activity-${activity.id}-game-reply-${reply.wire}'),
+                      onPressed:
+                          _saving ? null : () => _replyLinkedGame(game, reply),
+                      child: Text(_replyLabel(reply)),
+                    ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }
 }
+
+String _eventReplyLabel(EventAttendanceReply? reply) => switch (reply) {
+      EventAttendanceReply.attending => '參加',
+      EventAttendanceReply.notAttending => '不參加',
+      EventAttendanceReply.maybe => '可能參加',
+      null => '尚未回覆',
+    };
 
 Game? visibleLinkedGame(String? linkedGameId, Iterable<Game> visibleGames) {
   if (linkedGameId == null) return null;

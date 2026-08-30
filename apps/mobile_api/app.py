@@ -149,6 +149,14 @@ def create_app(dependencies: Dependencies) -> Flask:
         except EventReadContractError:
             raise MalformedRequest("event_id is malformed") from None
 
+    def activity_id(value):
+        if not isinstance(value, str) or not value.startswith("activity_"):
+            raise MalformedRequest("activity_id is malformed")
+        try:
+            return parse_event_key("event_" + value[9:])
+        except EventReadContractError:
+            raise MalformedRequest("activity_id is malformed") from None
+
     def notification_id(value):
         if not isinstance(value, str) or not 14 <= len(value) <= 32:
             raise MalformedRequest("notification_id is malformed")
@@ -490,6 +498,32 @@ def create_app(dependencies: Dependencies) -> Flask:
     @app.get("/api/v1/events/<event_key>")
     def event(event_key):
         return jsonify(dependencies.basic.event(authenticate(), event_id(event_key)))
+
+    @app.put("/api/v1/events/<event_key>/attendance-reply")
+    def put_event_attendance(event_key):
+        principal = authenticate()
+        body = json_body({"reply", "apply_to_activities"})
+        status, response, replayed = dependencies.basic.event_attendance_reply(
+            principal,
+            event_id(event_key),
+            body.get("reply"),
+            body.get("apply_to_activities"),
+            request.headers.get("Idempotency-Key", ""),
+        )
+        return jsonify({**response, "idempotent_replay": replayed}), status
+
+    @app.put("/api/v1/events/<event_key>/activities/<activity_key>/attendance-reply")
+    def put_activity_attendance(event_key, activity_key):
+        principal = authenticate()
+        body = json_body({"reply"})
+        status, response, replayed = dependencies.basic.activity_attendance_reply(
+            principal,
+            event_id(event_key),
+            activity_id(activity_key),
+            body.get("reply"),
+            request.headers.get("Idempotency-Key", ""),
+        )
+        return jsonify({**response, "idempotent_replay": replayed}), status
 
     @app.get("/api/v1/games/<game_key>/attendance")
     def attendance(game_key):

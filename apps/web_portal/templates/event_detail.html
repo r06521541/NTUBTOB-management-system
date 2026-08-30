@@ -9,6 +9,28 @@
         </div>
         {% if event.status == 'cancelled' %}<span class="portal-badge portal-badge-declined">活動已取消</span>{% else %}<span class="portal-badge portal-badge-attending">已發布</span>{% endif %}
     </section>
+    {% if event.attendance %}
+        <section class="portal-card portal-event-attendance">
+            <div>
+                <p class="portal-eyebrow">MY RESPONSE</p>
+                <h2>整體活動出席</h2>
+                <p>目前：{{ {'attending':'參加','not_attending':'不參加','maybe':'可能參加'}.get(event.attendance.own_reply, '尚未回覆') }}</p>
+                <p class="portal-muted">參加 {{ event.attendance.counts.attending }} · 不參加 {{ event.attendance.counts.not_attending }} · 可能 {{ event.attendance.counts.maybe }} · 未回覆 {{ event.attendance.counts.unanswered }}</p>
+            </div>
+            <form method="post"
+                  action="{{ url_for('reply_to_event_attendance', event_key=event.id) }}"
+                  data-dashboard-reply-form
+                  data-game-label="{{ event.title }}（整體活動）">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                <label><input type="checkbox" name="apply_all" value="true" /> 同時套用所有一般行程（不含 linked Game）</label>
+                <div class="portal-reply-actions" role="group" aria-label="整體活動出席回覆">
+                    {% for value,label in [('attending','參加'),('not_attending','不參加'),('maybe','可能參加')] %}
+                        <button class="portal-reply-button" type="submit" name="reply" value="{{ value }}" data-reply-label="{{ label }}" disabled{% if event.attendance.own_reply == value %} aria-pressed="true"{% endif %}>{{ label }}</button>
+                    {% endfor %}
+                </div>
+            </form>
+        </section>
+    {% endif %}
     <section class="portal-section-heading">
         <div><p class="portal-eyebrow">TIMELINE</p><h2>活動行程</h2></div>
     </section>
@@ -21,12 +43,47 @@
                         <span class="portal-eyebrow">{{ activity.type_label }}</span>
                         <h3>{{ activity.title }}</h3>
                         {% if activity.end_datetime %}<p>至 {{ activity.end_datetime.strftime('%m/%d %H:%M') }}</p>{% endif %}
-                        {% if activity.linked_game_route_id %}<a href="{{ url_for('game_detail', game_id=activity.linked_game_route_id) }}">查看相關賽事 →</a>{% endif %}
+                        {% if activity.linked_game_route_id %}
+                            <p>比賽回覆：{% if activity.game_reply %}<strong>{{ reply_text_mapping[activity.game_reply.reply] }}</strong>{% else %}尚未回覆{% endif %}</p>
+                            <form method="post"
+                                  action="{{ url_for('reply_to_game', game_id=activity.linked_game_route_id) }}"
+                                  data-dashboard-reply-form
+                                  data-game-label="{{ activity.title }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                                <input type="hidden" name="return_event" value="{{ event.id }}" />
+                                <div class="portal-reply-actions" role="group" aria-label="linked Game 出席回覆">
+                                    {% for value in [1,3,4,2,5] %}<button class="portal-reply-button" type="submit" name="reply" value="{{ value }}" data-reply-label="{{ reply_text_mapping[value] }}" disabled{% if activity.game_reply and activity.game_reply.reply == value %} aria-pressed="true"{% endif %}>{{ reply_text_mapping[value] }}</button>{% endfor %}
+                                </div>
+                            </form>
+                            <a href="{{ url_for('game_detail', game_id=activity.linked_game_route_id) }}">查看相關賽事 →</a>
+                        {% elif activity.attendance %}
+                            <p>我的回覆：{{ {'attending':'參加','not_attending':'不參加','maybe':'可能參加'}.get(activity.attendance.own_reply, '尚未回覆') }}</p>
+                            <p class="portal-muted">參加 {{ activity.attendance.counts.attending }} · 不參加 {{ activity.attendance.counts.not_attending }} · 可能 {{ activity.attendance.counts.maybe }} · 未回覆 {{ activity.attendance.counts.unanswered }}</p>
+                            <form method="post"
+                                  action="{{ url_for('reply_to_activity_attendance', event_key=event.id, activity_key=activity.id) }}"
+                                  data-dashboard-reply-form
+                                  data-game-label="{{ activity.title }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                                <div class="portal-reply-actions" role="group" aria-label="一般行程出席回覆">
+                                    {% for value,label in [('attending','參加'),('not_attending','不參加'),('maybe','可能參加')] %}<button class="portal-reply-button" type="submit" name="reply" value="{{ value }}" data-reply-label="{{ label }}" disabled{% if activity.attendance.own_reply == value %} aria-pressed="true"{% endif %}>{{ label }}</button>{% endfor %}
+                                </div>
+                            </form>
+                        {% endif %}
                     </div>
                 </li>
             {% endfor %}
         </ol>
     {% else %}
         <section class="portal-card portal-empty"><h2>尚無行程項目</h2><p>請留意後續活動資訊。</p></section>
+    {% endif %}
+    {% if event.attendance %}
+        <dialog class="portal-reply-confirmation" data-dashboard-reply-dialog aria-labelledby="event-reply-dialog-title" aria-describedby="event-reply-dialog-description">
+            <div class="portal-reply-confirmation-card">
+                <p class="portal-eyebrow">CONFIRM</p>
+                <h2 id="event-reply-dialog-title">確認出席回覆</h2>
+                <p id="event-reply-dialog-description"><strong data-dashboard-reply-game></strong> 將更新為「<strong data-dashboard-reply-status></strong>」。</p>
+                <div class="portal-reply-confirmation-actions"><button type="button" class="portal-button-secondary" data-dashboard-reply-cancel>取消</button><button type="button" class="portal-button-primary" data-dashboard-reply-confirm>確認回覆</button></div>
+            </div>
+        </dialog>
     {% endif %}
 {% endblock %}

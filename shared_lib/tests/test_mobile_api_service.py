@@ -497,6 +497,90 @@ class BasicApiServiceTest(unittest.TestCase):
         with self.assertRaises(InvalidArgument):
             service._public_event(malformed)
 
+    def test_event_mutations_reuse_durable_idempotency_and_exclude_linked_game(self):
+        repository = FakeAuthRepository()
+        state = {
+            "own_reply": None,
+            "counts": {
+                "attending": 0,
+                "not_attending": 0,
+                "maybe": 0,
+                "unanswered": 1,
+            },
+            "activities": {
+                11: {
+                    "own_reply": None,
+                    "counts": {
+                        "attending": 0,
+                        "not_attending": 0,
+                        "maybe": 0,
+                        "unanswered": 1,
+                    },
+                },
+                12: None,
+            },
+        }
+
+        def stored_event(*_):
+            return {
+                "id": 7,
+                "title": "Event",
+                "type": "trip",
+                "status": "published",
+                "start_at": NOW + timedelta(days=1),
+                "end_at": None,
+                "attendance": state,
+                "activities": (
+                    {
+                        "id": 11,
+                        "title": "Meet",
+                        "type": "gathering",
+                        "position": 1,
+                        "start_at": NOW + timedelta(days=1),
+                        "end_at": None,
+                        "linked_game_id": None,
+                    },
+                    {
+                        "id": 12,
+                        "title": "Game",
+                        "type": "game",
+                        "position": 2,
+                        "start_at": NOW + timedelta(days=1),
+                        "end_at": None,
+                        "linked_game_id": 44,
+                    },
+                ),
+            }
+
+        def save_event(_person, _event, reply, apply_all, _now):
+            state["own_reply"] = reply
+            if apply_all:
+                state["activities"][11]["own_reply"] = reply
+            return {"changed": True, "updated_at": NOW}
+
+        data = SimpleNamespace(
+            scoped_event=Mock(side_effect=stored_event),
+            event_attendance=Mock(side_effect=lambda *_: state),
+            reply_to_event_attendance=Mock(side_effect=save_event),
+        )
+        service = BasicApiService(data, Mock(), repository, clock=lambda: NOW)
+        first = service.event_attendance_reply(
+            repository.device, 7, "maybe", True, "event-key-123456"
+        )
+        data.scoped_event.side_effect = AssertionError(
+            "a completed replay must not re-read an Event that may now be closed"
+        )
+        replay = service.event_attendance_reply(
+            repository.device, 7, "maybe", True, "event-key-123456"
+        )
+
+        self.assertFalse(first[2])
+        self.assertTrue(replay[2])
+        self.assertEqual(first[1]["event"]["attendance"]["own_reply"], "maybe")
+        self.assertIsNone(first[1]["event"]["activities"][1]["attendance"])
+        data.reply_to_event_attendance.assert_called_once()
+        self.assertNotIn("event-key-123456", repr(repository.records))
+
     def test_event_linked_game_uses_exact_signed_bigint_boundaries(self):
         repository = FakeAuthRepository()
         service = BasicApiService(

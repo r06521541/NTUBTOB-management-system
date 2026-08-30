@@ -83,6 +83,24 @@ class MobileApiRouteTest(unittest.TestCase):
                     "activities": [],
                 }
             ),
+            event_attendance_reply=Mock(
+                return_value=(
+                    200,
+                    {"event": {"id": "event_7"}, "changed": True},
+                    False,
+                )
+            ),
+            activity_attendance_reply=Mock(
+                return_value=(
+                    200,
+                    {
+                        "event": {"id": "event_7"},
+                        "activity_id": "activity_9",
+                        "changed": True,
+                    },
+                    False,
+                )
+            ),
             data=SimpleNamespace(own_attendance_reply=Mock(return_value=5)),
             attendance_view=Mock(
                 return_value={"game_id": "44", "own_reply": "undecided", "replied": []}
@@ -309,6 +327,37 @@ class MobileApiRouteTest(unittest.TestCase):
             all(response.status_code in {400, 422} for response in responses)
         )
         self.basic.event.assert_not_called()
+
+    def test_event_attendance_mutations_are_canonical_and_idempotent(self):
+        headers = {
+            "Authorization": "Bearer token",
+            "Idempotency-Key": "event-command-0001",
+        }
+        event = self.client.put(
+            "/api/v1/events/event_7/attendance-reply",
+            headers=headers,
+            json={"reply": "maybe", "apply_to_activities": True},
+        )
+        activity = self.client.put(
+            "/api/v1/events/event_7/activities/activity_9/attendance-reply",
+            headers=headers,
+            json={"reply": "not_attending"},
+        )
+        malformed = self.client.put(
+            "/api/v1/events/event_7/activities/activity_09/attendance-reply",
+            headers=headers,
+            json={"reply": "attending"},
+        )
+
+        self.assertEqual(event.status_code, 200)
+        self.assertEqual(activity.status_code, 200)
+        self.assertEqual(malformed.status_code, 400)
+        self.basic.event_attendance_reply.assert_called_once_with(
+            self.principal, 7, "maybe", True, "event-command-0001"
+        )
+        self.basic.activity_attendance_reply.assert_called_once_with(
+            self.principal, 7, 9, "not_attending", "event-command-0001"
+        )
 
     def test_zero_and_malformed_game_ids_remain_rejected(self):
         headers = {"Authorization": "Bearer token"}

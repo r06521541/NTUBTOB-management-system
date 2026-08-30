@@ -99,6 +99,7 @@ Map<String, dynamic> gameJson({
 Map<String, dynamic> eventJson({
   String id = 'event_1',
   String status = 'published',
+  bool withAttendance = false,
 }) =>
     {
       'id': id,
@@ -107,6 +108,17 @@ Map<String, dynamic> eventJson({
       'status': status,
       'start_at': '2026-09-01T01:00:00Z',
       'end_at': '2026-09-01T04:00:00Z',
+      'attendance': withAttendance
+          ? {
+              'own_reply': 'maybe',
+              'counts': {
+                'attending': 1,
+                'not_attending': 0,
+                'maybe': 1,
+                'unanswered': 2,
+              },
+            }
+          : null,
       'activities': [
         {
           'id': 'activity_2',
@@ -126,6 +138,25 @@ Map<String, dynamic> eventJson({
           'end_at': '2026-09-01T01:30:00Z',
           'linked_game_id': 'game_45',
         },
+        if (withAttendance)
+          {
+            'id': 'activity_3',
+            'title': '集合',
+            'type': 'gathering',
+            'position': 3,
+            'start_at': '2026-09-01T03:00:00Z',
+            'end_at': null,
+            'linked_game_id': null,
+            'attendance': {
+              'own_reply': null,
+              'counts': {
+                'attending': 0,
+                'not_attending': 0,
+                'maybe': 0,
+                'unanswered': 4,
+              },
+            },
+          },
       ],
     };
 
@@ -812,6 +843,114 @@ void main() {
     expect(visibleLinkedGame('game_44', visible)?.id, 'game_44');
     expect(visibleLinkedGame('game_45', visible), isNull);
     expect(visibleLinkedGame(null, visible), isNull);
+  });
+
+  testWidgets(
+      'event detail saves three-state activity and keeps linked Game five-state',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final initial = eventJson(withAttendance: true);
+    final updated = eventJson(withAttendance: true);
+    (updated['attendance'] as Map<String, dynamic>)['own_reply'] = 'attending';
+    final transport = QueueTransport()
+      ..responses.addAll([
+        ApiResponse(200, initial),
+        ApiResponse(200, {
+          'event': updated,
+          'changed': true,
+          'idempotent_replay': false,
+        }),
+        ApiResponse(200, updated),
+      ]);
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: EventDetailPage(
+        api: api,
+        eventId: 'event_1',
+        principalScope: 'person_1',
+        visibleGames: [
+          Game('game_44', DateTime.utc(2026, 9, 1, 2), 120, null, 'Home',
+              'Away'),
+        ],
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    for (final reply in EventAttendanceReply.values) {
+      expect(find.byKey(ValueKey('event-reply-${reply.wire}')), findsOneWidget);
+      expect(
+        find.byKey(ValueKey('activity-activity_3-reply-${reply.wire}')),
+        findsOneWidget,
+      );
+    }
+    for (final reply in AttendanceReply.values) {
+      expect(
+        find.byKey(ValueKey('activity-activity_2-game-reply-${reply.wire}')),
+        findsOneWidget,
+      );
+    }
+
+    await tester.tap(
+      find.byKey(const ValueKey('event-reply-attending')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('確認出席回覆'), findsOneWidget);
+    await tester.tap(find.text('確認回覆'));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('event-mutation-message')), findsOneWidget);
+    expect(transport.calls[1].$1, 'PUT');
+    expect(transport.calls[1].$2, '/events/event_1/attendance-reply');
+    expect(transport.calls[1].$4, {
+      'reply': 'attending',
+      'apply_to_activities': false,
+    });
+  });
+
+  test('uncertain Event reply retains and reuses its durable key', () async {
+    final store = MemoryStore();
+    final transport = QueueTransport()
+      ..networkOnPut = true
+      ..responses.add(ApiResponse(503, errorJson('service_unavailable')));
+    final api = await apiFor(transport, store);
+
+    await expectLater(
+      api.replyToEvent(
+        'event_1',
+        EventAttendanceReply.maybe,
+        applyToActivities: true,
+        online: true,
+      ),
+      throwsA(isA<EventMutationUncertainException>()),
+    );
+    expect(
+      await store.countKeysWithPrefix('event-mutation:install:', maximum: 2),
+      1,
+    );
+    transport.responses.add(ApiResponse(200, {
+      'event': eventJson(withAttendance: true),
+      'changed': true,
+      'idempotent_replay': true,
+    }));
+
+    await api.replyToEvent(
+      'event_1',
+      EventAttendanceReply.maybe,
+      applyToActivities: true,
+      online: true,
+    );
+
+    expect(transport.calls[0].$3['Idempotency-Key'], isNotEmpty);
+    expect(
+      transport.calls[2].$3['Idempotency-Key'],
+      transport.calls[0].$3['Idempotency-Key'],
+    );
+    expect(
+      await store.countKeysWithPrefix('event-mutation:install:', maximum: 2),
+      0,
+    );
   });
 
   testWidgets('event list distinguishes empty and recoverable error', (

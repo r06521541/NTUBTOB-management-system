@@ -500,6 +500,7 @@ class EventActivity {
     required this.startAt,
     required this.endAt,
     this.linkedGameId,
+    this.attendance,
   });
 
   factory EventActivity.fromJson(Map<String, dynamic> json) {
@@ -512,13 +513,18 @@ class EventActivity {
     final title = _required<String>(json, 'title');
     final type = _required<String>(json, 'type');
     final linkedGameId = _nullable<String>(json, 'linked_game_id');
+    final rawAttendance = json['attendance'];
+    final attendance = rawAttendance == null
+        ? null
+        : EventAttendance.fromJson(rawAttendance as Map<String, dynamic>);
     if (!_validPositiveOpaqueId(id, 'activity_', 29) ||
         title.isEmpty ||
         title.length > 200 ||
         !const {'game', 'meal', 'transport', 'lodging', 'gathering', 'other'}
             .contains(type) ||
         endAt != null && endAt.isBefore(startAt) ||
-        linkedGameId != null && !_validGameId(linkedGameId)) {
+        linkedGameId != null && !_validGameId(linkedGameId) ||
+        linkedGameId != null && attendance != null) {
       throw const ContractException('invalid activity');
     }
     return EventActivity(
@@ -529,6 +535,7 @@ class EventActivity {
       startAt: startAt,
       endAt: endAt,
       linkedGameId: linkedGameId,
+      attendance: attendance,
     );
   }
 
@@ -537,6 +544,44 @@ class EventActivity {
   final DateTime startAt;
   final DateTime? endAt;
   final String? linkedGameId;
+  final EventAttendance? attendance;
+}
+
+enum EventAttendanceReply { attending, notAttending, maybe }
+
+extension EventAttendanceReplyWire on EventAttendanceReply {
+  String get wire => switch (this) {
+        EventAttendanceReply.attending => 'attending',
+        EventAttendanceReply.notAttending => 'not_attending',
+        EventAttendanceReply.maybe => 'maybe',
+      };
+
+  static EventAttendanceReply parse(Object? value) => switch (value) {
+        'attending' => EventAttendanceReply.attending,
+        'not_attending' => EventAttendanceReply.notAttending,
+        'maybe' => EventAttendanceReply.maybe,
+        _ => throw const ContractException('invalid Event attendance reply'),
+      };
+}
+
+class EventAttendance {
+  const EventAttendance(this.ownReply, this.counts);
+  factory EventAttendance.fromJson(Map<String, dynamic> json) {
+    final rawReply = json['own_reply'];
+    final counts = _required<Map<String, dynamic>>(json, 'counts');
+    const keys = {'attending', 'not_attending', 'maybe', 'unanswered'};
+    if (counts.keys.toSet().difference(keys).isNotEmpty ||
+        keys.difference(counts.keys.toSet()).isNotEmpty ||
+        counts.values.any((value) => value is! int || value < 0)) {
+      throw const ContractException('invalid Event attendance counts');
+    }
+    return EventAttendance(
+      rawReply == null ? null : EventAttendanceReplyWire.parse(rawReply),
+      Map.unmodifiable(counts.cast<String, int>()),
+    );
+  }
+  final EventAttendanceReply? ownReply;
+  final Map<String, int> counts;
 }
 
 class TeamEvent {
@@ -548,6 +593,7 @@ class TeamEvent {
     required this.startAt,
     required this.endAt,
     required this.activities,
+    this.attendance,
   });
 
   factory TeamEvent.fromJson(Map<String, dynamic> json) {
@@ -583,6 +629,11 @@ class TeamEvent {
       startAt: startAt,
       endAt: endAt,
       activities: activities,
+      attendance: json['attendance'] == null
+          ? null
+          : EventAttendance.fromJson(
+              json['attendance'] as Map<String, dynamic>,
+            ),
     );
   }
 
@@ -590,6 +641,7 @@ class TeamEvent {
   final DateTime startAt;
   final DateTime? endAt;
   final List<EventActivity> activities;
+  final EventAttendance? attendance;
   bool get cancelled => status == 'cancelled';
 }
 
@@ -1985,6 +2037,32 @@ class ProfileMutationUncertainException implements Exception {
   const ProfileMutationUncertainException();
 }
 
+class EventMutationUncertainException implements Exception {
+  const EventMutationUncertainException();
+}
+
+class EventAttendanceMutation {
+  const EventAttendanceMutation(
+    this.event,
+    this.activityId,
+    this.changed,
+    this.idempotentReplay,
+  );
+  factory EventAttendanceMutation.fromJson(Map<String, dynamic> json) =>
+      EventAttendanceMutation(
+        TeamEvent.fromJson(_required<Map<String, dynamic>>(json, 'event')),
+        json.containsKey('activity_id')
+            ? _nullable<String>(json, 'activity_id')
+            : null,
+        json['changed'] as bool?,
+        _required<bool>(json, 'idempotent_replay'),
+      );
+  final TeamEvent event;
+  final String? activityId;
+  final bool? changed;
+  final bool idempotentReplay;
+}
+
 class OfflineReadOnlyException implements Exception {
   const OfflineReadOnlyException();
 }
@@ -2225,8 +2303,10 @@ class BasicApi {
   Future<int> observePendingAttendanceIntentCount() =>
       store.countKeysWithPrefix('mutation:$installationId:', maximum: 1);
 
-  Future<void> clearPendingAttendanceIntents() =>
-      store.deleteKeysWithPrefix('mutation:$installationId:');
+  Future<void> clearPendingAttendanceIntents() => Future.wait([
+        store.deleteKeysWithPrefix('mutation:$installationId:'),
+        store.deleteKeysWithPrefix('event-mutation:$installationId:'),
+      ]);
   Future<void> clearPendingProfileIntents() =>
       store.deleteKeysWithPrefix('profile-mutation:$installationId:');
   Never _failure(ApiResponse response, String operation) {
@@ -2366,6 +2446,143 @@ class BasicApi {
       _failure(response, 'event');
     }
     return TeamEvent.fromJson(response.body!);
+  }
+
+  Future<EventAttendanceMutation> replyToEvent(
+    String eventId,
+    EventAttendanceReply reply, {
+    required bool applyToActivities,
+    required bool online,
+  }) =>
+      _eventMutation(
+        eventId: eventId,
+        activityId: null,
+        reply: reply,
+        applyToActivities: applyToActivities,
+        online: online,
+      );
+
+  Future<EventAttendanceMutation> replyToActivity(
+    String eventId,
+    String activityId,
+    EventAttendanceReply reply, {
+    required bool online,
+  }) {
+    if (!_validPositiveOpaqueId(activityId, 'activity_', 29)) {
+      throw const ContractException('invalid activity id');
+    }
+    return _eventMutation(
+      eventId: eventId,
+      activityId: activityId,
+      reply: reply,
+      applyToActivities: false,
+      online: online,
+    );
+  }
+
+  Future<EventAttendanceMutation> _eventMutation({
+    required String eventId,
+    required String? activityId,
+    required EventAttendanceReply reply,
+    required bool applyToActivities,
+    required bool online,
+  }) async {
+    if (!online) throw const OfflineReadOnlyException();
+    if (!_validPositiveOpaqueId(eventId, 'event_', 26)) {
+      throw const ContractException('invalid event id');
+    }
+    final target = activityId ?? 'event';
+    final intentKey = 'event-mutation:$installationId:$eventId:$target';
+    final requestBody = activityId == null
+        ? <String, dynamic>{
+            'reply': reply.wire,
+            'apply_to_activities': applyToActivities,
+          }
+        : <String, dynamic>{'reply': reply.wire};
+    final existing = await store.read(intentKey);
+    String key;
+    if (existing == null) {
+      key = ids.next();
+    } else {
+      final intent = jsonDecode(existing) as Map<String, dynamic>;
+      if (intent['reply'] != reply.wire ||
+          intent['apply_to_activities'] != applyToActivities) {
+        throw const EventMutationUncertainException();
+      }
+      key = _required<String>(intent, 'key');
+    }
+    await store.write(
+        intentKey,
+        jsonEncode({
+          'key': key,
+          'reply': reply.wire,
+          'apply_to_activities': applyToActivities,
+        }));
+    final path = activityId == null
+        ? '/events/${Uri.encodeComponent(eventId)}/attendance-reply'
+        : '/events/${Uri.encodeComponent(eventId)}/activities/'
+            '${Uri.encodeComponent(activityId)}/attendance-reply';
+    try {
+      final response = await session.authorized(
+        'PUT',
+        path,
+        headers: {'Idempotency-Key': key},
+        body: requestBody,
+      );
+      if (response.status >= 500) {
+        return await _reconcileEventMutation(
+          eventId,
+          activityId,
+          reply,
+          applyToActivities,
+          intentKey,
+        );
+      }
+      if (response.status != 200 || response.body == null) {
+        _failure(response, 'Event attendance mutation');
+      }
+      final result = EventAttendanceMutation.fromJson(response.body!);
+      await store.delete(intentKey);
+      return result;
+    } on AuthorizedRequestNetworkException {
+      return _reconcileEventMutation(
+        eventId,
+        activityId,
+        reply,
+        applyToActivities,
+        intentKey,
+      );
+    }
+  }
+
+  Future<EventAttendanceMutation> _reconcileEventMutation(
+    String eventId,
+    String? activityId,
+    EventAttendanceReply reply,
+    bool applyToActivities,
+    String intentKey,
+  ) async {
+    try {
+      final current = await event(eventId);
+      EventAttendance? target = current.attendance;
+      if (activityId != null) {
+        target = null;
+        for (final activity in current.activities) {
+          if (activity.id == activityId) target = activity.attendance;
+        }
+      }
+      final appliedToAll = !applyToActivities ||
+          current.activities
+              .where((activity) => activity.linkedGameId == null)
+              .every((activity) => activity.attendance?.ownReply == reply);
+      if (target?.ownReply == reply && appliedToAll) {
+        await store.delete(intentKey);
+        return EventAttendanceMutation(current, activityId, null, true);
+      }
+    } on Object {
+      // Preserve the durable key unless a fresh GET proves the requested state.
+    }
+    throw const EventMutationUncertainException();
   }
 
   Future<AttendanceSnapshot> attendance(String id) async {

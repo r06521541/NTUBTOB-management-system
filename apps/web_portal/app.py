@@ -1305,11 +1305,88 @@ def event_detail(event_key):
             ),
             503,
         )
+    game_replies = latest_member_replies(session.get("member_id"))
+    for activity in projected_event["activities"]:
+        game_id = activity["linked_game_route_id"]
+        activity["game_reply"] = (
+            game_replies.get(game_id) if game_id is not None else None
+        )
     return render_template(
         "event_detail.html",
         event=projected_event,
+        csrf_token=get_or_create_csrf_token(),
+        reply_text_mapping=reply_text_mapping,
         **_event_template_context(lifecycle_principal),
     )
+
+
+def _event_attendance_failure(error):
+    from shared_module.portal_data.domain import (
+        AuthorizationError as PortalAuthorizationError,
+        ConflictError as PortalConflictError,
+        ValidationError as PortalValidationError,
+    )
+
+    if isinstance(error, PortalAuthorizationError):
+        abort(403)
+    if isinstance(error, PortalValidationError):
+        abort(400)
+    if isinstance(error, PortalConflictError):
+        abort(409)
+    raise error
+
+
+@app.post("/events/<event_key>/attendance")
+@member_required
+def reply_to_event_attendance(event_key):
+    require_valid_csrf()
+    try:
+        event_id = parse_event_key(event_key)
+    except EventReadContractError:
+        abort(404)
+    reply = request.form.get("reply", "")
+    if reply not in {"attending", "not_attending", "maybe"}:
+        abort(400)
+    apply_all_value = request.form.get("apply_all")
+    if apply_all_value not in {None, "true"}:
+        abort(400)
+    apply_all = apply_all_value == "true"
+    context = _event_read_context()
+    if context is None:
+        abort(503)
+    repository, principal = context
+    try:
+        repository.reply_to_event_attendance(
+            principal.person.id, event_id, reply, apply_all
+        )
+    except Exception as error:
+        _event_attendance_failure(error)
+    return redirect(url_for("event_detail", event_key=event_key))
+
+
+@app.post("/events/<event_key>/activities/<activity_key>/attendance")
+@member_required
+def reply_to_activity_attendance(event_key, activity_key):
+    require_valid_csrf()
+    try:
+        event_id = parse_event_key(event_key)
+        activity_id = _parse_management_key(activity_key, "activity_")
+    except EventReadContractError:
+        abort(404)
+    reply = request.form.get("reply", "")
+    if reply not in {"attending", "not_attending", "maybe"}:
+        abort(400)
+    context = _event_read_context()
+    if context is None:
+        abort(503)
+    repository, principal = context
+    try:
+        repository.reply_to_activity_attendance(
+            principal.person.id, event_id, activity_id, reply
+        )
+    except Exception as error:
+        _event_attendance_failure(error)
+    return redirect(url_for("event_detail", event_key=event_key))
 
 
 @app.get("/manage/events")
@@ -1723,6 +1800,18 @@ def reply_to_game(game_id):
         abort(404)
     if repository is None or not isinstance(person_id, int):
         return "Identity service is temporarily unavailable", 503
+    return_event_key = request.form.get("return_event", "")
+    if return_event_key:
+        try:
+            return_event_id = parse_event_key(return_event_key)
+        except EventReadContractError:
+            abort(400)
+        event = repository.scoped_event(person_id, return_event_id)
+        if event is None or not any(
+            activity.get("linked_game_id") == game_id
+            for activity in event.get("activities", ())
+        ):
+            abort(400)
     cached = getattr(g, "portal_lifecycle_context", None)
     lifecycle_principal = cached[1] if cached is not None else None
     member = (
@@ -1757,6 +1846,8 @@ def reply_to_game(game_id):
         )
     except Exception:
         return "Attendance reply could not be saved", 409
+    if return_event_key:
+        return redirect(url_for("event_detail", event_key=return_event_key))
     return redirect(url_for("game_detail", game_id=game_id))
 
 

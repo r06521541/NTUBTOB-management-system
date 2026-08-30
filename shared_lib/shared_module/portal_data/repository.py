@@ -33,6 +33,7 @@ from .domain import (
 )
 from .models import (
     AccessAuditRecord,
+    ActivityAttendanceReplyRecord,
     ActivityRecord,
     AuthIdentityRecord,
     EventAttendanceReplyRecord,
@@ -247,6 +248,28 @@ class TeamPortalRepository(Protocol):
 
     def event_invitees(self, event_id: int) -> list[Invitee]: ...
     def reply_to_event(self, event_id: int, person_id: int, reply: str) -> None: ...
+
+    def event_attendance(
+        self, person_id: int, event_id: int, at: datetime | None = None
+    ) -> dict: ...
+
+    def reply_to_event_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        reply: str,
+        apply_all: bool,
+        at: datetime | None = None,
+    ) -> dict: ...
+
+    def reply_to_activity_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        activity_id: int,
+        reply: str,
+        at: datetime | None = None,
+    ) -> dict: ...
     def roster_summary(self, event_id: int) -> dict[str, int]: ...
 
     def backfill_members(
@@ -273,6 +296,7 @@ class InMemoryTeamPortalRepository:
         self.overrides: dict[tuple[int, int], dict] = {}
         self.invitees: dict[tuple[int, int], Invitee] = {}
         self.replies: dict[tuple[int, int], str] = {}
+        self.activity_replies: dict[tuple[int, int], str] = {}
 
     def _next(self, kind: str) -> int:
         self._next_ids[kind] += 1
@@ -1150,11 +1174,119 @@ class InMemoryTeamPortalRepository:
         ]
 
     def reply_to_event(self, event_id: int, person_id: int, reply: str) -> None:
-        require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
+        self.reply_to_event_attendance(person_id, event_id, reply, False)
+
+    def _attendance_event(self, person_id: int, event_id: int, at: datetime) -> dict:
+        person = self.get_person(person_id)
+        event = self.events.get(event_id)
         invitee = self.invitees.get((event_id, person_id))
-        if invitee is None or not invitee.included:
-            raise AuthorizationError("included invitee required")
-        self.replies[(event_id, person_id)] = reply
+        if not person.can_use_portal or invitee is None or not invitee.included:
+            raise AuthorizationError("active included invitee required")
+        if (
+            event is None
+            or event["status"] != "published"
+            or (event["end_at"] or event["start_at"]) < at
+        ):
+            raise ConflictError("open published event required")
+        return event
+
+    @staticmethod
+    def _attendance_counts(values: Iterable[str | None]) -> dict[str, int]:
+        counts = Counter(value or "unanswered" for value in values)
+        return {
+            value: counts[value]
+            for value in (*sorted(ATTENDANCE_REPLIES), "unanswered")
+        }
+
+    def event_attendance(
+        self, person_id: int, event_id: int, at: datetime | None = None
+    ) -> dict:
+        now = at or utc_now()
+        with self._lock:
+            self._attendance_event(person_id, event_id, now)
+            included = tuple(
+                invitee.person_id
+                for (target_event_id, _), invitee in self.invitees.items()
+                if target_event_id == event_id and invitee.included
+            )
+            activities = sorted(
+                (
+                    row
+                    for row in self.activities.values()
+                    if row["event_id"] == event_id
+                ),
+                key=lambda row: (row["position"], row["id"]),
+            )
+            return {
+                "own_reply": self.replies.get((event_id, person_id)),
+                "counts": self._attendance_counts(
+                    self.replies.get((event_id, target_id)) for target_id in included
+                ),
+                "activities": {
+                    row["id"]: (
+                        None
+                        if row["game_id"] is not None
+                        else {
+                            "own_reply": self.activity_replies.get(
+                                (row["id"], person_id)
+                            ),
+                            "counts": self._attendance_counts(
+                                self.activity_replies.get((row["id"], target_id))
+                                for target_id in included
+                            ),
+                        }
+                    )
+                    for row in activities
+                },
+            }
+
+    def reply_to_event_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        reply: str,
+        apply_all: bool,
+        at: datetime | None = None,
+    ) -> dict:
+        require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
+        if type(apply_all) is not bool:
+            raise ValidationError("apply_all must be a boolean")
+        now = at or utc_now()
+        with self._lock:
+            self._attendance_event(person_id, event_id, now)
+            changed = self.replies.get((event_id, person_id)) != reply
+            self.replies[(event_id, person_id)] = reply
+            if apply_all:
+                for activity in self.activities.values():
+                    if (
+                        activity["event_id"] != event_id
+                        or activity["game_id"] is not None
+                    ):
+                        continue
+                    key = (activity["id"], person_id)
+                    changed = changed or self.activity_replies.get(key) != reply
+                    self.activity_replies[key] = reply
+            return {"changed": changed, "updated_at": now}
+
+    def reply_to_activity_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        activity_id: int,
+        reply: str,
+        at: datetime | None = None,
+    ) -> dict:
+        require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
+        now = at or utc_now()
+        with self._lock:
+            self._attendance_event(person_id, event_id, now)
+            activity = self._activity_for_event(event_id, activity_id)
+            if activity["game_id"] is not None:
+                raise ConflictError("linked Game uses Game attendance")
+            key = (activity_id, person_id)
+            changed = self.activity_replies.get(key) != reply
+            self.activity_replies[key] = reply
+            return {"changed": changed, "updated_at": now}
 
     def roster_summary(self, event_id: int) -> dict[str, int]:
         result: Counter[str] = Counter()
@@ -2586,36 +2718,299 @@ class PostgresTeamPortalRepository:
             return self._event_invitees(session, event_id)
 
     def reply_to_event(self, event_id: int, person_id: int, reply: str) -> None:
-        require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
-        now = utc_now()
-        with Session(self.engine) as session, session.begin():
-            invitee = session.scalar(
-                select(EventInviteeRecord).where(
-                    EventInviteeRecord.event_id == event_id,
-                    EventInviteeRecord.person_id == person_id,
+        self.reply_to_event_attendance(person_id, event_id, reply, False)
+
+    @staticmethod
+    def _attendance_target(
+        session: Session,
+        person_id: int,
+        event_id: int,
+        at: datetime,
+        *,
+        for_update: bool,
+    ) -> EventRecord:
+        person_query = select(PersonRecord).where(PersonRecord.id == person_id)
+        event_query = select(EventRecord).where(EventRecord.id == event_id)
+        invitee_query = select(EventInviteeRecord).where(
+            EventInviteeRecord.event_id == event_id,
+            EventInviteeRecord.person_id == person_id,
+        )
+        if for_update:
+            person_query = person_query.with_for_update()
+            event_query = event_query.with_for_update()
+            invitee_query = invitee_query.with_for_update()
+        person = session.scalar(person_query)
+        event = session.scalar(event_query)
+        invitee = session.scalar(invitee_query)
+        if (
+            person is None
+            or person.portal_status != "active"
+            or invitee is None
+            or not invitee.included
+        ):
+            raise AuthorizationError("active included invitee required")
+        if (
+            event is None
+            or event.status != "published"
+            or (event.end_at or event.start_at) < at
+        ):
+            raise ConflictError("open published event required")
+        return event
+
+    @classmethod
+    def _event_attendance_batch_in_session(
+        cls,
+        session: Session,
+        person_id: int,
+        events: Iterable[EventRecord],
+        activities: Iterable[ActivityRecord],
+        at: datetime,
+    ) -> dict[int, dict]:
+        published_events = tuple(events)
+        event_ids = tuple(event.id for event in published_events)
+        if not event_ids:
+            return {}
+        if any(
+            event.status != "published" or (event.end_at or event.start_at) < at
+            for event in published_events
+        ):
+            raise ConflictError("open published event required")
+
+        included_by_event: dict[int, list[int]] = {
+            event_id: [] for event_id in event_ids
+        }
+        for event_id, included_person_id in session.execute(
+            select(EventInviteeRecord.event_id, EventInviteeRecord.person_id).where(
+                EventInviteeRecord.event_id.in_(event_ids),
+                EventInviteeRecord.included.is_(True),
+            )
+        ):
+            included_by_event[event_id].append(included_person_id)
+        if any(person_id not in included_by_event[event_id] for event_id in event_ids):
+            raise AuthorizationError("active included invitee required")
+
+        event_replies = {
+            (row.event_id, row.person_id): row.reply
+            for row in session.scalars(
+                select(EventAttendanceReplyRecord)
+                .join(
+                    EventInviteeRecord,
+                    and_(
+                        EventInviteeRecord.event_id
+                        == EventAttendanceReplyRecord.event_id,
+                        EventInviteeRecord.person_id
+                        == EventAttendanceReplyRecord.person_id,
+                    ),
+                )
+                .where(
+                    EventAttendanceReplyRecord.event_id.in_(event_ids),
                     EventInviteeRecord.included.is_(True),
                 )
             )
-            if invitee is None:
-                raise AuthorizationError("included invitee required")
-            existing = session.scalar(
-                select(EventAttendanceReplyRecord).where(
+        }
+        activity_rows = tuple(activities)
+        activities_by_event: dict[int, list[ActivityRecord]] = {
+            event_id: [] for event_id in event_ids
+        }
+        for activity in activity_rows:
+            if activity.event_id in activities_by_event:
+                activities_by_event[activity.event_id].append(activity)
+        activity_ids = tuple(row.id for row in activity_rows if row.game_id is None)
+        activity_replies: dict[tuple[int, int], str] = {}
+        if activity_ids:
+            activity_replies = {
+                (row.activity_id, row.person_id): row.reply
+                for row in session.scalars(
+                    select(ActivityAttendanceReplyRecord)
+                    .join(
+                        ActivityRecord,
+                        ActivityRecord.id == ActivityAttendanceReplyRecord.activity_id,
+                    )
+                    .join(
+                        EventInviteeRecord,
+                        and_(
+                            EventInviteeRecord.event_id == ActivityRecord.event_id,
+                            EventInviteeRecord.person_id
+                            == ActivityAttendanceReplyRecord.person_id,
+                        ),
+                    )
+                    .where(
+                        ActivityAttendanceReplyRecord.activity_id.in_(activity_ids),
+                        EventInviteeRecord.included.is_(True),
+                    )
+                )
+            }
+
+        def counts(values: Iterable[str | None]) -> dict[str, int]:
+            result = Counter(value or "unanswered" for value in values)
+            return {
+                value: result[value]
+                for value in (*sorted(ATTENDANCE_REPLIES), "unanswered")
+            }
+
+        return {
+            event_id: {
+                "own_reply": event_replies.get((event_id, person_id)),
+                "counts": counts(
+                    event_replies.get((event_id, target_id))
+                    for target_id in included_by_event[event_id]
+                ),
+                "activities": {
+                    activity.id: (
+                        None
+                        if activity.game_id is not None
+                        else {
+                            "own_reply": activity_replies.get((activity.id, person_id)),
+                            "counts": counts(
+                                activity_replies.get((activity.id, target_id))
+                                for target_id in included_by_event[event_id]
+                            ),
+                        }
+                    )
+                    for activity in activities_by_event[event_id]
+                },
+            }
+            for event_id in event_ids
+        }
+
+    @classmethod
+    def _event_attendance_in_session(
+        cls, session: Session, person_id: int, event_id: int, at: datetime
+    ) -> dict:
+        event = cls._attendance_target(
+            session, person_id, event_id, at, for_update=False
+        )
+        activities = session.scalars(
+            select(ActivityRecord)
+            .where(ActivityRecord.event_id == event_id)
+            .order_by(ActivityRecord.position, ActivityRecord.id)
+        ).all()
+        return cls._event_attendance_batch_in_session(
+            session,
+            person_id,
+            (event,),
+            activities,
+            at,
+        )[event_id]
+
+    def event_attendance(
+        self, person_id: int, event_id: int, at: datetime | None = None
+    ) -> dict:
+        with Session(self.engine) as session:
+            return self._event_attendance_in_session(
+                session, person_id, event_id, at or utc_now()
+            )
+
+    def reply_to_event_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        reply: str,
+        apply_all: bool,
+        at: datetime | None = None,
+    ) -> dict:
+        require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
+        if type(apply_all) is not bool:
+            raise ValidationError("apply_all must be a boolean")
+        now = at or utc_now()
+        with Session(self.engine) as session, session.begin():
+            self._attendance_target(session, person_id, event_id, now, for_update=True)
+            current = session.scalar(
+                select(EventAttendanceReplyRecord.reply).where(
                     EventAttendanceReplyRecord.event_id == event_id,
                     EventAttendanceReplyRecord.person_id == person_id,
                 )
             )
-            if existing is None:
-                session.add(
-                    EventAttendanceReplyRecord(
-                        event_id=event_id,
-                        person_id=person_id,
-                        reply=reply,
-                        updated_at=now,
-                    )
+            changed = current != reply
+            session.execute(
+                insert(EventAttendanceReplyRecord)
+                .values(
+                    event_id=event_id,
+                    person_id=person_id,
+                    reply=reply,
+                    updated_at=now,
                 )
-            else:
-                existing.reply = reply
-                existing.updated_at = now
+                .on_conflict_do_update(
+                    index_elements=["event_id", "person_id"],
+                    set_={"reply": reply, "updated_at": now},
+                )
+            )
+            if apply_all:
+                activities = session.scalars(
+                    select(ActivityRecord)
+                    .where(
+                        ActivityRecord.event_id == event_id,
+                        ActivityRecord.game_id.is_(None),
+                    )
+                    .with_for_update()
+                ).all()
+                for activity in activities:
+                    existing = session.scalar(
+                        select(ActivityAttendanceReplyRecord.reply).where(
+                            ActivityAttendanceReplyRecord.activity_id == activity.id,
+                            ActivityAttendanceReplyRecord.person_id == person_id,
+                        )
+                    )
+                    changed = changed or existing != reply
+                    session.execute(
+                        insert(ActivityAttendanceReplyRecord)
+                        .values(
+                            activity_id=activity.id,
+                            person_id=person_id,
+                            reply=reply,
+                            updated_at=now,
+                        )
+                        .on_conflict_do_update(
+                            index_elements=["activity_id", "person_id"],
+                            set_={"reply": reply, "updated_at": now},
+                        )
+                    )
+            return {"changed": changed, "updated_at": now}
+
+    def reply_to_activity_attendance(
+        self,
+        person_id: int,
+        event_id: int,
+        activity_id: int,
+        reply: str,
+        at: datetime | None = None,
+    ) -> dict:
+        require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
+        now = at or utc_now()
+        with Session(self.engine) as session, session.begin():
+            self._attendance_target(session, person_id, event_id, now, for_update=True)
+            activity = session.scalar(
+                select(ActivityRecord)
+                .where(
+                    ActivityRecord.id == activity_id,
+                    ActivityRecord.event_id == event_id,
+                )
+                .with_for_update()
+            )
+            if activity is None:
+                raise ConflictError("activity does not belong to event")
+            if activity.game_id is not None:
+                raise ConflictError("linked Game uses Game attendance")
+            current = session.scalar(
+                select(ActivityAttendanceReplyRecord.reply).where(
+                    ActivityAttendanceReplyRecord.activity_id == activity_id,
+                    ActivityAttendanceReplyRecord.person_id == person_id,
+                )
+            )
+            session.execute(
+                insert(ActivityAttendanceReplyRecord)
+                .values(
+                    activity_id=activity_id,
+                    person_id=person_id,
+                    reply=reply,
+                    updated_at=now,
+                )
+                .on_conflict_do_update(
+                    index_elements=["activity_id", "person_id"],
+                    set_={"reply": reply, "updated_at": now},
+                )
+            )
+            return {"changed": current != reply, "updated_at": now}
 
     def roster_summary(self, event_id: int) -> dict[str, int]:
         with Session(self.engine) as session:

@@ -30,6 +30,8 @@ class OpenApiContractTest(unittest.TestCase):
                 "/games/{game_id}",
                 "/events",
                 "/events/{event_id}",
+                "/events/{event_id}/attendance-reply",
+                "/events/{event_id}/activities/{activity_id}/attendance-reply",
                 "/games/{game_id}/attendance",
                 "/games/{game_id}/attendance-report",
                 "/games/{game_id}/attendance-reply",
@@ -293,6 +295,7 @@ class OpenApiContractTest(unittest.TestCase):
                 "status",
                 "start_at",
                 "end_at",
+                "attendance",
                 "activities",
             },
         )
@@ -354,9 +357,18 @@ class OpenApiContractTest(unittest.TestCase):
             "manager",
             "audit",
             "reason",
-            "attendance",
         ):
             self.assertNotIn(private, response_properties)
+        self.assertEqual(
+            schemas["EventAttendanceReply"]["enum"],
+            ["attending", "not_attending", "maybe"],
+        )
+        self.assertIn(
+            "Linked Game Activities fail closed",
+            self.contract["paths"][
+                "/events/{event_id}/activities/{activity_id}/attendance-reply"
+            ]["put"]["description"],
+        )
 
 
 if __name__ == "__main__":

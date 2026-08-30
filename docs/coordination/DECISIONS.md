@@ -316,9 +316,19 @@
 - Invariants：published edit與cancel必須audit；cancel保留snapshot。發布、編輯與取消皆不自動發通知，通知必須是未來獨立、可預覽且具idempotency的操作。linked Game維持既有read/source ownership，不因Event Builder取得crawler或Game寫入權。
 - Non-goals：本決策不授權production schema/runtime/data mutation、Event／Activity attendance、guest同行者、真實通知、deployment或cloud／Secret／IAM操作。
 
+## DEC-102：Event／Activity 三態與 linked Game 五態維持單一來源
+
+- 狀態：`active`
+- 生效：2026-08-30
+- 來源：Owner 對 TASK-168 的明確產品決定、既有 Event／Activity schema 與 Game attendance contract
+- Supersedes：DEC-101 中 attendance 未定案部分；不改變其通知分離與 linked Game source ownership
+- 決策：Event 與非 linked-Game Activity 使用既有 `attending`／`not_attending`／`maybe` 三態；linked Game Activity 在同一 Event surface 重用既有 Game 五態 attendance，不在 activity attendance 再存一份。
+- Invariants：Event「套用全部」只更新非 linked-Game Activity，不自動映射或覆寫 Game 回覆；Event、Activity與Game mutation都由server重驗active included invitee及資源狀態。統計與UI必須區分整體意向、一般行程與Game回覆。
+- Non-goals：不因本決策授權schema／migration、通知、provider、Secret、cloud、production data mutation或deployment；linked Game與legacy Game attendance的停止條件、通知及來源ownership維持既有契約。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-101`，下一個新決策從 `DEC-102` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-102`，下一個新決策從 `DEC-103` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

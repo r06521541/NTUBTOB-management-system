@@ -806,6 +806,162 @@ class BasicApiService:
             raise NotFound("event not found")
         return self._public_event(event)
 
+    @staticmethod
+    def _raise_event_mutation_error(error: Exception) -> None:
+        from .portal_data.domain import (
+            AuthorizationError,
+            ConflictError,
+            ValidationError,
+        )
+
+        if isinstance(error, AuthorizationError):
+            raise PermissionDenied(str(error)) from None
+        if isinstance(error, ConflictError):
+            raise Conflict(str(error)) from None
+        if isinstance(error, ValidationError):
+            raise InvalidArgument(str(error)) from None
+        raise error
+
+    @staticmethod
+    def _event_reply(value: object) -> str:
+        if value not in {"attending", "not_attending", "maybe"}:
+            raise InvalidArgument("unknown Event attendance reply")
+        return str(value)
+
+    def event_attendance_reply(
+        self,
+        principal: MobilePrincipal,
+        event_id: int,
+        reply: object,
+        apply_all: object,
+        key: str,
+    ) -> tuple[int, dict, bool]:
+        value = self._event_reply(reply)
+        if type(apply_all) is not bool:
+            raise InvalidArgument("apply_to_activities must be a boolean")
+        if not isinstance(key, str) or not 16 <= len(key) <= 200:
+            raise InvalidArgument("Idempotency-Key required")
+        request_body = {"reply": value, "apply_to_activities": apply_all}
+
+        def response(changed):
+            return 200, {
+                "event": self.event(principal, event_id),
+                "changed": changed,
+            }
+
+        def reconcile():
+            try:
+                state = self.data.event_attendance(
+                    principal.person_id, event_id, self.clock()
+                )
+            except Exception as error:
+                self._raise_event_mutation_error(error)
+            if state["own_reply"] != value:
+                return None
+            if apply_all and any(
+                item is not None and item["own_reply"] != value
+                for item in state["activities"].values()
+            ):
+                return None
+            return response(None)
+
+        def mutation():
+            try:
+                result = self.data.reply_to_event_attendance(
+                    principal.person_id,
+                    event_id,
+                    value,
+                    apply_all,
+                    self.clock(),
+                )
+            except Exception as error:
+                self._raise_event_mutation_error(error)
+            return response(result["changed"])
+
+        return self.auth.idempotent(
+            session_id=principal.session_id,
+            person_id=principal.person_id,
+            method="PUT",
+            route=f"/api/v1/events/event_{event_id}/attendance-reply",
+            key_hash=secret_hash(key),
+            request_hash=canonical_hash(request_body),
+            mutation=mutation,
+            reconcile=reconcile,
+            now=self.clock(),
+        )
+
+    def activity_attendance_reply(
+        self,
+        principal: MobilePrincipal,
+        event_id: int,
+        activity_id: int,
+        reply: object,
+        key: str,
+    ) -> tuple[int, dict, bool]:
+        value = self._event_reply(reply)
+        if not isinstance(key, str) or not 16 <= len(key) <= 200:
+            raise InvalidArgument("Idempotency-Key required")
+        activity_key = f"activity_{activity_id}"
+        request_body = {"reply": value}
+
+        def response(changed):
+            return 200, {
+                "event": self.event(principal, event_id),
+                "activity_id": activity_key,
+                "changed": changed,
+            }
+
+        def reconcile():
+            try:
+                state = self.data.event_attendance(
+                    principal.person_id, event_id, self.clock()
+                )
+            except Exception as error:
+                self._raise_event_mutation_error(error)
+            item = state["activities"].get(activity_id)
+            return (
+                response(None)
+                if item is not None and item["own_reply"] == value
+                else None
+            )
+
+        def mutation():
+            event = self.event(principal, event_id)
+            activity = next(
+                (item for item in event["activities"] if item["id"] == activity_key),
+                None,
+            )
+            if activity is None:
+                raise NotFound("activity not found")
+            if activity["linked_game_id"] is not None:
+                raise Conflict("linked Game uses Game attendance")
+            try:
+                result = self.data.reply_to_activity_attendance(
+                    principal.person_id,
+                    event_id,
+                    activity_id,
+                    value,
+                    self.clock(),
+                )
+            except Exception as error:
+                self._raise_event_mutation_error(error)
+            return response(result["changed"])
+
+        return self.auth.idempotent(
+            session_id=principal.session_id,
+            person_id=principal.person_id,
+            method="PUT",
+            route=(
+                f"/api/v1/events/event_{event_id}/activities/"
+                f"activity_{activity_id}/attendance-reply"
+            ),
+            key_hash=secret_hash(key),
+            request_hash=canonical_hash(request_body),
+            mutation=mutation,
+            reconcile=reconcile,
+            now=self.clock(),
+        )
+
     def _game(self, principal: MobilePrincipal, game_id: int):
         game = self.data.scoped_game(principal.person_id, game_id, self.clock())
         if game is None:
