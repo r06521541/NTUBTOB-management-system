@@ -9,7 +9,10 @@ from apple_verifier import AppleIdTokenVerifier
 from cryptography.fernet import Fernet, InvalidToken
 from google_verifier import GoogleIdTokenVerifier
 from line_verifier import LineIdTokenVerifier
-from revision_readiness import database_revision_is_current
+from revision_readiness import (
+    apple_lifecycle_configuration_is_valid,
+    database_revision_is_current,
+)
 from shared_module.attendance_reply import AttendanceReplyService
 from shared_module.identity_linking import IdentityLinkProofCodec, IdentityLinkService
 from shared_module.mobile_api import (
@@ -75,7 +78,8 @@ def revision_is_current() -> bool:
 
 
 repository = MobileRepository(engine)
-cipher = RuntimeCipher(required("MOBILE_REFRESH_REPLAY_KEY"))
+refresh_replay_key = required("MOBILE_REFRESH_REPLAY_KEY")
+cipher = RuntimeCipher(refresh_replay_key)
 token_key = base64.urlsafe_b64decode(required("MOBILE_ACCESS_SIGNING_KEY"))
 auth = MobileAuthService(
     repository,
@@ -104,7 +108,7 @@ apple_values = {
         "MOBILE_API_APPLE_NOTIFICATION_AUDIENCE", ""
     ),
 }
-if all(value and value == value.strip() for value in apple_values.values()):
+if apple_lifecycle_configuration_is_valid(apple_values, refresh_replay_key):
     apple_verifier = AppleIdTokenVerifier()
     apple_provider_cipher = RuntimeCipher(
         apple_values["credential_key"], "MOBILE_API_APPLE_PROVIDER_CREDENTIAL_KEY"

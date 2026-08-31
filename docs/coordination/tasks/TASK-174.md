@@ -23,7 +23,7 @@ native user identifier及 profile hint 不得用於自動合併帳號。
 - actor_id: `/root/task174_apple_lifecycle_writer`
 - role: `codex-writer`
 - claim_id: `task-174-apple-lifecycle-writer-20260831`
-- lease_version: 4
+- lease_version: 6
 - scope: Apple native credential envelope、Mobile API/provider lifecycle、durable schema、offline tests及release evidence
 - owned_paths:
   - `clients/flutter_app/ios/Runner/AppleAuthorizationBridge.swift`
@@ -63,6 +63,15 @@ Lease 3只修正Main依Apple官方wire範例發現的server-notification contrac
 Lease 4另修正Main發現的encryption key separation：既有`MOBILE_REFRESH_REPLAY_KEY` cipher只負責app session refresh
 successor，獨立`MOBILE_API_APPLE_PROVIDER_CREDENTIAL_KEY` cipher只負責Apple provider refresh credential；constructor、bootstrap
 與focused regression須證明兩者不混用。
+
+Lease 5修正independent reviewer的P1 rollout finding：新runtime的core readiness只接受既有additive安全集合
+`0008_mobile_notification_delivery`、`0009_event_management_writes`與`0010_apple_provider_lifecycle`，讓目前0008／0009環境可先部署
+相容runtime再migration；Apple exchange／notification仍以獨立exact-0010 gate關閉。未知／future revision繼續fail closed，且須有
+pre-0010時LINE／Google可用、Apple不可用的route regression。既有已部署舊runtime不宣稱可在migration-first順序持續服務。
+
+Lease 6補入reviewer P2：除了不同env名稱，bootstrap必須在不記錄key material的前提下拒絕
+`MOBILE_REFRESH_REPLAY_KEY == MOBILE_API_APPLE_PROVIDER_CREDENTIAL_KEY`，使session與provider cipher的用途隔離成為可執行
+invariant，並加入bootstrap focused regression；不允許以相同Fernet key啟用Apple。
 
 ## Independent reviewer claim
 

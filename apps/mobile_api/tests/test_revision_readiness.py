@@ -1,9 +1,11 @@
 import unittest
+from base64 import urlsafe_b64encode
 from unittest.mock import Mock, patch
 
 from apps.mobile_api.revision_readiness import (
     ACCEPTED_REVISIONS,
     EXPECTED_REVISION,
+    apple_lifecycle_configuration_is_valid,
     database_revision_is_current,
 )
 
@@ -20,6 +22,23 @@ class _ConnectionContext:
 
 
 class RevisionReadinessTest(unittest.TestCase):
+    def test_apple_provider_credential_key_must_be_distinct_from_refresh_key(self):
+        refresh_key = urlsafe_b64encode(b"r" * 32).decode("ascii")
+        provider_key = urlsafe_b64encode(b"p" * 32).decode("ascii")
+        values = {
+            "audience": "fictional.ios.client",
+            "client_secret": "fictional-runtime-client-secret",
+            "credential_key": provider_key,
+            "notification_audience": "fictional.notification.audience",
+        }
+
+        self.assertTrue(apple_lifecycle_configuration_is_valid(values, refresh_key))
+        self.assertFalse(
+            apple_lifecycle_configuration_is_valid(
+                {**values, "credential_key": refresh_key}, refresh_key
+            )
+        )
+
     def test_expected_revision_is_ready_without_logging(self):
         engine, logger = Mock(), Mock()
         connection = Mock()
@@ -30,7 +49,25 @@ class RevisionReadinessTest(unittest.TestCase):
         logger.error.assert_not_called()
 
     def test_accepted_revision_is_exactly_the_delivery_contract(self):
-        self.assertEqual(ACCEPTED_REVISIONS, ("0010_apple_provider_lifecycle",))
+        self.assertEqual(
+            ACCEPTED_REVISIONS,
+            (
+                "0008_mobile_notification_delivery",
+                "0009_event_management_writes",
+                "0010_apple_provider_lifecycle",
+            ),
+        )
+
+    def test_each_rollout_compatible_revision_is_ready(self):
+        for revision in ACCEPTED_REVISIONS:
+            engine, logger = Mock(), Mock()
+            connection = Mock()
+            connection.scalar.return_value = revision
+            engine.connect.return_value = _ConnectionContext(connection)
+
+            with self.subTest(revision=revision):
+                self.assertTrue(database_revision_is_current(engine, logger))
+                logger.error.assert_not_called()
 
     def test_empty_unknown_and_malformed_revisions_fail_closed_without_value_in_log(
         self,

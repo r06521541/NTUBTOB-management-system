@@ -226,7 +226,10 @@ class OpenApiContractTest(unittest.TestCase):
             'apple_audience = os.environ.get("MOBILE_API_APPLE_AUDIENCE", "")',
             bootstrap,
         )
-        self.assertIn("if all(value and value == value.strip()", bootstrap)
+        self.assertIn(
+            "if apple_lifecycle_configuration_is_valid(apple_values, refresh_replay_key)",
+            bootstrap,
+        )
         self.assertNotIn('required("MOBILE_API_APPLE_AUDIENCE")', bootstrap)
         self.assertNotIn("MOBILE_LINE_PUBLIC_KEY", bootstrap + env_example)
         self.assertIn('MOBILE_API_APPLE_AUDIENCE: ""', env_example)

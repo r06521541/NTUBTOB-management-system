@@ -22,13 +22,18 @@
 - Apple lifecycle remains disabled unless all runtime configuration and exact
   schema readiness are present. No provider, signing, cloud, Secret, deployment,
   production, or real-device mutation occurred.
+- Core readiness accepts only revisions 0008, 0009, and 0010, permitting the
+  compatible runtime to deploy before the 0010 migration. At 0008/0009, LINE and
+  Google remain usable while Apple exchange and notifications stay unavailable.
+- Apple lifecycle configuration also fails closed when its provider-credential
+  key reuses the normal mobile refresh replay key; no key value is logged.
 
 ## Verification
 
 - `flutter test --no-pub test/apple_auth_test.dart`: 10 passed.
 - `flutter analyze --no-pub lib/integration.dart lib/identity_link.dart test/apple_auth_test.dart`:
   no issues.
-- `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: 74 passed.
+- `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: 77 passed.
 - `py -3.10 -m unittest discover -s shared_lib/tests -v`: 69 passed.
 - `py -3.10 -m unittest discover -s tests/portal_data -v`: 288 run,
   139 passed and 149 expected isolated-PostgreSQL skips.
@@ -44,9 +49,10 @@
 - PostgreSQL 15/16 upgrade/runtime matrix and hosted CI remain required.
 - Independent Auth/Security review must scrutinize exact Apple notification wire
   claims and immutable implementation evidence.
-- Mobile API runtime readiness and canonical migration graph/head checks now
-  require `0010_apple_provider_lifecycle`; historical environment-specific
-  staging/event rollout contracts remain unchanged.
+- Mobile API core runtime readiness permits only 0008/0009/0010, while Apple
+  lifecycle readiness and the canonical migration head require exact
+  `0010_apple_provider_lifecycle`; historical environment-specific staging/event
+  rollout contracts remain unchanged.
 - Provider capability, client-secret generation/rotation, notification URL,
   credential-state inspection, active provider-token revocation, signing,
   macOS/Xcode archive, TestFlight, deployment, and real-device Apple login remain

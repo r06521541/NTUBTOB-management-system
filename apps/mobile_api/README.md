@@ -4,15 +4,19 @@ Independent Flask/Cloud Run deployment unit for the native API. Basic access
 remains isolated; Officer/Admin receive only explicitly projected bounded reads.
 The canonical machine-readable contract is `openapi.json`.
 
-The runtime fails closed unless PostgreSQL reports the exact revision
-`0010_apple_provider_lifecycle`, and all
-signing, refresh-response encryption, and existing provider audience
-configuration is present. The
+The runtime core accepts only the rollout-compatible revisions
+`0008_mobile_notification_delivery`, `0009_event_management_writes`, and
+`0010_apple_provider_lifecycle`. This permits deploying the compatible runtime
+before migrating to `0010`; unknown, malformed, and future revisions fail
+closed. Apple exchange and notifications remain independently unavailable until
+the schema is exactly `0010`. All signing, refresh-response encryption, and
+existing provider audience configuration must also be present. The
 LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
 plain runtime values. Apple lifecycle configuration is optional as one
 indivisible group: exact client audience, runtime-injected client secret,
 independent provider-credential encryption key, and exact notification audience.
-A missing or blank value or missing lifecycle schema disables Apple
+The provider-credential key must differ from the mobile refresh replay key. A
+missing or blank value, reused key material, or pre-`0010` lifecycle schema disables Apple
 authentication and notifications only; LINE and Google remain available. Apple
 ID tokens and server notifications use a bounded, thread-safe cache of Apple's
 public RSA signing keys. Database, signing, replay, client-secret, and
