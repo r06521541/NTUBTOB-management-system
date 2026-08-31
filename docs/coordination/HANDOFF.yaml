@@ -1,16 +1,16 @@
 active_task: TASK-171
-status: in_progress
-next_actor: /root/task170_android_candidate_writer; /root/task170_play_evidence_writer
+status: ready_for_review
+next_actor: /root/task170_release_security_review
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 8ae17853fa24379f6394ff3122c3eccb0be326ec
-head_commit: 8ae17853fa24379f6394ff3122c3eccb0be326ec
+head_commit: cc2589ff2e71836bd18754a2cc62fc7fce012c18
 
 updated_by: main-work
-updated_at: 2026-08-31T13:27:13+08:00
+updated_at: 2026-08-31T14:06:48+08:00
 
 note: >
   TASK-170 repository delivery merged at exact main and its external Play phase

@@ -50,6 +50,19 @@
 
 Writers may edit only owned paths. Each must acknowledge `received/executing`, self-review and self-test, send a heartbeat at least every 10–15 minutes, report blockers immediately, and proactively notify Main on completion with exact paths, full SHA if committed, tests, findings, remaining limits and task name. Writers may not access Apple／Google／LINE accounts, provider identifiers, signing material, Secret, cloud, production, deployment or real user data.
 
+### Auth／Security targeted reviewer
+
+- actor_id: `/root/task170_release_security_review`
+- role: `advisor`
+- claim_id: `task-171-auth-security-reviewer-20260831`
+- lease_version: 1
+- scope: read-only review of the immutable integrated SHA for Apple token verification, nonce/JWK bounds, cross-provider identity safety, iOS bridge privacy and runtime fail-closed behavior
+- owned_paths: none; reviewer is read-only
+- report_to: `main-work`
+- stop_conditions: target SHA mismatch, dirty snapshot dependence, need for provider/account/Secret/cloud/runtime access, or inability to inspect immutable Git blobs
+
+The reviewer must first acknowledge `received/executing`, report blockers immediately, send a heartbeat after 10–15 minutes, and proactively notify Main with `ACCEPT` or `REQUEST_CHANGES`, exact reviewed SHA, commands, findings and remaining limits. The reviewer must not modify the worktree or become an implementation writer.
+
 ## Required outcomes
 
 1. An Apple ID-token verifier uses a bounded cached JWK transport and rejects unknown algorithms／keys, malformed or oversized responses, wrong issuer/audience/nonce, expiry and transport failure without disclosing the assertion or claims.
