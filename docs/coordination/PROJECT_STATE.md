@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository authority HEAD：`c4a27f5f55ead950a6a9d03ff468e2134ace5e52`
+Repository authority HEAD：`b05a6df3feeef6631dc8b3d95e42fb19a15a6087`
 
 ## Active role lanes
 
@@ -68,8 +68,6 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 ## Active work and external gates
 
-- TASK-173正在收斂active authority、generic assignment、HANDOFF null invariant、Owner interaction wrapper contract與
-  Phase D retention；不授權產品、runtime、database、provider、Secret、store、deployment或production操作。
 - TASK-169保留active：repository release-readiness已合併，但Android/iOS store、signing、provider、production backend、
   device與public-release gates仍是現在的release boundary。
 - TASK-170保留active：repository Android candidate contract已通過review/CI；外部階段等待Owner Google Play developer-
@@ -83,9 +81,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 ## Documentation lifecycle
 
-- Completed TASK-142～168、171、172的原始task/report/review群組已由merged Git ancestry證據索引至
+- Completed TASK-142～168、171～173的原始task/report/review群組已由merged Git ancestry證據索引至
   `archive/phase-d/PHASE_D_CLOSEOUT.md`；archive只證明歷史，不授權現在操作。
-- Active入口只保留TASK-169、170、173及其current evidence。任何完成狀態不明或外部gate仍由該task承載的群組不得封存。
+- Active入口只保留TASK-169、170及其current evidence；目前沒有assigned active task。任何完成狀態不明或外部gate仍由
+  該task承載的群組不得封存。
 - 當前task與next actor只看`HANDOFF.yaml`；協作規則看`COLLABORATION.md`；長期決策看`DECISIONS.md`。
 
 ## Safety boundary

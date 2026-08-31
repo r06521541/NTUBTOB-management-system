@@ -7,7 +7,7 @@ provider、Secret、cloud、store、database、deployment、runtime或production
 ## Retention basis
 
 下列每個群組均有current repository state或merged Git ancestry證明；列出的SHA已驗證為建立本closeout時exact HEAD
-`b658ed02b8b535a5af321b7db9929be6e1119642`的ancestor：
+`b05a6df3feeef6631dc8b3d95e42fb19a15a6087`的ancestor：
 
 | Task | Merged／incorporated evidence SHA |
 | --- | --- |
@@ -40,19 +40,21 @@ provider、Secret、cloud、store、database、deployment、runtime或production
 | TASK-168 | `cabdbcd039c9d526adb21fd8b11e145cd48f2574` |
 | TASK-171 | `66529e9900e82bc1b7cbea52618469dbc3c0e8eb` |
 | TASK-172 | `07fed38243883b95ef4c8371566b6859d9f57b31` |
+| TASK-173 | `b05a6df3feeef6631dc8b3d95e42fb19a15a6087` |
 
 TASK-142～168涵蓋已整合的Flutter孵化／delivery、mobile auth/staging、Event read/write/attendance與已完成Web／production
-rollout群組。TASK-171是已review/merged的Apple repository slice，TASK-172是已review/merged的quality/digest hardening。
+rollout群組。TASK-171是已review/merged的Apple repository slice，TASK-172是已review/merged的quality/digest hardening，
+TASK-173是已review/merged的active-authority與documentation lifecycle hardening。
 各群組仍未授權的外部能力已提升至active`PROJECT_STATE.md`與DEC-103／104；無須靠archive推論。
 
 ## Exact moved set
 
-- `tasks/`：29 files，`TASK-142.md`～`TASK-168.md`、`TASK-171.md`、`TASK-172.md`。
-- `reports/`：32 files：TASK-142／143／144；TASK-145A／145B／145C；TASK-146／147／148；TASK-149A／149B；
-  TASK-150～156；TASK-158～168；TASK-171 Flutter/iOS與Mobile Auth；TASK-172 Tooling。
-- `reviews/`：13 files：TASK-146／147／148／149／160／161／162／163／165／167／168／171／172。
+- `tasks/`：30 files，`TASK-142.md`～`TASK-168.md`、`TASK-171.md`～`TASK-173.md`。
+- `reports/`：33 files：TASK-142／143／144；TASK-145A／145B／145C；TASK-146／147／148；TASK-149A／149B；
+  TASK-150～156；TASK-158～168；TASK-171 Flutter/iOS與Mobile Auth；TASK-172 Tooling；TASK-173 Governance。
+- `reviews/`：14 files：TASK-146／147／148／149／160／161／162／163／165／167／168／171／172／173。
 
-共74個歷史檔案只改路徑，內容未重寫。子目錄保留artifact class，並避免report／review同名時互相覆蓋。
+共77個歷史檔案只改路徑，內容未重寫。子目錄保留artifact class，並避免report／review同名時互相覆蓋。
 
 ## Deliberately retained active groups
 
@@ -60,6 +62,4 @@ rollout群組。TASK-171是已review/merged的Apple repository slice，TASK-172�
   matrix仍是current gate。
 - TASK-170：repository candidate contract已完成，但Google Play developer-account verification、exact candidate、device與
   Closed Testing evidence仍待外部Owner-gated階段。
-- TASK-173：本次active governance delivery。
-
 任何完成證據不明確的群組都不得因本index推定完成或封存。
