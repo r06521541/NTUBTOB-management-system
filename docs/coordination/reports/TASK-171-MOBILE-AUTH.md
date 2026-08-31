@@ -5,6 +5,7 @@
 - branch: `codex/task-171-apple-auth-repository-slice`
 - base: `8ae17853fa24379f6394ff3122c3eccb0be326ec`
 - independent review input: `23b14876b3a4d1fb420badea683601d10dc4ca81`
+- final bounded review input: `fa196146e150501da4d025d3496f0399d6707f8d`
 - state: final correction ready for Main integration review; correction not committed
 
 ## Delivered
@@ -19,7 +20,8 @@
    thread-safe early refresh for any unknown kid per fresh cache window; later same/different unknown kids do not call transport.
    Cold/expired refresh attempts establish a one-minute failure backoff before transport. Concurrent and sequential 5xx, timeout,
    malformed and oversized failures therefore make at most one request per backoff window; clock rollback cannot reopen the window.
-   A successful refresh clears failure state. Normal TTL expiry starts a new bounded window and still supports signing-key rotation.
+   A failed early rotation refresh may make one bounded recovery attempt at the deadline; only its successful refresh consumes the
+   fresh cache window's early-refresh allowance. Success clears failure state. Normal TTL expiry still supports signing-key rotation.
 3. `/api/v1/auth/apple/exchange` accepts exactly `id_token`, raw `nonce`, `login_attempt_id`, `installation_id`, and iOS `platform`.
    It reuses the existing server-owned exchange/session/replay flow. Apple candidate/proof routes use the same token+raw-nonce shape
    plus the existing candidate fields; unknown profile fields are rejected before verification.
@@ -35,7 +37,7 @@
 
 ## Verification
 
-- `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: PASS, 64/64 tests. This includes nine real fictional-RSA Apple verifier
+- `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: PASS, 65/65 tests. This includes ten real fictional-RSA Apple verifier
   cases, three Apple repository/link cases, optional-Apple bootstrap behavior, Apple exchange/candidate/proof route cases, OpenAPI,
   and all existing LINE/Google tests.
 - `py -3.10 -m unittest tests.portal_data.test_mobile_api_foundation -v`: 15/15 skipped because no local
@@ -64,6 +66,9 @@
   covers concurrent plus sequential 5xx/timeout/malformed/oversized failures, a caller-time rollback, the exact one-minute deadline,
   data-leak resistance, successful recovery and early rotation. It first observed eight transports for eight concurrent requests and
   now proves one transport per backoff window without sleeps or retries.
+- Final bounded review found that the early-refresh allowance was marked before transport, so a transient failure blocked rotation
+  recovery until normal TTL expiry. The deterministic regression warms the old key, receives a safe 503, proves zero transport before
+  the deadline, then sends eight concurrent deadline requests and proves exactly one recovery transport plus eight rotated successes.
 
 ## Remaining limits
 

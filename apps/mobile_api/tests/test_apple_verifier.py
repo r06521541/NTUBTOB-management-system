@@ -123,6 +123,40 @@ class AppleIdTokenVerifierTest(unittest.TestCase):
         )
         self.assertEqual(len(transport.calls), 2)
 
+    def test_early_rotation_recovers_once_at_failure_backoff_deadline(self):
+        second_jwk = self.jwk(self.other_private_key, kid="fictional-key-two")
+        transport = FakeTransport(
+            self.jwks_response(self.jwk()),
+            (503, b"fictional-sensitive-provider-body"),
+            self.jwks_response(second_jwk),
+        )
+        verifier = self.verifier(transport)
+        verifier.verify(self.token(), AUDIENCE, RAW_NONCE, NOW)
+        rotated = self.token(
+            header={"alg": "RS256", "kid": "fictional-key-two"},
+            key=self.other_private_key,
+        )
+
+        with self.assertRaises(AppleVerificationUnavailable) as failed_refresh:
+            verifier.verify(rotated, AUDIENCE, RAW_NONCE, NOW)
+        self.assertNotIn("fictional-sensitive", str(failed_refresh.exception))
+        with self.assertRaises(AppleVerificationUnavailable):
+            verifier.verify(rotated, AUDIENCE, RAW_NONCE, NOW + timedelta(seconds=59))
+        self.assertEqual(len(transport.calls), 2)
+
+        deadline = NOW + timedelta(minutes=1)
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            providers = tuple(
+                executor.map(
+                    lambda _index: verifier.verify(
+                        rotated, AUDIENCE, RAW_NONCE, deadline
+                    ).provider,
+                    range(8),
+                )
+            )
+        self.assertEqual(providers, ("apple",) * 8)
+        self.assertEqual(len(transport.calls), 3)
+
     def test_unknown_kids_share_one_thread_safe_early_refresh_per_cache_window(self):
         transport = FakeTransport(self.jwks_response(), self.jwks_response())
         verifier = self.verifier(transport)

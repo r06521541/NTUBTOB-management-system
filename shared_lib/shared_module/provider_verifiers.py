@@ -251,11 +251,13 @@ class AppleJwkCache:
             if key is not None:
                 return key
             # Permit one early refresh per fresh cache window for normal rotation.
-            # Mark it before transport so a provider failure cannot amplify retries.
+            # A failed attempt remains governed by the refresh backoff and may
+            # recover once its deadline arrives; only a successful refresh uses
+            # the window's early-refresh allowance.
             if self._forced_refresh_used:
                 raise AuthenticationError("invalid provider assertion")
-            self._forced_refresh_used = True
             self._refresh(normalized_now)
+            self._forced_refresh_used = True
             key = self._keys.get(kid)
             if key is None:
                 raise AuthenticationError("invalid provider assertion")
