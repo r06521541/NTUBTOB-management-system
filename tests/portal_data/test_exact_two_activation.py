@@ -13,6 +13,9 @@ from sqlalchemy import create_engine, text
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tests.portal_data._apple_lifecycle_test_harness import (
+    remove_retained_apple_evidence_from_isolated_test_database,
+)
 from tools import portal_data_production_activate_allowlisted_admins as operator
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
@@ -32,10 +35,12 @@ class ExactTwoActivationPostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         setup_legacy_fixture()
         config = Config("alembic.ini")
         command.upgrade(config, "head")
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
+        remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
             connection.execute(
                 text(

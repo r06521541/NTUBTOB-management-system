@@ -193,7 +193,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0009_event_management_writes",
+                "0010_apple_provider_lifecycle",
             )
             rls = set(
                 connection.scalars(

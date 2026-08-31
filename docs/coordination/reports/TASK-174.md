@@ -35,14 +35,19 @@
   no issues.
 - `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: 77 passed.
 - `py -3.10 -m unittest discover -s shared_lib/tests -v`: 69 passed.
-- `py -3.10 -m unittest discover -s tests/portal_data -v`: 288 run,
-  139 passed and 149 expected isolated-PostgreSQL skips.
+- `py -3.10 -m unittest discover -s tests/portal_data -v`: 290 run,
+  141 passed and 149 expected isolated-PostgreSQL skips.
 - `py -3.10 -m compileall -q shared_lib/shared_module apps/mobile_api migrations/versions tests/portal_data`:
   passed.
 - `py -3.10 setup.py sdist` from `shared_lib/`: passed.
 - Pinned Black 24.4.2 and isort 5.13.2 formatter API comparisons: passed.
   The repository bounded wrapper safely reported Black CLI timeouts on Windows;
   no formatter process remained.
+- Hosted PostgreSQL 15/16 first-run failures were confined to the test harness:
+  retained 0010 evidence is removed only after an isolated test deliberately
+  downgrades, bytea assertions normalize the driver value to bytes, and legacy
+  migration tests now expect the canonical 0010 head. Production downgrade still
+  retains all Apple evidence and production upgrade remains strict.
 
 ## Remaining acceptance limits
 

@@ -814,7 +814,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                 text("SELECT count(*) FROM ntubtob.apple_provider_notifications")
             )
         self.assertEqual(
-            tuple(state),
+            (*state[:2], bytes(state[2]), state[3]),
             (
                 "disabled",
                 "revoked",
@@ -867,7 +867,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                 {"code": "2" * 64},
             ).one()
         self.assertEqual(
-            tuple(row),
+            (*row[:3], bytes(row[3]), row[4]),
             (
                 "completed",
                 identity_id,
