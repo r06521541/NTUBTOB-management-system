@@ -243,6 +243,93 @@ class AppleIdTokenVerifierTest(unittest.TestCase):
                 )
             self.assertNotIn("fictional-sensitive", str(raised.exception))
 
+    def test_refresh_failures_share_one_backoff_attempt_without_data_leak(self):
+        assertion = self.token()
+
+        def timeout_failure():
+            return TimeoutError("fictional-sensitive-timeout")
+
+        def server_failure():
+            return 503, b"fictional-sensitive-provider-body"
+
+        def malformed_failure():
+            return 200, b'{"fictional-sensitive-malformed"'
+
+        def oversized_failure():
+            return 200, b"fictional-sensitive-oversized" + b"x" * 65_537
+
+        for name, failure in (
+            ("timeout", timeout_failure),
+            ("5xx", server_failure),
+            ("malformed", malformed_failure),
+            ("oversized", oversized_failure),
+        ):
+            with self.subTest(name=name):
+                transport = FakeTransport(failure(), failure())
+                verifier = self.verifier(transport)
+
+                def rejected(at):
+                    try:
+                        verifier.verify(assertion, AUDIENCE, RAW_NONCE, at)
+                    except (AuthenticationError, AppleVerificationUnavailable) as error:
+                        return error
+                    self.fail("refresh failure unexpectedly verified an assertion")
+
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    errors = tuple(executor.map(rejected, (NOW,) * 8))
+
+                self.assertEqual(len(transport.calls), 1)
+                self.assertTrue(errors)
+                for error in errors:
+                    self.assertNotIn("fictional-sensitive", str(error))
+                    self.assertNotIn(assertion[:20], str(error))
+
+                rollback_error = rejected(NOW - timedelta(days=1))
+                before_deadline_error = rejected(NOW + timedelta(seconds=59))
+                self.assertIsInstance(rollback_error, AppleVerificationUnavailable)
+                self.assertIsInstance(
+                    before_deadline_error, AppleVerificationUnavailable
+                )
+                self.assertEqual(len(transport.calls), 1)
+
+                deadline = NOW + timedelta(minutes=1)
+                with ThreadPoolExecutor(max_workers=8) as executor:
+                    deadline_errors = tuple(executor.map(rejected, (deadline,) * 8))
+                self.assertEqual(len(transport.calls), 2)
+                for error in deadline_errors:
+                    self.assertIsInstance(
+                        error,
+                        (AuthenticationError, AppleVerificationUnavailable),
+                    )
+                    self.assertNotIn("fictional-sensitive", str(error))
+                    self.assertNotIn(assertion[:20], str(error))
+
+    def test_successful_retry_clears_backoff_and_preserves_early_rotation(self):
+        second_jwk = self.jwk(self.other_private_key, kid="fictional-key-two")
+        transport = FakeTransport(
+            (503, b"fictional-sensitive-provider-body"),
+            self.jwks_response(self.jwk()),
+            self.jwks_response(second_jwk),
+        )
+        verifier = self.verifier(transport)
+        with self.assertRaises(AppleVerificationUnavailable):
+            verifier.verify(self.token(), AUDIENCE, RAW_NONCE, NOW)
+
+        retry_at = NOW + timedelta(minutes=1)
+        self.assertEqual(
+            verifier.verify(self.token(), AUDIENCE, RAW_NONCE, retry_at).provider,
+            "apple",
+        )
+        rotated = self.token(
+            header={"alg": "RS256", "kid": "fictional-key-two"},
+            key=self.other_private_key,
+        )
+        self.assertEqual(
+            verifier.verify(rotated, AUDIENCE, RAW_NONCE, retry_at).provider,
+            "apple",
+        )
+        self.assertEqual(len(transport.calls), 3)
+
 
 if __name__ == "__main__":
     unittest.main()

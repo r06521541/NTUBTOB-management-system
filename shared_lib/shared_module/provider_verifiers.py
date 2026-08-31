@@ -25,6 +25,7 @@ APPLE_ISSUER = "https://appleid.apple.com"
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
 APPLE_JWKS_MAX_BYTES = 65_536
 APPLE_JWT_MAX_BYTES = 16_384
+APPLE_JWKS_FAILURE_BACKOFF = timedelta(minutes=1)
 _BASE64URL = re.compile(r"^[A-Za-z0-9_-]+$")
 _APPLE_KID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
@@ -231,6 +232,7 @@ class AppleJwkCache:
         self._keys = {}
         self._expires_at = None
         self._forced_refresh_used = False
+        self._refresh_retry_at = None
         self._lock = threading.Lock()
 
     def key(self, kid: str, now: datetime):
@@ -260,6 +262,13 @@ class AppleJwkCache:
             return key
 
     def _refresh(self, now: datetime) -> None:
+        if self._refresh_retry_at is not None and now < self._refresh_retry_at:
+            raise AppleVerificationUnavailable("Apple verification unavailable")
+        # Set the deadline before transport and retain the greatest observed
+        # deadline. A clock rollback therefore cannot reopen the retry window.
+        retry_at = now + APPLE_JWKS_FAILURE_BACKOFF
+        if self._refresh_retry_at is None or self._refresh_retry_at < retry_at:
+            self._refresh_retry_at = retry_at
         try:
             status, raw = self._transport(APPLE_JWKS_URL, self._timeout)
         except AppleVerificationUnavailable:
@@ -290,6 +299,7 @@ class AppleJwkCache:
             keys[item["kid"]] = public_key
         self._keys = keys
         self._expires_at = now + self._ttl
+        self._refresh_retry_at = None
 
 
 class AppleIdTokenVerifier:

@@ -4,7 +4,8 @@
 - claim: `task-171-mobile-apple-auth-writer-20260831` / lease 1
 - branch: `codex/task-171-apple-auth-repository-slice`
 - base: `8ae17853fa24379f6394ff3122c3eccb0be326ec`
-- state: ready for Main integration review; not committed
+- independent review input: `23b14876b3a4d1fb420badea683601d10dc4ca81`
+- state: final correction ready for Main integration review; correction not committed
 
 ## Delivered
 
@@ -16,7 +17,9 @@
    thread-safe cache. JWKs must have exact `kty/kid/use/alg/n/e`, `RSA/sig/RS256`, canonical modulus/exponent, 2048–4096-bit modulus
    and exponent 65537. Duplicate kids, ambiguous/malformed keys and algorithm confusion fail closed. The cache permits at most one
    thread-safe early refresh for any unknown kid per fresh cache window; later same/different unknown kids do not call transport.
-   Normal TTL expiry starts a new bounded window and still supports signing-key rotation.
+   Cold/expired refresh attempts establish a one-minute failure backoff before transport. Concurrent and sequential 5xx, timeout,
+   malformed and oversized failures therefore make at most one request per backoff window; clock rollback cannot reopen the window.
+   A successful refresh clears failure state. Normal TTL expiry starts a new bounded window and still supports signing-key rotation.
 3. `/api/v1/auth/apple/exchange` accepts exactly `id_token`, raw `nonce`, `login_attempt_id`, `installation_id`, and iOS `platform`.
    It reuses the existing server-owned exchange/session/replay flow. Apple candidate/proof routes use the same token+raw-nonce shape
    plus the existing candidate fields; unknown profile fields are rejected before verification.
@@ -32,7 +35,7 @@
 
 ## Verification
 
-- `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: PASS, 62/62 tests. This includes seven real fictional-RSA Apple verifier
+- `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: PASS, 64/64 tests. This includes nine real fictional-RSA Apple verifier
   cases, three Apple repository/link cases, optional-Apple bootstrap behavior, Apple exchange/candidate/proof route cases, OpenAPI,
   and all existing LINE/Google tests.
 - `py -3.10 -m unittest tests.portal_data.test_mobile_api_foundation -v`: 15/15 skipped because no local
@@ -57,6 +60,10 @@
 - Main's correction regression first demonstrated both defects: bootstrap required Apple configuration and each unknown kid could
   trigger another forced refresh. The final route/source tests prove optional Apple configuration preserves LINE, and the concurrent
   cache test proves transport stays bounded to one early refresh within the cache window while rotation and TTL refresh remain live.
+- Independent Auth/Security review then demonstrated that cold/expired refresh failures were not negative-cached. The final regression
+  covers concurrent plus sequential 5xx/timeout/malformed/oversized failures, a caller-time rollback, the exact one-minute deadline,
+  data-leak resistance, successful recovery and early rotation. It first observed eight transports for eight concurrent requests and
+  now proves one transport per backoff window without sleeps or retries.
 
 ## Remaining limits
 

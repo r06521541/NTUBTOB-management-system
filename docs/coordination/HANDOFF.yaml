@@ -1,16 +1,16 @@
 active_task: TASK-171
-status: ready_for_review
-next_actor: /root/task170_release_security_review
+status: changes_requested
+next_actor: /root/task170_play_evidence_writer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 8ae17853fa24379f6394ff3122c3eccb0be326ec
-head_commit: cc2589ff2e71836bd18754a2cc62fc7fce012c18
+head_commit: 23b14876b3a4d1fb420badea683601d10dc4ca81
 
 updated_by: main-work
-updated_at: 2026-08-31T14:06:48+08:00
+updated_at: 2026-08-31T14:18:33+08:00
 
 note: >
   TASK-170 repository delivery merged at exact main and its external Play phase
