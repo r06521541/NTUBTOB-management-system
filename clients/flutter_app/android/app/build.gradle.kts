@@ -73,7 +73,7 @@ fun decodeDartDefines(encoded: String?): Map<String, String> {
         val key = decoded.substring(0, separator)
         val value = decoded.substring(separator + 1)
         if (result.putIfAbsent(key, value) != null) {
-            throw GradleException("dart-defines contain duplicate $key")
+            throw GradleException("dart-defines contain duplicate entries")
         }
     }
     return result

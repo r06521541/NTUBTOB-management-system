@@ -79,6 +79,19 @@ _BUNDLETOOL_TIMEOUT_SECONDS = 120
 _ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/android"
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 _ANDROID_ROOT = _REPOSITORY_ROOT / "clients" / "flutter_app" / "android"
+_GRADLE_WRAPPER_COMPONENT_SHA256 = {
+    "gradlew": "ec56c02543666d92d9ac5ae7fcc48f88ce4de0deb8b7f9b39928ca46f68c1b2b",
+    "gradlew.bat": "f4f428c5626b3d90cef3bd4e7fd3ad3ea5760442db8c09d586b5bfe031dbe5e3",
+    "gradle/wrapper/gradle-wrapper.jar": (
+        "16caeaf66d57a0d1d2087fef6a97efa62de8da69afa5b908f40db35afc4342da"
+    ),
+    "gradle/wrapper/gradle-wrapper.properties": (
+        "b690d26223576fe4e63889fad9a00df81945cb870b9476cc5a563152a1a88a74"
+    ),
+}
+_GRADLE_WRAPPER_TEXT_COMPONENTS = frozenset(
+    {"gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.properties"}
+)
 
 
 class ContractError(ValueError):
@@ -235,40 +248,131 @@ def snapshot_artifact(artifact: Path) -> Iterator[ArtifactSnapshot]:
         )
 
 
-def _gradle_wrapper() -> Path:
-    name = "gradlew.bat" if sys.platform == "win32" else "gradlew"
-    wrapper = (_ANDROID_ROOT / name).resolve()
+def _verified_gradle_wrapper_components() -> dict[str, bytes]:
+    android_root = _ANDROID_ROOT.resolve()
+    verified: dict[str, bytes] = {}
     try:
-        wrapper.relative_to(_REPOSITORY_ROOT.resolve())
-    except ValueError:
-        raise ContractError("bundletool runner boundary is invalid") from None
-    if not wrapper.is_file():
-        raise ContractError("bundletool runner is unavailable")
-    return wrapper
+        android_root.relative_to(_REPOSITORY_ROOT.resolve())
+        for relative, expected_sha256 in _GRADLE_WRAPPER_COMPONENT_SHA256.items():
+            component = _ANDROID_ROOT / relative
+            if component.is_symlink() or not component.is_file():
+                raise ContractError("bundletool runner integrity is invalid")
+            resolved = component.resolve()
+            resolved.relative_to(android_root)
+            source = resolved.read_bytes()
+            snapshot_source = source
+            if relative in _GRADLE_WRAPPER_TEXT_COMPONENTS:
+                source = source.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+            if hashlib.sha256(source).hexdigest() != expected_sha256:
+                raise ContractError("bundletool runner integrity is invalid")
+            verified[relative] = snapshot_source
+    except ContractError:
+        raise
+    except (OSError, ValueError):
+        raise ContractError("bundletool runner integrity is invalid") from None
+    return verified
+
+
+def _gradle_wrapper() -> Path:
+    _verified_gradle_wrapper_components()
+    name = "gradlew.bat" if sys.platform == "win32" else "gradlew"
+    return (_ANDROID_ROOT / name).resolve()
+
+
+@contextmanager
+def _snapshot_gradle_wrapper() -> Iterator[Path]:
+    components = _verified_gradle_wrapper_components()
+    with tempfile.TemporaryDirectory(
+        prefix="mobile-release-gradle-wrapper-"
+    ) as directory:
+        wrapper_root = Path(directory)
+        for relative, source in components.items():
+            target = wrapper_root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(source)
+        wrapper = wrapper_root / (
+            "gradlew.bat" if sys.platform == "win32" else "gradlew"
+        )
+        if sys.platform != "win32":
+            wrapper.chmod(0o700)
+        yield wrapper
+
+
+def _bundletool_environment() -> dict[str, str]:
+    java_home_source = os.environ.get("JAVA_HOME", "")
+    try:
+        java_home = Path(java_home_source).resolve(strict=True)
+        java = java_home / "bin" / ("java.exe" if sys.platform == "win32" else "java")
+        if not java.is_file():
+            raise OSError
+        gradle_home = (Path.home() / ".gradle").resolve()
+        temporary_directory = Path(tempfile.gettempdir()).resolve(strict=True)
+    except (OSError, ValueError):
+        raise ContractError("bundletool runtime environment is unavailable") from None
+
+    environment = {
+        "GRADLE_USER_HOME": str(gradle_home),
+        "JAVA_HOME": str(java_home),
+        "JAVA_TOOL_OPTIONS": "-Dfile.encoding=UTF-8",
+    }
+    if sys.platform == "win32":
+        try:
+            windows_root = Path(
+                os.environ.get("SystemRoot") or os.environ.get("WINDIR") or ""
+            ).resolve(strict=True)
+            command_processor = windows_root / "System32" / "cmd.exe"
+            if not command_processor.is_file():
+                raise OSError
+        except (OSError, ValueError):
+            raise ContractError(
+                "bundletool runtime environment is unavailable"
+            ) from None
+        environment.update(
+            {
+                "COMSPEC": str(command_processor),
+                "OS": "Windows_NT",
+                "PATH": os.pathsep.join(
+                    (str(java_home / "bin"), str(windows_root / "System32"))
+                ),
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "SystemRoot": str(windows_root),
+                "TEMP": str(temporary_directory),
+                "TMP": str(temporary_directory),
+                "WINDIR": str(windows_root),
+            }
+        )
+    else:
+        environment.update(
+            {
+                "HOME": str(Path.home().resolve()),
+                "LANG": "C.UTF-8",
+                "LC_ALL": "C.UTF-8",
+                "PATH": os.pathsep.join((str(java_home / "bin"), "/usr/bin", "/bin")),
+                "TMPDIR": str(temporary_directory),
+            }
+        )
+    return environment
 
 
 def _run_bundletool_task(task: str, snapshot: Path) -> str:
     if task not in {"verifyCandidateBundle", "dumpCandidateManifest"}:
         raise ContractError("bundletool task is not approved")
-    command = [
-        str(_gradle_wrapper()),
-        "--offline",
-        "--no-daemon",
-        "-q",
-        "-Dfile.encoding=UTF-8",
-        task,
-        f"-PmobileReleaseBundle={snapshot}",
-    ]
-    environment = os.environ.copy()
-    java_options = environment.get("JAVA_TOOL_OPTIONS", "").strip()
-    environment["JAVA_TOOL_OPTIONS"] = " ".join(
-        option for option in (java_options, "-Dfile.encoding=UTF-8") if option
-    )
+    environment = _bundletool_environment()
     try:
         with (
+            _snapshot_gradle_wrapper() as wrapper,
             tempfile.TemporaryFile() as standard_output,
             tempfile.TemporaryFile() as error_output,
         ):
+            command = [
+                str(wrapper),
+                "--offline",
+                "--no-daemon",
+                "-q",
+                "-Dfile.encoding=UTF-8",
+                task,
+                f"-PmobileReleaseBundle={snapshot}",
+            ]
             completed = subprocess.run(
                 command,
                 cwd=_ANDROID_ROOT,

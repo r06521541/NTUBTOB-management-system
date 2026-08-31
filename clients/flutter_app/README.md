@@ -93,8 +93,17 @@ version transition, and signer fingerprint without printing the endpoint,
 provider IDs, keystore path, alias, or password. Rebuilding after acceptance
 invalidates that evidence.
 
-Inspection requires JDK 17 and the repository's fixed Gradle wrapper. It runs
-the pinned bundletool runtime strictly in offline mode: bundletool first
+Inspection requires JDK 17 through `JAVA_HOME`. The standard `gradlew`,
+`gradlew.bat`, wrapper JAR, and wrapper properties are versioned, and their
+canonical SHA-256 values are pinned by the inspector. It reads and verifies
+each component once, copies the verified bytes into a private wrapper snapshot,
+and launches only that snapshot. Any missing, linked, or changed component
+fails before Gradle starts. The child receives a constructed minimal runtime
+environment rather than the caller environment; signing/provider variables,
+credentials, passwords, and Java/Gradle option injection are not forwarded.
+
+The inspector runs the pinned bundletool runtime strictly in offline mode:
+bundletool first
 validates the complete App Bundle (including `BundleConfig.pb`), then dumps the
 protobuf manifest used to establish the actual package, version name/code, and
 minimum/target/compile SDK values. APK-only analyzers are not accepted for an
@@ -102,6 +111,11 @@ AAB. The caller artifact is copied once into a bounded private snapshot; bundle
 validation, manifest metadata, archive checks, byte hash, and all signer checks
 read only that same snapshot. Mutation of the original path after snapshotting
 cannot change the accepted evidence.
+
+The hosted gate checks out the tracked wrapper, builds the fictional signed AAB
+to materialize the pinned Gradle/bundletool cache, and only then runs the
+offline tooling tests and inspector. It does not regenerate the wrapper during
+the workflow.
 
 No release signing configuration is committed. Debug builds must use the explicit fake command above and must not contact LINE or an API.
 

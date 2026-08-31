@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import io
+import os
 import secrets
 import shutil
 import subprocess
@@ -214,6 +216,81 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
 
 
 class MobileReleaseArtifactTests(unittest.TestCase):
+    def test_tampered_gradle_wrapper_component_fails_closed(self):
+        source_root = ROOT / "clients/flutter_app/android"
+        components = (
+            "gradlew",
+            "gradlew.bat",
+            "gradle/wrapper/gradle-wrapper.jar",
+            "gradle/wrapper/gradle-wrapper.properties",
+        )
+        for tampered in components:
+            with self.subTest(
+                tampered=tampered
+            ), tempfile.TemporaryDirectory() as directory:
+                repository_root = Path(directory)
+                android_root = repository_root / "clients/flutter_app/android"
+                for relative in components:
+                    target = android_root / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source_root / relative, target)
+                target = android_root / tampered
+                target.write_bytes(target.read_bytes() + b"\nSECRET-SENTINEL\n")
+
+                with mock.patch.object(
+                    mobile_release, "_REPOSITORY_ROOT", repository_root
+                ), mock.patch.object(mobile_release, "_ANDROID_ROOT", android_root):
+                    with self.assertRaisesRegex(
+                        mobile_release.ContractError,
+                        "^bundletool runner integrity is invalid$",
+                    ):
+                        mobile_release._gradle_wrapper()
+
+    def test_bundletool_child_does_not_inherit_secret_or_option_environment(self):
+        captured: dict[str, str] = {}
+        captured_command: list[str] = []
+
+        def completed_run(
+            *args: object, **kwargs: object
+        ) -> subprocess.CompletedProcess:
+            captured_command.extend(args[0])  # type: ignore[arg-type]
+            captured.update(kwargs["env"])  # type: ignore[arg-type]
+            return subprocess.CompletedProcess(args[0], 0)  # type: ignore[index]
+
+        inherited = {
+            "CONTRACT_PASSWORD": "SECRET-SENTINEL",
+            "GOOGLE_APPLICATION_CREDENTIALS": "SECRET-SENTINEL",
+            "JAVA_TOOL_OPTIONS": "-javaagent:SECRET-SENTINEL",
+            "GRADLE_OPTS": "-Dprovider=SECRET-SENTINEL",
+            "MOBILE_RELEASE_STORE_PASSWORD": "SECRET-SENTINEL",
+        }
+        with mock.patch.dict(os.environ, inherited), mock.patch(
+            "tools.mobile_release.subprocess.run", side_effect=completed_run
+        ):
+            mobile_release._run_bundletool_task(
+                "verifyCandidateBundle", Path("fictional-snapshot.aab")
+            )
+
+        for name in inherited.keys() - {"JAVA_TOOL_OPTIONS"}:
+            self.assertNotIn(name, captured)
+        self.assertEqual(captured["JAVA_TOOL_OPTIONS"], "-Dfile.encoding=UTF-8")
+        self.assertNotIn("SECRET-SENTINEL", repr(captured))
+        self.assertFalse(Path(captured_command[0]).exists())
+        self.assertNotEqual(
+            Path(captured_command[0]).parent,
+            ROOT / "clients/flutter_app/android",
+        )
+
+    def test_unusable_runtime_environment_is_rejected_without_echo(self):
+        with mock.patch.dict(
+            os.environ, {"JAVA_HOME": "SECRET-SENTINEL"}
+        ), self.assertRaisesRegex(
+            mobile_release.ContractError,
+            "^bundletool runtime environment is unavailable$",
+        ) as raised:
+            mobile_release._bundletool_environment()
+        self.assertNotIn("SECRET-SENTINEL", str(raised.exception))
+
     def test_bundletool_manifest_parser_requires_exact_identity_and_sdk_metadata(self):
         manifest = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
@@ -462,9 +539,62 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         tool = (ROOT / "tools/mobile_release.py").read_text(encoding="utf-8")
         self.assertIn('"--offline"', tool)
         self.assertIn('"-Dfile.encoding=UTF-8"', tool)
-        self.assertIn('environment["JAVA_TOOL_OPTIONS"]', tool)
+        self.assertIn('"JAVA_TOOL_OPTIONS": "-Dfile.encoding=UTF-8"', tool)
+        self.assertNotIn("os.environ.copy()", tool)
+        self.assertNotIn('os.environ.get("JAVA_TOOL_OPTIONS"', tool)
+        for (
+            relative,
+            expected,
+        ) in mobile_release._GRADLE_WRAPPER_COMPONENT_SHA256.items():
+            self.assertTrue((ROOT / "clients/flutter_app/android" / relative).is_file())
+            self.assertIn(expected, tool)
+        android_ignore = (ROOT / "clients/flutter_app/android/.gitignore").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("gradle-wrapper.jar", android_ignore)
+        self.assertNotIn("/gradlew", android_ignore)
         self.assertIn("_BUNDLETOOL_TIMEOUT_SECONDS", tool)
         self.assertNotIn("apkanalyzer", tool.lower())
+
+    def test_duplicate_dart_define_error_does_not_echo_decoded_key(self):
+        encoded = ",".join(
+            base64.b64encode(value).decode("ascii")
+            for value in (b"SECRET-SENTINEL=one", b"SECRET-SENTINEL=two")
+        )
+        environment = mobile_release._bundletool_environment()
+        environment.update(
+            {
+                "MOBILE_RELEASE_CONTRACT_TEST": "true",
+                "MOBILE_RELEASE_CHANNEL": "android-closed",
+                "MOBILE_RELEASE_APPLICATION_ID": ("tw.org.ntubtob.portal.contracttest"),
+                "MOBILE_RELEASE_VERSION_NAME": "0.1.0",
+                "MOBILE_RELEASE_VERSION_CODE": "1",
+                "MOBILE_RELEASE_PREVIOUS_VERSION_CODE": "0",
+            }
+        )
+        with mobile_release._snapshot_gradle_wrapper() as wrapper:
+            completed = subprocess.run(
+                [
+                    str(wrapper),
+                    "--offline",
+                    "--no-daemon",
+                    "-q",
+                    "helpRelease",
+                    f"-Pdart-defines={encoded}",
+                ],
+                cwd=mobile_release._ANDROID_ROOT,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=environment,
+                timeout=120,
+            )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("dart-defines contain duplicate entries", completed.stdout)
+        self.assertNotIn("SECRET-SENTINEL", completed.stdout)
 
     def test_android_gradle_contract_is_explicit(self):
         source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
@@ -495,6 +625,10 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertNotIn(
             'GradleException("dart-defines contain malformed base64",', source
         )
+        self.assertIn(
+            'GradleException("dart-defines contain duplicate entries")', source
+        )
+        self.assertNotIn("dart-defines contain duplicate $key", source)
 
     def test_android_generated_contract_uses_variant_sources_api(self):
         source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
@@ -571,6 +705,8 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertNotIn('run: sdkmanager "platforms;android-36"', source)
         self.assertNotIn("curl ", source)
         self.assertNotIn("wget ", source)
+        self.assertNotIn("flutter create", source)
+        self.assertNotIn("gradle wrapper", source)
         self.assertIn('MOBILE_RELEASE_CONTRACT_TEST: "true"', source)
         self.assertIn("MOBILE_RELEASE_CHANNEL: android-closed", source)
         self.assertIn('MOBILE_RELEASE_PREVIOUS_VERSION_CODE: "0"', source)

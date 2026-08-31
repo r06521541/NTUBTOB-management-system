@@ -30,15 +30,24 @@
   min/target/compile SDK. Signature-shaped ZIP placeholders no longer qualify.
 - Contract parsing and Gradle URI/base64 failures now emit fixed categorical
   errors without caller-controlled keys/values or chained parser causes.
+- P1/P2 correction: all four standard Gradle wrapper components are versioned
+  and bound to canonical SHA-256 values. The inspector reads and verifies them
+  once, launches only a private snapshot, and supplies a constructed minimal
+  child environment. Signing/provider/private variables and Java/Gradle option
+  injection are not forwarded. Missing, linked, or changed wrapper components
+  fail before execution. Duplicate Dart-define failures are categorical and no
+  longer echo the decoded key.
 
 ## Regression and verification
 
 - Before implementation, focused tests reproduced the mismatch: the inspector
   rejected `android-closed`, `APP_FLAVOR=production` remained accepted, and the
   Gradle contract had no release-channel input.
-- `py -3.10 -m unittest tools.tests.test_mobile_release -v`: 18/18 passed,
+- `py -3.10 -m unittest tools.tests.test_mobile_release -v`: 22/22 passed,
   including genuine bundletool rejection of a JDK-signed placeholder ZIP, a
-  stable-snapshot mutation regression, the real temporary JDK
+  stable-AAB snapshot mutation regression, four wrapper-component tamper
+  regressions, private wrapper snapshot/minimal-environment checks, actual
+  Gradle duplicate-key sentinel non-disclosure, the real temporary JDK
   keytool/jarsigner round trip, and appended unsigned-entry rejection.
 - `py -3.10 -m unittest tools.tests.test_android_closed_testing -v`: 16/16
   passed after the hosted-step reorder.
@@ -95,6 +104,9 @@ The integrated workflow carries the following contract:
 - run the mobile release tooling tests after the signed fictional build so the
   pinned dependency set is already materialized, then run strict inspection;
   bundletool resolution remains `--offline`, with no download or upload.
+- the checked-out tracked wrapper is never regenerated in CI; inspector
+  invocation requires JDK 17 through `JAVA_HOME` and verifies all wrapper
+  component digests before launching the private snapshot.
 
 The two listed digests are derived only from the repository's pre-existing
 reserved/fictional contract-test configuration. They are not candidate
@@ -116,6 +128,10 @@ configuration or authorization for external work.
 
 - `clients/flutter_app/android/app/build.gradle.kts`
 - `clients/flutter_app/android/build.gradle.kts`
+- `clients/flutter_app/android/.gitignore`
+- `clients/flutter_app/android/gradlew`
+- `clients/flutter_app/android/gradlew.bat`
+- `clients/flutter_app/android/gradle/wrapper/gradle-wrapper.jar`
 - `clients/flutter_app/README.md`
 - `.github/workflows/flutter-tests.yml`
 - `tools/mobile_release.py`
