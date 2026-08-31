@@ -33,9 +33,15 @@
 - Makefiles 使用 `python3`、`sh`、`cp`、`rm`、`grep` 等 Unix 工具；純 Windows 環境缺少它們時，依 runbook 使用
   等價 Python unittest／tool command，不為跑測試修改 Makefile。
 - 因 Windows 缺少 Unix make／sh 而設計性 skip，不等於產品測試失敗；交付時要明確標記。
-- Bundled Windows Python 執行多檔或連續 Black CLI 可能持續高 CPU 停滯。終止後確認無殘留 process，改用逐檔
-  check 或同版本 Black formatter API 比對；最終以 hosted CI Black check 補足。
-- 不為 Black CLI 停滯調查本機 multiprocessing、修改 Makefile 或格式化無關檔案。
+- Python quality 工具固定由 `requirements-quality.txt` 安裝，版本與 `pyproject.toml` 的 Python 3.10／Black／isort
+  設定由 repository 管理。不要另行全域安裝或從網路動態選版本。
+- `python -m tools.repository_quality check --paths path/to/file.py` 會依序、逐檔、以 bounded timeout 執行 pinned
+  isort／Black check；不使用 shell，也不回顯 formatter diff／source。`format --paths ...` 才會寫檔。
+- CI 使用 classifier 已解析的 exact base/head SHA 與 `--git-diff`，以 NUL-delimited Git paths涵蓋每個新增／修改的
+  `.py`，deleted path明確排除。任一路徑缺失、不安全或非 `.py` 的 explicit selection都會 fail closed。
+- `make quality`／`make format` 會逐檔處理全部 tracked Python；新建但尚未納入 Git 的檔案應用 `--paths` 明確選取。
+- Bundled Windows Python 的 broad／multi-file Black CLI 可能持續高 CPU 停滯；repository runner會逐檔終止 timeout
+  process並繼續回報其他 selected files。終止舊 command 後仍須確認沒有殘留 process。
 
 ### Flutter 3.47／Dart 3.13 固定工具鏈
 
@@ -93,10 +99,12 @@
 
 ## 9. Canonical checksum
 
-- 文字 artifact：CRLF 正規化為 LF 後計算 SHA-256。
-- Binary artifact：hash raw bytes。
-- 新 workflow 應共用同一 generator／verifier。現有 artifact 尚未完全移到共用 helper 前，沿用其受測試保護的
-  canonical verifier，不以 `Get-FileHash` 重產文字 checksum。
+- 新文字 artifact 使用 `python -m tools.artifact_digest digest --text PATH`：只將 CRLF 正規化為 LF後計算 SHA-256。
+- Binary artifact 必須明確使用 `digest --binary PATH`，hash raw bytes；helper不從副檔名推論text／binary。
+- 新 checksum manifest 可用 `python -m tools.artifact_digest parse-manifest PATH` 做ASCII、大小、entry數、lowercase
+  SHA-256、safe relative name與duplicate檢查。`.sha256`及checksum-owned text classes固定LF。
+- 本任務不遷移現有 production launcher／manifest／歷史 artifact；它們仍沿用原本受測試保護的 verifier，且不得以
+  `Get-FileHash` 重產文字 checksum。APK及既有gcloud binary digest等raw-byte用途不改。
 - Artifact、checksum、validator 或 runbook順序改變時，舊 production 批准必須 fail closed並重新驗收。
 
 ## 10. Production 不確定狀態

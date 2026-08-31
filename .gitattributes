@@ -1,3 +1,10 @@
+*.sha256 text eol=lf
+docs/operations/sql/*.sql text eol=lf
+tools/launch_production_*.py text eol=lf
+tools/portal_data_*production*.py text eol=lf
+tools/portal_data_event_management_rollout.py text eol=lf
+tools/portal_data_zero_admin_bootstrap.py text eol=lf
+
 docs/operations/sql/TASK-071-phase-c-production-inventory.sql text eol=lf
 docs/operations/sql/TASK-071-phase-c-production-inventory.sql.sha256 text eol=lf
 docs/operations/sql/TASK-071-phase-c-production-postcheck.sql text eol=lf

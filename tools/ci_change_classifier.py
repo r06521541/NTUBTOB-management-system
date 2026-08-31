@@ -20,6 +20,7 @@ SCOPES = (
     "line_webhook",
 )
 OUTPUTS = ("docs_only", "quick_only", *SCOPES, "full")
+QUALITY_JOB = "quality"
 SHA_PATTERN = re.compile(r"[0-9a-fA-F]{40}")
 
 
@@ -63,6 +64,8 @@ def _path_scope(path: str) -> Optional[str]:
     lower = path.lower()
     name = PurePosixPath(lower).name
 
+    if lower.endswith(".py") and lower.startswith("docs/"):
+        return "full"
     if lower.startswith("clients/flutter_app/") or lower == (
         ".github/workflows/flutter-tests.yml"
     ):
@@ -71,8 +74,12 @@ def _path_scope(path: str) -> Optional[str]:
         return "full"
     if lower in (
         "tools/ci_change_classifier.py",
+        "tools/repository_quality.py",
+        "tools/artifact_digest.py",
         "tools/tests/test_ci_change_classifier.py",
         "tools/tests/test_ci_workflow_contract.py",
+        "tools/tests/test_repository_quality.py",
+        "tools/tests/test_artifact_digest.py",
     ):
         return "full"
     if lower in (
@@ -235,6 +242,12 @@ def final_gate_failures(
         if results.get(job) != "success":
             failures.append(f"required job did not succeed: {job}")
 
+    if enabled.intersection({"docs_only", "quick_only"}):
+        if results.get(QUALITY_JOB) != "skipped":
+            failures.append("unselected job was not skipped: quality")
+    elif results.get(QUALITY_JOB) != "success":
+        failures.append("required job did not succeed: quality")
+
     required_scopes = set(SCOPES) if "full" in enabled else enabled.intersection(SCOPES)
     for scope in SCOPES:
         result = results.get(scope)
@@ -260,7 +273,7 @@ def _classification_from_environment() -> dict[str, str]:
 def _results_from_environment() -> dict[str, str]:
     return {
         name: os.environ.get(f"CI_RESULT_{name.upper()}", "")
-        for name in ("classify", "quick", *SCOPES)
+        for name in ("classify", "quick", QUALITY_JOB, *SCOPES)
     }
 
 

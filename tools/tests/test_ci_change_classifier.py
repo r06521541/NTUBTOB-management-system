@@ -21,7 +21,7 @@ def outputs(**enabled):
 
 def results(**overrides):
     values = {name: "skipped" for name in SCOPES}
-    values.update(classify="success", quick="success")
+    values.update(classify="success", quick="success", quality="skipped")
     values.update(overrides)
     return values
 
@@ -131,6 +131,12 @@ class ChangeClassifierTests(unittest.TestCase):
             "requirements.txt",
             ".github/workflows/python-tests.yml",
             "tools/ci_change_classifier.py",
+            "tools/repository_quality.py",
+            "tools/artifact_digest.py",
+            "tools/tests/test_repository_quality.py",
+            "docs/examples/new_quality_script.py",
+            "requirements-quality.txt",
+            "pyproject.toml",
             "tools/UnreviewedBootstrap.ps1",
             "unexpected/new-boundary.conf",
         ):
@@ -215,7 +221,9 @@ class FinalGateTests(unittest.TestCase):
 
     def test_selected_jobs_must_succeed(self):
         selected = outputs(web_portal=True, line_webhook=True)
-        successful = results(web_portal="success", line_webhook="success")
+        successful = results(
+            quality="success", web_portal="success", line_webhook="success"
+        )
         self.assertEqual(final_gate_failures(selected, successful), [])
         for result in ("failure", "cancelled", "skipped"):
             with self.subTest(result=result):
@@ -223,7 +231,9 @@ class FinalGateTests(unittest.TestCase):
                 self.assertTrue(final_gate_failures(selected, changed))
 
     def test_full_requires_every_scope(self):
-        successful = results(**{scope: "success" for scope in SCOPES})
+        successful = results(
+            quality="success", **{scope: "success" for scope in SCOPES}
+        )
         self.assertEqual(final_gate_failures(outputs(full=True), successful), [])
         self.assertTrue(
             final_gate_failures(
@@ -233,12 +243,23 @@ class FinalGateTests(unittest.TestCase):
 
     def test_flutter_is_required_when_selected_or_full(self):
         selected = outputs(flutter=True)
-        self.assertEqual(final_gate_failures(selected, results(flutter="success")), [])
+        self.assertEqual(
+            final_gate_failures(
+                selected, results(quality="success", flutter="success")
+            ),
+            [],
+        )
         for result in ("failure", "cancelled", "skipped"):
             with self.subTest(selected_result=result):
-                self.assertTrue(final_gate_failures(selected, results(flutter=result)))
+                self.assertTrue(
+                    final_gate_failures(
+                        selected, results(quality="success", flutter=result)
+                    )
+                )
 
-        full_results = results(**{scope: "success" for scope in SCOPES})
+        full_results = results(
+            quality="success", **{scope: "success" for scope in SCOPES}
+        )
         for result in ("failure", "cancelled", "skipped"):
             with self.subTest(full_result=result):
                 self.assertTrue(
@@ -251,9 +272,19 @@ class FinalGateTests(unittest.TestCase):
         self.assertEqual(
             final_gate_failures(
                 outputs(web_portal=True),
-                results(web_portal="success", flutter="skipped"),
+                results(quality="success", web_portal="success", flutter="skipped"),
             ),
             [],
+        )
+
+    def test_quality_is_skipped_only_for_docs_or_approved_quick_changes(self):
+        self.assertEqual(final_gate_failures(outputs(docs_only=True), results()), [])
+        self.assertEqual(final_gate_failures(outputs(quick_only=True), results()), [])
+        self.assertTrue(
+            final_gate_failures(outputs(docs_only=True), results(quality="success"))
+        )
+        self.assertTrue(
+            final_gate_failures(outputs(web_portal=True), results(web_portal="success"))
         )
 
     def test_invalid_or_empty_classification_fails(self):
