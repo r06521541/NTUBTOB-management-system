@@ -30,6 +30,7 @@ class Dependencies:
     review: object | None = None
     google_auth: MobileAuthService | None = None
     identity_link: object | None = None
+    apple_auth: MobileAuthService | None = None
 
 
 def create_app(dependencies: Dependencies) -> Flask:
@@ -207,6 +208,32 @@ def create_app(dependencies: Dependencies) -> Flask:
             202 if hasattr(result, "review_credential") else 201
         )
 
+    @app.post("/api/v1/auth/apple/exchange")
+    def apple_exchange():
+        if dependencies.apple_auth is None:
+            raise MobileApiError("Apple sign-in is unavailable")
+        body = json_body(
+            {
+                "id_token",
+                "nonce",
+                "login_attempt_id",
+                "installation_id",
+                "platform",
+            }
+        )
+        if body.get("platform") != "ios":
+            raise InvalidArgument("Apple sign-in requires iOS")
+        result = dependencies.apple_auth.exchange(
+            assertion=body.get("id_token"),
+            nonce=body.get("nonce"),
+            login_attempt_id=body.get("login_attempt_id"),
+            installation_id=body.get("installation_id"),
+            platform=body.get("platform"),
+        )
+        return jsonify(result.__dict__), (
+            202 if hasattr(result, "review_credential") else 201
+        )
+
     @app.get("/api/v1/auth/identities")
     def linked_identities():
         principal = authenticate()
@@ -232,10 +259,14 @@ def create_app(dependencies: Dependencies) -> Flask:
         )
 
     def provider_auth(provider, body):
-        service = (
-            dependencies.google_auth if provider == "google" else dependencies.auth
-        )
-        nonce = body.get("nonce") if provider == "line" else None
+        service = {
+            "line": dependencies.auth,
+            "google": dependencies.google_auth,
+            "apple": dependencies.apple_auth,
+        }.get(provider)
+        if service is None:
+            raise NotFound("identity provider not found")
+        nonce = body.get("nonce") if provider in {"line", "apple"} else None
         verified = service.verifier.verify(
             body.get("id_token"), service.audience, nonce, service.clock()
         )
@@ -243,10 +274,14 @@ def create_app(dependencies: Dependencies) -> Flask:
 
     @app.post("/api/v1/auth/identity-link/candidates/<provider>")
     def identity_link_candidate(provider):
-        if dependencies.identity_link is None or provider not in {"line", "google"}:
+        if dependencies.identity_link is None or provider not in {
+            "line",
+            "google",
+            "apple",
+        }:
             raise NotFound("identity provider not found")
         allowed = {"id_token", "login_attempt_id", "installation_id"}
-        if provider == "line":
+        if provider in {"line", "apple"}:
             allowed.add("nonce")
         body = json_body(allowed)
         _service, verified = provider_auth(provider, body)
@@ -261,7 +296,11 @@ def create_app(dependencies: Dependencies) -> Flask:
 
     @app.post("/api/v1/auth/identity-link/proofs/<provider>")
     def identity_link_proof(provider):
-        if dependencies.identity_link is None or provider not in {"line", "google"}:
+        if dependencies.identity_link is None or provider not in {
+            "line",
+            "google",
+            "apple",
+        }:
             raise NotFound("identity provider not found")
         allowed = {
             "candidate_credential",
@@ -269,7 +308,7 @@ def create_app(dependencies: Dependencies) -> Flask:
             "login_attempt_id",
             "installation_id",
         }
-        if provider == "line":
+        if provider in {"line", "apple"}:
             allowed.add("nonce")
         body = json_body(allowed)
         _service, verified = provider_auth(provider, body)

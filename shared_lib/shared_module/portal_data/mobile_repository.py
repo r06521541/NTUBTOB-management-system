@@ -6,6 +6,11 @@ import json
 import secrets
 from datetime import datetime, timedelta
 
+from shared_module.identity_linking import (
+    IdentityLinkConflict,
+    IdentityLinkResult,
+    InternalWebPrincipal,
+)
 from shared_module.mobile_api import (
     AccountUnavailable,
     AuthenticationError,
@@ -15,20 +20,17 @@ from shared_module.mobile_api import (
     MobilePrincipal,
     TokenPair,
 )
-from shared_module.identity_linking import (
-    IdentityLinkConflict,
-    IdentityLinkResult,
-    InternalWebPrincipal,
-)
 from sqlalchemy import Engine, and_, func, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .identity_lifecycle import ADMIN_LOCK_KEY, IdentityLifecycleRepository
 from .models import (
-    AuthIdentityRecord,
     AccessAuditRecord,
+    AuthIdentityRecord,
     LegacyGameRecord,
+    LegacyLineUserRecord,
+    LegacyMemberRecord,
     MobileAuthExchangeRecord,
     MobileDeviceRegistrationRecord,
     MobileIdempotencyRecord,
@@ -39,8 +41,6 @@ from .models import (
     MobileRefreshAttemptRecord,
     MobileRefreshTokenRecord,
     MobileSessionRecord,
-    LegacyLineUserRecord,
-    LegacyMemberRecord,
     PersonQualificationRecord,
     PersonRecord,
 )
@@ -182,6 +182,54 @@ class MobileRepository:
         except IntegrityError:
             raise Conflict("identity-link candidate conflict") from None
 
+    def ensure_apple_link_candidate(
+        self, subject: str, request_id: str, now: datetime
+    ) -> dict:
+        try:
+            with Session(self.engine) as session, session.begin():
+                row = session.scalar(
+                    select(AuthIdentityRecord)
+                    .where(
+                        AuthIdentityRecord.provider == "apple",
+                        AuthIdentityRecord.provider_subject == subject,
+                    )
+                    .with_for_update()
+                )
+                if row is None:
+                    row = AuthIdentityRecord(
+                        provider="apple",
+                        provider_subject=subject,
+                        person_id=None,
+                        status="pending",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    session.add(row)
+                    session.flush()
+                    self.lifecycle._thread(session, row.id, now)
+                    session.add(
+                        AccessAuditRecord(
+                            action="identity_pending",
+                            actor_person_id=None,
+                            target_person_id=None,
+                            auth_identity_id=row.id,
+                            before_state=None,
+                            after_state={"status": "pending"},
+                            reason="Apple identity awaiting self-link confirmation",
+                            request_id=request_id,
+                            created_at=now,
+                        )
+                    )
+                return {
+                    "identity_id": row.id,
+                    "provider": row.provider,
+                    "status": row.status,
+                    "person_id": row.person_id,
+                    "updated_at": row.updated_at,
+                }
+        except IntegrityError:
+            raise Conflict("identity-link candidate conflict") from None
+
     def ensure_line_link_candidate(
         self, subject: str, display_name: str, request_id: str, now: datetime
     ) -> dict:
@@ -222,14 +270,18 @@ class MobileRepository:
                 .where(
                     AuthIdentityRecord.person_id == person_id,
                     AuthIdentityRecord.status == "linked",
-                    AuthIdentityRecord.provider.in_(("line", "google")),
+                    AuthIdentityRecord.provider.in_(("line", "google", "apple")),
                 )
                 .order_by(AuthIdentityRecord.provider)
             ).all()
             return tuple(
                 {
                     "provider": row.provider,
-                    "label": "LINE" if row.provider == "line" else "Google",
+                    "label": {
+                        "line": "LINE",
+                        "google": "Google",
+                        "apple": "Apple",
+                    }[row.provider],
                     "linked_at": session.scalar(
                         select(func.max(AccessAuditRecord.created_at)).where(
                             AccessAuditRecord.auth_identity_id == row.id,

@@ -1472,6 +1472,47 @@ abstract interface class GoogleLoginPort {
   Future<void> logout();
 }
 
+abstract interface class AppleLoginPort {
+  Future<String> login(String nonce);
+}
+
+class NativeAppleLogin implements AppleLoginPort {
+  const NativeAppleLogin({
+    MethodChannel channel = const MethodChannel(
+      'tw.org.ntubtob.portal/apple_authorization',
+    ),
+  }) : _channel = channel;
+
+  final MethodChannel _channel;
+
+  @override
+  Future<String> login(String nonce) async {
+    if (nonce.length < 16 ||
+        nonce.length > 128 ||
+        !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(nonce)) {
+      throw const ContractException('Apple nonce is invalid');
+    }
+    final raw = await _channel.invokeMethod<Object>(
+      'authorize',
+      {'raw_nonce': nonce},
+    );
+    if (raw is! Map ||
+        raw.length != 1 ||
+        raw.keys.single != 'identity_token' ||
+        raw['identity_token'] is! String) {
+      throw const ContractException('Apple authorization result is invalid');
+    }
+    final token = raw['identity_token'] as String;
+    if (token.isEmpty ||
+        token.length > 32768 ||
+        !RegExp(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$')
+            .hasMatch(token)) {
+      throw const ContractException('Apple identity token is invalid');
+    }
+    return token;
+  }
+}
+
 typedef GoogleSdkInitialize = Future<void> Function({
   String? clientId,
   required String serverClientId,
@@ -1602,6 +1643,8 @@ enum LoginState {
   accountUnavailable,
   cancelled,
   error,
+  recoverableError,
+  offline,
   unavailable,
   timeoutUnresolved,
   timeoutResolved,
@@ -1843,6 +1886,152 @@ class GoogleLoginCoordinator extends ChangeNotifier {
       _active = false;
       _notify();
     }
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}
+
+class AppleLoginCoordinator extends ChangeNotifier {
+  AppleLoginCoordinator(
+    this.apple,
+    this.api,
+    this.sessions,
+    this.ids,
+    this.installationId, {
+    this.loginTimeout = const Duration(seconds: 35),
+  });
+
+  final AppleLoginPort apple;
+  final ApiTransport api;
+  final SessionController sessions;
+  final SecureIds ids;
+  final String installationId;
+  final Duration loginTimeout;
+  LoginState state = LoginState.idle;
+  PendingReviewEnvelope? pendingReview;
+  String? _activeAttempt;
+  String? _nativeAttempt;
+  bool _disposed = false;
+  bool get nativeFlowUnresolved => _nativeAttempt != null;
+
+  void retirePendingReview() => pendingReview = null;
+
+  Future<void> login(String platform, {required bool online}) async {
+    retirePendingReview();
+    if (!online) {
+      state = LoginState.offline;
+      _notify();
+      return;
+    }
+    if (platform != 'ios') {
+      state = LoginState.unavailable;
+      _notify();
+      return;
+    }
+    if (_activeAttempt != null) return;
+    if (_nativeAttempt != null) {
+      state = LoginState.timeoutUnresolved;
+      _notify();
+      return;
+    }
+
+    final attempt = ids.next();
+    final nonce = ids.next();
+    _activeAttempt = attempt;
+    _nativeAttempt = attempt;
+    state = LoginState.providerActive;
+    _notify();
+    late final Future<String> nativeLogin;
+    try {
+      nativeLogin = apple.login(nonce);
+      final token = await nativeLogin.timeout(loginTimeout);
+      if (_nativeAttempt != attempt || _activeAttempt != attempt) {
+        state = LoginState.stale;
+        return;
+      }
+      _nativeAttempt = null;
+      state = LoginState.exchanging;
+      _notify();
+      final response = await api.send('POST', '/auth/apple/exchange', body: {
+        'id_token': token,
+        'nonce': nonce,
+        'login_attempt_id': attempt,
+        'installation_id': installationId,
+        'platform': platform,
+      });
+      if (_activeAttempt != attempt) {
+        state = LoginState.stale;
+        return;
+      }
+      if (response.status == 202 && response.body != null) {
+        pendingReview = PendingReviewEnvelope.fromJson(response.body!);
+        state = LoginState.identityPending;
+      } else if (response.status == 201 && response.body != null) {
+        await sessions.accept(SessionEnvelope.fromJson(response.body!));
+        state = LoginState.authenticated;
+      } else {
+        final error =
+            response.body == null ? null : ApiError.fromJson(response.body!);
+        state = error?.code == ApiErrorCode.accountUnavailable
+            ? LoginState.accountUnavailable
+            : LoginState.error;
+      }
+    } on PlatformException catch (error) {
+      state = error.code == 'apple_authorization_cancelled'
+          ? LoginState.cancelled
+          : error.code == 'apple_authorization_unavailable'
+              ? LoginState.unavailable
+              : LoginState.recoverableError;
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
+    } on MissingPluginException {
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
+      state = LoginState.unavailable;
+    } on TimeoutException {
+      if (_activeAttempt == attempt) _activeAttempt = null;
+      state = LoginState.timeoutUnresolved;
+      unawaited(_settleTimedOutNativeFlow(attempt, nativeLogin));
+    } on NetworkException {
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
+      state = LoginState.recoverableError;
+    } on Object {
+      if (_nativeAttempt == attempt) _nativeAttempt = null;
+      state = LoginState.error;
+    } finally {
+      if (_activeAttempt == attempt && state != LoginState.timeoutUnresolved) {
+        _activeAttempt = null;
+      }
+      _notify();
+    }
+  }
+
+  Future<void> _settleTimedOutNativeFlow(
+    String attempt,
+    Future<String> nativeLogin,
+  ) async {
+    LoginState resolvedState;
+    try {
+      await nativeLogin;
+      resolvedState = LoginState.timeoutResolved;
+    } on PlatformException catch (error) {
+      resolvedState = error.code == 'apple_authorization_cancelled'
+          ? LoginState.cancelled
+          : LoginState.timeoutResolved;
+    } on Object {
+      resolvedState = LoginState.timeoutResolved;
+    }
+    if (_nativeAttempt != attempt) return;
+    _nativeAttempt = null;
+    _activeAttempt = null;
+    state = resolvedState;
+    _notify();
   }
 
   void _notify() {

@@ -50,20 +50,39 @@ requires the resolved Xcode values to match it, so a command-line build setting
 cannot bypass the repository state. A production/App Store build therefore
 fails closed.
 
-## Apple public-release gap
+## Apple repository implementation and public-release gap
 
 `Runner/Runner.entitlements.example` documents the expected entitlement shape
-but is not bound to the target. A future separately reviewed auth delivery must
-complete all of the following before changing the repository marker to
-`ready`:
+but is not bound to the target. The real iOS Flutter composition now includes a
+dependency-free `AuthenticationServices` bridge. It hashes the one-time raw
+nonce with lowercase SHA-256 for the native request and returns only the Apple
+identity token; Flutter sends that token and the same raw nonce to the Mobile
+API. No email, relay email, name, Apple user identifier, authorization code, or
+profile hint is returned or used for identity linking. The server-verified
+stable Apple subject remains the sole provider identity key.
 
-1. Implement Apple login, backend token verification, identity linking,
-   recovery/conflict behavior, session/logout handling, and offline/error UX.
-2. Add direct client/server tests and verify the Apple button/flow on supported
-   real iOS devices; a compile-time marker alone is not evidence.
+This slice deliberately returns only the nonce-bound identity token. It does
+not return an authorization code, so server-side authorization-code validation
+and Apple refresh-token acquisition are not implemented. Apple credential-state
+checks, Apple server-to-server notifications, and the account revocation
+lifecycle are likewise not implemented; each remains a public provider/runtime
+Owner gate.
+
+Repository implementation does not make the public release ready. A separately
+reviewed delivery must complete all of the following before changing the
+repository marker to `ready`:
+
+1. Independently accept the repository login, backend verification, identity
+   linking, recovery/conflict, session/logout, offline/error, and direct-test
+   evidence.
+2. Compile and test the bridge with the pinned Flutter toolchain on macOS/Xcode,
+   then verify the Apple button/flow on supported real iOS devices; source and
+   compile-time markers alone are not runtime evidence.
 3. Enable the capability in the approved Apple provider/App ID, bind a reviewed
    `Runner/Runner.entitlements`, and supply provider/signing state externally.
-4. Pass the public iOS gates in
+4. Implement and accept the required authorization-code/refresh-token,
+   credential-state, server-notification, and revocation lifecycle policy.
+5. Pass the public iOS gates in
    `docs/releases/MOBILE_RELEASE_MATRIX.md`, including privacy, deletion,
    metadata, production-backend, push/deep-link, and anonymous-crash evidence.
 

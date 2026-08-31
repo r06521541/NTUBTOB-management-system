@@ -5,6 +5,7 @@ import logging
 import os
 
 from app import Dependencies, create_app
+from apple_verifier import AppleIdTokenVerifier
 from cryptography.fernet import Fernet, InvalidToken
 from google_verifier import GoogleIdTokenVerifier
 from line_verifier import LineIdTokenVerifier
@@ -86,6 +87,16 @@ google_auth = MobileAuthService(
     verify_audience=False,
     require_nonce=False,
 )
+apple_audience = os.environ.get("MOBILE_API_APPLE_AUDIENCE", "")
+apple_auth = None
+if apple_audience and apple_audience == apple_audience.strip():
+    apple_auth = MobileAuthService(
+        repository,
+        AppleIdTokenVerifier(),
+        cipher,
+        HmacAccessTokenCodec(token_key),
+        audience=apple_audience,
+    )
 identity_link = IdentityLinkService(
     repository,
     IdentityLinkProofCodec(token_key),
@@ -109,5 +120,6 @@ app = create_app(
         PendingReviewService(data, auth.token_codec),
         google_auth,
         identity_link,
+        apple_auth,
     )
 )

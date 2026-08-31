@@ -47,6 +47,22 @@ class MobileApiRouteTest(unittest.TestCase):
             begin_candidate=Mock(),
             issue_fresh_proof=Mock(),
         )
+        self.apple_auth = SimpleNamespace(
+            exchange=Mock(
+                return_value=TokenPair(
+                    "apple-access", "apple-refresh", "apple-session", 900
+                )
+            ),
+            verifier=SimpleNamespace(
+                verify=Mock(
+                    return_value=SimpleNamespace(
+                        provider="apple", subject="fictional-apple-stable-subject"
+                    )
+                )
+            ),
+            audience="fictional.ios.client",
+            clock=Mock(),
+        )
         self.basic = SimpleNamespace(
             update_profile=Mock(
                 return_value=(
@@ -179,6 +195,7 @@ class MobileApiRouteTest(unittest.TestCase):
                 self.review,
                 self.auth,
                 self.identity_link,
+                self.apple_auth,
             )
         ).test_client()
 
@@ -261,6 +278,114 @@ class MobileApiRouteTest(unittest.TestCase):
             },
         )
         self.assertEqual(rejected.status_code, 422)
+
+    def test_apple_exchange_is_nonce_bound_ios_only_and_rejects_profile_fields(self):
+        body = {
+            "id_token": "obvious-fake-apple-id-token",
+            "nonce": "fictional-raw-nonce-123456",
+            "login_attempt_id": "attempt-123456789",
+            "installation_id": "installation-1234",
+            "platform": "ios",
+        }
+        response = self.client.post("/api/v1/auth/apple/exchange", json=body)
+
+        self.assertEqual(response.status_code, 201)
+        self.apple_auth.exchange.assert_called_once_with(
+            assertion="obvious-fake-apple-id-token",
+            nonce="fictional-raw-nonce-123456",
+            login_attempt_id="attempt-123456789",
+            installation_id="installation-1234",
+            platform="ios",
+        )
+        for field in ("email", "name", "user", "real_user_status"):
+            with self.subTest(field=field):
+                rejected = self.client.post(
+                    "/api/v1/auth/apple/exchange",
+                    json={**body, field: "untrusted-profile-hint"},
+                )
+                self.assertEqual(rejected.status_code, 422)
+        wrong_platform = self.client.post(
+            "/api/v1/auth/apple/exchange", json={**body, "platform": "android"}
+        )
+        self.assertEqual(wrong_platform.status_code, 422)
+
+    def test_missing_apple_runtime_config_disables_only_apple_auth(self):
+        client = create_app(
+            Dependencies(
+                self.auth,
+                self.basic,
+                self.publishing,
+                self.revision,
+                self.review,
+                self.auth,
+                self.identity_link,
+                None,
+            )
+        ).test_client()
+        body = {
+            "id_token": "obvious-fake-id-token",
+            "nonce": "fictional-raw-nonce-123456",
+            "login_attempt_id": "attempt-123456789",
+            "installation_id": "installation-1234",
+            "platform": "ios",
+        }
+
+        apple = client.post("/api/v1/auth/apple/exchange", json=body)
+        line = client.post("/api/v1/auth/line/exchange", json=body)
+
+        self.assertEqual(apple.status_code, 503)
+        self.assertTrue(apple.get_json()["error"]["retryable"])
+        self.assertEqual(line.status_code, 201)
+
+    def test_apple_link_candidate_and_proof_use_only_verified_subject(self):
+        candidate_body = {
+            "id_token": "obvious-fake-apple-id-token",
+            "nonce": "fictional-raw-nonce-123456",
+            "login_attempt_id": "attempt-123456789",
+            "installation_id": "installation-1234",
+        }
+        self.identity_link.begin_candidate.return_value = {"status": "candidate_ready"}
+        candidate = self.client.post(
+            "/api/v1/auth/identity-link/candidates/apple", json=candidate_body
+        )
+        self.assertEqual(candidate.status_code, 201)
+        self.apple_auth.verifier.verify.assert_called_with(
+            "obvious-fake-apple-id-token",
+            "fictional.ios.client",
+            "fictional-raw-nonce-123456",
+            self.apple_auth.clock.return_value,
+        )
+        self.identity_link.begin_candidate.assert_called_once_with(
+            provider="apple",
+            subject="fictional-apple-stable-subject",
+            raw_assertion="obvious-fake-apple-id-token",
+            attempt_id="attempt-123456789",
+            binding="installation-1234",
+        )
+
+        self.identity_link.issue_fresh_proof.return_value = {"status": "proof_ready"}
+        proof = self.client.post(
+            "/api/v1/auth/identity-link/proofs/apple",
+            json={**candidate_body, "candidate_credential": "candidate-proof"},
+        )
+        self.assertEqual(proof.status_code, 201)
+        self.identity_link.issue_fresh_proof.assert_called_once_with(
+            candidate_credential="candidate-proof",
+            provider="apple",
+            subject="fictional-apple-stable-subject",
+            attempt_id="attempt-123456789",
+            binding="installation-1234",
+        )
+        for route in (
+            "/api/v1/auth/identity-link/candidates/apple",
+            "/api/v1/auth/identity-link/proofs/apple",
+        ):
+            for field in ("email", "name", "user", "real_user_status"):
+                with self.subTest(route=route, field=field):
+                    rejected = self.client.post(
+                        route, json={**candidate_body, field: "untrusted-profile-hint"}
+                    )
+                    self.assertEqual(rejected.status_code, 422)
 
     def test_bearer_is_required_and_cookie_is_not_used(self):
         response = self.client.get("/api/v1/me")
