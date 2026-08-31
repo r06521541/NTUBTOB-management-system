@@ -145,6 +145,16 @@ This is the second and final bounded correction round. Tests must call `change_p
 grant/revoke qualification must not acquire Event before Admin. No previously accepted route, replay, lifecycle or notification behavior
 may be broadened.
 
+### Final correction rereview
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 3
+- review_target: `67e260f8dae4cb3078736e6b11374dc6eaffa17d`
+- scope: verify actual status-writer serialization, global lock order and regression-test correction; confirm all earlier accepted boundaries remain
+- report_to: `/root`
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
