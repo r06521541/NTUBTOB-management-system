@@ -182,9 +182,10 @@ class ExactTwoActivationPostgresTests(unittest.TestCase):
 
     def test_unsafe_write_logging_stops_before_mutation(self):
         before = self._counts()
-        with patch.object(
-            operator, "_write_logging_safe", return_value=False
-        ), self.assertRaises(operator.ExactTwoActivationError):
+        with (
+            patch.object(operator, "_write_logging_safe", return_value=False),
+            self.assertRaises(operator.ExactTwoActivationError),
+        ):
             operator.run("execute", environ=self.environ)
         self.assertEqual(self._counts(), before)
 

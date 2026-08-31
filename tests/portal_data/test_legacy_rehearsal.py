@@ -33,13 +33,15 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
 
     def test_exact_fixture_and_migration_chain_are_reproducible(self):
         config = Config("alembic.ini")
-        command.downgrade(config, "0001_legacy_baseline")
+        command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
+        command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.stamp(config, "0001_legacy_baseline")
         command.upgrade(config, "head")
-        command.downgrade(config, "0001_legacy_baseline")
+        command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
+        command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.upgrade(config, "head")
         command.check(config)
@@ -102,7 +104,12 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
                     ("game_attendance_replies", "game_id", "games", "id"),
                     ("game_attendance_replies", "member_id", "members", "id"),
                     ("game_attendance_replies", "person_id", "people", "id"),
-                    ("game_attendance_replies", "reply", "attendance_reply_types", "id"),
+                    (
+                        "game_attendance_replies",
+                        "reply",
+                        "attendance_reply_types",
+                        "id",
+                    ),
                     ("game_attendance_replies", "user_id", "line_users", "id"),
                     ("line_users", "member_id", "members", "id"),
                 },

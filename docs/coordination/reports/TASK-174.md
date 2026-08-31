@@ -52,6 +52,9 @@
   revisions exercised by its callers. A fresh schema is a zero-DDL no-op; an
   empty, ambiguous, unknown, or future recorded revision fails before opening a
   DDL transaction.
+- The legacy rehearsal first stops at the safe `0004` boundary, removes retained
+  Apple evidence through that test-only gate, and only then continues to `0001`;
+  production downgrade semantics remain unchanged.
 
 ## Remaining acceptance limits
 

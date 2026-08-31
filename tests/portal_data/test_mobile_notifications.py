@@ -38,9 +38,7 @@ class MobileNotificationModelContractTest(unittest.TestCase):
             constraints["ck_mobile_notification_visibility"],
             "visible_until = created_at + interval '90 days'",
         )
-        device = PortalDataBase.metadata.tables[
-            "ntubtob.mobile_device_registrations"
-        ]
+        device = PortalDataBase.metadata.tables["ntubtob.mobile_device_registrations"]
         active_token = next(
             index
             for index in device.indexes
@@ -319,7 +317,9 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
-                    text("SELECT count(*) FROM ntubtob.mobile_notification_publish_audits")
+                    text(
+                        "SELECT count(*) FROM ntubtob.mobile_notification_publish_audits"
+                    )
                 ),
                 1,
             )
@@ -392,9 +392,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
             "other-device-session", self.people[0], 1, "officer", "Officer", 1
         )
         with self.assertRaisesRegex(Conflict, "device registration is unavailable"):
-            service.revoke_device(
-                forged, installation_id="fictional-installation-001"
-            )
+            service.revoke_device(forged, installation_id="fictional-installation-001")
         self.assertTrue(
             service.revoke_device(
                 officer, installation_id="fictional-installation-001"
