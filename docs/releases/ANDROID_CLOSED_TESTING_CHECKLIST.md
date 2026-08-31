@@ -30,8 +30,9 @@ Console/store/cloud/device/production。任何未知、缺欄、`BLOCKED`、prod
   key/password/certificate payload。
 - Runtime：`staging + real + isolated-test-data`，明確 `production_access: false`；reference 只表示去識別化 scope review。
 - Product scope：`basic-only`；Officer/Admin、push delivery、deep-link delivery、anonymous crash reporting 全為 `false`。
-- Compliance：Data Safety、privacy、support、account-deletion 與 tester notes 均為 `verified` 且有獨立 `EV-*` reference。
-  `verified` 必須由 exact candidate 的外部 review 產生，不能由文件存在或 repository test 推論。
+- Compliance：Data Safety、privacy、support、account-deletion 與 tester notes 均為 `verified`，且五個 `EV-*`
+  references 必須 pairwise distinct；同一 reference（例如 `EV-SAME`）不得重複支撐多個 gate。`verified` 必須由 exact
+  candidate 的外部 review 產生，不能由文件存在或 repository test 推論。
 - Tester notes：明示 staging、Basic-only、無 push、無 deep-link delivery、無 crash reporting，並逐一列出 device matrix 中
   安全上無法執行的 LINE／Google provider login；不可加入自由文字或實際 provider/account 資料。
 - Device matrix：同一 artifact SHA；去識別化 Android phone／Android 15、fictional data、無 device identifier。install、upgrade、

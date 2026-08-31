@@ -178,6 +178,17 @@ class AndroidClosedTestingEvidenceTests(unittest.TestCase):
         with self.assertRaises(closed.EvidenceError):
             closed.validate_evidence(record)
 
+    def test_compliance_evidence_references_must_be_pairwise_distinct(self):
+        record = evidence_fixture()
+        for name in ("data_safety", "privacy", "support", "deletion"):
+            record["compliance"][name]["evidence_ref"] = "EV-SAME"
+        record["compliance"]["tester_notes"]["evidence_ref"] = "EV-SAME"
+
+        with self.assertRaisesRegex(
+            closed.EvidenceError, "compliance evidence references must be distinct"
+        ):
+            closed.validate_evidence(record)
+
     def test_only_provider_login_may_be_unavailable_and_notes_must_match(self):
         record = evidence_fixture()
         record["device_matrix"]["scenarios"]["line_login"]["result"] = "unavailable"

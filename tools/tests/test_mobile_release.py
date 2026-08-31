@@ -10,6 +10,7 @@ import unittest
 import warnings
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 from tools import mobile_release
 
@@ -63,21 +64,34 @@ def _aab_bytes(contract: bytes | None = None, *, signed: bool = True) -> bytes:
     return output.getvalue()
 
 
-def _inspect_contract_test(artifact: Path) -> dict[str, object]:
-    return mobile_release.inspect_aab(
-        artifact,
-        expected_mode="contract-test",
-        expected_package="tw.org.ntubtob.portal.contracttest",
-        expected_version_name="0.1.0",
-        expected_version_code=1,
-        expected_previous_version_code=0,
-        expected_api_origin_sha256=mobile_release.CONTRACT_TEST_VALUES[
-            "api_origin_sha256"
-        ],
-        expected_provider_config_sha256=mobile_release.CONTRACT_TEST_VALUES[
-            "provider_config_sha256"
-        ],
+def _bundle_metadata() -> mobile_release.BundleMetadata:
+    return mobile_release.BundleMetadata(
+        application_id="tw.org.ntubtob.portal.contracttest",
+        version_name="0.1.0",
+        version_code=1,
+        min_sdk=24,
+        target_sdk=36,
+        compile_sdk=36,
     )
+
+
+def _inspect_contract_test(artifact: Path) -> dict[str, object]:
+    with mobile_release.snapshot_artifact(artifact) as snapshot:
+        return mobile_release._inspect_snapshot(
+            snapshot,
+            _bundle_metadata(),
+            expected_mode="contract-test",
+            expected_package="tw.org.ntubtob.portal.contracttest",
+            expected_version_name="0.1.0",
+            expected_version_code=1,
+            expected_previous_version_code=0,
+            expected_api_origin_sha256=mobile_release.CONTRACT_TEST_VALUES[
+                "api_origin_sha256"
+            ],
+            expected_provider_config_sha256=mobile_release.CONTRACT_TEST_VALUES[
+                "provider_config_sha256"
+            ],
+        )
 
 
 class MobileReleaseConfigurationTests(unittest.TestCase):
@@ -132,17 +146,39 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
                     )
 
     def test_unknown_duplicate_and_cross_mode_values_fail_closed(self):
-        with self.assertRaises(mobile_release.ContractError):
+        with self.assertRaisesRegex(
+            mobile_release.ContractError, "release contract keys are duplicated"
+        ) as duplicate:
             mobile_release.parse_contract(
                 _contract_bytes() + b"application_id=tw.org.ntubtob.portal\n"
             )
-        with self.assertRaises(mobile_release.ContractError):
+        self.assertIsNone(duplicate.exception.__cause__)
+        with self.assertRaisesRegex(
+            mobile_release.ContractError, "release contract keys are invalid"
+        ) as unknown:
             mobile_release.parse_contract(_contract_bytes() + b"secret=value\n")
+        self.assertIsNone(unknown.exception.__cause__)
+        self.assertNotIn("secret", str(unknown.exception))
         with self.assertRaises(mobile_release.ContractError):
             mobile_release.validate_contract(
                 dict(mobile_release.CONTRACT_TEST_VALUES),
                 expected_mode="android-closed",
             )
+
+    def test_contract_parse_errors_are_fixed_categorical_messages(self):
+        cases = (
+            (b"\xff", "release contract encoding is invalid"),
+            (b"malformed\n", "release contract structure is invalid"),
+            (b"secret=value\n", "release contract keys are invalid"),
+            (b"schema=\n", "release contract values are invalid"),
+            (b"schema=2\n", "release contract keys are incomplete"),
+        )
+        for raw, message in cases:
+            with self.subTest(message=message), self.assertRaisesRegex(
+                mobile_release.ContractError, f"^{message}$"
+            ) as raised:
+                mobile_release.parse_contract(raw)
+            self.assertIsNone(raised.exception.__cause__)
 
     def test_android_closed_requires_monotonic_version_and_origin_digest(self):
         valid = {
@@ -178,6 +214,31 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
 
 
 class MobileReleaseArtifactTests(unittest.TestCase):
+    def test_bundletool_manifest_parser_requires_exact_identity_and_sdk_metadata(self):
+        manifest = """<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="tw.org.ntubtob.portal.contracttest"
+    android:versionCode="1"
+    android:versionName="0.1.0"
+    android:compileSdkVersion="36">
+  <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="36" />
+</manifest>
+"""
+        self.assertEqual(
+            mobile_release.parse_bundletool_manifest(manifest),
+            _bundle_metadata(),
+        )
+        for changed in (
+            manifest.replace(' android:compileSdkVersion="36"', ""),
+            manifest.replace(' android:targetSdkVersion="36"', ""),
+            manifest.replace(' android:versionCode="1"', ' android:versionCode="01"'),
+            "not XML",
+        ):
+            with self.subTest(changed=changed), self.assertRaises(
+                mobile_release.ContractError
+            ):
+                mobile_release.parse_bundletool_manifest(changed)
+
     def test_inspection_is_deterministic_and_reports_public_metadata(self):
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory) / "candidate.aab"
@@ -193,14 +254,69 @@ class MobileReleaseArtifactTests(unittest.TestCase):
         self.assertNotIn("api_origin", first)
         self.assertNotIn("provider_ids", first)
 
+    def test_metadata_hash_and_signer_use_one_stable_snapshot(self):
+        original = _aab_bytes()
+        replacement = _aab_bytes(_contract_bytes(version_name="9.9.9"))
+        with tempfile.TemporaryDirectory() as directory:
+            artifact = Path(directory) / "candidate.aab"
+            artifact.write_bytes(original)
+            observed_paths: list[Path] = []
+
+            def metadata_reader(snapshot: Path) -> mobile_release.BundleMetadata:
+                observed_paths.append(snapshot)
+                artifact.write_bytes(replacement)
+                self.assertEqual(snapshot.read_bytes(), original)
+                return _bundle_metadata()
+
+            def signer_reader(snapshot: Path, **_: object) -> str:
+                observed_paths.append(snapshot)
+                self.assertEqual(snapshot.read_bytes(), original)
+                return "ef" * 32
+
+            with mock.patch.object(
+                mobile_release,
+                "read_bundletool_metadata",
+                side_effect=metadata_reader,
+            ), mock.patch.object(
+                mobile_release,
+                "verify_aab_signer",
+                side_effect=signer_reader,
+            ):
+                result = mobile_release.inspect_and_verify_aab(
+                    artifact,
+                    expected_mode="contract-test",
+                    expected_package="tw.org.ntubtob.portal.contracttest",
+                    expected_version_name="0.1.0",
+                    expected_version_code=1,
+                    expected_previous_version_code=0,
+                    expected_api_origin_sha256=(
+                        mobile_release.CONTRACT_TEST_VALUES["api_origin_sha256"]
+                    ),
+                    expected_provider_config_sha256=(
+                        mobile_release.CONTRACT_TEST_VALUES["provider_config_sha256"]
+                    ),
+                    expected_signer_sha256="ef" * 32,
+                    jarsigner="unused",
+                    keytool="unused",
+                )
+        self.assertEqual(observed_paths[0], observed_paths[1])
+        self.assertNotEqual(observed_paths[0], artifact)
+        self.assertEqual(result["sha256"], hashlib.sha256(original).hexdigest())
+        self.assertEqual(result["signer_sha256"], "ef" * 32)
+
     def test_archive_corruption_missing_signature_and_contract_drift_fail_closed(self):
         cases = (
             (b"not-a-zip", "not a readable AAB"),
             (_aab_bytes(signed=False), "JAR signature"),
-            (_aab_bytes(_contract_bytes(target_sdk="35")), "target_sdk"),
+            (
+                _aab_bytes(_contract_bytes(target_sdk="35")),
+                "fixed values do not match",
+            ),
         )
         for data, message in cases:
-            with self.subTest(message=message), tempfile.TemporaryDirectory() as directory:
+            with self.subTest(
+                message=message
+            ), tempfile.TemporaryDirectory() as directory:
                 artifact = Path(directory) / "candidate.aab"
                 artifact.write_bytes(data)
                 with self.assertRaisesRegex(mobile_release.ContractError, message):
@@ -234,9 +350,7 @@ class MobileReleaseArtifactTests(unittest.TestCase):
     def test_signer_verification_requires_expected_fingerprint(self):
         expected = "AB" * 32
         output = f"Certificate fingerprints:\n\t SHA256: {':'.join(expected[i:i+2] for i in range(0, 64, 2))}\n"
-        self.assertEqual(
-            mobile_release.parse_signer_sha256(output), expected.lower()
-        )
+        self.assertEqual(mobile_release.parse_signer_sha256(output), expected.lower())
         with self.assertRaises(mobile_release.ContractError):
             mobile_release.parse_signer_sha256("Owner: fictional")
 
@@ -303,6 +417,11 @@ class MobileReleaseArtifactTests(unittest.TestCase):
                 errors="replace",
             )
             expected = mobile_release.parse_signer_sha256(certificate.stdout)
+            with self.assertRaisesRegex(
+                mobile_release.ContractError,
+                "bundletool rejected the AAB",
+            ):
+                mobile_release.read_bundletool_metadata(artifact)
             actual = mobile_release.verify_aab_signer(
                 artifact,
                 expected_sha256=expected,
@@ -327,6 +446,26 @@ class MobileReleaseArtifactTests(unittest.TestCase):
 
 
 class MobileReleaseRepositoryContractTests(unittest.TestCase):
+    def test_android_bundletool_runner_is_pinned_and_bounded(self):
+        source = (ROOT / "clients/flutter_app/android/build.gradle.kts").read_text(
+            encoding="utf-8"
+        )
+        for fragment in (
+            '"com.android.tools.build:bundletool:1.18.3"',
+            'mainClass.set("com.android.tools.build.bundletool.BundleToolMain")',
+            'tasks.register<JavaExec>("verifyCandidateBundle")',
+            'configureMobileReleaseBundletool("validate")',
+            'tasks.register<JavaExec>("dumpCandidateManifest")',
+            'configureMobileReleaseBundletool("dump", "manifest")',
+        ):
+            self.assertIn(fragment, source)
+        tool = (ROOT / "tools/mobile_release.py").read_text(encoding="utf-8")
+        self.assertIn('"--offline"', tool)
+        self.assertIn('"-Dfile.encoding=UTF-8"', tool)
+        self.assertIn('environment["JAVA_TOOL_OPTIONS"]', tool)
+        self.assertIn("_BUNDLETOOL_TIMEOUT_SECONDS", tool)
+        self.assertNotIn("apkanalyzer", tool.lower())
+
     def test_android_gradle_contract_is_explicit(self):
         source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
             encoding="utf-8"
@@ -349,8 +488,13 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             'requiredDefine("RELEASE_CHANNEL") != releaseChannel',
         ):
             self.assertIn(fragment, source)
-        self.assertNotIn("signingConfigs.getByName(\"debug\")", source)
+        self.assertNotIn('signingConfigs.getByName("debug")', source)
         self.assertNotIn("APP_FLAVOR must be production", source)
+        self.assertIn('throw GradleException("API_BASE_URL is malformed")', source)
+        self.assertNotIn('GradleException("API_BASE_URL is malformed",', source)
+        self.assertNotIn(
+            'GradleException("dart-defines contain malformed base64",', source
+        )
 
     def test_android_generated_contract_uses_variant_sources_api(self):
         source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
@@ -366,9 +510,7 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             "GenerateMobileReleaseContract::outputDirectory",
         ):
             self.assertIn(fragment, source)
-        self.assertNotIn(
-            'sourceSets.getByName("release").assets.srcDir', source
-        )
+        self.assertNotIn('sourceSets.getByName("release").assets.srcDir', source)
         self.assertNotIn('it.name == "mergeReleaseAssets"', source)
         self.assertNotIn("android.sourceset.disallowProvider", source)
 
@@ -429,9 +571,9 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertNotIn('run: sdkmanager "platforms;android-36"', source)
         self.assertNotIn("curl ", source)
         self.assertNotIn("wget ", source)
-        self.assertIn("MOBILE_RELEASE_CONTRACT_TEST: \"true\"", source)
+        self.assertIn('MOBILE_RELEASE_CONTRACT_TEST: "true"', source)
         self.assertIn("MOBILE_RELEASE_CHANNEL: android-closed", source)
-        self.assertIn("MOBILE_RELEASE_PREVIOUS_VERSION_CODE: \"0\"", source)
+        self.assertIn('MOBILE_RELEASE_PREVIOUS_VERSION_CODE: "0"', source)
         self.assertEqual(
             source.count("--dart-define=RELEASE_CHANNEL=android-closed"), 2
         )
@@ -440,6 +582,11 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertIn("tools.tests.test_android_closed_testing", source)
         self.assertIn("flutter build appbundle --release", source)
         self.assertIn("python3 -m tools.mobile_release inspect-aab", source)
+        self.assertIn("bundletool", source.lower())
+        self.assertLess(
+            source.index("Build signed contract-test Android App Bundle"),
+            source.index("Run mobile release tooling tests"),
+        )
         self.assertIn("--expected-previous-version-code 0", source)
         self.assertIn("--expected-staging-api-origin-sha256", source)
         self.assertIn("--expected-staging-provider-config-sha256", source)

@@ -63,8 +63,8 @@ fun decodeDartDefines(encoded: String?): Map<String, String> {
     encoded.split(',').forEach { item ->
         val decoded = try {
             String(Base64.getDecoder().decode(item), StandardCharsets.UTF_8)
-        } catch (error: IllegalArgumentException) {
-            throw GradleException("dart-defines contain malformed base64", error)
+        } catch (_: IllegalArgumentException) {
+            throw GradleException("dart-defines contain malformed base64")
         }
         val separator = decoded.indexOf('=')
         if (separator <= 0) {
@@ -194,8 +194,8 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
     val apiOrigin = requiredDefine("API_BASE_URL")
     val uri = try {
         URI(apiOrigin)
-    } catch (error: Exception) {
-        throw GradleException("API_BASE_URL is malformed", error)
+    } catch (_: Exception) {
+        throw GradleException("API_BASE_URL is malformed")
     }
     if (
         uri.scheme != "https" ||

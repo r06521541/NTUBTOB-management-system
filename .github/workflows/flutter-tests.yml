@@ -110,14 +110,6 @@ jobs:
       - name: Run all tests
         run: flutter test
 
-      - name: Run mobile release tooling tests
-        working-directory: ${{ github.workspace }}
-        run: >-
-          python3 -m unittest
-          tools.tests.test_mobile_release
-          tools.tests.test_android_closed_testing
-          -v
-
       - name: Build fake Android debug APK
         run: >-
           flutter build apk --debug
@@ -195,6 +187,14 @@ jobs:
               --dart-define=LINE_CHANNEL_ID=12345 \
               --dart-define=GOOGLE_CLIENT_ID=android-contract.apps.googleusercontent.com \
               --dart-define=GOOGLE_SERVER_CLIENT_ID=server-contract.apps.googleusercontent.com
+
+      - name: Run mobile release tooling tests with offline bundletool
+        working-directory: ${{ github.workspace }}
+        run: >-
+          python3 -m unittest
+          tools.tests.test_mobile_release
+          tools.tests.test_android_closed_testing
+          -v
 
       - name: Inspect signed contract-test Android App Bundle
         working-directory: ${{ github.workspace }}

@@ -201,10 +201,11 @@ def _validate_compliance(value: object, unavailable: list[str]) -> None:
         {"data_safety", "privacy", "support", "deletion", "tester_notes"},
         "compliance",
     )
+    evidence_refs: list[str] = []
     for name in ("data_safety", "privacy", "support", "deletion"):
         item = _mapping(compliance[name], {"status", "evidence_ref"}, name)
         _exact(item["status"], "verified", f"{name} status")
-        _safe_ref(item["evidence_ref"], f"{name} evidence_ref")
+        evidence_refs.append(_safe_ref(item["evidence_ref"], f"{name} evidence_ref"))
 
     notes = _mapping(
         compliance["tester_notes"],
@@ -221,7 +222,9 @@ def _validate_compliance(value: object, unavailable: list[str]) -> None:
         "tester_notes",
     )
     _exact(notes["status"], "verified", "tester_notes status")
-    _safe_ref(notes["evidence_ref"], "tester_notes evidence_ref")
+    evidence_refs.append(_safe_ref(notes["evidence_ref"], "tester_notes evidence_ref"))
+    if len(evidence_refs) != len(set(evidence_refs)):
+        _fail("compliance evidence references must be distinct")
     for field in (
         "declares_staging",
         "declares_basic_only",

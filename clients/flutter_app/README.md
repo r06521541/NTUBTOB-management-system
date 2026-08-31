@@ -93,6 +93,16 @@ version transition, and signer fingerprint without printing the endpoint,
 provider IDs, keystore path, alias, or password. Rebuilding after acceptance
 invalidates that evidence.
 
+Inspection requires JDK 17 and the repository's fixed Gradle wrapper. It runs
+the pinned bundletool runtime strictly in offline mode: bundletool first
+validates the complete App Bundle (including `BundleConfig.pb`), then dumps the
+protobuf manifest used to establish the actual package, version name/code, and
+minimum/target/compile SDK values. APK-only analyzers are not accepted for an
+AAB. The caller artifact is copied once into a bounded private snapshot; bundle
+validation, manifest metadata, archive checks, byte hash, and all signer checks
+read only that same snapshot. Mutation of the original path after snapshotting
+cannot change the accepted evidence.
+
 No release signing configuration is committed. Debug builds must use the explicit fake command above and must not contact LINE or an API.
 
 ## Verification gate

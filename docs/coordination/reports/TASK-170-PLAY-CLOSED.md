@@ -12,8 +12,8 @@
    truth and forbids login, network, key creation, build/sign/upload, Console/store/cloud/device/production operations by the tool.
 2. `android_closed_testing.py` accepts one bounded UTF-8 JSON file with exact fields only. It fail-closes on duplicate/unknown/missing
    fields, sensitive-shaped values, package/version/artifact drift, non-monotonic version code, signer mismatch, non-isolated or
-   production runtime, expanded product scope, incomplete Data Safety/privacy/support/deletion/tester notes, incomplete Android 15
-   device results, non-closed/public/notified track state, or any remaining blocker.
+   production runtime, expanded product scope, incomplete or reference-aliased Data Safety/privacy/support/deletion/tester notes,
+   incomplete Android 15 device results, non-closed/public/notified track state, or any remaining blocker.
 3. Exact artifact SHA is shared by artifact/device/track evidence. Track package/version must match the inspected artifact. Only LINE
    and Google login may be marked `unavailable`; tester notes must list the same unavailable scenarios exactly. All core flows must pass.
 4. Successful CLI output is sanitized: it retains the immutable commit/package/version/artifact binding and boolean signer comparison,
@@ -24,7 +24,7 @@
 
 ## Verification
 
-- `py -3.10 -m unittest tools.tests.test_android_closed_testing -v`: PASS, 15/15.
+- `py -3.10 -m unittest tools.tests.test_android_closed_testing -v`: PASS, 16/16.
 - `py -3.10 -m py_compile tools/android_closed_testing.py tools/tests/test_android_closed_testing.py`: PASS.
 - Documentation template extraction + `validate_evidence(json.loads(sample))`: PASS, returned `validated`.
 - `rg -n --pcre2 '.{89}' tools/android_closed_testing.py tools/tests/test_android_closed_testing.py`: PASS, no overlong code lines.
@@ -39,6 +39,9 @@
   `BLOCKED: unable to read evidence input` message.
 - Static regression asserts that the tool imports no network, subprocess, browser automation, `gcloud`, `keytool`, or `jarsigner`
   clients. The implementation only parses and validates local evidence input.
+- Reviewer correction proved that one `EV-SAME` reference could previously satisfy all five compliance gates. The validator now
+  requires Data Safety/privacy/support/deletion/tester-notes references to be pairwise distinct; the regression first failed on the
+  old behavior and passes after the focused fix. Sanitized output and `external_truth_attested: false` are unchanged.
 
 ## Remaining limits
 
