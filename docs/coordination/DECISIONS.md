@@ -362,9 +362,28 @@
   profile、Secret、signing、upload、TestFlight或公開發布。
 - Non-goals：本決策未執行或授權Apple帳號登入、MFA、付費、enrollment、provider／signing／store mutation或production。
 
+## DEC-106：Event 通知固定邀請快照，guest-player 採穩定 Person 四態生命週期
+
+- 狀態：`active`
+- 日期：2026-09-01
+- 來源：Owner 選定 Event notification／guest-player 缺口作為優先交付，TASK-175 唯讀通知／資料與 guest／授權盤點
+- Supersedes：DEC-101 中 notification 與 guest-player 尚未定案部分；不改變其發布與通知分離、immutable invitee snapshot 或 linked Game ownership
+- 決策：Event 發布／編輯／取消不自動通知。active Officer／Admin 只能從該 Event 已發布的
+  immutable included-invitee snapshot 另行預覽與確認 durable in-app notification；server 重讀 actor、Event version、
+  latest audit 與全快照，client 不能提供收件者。Guest-player 只是已存在 active Person 的 bounded qualification，
+  生命週期為 `scheduled`／`active`／`expired`／`revoked`；授予、延長、撤銷皆需 version、reason、idempotent request
+  與 append-only audit。Event eligibility 以 Event `start_at` 判定 guest 有效性，publish 與 qualification mutation 共用鎖並
+  序列化，快照後資格變化不改寫歷史。
+- Invariants：Event notification 第一版只建立 `in_app` 成功記錄，不建立 push／LINE／Discord／email outbox。
+  Guest 不得沒有 Person、不得與 Member／active team-player 重疊、不自動連結 identity 或轉為正式隊員。
+  Basic 只能看自己 snapshot category 與收到的 notification，不取得 recipient list、guest mutation 或審計資料。
+  Qualification／notification 歷史證據不因 downgrade／status／expiry 刪除。
+- Non-goals：本決策不新增無 Person 的 guest companion，不發送真實通知，不授權 production schema／runtime／data、
+  deployment、Secret、provider／IAM／cloud mutation。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-105`，下一個新決策從 `DEC-106` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-106`，下一個新決策從 `DEC-107` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

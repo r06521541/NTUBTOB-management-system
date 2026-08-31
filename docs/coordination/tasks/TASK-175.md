@@ -63,6 +63,33 @@ reason與append-only audit，以及Event eligibility／immutable invitee snapsho
 Advisor不得修改working tree、commit、push、PR或外部狀態；完成時必須主動送回full HEAD、findings、
 recommended owned paths、tests、limits與external mutations。
 
+## Accepted discovery and writer claim
+
+- Event notification 使用專用 preview／confirm service，不擴張會建立 `push=pending` 的 generic publisher。
+- 同一線性 additive `0011` 同時承載 Event notification destination／audit／recipient immutability 與
+  guest qualification version／extended audit；不建立 parallel migration head。
+- Guest lifecycle 固定為 `scheduled`／`active`／`expired`／`revoked`；Event eligibility 以 Event `start_at` 判定。
+- Guest manager 使用狹義 projection／route，不放寬 broad `admin_dashboard`；active persisted Officer 與 active
+  allowlisted Member admin 可管理，persisted Admin 本身不足以越過 DEC-082。
+- Mobile 本任務只讀 Event 通知／own snapshot category，不新增 guest mutation endpoint。
+
+### Sole writer
+
+- actor_id: `/root/task174_apple_lifecycle_writer`
+- role: `codex-writer`
+- claim_id: `task-175-event-guest-writer-20260901`
+- lease_version: 1
+- assigned_head: `82bdb7956d4b8f1a6ef35292779c772e40235c07`
+- owned_paths: `migrations/versions/0011_event_notification_guest_lifecycle.py`, Event／notification／qualification related
+  sections in `shared_lib/shared_module/**`, `apps/web_portal/**`, `apps/mobile_api/**`, `clients/flutter_app/**`, focused tests,
+  `docs/coordination/reports/TASK-175.md`, and this task／HANDOFF status only
+- forbidden_paths: broker fixture／adapter, deployment／cloud／Secret／provider operators, unrelated services, archive
+- report_to: `/root`
+
+Writer must immediately ACK the exact claim and report target, send a heartbeat every 10–15 minutes, and proactively deliver full
+commit SHA／tests／dirty paths／findings／limits／external mutations to Main. One writer owns all shared/schema paths until immutable
+handoff; no second writer may edit this branch concurrently.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
