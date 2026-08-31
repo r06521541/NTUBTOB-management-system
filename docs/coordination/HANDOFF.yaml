@@ -2,26 +2,26 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-174
-status: ready_for_review
-next_actor: auth-security-reviewer
+status: ready_for_pr
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9
-head_commit: dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9
+head_commit: 820f5e13a8674a28972dfdb1931f0a6b32515feb
 
 updated_by: main-work
-updated_at: 2026-08-31T23:05:00+08:00
+updated_at: 2026-08-31T23:25:00+08:00
 
 note: >
-  TASK-174 repository implementation and Main focused gates are complete. The
-  immutable pushed SHA awaits one independent Auth/Security review. This does not
+  TASK-174 repository implementation and independent Auth/Security rereview are
+  accepted. The ready PR and single hosted gate remain. This does not
   authorize Apple account/provider/signing, Secret, cloud, runtime, production,
   App Store Connect, TestFlight or real-device identity mutation.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-174.md
 report: docs/coordination/reports/TASK-174.md
-review: pending
+review: docs/coordination/reports/TASK-174.md

@@ -86,6 +86,11 @@ invariant，並加入bootstrap focused regression；不允許以相同Fernet key
 Reviewer不得修改working tree、commit、push、PR或外部狀態；收到Main提供的immutable SHA後，以Git blobs驗收並主動送回
 ACK、heartbeat（若超過10分鐘）與completion verdict／tests／findings／limits／external mutations。
 
+Reviewer final verdict：`ACCEPT`，immutable SHA
+`820f5e13a8674a28972dfdb1931f0a6b32515feb`。初審P1 revision rollout與P2 equal-key separation皆在lease 5／6修復；
+rereview無其餘finding。Focused Python 93 passed、Flutter Apple 10 passed、compile／diff／no-secret scan通過；PostgreSQL 15／16
+與hosted CI仍由PR gate補足，外部mutation為0。
+
 ## Required behavior
 
 1. Native iOS bridge只回傳bounded `identity_token`與single-use `authorization_code`；Flutter只把兩者連同既有raw nonce、

@@ -47,8 +47,9 @@
 ## Remaining acceptance limits
 
 - PostgreSQL 15/16 upgrade/runtime matrix and hosted CI remain required.
-- Independent Auth/Security review must scrutinize exact Apple notification wire
-  claims and immutable implementation evidence.
+- Independent Auth/Security rereview accepted immutable SHA
+  `820f5e13a8674a28972dfdb1931f0a6b32515feb` with no remaining finding; its
+  focused Python total was 93 passed and Flutter Apple remained 10 passed.
 - Mobile API core runtime readiness permits only 0008/0009/0010, while Apple
   lifecycle readiness and the canonical migration head require exact
   `0010_apple_provider_lifecycle`; historical environment-specific staging/event
