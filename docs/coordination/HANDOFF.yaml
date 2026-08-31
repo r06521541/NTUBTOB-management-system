@@ -1,23 +1,23 @@
-active_task: TASK-172
-status: in_progress
-next_actor: main-work
+active_task: TASK-173
+status: ready_for_writer
+next_actor: /root/task170_android_candidate_writer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 3d26d2fee54dd60cf489f2e61fbb10aa94c4235f
-head_commit: f20d89153d83d3f2af76306e730a91a906dca112
+base_commit: 07fed38243883b95ef4c8371566b6859d9f57b31
+head_commit: 07fed38243883b95ef4c8371566b6859d9f57b31
 
 updated_by: main-work
-updated_at: 2026-08-31T18:24:00+08:00
+updated_at: 2026-08-31T18:39:00+08:00
 
 note: >
-  TASK-172 hardens changed-file Python quality checks and canonical text digest
-  boundaries without modifying legacy production artifacts. Provider, Secret,
-  cloud, database, deployment and production operations remain excluded.
+  TASK-173 consolidates active authority, assignment reporting, Owner interaction
+  safety and evidence-based Phase D retention. Product, provider, Secret, cloud,
+  store, database, deployment, runtime and production operations remain excluded.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-172.md
-report: docs/coordination/reports/TASK-172-TOOLING.md
-review: docs/coordination/reviews/TASK-172-TOOLING.md
+task: docs/coordination/tasks/TASK-173.md
+report: pending
+review: pending
