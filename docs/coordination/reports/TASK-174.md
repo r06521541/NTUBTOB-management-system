@@ -35,8 +35,8 @@
   no issues.
 - `py -3.10 -m unittest discover -s apps/mobile_api/tests -v`: 77 passed.
 - `py -3.10 -m unittest discover -s shared_lib/tests -v`: 69 passed.
-- `py -3.10 -m unittest discover -s tests/portal_data -v`: 290 run,
-  141 passed and 149 expected isolated-PostgreSQL skips.
+- `py -3.10 -m unittest discover -s tests/portal_data -v`: 293 run,
+  144 passed and 149 expected isolated-PostgreSQL skips.
 - `py -3.10 -m compileall -q shared_lib/shared_module apps/mobile_api migrations/versions tests/portal_data`:
   passed.
 - `py -3.10 setup.py sdist` from `shared_lib/`: passed.
@@ -48,6 +48,10 @@
   downgrades, bytea assertions normalize the driver value to bytes, and legacy
   migration tests now expect the canonical 0010 head. Production downgrade still
   retains all Apple evidence and production upgrade remains strict.
+- The retained-evidence test helper permits DDL only for the exact pre-0010
+  revisions exercised by its callers. A fresh schema is a zero-DDL no-op; an
+  empty, ambiguous, unknown, or future recorded revision fails before opening a
+  DDL transaction.
 
 ## Remaining acceptance limits
 
