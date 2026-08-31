@@ -1,25 +1,24 @@
-active_task: TASK-171
-status: ready_for_review
-next_actor: main-work
+active_task: null
+status: completed
+next_actor: owner
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 8ae17853fa24379f6394ff3122c3eccb0be326ec
-head_commit: b720e1cef8e037da1b69d1e746e40d51703d24c3
+base_commit: 66529e9900e82bc1b7cbea52618469dbc3c0e8eb
+head_commit: 66529e9900e82bc1b7cbea52618469dbc3c0e8eb
 
 updated_by: main-work
-updated_at: 2026-08-31T14:44:10+08:00
+updated_at: 2026-08-31T14:56:31+08:00
 
 note: >
-  TASK-170 repository delivery merged at exact main and its external Play phase
-  is waiting for Google developer-account verification. Owner started TASK-171
-  as the repository-only Sign in with Apple client/server identity vertical
-  slice. Apple account, identifiers, keys, entitlement/profile mutation,
-  Secret, cloud, deployment and real-provider smoke remain excluded.
+  TASK-171 repository delivery merged as PR #222 at exact main. Apple account,
+  identifiers, keys, entitlement/profile mutation, Secret, cloud, deployment,
+  real-provider smoke and TestFlight remain excluded. TASK-170 external Play
+  work remains waiting for Google developer-account verification.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-171.md
+task: null
 report: docs/coordination/reports/TASK-171-MOBILE-AUTH.md
 review: docs/coordination/reviews/TASK-171-WORK.md

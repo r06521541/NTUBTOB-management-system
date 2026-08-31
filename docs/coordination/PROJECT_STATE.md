@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `8ae17853fa24379f6394ff3122c3eccb0be326ec`
+Repository 基準：`main` / `66529e9900e82bc1b7cbea52618469dbc3c0e8eb`
 
 ## Active role lanes
 
@@ -25,7 +25,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-171 已啟動：依DEC-103完成Sign in with Apple repository client/server／identity-link垂直切片；只做離線可驗證的Flutter、iOS source contract、Mobile API與既有Person身分流程，不操作Apple帳戶、App ID、key、entitlement/profile、Secret、cloud、deployment或真provider。
+- TASK-171 已由PR #222合併為`66529e9900e82bc1b7cbea52618469dbc3c0e8eb`：Sign in with Apple repository client/server／identity-link垂直切片已完成，包含fail-closed JWK／nonce驗證、既有Person link flow、iOS native bridge與Flutter UX。獨立Auth／Security review及hosted PostgreSQL 15／16、Flutter Android API 36與final gate均通過；未操作Apple帳戶、App ID、key、entitlement/profile、Secret、cloud、deployment或真provider。
 - TASK-170 repository delivery 已由PR #221合併為`8ae17853fa24379f6394ff3122c3eccb0be326ec`，獨立Release／Security review及hosted run `33349952184`全綠。Google Play外部階段正等待Owner developer-account verification；尚未建立Play app、上傳Closed Testing AAB或完成store/device外部證據，且不因repository merge推定完成。
 - TASK-169 已由delivery PR #219合併為`053888692ec1a5d6b7e2893c1f90c1d8320544d5`：Android Basic-only Closed Testing repository readiness包含API 36、外部簽章注入、fictional signed AAB與strict inspector；iOS建立TestFlight／Sign in with Apple fail-closed contract與store compliance matrix。獨立Release／Security review及final hosted run `33331935470`全部selected gates通過。這不是store candidate或外部rollout；未操作store、signing Secret、provider、cloud、production或deployment。
 - TASK-168 已由 PR #217 合併為 `cabdbcd039c9d526adb21fd8b11e145cd48f2574`：Event／一般 Activity 採既有三態出席；linked Game 在同一 Event 畫面沿用既有五態 Game attendance，套用全部明確排除 linked Game，且兩者不得互相覆寫或重複儲存。獨立 Data／Authorization review及全部selected hosted gates通過；未執行 schema、通知或部署。
@@ -135,7 +135,7 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 - Google OAuth 與 LINE／Google identity linking/recovery 已在 PR #180 完成 repository implementation，TASK-157亦已
   完成隔離staging deployment與單一fictional tester real-provider smoke。這不驗證或啟用production；primary provider
   publishing、production runtime binding／deployment、Android debug/staging client退役或遷移及production smoke仍需
-  未來Owner明確核准。Apple 登入仍未實作。
+  未來Owner明確核准。Apple登入的repository implementation已完成，但Apple Developer設定、runtime binding、provider smoke與TestFlight仍未實作或啟用。
 - Attendance 首次載入可能受 Cloud Run／資料庫 cold path 影響；現階段接受延遲，後續應先量測再改架構。
 
 ## 下一階段候選方向
