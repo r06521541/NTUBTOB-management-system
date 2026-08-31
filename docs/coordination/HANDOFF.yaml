@@ -1,24 +1,23 @@
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-172
+status: ready_for_writer
+next_actor: /root/task170_play_evidence_writer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: 66529e9900e82bc1b7cbea52618469dbc3c0e8eb
-head_commit: 66529e9900e82bc1b7cbea52618469dbc3c0e8eb
+base_commit: 3d26d2fee54dd60cf489f2e61fbb10aa94c4235f
+head_commit: 3d26d2fee54dd60cf489f2e61fbb10aa94c4235f
 
 updated_by: main-work
-updated_at: 2026-08-31T14:56:31+08:00
+updated_at: 2026-08-31T17:19:36+08:00
 
 note: >
-  TASK-171 repository delivery merged as PR #222 at exact main. Apple account,
-  identifiers, keys, entitlement/profile mutation, Secret, cloud, deployment,
-  real-provider smoke and TestFlight remain excluded. TASK-170 external Play
-  work remains waiting for Google developer-account verification.
+  TASK-172 hardens changed-file Python quality checks and canonical text digest
+  boundaries without modifying legacy production artifacts. Provider, Secret,
+  cloud, database, deployment and production operations remain excluded.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: null
-report: docs/coordination/reports/TASK-171-MOBILE-AUTH.md
-review: docs/coordination/reviews/TASK-171-WORK.md
+task: docs/coordination/tasks/TASK-172.md
+report: docs/coordination/reports/TASK-172-TOOLING.md
+review: pending
