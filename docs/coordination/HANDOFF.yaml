@@ -1,16 +1,16 @@
 active_task: TASK-172
-status: ready_for_writer
-next_actor: /root/task170_play_evidence_writer
+status: ready_for_review
+next_actor: /root/task170_release_security_review
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 3d26d2fee54dd60cf489f2e61fbb10aa94c4235f
-head_commit: 3d26d2fee54dd60cf489f2e61fbb10aa94c4235f
+head_commit: c6d1de858de42b6b5c474777e5327f68133fc2da
 
 updated_by: main-work
-updated_at: 2026-08-31T17:19:36+08:00
+updated_at: 2026-08-31T18:08:00+08:00
 
 note: >
   TASK-172 hardens changed-file Python quality checks and canonical text digest
