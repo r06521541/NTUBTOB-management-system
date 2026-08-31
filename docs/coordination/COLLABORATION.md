@@ -1,369 +1,207 @@
 # Work–Codex 協作流程
 
-版本：2.2
+版本：3.0
 
-適用範圍：本 repository 的產品規劃、實作、驗收、Git 整合與 production 操作。
-
-多 agent 節流的改善理由、試行方式與輕量指標見 `docs/planning/MULTI_AGENT_WORKFLOW_IMPROVEMENT.md`；該文件
-提供背景但不構成第二套規則，本文件仍是唯一協作規範來源。
+適用於本 repository 的規劃、實作、驗收、Git 整合與 production 操作。本文件是唯一協作規範；背景改善文件不構成
+第二套規則。
 
 ## 1. 核心宗旨
 
-> 對話用來釐清，repository 用來同步，Git 用來證明，HANDOFF 用來交棒；證據服務決策，不讓流程本身成為交付。
+> 對話用來釐清，repository 用來同步，Git 用來證明，HANDOFF 用來交棒；證據服務決策，不讓流程成為交付。
 
-本流程追求：提早發現設計錯誤、最小充分測試、一個成果一次整合、production 可停可證明，以及讓新 session
-不必閱讀全部歷史。
+新 session 應只靠 active authority、實際 repository 與 Git 接棒，不依賴舊對話或 archive。
 
-## 2. 角色與權限
+## 2. 角色、claim 與派工
 
-### Owner
+- Owner：決定產品規則、優先序、重大取捨與 Owner-reserved 外部操作。
+- Main Work：唯一全域協調核心；建立 task／claim、整合跨領域契約、驗收 diff、維護 authority、建立 final PR。
+- Domain Work：在登記的具名領域內規劃、派工與 targeted review；跨端 API、auth、schema、shared model、通知、
+  production、Secret、cloud、正式資料或 release 必須升級 Main。
+- Codex writer：依 task 實作、自評、自測與交棒；不得成為自己 implementation 的唯一正式 acceptor。
+- Advisor／reviewer：read-only；只對具名證據提出 `ACCEPT` 或 `REQUEST_CHANGES`。
 
-- 決定產品規則、優先序與重大技術取捨。
-- 批准 production deployment、production DB DDL／DML、不可逆資料操作、Secret／IAM／Scheduler／cloud resource
-  變更及真實 LINE／Discord 通知。
-- 對精確 production 目標、影響範圍與 rollback boundary 作最終決策。
+每個 session 同時只持有一個 role。`main-work` 全域唯一；Domain lane 同時只可有一位 current actor；每個 work package
+只有一位 writer。未獲有效 claim 者一律為 `advisor/read-only`。輪替先撤回舊 actor，記錄 full HEAD、dirty state、
+已完成／剩餘事項，再遞增 lease。相同 `claim_id`／`lease_version` 的重送不得重複 ACK、開工或消耗驗證。
 
-### Work
+### Mandatory assignment packet
 
-- 盤點 repository、Git、測試與必要的唯讀外部事實。
-- 區分已確認事實、推論與待確認事項。
-- 與 Owner 收斂需求，建立 task、風險與驗收邊界。
-- 驗收實際 diff／commit／測試，不只接受文字摘要。
-- 維護現行狀態、決策與 handoff；一般不負責主要程式實作。
+Main／Domain 每次派工只引用一次下列通用 packet，不在 task 反覆複製回報規則：
 
-### Codex
+```text
+task=<TASK-xxx>
+branch=<exact branch>
+base=<full SHA>
+head=<full SHA>
+actor_id=<exact session actor>
+role=<main-work|domain-work:<domain>|codex-writer|advisor>
+claim_id=<stable id>
+lease_version=<positive integer>
+scope=<bounded outcome>
+owned_paths=<exact paths or globs>
+write=<allowed|read-only>
+report_to=<exact actor or main-work>
+stop_conditions=<bounded list>
+```
 
-- 依 task 實作、測試、自我驗收、commit、push、report 與 handoff。
-- 保持 diff 聚焦，不修改 Work／Owner 的既有變更。
-- 主動回報 blocker，不以 workaround 降低 auth、data、Secret 或 deployment boundary。
+Task 是 packet 權威；訊息只負責喚醒與傳送。接收者必須：
 
-### Session role claim 與問責
+1. 立即回覆 `received/executing`，並核對 packet、HANDOFF、branch、HEAD 與 dirty state。
+2. 工作持續時每 10–15 分鐘主動 heartbeat；blocker 或 stop condition 立即回報。
+3. 完成時主動通知 Main，不可只停在自己的 session。Final packet 包含 task、branch、commit full SHA（未 commit 則
+   current full HEAD 與 exact dirty paths）、tests、findings、remaining limits、external mutations。
+4. Claim 缺失、actor／lease／owned paths 不符或 next actor 不符時維持 read-only 並通知 Main。
 
-角色是綁定可辨認 session 的責任 lease，不是模型或暱稱；每個 session 同時只持有 `owner`、全域唯一 `main-work`、具名
-`domain-work:<domain>`、work-package-specific `codex-writer` 或 `advisor` 之一。未獲派任時預設 `advisor/read-only`。
-Active task claim 寫在該 task，domain lane/current actor 寫在 `PROJECT_STATE.md`；`HANDOFF.yaml` 只放當前 task、下一 actor 與 claim
-reference。Claim 固定含 `claim_id`、遞增 `lease_version`、`actor_id`、role、scope、owned paths、write、report target 及 stop conditions；跨 session 訊息只通知 repository claim，不取代它。相同 claim/version 重送不得重複 ack、開工或驗證。
-Domain lane 長期問責但承載 session 可輪替；先明確撤回舊 actor，以 full HEAD、dirty state、完成／剩餘事項交棒並更新 registry，再派新 actor，同時只可有一位。Writer 每 package 唯一，必須 self-review／self-test，但不得成為唯一正式 acceptor；Main／Domain
-不寫審查標的，advisor 永遠 read-only。L1 可省 Domain，不新增 L1a，也不可假造自寫自審。
+Domain Work 完成正式 task 後交回 Main；Main 只回 `changes_requested`、`accepted` 或 `next_task_assigned`。未收到
+`next_task_assigned` 前不得自行開始下一個正式 implementation task。
 
-### 多領域 Work 與次決策核心
-
-專案可為 Flutter、Web、data 等邊界清楚的領域設置 `Domain Work`。Main Work 仍是全專案總控；Domain Work 是該領域
-的次決策核心，不是第二套全域治理來源。
-
-Domain Work 數量不預設上限。每新增一個 Domain Work，Main Work 必須先登記其領域名稱、worktree／branch、可自主
-決策範圍、禁止觸碰範圍、上游契約與交回節點；Domain Work 之間不直接建立互相矛盾的正式契約，所有跨領域依賴與
-衝突均匯入 Main Work，由 Main Work 作唯一核心協調與整合節點。
-
-- Owner 決定產品方向、優先序與重大取捨；Main Work 管理全域 TASK 編號、跨領域契約、依賴順序、協作文件、final PR／merge／deployment 與最終驗收。
-- Domain Work 可在已核准規格與 task 內，自主與 Owner 收斂領域需求、決定低風險內部設計、拆解候選 work
-  packages、指揮領域 Codex、要求 task 內補正並驗收領域測試。
-- Domain Work 可使用獨立 worktree／branch 並行；不得與其他 Work 同時修改同一檔案，也不得自行占用全域
-  `TASK-xxx`／`DEC-xxx` 編號。候選工作先使用穩定名稱，由 Main Work 配號及檢查 delivery group。
-- 純領域內 UI、元件、routing、fake repository／fixture、測試與不改契約的重構，不需逐步向 Main Work 請示。
-- 涉及跨端 API、authentication、authorization、schema、shared model、通知語意、production、Secret、IAM、cloud
-  resource、正式資料或 release boundary 時，Domain Work 必須先升級給 Main Work；需要 Owner 權限者再由 Main Work
-  交 Owner 決定。
-- Owner 與 Domain Work 可連續互動到一個完整段落；新決定若改變已核准 task 的範圍、契約或驗收條件，必須先同步
-  Main Work，不得從討論完成推定為已授權跨領域實作、PR 或部署。
-
-Domain Work 完成正式 task 後必須交回 Main Work，至少提供 branch、完整 commit SHA、dirty state、完成／未完成範圍、
-驗證結果、外部副作用聲明與建議下一工作包。Main Work 回覆狀態只有：`changes_requested`、`accepted` 或
-`next_task_assigned`；在收到 `next_task_assigned` 前，Domain Work 可繼續規劃與處理原 task review，但不得自行開始下一個
-正式 implementation task。
-
-## 3. 唯一真實來源
+## 3. 唯一真實來源與閱讀順序
 
 | 資訊 | 唯一來源 |
 | --- | --- |
-| 當前任務、狀態與下一位角色 | `HANDOFF.yaml` |
-| 系統現在能力、風險與優先序 | `PROJECT_STATE.md` |
-| Owner 核准且仍有效的長期決策 | `DECISIONS.md` |
-| 任務需求、範圍與驗收條件 | `tasks/TASK-xxx.md` |
-| Codex 最終實作與測試證據 | `reports/TASK-xxx-CODEX.md` |
-| Work 最終驗收結論 | `reviews/TASK-xxx-WORK.md` |
-| 已完成階段的摘要與歷史索引 | `archive/<phase>/PHASE_*_CLOSEOUT.md` |
+| 當前任務、狀態與下一 actor | `HANDOFF.yaml` |
+| 系統現在能力、外部 gate、active lanes | `PROJECT_STATE.md` |
+| 長期產品、架構、授權與安全決策 | `DECISIONS.md` |
+| 任務 scope、claim、invariant、acceptance | `tasks/TASK-xxx.md` |
+| Writer delta 與直接證據 | `reports/` 中該 task 的既有 report |
+| Main／Domain 驗收 | `reviews/` 中該 task 的既有 review |
+| 已完成群組的索引 | `archive/<phase>/PHASE_*_CLOSEOUT.md` |
 
-歷史 task／report／review／decision 只證明當時發生的事，不授權現在的操作。封存資料預設不讀，只有調查歷史
-決策、事故、migration 或 rollback 時才查閱。
+開始依序讀 `AGENTS.md`、本文件、`HANDOFF.yaml`、`PROJECT_STATE.md`、active task 與直接 report/review、目標
+code/tests/runbook、Windows 時的 `AGENT_ENVIRONMENT.md`。Archive 預設不讀；只有具名歷史決策、事故、migration 或
+rollback 調查才讀。歷史文件只證明當時事實，不授權今天的操作。
 
-## 4. 啟動閱讀順序
+## 4. TASK、Push、PR 與 Flutter incubator
 
-每次開始依序閱讀：
+- TASK 是工作／決策單位；push 是 checkpoint；PR 是整合 delivery unit，三者不必一對一。
+- Task 標記 `planning`、`work_package` 或 `delivery`，並有 stable `delivery_group`、風險與 verification budget。
+- 同一 delivery group 原則上一個 ready PR、一次 final hosted CI；純 coordination 不單獨建 PR。
+- Final PR 由 Main 在完整 delivery unit 上建立；required CI 綠且無 blocker 才依 standing authorization merge。
+- 描述性 commit 使用 `<type>(<scope>): <outcome>`；TASK 編號放 body/footer。
 
-1. `AGENTS.md`。
-2. 本文件。
-3. `HANDOFF.yaml`。
-4. `PROJECT_STATE.md`。
-5. 當前 task 與直接相關 report／review。
-6. 目標程式碼、相鄰測試與必要 runbook。
-7. Windows／本機操作時閱讀 `docs/development/AGENT_ENVIRONMENT.md`。
+Flutter 產品孵化只涵蓋 task 明列之 UI、routing、local state、fixture 與 prototype model。具名共同 branch 可累積 focused
+evidence checkpoint；接近部署／release candidate 才建立唯一 final PR。Auth、安全、後端契約、shared boundary、正式
+資料、Secret、schema、真實通知、deployment、signing 或 store 一律退出豁免並升級 L2／L3。
 
-不要掃讀 archive，也不要因 roadmap 出現某功能就擴張 active task。
+## 5. 任務流程與驗收
 
-## 5. TASK、Push 與 PR
+Work 先收斂價值、scope、non-goals、事實、風險、依賴、測試與 Owner gate。高風險／跨模組／database writer 修改前
+回報五行 checkpoint：目標、owned paths、invariant、最小測試、blocker／Owner 決策點；無決策點可直接繼續。
 
-三者不是一對一：
+Writer 交回前必須：
 
-- TASK：工作、決策與驗收單位。
-- Push：保存 checkpoint 與跨 session 交棒；不代表已整合、CI 完成或可部署。
-- PR：整合進 `main` 的 delivery unit。
+- 逐條對照 task 與完整 diff，保留他人 dirty changes。
+- 覆蓋重要成功、失敗、重試、併發、rollback 與權限／資料邊界。
+- 執行最小充分測試、格式檢查、`git diff --check`、`git status --short`。
+- 核對 branch、base、full HEAD、未追蹤檔案與外部副作用。
+- 更新同一份 report，不新增 correction／completion 變體。
 
-新 task 應標記：
+安全／架構初審先於昂貴 matrix、Flutter build、Emulator 或 hosted CI。Main 驗收實際 diff 與 immutable evidence；一次列完
+同風險層 findings。低風險最多一輪 correction，中風險最多兩輪；同一 runtime blocker只允許一次唯讀 layer split 與
+一次 source correction，再次出現即 inconclusive／quarantine，不以 retry 或新 reason code 無限延長。
 
-```text
-task_type: planning | work_package | delivery
-delivery_group: <stable-name> | none
-requires_independent_pr: true | false
+## 6. HANDOFF singleton
+
+`HANDOFF.yaml` 只表示當前 task 與下一 actor，task claim 與 Domain registry 分別由 active task 與 `PROJECT_STATE.md`
+承載。跨 session handoff 只傳 base/head、dirty paths、behavior delta、exact tests、limits 與 next action。
+
+有 active task 時，`task` 指向它；`report`／`review` 是 exact path 或 `pending`。沒有 active task 時必須同時滿足：
+
+```yaml
+active_task: null
+status: completed
+next_actor: owner
+task: null
+report: null
+review: null
 ```
 
-Task 同時列出風險等級與 verification budget。Domain review 只有在 task 明列獨立 domain risk 時才加入；小型
-presentation task 不因模板自動增加 reviewer。預算是節流而非省略安全驗證；新增高風險 diff 時只重置受影響部分。
+不得保留 stale task/report/review，也不得以 sidebar、對話或跨 session 訊息改寫 singleton authority。常用 status：
+`planning`、`ready_for_writer`、`in_progress`、`ready_for_review`、`changes_requested`、`awaiting_owner_approval`、
+`completed`、`blocked`。Next actor 不屬於自己時保持 read-only。
 
-- `planning`：唯讀盤點、產品規則或設計；通常不單獨 commit／PR。
-- `work_package`：大型成果的一段；可 commit／push 到共同 release branch。
-- `delivery`：可獨立整合、部署、rollback 或成為後續穩定基準；建立 final PR。
-- 同一 `delivery_group` 原則上只有一個 ready PR 與一次 final hosted CI。
-- 小型獨立 bug 或安全修正可以一個 TASK 對一個 PR。
+## 7. Git 與外部授權邊界
 
-### Flutter 產品孵化例外
+Owner standing authorization 允許 task 內 branch、commit、push、PR、CI 查驗、ready、修正、squash merge、同步 main 與
+branch cleanup；前提是 diff 已驗收、CI 成功且無 blocker／scope expansion。不得直接 commit default branch。
 
-Flutter 尚處產品孵化期，以描述性 commit 和 focused local evidence 快速迭代；PR、hosted CI 與完整正式驗收延後至
-delivery milestone，但安全、資料及跨系統契約變更不適用此豁免。
+此授權不包含 production、production DB、Secret payload、IAM／Scheduler／cloud resource、真實通知、provider／store、
+release signing、付費／公開權限、不可逆刪除或重大產品／架構變更。這些仍需 exact Owner gate。
 
-- Active task 必須明列 `incubator_delivery_group`、共同 feature branch、milestone、focused evidence 與退出條件；
-  沒有這些欄位時仍套用一般 L1／L2／L3 gate。
-- 多個 Flutter `work_package` 可累積在同一 incubator branch。每個 task 以描述性 commit／push 作為可接續 checkpoint；
-  commit 只表示進度已保存，不表示已整合、hosted CI 已通過或可發布。
-- 平日最小 evidence 為 focused tests、`flutter analyze` 或等價 affected analyze、必要 compile check、formatter、
-  `git diff --check` 與 clean/known `git status`。Main 做輕量 diff／risk review，不機械重跑完整 suite。
-- 完整流程、3–6 個實質 commits 與一週只作 Main 的 checkpoint／整理提示，不自動觸發 PR 或 hosted CI。孵化 branch
-  可繼續累積，直到 Owner 宣告接近部署／正式發布候選；Main 只有發現安全、難以隔離的跨功能整合風險或 branch 已不再
-  可驗證時，才可要求提早收斂。屆時建立該 delivery group 唯一 final PR，執行 change-selected hosted CI 與正式驗收。
-- UI、導覽、local state、fixture 與 prototype model 可在 milestone 前較大幅調整或短期不相容；task 仍須維持可測、
-  可接續且不誤稱 production-ready。
-- 一旦觸及登入／授權／安全、後端 API contract、shared boundary、正式資料、Secret、schema、真實通知、部署、簽署或
-  store 發布，該變更立即退出孵化例外；Main 必須拆出或升級為 L2／L3，恢復必要 reviewer、hosted CI 與 Owner gate。
+DEC-100 的隔離 fictional staging autonomy只允許 repository verifier與read-only preflight確認 exact target、identity、cost、
+public boundary、rollback後的 task-scoped可復原操作。不得推論 production、真實資料、Secret payload或不可逆操作也獲授權；
+結果不確定時先唯讀 reconcile，不重送 mutation。
 
-## 6. 任務流程
+## 8. Repository-owned Owner interaction wrapper
 
-### A. Work 收斂需求
+會收集敏感輸入或執行mutation的scripted／CLI／operator workflow，只能由已提交、已review且task明列的repository
+wrapper承載。Task／HANDOFF可交給Owner一個exact、可見的手動browser／login／MFA／consent／Console動作而不使用
+wrapper；完成後只回固定去識別化結果。Browser/chat state、臨時UI或off-repository helper都不能成為durable authority、
+approval、target或evidence來源，也不得包裝mutation來繞過review。
 
-Work 先確認：使用者價值、範圍、非目標、已知事實、風險、依賴、最小充分測試、是否涉及 production 或 Owner
-決策。尚未收斂的願景先寫 planning note，不急著建立 implementation task。
+Wrapper contract：
 
-### B. 實作前五行 checkpoint
+1. 先執行完全 read-only preflight，固定解析 exact target、action、count／scope、artifact、identity、rollback 與目前外部
+   state；preflight與mutation不得合併成 Owner 看不到目標的單一步驟。
+2. Prompt與error使用固定 ASCII-safe文字，不插入caller提供的 key/value、Secret或exception cause。敏感輸入必須 hidden
+   input、不得 echo／log／clipboard／command line／environment；length-only feedback只顯示長度與固定分類，不顯示
+   內容、prefix或hash。
+3. Owner approval綁定 preflight產生的 exact one-shot action。Wrapper每次執行最多送出一次 mutation；輸入只存記憶體並在
+   使用後清除，不產生重複 transcript、screenshot、temporary file或其他 off-repository evidence副本。
+4. Retry只依固定分類：`pre_execution_rejected`可修正後重新 preflight；`confirmed_zero_mutation`需新 preflight與新 one-shot
+   approval；`confirmed_success`不得重送；`uncertain`／中斷／timeout只准獨立 read-only reconcile，禁止 mutation retry。
+5. Durable evidence只能是repository contract允許的單一 sanitized result，記錄artifact／target alias、固定結果類別與必要
+   metadata；不得保存敏感輸入或把臨時 helper、聊天文字、瀏覽器狀態當 authority。
 
-高風險、跨模組或 database work package 修改前，Codex 回報：
+每個 runtime packet另列 `operator=agent|owner`、`owner_gate`、`standing_authorization`、`stop_only_on`、`report_to`。
+Agent處理一般唯讀與已核准可復原 sandbox操作；Owner只處理登入／MFA／consent、Secret payload、signing／store、production、
+真實通知、付費／公開權限與不可逆刪除。
 
-1. 理解的目標。
-2. 預計修改的核心檔案。
-3. 關鍵 invariant／安全邊界。
-4. 預計執行的最小充分測試。
-5. 歧義或 blocker。
+## 9. CI 與證據成本
 
-Work 應在此時攔截錯誤設計。沒有 Owner 決策點時，Codex 可直接繼續，不增加儀式性等待。
-平行任務的第 2 行必須包含 owned paths；Main Work 在派工前確認 writer scope 沒有交集。
-
-### C. Codex writer 實作與自我驗收
-
-交回前必須：
-
-- 檢查完整 diff 並逐條對照 task。
-- 覆蓋重要成功、失敗、重試、併發與 rollback 路徑。
-- 執行最小充分測試、`git diff --check`、`git status --short`。
-- 確認 branch、base、HEAD，且未納入他人既有變更。
-- 更新同一份 Codex report；同一 task 不新增 correction report。
-- 建立描述性 commit、push，將 `HANDOFF.yaml` 交回 `ready_for_review / main-work`。
-
-Writer 完成初版 diff 與 invariant self-review 後，先交 architecture／authorization／security boundary review；通過後
-才執行 PostgreSQL matrix、Flutter build、Emulator 或 hosted CI 等昂貴驗證，避免錯誤設計先消耗完整 suite。
-
-### D. Main Work 風險式驗收
-
-Work 檢查 branch、commit、dirty state、實際 diff、核心 invariant、權限、資料一致性與 rollback；預設執行少量高價值 targeted tests，不機械重跑 Codex 的全部 suite。
-
-- 接受：更新同一份 Work review。
-- 補正：`changes_requested / codex-writer`。Main Work 先完成同風險層的整體 review，再一次列完 findings、最小修正與必要
-  regression，避免逐條回送。
-- Codex 只處理 blocker；後續 review 只查 correction diff 與受影響的相鄰 invariant，不重做任務或重跑無關 matrix。
-  只有 correction 引入新風險時才新增 finding。
-
-Correction 預算：低風險最多一輪，中風險最多兩輪；runtime 同一 blocker 只允許一次唯讀 layer split 與一次 source correction。再次出現即標記 inconclusive／quarantine，另列低優先 follow-up，不得靠新增 retry、reason code 或 task 無限延長。超過兩個 correction PR、90 分鐘 active elapsed 或兩次相同 runtime variation 時，Main 必須重新判斷阻塞者是產品還是驗收工具。
-
-### E. Final integration
-
-到 delivery unit 完整時，由 Main Work 建立唯一 ready PR。Required CI 通過且無 blocker 後，依一般 Git 長期授權 squash
-merge。純 handoff、run ID、時間戳或 merge metadata 不另建 commit／PR。
-
-## 7. HANDOFF
-
-`HANDOFF.yaml` 是當前 task／下一 actor 的唯一真實來源；task claim 與 domain registry 分別以 active task、`PROJECT_STATE.md`
-為準，不把完整 session 清冊塞入 singleton handoff。
-
-跨 session handoff 只傳 base/head、changed files、behavior delta、exact test results、remaining limits 與 next
-actor/action。背景規則引用 authoritative path 與 section，不重貼全文；尚未進入權威文件的安全關鍵資訊仍須明列，
-不得為求短而省略。
-
-`next_actor` 使用 `owner`、`main-work`、`domain-work`、`codex-writer`、`advisor`，並引用 current `claim_id`／`lease_version`。
-舊 `work`、`codex`、`ready_for_codex` 僅是 archive／backward-compatible status label，不授予角色或 write authority。常用狀態：
-
-- `planning`
-- `ready_for_writer`（legacy alias：`ready_for_codex`）
-- `in_progress`
-- `ready_for_review`
-- `changes_requested`
-- `awaiting_owner_approval`
-- `completed`
-- `blocked`
-
-`next_actor` 不是自己的角色時，不修改任務檔案；先說明應由誰處理。純角色交棒不單獨 commit，併入下一個有
-實質內容的 commit。沒有 active task 時使用 `active_task: null`、`status: completed`、`next_actor: owner`。
-
-## 8. Git 與 GitHub 授權
-
-Owner 已長期授權 Work／Codex在 task 範圍內自行建立 branch、commit、push、PR、查驗 CI、標記 ready、修正、
-squash merge、同步 `main` 與清理 task branch。此授權跨 session 有效，不需每次重問。
-
-前提：實際 diff 已驗收、required CI 成功、沒有 blocker 或範圍擴張。不得直接 commit／push default branch；commit
-前必須確認目前 branch。Commit／PR 標題使用 `<type>(<scope>): <outcome>`，TASK 編號放 body/footer，不使用
-「update files」「handoff TASK」等無法脫離上下文理解的標題。
-
-上述授權不包含 production、Secret、IAM、Scheduler、通知或重大產品／架構變更。
-
-### Staging fictional autonomy 與操作責任
-
-Owner 已授權 Main Work 在已隔離、已核准 identity 與成本上限的 staging fictional environment 內，持續完成
-build、candidate revision、health check、traffic promotion／rollback、fictional seed／repair／test mutation、Emulator／ADB
-驗收及 task-specific cleanup。這些動作必須沿用既有 Secret reference、runtime identity、public boundary 與 fail-closed
-operator；不得因 staging 授權推論 production、真實通知、Secret payload、額外付費資源或不可逆刪除也獲授權。
-
-每個 runtime 指令或跨 session 派工應明列：
-
-```text
-operator=agent | owner
-owner_gate=none | <exact sensitive action>
-standing_authorization=<applicable decision/task>
-stop_only_on=<remaining stop conditions>
-report_to=main-work
-```
-
-- `operator=agent` 是一般預設。Agent 可自行完成 fictional UI 導覽、唯讀點擊、App 啟停、cold start、offline、截圖、
-  低敏 staging mutation／reconcile／restore及可復原 rollback，不得為儀式性確認停給 Owner。
-- `operator=owner` 只用於輸入帳密、掃碼、登入／consent、Secret payload、付費／公開權限、release signing／store、
-  production、真實通知與不可逆刪除等人類保留動作。交回時必須說明唯一動作、原因與完成後的安全回報文字。
-- Domain Work 收到派工後立即回 `received/executing`；執行超過一個可見工作段落時主動 heartbeat。完成、阻塞或需要
-  Owner 動作時必須主動敲 Main Work，不可只停在自己的 session 等待。
-- Main Work 可撤銷不必要的 Owner gate；撤銷時須縮限 exact action、次數、資料分類與停止條件。外部結果不確定時，
-  仍先唯讀 reconcile，不以 autonomy 作為盲目重送理由。
-
-## 9. CI 與測試成本
-
-依實際變更選最小充分測試：
-
-| 變更 | Required evidence |
+| 變更 | 最小充分 evidence |
 | --- | --- |
-| 一般純文件 | 快速文件 gate；不跑 PostgreSQL／應用 suites |
-| 單一服務 | 該服務受影響 suite |
+| 純文件／archive | quick docs gate |
+| 單一服務 | affected suite |
 | shared library | 所有直接 callers |
-| schema／migration／model／受控 SQL／DB verifier | PostgreSQL 15／16 matrix 與 portal-data gates |
-| auth／authorization／webhook signature／deployment tooling／workflow | 對應完整安全 suite |
+| schema／migration／model／受控 SQL | PostgreSQL 15／16與portal-data gates |
+| auth／authorization／workflow／deployment tooling | 對應完整安全 suite |
 
-驗收分三級：
+- L1 presentation：focused tests、format/analyze、Main review、hosted full；不機械增加 Domain/local full/runtime。
+- L2 state/auth/cache/idempotency：writer affected-full、具名 targeted review、Main risk review、hosted CI。
+- L3 API/schema/deploy/Secret/production：architecture/security review、affected matrix、exact target/artifact、Owner gate、
+  post-check與rollback。
 
-- L1 小型 UI／presentation：Main review、focused tests、format/analyze、hosted full；不要求 Domain、local full 或 runtime。
-- L2 state／auth／cache／offline／idempotency：writer affected-full、named Domain targeted review、Main risk review、hosted CI；runtime 僅在 task 明列時使用一個原子 smoke，不使用完整 acceptance orchestration。
-- L3 API／schema／deploy／Secret／production：architecture/security review、受影響 full matrix、hosted CI、exact target／artifact、Owner gate 與 post-check／rollback。
-
-證據採分層產生：L2／L3 Codex writer 跑 affected complete suite；L1 writer 跑 focused tests 與 analyze，由 hosted CI 提供唯一 full suite。Domain reviewer 只跑 task 明列之專屬風險的 targeted tests；Main Work抽查關鍵 regression 與整合邊界；hosted CI 作 final gate。相關 diff 未變時，不同角色不得無理由重跑 PostgreSQL matrix、Flutter build／Emulator 或同一 suite；重跑時必須記錄新增風險或證據需求。
-
-Evidence reuse key 至少包含 exact full HEAD、exact command／suite、runtime／database matrix 與直接相關 artifact
-fingerprint。只有相關 diff、dependency 與 environment contract 均未變才可沿用。相同 SHA 因 runner、network 或
-platform infrastructure transient failure 的重試不算新的產品驗證輪，但須記錄 infra 原因；source、config、lockfile
-或 artifact 改變時只重置受影響的 budget slice。
-
-只有本機無法取得必要平台證據時，才提前建立 Draft PR。Final PR head 未再變更且 required CI 成功時，不為補 run
-ID 或 merge 時間再觸發 CI。
+Evidence reuse key包含 full HEAD、exact command/suite、runtime/database matrix與artifact fingerprint。相關 diff、dependency與
+environment contract均未變才可重用。Platform transient可在相同 SHA 記錄原因後重試；source/config/lockfile/artifact改變
+只重置受影響 slice。只有本機缺必要平台證據才提前 Draft PR，不為補 run ID／timestamp重跑 CI。
 
 ## 10. Production 流程
 
-Merge 不等於部署或資料操作。Production 固定分為：
+Merge不等於部署。Production固定為：read-only discovery → 將 exact target/count/commit或digest/impact/rollback交 Owner →
+Owner exact approval → 一次 mutation/deployment → immediate post-check。取消、網路中斷或輸出不明時禁止重送；先做
+獨立 read-only recovery diagnostic。Artifact、checksum、validator、runbook順序或安全邊界變更會使舊批准失效。
 
-1. 唯讀 discovery／inventory。
-2. 將精確 target、count、commit／digest、影響與 rollback 交給 Owner。
-3. Owner 明確批准。
-4. 單次 mutation／deployment。
-5. 立即 post-check。
+## 11. 文件與決策生命週期
 
-輸出不確定、網路中斷或工具被取消時，不得直接重跑 mutation；先查外部狀態或使用獨立唯讀 recovery diagnostic。
-批准鎖定 material artifact／target，不因純 coordination commit 失效；artifact、checksum、validator、runbook順序或安全
-邊界改變時必須重新驗收與批准。
+- 同一 TASK 原則上一份 task、一份 report、一份 review；L1無新外部證據／finding時可不另建 report/review。
+- Task只放scope/invariants/acceptance；report只放delta/evidence；review只放finding/verdict/limits；HANDOFF只放singleton。
+- `PROJECT_STATE.md`只寫現行能力、外部 gate與active lanes，不累積逐 task流水帳。
+- `DECISIONS.md`只放仍規範未來的決策；不改語意的澄清更新原 DEC，實質改變才建立連續新 DEC並標示 supersedes。
+- 完成群組原文不改，整組移入`archive/<phase>/`，只新增一份closeout索引；archive永不授權現在操作。
+- Active `tasks/`、`reports/`、`reviews/`只保留 active或外部仍待完成群組；模糊狀態不封存。
+- `COLLABORATION.md`不超過350行；`PROJECT_STATE.md`不超過200行。預算不足時停止並向Owner說明，不犧牲安全語意。
 
-## 11. 文件生命週期
+純 coordination預設併入實質 delivery PR；只有必須立即生效的安全／授權／操作邊界才可獨立 PR。Merge SHA可在下一次
+實質 coordination update前作短期完成證據；不得只為run ID、時間或singleton另建 PR。
 
-- 同一 TASK 原則上只有一份 task、一份 report、一份 review。
-- L1 delivery 可使用 task、PR evidence 與 HANDOFF 完成；沒有新外部證據或 review finding 時，不強制另建 report／review。
-- Task 只放需求、scope、invariants、acceptance；report 只記相對 task 的完成 delta 與新證據；review 只記 findings、
-  判定與未完成事項；HANDOFF 只放狀態、SHA、下一步與真正 blocker。同一內容不得在這些文件平行維護。
-- 多輪修正更新原檔，不建立 completion／correction／recovery review 變體；不同 production operation 確有獨立安全
-  邊界時才例外。
-- `PROJECT_STATE.md` 只寫現在式，不累積逐任務流水帳。
-- `DECISIONS.md` 只放仍有效的規範；完整歷史移入 archive。
-- 階段完成後，task／report／review 移入 `archive/<phase>/`，以一份 closeout 作入口。
-- 純 coordination 文件預設併入 delivery PR；只有必須立即生效的安全、授權或操作邊界才可獨立文件 PR。
-- Merge 後到下一個實質 coordination update 前，Git／PR merge SHA 可作短期 completed 事實來源；不得為只補 run ID、
-  merge時間或 singleton狀態另開PR。下一個實質 delivery 必須先收斂過期 PROJECT_STATE／HANDOFF。
-- `AGENTS.md` 與本文件由 Work 維護；Codex 只有 active task 明確要求時才修改全域規範。
+## 12. 衝突、停止與 session 交接
 
-### 文件預算
+優先序：Owner最新明確指示 → active task具理由／範圍／終止條件的安全例外 → `HANDOFF.yaml` → 現行
+`DECISIONS.md`／本文件／`AGENTS.md` → archive歷史。
 
-- `COLLABORATION.md` 目標不超過 350 行；新規則優先改寫既有章節，禁止只在尾端持續追加版本。
-- `PROJECT_STATE.md` 目標不超過 200 行，只寫現在式；新增狀態時同步移除或封存過期內容。
-- `DECISIONS.md` 不設 active decision 數量上限；由 Work 依重複、衝突、可讀性與生命週期適時整併，被取代或只剩
-  歷史價值的內容移入 history。
-- `tasks/`、`reports/`、`reviews/` 只保留 active delivery group 與尚未封存工作；完成一個 Phase 或累積約 10 個
-  tasks 時，由 Work 執行一次封存。
-- Final PR 前，Work 檢查上述預算、重複 report／review、過期 HANDOFF 與 archive 誤讀風險。超標先整理，不把
-  新一輪膨脹合併進 `main`。
-- 文件預算是維護警戒線，不是強迫刪除必要安全資訊的硬上限。若 agent 判斷無法在預算內完整表達需求、決策、
-  風險或操作邊界，必須停止擴寫並向 Owner 說明：超標原因、不可刪內容及建議拆分／封存方式；不得自行犧牲必要
-  資訊，也不得默默突破預算。
+遇到未批准production mutation、Secret payload、真實通知、不可逆資料操作、重大產品／架構改變、不明destructive target、
+無法判定的外部 mutation結果，或必須放寬安全邊界才能繼續時立即停止交回Owner。
 
-### 決策生命週期
-
-1. 只有會跨 task 規範未來產品、架構、授權或安全行為的 Owner 決定，才建立 DEC。單次 task 核准、PR、CI、部署
-   或操作結果留在 task／review／closeout／operations evidence，不為每次同意建立 DEC。
-2. 新 DEC 使用唯一連續的 `DEC-xxx` 編號，直接加入現行 `DECISIONS.md`，標記狀態、生效日、來源與
-   `supersedes`；不得先只寫入 archive，再期待 agent 推論目前效力。
-3. 只有文字澄清、引用補充或不改語意的維護，更新原 active DEC 並記錄修訂日期，不建立新編號。
-4. 產品規則、授權或安全語意實質改變時，建立新 DEC；新項列出 `supersedes`，舊項原文移入 append-only history。
-5. 多項 active decisions 開始重複或分散描述同一政策時，由 Work 建立一項新的整併 DEC，明列所有被取代編號，
-   再封存舊項；不得只刪除或悄悄改變語意。
-6. 已完成且只剩歷史價值，或已由 phase closeout／`PROJECT_STATE.md`完整承接的決策，移入 history；編號永不
-   重用或重編。
-7. 封存與整併以 phase closeout、重大階段開始前、發現重複／衝突或閱讀困難時批次進行；不設數量門檻，也不必
-   每新增一項就建立 archive commit。
-8. Archive 原文不回寫成今天的規則；現行 register 是唯一可直接規範未來行為的 decision source。
-
-## 12. 衝突與停止條件
-
-衝突優先序：
-
-1. Owner 最新明確指示。
-2. Active task 中有理由、範圍與結束條件的安全例外。
-3. `HANDOFF.yaml` 當前狀態。
-4. 現行 `DECISIONS.md`、本文件與 `AGENTS.md`。
-5. 歷史 decision／task／report／review。
-
-遇到下列情況必須停止並交回 Owner：未批准的 production mutation、Secret payload、真實通知、不可逆資料操作、重大
-架構／產品規則改變、目標不明的 destructive action、無法判定的外部 mutation 結果，或安全邊界必須被放寬才能繼續。
-
-## 13. Session 交接
-
-新 session 不依賴舊對話。結束前確保 `PROJECT_STATE.md`、`DECISIONS.md` 與 `HANDOFF.yaml` 足以回答：系統現在
-如何運作、什麼尚未完成、輪到誰、下一步需要哪個決策。若沒有 active task，不要預先建立大量 task；先與 Owner
-選定下一個 delivery group。
-
-新任務優先使用乾淨 session，只讀 active task、HANDOFF、PROJECT_STATE、active decisions 與直接相關 code/tests；
-archive 按需讀。厚重 session 留作歷史顧問，不承擔日常實作或完整驗收；inactive agent 不反覆喚醒。Main Work
-維護唯一全域協調與 singleton HANDOFF，Domain Work 只回報自己的 lane delta。
+結束前讓`PROJECT_STATE.md`、`DECISIONS.md`、`HANDOFF.yaml`回答：現在如何運作、尚缺什麼、輪到誰、下一步需何決策。
+新 task優先使用乾淨session；厚重session只作歷史顧問。Main維護全域singleton與跨lane整合，Domain只交回自己的delta。

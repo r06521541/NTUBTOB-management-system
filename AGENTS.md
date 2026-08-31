@@ -17,7 +17,10 @@
 - 每個 session 同一時間只持有一個由 Main Work 明確派任的正式角色；沒有 role claim 時預設為
   `advisor/read-only`。Main Work 全域唯一；Domain lane 對具名領域持續問責，但承載 session 可依明確撤回與完整交棒
   輪替。Codex writer 必須 self-review／self-test，但不得成為自己 implementation 的唯一正式 acceptor。角色 claim、
-  去重、切換與撤回程序依 `docs/coordination/COLLABORATION.md` 第 2、7 節。
+  去重、切換與撤回程序依 `docs/coordination/COLLABORATION.md` 第 2 節。
+- 所有跨 session 派工共用 `COLLABORATION.md` 第 2 節的 mandatory assignment packet：接收後立即回
+  `received/executing`，持續工作每 10–15 分鐘 heartbeat，blocker 立即回報，完成時主動把 SHA／dirty paths、tests、
+  findings、limits 與 external mutations 送回 Main。訊息只是 transport，不取代 task claim 或 HANDOFF。
 - 修改檔案使用 patch，保持 diff 小而聚焦，並沿用附近程式碼的風格。
 - 不得自行 commit、push、建立 PR、部署、變更雲端資源或寫入正式資料；除非使用者明確要求。由 Owner 寫入
   `COLLABORATION.md`、`DECISIONS.md` 或當前 task 的 standing authorization 也屬有效的明確要求，不因更換
@@ -141,7 +144,7 @@ git status --short
 ## 資料庫與跨服務變更
 
 - 資料庫為 PostgreSQL，models 位於 `shared_lib/shared_module/models/`，主要 schema 為 `ntubtob`。
-- Portal-data 已使用 Alembic migrations，production revision 目前為 `0004_phase_c_identity_lifecycle`；legacy schema 與
+- Portal-data 已使用 Alembic migrations，production revision 目前為 `0009_event_management_writes`；legacy schema 與
   受控 SQL 仍須依 task／runbook 的 exact artifact boundary 處理。未經明確要求，不變更正式 schema、執行 DDL 或
   假設 model 修改已部署。
 - 必須改 schema 時，先提出 migration、相容性、回填與 rollback 方法；應讓舊版與新版服務在 rollout 期間能安全共存。
@@ -156,6 +159,10 @@ git status --short
 - Docker build context 必須排除 `.env.yaml`、credentials、local artifacts 與不必要的 `dist/` 內容；修改 Docker/Cloud Build 時一併檢查 `.dockerignore`。
 - 保持現有公開邊界：只有真正需要外部流量的 endpoint 可 unauthenticated；公開的 LINE webhook 仍必須驗證 signature。
 - 不降低 authentication、authorization、session、webhook signature 或 Cloud Run/Functions IAM 設定來讓測試「先通過」。
+- 會收集敏感輸入或執行 mutation 的 scripted／CLI／operator workflow，只能使用 task 明列且已 review 的
+  repository-owned wrapper；其preflight、hidden input／length-only feedback、ASCII-safe固定訊息、one-shot approval、
+  retry分類與單一去識別化evidence依`COLLABORATION.md`第8節。Task／HANDOFF可交給Owner一個exact、可見的手動
+  browser／login／MFA／consent動作而不使用wrapper；browser/chat/repository外helper仍不構成durable authority或evidence。
 - 不對真實 LINE/Discord 使用者發訊息，不呼叫 production crawler/weather endpoint，不連線 production DB，除非使用者明確授權且確認目標環境。
 - 已棄用的是 LINE Notify API 與 legacy `line_notify_tokens`；LINE Official Account／Messaging API、LINE Login、
   webhook 與 Discord 是不同能力，仍依實際 caller 使用及查證，不得混為一談。

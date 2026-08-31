@@ -17,7 +17,8 @@
 `tasks`、`reports` 與 `reviews` 只放當前或尚未封存的工作；判斷現在輪到誰一律以 `HANDOFF.yaml` 為準。已完成
 TASK-001～047 位於 `coordination/archive/pre-phase-c/`；Phase C 歷史證據位於 `coordination/archive/phase-c/`，
 TASK-088～122 位於 `coordination/archive/mobile-foundation-2026-08/`，TASK-123～138與140／141位於
-`coordination/archive/mobile-flutter-2026-08/`。日常只讀各目錄的closeout，不讀其中task/report/review全文。
+`coordination/archive/mobile-flutter-2026-08/`；完成的TASK-142～168、171、172索引位於
+`coordination/archive/phase-d/PHASE_D_CLOSEOUT.md`。日常只讀各目錄的closeout，不讀其中task/report/review全文。
 
 ## 產品規劃
 

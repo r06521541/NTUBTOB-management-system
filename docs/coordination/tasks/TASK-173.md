@@ -29,6 +29,7 @@
 - scope: active rules, current-state compaction, safe Phase D retention and focused consistency checks
 - owned_paths:
   - `AGENTS.md`
+  - `docs/README.md`
   - `docs/coordination/COLLABORATION.md`
   - `docs/coordination/CODEX_SESSION_ANCHOR.md`
   - `docs/coordination/DECISIONS.md`

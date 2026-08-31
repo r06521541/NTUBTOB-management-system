@@ -1,16 +1,19 @@
+# Singleton invariant: if active_task is null, status is completed,
+# next_actor is owner, and task/report/review are all null.
+# Cross-session messages are transport only and never override this file.
 active_task: TASK-173
-status: ready_for_writer
-next_actor: /root/task170_android_candidate_writer
+status: ready_for_review
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 07fed38243883b95ef4c8371566b6859d9f57b31
-head_commit: 07fed38243883b95ef4c8371566b6859d9f57b31
+head_commit: b658ed02b8b535a5af321b7db9929be6e1119642
 
-updated_by: main-work
-updated_at: 2026-08-31T18:39:00+08:00
+updated_by: task-173-governance-writer-20260831
+updated_at: 2026-08-31T18:43:48+08:00
 
 note: >
   TASK-173 consolidates active authority, assignment reporting, Owner interaction
@@ -19,5 +22,5 @@ note: >
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-173.md
-report: pending
+report: docs/coordination/reports/TASK-173-GOVERNANCE.md
 review: pending
