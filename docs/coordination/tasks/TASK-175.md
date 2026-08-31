@@ -103,6 +103,23 @@ handoff; no second writer may edit this branch concurrently.
 - write: `read-only`
 - report_to: `/root`
 
+### Correction lease
+
+- actor_id: `/root/task174_apple_lifecycle_writer`
+- role: `codex-writer`
+- claim_id: `task-175-event-guest-writer-20260901`
+- lease_version: 3
+- correction_base: `563eb5d801f3d4d6ee1e7b073446c69fff46d83c`
+- scope: close the reviewed legacy guest bypass, production status/notification race, persisted-Officer Web reachability,
+  and the directly corresponding adversarial regression gaps only
+- report_to: `/root`
+
+The correction must keep broad identity administration allowlisted-admin-only. Persisted Officer authority may be used only by the narrow
+Event/guest surfaces through a dedicated production resolver/context; it must not grant member, identity, role, status, audit or unrelated
+admin capabilities. Legacy generic qualification routes must reject `guest_player` server-side. Actual production status mutation must
+serialize with Event notification recipient selection, and tests must prove bypass denial, authority separation, replay mismatch,
+rollback and status-race behavior.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。

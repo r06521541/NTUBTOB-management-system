@@ -2,8 +2,8 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-175
-status: ready_for_review
-next_actor: targeted-reviewer
+status: changes_requested
+next_actor: codex-writer
 
 claim_id: main-work-20260825
 lease_version: 17
@@ -16,9 +16,9 @@ updated_by: main-work
 updated_at: 2026-09-01T01:00:00+08:00
 
 note: >
-  TASK-175 implementation is pushed at the immutable review target. Independent
-  Data/Auth review is next; no real provider delivery, production mutation or
-  deployment is authorized.
+  TASK-175 independent review requested correction for a legacy guest bypass,
+  status/recipient race, persisted-Officer Web reachability and adversarial test
+  gaps. No real provider delivery, production mutation or deployment is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-175.md
