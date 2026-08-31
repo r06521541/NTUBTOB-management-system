@@ -2,18 +2,18 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-173
-status: ready_for_review
-next_actor: /root/task170_release_security_review
+status: in_progress
+next_actor: main-work
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 07fed38243883b95ef4c8371566b6859d9f57b31
-head_commit: 3575bb266e46b260398210fb66a7311bea631397
+head_commit: c4a27f5f55ead950a6a9d03ff468e2134ace5e52
 
 updated_by: main-work
-updated_at: 2026-08-31T19:02:00+08:00
+updated_at: 2026-08-31T19:16:00+08:00
 
 note: >
   TASK-173 consolidates active authority, assignment reporting, Owner interaction
@@ -23,4 +23,4 @@ note: >
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-173.md
 report: docs/coordination/reports/TASK-173-GOVERNANCE.md
-review: pending
+review: docs/coordination/reviews/TASK-173-GOVERNANCE.md
