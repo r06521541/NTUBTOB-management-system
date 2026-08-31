@@ -130,6 +130,21 @@ rollback and status-race behavior.
 - scope: verify closure of the three P1 findings and P2 adversarial coverage without regression of previously accepted boundaries
 - report_to: `/root`
 
+### Final correction lease
+
+- actor_id: `/root/task174_apple_lifecycle_writer`
+- role: `codex-writer`
+- claim_id: `task-175-event-guest-writer-20260901`
+- lease_version: 4
+- correction_base: `83211e1f628f549665bb93ab415e6d1dd6a91a58`
+- scope: canonicalize advisory locks to `ADMIN_LOCK_KEY` then `EVENT_SNAPSHOT_LOCK_KEY`, move Event serialization to the
+  actual `change_person_status` production writer, remove the misplaced qualification locks, and correct only the corresponding tests
+- report_to: `/root`
+
+This is the second and final bounded correction round. Tests must call `change_person_status` directly and prove its canonical lock order;
+grant/revoke qualification must not acquire Event before Admin. No previously accepted route, replay, lifecycle or notification behavior
+may be broadened.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
