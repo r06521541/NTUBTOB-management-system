@@ -19,17 +19,25 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _contract_bytes(**overrides: str) -> bytes:
     values = {
-        "schema": "1",
+        "schema": "2",
         "application_id": "tw.org.ntubtob.portal.contracttest",
         "version_code": "1",
         "version_name": "0.1.0",
         "compile_sdk": "36",
         "target_sdk": "36",
-        "app_flavor": "production",
+        "release_channel": "android-closed",
+        "app_flavor": "staging",
         "client_mode": "real",
         "release_scope": "basic",
         "contract_test": "true",
-        "api_origin": "https://mobile-release.invalid",
+        "api_origin_sha256": hashlib.sha256(
+            b"https://mobile-release.invalid"
+        ).hexdigest(),
+        "provider_config_sha256": hashlib.sha256(
+            b"12345\nandroid-contract.apps.googleusercontent.com\n"
+            b"server-contract.apps.googleusercontent.com"
+        ).hexdigest(),
+        "previous_version_code": "0",
     }
     values.update(overrides)
     return "".join(f"{key}={values[key]}\n" for key in sorted(values)).encode()
@@ -55,25 +63,47 @@ def _aab_bytes(contract: bytes | None = None, *, signed: bool = True) -> bytes:
     return output.getvalue()
 
 
+def _inspect_contract_test(artifact: Path) -> dict[str, object]:
+    return mobile_release.inspect_aab(
+        artifact,
+        expected_mode="contract-test",
+        expected_package="tw.org.ntubtob.portal.contracttest",
+        expected_version_name="0.1.0",
+        expected_version_code=1,
+        expected_previous_version_code=0,
+        expected_api_origin_sha256=mobile_release.CONTRACT_TEST_VALUES[
+            "api_origin_sha256"
+        ],
+        expected_provider_config_sha256=mobile_release.CONTRACT_TEST_VALUES[
+            "provider_config_sha256"
+        ],
+    )
+
+
 class MobileReleaseConfigurationTests(unittest.TestCase):
-    def test_candidate_configuration_is_strict_and_basic_only(self):
+    def test_android_closed_configuration_is_staging_real_and_basic_only(self):
         values = mobile_release.validate_contract(
             {
-                "schema": "1",
+                "schema": "2",
                 "application_id": "tw.org.ntubtob.portal",
                 "version_code": "42",
+                "previous_version_code": "41",
                 "version_name": "1.2.3",
                 "compile_sdk": "36",
                 "target_sdk": "36",
-                "app_flavor": "production",
+                "release_channel": "android-closed",
+                "app_flavor": "staging",
                 "client_mode": "real",
                 "release_scope": "basic",
                 "contract_test": "false",
-                "api_origin": "https://api.unit-test-placeholder.net",
+                "api_origin_sha256": "ab" * 32,
+                "provider_config_sha256": "cd" * 32,
             },
-            expected_mode="candidate",
+            expected_mode="android-closed",
         )
         self.assertEqual(values["application_id"], "tw.org.ntubtob.portal")
+        self.assertEqual(values["release_channel"], "android-closed")
+        self.assertEqual(values["app_flavor"], "staging")
 
     def test_missing_mixed_or_debug_shaped_configuration_fails_closed(self):
         valid = dict(mobile_release.CONTRACT_TEST_VALUES)
@@ -84,12 +114,14 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
             ("version_name", "0.0.0-debug"),
             ("compile_sdk", "35"),
             ("target_sdk", "35"),
+            ("release_channel", "production"),
             ("app_flavor", "development"),
+            ("app_flavor", "production"),
             ("client_mode", "fake"),
             ("release_scope", "officer"),
-            ("api_origin", "http://mobile-release.invalid"),
-            ("api_origin", "https://127.0.0.1"),
-            ("api_origin", "https://mobile-release.invalid:8443"),
+            ("api_origin_sha256", "not-a-sha256"),
+            ("provider_config_sha256", "not-a-sha256"),
+            ("previous_version_code", "1"),
         )
         for key, value in cases:
             with self.subTest(key=key, value=value):
@@ -108,35 +140,40 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
             mobile_release.parse_contract(_contract_bytes() + b"secret=value\n")
         with self.assertRaises(mobile_release.ContractError):
             mobile_release.validate_contract(
-                dict(mobile_release.CONTRACT_TEST_VALUES), expected_mode="candidate"
+                dict(mobile_release.CONTRACT_TEST_VALUES),
+                expected_mode="android-closed",
             )
 
-    def test_candidate_rejects_reserved_and_local_origins(self):
+    def test_android_closed_requires_monotonic_version_and_origin_digest(self):
         valid = {
-            "schema": "1",
+            "schema": "2",
             "application_id": "tw.org.ntubtob.portal",
             "version_code": "42",
+            "previous_version_code": "41",
             "version_name": "1.2.3",
             "compile_sdk": "36",
             "target_sdk": "36",
-            "app_flavor": "production",
+            "release_channel": "android-closed",
+            "app_flavor": "staging",
             "client_mode": "real",
             "release_scope": "basic",
             "contract_test": "false",
-            "api_origin": "https://api.unit-test-placeholder.net",
+            "api_origin_sha256": "ab" * 32,
+            "provider_config_sha256": "cd" * 32,
         }
-        for origin in (
-            "https://localhost",
-            "https://internal",
-            "https://192.168.1.1",
-            "https://mobile.example.org",
-            "https://api.unit-test-placeholder.net:8443",
+        for overrides in (
+            {"previous_version_code": "42"},
+            {"previous_version_code": "43"},
+            {"previous_version_code": "-1"},
+            {"previous_version_code": "01"},
+            {"api_origin_sha256": "AB" * 32},
+            {"provider_config_sha256": "CD" * 32},
         ):
-            with self.subTest(origin=origin), self.assertRaises(
+            with self.subTest(overrides=overrides), self.assertRaises(
                 mobile_release.ContractError
             ):
                 mobile_release.validate_contract(
-                    dict(valid, api_origin=origin), expected_mode="candidate"
+                    dict(valid, **overrides), expected_mode="android-closed"
                 )
 
 
@@ -145,25 +182,16 @@ class MobileReleaseArtifactTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             artifact = Path(directory) / "candidate.aab"
             artifact.write_bytes(_aab_bytes())
-            first = mobile_release.inspect_aab(
-                artifact,
-                expected_mode="contract-test",
-                expected_package="tw.org.ntubtob.portal.contracttest",
-                expected_version_name="0.1.0",
-                expected_version_code=1,
-            )
-            second = mobile_release.inspect_aab(
-                artifact,
-                expected_mode="contract-test",
-                expected_package="tw.org.ntubtob.portal.contracttest",
-                expected_version_name="0.1.0",
-                expected_version_code=1,
-            )
+            first = _inspect_contract_test(artifact)
+            second = _inspect_contract_test(artifact)
         self.assertEqual(first, second)
         self.assertEqual(first["sha256"], hashlib.sha256(_aab_bytes()).hexdigest())
         self.assertEqual(first["release_scope"], "basic")
+        self.assertEqual(first["release_channel"], "android-closed")
+        self.assertEqual(first["previous_version_code"], 0)
         self.assertTrue(first["jar_signature_entries"])
         self.assertNotIn("api_origin", first)
+        self.assertNotIn("provider_ids", first)
 
     def test_archive_corruption_missing_signature_and_contract_drift_fail_closed(self):
         cases = (
@@ -176,13 +204,7 @@ class MobileReleaseArtifactTests(unittest.TestCase):
                 artifact = Path(directory) / "candidate.aab"
                 artifact.write_bytes(data)
                 with self.assertRaisesRegex(mobile_release.ContractError, message):
-                    mobile_release.inspect_aab(
-                        artifact,
-                        expected_mode="contract-test",
-                        expected_package="tw.org.ntubtob.portal.contracttest",
-                        expected_version_name="0.1.0",
-                        expected_version_code=1,
-                    )
+                    _inspect_contract_test(artifact)
 
     def test_duplicate_traversal_sensitive_and_unexpected_files_fail_closed(self):
         cases: list[tuple[str, bytes]] = []
@@ -207,13 +229,7 @@ class MobileReleaseArtifactTests(unittest.TestCase):
                 artifact = Path(directory) / "candidate.aab"
                 artifact.write_bytes(data)
                 with self.assertRaises(mobile_release.ContractError):
-                    mobile_release.inspect_aab(
-                        artifact,
-                        expected_mode="contract-test",
-                        expected_package="tw.org.ntubtob.portal.contracttest",
-                        expected_version_name="0.1.0",
-                        expected_version_code=1,
-                    )
+                    _inspect_contract_test(artifact)
 
     def test_signer_verification_requires_expected_fingerprint(self):
         expected = "AB" * 32
@@ -293,13 +309,7 @@ class MobileReleaseArtifactTests(unittest.TestCase):
                 jarsigner=jarsigner,
                 keytool=keytool,
             )
-            inspected = mobile_release.inspect_aab(
-                artifact,
-                expected_mode="contract-test",
-                expected_package="tw.org.ntubtob.portal.contracttest",
-                expected_version_name="0.1.0",
-                expected_version_code=1,
-            )
+            inspected = _inspect_contract_test(artifact)
             with zipfile.ZipFile(artifact, "a") as archive:
                 archive.writestr("base/dex/classes2.dex", b"unsigned-extra-dex\n")
             with self.assertRaisesRegex(
@@ -324,16 +334,23 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         for fragment in (
             "compileSdk = 36",
             "targetSdk = 36",
+            "MOBILE_RELEASE_CHANNEL",
             "MOBILE_RELEASE_APPLICATION_ID",
+            "MOBILE_RELEASE_PREVIOUS_VERSION_CODE",
+            "MOBILE_RELEASE_STAGING_API_ORIGIN_SHA256",
+            "MOBILE_RELEASE_STAGING_PROVIDER_CONFIG_SHA256",
             "MOBILE_RELEASE_KEYSTORE_PATH",
             "MOBILE_RELEASE_KEY_ALIAS",
             "MOBILE_RELEASE_STORE_PASSWORD",
             "MOBILE_RELEASE_KEY_PASSWORD",
             "mobile-release-contract.properties",
             'releaseScope = "basic"',
+            'requiredDefine("APP_FLAVOR") != "staging"',
+            'requiredDefine("RELEASE_CHANNEL") != releaseChannel',
         ):
             self.assertIn(fragment, source)
         self.assertNotIn("signingConfigs.getByName(\"debug\")", source)
+        self.assertNotIn("APP_FLAVOR must be production", source)
 
     def test_android_generated_contract_uses_variant_sources_api(self):
         source = (ROOT / "clients/flutter_app/android/app/build.gradle.kts").read_text(
@@ -413,8 +430,19 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertNotIn("curl ", source)
         self.assertNotIn("wget ", source)
         self.assertIn("MOBILE_RELEASE_CONTRACT_TEST: \"true\"", source)
+        self.assertIn("MOBILE_RELEASE_CHANNEL: android-closed", source)
+        self.assertIn("MOBILE_RELEASE_PREVIOUS_VERSION_CODE: \"0\"", source)
+        self.assertEqual(
+            source.count("--dart-define=RELEASE_CHANNEL=android-closed"), 2
+        )
+        self.assertEqual(source.count("--dart-define=APP_FLAVOR=staging"), 2)
+        self.assertNotIn("--dart-define=APP_FLAVOR=production", source)
+        self.assertIn("tools.tests.test_android_closed_testing", source)
         self.assertIn("flutter build appbundle --release", source)
         self.assertIn("python3 -m tools.mobile_release inspect-aab", source)
+        self.assertIn("--expected-previous-version-code 0", source)
+        self.assertIn("--expected-staging-api-origin-sha256", source)
+        self.assertIn("--expected-staging-provider-config-sha256", source)
         self.assertIn("tw.org.ntubtob.portal.contracttest", source)
         self.assertNotIn("play.google.com", source.lower())
         self.assertNotIn("upload-artifact", source)

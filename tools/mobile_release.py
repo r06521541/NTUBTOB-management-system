@@ -18,7 +18,6 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 from typing import Mapping, Sequence
-from urllib.parse import urlsplit
 
 
 CONTRACT_ENTRY = "base/assets/mobile-release-contract.properties"
@@ -38,25 +37,36 @@ CONTRACT_KEYS = frozenset(
         "version_name",
         "compile_sdk",
         "target_sdk",
+        "release_channel",
         "app_flavor",
         "client_mode",
         "release_scope",
         "contract_test",
-        "api_origin",
+        "api_origin_sha256",
+        "provider_config_sha256",
+        "previous_version_code",
     }
 )
 CONTRACT_TEST_VALUES = {
-    "schema": "1",
+    "schema": "2",
     "application_id": "tw.org.ntubtob.portal.contracttest",
     "version_code": "1",
+    "previous_version_code": "0",
     "version_name": "0.1.0",
     "compile_sdk": "36",
     "target_sdk": "36",
-    "app_flavor": "production",
+    "release_channel": "android-closed",
+    "app_flavor": "staging",
     "client_mode": "real",
     "release_scope": "basic",
     "contract_test": "true",
-    "api_origin": "https://mobile-release.invalid",
+    "api_origin_sha256": hashlib.sha256(
+        b"https://mobile-release.invalid"
+    ).hexdigest(),
+    "provider_config_sha256": hashlib.sha256(
+        b"12345\nandroid-contract.apps.googleusercontent.com\n"
+        b"server-contract.apps.googleusercontent.com"
+    ).hexdigest(),
 }
 _CANDIDATE_APPLICATION_ID = "tw.org.ntubtob.portal"
 _SEMVER = re.compile(r"^(?:0|[1-9][0-9]*)\.[0-9]+\.[0-9]+$")
@@ -94,52 +104,14 @@ def parse_contract(raw: bytes) -> dict[str, str]:
     return values
 
 
-def _validate_api_origin(value: str, *, contract_test: bool) -> None:
-    try:
-        parsed = urlsplit(value)
-        port = parsed.port
-    except ValueError as error:
-        raise ContractError("api_origin is malformed") from error
-    if (
-        parsed.scheme != "https"
-        or not parsed.hostname
-        or parsed.username is not None
-        or parsed.password is not None
-        or port not in (None, 443)
-        or parsed.query
-        or parsed.fragment
-        or parsed.path not in ("", "/")
-    ):
-        raise ContractError("api_origin must be an HTTPS origin without credentials or path")
-    host = parsed.hostname.lower()
-    if contract_test:
-        if value != CONTRACT_TEST_VALUES["api_origin"]:
-            raise ContractError("contract-test api_origin must use the fixed reserved origin")
-        return
-    if (
-        host == "localhost"
-        or "." not in host
-        or host.endswith(".localhost")
-        or host.endswith(".invalid")
-        or host.endswith(".test")
-        or host.endswith(".example")
-        or host in {"example.com", "example.net", "example.org"}
-        or host.endswith((".example.com", ".example.net", ".example.org"))
-        or re.match(
-            r"^(?:10|127|169\.254|192\.168|172\.(?:1[6-9]|2[0-9]|3[01]))\.",
-            host,
-        )
-        or host in {"0.0.0.0", "::1"}
-    ):
-        raise ContractError("candidate api_origin is local or reserved")
-
-
 def validate_contract(
     values: Mapping[str, str], *, expected_mode: str
 ) -> dict[str, str]:
-    if expected_mode not in {"candidate", "contract-test"}:
-        raise ContractError("expected mode must be candidate or contract-test")
-    if set(values) != CONTRACT_KEYS or any(not isinstance(value, str) for value in values.values()):
+    if expected_mode not in {"android-closed", "contract-test"}:
+        raise ContractError("expected mode must be android-closed or contract-test")
+    if set(values) != CONTRACT_KEYS or any(
+        not isinstance(value, str) for value in values.values()
+    ):
         raise ContractError("release contract keys are incomplete or unknown")
 
     contract_test = expected_mode == "contract-test"
@@ -149,11 +121,12 @@ def validate_contract(
         else _CANDIDATE_APPLICATION_ID
     )
     fixed = {
-        "schema": "1",
+        "schema": "2",
         "application_id": expected_package,
         "compile_sdk": "36",
         "target_sdk": "36",
-        "app_flavor": "production",
+        "release_channel": "android-closed",
+        "app_flavor": "staging",
         "client_mode": "real",
         "release_scope": "basic",
         "contract_test": str(contract_test).lower(),
@@ -168,12 +141,45 @@ def validate_contract(
         raise ContractError("version_code must be a positive integer") from error
     if version_code < 1 or str(version_code) != values["version_code"]:
         raise ContractError("version_code must be a canonical positive integer")
+    try:
+        previous_version_code = int(values["previous_version_code"])
+    except ValueError as error:
+        raise ContractError(
+            "previous_version_code must be a non-negative integer"
+        ) from error
+    if (
+        previous_version_code < 0
+        or str(previous_version_code) != values["previous_version_code"]
+        or version_code <= previous_version_code
+    ):
+        raise ContractError(
+            "version_code must be greater than canonical previous_version_code"
+        )
     if (
         not _SEMVER.fullmatch(values["version_name"])
         or values["version_name"] == "0.0.0"
     ):
         raise ContractError("version_name must be a non-debug semantic version")
-    _validate_api_origin(values["api_origin"], contract_test=contract_test)
+    if not _SHA256.fullmatch(values["api_origin_sha256"]):
+        raise ContractError("api_origin_sha256 must be a lowercase SHA-256 digest")
+    if not _SHA256.fullmatch(values["provider_config_sha256"]):
+        raise ContractError("provider_config_sha256 must be a lowercase SHA-256 digest")
+    if (
+        contract_test
+        and values["api_origin_sha256"]
+        != CONTRACT_TEST_VALUES["api_origin_sha256"]
+    ):
+        raise ContractError(
+            "contract-test api_origin_sha256 must use the fixed reserved origin digest"
+        )
+    if (
+        contract_test
+        and values["provider_config_sha256"]
+        != CONTRACT_TEST_VALUES["provider_config_sha256"]
+    ):
+        raise ContractError(
+            "contract-test provider_config_sha256 must use the fixed fictional digest"
+        )
     return dict(values)
 
 
@@ -212,6 +218,9 @@ def inspect_aab(
     expected_package: str,
     expected_version_name: str,
     expected_version_code: int,
+    expected_previous_version_code: int,
+    expected_api_origin_sha256: str,
+    expected_provider_config_sha256: str,
 ) -> dict[str, object]:
     if artifact.suffix.lower() != ".aab" or not artifact.is_file():
         raise ContractError("artifact must be an existing .aab file")
@@ -255,6 +264,9 @@ def inspect_aab(
         "application_id": expected_package,
         "version_name": expected_version_name,
         "version_code": str(expected_version_code),
+        "previous_version_code": str(expected_previous_version_code),
+        "api_origin_sha256": expected_api_origin_sha256,
+        "provider_config_sha256": expected_provider_config_sha256,
     }
     for key, expected in comparisons.items():
         if contract[key] != expected:
@@ -265,16 +277,20 @@ def inspect_aab(
             raise ContractError(f"AAB manifest is missing the {marker_name} marker")
 
     return {
+        "api_origin_sha256": contract["api_origin_sha256"],
         "application_id": contract["application_id"],
         "compile_sdk": int(contract["compile_sdk"]),
         "contract_test": contract["contract_test"] == "true",
         "entry_count": len(names),
         "jar_signature_entries": jar_signed,
+        "release_channel": contract["release_channel"],
         "release_scope": contract["release_scope"],
         "sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
         "size": size,
         "target_sdk": int(contract["target_sdk"]),
         "version_code": int(contract["version_code"]),
+        "previous_version_code": int(contract["previous_version_code"]),
+        "provider_config_sha256": contract["provider_config_sha256"],
         "version_name": contract["version_name"],
     }
 
@@ -391,11 +407,20 @@ def _parser() -> argparse.ArgumentParser:
     inspect = subparsers.add_parser("inspect-aab")
     inspect.add_argument("--artifact", type=Path, required=True)
     inspect.add_argument(
-        "--mode", choices=("candidate", "contract-test"), required=True
+        "--mode", choices=("android-closed", "contract-test"), required=True
     )
     inspect.add_argument("--expected-package", required=True)
     inspect.add_argument("--expected-version-name", required=True)
     inspect.add_argument("--expected-version-code", type=int, required=True)
+    inspect.add_argument("--expected-previous-version-code", type=int, required=True)
+    inspect.add_argument(
+        "--expected-staging-api-origin-sha256",
+        required=True,
+    )
+    inspect.add_argument(
+        "--expected-staging-provider-config-sha256",
+        required=True,
+    )
     inspect.add_argument("--expected-signer-sha256", required=True)
     inspect.add_argument("--jarsigner", default="jarsigner")
     inspect.add_argument("--keytool", default="keytool")
@@ -411,6 +436,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             expected_package=arguments.expected_package,
             expected_version_name=arguments.expected_version_name,
             expected_version_code=arguments.expected_version_code,
+            expected_previous_version_code=arguments.expected_previous_version_code,
+            expected_api_origin_sha256=arguments.expected_staging_api_origin_sha256,
+            expected_provider_config_sha256=(
+                arguments.expected_staging_provider_config_sha256
+            ),
         )
         result["signer_sha256"] = verify_aab_signer(
             arguments.artifact,

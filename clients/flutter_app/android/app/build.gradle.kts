@@ -1,5 +1,6 @@
 import java.net.URI
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.Base64
 
 import org.gradle.api.DefaultTask
@@ -16,14 +17,17 @@ plugins {
 }
 
 class MobileReleaseConfig(
+    val releaseChannel: String,
     val applicationId: String,
     val versionCode: Int,
+    val previousVersionCode: Int,
     val versionName: String,
     val keyStore: File,
     val keyAlias: String,
     val storePassword: String,
     val keyPassword: String,
-    val apiOrigin: String,
+    val apiOriginSha256: String,
+    val providerConfigSha256: String,
     val contractTest: Boolean,
 )
 
@@ -75,11 +79,19 @@ fun decodeDartDefines(encoded: String?): Map<String, String> {
     return result
 }
 
+fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(value.toByteArray(StandardCharsets.UTF_8))
+    .joinToString("") { "%02x".format(it) }
+
 fun loadMobileReleaseConfig(): MobileReleaseConfig {
     val contractTest = when (System.getenv("MOBILE_RELEASE_CONTRACT_TEST")) {
         null, "false" -> false
         "true" -> true
         else -> throw GradleException("MOBILE_RELEASE_CONTRACT_TEST must be true, false, or absent")
+    }
+    val releaseChannel = requiredReleaseEnvironment("MOBILE_RELEASE_CHANNEL")
+    if (releaseChannel != "android-closed") {
+        throw GradleException("MOBILE_RELEASE_CHANNEL must be android-closed")
     }
     val expectedApplicationId = if (contractTest) {
         "tw.org.ntubtob.portal.contracttest"
@@ -97,20 +109,27 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
     val versionCodeSource = requiredReleaseEnvironment("MOBILE_RELEASE_VERSION_CODE")
     val versionCode = versionCodeSource.toIntOrNull()
         ?: throw GradleException("MOBILE_RELEASE_VERSION_CODE must be an integer")
+    val previousVersionCodeSource = requiredReleaseEnvironment("MOBILE_RELEASE_PREVIOUS_VERSION_CODE")
+    val previousVersionCode = previousVersionCodeSource.toIntOrNull()
+        ?: throw GradleException("MOBILE_RELEASE_PREVIOUS_VERSION_CODE must be an integer")
     if (
         versionName != expectedVersionName ||
         versionCodeSource != expectedVersionCode ||
         versionCode < 1 ||
+        previousVersionCode < 0 ||
+        previousVersionCodeSource != previousVersionCode.toString() ||
+        versionCode <= previousVersionCode ||
         versionName == "0.0.0" ||
         !Regex("^(?:0|[1-9][0-9]*)\\.[0-9]+\\.[0-9]+$").matches(versionName)
     ) {
-        throw GradleException("release version is missing, debug-shaped, or differs from pubspec.yaml")
+        throw GradleException("release version is non-monotonic, debug-shaped, or differs from pubspec.yaml")
     }
 
     val defines = decodeDartDefines(providers.gradleProperty("dart-defines").orNull)
     val requiredReleaseDefines = setOf(
         "APP_FLAVOR",
         "CLIENT_MODE",
+        "RELEASE_CHANNEL",
         "RELEASE_SCOPE",
         "API_BASE_URL",
         "LINE_CHANNEL_ID",
@@ -158,8 +177,11 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
     ) {
         throw GradleException("Android release Flutter metadata is missing, unexpected, or unpinned")
     }
-    if (requiredDefine("APP_FLAVOR") != "production") {
-        throw GradleException("Android release APP_FLAVOR must be production")
+    if (requiredDefine("RELEASE_CHANNEL") != releaseChannel) {
+        throw GradleException("Android release RELEASE_CHANNEL must be android-closed")
+    }
+    if (requiredDefine("APP_FLAVOR") != "staging") {
+        throw GradleException("Android Closed Testing APP_FLAVOR must be staging")
     }
     if (requiredDefine("CLIENT_MODE") != "real") {
         throw GradleException("Android release CLIENT_MODE must be real")
@@ -207,7 +229,16 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         host == "0.0.0.0" ||
         host == "::1"
     ) {
-        throw GradleException("candidate API_BASE_URL must not be local or reserved")
+        throw GradleException("Android Closed Testing API_BASE_URL must not be local or reserved")
+    }
+    val expectedApiOriginSha256 = requiredReleaseEnvironment(
+        "MOBILE_RELEASE_STAGING_API_ORIGIN_SHA256",
+    )
+    if (
+        !Regex("^[0-9a-f]{64}$").matches(expectedApiOriginSha256) ||
+        sha256(apiOrigin) != expectedApiOriginSha256
+    ) {
+        throw GradleException("API_BASE_URL does not match the approved staging origin digest")
     }
 
     val lineChannelId = requiredDefine("LINE_CHANNEL_ID")
@@ -241,6 +272,20 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
             throw GradleException("candidate provider IDs must not be debug-shaped")
         }
     }
+    val expectedProviderConfigSha256 = requiredReleaseEnvironment(
+        "MOBILE_RELEASE_STAGING_PROVIDER_CONFIG_SHA256",
+    )
+    val providerConfig = listOf(
+        lineChannelId,
+        googleClientId,
+        googleServerClientId,
+    ).joinToString("\n")
+    if (
+        !Regex("^[0-9a-f]{64}$").matches(expectedProviderConfigSha256) ||
+        sha256(providerConfig) != expectedProviderConfigSha256
+    ) {
+        throw GradleException("provider IDs do not match the approved staging configuration digest")
+    }
 
     val keyStore = file(requiredReleaseEnvironment("MOBILE_RELEASE_KEYSTORE_PATH")).canonicalFile
     val repositoryRoot = rootProject.projectDir.parentFile.parentFile.parentFile.canonicalFile
@@ -269,14 +314,17 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
     }
 
     return MobileReleaseConfig(
+        releaseChannel = releaseChannel,
         applicationId = applicationId,
         versionCode = versionCode,
+        previousVersionCode = previousVersionCode,
         versionName = versionName,
         keyStore = keyStore,
         keyAlias = keyAlias,
         storePassword = storePassword,
         keyPassword = keyPassword,
-        apiOrigin = apiOrigin,
+        apiOriginSha256 = expectedApiOriginSha256,
+        providerConfigSha256 = expectedProviderConfigSha256,
         contractTest = contractTest,
     )
 }
@@ -327,14 +375,17 @@ android {
 
 val generateMobileReleaseContract = mobileReleaseConfig?.let { config ->
     val values = sortedMapOf(
-        "api_origin" to config.apiOrigin,
-        "app_flavor" to "production",
+        "api_origin_sha256" to config.apiOriginSha256,
+        "app_flavor" to "staging",
         "application_id" to config.applicationId,
         "client_mode" to "real",
         "compile_sdk" to "36",
         "contract_test" to config.contractTest.toString(),
+        "previous_version_code" to config.previousVersionCode.toString(),
+        "provider_config_sha256" to config.providerConfigSha256,
+        "release_channel" to config.releaseChannel,
         "release_scope" to "basic",
-        "schema" to "1",
+        "schema" to "2",
         "target_sdk" to "36",
         "version_code" to config.versionCode.toString(),
         "version_name" to config.versionName,

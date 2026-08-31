@@ -112,7 +112,11 @@ jobs:
 
       - name: Run mobile release tooling tests
         working-directory: ${{ github.workspace }}
-        run: python3 -m unittest tools.tests.test_mobile_release -v
+        run: >-
+          python3 -m unittest
+          tools.tests.test_mobile_release
+          tools.tests.test_android_closed_testing
+          -v
 
       - name: Build fake Android debug APK
         run: >-
@@ -123,7 +127,8 @@ jobs:
       - name: Prove unsigned release fails closed
         run: |
           if flutter build appbundle --release \
-            --dart-define=APP_FLAVOR=production \
+            --dart-define=RELEASE_CHANNEL=android-closed \
+            --dart-define=APP_FLAVOR=staging \
             --dart-define=CLIENT_MODE=real \
             --dart-define=RELEASE_SCOPE=basic \
             --dart-define=API_BASE_URL=https://mobile-release.invalid \
@@ -168,9 +173,13 @@ jobs:
       - name: Build signed contract-test Android App Bundle
         env:
           MOBILE_RELEASE_CONTRACT_TEST: "true"
+          MOBILE_RELEASE_CHANNEL: android-closed
           MOBILE_RELEASE_APPLICATION_ID: tw.org.ntubtob.portal.contracttest
           MOBILE_RELEASE_VERSION_NAME: 0.1.0
           MOBILE_RELEASE_VERSION_CODE: "1"
+          MOBILE_RELEASE_PREVIOUS_VERSION_CODE: "0"
+          MOBILE_RELEASE_STAGING_API_ORIGIN_SHA256: 9e60f93f593ab35cc5e3ed1fa443c25a670f32e0342e5c1876f6ab29876c195c
+          MOBILE_RELEASE_STAGING_PROVIDER_CONFIG_SHA256: 47c660e43fc0a90f4c02fdf48584f10cb97137413c42e92ec926c652690c6ced
           MOBILE_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/mobile-release-contract.jks
           MOBILE_RELEASE_KEY_ALIAS: mobile-release-contract
         run: |
@@ -178,7 +187,8 @@ jobs:
           MOBILE_RELEASE_STORE_PASSWORD="$CONTRACT_PASSWORD" \
           MOBILE_RELEASE_KEY_PASSWORD="$CONTRACT_PASSWORD" \
             flutter build appbundle --release \
-              --dart-define=APP_FLAVOR=production \
+              --dart-define=RELEASE_CHANNEL=android-closed \
+              --dart-define=APP_FLAVOR=staging \
               --dart-define=CLIENT_MODE=real \
               --dart-define=RELEASE_SCOPE=basic \
               --dart-define=API_BASE_URL=https://mobile-release.invalid \
@@ -195,4 +205,7 @@ jobs:
           --expected-package tw.org.ntubtob.portal.contracttest
           --expected-version-name 0.1.0
           --expected-version-code 1
+          --expected-previous-version-code 0
+          --expected-staging-api-origin-sha256 9e60f93f593ab35cc5e3ed1fa443c25a670f32e0342e5c1876f6ab29876c195c
+          --expected-staging-provider-config-sha256 47c660e43fc0a90f4c02fdf48584f10cb97137413c42e92ec926c652690c6ced
           --expected-signer-sha256 "$CONTRACT_SIGNER_SHA256"
