@@ -11,10 +11,15 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 
+from shared_lib.shared_module.portal_data import identity_lifecycle as lifecycle_module
 from shared_lib.shared_module.portal_data import local_database
 from shared_lib.shared_module.portal_data.domain import (
     AuthorizationError,
     ConflictError,
+    ValidationError,
+)
+from shared_lib.shared_module.portal_data.identity_lifecycle import (
+    IdentityLifecycleRepository,
 )
 from shared_lib.shared_module.portal_data.repository import (
     EVENT_LIFECYCLE_REVISION,
@@ -34,6 +39,58 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 
 class EventGuestLifecycleStaticTests(unittest.TestCase):
+    def test_legacy_status_mutation_locks_event_snapshot_before_actor(self):
+        repository = IdentityLifecycleRepository(MagicMock())
+        session = MagicMock()
+        session_manager = MagicMock()
+        session_manager.__enter__.return_value = session
+        order = []
+        session.execute.side_effect = lambda *_args, **_kwargs: order.append("snapshot")
+
+        def stop_at_actor(*_args, **_kwargs):
+            order.append("actor")
+            raise RuntimeError("stop after lock order")
+
+        repository._require_admin = MagicMock(side_effect=stop_at_actor)
+        with patch.object(
+            lifecycle_module, "Session", return_value=session_manager
+        ), self.assertRaisesRegex(RuntimeError, "lock order"):
+            repository.grant_qualification(
+                1, 2, "affiliate", "Fictional reason", "lock-order-fictional"
+            )
+
+        self.assertEqual(order, ["snapshot", "actor"])
+        self.assertEqual(
+            session.execute.call_args.args[1],
+            {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY},
+        )
+
+    def test_legacy_identity_repository_rejects_guest_lifecycle_bypass(self):
+        repository = IdentityLifecycleRepository(MagicMock())
+        calls = (
+            lambda: repository.create_member_person(
+                1, 2, "Fictional", "Fictional reason", "legacy-create", ("guest_player",)
+            ),
+            lambda: repository.approve_non_member(
+                1,
+                2,
+                "Fictional",
+                "Fictional reason",
+                "legacy-approve",
+                qualifications=("guest_player",),
+            ),
+            lambda: repository.grant_qualification(
+                1, 2, "guest_player", "Fictional reason", "legacy-grant"
+            ),
+            lambda: repository.revoke_qualification(
+                1, 2, "guest_player", "Fictional reason", "legacy-revoke"
+            ),
+        )
+        for call in calls:
+            with self.subTest(call=call), self.assertRaisesRegex(
+                ValidationError, "guest lifecycle"
+            ):
+                call()
     def test_migration_is_linear_additive_and_retains_evidence_on_downgrade(self):
         source = (
             ROOT / "migrations/versions/0011_event_notification_guest_lifecycle.py"
@@ -243,6 +300,15 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
         self.assertFalse(result["replayed"])
         self.assertTrue(replay["replayed"])
         self.assertEqual(result["notification_id"], replay["notification_id"])
+        with self.assertRaises(ConflictError):
+            self.repository.confirm_event_notification(
+                self.officer.id,
+                event_id,
+                notification_type=preview["notification_type"],
+                preview_revision=preview["revision"],
+                typed_confirmation=preview["confirmation_text"] + " changed",
+                request_id="notify-fictional-event",
+            )
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
@@ -308,6 +374,18 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
         )
         self.assertEqual(granted["state"], "scheduled")
         self.assertTrue(replay["replayed"])
+        with self.assertRaises(ConflictError):
+            self.repository.mutate_guest_qualification(
+                self.officer.id,
+                guest.id,
+                "grant",
+                expected_version=0,
+                reason="Changed fictional payload",
+                request_id="guest-grant-fictional",
+                valid_from=valid_from,
+                valid_until=valid_until,
+                at=now,
+            )
 
         event_id = self.repository.create_event(
             self.officer.id,
@@ -332,6 +410,67 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
                 reason="Stale fictional version",
                 request_id="guest-stale-fictional",
                 at=now,
+            )
+
+        extended_until = valid_until + timedelta(days=3)
+        extended = self.repository.mutate_guest_qualification(
+            self.officer.id,
+            guest.id,
+            "extend",
+            expected_version=1,
+            reason="Fictional guest extension",
+            request_id="guest-extend-fictional",
+            valid_until=extended_until,
+            at=now,
+        )
+        self.assertEqual((extended["state"], extended["version"]), ("scheduled", 2))
+        revoked = self.repository.mutate_guest_qualification(
+            self.officer.id,
+            guest.id,
+            "revoke",
+            expected_version=2,
+            reason="Fictional guest revocation",
+            request_id="guest-revoke-fictional",
+            at=now,
+        )
+        self.assertEqual((revoked["state"], revoked["version"]), ("revoked", 3))
+
+    def test_guest_mutation_rolls_back_when_audit_insert_fails(self):
+        guest = self.repository.create_person("Fictional Rollback Guest")
+        now = datetime.now(timezone.utc)
+
+        def reject_audit(_connection, _cursor, statement, _parameters, _context, _many):
+            if "INSERT INTO ntubtob.guest_qualification_audits" in statement:
+                raise RuntimeError("fictional audit failure")
+
+        from sqlalchemy import event
+
+        event.listen(self.engine, "before_cursor_execute", reject_audit)
+        try:
+            with self.assertRaisesRegex(RuntimeError, "fictional audit failure"):
+                self.repository.mutate_guest_qualification(
+                    self.officer.id,
+                    guest.id,
+                    "grant",
+                    expected_version=0,
+                    reason="Fictional rollback",
+                    request_id="guest-rollback-fictional",
+                    valid_from=now,
+                    valid_until=now + timedelta(days=2),
+                    at=now,
+                )
+        finally:
+            event.remove(self.engine, "before_cursor_execute", reject_audit)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.person_qualifications "
+                        "WHERE person_id=:person_id AND qualification='guest_player'"
+                    ),
+                    {"person_id": guest.id},
+                ),
+                0,
             )
 
     def test_guest_grant_rejects_member_and_active_team_player_overlap(self):
@@ -394,6 +533,11 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
         )
         with self.assertRaises(AuthorizationError):
             repository.guest_candidates(persisted_admin.id)
+        persisted_role_repository = PostgresTeamPortalRepository(
+            self.engine, allow_persisted_event_managers=True
+        )
+        with self.assertRaises(AuthorizationError):
+            persisted_role_repository.managed_events(persisted_admin.id)
 
     def test_new_writes_fail_closed_before_exact_head(self):
         with self.engine.begin() as connection:

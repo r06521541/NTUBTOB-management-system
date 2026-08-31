@@ -16,7 +16,11 @@
   Member or active team-player overlap, and append a full before/after audit.
 - The Web Portal exposes a narrow guest-manager surface for active persisted
   Officers and active allowlisted Member admins. The legacy broad qualification
-  and identity-approval surfaces no longer grant guest-player state.
+  and identity-approval surfaces no longer grant guest-player state, and the
+  narrow Officer authority does not open any broad identity/member administration.
+- Production qualification status writes acquire the same Event snapshot advisory
+  lock before actor and target locks, serializing qualification changes with
+  recipient selection and rolling back the status change if audit persistence fails.
 - Web and Mobile Event reads expose only the caller's immutable participation
   category. Mobile notifications accept Event destinations; Flutter opens the
   authorized online Event detail and safely remains in notifications offline.
@@ -30,9 +34,11 @@
 - `py -3.10 -m unittest shared_lib.tests.test_event_read shared_lib.tests.test_mobile_api_service shared_lib.tests.test_notification_api_service -v`:
   36 passed.
 - `$env:PYTHONPATH='.'; py -3.10 -m unittest discover -s apps/web_portal/tests -v`:
-  241 passed.
-- `py -3.10 -m unittest discover -s tests/portal_data -v`: 306 passed,
-  154 expected skips without the isolated PostgreSQL URL.
+  243 passed after the targeted authorization corrections.
+- `py -3.10 -m unittest tests.portal_data.test_event_guest_lifecycle tests.portal_data.test_phase_c_lifecycle -v`:
+  47 passed or expected isolated-PostgreSQL skips locally.
+- `py -3.10 -m unittest discover -s tests/portal_data -v`: 311 passed,
+  157 expected skips without the isolated PostgreSQL URL.
 - Flutter focused tests: 175 passed.
 - Flutter analyze on the five affected files: no issues; Dart format check changed
   zero files.

@@ -1465,7 +1465,7 @@ class PostgresTeamPortalRepository:
                 member_id not in self.event_manager_member_ids
                 and not (
                     self.allow_persisted_event_managers
-                    and person.portal_access_level in {"officer", "admin"}
+                    and person.portal_access_level == "officer"
                 )
             )
         ):

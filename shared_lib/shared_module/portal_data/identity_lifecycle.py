@@ -48,6 +48,7 @@ QUALIFICATIONS = frozenset({"team_player", "guest_player", "affiliate", "staff"}
 APPLICANT_MESSAGE_INTERVAL = timedelta(hours=24)
 REVIEW_RETENTION = timedelta(days=365)
 ADMIN_LOCK_KEY = 70070
+EVENT_SNAPSHOT_LOCK_KEY = 0x4E545542 + 0x100000
 BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
 
 
@@ -869,6 +870,8 @@ class IdentityLifecycleRepository:
         requested = frozenset(qualifications)
         if not requested <= QUALIFICATIONS:
             raise ValidationError("unknown qualification")
+        if "guest_player" in requested:
+            raise ValidationError("guest_player requires guest lifecycle")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
             self._require_admin(session, actor_person_id)
@@ -1168,7 +1171,7 @@ class IdentityLifecycleRepository:
         if not requested <= QUALIFICATIONS - {"team_player"}:
             raise ValidationError("non-Member cannot receive team_player")
         if "guest_player" in requested:
-            validate_guest_period(guest_valid_from, guest_valid_until)
+            raise ValidationError("guest_player requires guest lifecycle")
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
@@ -1718,10 +1721,10 @@ class IdentityLifecycleRepository:
         valid_until: datetime | None = None,
     ) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
-        reason = require_reason(reason)
         if qualification == "guest_player":
-            validate_guest_period(valid_from, valid_until)
-        elif (
+            raise ValidationError("guest_player requires guest lifecycle")
+        reason = require_reason(reason)
+        if (
             valid_from is not None
             and valid_until is not None
             and valid_until <= valid_from
@@ -1729,6 +1732,10 @@ class IdentityLifecycleRepository:
             raise ValidationError("qualification validity end must follow start")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": EVENT_SNAPSHOT_LOCK_KEY},
+            )
             self._require_admin(session, actor_person_id)
             person = session.scalar(
                 select(PersonRecord)
@@ -1808,9 +1815,15 @@ class IdentityLifecycleRepository:
         request_id: str,
     ) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
+        if qualification == "guest_player":
+            raise ValidationError("guest_player requires guest lifecycle")
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": EVENT_SNAPSHOT_LOCK_KEY},
+            )
             self._require_admin(session, actor_person_id)
             row = session.scalar(
                 select(PersonQualificationRecord)

@@ -1121,7 +1121,7 @@ def _parse_event_datetime(name, *, required=True):
 
 
 def _event_management_context():
-    if not has_capability(get_current_principal(), MANAGE_EVENTS):
+    if not _has_narrow_event_management_authority():
         abort(403)
     context = _event_read_context()
     if context is None:
@@ -1148,9 +1148,36 @@ def _event_management_service():
         PostgresTeamPortalRepository(
             repository.engine,
             parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
-            allow_persisted_event_managers=LOCAL_PREVIEW_MODE_ENABLED,
+            allow_persisted_event_managers=True,
         )
     )
+
+
+def _has_narrow_event_management_authority():
+    principal = get_current_principal()
+    if has_capability(principal, MANAGE_EVENTS):
+        return True
+    lifecycle_context = getattr(g, "portal_lifecycle_context", None)
+    if lifecycle_context is None:
+        return False
+    lifecycle_principal = lifecycle_context[1]
+    person = lifecycle_principal.person
+    return (
+        getattr(person, "status", getattr(person, "portal_status", None)) == "active"
+        and getattr(person, "access_level", None) == "officer"
+    )
+
+
+def event_manager_required(view):
+    @wraps(view)
+    def protected_view(*args, **kwargs):
+        if get_current_principal() is None:
+            return redirect(url_for("redirect_to_login", next=request.path))
+        if not _has_narrow_event_management_authority():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return protected_view
 
 
 def _event_management_projection(event):
@@ -1397,7 +1424,7 @@ def reply_to_activity_attendance(event_key, activity_key):
 
 
 @app.get("/manage/events")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def manage_events():
     _, principal = _event_management_context()
     service = _event_management_service()
@@ -1418,7 +1445,7 @@ def manage_events():
 
 
 @app.post("/manage/events/new")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def create_managed_event():
     require_valid_csrf()
     _, principal = _event_management_context()
@@ -1469,13 +1496,13 @@ def _managed_event_page(event_id):
 
 
 @app.get("/manage/events/<event_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def edit_managed_event(event_key):
     return _managed_event_page(_parse_management_key(event_key, "event_"))
 
 
 @app.post("/manage/events/<event_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def update_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1503,7 +1530,7 @@ def update_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/activities")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def add_managed_activity(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1525,7 +1552,7 @@ def add_managed_activity(event_key):
 
 
 @app.post("/manage/events/<event_key>/activities/<activity_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def update_managed_activity(event_key, activity_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1549,7 +1576,7 @@ def update_managed_activity(event_key, activity_key):
 
 
 @app.post("/manage/events/<event_key>/activities/<activity_key>/action")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def managed_activity_action(event_key, activity_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1581,7 +1608,7 @@ def managed_activity_action(event_key, activity_key):
 
 
 @app.post("/manage/events/<event_key>/overrides")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def set_managed_event_override(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1604,7 +1631,7 @@ def set_managed_event_override(event_key):
 
 
 @app.post("/manage/events/<event_key>/publish")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def publish_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1620,7 +1647,7 @@ def publish_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/cancel")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def cancel_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1636,7 +1663,7 @@ def cancel_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/notification")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def confirm_managed_event_notification(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1657,7 +1684,7 @@ def confirm_managed_event_notification(event_key):
 
 
 @app.get("/manage/guests")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def manage_guests():
     state = request.args.get("state", "active")
     if state not in {"scheduled", "active", "expired", "revoked"}:
@@ -1687,7 +1714,7 @@ def manage_guests():
 
 
 @app.post("/manage/guests/<person_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def mutate_managed_guest(person_key):
     require_valid_csrf()
     person_id = _parse_management_key(person_key, "person_")
@@ -2550,6 +2577,14 @@ def identity_admin_action():
     action = request.form.get("action", "")
     reason = request.form.get("reason", "")
     request_id = request.form.get("request_id", "")
+    if action in {"grant_qualification", "revoke_qualification"} and request.form.get(
+        "qualification", ""
+    ) == "guest_player":
+        abort(400)
+    if action == "create_member" and "guest_player" in request.form.getlist(
+        "qualification"
+    ):
+        abort(400)
     if action == "create_member":
         request_id = _required_request_id("member-create-")
     identity_id = request.form.get("identity_id", type=int)

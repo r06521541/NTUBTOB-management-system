@@ -3594,13 +3594,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         service.managed_events.assert_not_called()
 
-    def test_event_management_production_uses_allowlist_not_persisted_role(self):
+    def test_event_management_production_allows_officer_or_allowlisted_member_only(self):
         self._login_for_events()
         service = self._event_management_service()
         repository, principal = self._event_repository()
         cases = (
             ("basic", "7", 200),
-            ("officer", "", 403),
+            ("officer", "", 200),
             ("admin", "", 403),
         )
         for access_level, allowlist, expected in cases:
@@ -3622,7 +3622,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     response = self.client.get("/manage/events")
                 self.assertEqual(response.status_code, expected)
 
-        self.assertEqual(service.managed_events.call_count, 1)
+        self.assertEqual(service.managed_events.call_count, 2)
 
     def test_event_management_local_preview_keeps_persisted_event_roles(self):
         self._login_for_events()
@@ -3657,7 +3657,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
     def test_event_management_service_wires_runtime_authority_policy(self):
         cases = (
-            (False, "basic", "7", frozenset({7}), False),
+            (False, "basic", "7", frozenset({7}), True),
             (True, "officer", "", frozenset(), True),
         )
         for (
@@ -3709,6 +3709,64 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 )
                 service_constructor.assert_called_once_with(adapter)
                 service.managed_events.assert_called_once_with(80)
+
+    def test_persisted_officer_event_authority_does_not_open_broad_admin(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        repository, principal = self._event_repository()
+        principal.person.access_level = "officer"
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            event_page = self.client.get("/manage/events")
+            broad_admin = self.client.get("/manage/people")
+
+        self.assertEqual(event_page.status_code, 200)
+        self.assertEqual(broad_admin.status_code, 403)
+        repository.admin_dashboard.assert_not_called()
+
+    def test_legacy_identity_admin_rejects_guest_lifecycle_bypass(self):
+        token = self.get_csrf_token()
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = SimpleNamespace(
+            person=SimpleNamespace(id=70, member_id=7),
+            identity=SimpleNamespace(id=71),
+        )
+        with self.client.session_transaction() as current_session:
+            current_session.update(person_id=70, auth_identity_id=71)
+        with patch.dict(
+            os.environ,
+            {
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            },
+        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+            for action in ("grant_qualification", "revoke_qualification"):
+                with self.subTest(action=action):
+                    response = self.client.post(
+                        "/identity-admin/action",
+                        data={
+                            "csrf_token": token,
+                            "action": action,
+                            "person_id": "80",
+                            "qualification": "guest_player",
+                            "reason": "Must use bounded guest lifecycle",
+                            "request_id": "qualification-fake-request",
+                        },
+                    )
+                    self.assertEqual(response.status_code, 400)
+        repository.grant_qualification.assert_not_called()
+        repository.revoke_qualification.assert_not_called()
 
     def test_event_management_keeps_lifecycle_and_identity_checks_fail_closed(self):
         self._login_for_events()

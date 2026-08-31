@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import io
 import json
@@ -21,6 +22,7 @@ from shared_lib.shared_module.portal_data.domain import (
     ValidationError,
 )
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
+    EVENT_SNAPSHOT_LOCK_KEY,
     IdentityLifecycleRepository,
 )
 from shared_lib.shared_module.portal_data.local_database import (
@@ -153,6 +155,86 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         return self.repository.ensure_pending_line_identity(
             f"fake-pending-{suffix}", "Fake Applicant", f"pending-{suffix}"
         )
+
+    def _qualification_target(self, name="Fictional Qualification Target"):
+        with self.engine.begin() as connection:
+            return connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name,portal_access_level,portal_status,version,created_at,updated_at) "
+                    "VALUES (:name,'basic','active',1,now(),now()) RETURNING id"
+                ),
+                {"name": name},
+            )
+
+    def test_qualification_status_serializes_behind_event_snapshot_lock(self):
+        target_id = self._qualification_target()
+        attempted = threading.Event()
+
+        def observe_lock(_connection, _cursor, statement, parameters, _context, _many):
+            if "pg_advisory_xact_lock" in statement and (
+                parameters == {"key": EVENT_SNAPSHOT_LOCK_KEY}
+                or parameters == (EVENT_SNAPSHOT_LOCK_KEY,)
+            ):
+                attempted.set()
+
+        event.listen(self.engine, "before_cursor_execute", observe_lock)
+        blocker = self.engine.connect()
+        transaction = blocker.begin()
+        blocker.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"),
+            {"key": EVENT_SNAPSHOT_LOCK_KEY},
+        )
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    self.repository.grant_qualification,
+                    self.admin_person_id,
+                    target_id,
+                    "affiliate",
+                    "Fictional serialized change",
+                    "qualification-lock-fictional",
+                )
+                self.assertTrue(attempted.wait(2))
+                self.assertFalse(future.done())
+                transaction.commit()
+                future.result(timeout=5)
+        finally:
+            if transaction.is_active:
+                transaction.rollback()
+            blocker.close()
+            event.remove(self.engine, "before_cursor_execute", observe_lock)
+
+    def test_qualification_status_rolls_back_when_audit_insert_fails(self):
+        target_id = self._qualification_target("Fictional Rollback Target")
+
+        def reject_audit(_connection, _cursor, statement, _parameters, _context, _many):
+            if "INSERT INTO ntubtob.access_audit" in statement:
+                raise RuntimeError("fictional audit failure")
+
+        event.listen(self.engine, "before_cursor_execute", reject_audit)
+        try:
+            with self.assertRaisesRegex(RuntimeError, "fictional audit failure"):
+                self.repository.grant_qualification(
+                    self.admin_person_id,
+                    target_id,
+                    "affiliate",
+                    "Fictional rollback",
+                    "qualification-rollback-fictional",
+                )
+        finally:
+            event.remove(self.engine, "before_cursor_execute", reject_audit)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT count(*) FROM ntubtob.person_qualifications "
+                        "WHERE person_id=:person_id"
+                    ),
+                    {"person_id": target_id},
+                ),
+                0,
+            )
 
     def test_event_reads_require_included_snapshot_and_filter_linked_games(self):
         now = datetime(2026, 9, 1, 8, 0, tzinfo=timezone.utc)
