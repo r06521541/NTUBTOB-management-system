@@ -23,7 +23,7 @@ native user identifier及 profile hint 不得用於自動合併帳號。
 - actor_id: `/root/task174_apple_lifecycle_writer`
 - role: `codex-writer`
 - claim_id: `task-174-apple-lifecycle-writer-20260831`
-- lease_version: 7
+- lease_version: 8
 - scope: Apple native credential envelope、Mobile API/provider lifecycle、durable schema、offline tests及release evidence
 - owned_paths:
   - `clients/flutter_app/ios/Runner/AppleAuthorizationBridge.swift`
@@ -78,12 +78,15 @@ invariant，但修正isolated CI database反覆升降時的test harness，不得
 existing table或自動刪除production evidence。同步修正PostgreSQL `bytea`回傳的driver-neutral assertion，並移除
 舊測試對`0009`為head的過期硬編碼；只可修復已證實的hosted failures，不擴張runtime behavior。
 
+Lease 8修正reviewer P1：test-only cleanup只可在version table存在且revision屬於明確的pre-0010 allowlist時
+刪除retained tables；missing、future、unknown、ambiguous revision必須fail closed且zero DDL，並加入對應regression。
+
 ## Independent reviewer claim
 
 - actor_id: `/root/task170_release_security_review`
 - role: `advisor/reviewer`
 - claim_id: `task-174-apple-auth-security-reviewer-20260831`
-- lease_version: 2
+- lease_version: 3
 - write: `read-only`
 - report_to: `/root`
 - scope: immutable pushed TASK-174 SHA的Apple wire、one-shot exchange、cipher／token no-disclosure、notification replay／revocation、migration compatibility與LINE／Google isolation
@@ -98,6 +101,10 @@ rereview無其餘finding。Focused Python 93 passed、Flutter Apple 10 passed、
 
 Reviewer lease 2只針對lease 7 CI correction：驗收test-only cleanup必須限於repository-local isolated DB、不得改動
 production migration evidence retention或strict upgrade，並核對driver-neutral `bytea`與head revision assertions沒有降低契約。
+
+Reviewer lease 2 對 `3aa74f8032df45064445d871ac65398e8fa38bcb` 回報 `REQUEST_CHANGES`：原 helper 會對
+future／unknown／missing revision 執行 DDL。Reviewer lease 3 只針對 lease 8 的明確 pre-0010 allowlist、
+fresh-schema zero-DDL no-op，與 existing ambiguous／unknown／future zero-DDL rejection 進行 rereview。
 
 ## Required behavior
 
