@@ -57,12 +57,17 @@
   removes retained Apple evidence through that test-only gate, and only then
   continues to `0001`. Production downgrade semantics remain unchanged.
 
-## Remaining acceptance limits
+## Final acceptance
 
-- PostgreSQL 15/16 upgrade/runtime matrix and hosted CI remain required.
-- Independent Auth/Security rereview accepted immutable SHA
-  `820f5e13a8674a28972dfdb1931f0a6b32515feb` with no remaining finding; its
-  focused Python total was 93 passed and Flutter Apple remained 10 passed.
+- Independent Auth/Security reviewer accepted immutable SHA
+  `3f7aaaf686fb7de59178edca8485a4e6d6b0b95a` after the fail-closed test-harness
+  corrections, with no remaining finding.
+- Hosted run `33413687350` passed PostgreSQL 15.8 and 16.4, pinned Python quality,
+  all affected service suites, Flutter 3.47.0 / Android API 36, and the final gate.
+- PR #227 was squash-merged as `7f4168c3aca30c21d9c0c82be0aef67e4a049e8d`.
+
+## Remaining external limits
+
 - Mobile API core runtime readiness permits only 0008/0009/0010, while Apple
   lifecycle readiness and the canonical migration head require exact
   `0010_apple_provider_lifecycle`; historical environment-specific staging/event

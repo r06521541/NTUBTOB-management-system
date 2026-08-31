@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-08-31
+更新時間：2026-09-01
 
 維護角色：Main Work
 
-Repository authority HEAD：`dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9`
+Repository authority HEAD：`7f4168c3aca30c21d9c0c82be0aef67e4a049e8d`
 
 ## Active role lanes
 
@@ -41,9 +41,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - Isolated fictional staging已完成Mobile API、DB revision`0008`、LINE／Google real-provider smoke與session/linking驗證。
   Shared primary Google provider仍為External／Testing，runtime/data固定在`ntubtob-mobile-staging`；staging成功不代表
   production provider publishing或deployment。
-- Apple nonce-bound identity-token login/link repository slice已完成；verified stable`sub`是唯一identity key，不以
-  email/name自動合併。Authorization-code validation、Apple refresh token、credential-state、server notification、
-  revocation lifecycle、Apple Developer capability/profile、runtime binding與real-device/TestFlight仍未完成。
+- Apple nonce-bound identity-token、single-use authorization-code exchange、加密provider credential、server notification
+  receipt/revocation與exact-0010 runtime gate已完成repository foundation；verified stable`sub`仍是唯一identity key，
+  不以email/name自動合併。Apple Developer capability/profile、真實client secret/Secret binding、credential-state實測、
+  active token revocation、runtime deployment與real-device/TestFlight仍未完成。
 
 ### Release and engineering
 
@@ -68,9 +69,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 ## Active work and external gates
 
-- TASK-174為目前assigned active task：repository-only補齊Sign in with Apple authorization-code、encrypted provider
-  credential與server-notification revocation foundation；不授權Apple provider、Secret、signing、runtime、production或
-  TestFlight操作。
+- TASK-174 repository delivery已由PR #227合併，其Apple provider lifecycle foundation只是repository capability；不授權
+  Apple provider、Secret、signing、runtime、production或TestFlight操作。
 - TASK-169保留active：repository release-readiness已合併，但Android/iOS store、signing、provider、production backend、
   device與public-release gates仍是現在的release boundary。
 - TASK-170保留active：repository Android candidate contract已通過review/CI；外部階段等待Owner Google Play developer-
@@ -86,7 +86,7 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 - Completed TASK-142～168、171～173的原始task/report/review群組已由merged Git ancestry證據索引至
   `archive/phase-d/PHASE_D_CLOSEOUT.md`；archive只證明歷史，不授權現在操作。
-- Active入口只保留TASK-169、170及其current evidence；目前沒有assigned active task。任何完成狀態不明或外部gate仍由
+- Active入口保留TASK-169、170、174及其current/external-gate evidence；目前沒有assigned active task。任何完成狀態不明或外部gate仍由
   該task承載的群組不得封存。
 - 當前task與next actor只看`HANDOFF.yaml`；協作規則看`COLLABORATION.md`；長期決策看`DECISIONS.md`。
 
