@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -17,12 +18,18 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
-from .mobile_api import AuthenticationError, MobileApiError, VerifiedAssertion
+from .mobile_api import (
+    AuthenticationError,
+    MobileApiError,
+    ProviderExchangeOutcomeUnknown,
+    VerifiedAssertion,
+)
 
 GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 LINE_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
 APPLE_ISSUER = "https://appleid.apple.com"
 APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
+APPLE_TOKEN_URL = "https://appleid.apple.com/auth/token"
 APPLE_JWKS_MAX_BYTES = 65_536
 APPLE_JWT_MAX_BYTES = 16_384
 APPLE_JWKS_FAILURE_BACKOFF = timedelta(minutes=1)
@@ -133,6 +140,51 @@ class LineIdTokenVerifier:
 
 class AppleVerificationUnavailable(MobileApiError):
     """Apple public-key retrieval was unavailable without exposing provider data."""
+
+
+class AppleExchangeOutcomeUnknown(ProviderExchangeOutcomeUnknown):
+    """The single-use authorization code may have been consumed."""
+
+
+@dataclass(frozen=True)
+class AppleProviderCredential:
+    refresh_token: str
+    subject: str
+
+
+@dataclass(frozen=True)
+class VerifiedAppleNotification:
+    event_type: str
+    subject: str
+    jti: str
+    event_at: datetime
+
+
+def apple_token_urlopen_transport(url, body, timeout):
+    request = Request(
+        url,
+        data=body,
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return (
+                response.status,
+                response.headers.get_content_type(),
+                response.read(APPLE_JWKS_MAX_BYTES + 1),
+            )
+    except HTTPError as error:
+        return (
+            error.code,
+            error.headers.get_content_type(),
+            error.read(APPLE_JWKS_MAX_BYTES + 1),
+        )
+    except (TimeoutError, URLError, OSError):
+        raise AppleExchangeOutcomeUnknown("Apple exchange outcome is unknown") from None
 
 
 def apple_jwks_urlopen_transport(url, timeout):
@@ -378,3 +430,223 @@ class AppleIdTokenVerifier:
             raise
         except (InvalidSignature, OverflowError, TypeError, ValueError):
             raise AuthenticationError("invalid provider assertion") from None
+
+
+class AppleAuthorizationCodeExchanger:
+    """Consume one Apple authorization code without retaining provider bodies."""
+
+    def __init__(
+        self,
+        verifier: AppleIdTokenVerifier,
+        *,
+        client_id: str,
+        client_secret: str,
+        transport=apple_token_urlopen_transport,
+        timeout: float = 5.0,
+    ):
+        if (
+            not isinstance(client_id, str)
+            or not 1 <= len(client_id) <= 255
+            or not client_id.isascii()
+            or not client_id.isprintable()
+            or not isinstance(client_secret, str)
+            or not 1 <= len(client_secret) <= 8192
+            or not client_secret.isascii()
+            or not client_secret.isprintable()
+            or not 0 < timeout <= 10
+        ):
+            raise ValueError("Apple exchange configuration is invalid")
+        self._verifier = verifier
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._transport = transport
+        self._timeout = timeout
+
+    def exchange(
+        self,
+        authorization_code: str,
+        *,
+        expected_subject: str,
+        nonce: str,
+        now: datetime,
+    ) -> AppleProviderCredential:
+        if (
+            not isinstance(authorization_code, str)
+            or not 1 <= len(authorization_code) <= 4096
+            or not authorization_code.isascii()
+            or not authorization_code.isprintable()
+            or not isinstance(expected_subject, str)
+            or not expected_subject
+        ):
+            raise AuthenticationError("invalid Apple authorization code")
+        body = urlencode(
+            {
+                "client_id": self._client_id,
+                "client_secret": self._client_secret,
+                "code": authorization_code,
+                "grant_type": "authorization_code",
+            }
+        ).encode("ascii")
+        try:
+            status, content_type, raw = self._transport(
+                APPLE_TOKEN_URL, body, self._timeout
+            )
+        except AppleExchangeOutcomeUnknown:
+            raise
+        except Exception:
+            raise AppleExchangeOutcomeUnknown(
+                "Apple exchange outcome is unknown"
+            ) from None
+        if status in {400, 401, 403}:
+            raise AuthenticationError("invalid Apple authorization code")
+        if status == 429 or status >= 500:
+            raise AppleExchangeOutcomeUnknown("Apple exchange outcome is unknown")
+        if (
+            status != 200
+            or content_type != "application/json"
+            or not isinstance(raw, bytes)
+            or not 1 <= len(raw) <= APPLE_JWKS_MAX_BYTES
+        ):
+            raise AuthenticationError("invalid Apple exchange response")
+        payload = _strict_json(raw)
+        required = {
+            "access_token",
+            "token_type",
+            "expires_in",
+            "refresh_token",
+            "id_token",
+        }
+        token_type = payload.get("token_type") if isinstance(payload, dict) else None
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != required
+            or not isinstance(token_type, str)
+            or not token_type.isascii()
+            or token_type.lower() != "bearer"
+            or type(payload.get("expires_in")) is not int
+            or not 1 <= payload["expires_in"] <= 86_400
+            or not isinstance(payload.get("access_token"), str)
+            or not 1 <= len(payload["access_token"]) <= 16_384
+            or not isinstance(payload.get("refresh_token"), str)
+            or not 1 <= len(payload["refresh_token"]) <= 16_384
+            or not isinstance(payload.get("id_token"), str)
+        ):
+            raise AuthenticationError("invalid Apple exchange response")
+        returned = self._verifier.verify(
+            payload["id_token"], self._client_id, nonce, now
+        )
+        if returned.subject != expected_subject:
+            raise AuthenticationError("invalid Apple exchange response")
+        return AppleProviderCredential(payload["refresh_token"], returned.subject)
+
+
+class AppleServerNotificationVerifier:
+    """Verify and minimize a Sign in with Apple server notification JWS."""
+
+    EVENT_TYPES = frozenset(
+        {"email-disabled", "email-enabled", "consent-revoked", "account-deleted"}
+    )
+
+    def __init__(self, key_cache=None):
+        self._key_cache = key_cache or AppleJwkCache()
+
+    def verify(self, signed_payload: str, audience: str, now: datetime):
+        try:
+            if (
+                not isinstance(signed_payload, str)
+                or not 1 <= len(signed_payload) <= APPLE_JWT_MAX_BYTES
+                or not isinstance(audience, str)
+                or not 1 <= len(audience) <= 255
+                or not audience.isascii()
+                or not audience.isprintable()
+                or now.tzinfo is None
+            ):
+                raise AuthenticationError("invalid Apple notification")
+            parts = signed_payload.split(".")
+            if len(parts) != 3:
+                raise AuthenticationError("invalid Apple notification")
+            header = _strict_json(_decode_base64url(parts[0], maximum=2048))
+            claims = _strict_json(_decode_base64url(parts[1], maximum=12_288))
+            signature = _decode_base64url(parts[2], maximum=1024)
+            if (
+                not isinstance(header, dict)
+                or not {"alg", "kid"} <= set(header) <= {"alg", "kid", "typ"}
+                or header["alg"] != "RS256"
+                or ("typ" in header and header["typ"] != "JWT")
+            ):
+                raise AuthenticationError("invalid Apple notification")
+            self._key_cache.key(header["kid"], now).verify(
+                signature,
+                (parts[0] + "." + parts[1]).encode("ascii"),
+                padding.PKCS1v15(),
+                hashes.SHA256(),
+            )
+            if not isinstance(claims, dict) or set(claims) != {
+                "iss",
+                "aud",
+                "iat",
+                "jti",
+                "events",
+            }:
+                raise AuthenticationError("invalid Apple notification")
+            normalized_now = int(now.astimezone(timezone.utc).timestamp())
+            issued_at = claims["iat"]
+            jti = claims["jti"]
+            if (
+                claims["iss"] != APPLE_ISSUER
+                or claims["aud"] != audience
+                or type(issued_at) is not int
+                or issued_at < normalized_now - 86_400
+                or issued_at > normalized_now + 60
+                or not isinstance(jti, str)
+                or not 16 <= len(jti) <= 128
+                or not jti.isascii()
+                or not jti.isprintable()
+                or not isinstance(claims["events"], str)
+                or not 1 <= len(claims["events"]) <= 4096
+            ):
+                raise AuthenticationError("invalid Apple notification")
+            event = _strict_json(claims["events"].encode("utf-8"))
+            if (
+                not isinstance(event, dict)
+                or not {"type", "sub", "event_time"} <= set(event)
+                or set(event)
+                - {"type", "sub", "event_time", "email", "is_private_email"}
+                or event["type"] not in self.EVENT_TYPES
+                or not isinstance(event["sub"], str)
+                or not 1 <= len(event["sub"]) <= 255
+                or not event["sub"].isascii()
+                or not event["sub"].isprintable()
+                or type(event["event_time"]) is not int
+            ):
+                raise AuthenticationError("invalid Apple notification")
+            event_seconds = event["event_time"]
+            if (
+                abs(event_seconds - issued_at) > 86_400
+                or event_seconds < normalized_now - 86_400
+                or event_seconds > normalized_now + 60
+                or (
+                    "email" in event
+                    and (
+                        not isinstance(event["email"], str)
+                        or not 1 <= len(event["email"]) <= 320
+                    )
+                )
+                or (
+                    "is_private_email" in event
+                    and event["is_private_email"] not in {"true", "false"}
+                )
+            ):
+                raise AuthenticationError("invalid Apple notification")
+            return VerifiedAppleNotification(
+                event["type"],
+                event["sub"],
+                jti,
+                datetime.fromtimestamp(event_seconds, timezone.utc),
+            )
+        except AppleVerificationUnavailable:
+            raise
+        except AuthenticationError:
+            raise
+        except (InvalidSignature, OverflowError, TypeError, ValueError):
+            raise AuthenticationError("invalid Apple notification") from None

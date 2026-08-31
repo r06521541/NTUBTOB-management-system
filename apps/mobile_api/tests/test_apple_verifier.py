@@ -8,6 +8,12 @@ from datetime import datetime, timedelta, timezone
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from shared_module.mobile_api import AuthenticationError
+from shared_module.provider_verifiers import (
+    APPLE_TOKEN_URL,
+    AppleAuthorizationCodeExchanger,
+    AppleExchangeOutcomeUnknown,
+    AppleServerNotificationVerifier,
+)
 
 from apps.mobile_api.apple_verifier import (
     JWKS_URL,
@@ -238,9 +244,10 @@ class AppleIdTokenVerifierTest(unittest.TestCase):
             "x" * 16_385,
         )
         for assertion in malformed_cases:
-            with self.subTest(length=len(assertion)), self.assertRaises(
-                AuthenticationError
-            ) as raised:
+            with (
+                self.subTest(length=len(assertion)),
+                self.assertRaises(AuthenticationError) as raised,
+            ):
                 self.verifier(FakeTransport(self.jwks_response())).verify(
                     assertion, AUDIENCE, RAW_NONCE, NOW
                 )
@@ -256,8 +263,9 @@ class AppleIdTokenVerifierTest(unittest.TestCase):
             (200, json.dumps({"keys": [self.jwk(), self.jwk()]}).encode()),
             self.jwks_response(noncanonical_jwk),
         ):
-            with self.subTest(response_length=len(response[1])), self.assertRaises(
-                AuthenticationError
+            with (
+                self.subTest(response_length=len(response[1])),
+                self.assertRaises(AuthenticationError),
             ):
                 self.verifier(FakeTransport(response)).verify(
                     self.token(), AUDIENCE, RAW_NONCE, NOW
@@ -269,9 +277,10 @@ class AppleIdTokenVerifierTest(unittest.TestCase):
             TimeoutError("fictional-sensitive-assertion"),
             (500, b"fictional-sensitive-provider-body"),
         ):
-            with self.subTest(response=response), self.assertRaises(
-                AppleVerificationUnavailable
-            ) as raised:
+            with (
+                self.subTest(response=response),
+                self.assertRaises(AppleVerificationUnavailable) as raised,
+            ):
                 self.verifier(FakeTransport(response)).verify(
                     assertion, AUDIENCE, RAW_NONCE, NOW
                 )
@@ -363,6 +372,272 @@ class AppleIdTokenVerifierTest(unittest.TestCase):
             "apple",
         )
         self.assertEqual(len(transport.calls), 3)
+
+    def test_authorization_code_exchange_is_exact_and_subject_correlated(self):
+        token = self.token()
+        calls = []
+
+        def transport(url, body, timeout):
+            calls.append((url, body, timeout))
+            return (
+                200,
+                "application/json",
+                json.dumps(
+                    {
+                        "access_token": "fictional-short-lived-access",
+                        "token_type": "Bearer",
+                        "expires_in": 3600,
+                        "refresh_token": "fictional-durable-refresh",
+                        "id_token": token,
+                    }
+                ).encode(),
+            )
+
+        verifier = self.verifier(FakeTransport(self.jwks_response()))
+        exchanger = AppleAuthorizationCodeExchanger(
+            verifier,
+            client_id=AUDIENCE,
+            client_secret="fictional-runtime-client-secret",
+            transport=transport,
+        )
+        result = exchanger.exchange(
+            "fictional-single-use-code",
+            expected_subject="fictional-apple-stable-subject",
+            nonce=RAW_NONCE,
+            now=NOW,
+        )
+
+        self.assertEqual(result.refresh_token, "fictional-durable-refresh")
+        self.assertEqual(result.subject, "fictional-apple-stable-subject")
+        self.assertEqual(calls[0][0], APPLE_TOKEN_URL)
+        self.assertIn(b"grant_type=authorization_code", calls[0][1])
+        self.assertNotIn("fictional-runtime-client-secret", repr(result))
+
+    def test_authorization_code_exchange_accepts_case_insensitive_bearer(self):
+        token = self.token()
+        for token_type in ("bearer", "Bearer"):
+            payload = {
+                "access_token": "fictional-short-lived-access",
+                "token_type": token_type,
+                "expires_in": 3600,
+                "refresh_token": "fictional-durable-refresh",
+                "id_token": token,
+            }
+
+            def transport(_url, _body, _timeout, payload=payload):
+                return 200, "application/json", json.dumps(payload).encode()
+
+            exchanger = AppleAuthorizationCodeExchanger(
+                self.verifier(FakeTransport(self.jwks_response())),
+                client_id=AUDIENCE,
+                client_secret="fictional-runtime-client-secret",
+                transport=transport,
+            )
+            with self.subTest(token_type=token_type):
+                result = exchanger.exchange(
+                    "fictional-single-use-code",
+                    expected_subject="fictional-apple-stable-subject",
+                    nonce=RAW_NONCE,
+                    now=NOW,
+                )
+                self.assertEqual(result.refresh_token, "fictional-durable-refresh")
+
+    def test_authorization_code_unknown_outcome_is_not_retryable(self):
+        verifier = self.verifier(FakeTransport(self.jwks_response()))
+        for response in (
+            TimeoutError("provider-body-must-not-leak"),
+            (503, "application/json", b"provider-body-must-not-leak"),
+        ):
+
+            def transport(_url, _body, _timeout, response=response):
+                if isinstance(response, Exception):
+                    raise response
+                return response
+
+            exchanger = AppleAuthorizationCodeExchanger(
+                verifier,
+                client_id=AUDIENCE,
+                client_secret="fictional-runtime-client-secret",
+                transport=transport,
+            )
+            with (
+                self.subTest(response=response),
+                self.assertRaises(AppleExchangeOutcomeUnknown) as raised,
+            ):
+                exchanger.exchange(
+                    "fictional-single-use-code",
+                    expected_subject="fictional-apple-stable-subject",
+                    nonce=RAW_NONCE,
+                    now=NOW,
+                )
+            self.assertNotIn("provider-body", str(raised.exception))
+
+    def test_authorization_code_response_rejects_wrong_subject_and_extra_fields(self):
+        wrong_subject = self.token(
+            claims=self.claims(sub="different-fictional-subject")
+        )
+        for payload in (
+            {
+                "access_token": "fictional-access",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "refresh_token": "fictional-refresh",
+                "id_token": wrong_subject,
+            },
+            {
+                "access_token": "fictional-access",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "refresh_token": "fictional-refresh",
+                "id_token": self.token(),
+                "email": "must-not-be-accepted@example.invalid",
+            },
+            {
+                "access_token": "fictional-access",
+                "token_type": "unrelated",
+                "expires_in": 3600,
+                "refresh_token": "fictional-refresh",
+                "id_token": self.token(),
+            },
+        ):
+
+            def transport(_url, _body, _timeout, payload=payload):
+                return 200, "application/json", json.dumps(payload).encode()
+
+            exchanger = AppleAuthorizationCodeExchanger(
+                self.verifier(FakeTransport(self.jwks_response())),
+                client_id=AUDIENCE,
+                client_secret="fictional-runtime-client-secret",
+                transport=transport,
+            )
+            with (
+                self.subTest(keys=set(payload)),
+                self.assertRaises(AuthenticationError),
+            ):
+                exchanger.exchange(
+                    "fictional-single-use-code",
+                    expected_subject="fictional-apple-stable-subject",
+                    nonce=RAW_NONCE,
+                    now=NOW,
+                )
+
+    def test_authorization_code_exchange_configuration_is_bounded(self):
+        verifier = self.verifier(FakeTransport(self.jwks_response()))
+        for client_id, client_secret in (
+            ("x" * 256, "fictional-secret"),
+            (AUDIENCE, "x" * 8193),
+            ("non-ascii-用戶端", "fictional-secret"),
+        ):
+            with (
+                self.subTest(client_id_length=len(client_id)),
+                self.assertRaises(ValueError),
+            ):
+                AppleAuthorizationCodeExchanger(
+                    verifier,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+
+    def test_server_notification_accepts_official_shape_seconds_and_no_exp(self):
+        event = {
+            "type": "consent-revoked",
+            "sub": "fictional-apple-stable-subject",
+            "event_time": int(NOW.timestamp()),
+            "email": "ignored@example.invalid",
+            "is_private_email": "true",
+        }
+        claims = {
+            "iss": "https://appleid.apple.com",
+            "aud": AUDIENCE,
+            "iat": int(NOW.timestamp()),
+            "jti": "fictional-notification-jti-0001",
+            "events": json.dumps(event, separators=(",", ":")),
+        }
+        verifier = AppleServerNotificationVerifier(
+            AppleJwkCache(transport=FakeTransport(self.jwks_response()))
+        )
+
+        result = verifier.verify(self.token(claims=claims), AUDIENCE, NOW)
+
+        self.assertEqual(result.event_type, "consent-revoked")
+        self.assertEqual(result.subject, "fictional-apple-stable-subject")
+        self.assertEqual(result.jti, "fictional-notification-jti-0001")
+        self.assertNotIn("email", repr(result).lower())
+
+    def test_server_notification_rejects_unknown_and_unexpected_claims(self):
+        base = {
+            "iss": "https://appleid.apple.com",
+            "aud": AUDIENCE,
+            "iat": int(NOW.timestamp()),
+            "jti": "fictional-notification-jti-0001",
+            "events": json.dumps(
+                {
+                    "type": "unknown-event",
+                    "sub": "fictional-apple-stable-subject",
+                    "event_time": int(NOW.timestamp()),
+                },
+                separators=(",", ":"),
+            ),
+        }
+        event_extra = {
+            **base,
+            "events": json.dumps(
+                {
+                    "type": "account-deleted",
+                    "sub": "fictional-apple-stable-subject",
+                    "event_time": int(NOW.timestamp()),
+                    "unexpected": "must-fail",
+                },
+                separators=(",", ":"),
+            ),
+        }
+        for claims in (
+            base,
+            {**base, "exp": int((NOW + timedelta(minutes=5)).timestamp())},
+            {**base, "extra": "must-fail"},
+            {**base, "aud": "wrong"},
+            event_extra,
+        ):
+            verifier = AppleServerNotificationVerifier(
+                AppleJwkCache(transport=FakeTransport(self.jwks_response()))
+            )
+            with self.subTest(keys=set(claims)), self.assertRaises(AuthenticationError):
+                verifier.verify(self.token(claims=claims), AUDIENCE, NOW)
+
+    def test_server_notification_rejects_milliseconds_stale_and_future(self):
+        def claims(iat, event_time):
+            return {
+                "iss": "https://appleid.apple.com",
+                "aud": AUDIENCE,
+                "iat": iat,
+                "jti": "fictional-notification-jti-0001",
+                "events": json.dumps(
+                    {
+                        "type": "account-deleted",
+                        "sub": "fictional-apple-stable-subject",
+                        "event_time": event_time,
+                    },
+                    separators=(",", ":"),
+                ),
+            }
+
+        now_seconds = int(NOW.timestamp())
+        cases = (
+            claims(now_seconds, now_seconds * 1000),
+            claims(now_seconds - 86_401, now_seconds - 86_401),
+            claims(now_seconds + 61, now_seconds + 61),
+            claims(now_seconds, now_seconds - 86_401),
+            claims(now_seconds, now_seconds + 61),
+        )
+        for candidate in cases:
+            verifier = AppleServerNotificationVerifier(
+                AppleJwkCache(transport=FakeTransport(self.jwks_response()))
+            )
+            with (
+                self.subTest(iat=candidate["iat"]),
+                self.assertRaises(AuthenticationError),
+            ):
+                verifier.verify(self.token(claims=candidate), AUDIENCE, NOW)
 
 
 if __name__ == "__main__":

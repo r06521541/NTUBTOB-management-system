@@ -4,18 +4,22 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from shared_module.mobile_api import (
+    MAX_POSTGRESQL_BIGINT,
+    AppleLifecycleAuthService,
+    AppleNotificationService,
     AuthenticationError,
     BasicApiService,
     Conflict,
     HmacAccessTokenCodec,
+    IdentityPending,
     InvalidArgument,
-    MAX_POSTGRESQL_BIGINT,
     MobileAuthService,
     MobilePrincipal,
     NotFound,
-    PermissionDenied,
     PendingReviewEnvelope,
     PendingReviewService,
+    PermissionDenied,
+    ProviderExchangeOutcomeUnknown,
     TokenPair,
     VerifiedAssertion,
     mobile_capabilities,
@@ -26,11 +30,14 @@ NOW = datetime(2026, 8, 18, 12, tzinfo=timezone.utc)
 
 
 class FakeCipher:
+    def __init__(self, prefix=b"fake-encrypted:"):
+        self.prefix = prefix
+
     def seal(self, value):
-        return b"fake-encrypted:" + value[::-1]
+        return self.prefix + value[::-1]
 
     def open(self, value):
-        return value.removeprefix(b"fake-encrypted:")[::-1]
+        return value.removeprefix(self.prefix)[::-1]
 
 
 class FakeVerifier:
@@ -53,6 +60,10 @@ class FakeAuthRepository:
         self.exchanges = []
         self.rotations = []
         self.records = {}
+        self.apple_reservations = []
+        self.apple_marks = []
+        self.apple_pending_completions = []
+        self.apple_notifications = []
 
     def exchange(self, **values):
         self.exchanges.append(values)
@@ -84,6 +95,34 @@ class FakeAuthRepository:
         status, body = values["mutation"]()
         self.records[scope] = (values["request_hash"], status, body)
         return status, body, False
+
+    def reserve_apple_code(self, **values):
+        self.apple_reservations.append(values)
+
+    def mark_apple_code(self, **values):
+        self.apple_marks.append(values)
+
+    def complete_apple_code_for_pending(self, **values):
+        self.apple_pending_completions.append(values)
+
+    def apply_apple_notification(self, **values):
+        self.apple_notifications.append(values)
+        return True
+
+
+class FakeAppleCodeExchanger:
+    def __init__(self, *, error=None, subject="fictional-apple-subject"):
+        self.error = error
+        self.subject = subject
+        self.calls = []
+
+    def exchange(self, authorization_code, **values):
+        self.calls.append((authorization_code, values))
+        if self.error is not None:
+            raise self.error
+        return SimpleNamespace(
+            refresh_token="fictional-provider-refresh-token", subject=self.subject
+        )
 
 
 class MobileAuthServiceTest(unittest.TestCase):
@@ -183,6 +222,163 @@ class MobileAuthServiceTest(unittest.TestCase):
         principal = self.service.authenticate(access)
         self.assertEqual(principal.access_level, "basic")
         self.assertNotIn("attendance:report:read", mobile_capabilities(principal))
+
+
+class AppleLifecycleAuthServiceTest(unittest.TestCase):
+    def service(self, exchanger):
+        repository = FakeAuthRepository()
+        verifier = FakeVerifier(
+            VerifiedAssertion(
+                "apple",
+                "fictional-apple-subject",
+                "fictional.ios.client",
+                "fictional-raw-nonce-123456",
+                NOW + timedelta(minutes=5),
+            )
+        )
+        session_cipher = FakeCipher(b"session-encrypted:")
+        provider_cipher = FakeCipher(b"provider-encrypted:")
+        service = AppleLifecycleAuthService(
+            repository,
+            verifier,
+            session_cipher,
+            provider_cipher,
+            HmacAccessTokenCodec(b"x" * 32),
+            exchanger,
+            audience="fictional.ios.client",
+            clock=lambda: NOW,
+            token_factory=lambda: "fictional-app-refresh-token",
+        )
+        return service, repository
+
+    def test_reserves_before_exchange_and_persists_only_encrypted_credential(self):
+        exchanger = FakeAppleCodeExchanger()
+        service, repository = self.service(exchanger)
+        result = service.exchange(
+            assertion="header.payload.signature",
+            authorization_code="fictional-single-use-code",
+            nonce="fictional-raw-nonce-123456",
+            login_attempt_id="fictional-login-attempt",
+            installation_id="fictional-installation",
+            platform="ios",
+        )
+
+        self.assertEqual(result.refresh_token, "fictional-app-refresh-token")
+        self.assertEqual(len(repository.apple_reservations), 1)
+        values = repository.exchanges[0]
+        self.assertEqual(
+            values["encrypted_provider_refresh"],
+            b"provider-encrypted:" + b"fictional-provider-refresh-token"[::-1],
+        )
+        self.assertNotIn("fictional-provider-refresh-token", values.values())
+        self.assertNotIn("fictional-single-use-code", values.values())
+        self.assertNotIn("header.payload.signature", values.values())
+
+    def test_unknown_exchange_marks_terminal_and_never_calls_repository_exchange(self):
+        exchanger = FakeAppleCodeExchanger(
+            error=ProviderExchangeOutcomeUnknown("safe unknown")
+        )
+        service, repository = self.service(exchanger)
+        with self.assertRaises(ProviderExchangeOutcomeUnknown):
+            service.exchange(
+                assertion="header.payload.signature",
+                authorization_code="fictional-single-use-code",
+                nonce="fictional-raw-nonce-123456",
+                login_attempt_id="fictional-login-attempt",
+                installation_id="fictional-installation",
+                platform="ios",
+            )
+        self.assertEqual(repository.apple_marks[0]["state"], "unknown")
+        self.assertEqual(repository.exchanges, [])
+
+    def test_pending_identity_persists_consumed_provider_credential(self):
+        exchanger = FakeAppleCodeExchanger()
+        service, repository = self.service(exchanger)
+
+        def pending(**values):
+            repository.exchanges.append(values)
+            raise IdentityPending("pending", 73)
+
+        repository.exchange = pending
+        result = service.exchange(
+            assertion="header.payload.signature",
+            authorization_code="fictional-single-use-code",
+            nonce="fictional-raw-nonce-123456",
+            login_attempt_id="fictional-login-attempt",
+            installation_id="fictional-installation",
+            platform="ios",
+        )
+
+        self.assertIsInstance(result, PendingReviewEnvelope)
+        completion = repository.apple_pending_completions[0]
+        self.assertEqual(completion["identity_id"], 73)
+        self.assertEqual(
+            completion["encrypted_provider_refresh"],
+            b"provider-encrypted:" + b"fictional-provider-refresh-token"[::-1],
+        )
+        self.assertNotIn("fictional-provider-refresh-token", completion.values())
+
+    def test_wrong_platform_fails_before_verifier_or_provider_mutation(self):
+        exchanger = FakeAppleCodeExchanger()
+        service, repository = self.service(exchanger)
+        with self.assertRaises(InvalidArgument):
+            service.exchange(
+                assertion="header.payload.signature",
+                authorization_code="fictional-single-use-code",
+                nonce="fictional-raw-nonce-123456",
+                login_attempt_id="fictional-login-attempt",
+                installation_id="fictional-installation",
+                platform="android",
+            )
+        self.assertEqual(repository.apple_reservations, [])
+        self.assertEqual(exchanger.calls, [])
+
+    def test_inherited_refresh_rotation_keeps_session_cipher(self):
+        service, repository = self.service(FakeAppleCodeExchanger())
+
+        result = service.refresh(
+            refresh_token="fictional-existing-refresh-token-123456",
+            refresh_attempt_id="fictional-refresh-attempt",
+            installation_id="fictional-installation",
+        )
+
+        self.assertEqual(result.refresh_token, "fictional-app-refresh-token")
+        self.assertIs(repository.rotations[0]["cipher"], service.cipher)
+        self.assertEqual(service.cipher.prefix, b"session-encrypted:")
+        self.assertEqual(service.provider_cipher.prefix, b"provider-encrypted:")
+
+
+class AppleNotificationServiceTest(unittest.TestCase):
+    def test_verified_event_is_reduced_to_hash_and_bounded_repository_values(self):
+        repository = FakeAuthRepository()
+        verifier = SimpleNamespace(
+            verify=Mock(
+                return_value=SimpleNamespace(
+                    event_type="account-deleted",
+                    subject="fictional-apple-subject",
+                    jti="fictional-notification-jti-0001",
+                    event_at=NOW,
+                )
+            )
+        )
+        service = AppleNotificationService(
+            repository,
+            verifier,
+            audience="fictional.notification.audience",
+            clock=lambda: NOW,
+        )
+
+        self.assertTrue(service.receive("fictional.signed.payload"))
+
+        verifier.verify.assert_called_once_with(
+            "fictional.signed.payload", "fictional.notification.audience", NOW
+        )
+        values = repository.apple_notifications[0]
+        self.assertEqual(
+            values["jti_hash"], secret_hash("fictional-notification-jti-0001")
+        )
+        self.assertNotIn("fictional-notification-jti-0001", values.values())
+        self.assertNotIn("fictional.signed.payload", values.values())
 
 
 class PendingReviewServiceTest(unittest.TestCase):
@@ -632,14 +828,16 @@ class BasicApiServiceTest(unittest.TestCase):
                 service._public_event(event_with_linked_games(malformed))
 
         for malformed in (-1, MAX_POSTGRESQL_BIGINT + 1, True, 1.0):
-            with self.subTest(positive_id=malformed), self.assertRaises(
-                InvalidArgument
+            with (
+                self.subTest(positive_id=malformed),
+                self.assertRaises(InvalidArgument),
             ):
                 event = event_with_linked_games(None)
                 event["id"] = malformed
                 service._public_event(event)
-            with self.subTest(positive_activity_id=malformed), self.assertRaises(
-                InvalidArgument
+            with (
+                self.subTest(positive_activity_id=malformed),
+                self.assertRaises(InvalidArgument),
             ):
                 event = event_with_linked_games(None)
                 event["activities"][0]["id"] = malformed

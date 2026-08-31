@@ -63,6 +63,7 @@ class MobileApiRouteTest(unittest.TestCase):
             audience="fictional.ios.client",
             clock=Mock(),
         )
+        self.apple_notifications = SimpleNamespace(receive=Mock(return_value=True))
         self.basic = SimpleNamespace(
             update_profile=Mock(
                 return_value=(
@@ -196,6 +197,8 @@ class MobileApiRouteTest(unittest.TestCase):
                 self.auth,
                 self.identity_link,
                 self.apple_auth,
+                Mock(return_value=True),
+                self.apple_notifications,
             )
         ).test_client()
 
@@ -282,6 +285,7 @@ class MobileApiRouteTest(unittest.TestCase):
     def test_apple_exchange_is_nonce_bound_ios_only_and_rejects_profile_fields(self):
         body = {
             "id_token": "obvious-fake-apple-id-token",
+            "authorization_code": "obvious-fake-single-use-code",
             "nonce": "fictional-raw-nonce-123456",
             "login_attempt_id": "attempt-123456789",
             "installation_id": "installation-1234",
@@ -292,6 +296,7 @@ class MobileApiRouteTest(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.apple_auth.exchange.assert_called_once_with(
             assertion="obvious-fake-apple-id-token",
+            authorization_code="obvious-fake-single-use-code",
             nonce="fictional-raw-nonce-123456",
             login_attempt_id="attempt-123456789",
             installation_id="installation-1234",
@@ -320,10 +325,12 @@ class MobileApiRouteTest(unittest.TestCase):
                 self.auth,
                 self.identity_link,
                 None,
+                Mock(return_value=False),
             )
         ).test_client()
         body = {
             "id_token": "obvious-fake-id-token",
+            "authorization_code": "obvious-fake-single-use-code",
             "nonce": "fictional-raw-nonce-123456",
             "login_attempt_id": "attempt-123456789",
             "installation_id": "installation-1234",
@@ -331,11 +338,40 @@ class MobileApiRouteTest(unittest.TestCase):
         }
 
         apple = client.post("/api/v1/auth/apple/exchange", json=body)
-        line = client.post("/api/v1/auth/line/exchange", json=body)
+        line = client.post(
+            "/api/v1/auth/line/exchange",
+            json={
+                key: value for key, value in body.items() if key != "authorization_code"
+            },
+        )
 
         self.assertEqual(apple.status_code, 503)
         self.assertTrue(apple.get_json()["error"]["retryable"])
         self.assertEqual(line.status_code, 201)
+
+    def test_apple_notification_accepts_one_bounded_form_payload_only(self):
+        response = self.client.post(
+            "/api/v1/auth/apple/notifications",
+            data={"payload": "fictional.signed.notification"},
+            content_type="application/x-www-form-urlencoded",
+        )
+        self.assertEqual(response.status_code, 204)
+        self.apple_notifications.receive.assert_called_once_with(
+            "fictional.signed.notification"
+        )
+
+        for body, content_type in (
+            ({"payload": ["one", "two"]}, "application/x-www-form-urlencoded"),
+            ({"payload": "one", "extra": "two"}, "application/x-www-form-urlencoded"),
+            ('{"payload":"one"}', "application/json"),
+        ):
+            with self.subTest(content_type=content_type):
+                rejected = self.client.post(
+                    "/api/v1/auth/apple/notifications",
+                    data=body,
+                    content_type=content_type,
+                )
+                self.assertEqual(rejected.status_code, 400)
 
     def test_apple_link_candidate_and_proof_use_only_verified_subject(self):
         candidate_body = {

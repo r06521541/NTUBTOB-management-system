@@ -32,21 +32,27 @@ class AppleTransport implements ApiTransport {
 class FakeApple implements AppleLoginPort {
   FakeApple({
     this.token = 'header.payload.signature',
+    this.code = 'fictional-single-use-authorization-code',
     this.error,
     this.pending,
   });
 
   final String token;
+  final String code;
   final Object? error;
-  final Completer<String>? pending;
+  final Completer<AppleAuthorizationEnvelope>? pending;
   final nonces = <String>[];
 
   @override
-  Future<String> login(String nonce) async {
+  Future<String> login(String nonce) async =>
+      (await authorize(nonce)).identityToken;
+
+  @override
+  Future<AppleAuthorizationEnvelope> authorize(String nonce) async {
     nonces.add(nonce);
     if (error != null) throw error!;
     if (pending != null) return pending!.future;
-    return token;
+    return AppleAuthorizationEnvelope(token, code);
   }
 }
 
@@ -116,7 +122,8 @@ Map<String, dynamic> sessionJson() => {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('native channel accepts only identity token and sends only raw nonce',
+  test(
+      'native channel accepts exact credential envelope and sends only raw nonce',
       () async {
     const channel = MethodChannel('test/apple-authorization');
     final messenger =
@@ -124,13 +131,17 @@ void main() {
     MethodCall? observed;
     messenger.setMockMethodCallHandler(channel, (call) async {
       observed = call;
-      return {'identity_token': 'header.payload.signature'};
+      return {
+        'identity_token': 'header.payload.signature',
+        'authorization_code': 'fictional-single-use-code',
+      };
     });
     addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
 
     const login = NativeAppleLogin(channel: channel);
-    final token = await login.login('obvious-fictional-raw-nonce');
-    expect(token, 'header.payload.signature');
+    final envelope = await login.authorize('obvious-fictional-raw-nonce');
+    expect(envelope.identityToken, 'header.payload.signature');
+    expect(envelope.authorizationCode, 'fictional-single-use-code');
     expect(observed?.method, 'authorize');
     expect(observed?.arguments, {'raw_nonce': 'obvious-fictional-raw-nonce'});
 
@@ -138,10 +149,25 @@ void main() {
         channel,
         (_) async => {
               'identity_token': 'header.payload.signature',
+              'authorization_code': 'fictional-single-use-code',
               'email': 'must-not-cross-bridge@example.invalid',
             });
     await expectLater(
-      login.login('another-fictional-raw-nonce'),
+      login.authorize('another-fictional-raw-nonce'),
+      throwsA(isA<ContractException>()),
+    );
+
+    final oversizedToken =
+        '${List.filled(8192, 'a').join()}.${List.filled(8192, 'b').join()}.c';
+    messenger.setMockMethodCallHandler(
+      channel,
+      (_) async => {
+        'identity_token': oversizedToken,
+        'authorization_code': 'fictional-single-use-code',
+      },
+    );
+    await expectLater(
+      login.authorize('oversized-fictional-raw-nonce'),
       throwsA(isA<ContractException>()),
     );
   });
@@ -168,6 +194,7 @@ void main() {
     expect(api.calls.single.$2, '/auth/apple/exchange');
     expect(api.calls.single.$4, {
       'id_token': 'header.payload.signature',
+      'authorization_code': 'fictional-single-use-authorization-code',
       'nonce': 'apple-raw-nonce-1234567890',
       'login_attempt_id': 'apple-attempt-1234567890',
       'installation_id': 'installation-1234',
@@ -267,7 +294,7 @@ void main() {
 
   test('Apple timeout remains locked and late completion never exchanges',
       () async {
-    final native = Completer<String>();
+    final native = Completer<AppleAuthorizationEnvelope>();
     final api = AppleTransport();
     final ids = AppleIds();
     final login = AppleLoginCoordinator(
@@ -282,7 +309,10 @@ void main() {
     await login.login('ios', online: true);
     expect(login.state, LoginState.timeoutUnresolved);
     expect(login.nativeFlowUnresolved, isTrue);
-    native.complete('header.payload.signature');
+    native.complete(const AppleAuthorizationEnvelope(
+      'header.payload.signature',
+      'fictional-single-use-authorization-code',
+    ));
     await pumpEventQueue();
     expect(login.state, LoginState.timeoutResolved);
     expect(login.nativeFlowUnresolved, isFalse);
@@ -389,7 +419,14 @@ void main() {
     expect(bridge, contains('SHA256.hash(data: Data(value.utf8))'));
     expect(bridge, contains('request.nonce = Self.sha256Hex(rawNonce)'));
     expect(bridge, contains('request.requestedScopes = []'));
-    expect(bridge, contains('complete(["identity_token": token])'));
+    expect(bridge, contains('tokenData.count <= 16_384'));
+    expect(bridge, isNot(contains('tokenData.count <= 32_768')));
+    expect(
+      bridge,
+      contains(
+        'complete(["identity_token": token, "authorization_code": code])',
+      ),
+    );
     expect(bridge, isNot(contains('credential.email')));
     expect(bridge, isNot(contains('credential.fullName')));
     expect(bridge, isNot(contains('credential.user')));

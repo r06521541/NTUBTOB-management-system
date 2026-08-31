@@ -1,26 +1,27 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: null
-status: completed
-next_actor: owner
+active_task: TASK-174
+status: ready_for_review
+next_actor: auth-security-reviewer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: b05a6df3feeef6631dc8b3d95e42fb19a15a6087
-head_commit: b05a6df3feeef6631dc8b3d95e42fb19a15a6087
+base_commit: dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9
+head_commit: dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9
 
 updated_by: main-work
-updated_at: 2026-08-31T19:24:00+08:00
+updated_at: 2026-08-31T23:05:00+08:00
 
 note: >
-  TASK-172 and TASK-173 are merged and independently accepted. No active task is
-  assigned. TASK-169 and TASK-170 remain current external release-readiness groups,
-  but neither authorizes store, provider, signing, runtime or production action.
+  TASK-174 repository implementation and Main focused gates are complete. The
+  immutable pushed SHA awaits one independent Auth/Security review. This does not
+  authorize Apple account/provider/signing, Secret, cloud, runtime, production,
+  App Store Connect, TestFlight or real-device identity mutation.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: null
-report: null
-review: null
+task: docs/coordination/tasks/TASK-174.md
+report: docs/coordination/reports/TASK-174.md
+review: pending

@@ -41,21 +41,22 @@ macOS/Xcode build remains mandatory evidence; no Firebase plist is required.
 The real iOS composition also exposes Sign in with Apple through a
 dependency-free `AuthenticationServices` method-channel bridge. Flutter creates
 a one-time raw nonce; native iOS places only its lowercase SHA-256 digest on the
-Apple authorization request, then returns only the identity token. Flutter sends
-that same raw nonce and token to the Mobile API. Email, relay email, name, Apple
-user identifier, authorization code, and other profile hints never enter the
-client API body or identity-link contract. The server-verified stable Apple
+Apple authorization request, then returns only the identity token and
+single-use authorization code. Flutter sends that exact credential envelope and
+the same raw nonce to the Mobile API. Email, relay email, name, Apple user
+identifier, and other profile hints never enter the client API body or
+identity-link contract. The server-verified stable Apple
 subject is the sole provider identity key and must never trigger an email-based
 automatic merge. Fake mode, offline mode, and non-iOS platforms do not start the
 native Apple flow or an Apple API exchange.
 
-This slice intentionally implements only a nonce-bound identity-token flow. It
-does not return an authorization code and therefore does not implement
-server-side authorization-code validation or Apple refresh-token acquisition.
-Apple credential-state checks, Apple server-to-server notifications, and the
-account revocation lifecycle are also not implemented. Those lifecycle
-capabilities remain public provider/runtime Owner gates, not behavior implied by
-the repository login and identity-link tests.
+The repository now implements the nonce-bound authorization-code envelope and
+the Mobile API lifecycle foundation for one-shot exchange, encrypted provider
+credential retention, signed server-notification receipts, and local session
+revocation. It still performs no provider configuration, credential-state
+inspection, active Apple token revocation, callback registration, deployment,
+or real-device Apple login. Those capabilities remain public provider/runtime
+Owner gates, not behavior implied by repository tests.
 
 This is repository implementation evidence only. The committed iOS release
 marker remains fail closed pending independent acceptance, Apple capability/App

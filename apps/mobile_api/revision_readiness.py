@@ -4,7 +4,7 @@ import socket
 
 from sqlalchemy import text
 
-EXPECTED_REVISION = "0008_mobile_notification_delivery"
+EXPECTED_REVISION = "0010_apple_provider_lifecycle"
 ACCEPTED_REVISIONS = (EXPECTED_REVISION,)
 
 

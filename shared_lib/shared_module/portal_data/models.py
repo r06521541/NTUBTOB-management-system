@@ -613,7 +613,9 @@ Index(
 class MobileNotificationPublishAuditRecord(PortalDataBase):
     __tablename__ = "mobile_notification_publish_audits"
     __table_args__ = (
-        UniqueConstraint("notification_id", name="uq_mobile_notification_publish_audit"),
+        UniqueConstraint(
+            "notification_id", name="uq_mobile_notification_publish_audit"
+        ),
         CheckConstraint(
             "audience_type IN ('individual', 'game', 'team')",
             name="ck_mobile_notification_audit_audience",
@@ -632,14 +634,18 @@ class MobileNotificationPublishAuditRecord(PortalDataBase):
         nullable=False,
     )
     actor_person_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"), nullable=False
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     audience_type: Mapped[str] = mapped_column(String(20), nullable=False)
     audience_reference_id: Mapped[Optional[int]] = mapped_column(BigInteger)
     preview_revision: Mapped[str] = mapped_column(CHAR(64), nullable=False)
     recipient_count: Mapped[int] = mapped_column(Integer, nullable=False)
     request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
 
 class MobileNotificationDeliveryRecord(PortalDataBase):
@@ -649,13 +655,16 @@ class MobileNotificationDeliveryRecord(PortalDataBase):
             "notification_id", "channel", name="uq_mobile_notification_delivery"
         ),
         CheckConstraint(
-            "channel IN ('in_app', 'push')", name="ck_mobile_notification_delivery_channel"
+            "channel IN ('in_app', 'push')",
+            name="ck_mobile_notification_delivery_channel",
         ),
         CheckConstraint(
             "status IN ('pending', 'succeeded', 'failed')",
             name="ck_mobile_notification_delivery_status",
         ),
-        CheckConstraint("attempt_count >= 0", name="ck_mobile_notification_attempt_count"),
+        CheckConstraint(
+            "attempt_count >= 0", name="ck_mobile_notification_attempt_count"
+        ),
         {"schema": SCHEMA},
     )
 
@@ -670,8 +679,12 @@ class MobileNotificationDeliveryRecord(PortalDataBase):
     attempt_count: Mapped[int] = mapped_column(Integer, nullable=False)
     error_code: Mapped[Optional[str]] = mapped_column(String(80))
     retryable: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
 
 Index(
@@ -689,7 +702,9 @@ class MobileDeviceRegistrationRecord(PortalDataBase):
         UniqueConstraint(
             "person_id", "installation_id_hash", name="uq_mobile_device_installation"
         ),
-        CheckConstraint("platform IN ('ios', 'android')", name="ck_mobile_device_platform"),
+        CheckConstraint(
+            "platform IN ('ios', 'android')", name="ck_mobile_device_platform"
+        ),
         CheckConstraint("provider = 'fake'", name="ck_mobile_device_provider"),
         CheckConstraint(
             "status IN ('active', 'revoked')", name="ck_mobile_device_status"
@@ -699,7 +714,9 @@ class MobileDeviceRegistrationRecord(PortalDataBase):
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     person_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"), nullable=False
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
     )
     session_id: Mapped[str] = mapped_column(
         String(64),
@@ -711,8 +728,12 @@ class MobileDeviceRegistrationRecord(PortalDataBase):
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
     token_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
 
@@ -801,6 +822,97 @@ class MobileAuthExchangeRecord(PortalDataBase):
 
 
 Index("ix_mobile_auth_exchanges_expiry", MobileAuthExchangeRecord.expires_at)
+
+
+class AppleProviderCodeExchangeRecord(PortalDataBase):
+    __tablename__ = "apple_provider_code_exchanges"
+    __table_args__ = (
+        UniqueConstraint("code_hash", name="uq_apple_provider_code_hash"),
+        UniqueConstraint(
+            "login_attempt_hash", name="uq_apple_provider_login_attempt_hash"
+        ),
+        CheckConstraint(
+            "state IN ('pending', 'completed', 'rejected', 'unknown')",
+            name="ck_apple_provider_code_state",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    code_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    login_attempt_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)
+    auth_identity_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT"),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+class AppleProviderCredentialRecord(PortalDataBase):
+    __tablename__ = "apple_provider_credentials"
+    __table_args__ = (
+        UniqueConstraint(
+            "auth_identity_id", name="uq_apple_provider_credential_identity"
+        ),
+        CheckConstraint(
+            "status IN ('active', 'revoked')",
+            name="ck_apple_provider_credential_status",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    auth_identity_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    encrypted_refresh_token: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    refresh_token_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
+class AppleProviderNotificationRecord(PortalDataBase):
+    __tablename__ = "apple_provider_notifications"
+    __table_args__ = (
+        UniqueConstraint("jti_hash", name="uq_apple_provider_notification_jti"),
+        CheckConstraint(
+            "event_type IN ('consent-revoked', 'account-deleted', "
+            "'email-disabled', 'email-enabled')",
+            name="ck_apple_provider_notification_type",
+        ),
+        CheckConstraint(
+            "disposition IN ('revoked', 'receipt_only')",
+            name="ck_apple_provider_notification_disposition",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    jti_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    disposition: Mapped[str] = mapped_column(String(20), nullable=False)
+    auth_identity_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT"),
+    )
+    event_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
 
 class StagingBrokerOperationRecord(PortalDataBase):

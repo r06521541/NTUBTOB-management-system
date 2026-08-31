@@ -30,14 +30,12 @@ class RevisionReadinessTest(unittest.TestCase):
         logger.error.assert_not_called()
 
     def test_accepted_revision_is_exactly_the_delivery_contract(self):
-        self.assertEqual(
-            ACCEPTED_REVISIONS, ("0008_mobile_notification_delivery",)
-        )
+        self.assertEqual(ACCEPTED_REVISIONS, ("0010_apple_provider_lifecycle",))
 
     def test_empty_unknown_and_malformed_revisions_fail_closed_without_value_in_log(
         self,
     ):
-        for observed in ("", "0008_future_revision", None, 6, ["secret-value"]):
+        for observed in ("", "0010_future_revision", None, 6, ["secret-value"]):
             with self.subTest(observed_type=type(observed).__name__):
                 engine, logger = Mock(), Mock()
                 connection = Mock()

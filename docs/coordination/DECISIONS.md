@@ -350,9 +350,21 @@
 - Invariants：keystore/password/provider ID/endpoint/token/Secret不得進Git、log或report；AAB必須由merged exact commit產生並通過strict inspection；closed-track upload不等於open/public rollout或publication；production backend/data、billing、不可逆key rotation/deletion及公開發布仍需新的精確Owner決定。
 - Promotion：任何 Android public release 都要重新核對 production backend/auth、push/deep-link/crash、privacy/deletion、store metadata、device matrix、signing lineage與rollback，不得以Closed Testing結果直接推論。
 
+## DEC-105：Apple發布主體採個人帳戶，延後至TestFlight候選前enrollment
+
+- 狀態：`active`
+- 日期：2026-08-31
+- 來源：Owner於TASK-174實機準備lane的明確去識別化決定
+- 決策：未來Apple Developer Program與App Store發布主體採`individual`；repository的iOS identity／release contract可先
+  繼續，enrollment延後至首個TestFlight候選所需外部gate。
+- Invariants：repository只記發布主體分類，不保存帳號、法律姓名、地址、付款或其他個資。真正enrollment／付款前，Owner
+  必須重新確認Apple當下費用、條款與可能公開的seller資訊；會員資格不自動授權App ID、capability、provider、certificate、
+  profile、Secret、signing、upload、TestFlight或公開發布。
+- Non-goals：本決策未執行或授權Apple帳號登入、MFA、付費、enrollment、provider／signing／store mutation或production。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-104`，下一個新決策從 `DEC-105` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-105`，下一個新決策從 `DEC-106` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

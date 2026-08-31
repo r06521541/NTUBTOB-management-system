@@ -30,7 +30,7 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 class MigrationReadinessStaticTests(unittest.TestCase):
     def test_revision_chain_is_single_and_exact(self):
         self.assertEqual(revision_chain(), EXPECTED_REVISIONS)
-        self.assertEqual(EXPECTED_REVISIONS[-1], "0009_event_management_writes")
+        self.assertEqual(EXPECTED_REVISIONS[-1], "0010_apple_provider_lifecycle")
 
     def test_committed_artifact_is_current_and_safe(self):
         verify_artifact()
