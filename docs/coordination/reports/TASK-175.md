@@ -18,9 +18,10 @@
   Officers and active allowlisted Member admins. The legacy broad qualification
   and identity-approval surfaces no longer grant guest-player state, and the
   narrow Officer authority does not open any broad identity/member administration.
-- Production qualification status writes acquire the same Event snapshot advisory
-  lock before actor and target locks, serializing qualification changes with
-  recipient selection and rolling back the status change if audit persistence fails.
+- Production Person status writes acquire the canonical Admin lock first and then
+  the Event snapshot advisory lock before reading the target, serializing active
+  recipient selection with disable/block/inactivate and rolling back status if
+  audit persistence fails.
 - Web and Mobile Event reads expose only the caller's immutable participation
   category. Mobile notifications accept Event destinations; Flutter opens the
   authorized online Event detail and safely remains in notifications offline.

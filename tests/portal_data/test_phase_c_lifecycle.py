@@ -156,7 +156,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             f"fake-pending-{suffix}", "Fake Applicant", f"pending-{suffix}"
         )
 
-    def _qualification_target(self, name="Fictional Qualification Target"):
+    def _status_target(self, name="Fictional Status Target"):
         with self.engine.begin() as connection:
             return connection.scalar(
                 text(
@@ -167,8 +167,8 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                 {"name": name},
             )
 
-    def test_qualification_status_serializes_behind_event_snapshot_lock(self):
-        target_id = self._qualification_target()
+    def test_person_status_serializes_behind_event_snapshot_lock(self):
+        target_id = self._status_target()
         attempted = threading.Event()
 
         def observe_lock(_connection, _cursor, statement, parameters, _context, _many):
@@ -185,15 +185,16 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             text("SELECT pg_advisory_xact_lock(:key)"),
             {"key": EVENT_SNAPSHOT_LOCK_KEY},
         )
+        attempted.clear()
         try:
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                 future = executor.submit(
-                    self.repository.grant_qualification,
+                    self.repository.change_person_status,
                     self.admin_person_id,
                     target_id,
-                    "affiliate",
+                    "disabled",
                     "Fictional serialized change",
-                    "qualification-lock-fictional",
+                    "status-lock-fictional",
                 )
                 self.assertTrue(attempted.wait(2))
                 self.assertFalse(future.done())
@@ -205,8 +206,8 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             blocker.close()
             event.remove(self.engine, "before_cursor_execute", observe_lock)
 
-    def test_qualification_status_rolls_back_when_audit_insert_fails(self):
-        target_id = self._qualification_target("Fictional Rollback Target")
+    def test_person_status_rolls_back_when_audit_insert_fails(self):
+        target_id = self._status_target("Fictional Rollback Target")
 
         def reject_audit(_connection, _cursor, statement, _parameters, _context, _many):
             if "INSERT INTO ntubtob.access_audit" in statement:
@@ -215,25 +216,22 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         event.listen(self.engine, "before_cursor_execute", reject_audit)
         try:
             with self.assertRaisesRegex(RuntimeError, "fictional audit failure"):
-                self.repository.grant_qualification(
+                self.repository.change_person_status(
                     self.admin_person_id,
                     target_id,
-                    "affiliate",
+                    "disabled",
                     "Fictional rollback",
-                    "qualification-rollback-fictional",
+                    "status-rollback-fictional",
                 )
         finally:
             event.remove(self.engine, "before_cursor_execute", reject_audit)
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
-                    text(
-                        "SELECT count(*) FROM ntubtob.person_qualifications "
-                        "WHERE person_id=:person_id"
-                    ),
+                    text("SELECT portal_status FROM ntubtob.people WHERE id=:person_id"),
                     {"person_id": target_id},
                 ),
-                0,
+                "active",
             )
 
     def test_event_reads_require_included_snapshot_and_filter_linked_games(self):

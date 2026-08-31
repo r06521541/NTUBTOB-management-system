@@ -39,7 +39,7 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 
 class EventGuestLifecycleStaticTests(unittest.TestCase):
-    def test_legacy_status_mutation_locks_event_snapshot_before_actor(self):
+    def test_person_status_uses_canonical_admin_then_event_snapshot_lock_order(self):
         repository = IdentityLifecycleRepository(MagicMock())
         session = MagicMock()
         session_manager = MagicMock()
@@ -47,19 +47,23 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         order = []
         session.execute.side_effect = lambda *_args, **_kwargs: order.append("snapshot")
 
-        def stop_at_actor(*_args, **_kwargs):
-            order.append("actor")
+        repository._require_admin = MagicMock(
+            side_effect=lambda *_args, **_kwargs: order.append("admin")
+        )
+
+        def stop_at_target(*_args, **_kwargs):
+            order.append("target")
             raise RuntimeError("stop after lock order")
 
-        repository._require_admin = MagicMock(side_effect=stop_at_actor)
+        session.scalar.side_effect = stop_at_target
         with patch.object(
             lifecycle_module, "Session", return_value=session_manager
         ), self.assertRaisesRegex(RuntimeError, "lock order"):
-            repository.grant_qualification(
-                1, 2, "affiliate", "Fictional reason", "lock-order-fictional"
+            repository.change_person_status(
+                1, 2, "disabled", "Fictional reason", "lock-order-fictional"
             )
 
-        self.assertEqual(order, ["snapshot", "actor"])
+        self.assertEqual(order, ["admin", "snapshot", "target"])
         self.assertEqual(
             session.execute.call_args.args[1],
             {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY},
