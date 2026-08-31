@@ -79,7 +79,8 @@ recommended owned paths、tests、limits與external mutations。
 - role: `codex-writer`
 - claim_id: `task-175-event-guest-writer-20260901`
 - lease_version: 1
-- assigned_head: `82bdb7956d4b8f1a6ef35292779c772e40235c07`
+- discovery_head: `82bdb7956d4b8f1a6ef35292779c772e40235c07`
+- assigned_head: supplied as the exact immutable authority commit in the mandatory assignment packet
 - owned_paths: `migrations/versions/0011_event_notification_guest_lifecycle.py`, Event／notification／qualification related
   sections in `shared_lib/shared_module/**`, `apps/web_portal/**`, `apps/mobile_api/**`, `clients/flutter_app/**`, focused tests,
   `docs/coordination/reports/TASK-175.md`, and this task／HANDOFF status only
