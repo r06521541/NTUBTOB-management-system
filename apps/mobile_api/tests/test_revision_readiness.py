@@ -103,9 +103,12 @@ class RevisionReadinessTest(unittest.TestCase):
         error.pgcode = "28P01"
         engine.connect.side_effect = error
 
-        with patch("apps.mobile_api.revision_readiness.socket.getaddrinfo"), patch(
-            "apps.mobile_api.revision_readiness.socket.create_connection"
-        ) as create_connection:
+        with (
+            patch("apps.mobile_api.revision_readiness.socket.getaddrinfo"),
+            patch(
+                "apps.mobile_api.revision_readiness.socket.create_connection"
+            ) as create_connection,
+        ):
             create_connection.return_value = Mock()
             self.assertFalse(database_revision_is_current(engine, logger))
         logger.error.assert_called_once_with(

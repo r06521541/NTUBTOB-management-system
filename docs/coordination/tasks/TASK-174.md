@@ -23,7 +23,7 @@ native user identifier及 profile hint 不得用於自動合併帳號。
 - actor_id: `/root/task174_apple_lifecycle_writer`
 - role: `codex-writer`
 - claim_id: `task-174-apple-lifecycle-writer-20260831`
-- lease_version: 6
+- lease_version: 7
 - scope: Apple native credential envelope、Mobile API/provider lifecycle、durable schema、offline tests及release evidence
 - owned_paths:
   - `clients/flutter_app/ios/Runner/AppleAuthorizationBridge.swift`
@@ -73,12 +73,17 @@ Lease 6補入reviewer P2：除了不同env名稱，bootstrap必須在不記錄ke
 `MOBILE_REFRESH_REPLAY_KEY == MOBILE_API_APPLE_PROVIDER_CREDENTIAL_KEY`，使session與provider cipher的用途隔離成為可執行
 invariant，並加入bootstrap focused regression；不允許以相同Fernet key啟用Apple。
 
+Lease 7收旂PR #227 hosted PostgreSQL 15／16證據：保留production downgrade不刪除Apple security evidence的
+invariant，但修正isolated CI database反覆升降時的test harness，不得將`0010` upgrade改為容忍不明
+existing table或自動刪除production evidence。同步修正PostgreSQL `bytea`回傳的driver-neutral assertion，並移除
+舊測試對`0009`為head的過期硬編碼；只可修復已證實的hosted failures，不擴張runtime behavior。
+
 ## Independent reviewer claim
 
 - actor_id: `/root/task170_release_security_review`
 - role: `advisor/reviewer`
 - claim_id: `task-174-apple-auth-security-reviewer-20260831`
-- lease_version: 1
+- lease_version: 2
 - write: `read-only`
 - report_to: `/root`
 - scope: immutable pushed TASK-174 SHA的Apple wire、one-shot exchange、cipher／token no-disclosure、notification replay／revocation、migration compatibility與LINE／Google isolation
@@ -90,6 +95,9 @@ Reviewer final verdict：`ACCEPT`，immutable SHA
 `820f5e13a8674a28972dfdb1931f0a6b32515feb`。初審P1 revision rollout與P2 equal-key separation皆在lease 5／6修復；
 rereview無其餘finding。Focused Python 93 passed、Flutter Apple 10 passed、compile／diff／no-secret scan通過；PostgreSQL 15／16
 與hosted CI仍由PR gate補足，外部mutation為0。
+
+Reviewer lease 2只針對lease 7 CI correction：驗收test-only cleanup必須限於repository-local isolated DB、不得改動
+production migration evidence retention或strict upgrade，並核對driver-neutral `bytea`與head revision assertions沒有降低契約。
 
 ## Required behavior
 
