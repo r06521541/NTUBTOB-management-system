@@ -91,6 +91,18 @@ Writer must immediately ACK the exact claim and report target, send a heartbeat 
 commit SHA／tests／dirty paths／findings／limits／external mutations to Main. One writer owns all shared/schema paths until immutable
 handoff; no second writer may edit this branch concurrently.
 
+### Independent Data/Auth reviewer
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 1
+- review_target: `6c35bb6245326f14c08676293750b8b73747307c`
+- scope: migration safety, snapshot-derived recipients, in-app-only delivery, idempotency/concurrency, guest authority/lifecycle,
+  Event-start eligibility, no-disclosure and pre-0011 compatibility
+- write: `read-only`
+- report_to: `/root`
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。

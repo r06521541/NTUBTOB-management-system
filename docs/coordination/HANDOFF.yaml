@@ -2,25 +2,25 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-175
-status: ready_for_writer
-next_actor: codex-writer
+status: ready_for_review
+next_actor: targeted-reviewer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: ccc5f596dc9560d713dbf93a305c64d2d1642927
-head_commit: ccc5f596dc9560d713dbf93a305c64d2d1642927
+head_commit: 6c35bb6245326f14c08676293750b8b73747307c
 
 updated_by: main-work
 updated_at: 2026-09-01T01:00:00+08:00
 
 note: >
-  TASK-175 discovery is accepted. One sole writer now owns the additive 0011,
-  explicit durable in-app Event notification and bounded guest-player lifecycle.
-  No real provider delivery, production mutation or deployment is authorized.
+  TASK-175 implementation is pushed at the immutable review target. Independent
+  Data/Auth review is next; no real provider delivery, production mutation or
+  deployment is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-175.md
-report: pending
+report: docs/coordination/reports/TASK-175.md
 review: pending
