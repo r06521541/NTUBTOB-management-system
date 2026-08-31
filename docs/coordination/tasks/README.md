@@ -5,3 +5,6 @@
 建立 task 時必須標記 `task_type`、`delivery_group` 與 `requires_independent_pr`；有 writer 時另記 authoritative
 `claim_id`、`lease_version`、`actor_id`、role、scope、owned paths、write、report target 與 stop conditions。完成一個
 Phase 或約十個 tasks 後由 Main Work 依 `COLLABORATION.md` 封存。
+
+派工與回報不在每份 task 重複維護；一律使用 `COLLABORATION.md` 第 2 節的 mandatory assignment packet、ACK、
+heartbeat、blocker 與 proactive final protocol。跨 session 訊息只引用本目錄中的 claim，不取代它。

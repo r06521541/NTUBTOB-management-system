@@ -21,10 +21,12 @@ claim 與下一位角色仍以 active task、`PROJECT_STATE.md` lane registry �
 除非當前 task 或 review 明確要求追查歷史，不要先讀 archive。不得以舊對話、側邊欄狀態或文字摘要取代實際
 repository、Git、測試與 HANDOFF 查驗。
 
-先確認並回報 branch、HEAD、git status、active_task、status、next_actor、base_commit，以及 task claim 的 `claim_id`、
-`lease_version`、`actor_id`、role、scope 與 owned paths。若 claim 不存在、actor 不符或 next_actor 不是 `codex-writer`，
-維持 `advisor/read-only` 並通知 Main Work。相同 claim/version 重送不得再次 ack、開工或消耗驗證。保留所有既有變更，
-不覆寫、不回復、不混入自己的 commit。
+派工必須引用 `COLLABORATION.md` 第 2 節的 mandatory assignment packet，包含 task、branch、full base/head、exact
+actor、role、claim/lease、scope、owned paths、write、report target 與 stop conditions。收到後立即回
+`received/executing`，核對 branch、HEAD、git status、HANDOFF 與 task claim；持續工作每 10–15 分鐘主動 heartbeat，
+blocker 立即回報。若 claim 不存在、actor/lease/owned paths 不符或 next actor 不符，維持 `advisor/read-only` 並通知
+Main Work。相同 claim/version 重送不得再次 ACK、開工或消耗驗證。保留所有既有變更，不覆寫、不回復、不混入自己的
+commit。跨 session 訊息只傳送 repository authority，不取代它。
 
 只執行 task 明列的範圍。實作前先做一次五行 checkpoint：目標行為、修改範圍、關鍵 invariant、預計測試、
 阻塞或 Owner 決策點。高風險或跨模組工作要先讓 Main／Domain Work 有機會攔截設計問題；沒有決策點時可繼續，不增加儀式性
@@ -44,7 +46,7 @@ commit、push、PR 與 merge 的既有 standing authorization 不包含 producti
 的已知限制，以 docs/development/AGENT_ENVIRONMENT.md 為準；不要重新調查已知環境問題或為此修改無關工具。
 測試失敗、skip、未驗證平台證據與既存 dirty files 必須如實區分。
 
-若跨 session 通知可用，在接棒、需要 Main Work／Owner 決策及完成交回時主動通知；通知引用 repository 的 claim/version，
-並包含 task、branch、implementation commit、HEAD、測試、限制、外部操作及 HANDOFF 狀態。通知只是 transport，不得取代
-active task、lane registry 或 HANDOFF；無法通知時仍先寫入 repository 權威位置，再停止等待正確角色。
+接棒、需要 Main Work／Owner 決策及完成交回時都要主動通知，不可只停在自己的 session。Final packet 必須包含 task、
+branch、commit full SHA（未 commit 則 current full HEAD 與 exact dirty paths）、tests、findings、remaining limits、
+external mutations 與 HANDOFF 狀態。無法通知時仍先寫入 repository 權威位置，再停止等待正確角色。
 ```

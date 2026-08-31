@@ -88,10 +88,12 @@
 - 生效：2026-08-09
 - 來源：DEC-067、DEC-069、DEC-071～074、Phase C closeout
 - Supersedes：DEC-067、DEC-069、DEC-071～074 的階段狀態敘述
-- Production revision 為 `0004_phase_c_identity_lifecycle`；三個直接服務已啟用 Phase C、freeze 已解除。
+- Phase C closeout baseline為`0004_phase_c_identity_lifecycle`；production其後已前進至`0009_event_management_writes`。
+  三個Phase C直接服務已啟用，freeze已解除；current runtime以`PROJECT_STATE.md`為準。
 - 197 位 Member／Person、56 組可靠 LINE identity／active team-player 關係存在。
 - 2 位 allowlist 管理者及其餘 54 位可靠連結隊員的 Person 均已 active；最終 post-check drift 為 0。
-- Identity maintenance flag 仍為 false；pending identity 正式管理流程屬後續工作。
+- Identity maintenance目前已啟用；identity-link plain runtime config仍未完整啟用。這不改變Phase C schema／audit的
+  forward-compensation rollback原則。
 - Phase C schema／audit 不以 destructive downgrade 作一般 rollback；語意錯誤採 forward compensation。
 
 ## DEC-084：Web Portal 產品與登入方向
@@ -103,9 +105,10 @@
 - Portal 採 mobile-first、隊徽深藍／中性灰；綠色保留 LINE／成功，紅色保留警示與破壞性操作。
 - LINE Login 必須維持 session／state binding；手機一般瀏覽器不保證可喚起 LINE App，應引導 LINE 使用者在 LINE
   in-app browser 開啟。電腦可使用 LINE 提供的 QR／帳號登入。
-- Google 登入及 LINE／Google identity linking/recovery 的 repository implementation 已由 PR #180 合併；這不代表
-  provider configuration、Secret/IAM、signing、deployment 或真 provider smoke 已驗證或獲授權。外部 preparation
-  只有撤回 actor 的部分交棒回報，未經 repository evidence 獨立驗證。Apple 登入仍未實作。
+- Google 登入及 LINE／Google identity linking/recovery 的 repository implementation 已由 PR #180 合併；Apple
+  identity-token login/link repository slice 已由 TASK-171 合併。這不代表 production provider/runtime、Apple
+  authorization-code／refresh-token／revocation lifecycle、Secret/IAM、signing、deployment 或production provider smoke已完成
+  或獲授權；Apple公開版方向與外部gate另依 DEC-103。
 - 登入後目的地曾有 production 未完全解決的回首頁情況；不得以降低 state／CSRF 邊界換取 redirect 便利。
 
 ## DEC-085：通知渠道與 LINE Notify 棄用
@@ -122,7 +125,7 @@
   LINE Notify、LINE Login、LINE webhook 與官方帳號訊息混稱為同一功能。
 - 真實通知、人工 invoke 或 broadcast 仍需 Owner 明確批准。
 
-## DEC-086：Event／Activity 唯讀契約已定案，管理寫入仍未定案
+## DEC-086：Event／Activity 唯讀基準契約
 
 - 狀態：`active`
 - 生效：2026-08-09
@@ -131,8 +134,10 @@
 - Event／Activity schema 與 immutable `event_invitees` snapshot 已建立；TASK-158 定案 active Person 對
   published／cancelled、non-ended Event、ordered Activity 與 scoped linked Game 的隱私受限唯讀契約。
 - Flutter／Mobile API 已實作該 read contract；Web Portal parity 只可重用相同 repository authorization，不得另行推導資格。
-- 幹部建立活動、邀請快照、資格異動、同行者／affiliate 參與與多場比賽隸屬旅程等規則尚未成為 production contract。
-- 不因既有 read contract 或 Demo 直接授權 create/edit/publish/cancel、attendance、notification、schema migration、deployment 或 production mutation。
+- 2026-08-31 clarification：本項的管理寫入、邀請快照與發布後修改未定案文字已由 DEC-101 取代；Event／一般
+  Activity三態與linked Game五態出席由DEC-102取代。這是既有supersedes關係的文字澄清，不新增產品決定。
+- 仍未定案的是通知、guest-player／affiliate參與及crawler／linked Game來源ownership的未解部分。不因唯讀基準、
+  DEC-101／102或Demo授權通知、未列schema migration、deployment或production mutation。
 
 ## DEC-087：最小充分 CI 與 canonical checksum
 
