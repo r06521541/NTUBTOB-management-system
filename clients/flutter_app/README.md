@@ -38,6 +38,30 @@ scheme. A clean development/fake build requires no Owner OAuth values and
 rejects any Google configuration instead of falling back to it. A
 macOS/Xcode build remains mandatory evidence; no Firebase plist is required.
 
+The real iOS composition also exposes Sign in with Apple through a
+dependency-free `AuthenticationServices` method-channel bridge. Flutter creates
+a one-time raw nonce; native iOS places only its lowercase SHA-256 digest on the
+Apple authorization request, then returns only the identity token. Flutter sends
+that same raw nonce and token to the Mobile API. Email, relay email, name, Apple
+user identifier, authorization code, and other profile hints never enter the
+client API body or identity-link contract. The server-verified stable Apple
+subject is the sole provider identity key and must never trigger an email-based
+automatic merge. Fake mode, offline mode, and non-iOS platforms do not start the
+native Apple flow or an Apple API exchange.
+
+This slice intentionally implements only a nonce-bound identity-token flow. It
+does not return an authorization code and therefore does not implement
+server-side authorization-code validation or Apple refresh-token acquisition.
+Apple credential-state checks, Apple server-to-server notifications, and the
+account revocation lifecycle are also not implemented. Those lifecycle
+capabilities remain public provider/runtime Owner gates, not behavior implied by
+the repository login and identity-link tests.
+
+This is repository implementation evidence only. The committed iOS release
+marker remains fail closed pending independent acceptance, Apple capability/App
+ID and profile binding, external provider/signing configuration, macOS/Xcode
+archive inspection, and supported-device runtime evidence.
+
 Android and iOS runners were generated with Flutter 3.47.0. To reproduce them after installing a compatible Flutter SDK and confirming Android/iOS prerequisites, run from this directory:
 
 ```sh

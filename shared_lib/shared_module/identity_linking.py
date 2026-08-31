@@ -21,9 +21,8 @@ from .mobile_api import (
     secret_hash,
 )
 
-
 PROOF_TTL = timedelta(minutes=5)
-PROVIDERS = {"line", "google"}
+PROVIDERS = {"line", "google", "apple"}
 
 
 class IdentityLinkConflict(Conflict):
@@ -317,6 +316,12 @@ class IdentityLinkService:
         now, request_nonce = self.clock(), secrets.token_urlsafe(18)
         if provider == "google":
             snapshot = self.repository.ensure_google_link_candidate(
+                subject,
+                f"identity-pending-{self._hash(provider + ':' + subject)[:32]}",
+                now,
+            )
+        elif provider == "apple":
+            snapshot = self.repository.ensure_apple_link_candidate(
                 subject,
                 f"identity-pending-{self._hash(provider + ':' + subject)[:32]}",
                 now,

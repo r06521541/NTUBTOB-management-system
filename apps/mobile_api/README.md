@@ -6,12 +6,25 @@ The canonical machine-readable contract is `openapi.json`.
 
 The runtime fails closed unless PostgreSQL reports the exact revision
 `0008_mobile_notification_delivery`, and all
-signing, refresh-response encryption, audience configuration is present. The
+signing, refresh-response encryption, and existing provider audience
+configuration is present. The
 LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
-plain runtime values; database, signing, and replay keys remain Secret-backed.
+plain runtime values. `MOBILE_API_APPLE_AUDIENCE` is optional for this repository
+slice: a missing or blank value disables only Apple authentication, while LINE
+and Google remain available. A configured value must be one exact audience;
+Apple ID tokens are nonce-bound and verified with a bounded, thread-safe cache
+of Apple's public RSA signing keys. Database, signing, and replay keys remain
+Secret-backed.
 The readiness check remains read-only and does not inspect the broker journal or
 notification tables. These values are runtime configuration only; this directory
 contains no credential and no deploy target.
+
+This slice receives an Apple ID token and raw nonce only. It does not receive an
+authorization code, obtain an Apple refresh token, or handle provider
+revocation. Those capabilities remain future public-provider/runtime gates, so
+this repository slice does not claim a complete Apple provider-session
+lifecycle. Its access and refresh tokens are existing server-owned application
+sessions, not Apple provider sessions.
 
 Officer publishing uses the exact `notifications:publish` capability. Preview
 recipient expansion and confirmation remain server-owned; confirmation writes

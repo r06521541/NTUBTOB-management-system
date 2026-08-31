@@ -84,9 +84,12 @@ Future<void> runBasicLogoutIfAllowed({
 
 String? pendingReviewCredential(
   LoginCoordinator? line,
-  GoogleLoginCoordinator? google,
-) =>
-    line?.pendingReview?.credential ?? google?.pendingReview?.credential;
+  GoogleLoginCoordinator? google, [
+  AppleLoginCoordinator? apple,
+]) =>
+    line?.pendingReview?.credential ??
+    google?.pendingReview?.credential ??
+    apple?.pendingReview?.credential;
 
 bool shouldOfferIdentityRecovery({
   required AuthViewState state,
@@ -268,6 +271,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   late final http.Client _http;
   LoginCoordinator? _login;
   GoogleLoginCoordinator? _googleLogin;
+  AppleLoginCoordinator? _appleLogin;
   SessionController? _session;
   BasicApi? _api;
   LineLoginPort? _line;
@@ -326,12 +330,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         widget.config.googleClientId!,
         widget.config.googleServerClientId!,
       );
+      final apple = defaultTargetPlatform == TargetPlatform.iOS
+          ? const NativeAppleLogin()
+          : null;
       _session = session;
       _line = line;
       _google = google;
       _identityLink = IdentityLinkController(
         transport: transport,
-        credentials: NativeIdentityCredentialPort(line, google),
+        credentials: NativeIdentityCredentialPort(line, google, apple),
         installationId: installationId,
         ids: _ids,
         session: session,
@@ -350,8 +357,18 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         _ids,
         installationId,
       );
+      if (apple != null) {
+        _appleLogin = AppleLoginCoordinator(
+          apple,
+          transport,
+          session,
+          _ids,
+          installationId,
+        );
+      }
       _login!.addListener(_onLoginStateChanged);
       _googleLogin!.addListener(_onGoogleLoginStateChanged);
+      _appleLogin?.addListener(_onAppleLoginStateChanged);
       if (await _store.containsKey('logout-pending:$installationId')) {
         setState(() {
           state = AuthViewState.logoutPending;
@@ -420,6 +437,50 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     if (login.state == LoginState.authenticated) await _loadBasic();
   }
 
+  Future<void> _signInApple() async {
+    _authEpoch++;
+    _basicLoadOperation = null;
+    _basicLoadInProgress = false;
+    _retirePendingReview();
+    final platform = nativePlatformName(Theme.of(context).platform);
+    final login = _appleLogin;
+    if (platform != 'ios' || login == null) {
+      setState(() => state = AuthViewState.unavailable);
+      return;
+    }
+    await login.login('ios', online: state != AuthViewState.offline);
+    if (login.state == LoginState.authenticated) await _loadBasic();
+  }
+
+  void _onAppleLoginStateChanged() {
+    final login = _appleLogin;
+    if (!mounted || login == null) return;
+    final next = switch (login.state) {
+      LoginState.providerActive => AuthViewState.providerActive,
+      LoginState.exchanging => AuthViewState.exchanging,
+      LoginState.cancelled => AuthViewState.cancelled,
+      LoginState.unavailable => AuthViewState.unavailable,
+      LoginState.offline => AuthViewState.offline,
+      LoginState.recoverableError ||
+      LoginState.timeoutResolved =>
+        AuthViewState.recoverableError,
+      LoginState.timeoutUnresolved => AuthViewState.timeoutUnresolved,
+      LoginState.identityPending => AuthViewState.identityPending,
+      LoginState.accountUnavailable => AuthViewState.accountUnavailable,
+      LoginState.authenticated || LoginState.idle => state,
+      LoginState.error ||
+      LoginState.stale ||
+      LoginState.duplicate =>
+        AuthViewState.contractError,
+    };
+    setState(() => state = next);
+    if (next == AuthViewState.identityPending && login.pendingReview != null) {
+      _openPendingReview();
+    } else if (next != AuthViewState.identityPending) {
+      _retirePendingReview();
+    }
+  }
+
   void _onGoogleLoginStateChanged() {
     final login = _googleLogin;
     if (!mounted || login == null) return;
@@ -431,6 +492,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       LoginState.identityPending => AuthViewState.identityPending,
       LoginState.accountUnavailable => AuthViewState.accountUnavailable,
       LoginState.authenticated || LoginState.idle => state,
+      LoginState.recoverableError => AuthViewState.recoverableError,
+      LoginState.offline => AuthViewState.offline,
       _ => AuthViewState.contractError,
     };
     setState(() => state = next);
@@ -460,6 +523,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       LoginState.duplicate =>
         AuthViewState.contractError,
       LoginState.idle => state,
+      LoginState.recoverableError => AuthViewState.recoverableError,
+      LoginState.offline => AuthViewState.offline,
     };
     setState(() => state = next);
     if (next == AuthViewState.identityPending && login.pendingReview != null) {
@@ -470,7 +535,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   void _openPendingReview() {
-    final credential = pendingReviewCredential(_login, _googleLogin);
+    final credential = pendingReviewCredential(
+      _login,
+      _googleLogin,
+      _appleLogin,
+    );
     if (credential == null || !mounted) return;
     final client = PendingReviewClient(
       HttpApiTransport(widget.config.apiBaseUrl!, _http),
@@ -488,6 +557,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   void _retirePendingReview() {
     _login?.retirePendingReview();
     _googleLogin?.retirePendingReview();
+    _appleLogin?.retirePendingReview();
     _pendingReviewClient?.retire();
     _pendingReviewClient = null;
     _navigatorKey.currentState?.popUntil((route) => route.isFirst);
@@ -730,6 +800,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     _login?.dispose();
     _googleLogin?.removeListener(_onGoogleLoginStateChanged);
     _googleLogin?.dispose();
+    _appleLogin?.removeListener(_onAppleLoginStateChanged);
+    _appleLogin?.dispose();
     _http.close();
     super.dispose();
   }
@@ -775,7 +847,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                                   state: state,
                                   pendingReviewCredential:
                                       pendingReviewCredential(
-                                          _login, _googleLogin))
+                                          _login, _googleLogin, _appleLogin))
                               ? _openIdentityRecovery
                               : null,
                         ),
@@ -796,6 +868,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                         onLogin: _login == null ? null : _signIn,
                         onGoogleLogin:
                             _googleLogin == null ? null : _signInGoogle,
+                        onAppleLogin: _appleLogin == null ? null : _signInApple,
                       ),
               ),
       );
@@ -910,10 +983,12 @@ class LoginActionButton extends StatelessWidget {
     required this.state,
     required this.onLogin,
     this.onGoogleLogin,
+    this.onAppleLogin,
   });
   final AuthViewState state;
   final VoidCallback? onLogin;
   final VoidCallback? onGoogleLogin;
+  final VoidCallback? onAppleLogin;
 
   static const _retryableStates = {
     AuthViewState.loggedOut,
@@ -931,6 +1006,15 @@ class LoginActionButton extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
+        if (onAppleLogin != null) ...[
+          FloatingActionButton.extended(
+            heroTag: 'apple-login',
+            onPressed: onAppleLogin,
+            label: const Text('使用 Apple 登入'),
+            icon: const Icon(Icons.apple),
+          ),
+          const SizedBox(height: 12),
+        ],
         FloatingActionButton.extended(
           heroTag: 'google-login',
           onPressed: onGoogleLogin,

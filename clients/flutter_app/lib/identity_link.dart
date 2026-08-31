@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'integration.dart';
 
-enum LoginProvider { line, google }
+enum LoginProvider { line, google, apple }
 
 enum IdentityLinkStage {
   idle,
@@ -22,12 +23,20 @@ abstract interface class IdentityCredentialPort {
 }
 
 class NativeIdentityCredentialPort implements IdentityCredentialPort {
-  NativeIdentityCredentialPort(this.line, this.google);
+  NativeIdentityCredentialPort(this.line, this.google, this.apple);
   final LineLoginPort line;
   final GoogleLoginPort google;
+  final AppleLoginPort? apple;
   @override
   Future<String?> authenticate(LoginProvider provider, {String? nonce}) =>
-      provider == LoginProvider.line ? line.login(nonce!) : google.login();
+      switch (provider) {
+        LoginProvider.line => line.login(nonce!),
+        LoginProvider.google => google.login(),
+        LoginProvider.apple => apple?.login(nonce!) ??
+            Future<String>.error(
+              MissingPluginException('Apple authorization unavailable'),
+            ),
+      };
   @override
   Future<void> clearPresentationState() async {
     try {
@@ -139,7 +148,7 @@ class IdentityLinkController extends ChangeNotifier {
     failure = null;
     final generation = _generation;
     try {
-      final nonce = provider == LoginProvider.line ? ids.next() : null;
+      final nonce = provider == LoginProvider.google ? null : ids.next();
       final token = await credentials.authenticate(provider, nonce: nonce);
       if (generation != _generation) return;
       if (token == null) {
@@ -193,7 +202,7 @@ class IdentityLinkController extends ChangeNotifier {
     }
     final generation = _generation;
     try {
-      final nonce = provider == LoginProvider.line ? ids.next() : null;
+      final nonce = provider == LoginProvider.google ? null : ids.next();
       final token = await credentials.authenticate(provider, nonce: nonce);
       if (generation != _generation) return;
       if (_isExpired()) {
@@ -448,7 +457,8 @@ class IdentityLinkPanel extends StatelessWidget {
             ),
           ],
           if (controller.stage == IdentityLinkStage.idle && controller.online)
-            for (final provider in LoginProvider.values)
+            for (final provider in LoginProvider.values
+                .where((provider) => _providerSupported(provider, platform)))
               if ((recovery || controller.linkedMethodsLoaded) &&
                   (recovery ||
                       !controller.linkedMethods
@@ -457,11 +467,11 @@ class IdentityLinkPanel extends StatelessWidget {
                     key: ValueKey('identity-link-begin-${provider.name}'),
                     onPressed: () =>
                         controller.begin(provider, recovery: recovery),
-                    child: Text(
-                        '新增 ${provider == LoginProvider.google ? 'Google' : 'LINE'} 登入')),
+                    child: Text('新增 ${_providerLabel(provider)} 登入')),
           if (controller.stage == IdentityLinkStage.candidateReady)
-            for (final provider in LoginProvider.values
-                .where((p) => p != controller.candidateProvider))
+            for (final provider in LoginProvider.values.where((provider) =>
+                provider != controller.candidateProvider &&
+                _providerSupported(provider, platform)))
               ElevatedButton(
                   key: ValueKey('identity-link-proof-${provider.name}'),
                   onPressed: () => controller.prove(provider),
@@ -494,6 +504,15 @@ class IdentityLinkPanel extends StatelessWidget {
         ]),
       );
 }
+
+bool _providerSupported(LoginProvider provider, String platform) =>
+    provider != LoginProvider.apple || platform == 'ios';
+
+String _providerLabel(LoginProvider provider) => switch (provider) {
+      LoginProvider.line => 'LINE',
+      LoginProvider.google => 'Google',
+      LoginProvider.apple => 'Apple',
+    };
 
 class IdentityRecoveryPage extends StatefulWidget {
   const IdentityRecoveryPage({

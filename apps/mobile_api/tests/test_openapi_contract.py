@@ -16,6 +16,7 @@ class OpenApiContractTest(unittest.TestCase):
             {
                 "/auth/line/exchange",
                 "/auth/google/exchange",
+                "/auth/apple/exchange",
                 "/auth/identities",
                 "/auth/identity-link/candidates/{provider}",
                 "/auth/identity-link/proofs/{provider}",
@@ -50,6 +51,7 @@ class OpenApiContractTest(unittest.TestCase):
         paths = self.contract["paths"]
         self.assertIn("202", paths["/auth/line/exchange"]["post"]["responses"])
         self.assertIn("202", paths["/auth/google/exchange"]["post"]["responses"])
+        self.assertIn("202", paths["/auth/apple/exchange"]["post"]["responses"])
         self.assertEqual(
             set(
                 paths["/auth/google/exchange"]["post"]["requestBody"]["content"][
@@ -73,7 +75,7 @@ class OpenApiContractTest(unittest.TestCase):
             self.contract["components"]["parameters"]["IdentityProvider"]["schema"][
                 "enum"
             ],
-            ["line", "google"],
+            ["line", "google", "apple"],
         )
         self.assertIn(
             "300 seconds", paths["/auth/identity-link/cancel"]["post"]["description"]
@@ -82,6 +84,36 @@ class OpenApiContractTest(unittest.TestCase):
         for private in ("provider_subject", "identity_id", "email", "avatar", "token"):
             self.assertNotIn(private, identity_list)
         self.assertIn("without a second session", text)
+
+    def test_apple_auth_is_nonce_bound_sub_only_and_profile_hints_are_forbidden(self):
+        paths = self.contract["paths"]
+        schemas = self.contract["components"]["schemas"]
+        apple = schemas["AppleExchangeRequest"]
+        self.assertFalse(apple["additionalProperties"])
+        self.assertEqual(
+            set(apple["required"]),
+            {"id_token", "nonce", "login_attempt_id", "installation_id", "platform"},
+        )
+        self.assertEqual(apple["properties"]["platform"]["const"], "ios")
+        self.assertIn(
+            "lowercase SHA-256(raw nonce)",
+            paths["/auth/apple/exchange"]["post"]["description"],
+        )
+        self.assertIn(
+            "verified sub", paths["/auth/apple/exchange"]["post"]["description"]
+        )
+        self.assertIn(
+            "runtime audience is absent",
+            paths["/auth/apple/exchange"]["post"]["description"],
+        )
+        for schema_name in (
+            "AppleExchangeRequest",
+            "IdentityLinkCandidateRequest",
+            "IdentityLinkProofRequest",
+        ):
+            rendered = json.dumps(schemas[schema_name], sort_keys=True)
+            for hint in ('email"', 'name"', 'user"', 'real_user_status"'):
+                self.assertNotIn(hint, rendered)
 
     def test_public_reply_enum_and_error_codes_are_exact(self):
         schemas = self.contract["components"]["schemas"]
@@ -169,7 +201,18 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertIn("bootstrap:app", dockerfile)
         self.assertNotIn("PyJWT", requirements)
         self.assertIn("LineIdTokenVerifier()", bootstrap)
+        self.assertIn("AppleIdTokenVerifier()", bootstrap)
+        self.assertIn(
+            'apple_audience = os.environ.get("MOBILE_API_APPLE_AUDIENCE", "")',
+            bootstrap,
+        )
+        self.assertIn(
+            "if apple_audience and apple_audience == apple_audience.strip()",
+            bootstrap,
+        )
+        self.assertNotIn('required("MOBILE_API_APPLE_AUDIENCE")', bootstrap)
         self.assertNotIn("MOBILE_LINE_PUBLIC_KEY", bootstrap + env_example)
+        self.assertIn('MOBILE_API_APPLE_AUDIENCE: ""', env_example)
         self.assertIn("cryptography==43.0.3", requirements)
         self.assertIn(".env.yaml", ignored)
         self.assertNotIn("gcloud", dockerfile + (root / "cloudbuild.yaml").read_text())

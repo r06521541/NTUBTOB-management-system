@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository 基準：`main` / `0f81084c8c1e16c8b32f4634927e91a19617b206`
+Repository 基準：`main` / `8ae17853fa24379f6394ff3122c3eccb0be326ec`
 
 ## Active role lanes
 
@@ -25,7 +25,8 @@ Owner 已於 2026-08-25 撤回 `main-work-20260822`，並以本表的 lease 17 �
 
 ## 目前摘要
 
-- TASK-170 已啟動：近期 release delivery 是 package `tw.org.ntubtob.portal` 的 Android Basic-only Google Play Closed Testing candidate，採 Play App Signing 與 repository-external upload key，runtime/data 僅限隔離 staging。Owner 已核准候選準備、外部簽章、Android 15 真機驗證及 closed-track upload；production backend/data、open/public rollout、publication、billing與破壞性key操作不在範圍。
+- TASK-171 已啟動：依DEC-103完成Sign in with Apple repository client/server／identity-link垂直切片；只做離線可驗證的Flutter、iOS source contract、Mobile API與既有Person身分流程，不操作Apple帳戶、App ID、key、entitlement/profile、Secret、cloud、deployment或真provider。
+- TASK-170 repository delivery 已由PR #221合併為`8ae17853fa24379f6394ff3122c3eccb0be326ec`，獨立Release／Security review及hosted run `33349952184`全綠。Google Play外部階段正等待Owner developer-account verification；尚未建立Play app、上傳Closed Testing AAB或完成store/device外部證據，且不因repository merge推定完成。
 - TASK-169 已由delivery PR #219合併為`053888692ec1a5d6b7e2893c1f90c1d8320544d5`：Android Basic-only Closed Testing repository readiness包含API 36、外部簽章注入、fictional signed AAB與strict inspector；iOS建立TestFlight／Sign in with Apple fail-closed contract與store compliance matrix。獨立Release／Security review及final hosted run `33331935470`全部selected gates通過。這不是store candidate或外部rollout；未操作store、signing Secret、provider、cloud、production或deployment。
 - TASK-168 已由 PR #217 合併為 `cabdbcd039c9d526adb21fd8b11e145cd48f2574`：Event／一般 Activity 採既有三態出席；linked Game 在同一 Event 畫面沿用既有五態 Game attendance，套用全部明確排除 linked Game，且兩者不得互相覆寫或重複儲存。獨立 Data／Authorization review及全部selected hosted gates通過；未執行 schema、通知或部署。
 - TASK-167 已由PR #216合併為`10d7cee44b6bd6ff2edb456518a129ebb3692443`：staging APK同時包含arm／arm64／x64 Flutter runtime，build與install acceptance會驗證唯一、非空、可完整讀取且CRC32一致；Android 15 arm64實機替換安裝與冷啟動通過，之後已移除exact package。Hosted全部selected gates通過，借用裝置未登入個人provider帳號。

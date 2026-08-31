@@ -1,15 +1,32 @@
-"""Canonical Google and LINE ID-token verification adapters."""
+"""Canonical Google, LINE, and Apple ID-token verification adapters."""
 
 from __future__ import annotations
+
+import base64
+import binascii
+import hashlib
 import json
-from datetime import datetime, timezone
+import re
+import threading
+from datetime import datetime, timedelta, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
 from .mobile_api import AuthenticationError, MobileApiError, VerifiedAssertion
 
 GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 LINE_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
+APPLE_ISSUER = "https://appleid.apple.com"
+APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
+APPLE_JWKS_MAX_BYTES = 65_536
+APPLE_JWT_MAX_BYTES = 16_384
+_BASE64URL = re.compile(r"^[A-Za-z0-9_-]+$")
+_APPLE_KID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 def verify_with_google_auth(assertion):
@@ -111,3 +128,241 @@ class LineIdTokenVerifier:
         except (TypeError, ValueError, KeyError, json.JSONDecodeError, OverflowError):
             raise AuthenticationError("invalid provider assertion") from None
         return VerifiedAssertion("line", claims["sub"], audience, nonce, expires_at)
+
+
+class AppleVerificationUnavailable(MobileApiError):
+    """Apple public-key retrieval was unavailable without exposing provider data."""
+
+
+def apple_jwks_urlopen_transport(url, timeout):
+    request = Request(url, headers={"Accept": "application/json"}, method="GET")
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return response.status, response.read(APPLE_JWKS_MAX_BYTES + 1)
+    except HTTPError as error:
+        return error.code, error.read(APPLE_JWKS_MAX_BYTES + 1)
+    except (TimeoutError, URLError, OSError):
+        raise AppleVerificationUnavailable("Apple verification unavailable") from None
+
+
+def _strict_json(raw: bytes) -> object:
+    def no_duplicates(pairs):
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError
+            value[key] = item
+        return value
+
+    try:
+        return json.loads(raw, object_pairs_hook=no_duplicates)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
+        raise AuthenticationError("invalid provider assertion") from None
+
+
+def _decode_base64url(value: object, *, maximum: int) -> bytes:
+    try:
+        if (
+            not isinstance(value, str)
+            or not value
+            or len(value) > maximum
+            or _BASE64URL.fullmatch(value) is None
+        ):
+            raise ValueError
+        decoded = base64.b64decode(
+            value + "=" * (-len(value) % 4), altchars=b"-_", validate=True
+        )
+        if base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii") != value:
+            raise ValueError
+        return decoded
+    except (binascii.Error, UnicodeError, ValueError):
+        raise AuthenticationError("invalid provider assertion") from None
+
+
+def _apple_public_key(value: object):
+    if not isinstance(value, dict) or set(value) != {
+        "kty",
+        "kid",
+        "use",
+        "alg",
+        "n",
+        "e",
+    }:
+        raise AuthenticationError("invalid provider assertion")
+    if (
+        value["kty"] != "RSA"
+        or value["use"] != "sig"
+        or value["alg"] != "RS256"
+        or not isinstance(value["kid"], str)
+        or _APPLE_KID.fullmatch(value["kid"]) is None
+    ):
+        raise AuthenticationError("invalid provider assertion")
+    modulus = _decode_base64url(value["n"], maximum=1024)
+    exponent = _decode_base64url(value["e"], maximum=8)
+    try:
+        if modulus.startswith(b"\x00") or exponent.startswith(b"\x00"):
+            raise ValueError
+        modulus_number = int.from_bytes(modulus, "big")
+        exponent_number = int.from_bytes(exponent, "big")
+        if not 2048 <= modulus_number.bit_length() <= 4096 or exponent_number != 65537:
+            raise ValueError
+        return rsa.RSAPublicNumbers(exponent_number, modulus_number).public_key()
+    except ValueError:
+        raise AuthenticationError("invalid provider assertion") from None
+
+
+class AppleJwkCache:
+    """A bounded in-process cache for Apple's rotating public signing keys."""
+
+    def __init__(
+        self,
+        transport=apple_jwks_urlopen_transport,
+        *,
+        timeout=5.0,
+        ttl=timedelta(minutes=15),
+    ):
+        if not 0 < timeout <= 10 or not timedelta(minutes=1) <= ttl <= timedelta(
+            hours=1
+        ):
+            raise ValueError("Apple JWK cache bounds are invalid")
+        self._transport = transport
+        self._timeout = timeout
+        self._ttl = ttl
+        self._keys = {}
+        self._expires_at = None
+        self._forced_refresh_used = False
+        self._lock = threading.Lock()
+
+    def key(self, kid: str, now: datetime):
+        if (
+            not isinstance(kid, str)
+            or _APPLE_KID.fullmatch(kid) is None
+            or now.tzinfo is None
+        ):
+            raise AuthenticationError("invalid provider assertion")
+        normalized_now = now.astimezone(timezone.utc)
+        with self._lock:
+            if self._expires_at is None or self._expires_at <= normalized_now:
+                self._refresh(normalized_now)
+                self._forced_refresh_used = False
+            key = self._keys.get(kid)
+            if key is not None:
+                return key
+            # Permit one early refresh per fresh cache window for normal rotation.
+            # Mark it before transport so a provider failure cannot amplify retries.
+            if self._forced_refresh_used:
+                raise AuthenticationError("invalid provider assertion")
+            self._forced_refresh_used = True
+            self._refresh(normalized_now)
+            key = self._keys.get(kid)
+            if key is None:
+                raise AuthenticationError("invalid provider assertion")
+            return key
+
+    def _refresh(self, now: datetime) -> None:
+        try:
+            status, raw = self._transport(APPLE_JWKS_URL, self._timeout)
+        except AppleVerificationUnavailable:
+            raise
+        except Exception:
+            raise AppleVerificationUnavailable(
+                "Apple verification unavailable"
+            ) from None
+        if status != 200:
+            raise AppleVerificationUnavailable(
+                "Apple verification unavailable"
+            ) from None
+        if not isinstance(raw, bytes) or not 1 <= len(raw) <= APPLE_JWKS_MAX_BYTES:
+            raise AuthenticationError("invalid provider assertion")
+        payload = _strict_json(raw)
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"keys"}
+            or not isinstance(payload["keys"], list)
+            or not 1 <= len(payload["keys"]) <= 10
+        ):
+            raise AuthenticationError("invalid provider assertion")
+        keys = {}
+        for item in payload["keys"]:
+            public_key = _apple_public_key(item)
+            if item["kid"] in keys:
+                raise AuthenticationError("invalid provider assertion")
+            keys[item["kid"]] = public_key
+        self._keys = keys
+        self._expires_at = now + self._ttl
+
+
+class AppleIdTokenVerifier:
+    """Verify a nonce-bound Apple ID token and expose only its stable subject."""
+
+    def __init__(self, key_cache=None):
+        self._key_cache = key_cache or AppleJwkCache()
+
+    def verify(self, assertion, audience, nonce, now):
+        try:
+            if (
+                not isinstance(assertion, str)
+                or not 1 <= len(assertion) <= APPLE_JWT_MAX_BYTES
+                or not isinstance(audience, str)
+                or not audience
+                or not isinstance(nonce, str)
+                or not nonce
+                or now.tzinfo is None
+            ):
+                raise AuthenticationError("invalid provider assertion")
+            parts = assertion.split(".")
+            if len(parts) != 3:
+                raise AuthenticationError("invalid provider assertion")
+            header = _strict_json(_decode_base64url(parts[0], maximum=2048))
+            claims = _strict_json(_decode_base64url(parts[1], maximum=12_288))
+            signature = _decode_base64url(parts[2], maximum=1024)
+            if (
+                not isinstance(header, dict)
+                or not {"alg", "kid"} <= set(header) <= {"alg", "kid", "typ"}
+                or header["alg"] != "RS256"
+                or ("typ" in header and header["typ"] != "JWT")
+            ):
+                raise AuthenticationError("invalid provider assertion")
+            public_key = self._key_cache.key(header["kid"], now)
+            public_key.verify(
+                signature,
+                (parts[0] + "." + parts[1]).encode("ascii"),
+                padding.PKCS1v15(),
+                hashes.SHA256(),
+            )
+            normalized_now = int(now.astimezone(timezone.utc).timestamp())
+            expected_nonce = hashlib.sha256(nonce.encode("utf-8")).hexdigest()
+            if not isinstance(claims, dict):
+                raise AuthenticationError("invalid provider assertion")
+            expires_at = claims.get("exp")
+            issued_at = claims.get("iat")
+            subject = claims.get("sub")
+            if (
+                claims.get("iss") != APPLE_ISSUER
+                or claims.get("aud") != audience
+                or claims.get("nonce") != expected_nonce
+                or type(expires_at) is not int
+                or type(issued_at) is not int
+                or expires_at <= normalized_now
+                or issued_at > normalized_now + 60
+                or issued_at >= expires_at
+                or expires_at - issued_at > 86_400
+                or not isinstance(subject, str)
+                or not 1 <= len(subject) <= 255
+                or not subject.isascii()
+                or not subject.isprintable()
+            ):
+                raise AuthenticationError("invalid provider assertion")
+            return VerifiedAssertion(
+                "apple",
+                subject,
+                audience,
+                nonce,
+                datetime.fromtimestamp(expires_at, timezone.utc),
+            )
+        except AppleVerificationUnavailable:
+            raise
+        except AuthenticationError:
+            raise
+        except (InvalidSignature, OverflowError, TypeError, ValueError):
+            raise AuthenticationError("invalid provider assertion") from None
