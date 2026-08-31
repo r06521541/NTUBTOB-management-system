@@ -5,10 +5,11 @@ import socket
 
 from sqlalchemy import text
 
-EXPECTED_REVISION = "0010_apple_provider_lifecycle"
+EXPECTED_REVISION = "0011_event_notification_guest_lifecycle"
 ACCEPTED_REVISIONS = (
     "0008_mobile_notification_delivery",
     "0009_event_management_writes",
+    "0010_apple_provider_lifecycle",
     EXPECTED_REVISION,
 )
 APPLE_LIFECYCLE_CONFIGURATION_KEYS = frozenset(

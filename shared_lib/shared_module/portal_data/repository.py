@@ -5,7 +5,7 @@ import hashlib
 import json
 import threading
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Protocol
 
 from sqlalchemy import Engine, and_, delete, func, or_, select, text, update
@@ -41,8 +41,13 @@ from .models import (
     EventEligibilityRuleRecord,
     EventInviteeOverrideRecord,
     EventInviteeRecord,
+    EventNotificationPublishAuditRecord,
     EventRecord,
+    GuestQualificationAuditRecord,
     LegacyMemberRecord,
+    MobileNotificationDeliveryRecord,
+    MobileNotificationRecipientRecord,
+    MobileNotificationRecord,
     PersonQualificationRecord,
     PersonRecord,
 )
@@ -51,6 +56,16 @@ EVENT_TYPES = frozenset({"game", "meal", "trip", "practice", "social", "other"})
 ACTIVITY_TYPES = frozenset(
     {"game", "meal", "transport", "lodging", "gathering", "other"}
 )
+EVENT_NOTIFICATION_TYPES = frozenset(
+    {"event_published", "event_updated", "event_cancelled"}
+)
+EVENT_NOTIFICATION_ACTION_TYPES = {
+    "published": "event_published",
+    "edited": "event_updated",
+    "cancelled": "event_cancelled",
+}
+EVENT_LIFECYCLE_REVISION = "0011_event_notification_guest_lifecycle"
+MAX_EVENT_NOTIFICATION_RECIPIENTS = 500
 
 
 def _bounded_text(value: str, field: str, maximum: int = 200) -> str:
@@ -72,6 +87,34 @@ def _request_id(value: str) -> str:
     if not 1 <= len(cleaned) <= 100:
         raise ValidationError("request id must contain 1 to 100 characters")
     return cleaned
+
+
+def _canonical_hash(value: dict) -> str:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=lambda item: item.isoformat() if isinstance(item, datetime) else item,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _guest_state(
+    status: str,
+    valid_from: datetime | None,
+    valid_until: datetime | None,
+    now: datetime,
+) -> str:
+    if status == "revoked":
+        return "revoked"
+    if valid_from is None or valid_until is None:
+        raise ConflictError("guest qualification period is invalid")
+    if valid_from > now:
+        return "scheduled"
+    if valid_until <= now:
+        return "expired"
+    return "active"
 
 
 def _operation_details(
@@ -247,6 +290,34 @@ class TeamPortalRepository(Protocol):
     ) -> None: ...
 
     def event_invitees(self, event_id: int) -> list[Invitee]: ...
+    def preview_event_notification(self, actor_id: int, event_id: int) -> dict: ...
+    def confirm_event_notification(
+        self,
+        actor_id: int,
+        event_id: int,
+        *,
+        notification_type: str,
+        preview_revision: str,
+        typed_confirmation: str,
+        request_id: str,
+    ) -> dict: ...
+    def managed_guests(
+        self, actor_id: int, state: str = "active", at: datetime | None = None
+    ) -> tuple[dict, ...]: ...
+    def guest_candidates(self, actor_id: int) -> tuple[dict, ...]: ...
+    def mutate_guest_qualification(
+        self,
+        actor_id: int,
+        target_person_id: int,
+        action: str,
+        *,
+        expected_version: int,
+        reason: str,
+        request_id: str,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+        at: datetime | None = None,
+    ) -> dict: ...
     def reply_to_event(self, event_id: int, person_id: int, reply: str) -> None: ...
 
     def event_attendance(
@@ -1401,6 +1472,577 @@ class PostgresTeamPortalRepository:
             raise AuthorizationError("active event manager required")
         return person
 
+    def _require_guest_manager(self, session: Session, person_id: int) -> PersonRecord:
+        person = session.scalar(
+            select(PersonRecord).where(PersonRecord.id == person_id).with_for_update()
+        )
+        member_id = session.scalar(
+            select(LegacyMemberRecord.id)
+            .where(LegacyMemberRecord.person_id == person_id)
+            .with_for_update()
+        )
+        if (
+            person is None
+            or person.portal_status != "active"
+            or not (
+                person.portal_access_level == "officer"
+                or member_id in self.event_manager_member_ids
+            )
+        ):
+            raise AuthorizationError("active guest manager required")
+        return person
+
+    def _event_notification_snapshot(
+        self, session: Session, actor_id: int, event_id: int
+    ) -> dict:
+        self._require_event_manager(session, actor_id)
+        event = session.scalar(
+            select(EventRecord).where(EventRecord.id == event_id).with_for_update()
+        )
+        if event is None or event.status not in {"published", "cancelled"}:
+            raise ConflictError("published or cancelled event required")
+        latest_audit = session.scalar(
+            select(EventAuditRecord)
+            .where(EventAuditRecord.event_id == event_id)
+            .order_by(EventAuditRecord.id.desc())
+            .limit(1)
+            .with_for_update()
+        )
+        if latest_audit is None:
+            raise ConflictError("event audit is unavailable")
+        notification_type = EVENT_NOTIFICATION_ACTION_TYPES.get(latest_audit.action)
+        if notification_type is None:
+            raise ConflictError("latest event action is not notifiable")
+        snapshot_rows = session.scalars(
+            select(EventInviteeRecord)
+            .where(EventInviteeRecord.event_id == event_id)
+            .order_by(EventInviteeRecord.person_id)
+            .with_for_update()
+        ).all()
+        if not snapshot_rows:
+            raise ConflictError("event invitee snapshot is unavailable")
+        active_people = set(
+            session.scalars(
+                select(PersonRecord.id).where(
+                    PersonRecord.id.in_(
+                        row.person_id for row in snapshot_rows if row.included
+                    ),
+                    PersonRecord.portal_status == "active",
+                    PersonRecord.portal_access_level.in_(ACCESS_LEVELS),
+                )
+            )
+        )
+        recipients = tuple(
+            (row.person_id, row.participation_category)
+            for row in snapshot_rows
+            if row.included and row.person_id in active_people
+        )
+        if not recipients or len(recipients) > MAX_EVENT_NOTIFICATION_RECIPIENTS:
+            raise ConflictError("event notification audience is outside bounds")
+        revision = _canonical_hash(
+            {
+                "event_id": event.id,
+                "event_version": event.version,
+                "event_audit_id": latest_audit.id,
+                "notification_type": notification_type,
+                "snapshot": [
+                    {
+                        "person_id": row.person_id,
+                        "included": row.included,
+                        "participation_category": row.participation_category,
+                    }
+                    for row in snapshot_rows
+                ],
+                "recipients": recipients,
+            }
+        )
+        return {
+            "event": event,
+            "event_audit": latest_audit,
+            "notification_type": notification_type,
+            "recipients": recipients,
+            "revision": revision,
+            "recipient_count": len(recipients),
+            "confirmation_text": f"NOTIFY {len(recipients)}",
+        }
+
+    @staticmethod
+    def _event_notification_projection(snapshot: dict) -> dict:
+        event = snapshot["event"]
+        return {
+            "event_id": event.id,
+            "event_version": event.version,
+            "notification_type": snapshot["notification_type"],
+            "recipient_count": snapshot["recipient_count"],
+            "revision": snapshot["revision"],
+            "confirmation_text": snapshot["confirmation_text"],
+        }
+
+    def preview_event_notification(self, actor_id: int, event_id: int) -> dict:
+        with Session(self.engine) as session, session.begin():
+            self._require_event_lifecycle_revision(session)
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+            )
+            return self._event_notification_projection(
+                self._event_notification_snapshot(session, actor_id, event_id)
+            )
+
+    def confirm_event_notification(
+        self,
+        actor_id: int,
+        event_id: int,
+        *,
+        notification_type: str,
+        preview_revision: str,
+        typed_confirmation: str,
+        request_id: str,
+    ) -> dict:
+        if notification_type not in EVENT_NOTIFICATION_TYPES:
+            raise ValidationError("event notification type is invalid")
+        if (
+            not isinstance(preview_revision, str)
+            or len(preview_revision) != 64
+            or any(value not in "0123456789abcdef" for value in preview_revision)
+        ):
+            raise ValidationError("event notification revision is invalid")
+        request_id = _request_id(request_id)
+        request_hash = _canonical_hash(
+            {
+                "event_id": event_id,
+                "notification_type": notification_type,
+                "preview_revision": preview_revision,
+                "typed_confirmation": typed_confirmation,
+            }
+        )
+        now = utc_now()
+        try:
+            with Session(self.engine) as session, session.begin():
+                self._require_event_lifecycle_revision(session)
+                session.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+                )
+                self._require_event_manager(session, actor_id)
+                existing = session.scalar(
+                    select(EventNotificationPublishAuditRecord)
+                    .where(EventNotificationPublishAuditRecord.request_id == request_id)
+                    .with_for_update()
+                )
+                if existing is not None:
+                    if (
+                        existing.actor_person_id == actor_id
+                        and existing.event_id == event_id
+                        and existing.notification_type == notification_type
+                        and existing.preview_revision == preview_revision
+                        and existing.request_hash == request_hash
+                    ):
+                        return {
+                            "notification_id": existing.notification_id,
+                            "recipient_count": existing.recipient_count,
+                            "replayed": True,
+                        }
+                    raise ConflictError("event notification request id already used")
+                snapshot = self._event_notification_snapshot(
+                    session, actor_id, event_id
+                )
+                if (
+                    snapshot["notification_type"] != notification_type
+                    or snapshot["revision"] != preview_revision
+                ):
+                    raise ConflictError("event notification preview changed")
+                if typed_confirmation != snapshot["confirmation_text"]:
+                    raise ValidationError("event notification confirmation is invalid")
+                event = snapshot["event"]
+                title = {
+                    "event_published": "活動已發布",
+                    "event_updated": "活動內容已更新",
+                    "event_cancelled": "活動已取消",
+                }[notification_type]
+                notification = MobileNotificationRecord(
+                    notification_type=notification_type,
+                    title=title,
+                    body=event.title,
+                    destination_type="event",
+                    destination_game_id=None,
+                    destination_event_id=event.id,
+                    created_at=now,
+                    visible_until=now + timedelta(days=90),
+                )
+                session.add(notification)
+                session.flush()
+                for person_id, category in snapshot["recipients"]:
+                    session.add(
+                        MobileNotificationRecipientRecord(
+                            notification_id=notification.id,
+                            person_id=person_id,
+                            participation_category=category,
+                            created_at=now,
+                            read_at=None,
+                        )
+                    )
+                session.add(
+                    MobileNotificationDeliveryRecord(
+                        notification_id=notification.id,
+                        channel="in_app",
+                        status="succeeded",
+                        attempt_count=1,
+                        error_code=None,
+                        retryable=False,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+                session.add(
+                    EventNotificationPublishAuditRecord(
+                        notification_id=notification.id,
+                        event_id=event.id,
+                        event_audit_id=snapshot["event_audit"].id,
+                        actor_person_id=actor_id,
+                        notification_type=notification_type,
+                        event_version=event.version,
+                        preview_revision=preview_revision,
+                        recipient_count=snapshot["recipient_count"],
+                        request_id=request_id,
+                        request_hash=request_hash,
+                        created_at=now,
+                    )
+                )
+                session.flush()
+                return {
+                    "notification_id": notification.id,
+                    "recipient_count": snapshot["recipient_count"],
+                    "replayed": False,
+                }
+        except IntegrityError as error:
+            raise ConflictError("event notification conflict") from error
+
+    def guest_candidates(self, actor_id: int) -> tuple[dict, ...]:
+        now = utc_now()
+        with Session(self.engine) as session:
+            self._require_event_lifecycle_revision(session)
+            self._require_guest_manager(session, actor_id)
+            people = session.scalars(
+                select(PersonRecord)
+                .where(PersonRecord.portal_status == "active")
+                .order_by(PersonRecord.display_name, PersonRecord.id)
+            ).all()
+            candidates = []
+            for person in people:
+                member = session.scalar(
+                    select(LegacyMemberRecord.id).where(
+                        LegacyMemberRecord.person_id == person.id
+                    )
+                )
+                qualifications = set(
+                    session.scalars(
+                        select(PersonQualificationRecord.qualification).where(
+                            PersonQualificationRecord.person_id == person.id,
+                            PersonQualificationRecord.status == "active",
+                            or_(
+                                PersonQualificationRecord.valid_from.is_(None),
+                                PersonQualificationRecord.valid_from <= now,
+                            ),
+                            or_(
+                                PersonQualificationRecord.valid_until.is_(None),
+                                PersonQualificationRecord.valid_until > now,
+                            ),
+                        )
+                    )
+                )
+                has_guest = bool(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(PersonQualificationRecord)
+                        .where(
+                            PersonQualificationRecord.person_id == person.id,
+                            PersonQualificationRecord.qualification == "guest_player",
+                        )
+                    )
+                )
+                if (
+                    member is None
+                    and "team_player" not in qualifications
+                    and not has_guest
+                ):
+                    candidates.append(
+                        {"person_id": person.id, "display_name": person.display_name}
+                    )
+            return tuple(candidates)
+
+    def managed_guests(
+        self, actor_id: int, state: str = "active", at: datetime | None = None
+    ) -> tuple[dict, ...]:
+        if state not in {"scheduled", "active", "expired", "revoked"}:
+            raise ValidationError("guest state is invalid")
+        now = at or utc_now()
+        with Session(self.engine) as session:
+            self._require_event_lifecycle_revision(session)
+            self._require_guest_manager(session, actor_id)
+            rows = session.execute(
+                select(PersonRecord, PersonQualificationRecord, LegacyMemberRecord.id)
+                .join(
+                    PersonQualificationRecord,
+                    PersonQualificationRecord.person_id == PersonRecord.id,
+                )
+                .outerjoin(
+                    LegacyMemberRecord, LegacyMemberRecord.person_id == PersonRecord.id
+                )
+                .where(
+                    PersonQualificationRecord.qualification == "guest_player",
+                    PersonRecord.portal_status == "active",
+                )
+                .order_by(PersonRecord.display_name, PersonRecord.id)
+            ).all()
+            projections = []
+            for person, qualification, member_id in rows:
+                team_player_active = bool(
+                    session.scalar(
+                        select(func.count())
+                        .select_from(PersonQualificationRecord)
+                        .where(
+                            PersonQualificationRecord.person_id == person.id,
+                            PersonQualificationRecord.qualification == "team_player",
+                            PersonQualificationRecord.status == "active",
+                            or_(
+                                PersonQualificationRecord.valid_from.is_(None),
+                                PersonQualificationRecord.valid_from <= now,
+                            ),
+                            or_(
+                                PersonQualificationRecord.valid_until.is_(None),
+                                PersonQualificationRecord.valid_until > now,
+                            ),
+                        )
+                    )
+                )
+                projected = self._guest_projection(
+                    person,
+                    qualification,
+                    member_id=member_id,
+                    team_player_active=team_player_active,
+                    now=now,
+                )
+                if projected["state"] == state:
+                    projections.append(projected)
+            return tuple(projections)
+
+    def mutate_guest_qualification(
+        self,
+        actor_id: int,
+        target_person_id: int,
+        action: str,
+        *,
+        expected_version: int,
+        reason: str,
+        request_id: str,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+        at: datetime | None = None,
+    ) -> dict:
+        if action not in {"grant", "extend", "revoke"}:
+            raise ValidationError("guest action is invalid")
+        if type(expected_version) is not int or expected_version < 0:
+            raise ValidationError("guest expected version is invalid")
+        reason = require_reason(reason)
+        request_id = _request_id(request_id)
+        now = at or utc_now()
+        if action == "grant":
+            validate_guest_period(valid_from, valid_until)
+        elif action == "extend":
+            if valid_until is None or valid_until.tzinfo is None:
+                raise ValidationError("guest extension requires an exact end")
+            if valid_from is not None:
+                raise ValidationError("guest extension start must be omitted")
+        elif valid_from is not None or valid_until is not None:
+            raise ValidationError("guest revocation must not include a period")
+        request_hash = _canonical_hash(
+            {
+                "target_person_id": target_person_id,
+                "action": action,
+                "expected_version": expected_version,
+                "reason": reason,
+                "valid_from": valid_from,
+                "valid_until": valid_until,
+            }
+        )
+        try:
+            with Session(self.engine) as session, session.begin():
+                self._require_event_lifecycle_revision(session)
+                session.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
+                )
+                self._require_guest_manager(session, actor_id)
+                existing_audit = session.scalar(
+                    select(GuestQualificationAuditRecord)
+                    .where(GuestQualificationAuditRecord.request_id == request_id)
+                    .with_for_update()
+                )
+                if existing_audit is not None:
+                    if (
+                        existing_audit.actor_person_id == actor_id
+                        and existing_audit.target_person_id == target_person_id
+                        and existing_audit.request_hash == request_hash
+                    ):
+                        return {**existing_audit.after_state, "replayed": True}
+                    raise ConflictError("guest request id already used")
+                target = session.scalar(
+                    select(PersonRecord)
+                    .where(PersonRecord.id == target_person_id)
+                    .with_for_update()
+                )
+                if target is None or target.portal_status != "active":
+                    raise ConflictError("active guest Person required")
+                member_id = session.scalar(
+                    select(LegacyMemberRecord.id)
+                    .where(LegacyMemberRecord.person_id == target_person_id)
+                    .with_for_update()
+                )
+                team_player = session.scalar(
+                    select(PersonQualificationRecord)
+                    .where(
+                        PersonQualificationRecord.person_id == target_person_id,
+                        PersonQualificationRecord.qualification == "team_player",
+                        PersonQualificationRecord.status == "active",
+                        or_(
+                            PersonQualificationRecord.valid_from.is_(None),
+                            PersonQualificationRecord.valid_from <= now,
+                        ),
+                        or_(
+                            PersonQualificationRecord.valid_until.is_(None),
+                            PersonQualificationRecord.valid_until > now,
+                        ),
+                    )
+                    .with_for_update()
+                )
+                if member_id is not None or team_player is not None:
+                    raise ConflictError("guest cannot overlap Member or team player")
+                qualification = session.scalar(
+                    select(PersonQualificationRecord)
+                    .where(
+                        PersonQualificationRecord.person_id == target_person_id,
+                        PersonQualificationRecord.qualification == "guest_player",
+                    )
+                    .with_for_update()
+                )
+                before_state = None
+                if qualification is not None:
+                    before_state = {
+                        "status": qualification.status,
+                        "valid_from": qualification.valid_from.isoformat(),
+                        "valid_until": qualification.valid_until.isoformat(),
+                        "version": qualification.version,
+                    }
+                if action == "grant":
+                    if qualification is not None or expected_version != 0:
+                        raise ConflictError("new guest qualification required")
+                    qualification = PersonQualificationRecord(
+                        person_id=target_person_id,
+                        qualification="guest_player",
+                        status="active",
+                        valid_from=valid_from,
+                        valid_until=valid_until,
+                        granted_by_person_id=actor_id,
+                        reason=reason,
+                        created_at=now,
+                        updated_at=now,
+                        version=1,
+                    )
+                    audit_action = "granted"
+                    session.add(qualification)
+                    session.flush()
+                else:
+                    if (
+                        qualification is None
+                        or qualification.version != expected_version
+                    ):
+                        raise ConflictError("guest qualification version conflict")
+                    if action == "extend":
+                        if qualification.status != "active":
+                            raise ConflictError("active guest qualification required")
+                        validate_guest_period(qualification.valid_from, valid_until)
+                        if valid_until <= qualification.valid_until:
+                            raise ConflictError("guest extension must move end forward")
+                        qualification.valid_until = valid_until
+                        qualification.reason = reason
+                        qualification.version += 1
+                        qualification.updated_at = now
+                        audit_action = "extended"
+                    else:
+                        if qualification.status != "active":
+                            raise ConflictError("active guest qualification required")
+                        qualification.status = "revoked"
+                        qualification.reason = reason
+                        qualification.version += 1
+                        qualification.updated_at = now
+                        audit_action = "revoked"
+                after_state = {
+                    "person_id": target_person_id,
+                    "state": _guest_state(
+                        qualification.status,
+                        qualification.valid_from,
+                        qualification.valid_until,
+                        now,
+                    ),
+                    "valid_from": qualification.valid_from.isoformat(),
+                    "valid_until": qualification.valid_until.isoformat(),
+                    "version": qualification.version,
+                }
+                session.add(
+                    GuestQualificationAuditRecord(
+                        qualification_id=qualification.id,
+                        target_person_id=target_person_id,
+                        actor_person_id=actor_id,
+                        action=audit_action,
+                        expected_version=expected_version,
+                        resulting_version=qualification.version,
+                        reason=reason,
+                        request_id=request_id,
+                        request_hash=request_hash,
+                        before_state=before_state,
+                        after_state=after_state,
+                        created_at=now,
+                    )
+                )
+                session.flush()
+                return {**after_state, "replayed": False}
+        except IntegrityError as error:
+            raise ConflictError("guest qualification conflict") from error
+
+    @staticmethod
+    def _require_event_lifecycle_revision(session: Session) -> None:
+        revisions = tuple(
+            session.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
+        )
+        if revisions != (EVENT_LIFECYCLE_REVISION,):
+            raise ConflictError("event lifecycle schema is unavailable")
+
+    @staticmethod
+    def _guest_projection(
+        person: PersonRecord,
+        qualification: PersonQualificationRecord,
+        *,
+        member_id: int | None,
+        team_player_active: bool,
+        now: datetime,
+    ) -> dict:
+        return {
+            "person_id": person.id,
+            "display_name": person.display_name,
+            "member": member_id is not None,
+            "team_player_active": team_player_active,
+            "state": _guest_state(
+                qualification.status,
+                qualification.valid_from,
+                qualification.valid_until,
+                now,
+            ),
+            "valid_from": qualification.valid_from,
+            "valid_until": qualification.valid_until,
+            "version": qualification.version,
+        }
+
     def get_person(self, person_id: int) -> Person:
         with Session(self.engine) as session:
             row = session.get(PersonRecord, person_id)
@@ -1989,12 +2631,22 @@ class PostgresTeamPortalRepository:
                     PersonRecord.portal_status == "active",
                     PersonRecord.portal_access_level.in_(ACCESS_LEVELS),
                     or_(
-                        PersonQualificationRecord.valid_from.is_(None),
-                        PersonQualificationRecord.valid_from <= now,
-                    ),
-                    or_(
-                        PersonQualificationRecord.valid_until.is_(None),
-                        PersonQualificationRecord.valid_until > now,
+                        and_(
+                            PersonQualificationRecord.qualification == "guest_player",
+                            PersonQualificationRecord.valid_from <= event.start_at,
+                            PersonQualificationRecord.valid_until > event.start_at,
+                        ),
+                        and_(
+                            PersonQualificationRecord.qualification != "guest_player",
+                            or_(
+                                PersonQualificationRecord.valid_from.is_(None),
+                                PersonQualificationRecord.valid_from <= now,
+                            ),
+                            or_(
+                                PersonQualificationRecord.valid_until.is_(None),
+                                PersonQualificationRecord.valid_until > now,
+                            ),
+                        ),
                     ),
                 )
                 .order_by(PersonQualificationRecord.person_id)
@@ -2615,12 +3267,22 @@ class PostgresTeamPortalRepository:
                     PersonRecord.portal_status == "active",
                     PersonRecord.portal_access_level.in_(ACCESS_LEVELS),
                     or_(
-                        PersonQualificationRecord.valid_from.is_(None),
-                        PersonQualificationRecord.valid_from <= now,
-                    ),
-                    or_(
-                        PersonQualificationRecord.valid_until.is_(None),
-                        PersonQualificationRecord.valid_until > now,
+                        and_(
+                            PersonQualificationRecord.qualification == "guest_player",
+                            PersonQualificationRecord.valid_from <= event.start_at,
+                            PersonQualificationRecord.valid_until > event.start_at,
+                        ),
+                        and_(
+                            PersonQualificationRecord.qualification != "guest_player",
+                            or_(
+                                PersonQualificationRecord.valid_from.is_(None),
+                                PersonQualificationRecord.valid_from <= now,
+                            ),
+                            or_(
+                                PersonQualificationRecord.valid_until.is_(None),
+                                PersonQualificationRecord.valid_until > now,
+                            ),
+                        ),
                     ),
                 )
             ).all()

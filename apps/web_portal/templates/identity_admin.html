@@ -63,17 +63,6 @@
                         affiliate
                     </label>
                     <label>
-                        <input type="checkbox" name="qualification" value="guest_player" />
-                        guest player
-                    </label>
-                    <label>
-                        Guest 起日
-                        <input type="datetime-local" name="guest_valid_from" />
-                    </label>
-                    <label>
-                        Guest 迄日
-                        <input type="datetime-local" name="guest_valid_until" />
-                    </label>
                     <button name="action"
                             value="approve_non_member"
                             {% if not identity_maintenance_enabled %}disabled{% endif %}>核可為非會員</button>

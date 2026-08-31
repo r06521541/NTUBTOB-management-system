@@ -29,6 +29,7 @@ EXPECTED_REVISIONS = (
     "0008_mobile_notification_delivery",
     "0009_event_management_writes",
     "0010_apple_provider_lifecycle",
+    "0011_event_notification_guest_lifecycle",
 )
 EXPECTED_TABLES = {
     "access_audit",

@@ -3324,6 +3324,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "status": status,
             "start_at": datetime(2026, 9, 12, 1, 30, tzinfo=timezone.utc),
             "end_at": datetime(2026, 9, 13, 8, 0, tzinfo=timezone.utc),
+            "participation_category": "team_player",
             "attendance": attendance,
             "activities": (
                 {
@@ -3527,6 +3528,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "candidates": ({"person_id": 10, "display_name": "虛構人工邀請對象"},),
             "overrides": (),
         }
+        service.preview_event_notification.return_value = {
+            "notification_type": "event_published",
+            "recipient_count": 3,
+            "revision": "a" * 64,
+            "confirmation_text": "NOTIFY 3",
+        }
+        service.managed_guests.return_value = ()
+        service.guest_candidates.return_value = ()
         return service
 
     def test_event_management_create_requires_csrf_and_uses_server_actor(self):
@@ -3952,6 +3961,122 @@ class MemberMatchingRouteTest(unittest.TestCase):
         service.publish_event.assert_called_once_with(80, 7, "publish-web-1")
         service.cancel_event.assert_called_once_with(80, 7, "cancel-web-1")
         self.notifier.notify_management_message.assert_not_called()
+
+    def test_event_notification_is_separate_server_scoped_and_csrf_guarded(self):
+        self._login_for_events()
+        service = self._event_management_service(status="published")
+        repository, principal = self._event_repository()
+        principal.person.access_level = "admin"
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "event-csrf"
+        payload = {
+            "notification_type": "event_published",
+            "preview_revision": "a" * 64,
+            "typed_confirmation": "NOTIFY 3",
+            "request_id": "notify-web-fictional",
+        }
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            page = self.client.get("/manage/events/event_7")
+            rejected = self.client.post(
+                "/manage/events/event_7/notification", data=payload
+            )
+            saved = self.client.post(
+                "/manage/events/event_7/notification",
+                data={**payload, "csrf_token": "event-csrf"},
+            )
+
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("收件者固定來自已發布快照，目前共 3 人", page.data.decode())
+        self.assertNotIn('name="recipient', page.data.decode())
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(saved.status_code, 302)
+        service.confirm_event_notification.assert_called_once_with(
+            80,
+            7,
+            notification_type="event_published",
+            preview_revision="a" * 64,
+            typed_confirmation="NOTIFY 3",
+            request_id="notify-web-fictional",
+        )
+        service.publish_event.assert_not_called()
+        self.notifier.notify_management_message.assert_not_called()
+
+    def test_guest_manager_defaults_active_and_posts_versioned_server_target(self):
+        self._login_for_events()
+        service = self._event_management_service()
+        service.managed_guests.return_value = (
+            {
+                "person_id": 91,
+                "display_name": "虛構客座",
+                "state": "active",
+                "valid_from": datetime(2026, 9, 1, tzinfo=timezone.utc),
+                "valid_until": datetime(2026, 9, 10, tzinfo=timezone.utc),
+                "version": 4,
+                "member": False,
+                "team_player_active": False,
+            },
+        )
+        service.guest_candidates.return_value = (
+            {"person_id": 92, "display_name": "虛構候選人"},
+        )
+        repository, principal = self._event_repository()
+        principal.person.access_level = "admin"
+        with self.client.session_transaction() as current_session:
+            current_session["member_matching_csrf_token"] = "event-csrf"
+        with patch.dict(
+            os.environ,
+            {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            },
+            clear=False,
+        ), patch.object(
+            self.app_module, "phase_c_repository", return_value=repository
+        ), patch.object(
+            self.app_module, "_event_management_service", return_value=service
+        ):
+            page = self.client.get("/manage/guests")
+            bad_state = self.client.get("/manage/guests?state=unknown")
+            saved = self.client.post(
+                "/manage/guests/person_91",
+                data={
+                    "csrf_token": "event-csrf",
+                    "action": "revoke",
+                    "expected_version": "4",
+                    "reason": "虛構客座期結束",
+                    "request_id": "guest-web-fictional",
+                },
+            )
+
+        self.assertEqual(page.status_code, 200)
+        rendered = page.data.decode()
+        self.assertIn("虛構客座", rendered)
+        self.assertIn("虛構候選人", rendered)
+        self.assertNotIn("provider_subject", rendered)
+        self.assertEqual(bad_state.status_code, 400)
+        self.assertEqual(saved.status_code, 302)
+        service.managed_guests.assert_called_once_with(80, "active")
+        service.mutate_guest_qualification.assert_called_once_with(
+            80,
+            91,
+            "revoke",
+            expected_version=4,
+            reason="虛構客座期結束",
+            request_id="guest-web-fictional",
+            valid_from=None,
+            valid_until=None,
+        )
 
     def test_game_reply_requires_csrf_and_uses_phase_c_repository(self):
         game = self.portal_game()

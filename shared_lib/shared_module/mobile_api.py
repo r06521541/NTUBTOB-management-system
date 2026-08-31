@@ -696,6 +696,24 @@ class BasicApiService:
         notification_id = BasicApiService._notification_id(row["id"])
         if row["visible_until"] != row["created_at"] + NOTIFICATION_RETENTION:
             raise InvalidArgument("stored notification visibility is malformed")
+        destination_type = row.get("destination_type", "notification")
+        if destination_type == "notification":
+            destination = {
+                "type": "notification",
+                "notification_id": f"notification_{notification_id}",
+            }
+        elif destination_type == "game":
+            destination = {
+                "type": "game",
+                "game_id": f"game_{row['destination_game_id']}",
+            }
+        elif destination_type == "event":
+            event_id = row.get("destination_event_id")
+            if type(event_id) is not int or event_id <= 0:
+                raise InvalidArgument("stored notification destination is malformed")
+            destination = {"type": "event", "event_id": f"event_{event_id}"}
+        else:
+            raise InvalidArgument("stored notification destination is malformed")
         return {
             "id": f"notification_{notification_id}",
             "type": row["type"],
@@ -704,17 +722,7 @@ class BasicApiService:
             "created_at": utc(row["created_at"]),
             "visible_until": utc(row["visible_until"]),
             "read_at": utc(row["read_at"]),
-            "destination": (
-                {
-                    "type": "notification",
-                    "notification_id": f"notification_{notification_id}",
-                }
-                if row.get("destination_type", "notification") == "notification"
-                else {
-                    "type": "game",
-                    "game_id": f"game_{row['destination_game_id']}",
-                }
-            ),
+            "destination": destination,
         }
 
     @staticmethod

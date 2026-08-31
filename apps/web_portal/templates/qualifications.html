@@ -27,7 +27,6 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input type="hidden"
        name="request_id"
        value="qualification-{{ person.person_id }}-{{ request_nonce }}" /><label>資格<select name="qualification">
-            <option value="guest_player">客座球員</option>
             <option value="affiliate">親友團</option>
             <option value="staff">工作人員</option>
         </select></label><label>有效開始<input type="datetime-local" name="valid_from" /></label><label>有效結束<input type="datetime-local" name="valid_until" /></label><label>原因<input name="reason" minlength="3" maxlength="300" required />

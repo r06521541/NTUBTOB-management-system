@@ -19,12 +19,14 @@ class FakeNotificationRepository:
         self.rows = [
             {
                 "id": 3,
-                "type": "game_change",
+                "type": "event_updated",
                 "title": "場地異動",
                 "body": "比賽改到第二球場。",
                 "created_at": NOW - timedelta(minutes=1),
                 "visible_until": NOW - timedelta(minutes=1) + timedelta(days=90),
                 "read_at": None,
+                "destination_type": "event",
+                "destination_event_id": 91,
             },
             {
                 "id": 2,
@@ -133,6 +135,9 @@ class NotificationApiServiceTest(unittest.TestCase):
     def test_detail_count_and_read_mutations_are_principal_only_and_idempotent(self):
         detail = self.service.notification(PRINCIPAL, 3)
         self.assertEqual(detail["body"], "比賽改到第二球場。")
+        self.assertEqual(
+            detail["destination"], {"type": "event", "event_id": "event_91"}
+        )
         self.assertEqual(self.service.notification_unread_count(PRINCIPAL), 2)
 
         first = self.service.mark_notification_read(PRINCIPAL, 3)

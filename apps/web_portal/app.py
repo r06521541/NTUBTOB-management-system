@@ -9,7 +9,6 @@ from urllib.parse import urlencode, urlsplit
 
 import messages
 import requests
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from admin_security import (
     admin_required,
     capability_required,
@@ -56,6 +55,7 @@ from identity_maintenance import (
     is_phase_c_enabled,
     is_rollout_freeze_enabled,
 )
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from line_login import (
     LINE_HTTP_TIMEOUT_SECONDS,
     InvalidOAuthState,
@@ -1179,7 +1179,9 @@ def _event_management_projection(event):
 def _event_write_failure(error):
     from shared_module.portal_data.domain import (
         AuthorizationError as PortalAuthorizationError,
-        ConflictError as PortalConflictError,
+    )
+    from shared_module.portal_data.domain import ConflictError as PortalConflictError
+    from shared_module.portal_data.domain import (
         ValidationError as PortalValidationError,
     )
 
@@ -1200,6 +1202,9 @@ def _local_event_time(value):
 def _web_event_projection(event):
     public = project_public_event(event)
     public["type_label"] = EVENT_TYPE_LABELS[public["type"]]
+    public["participation_category_label"] = EVENT_ELIGIBILITY_LABELS.get(
+        public["participation_category"], "其他"
+    )
     public["start_datetime"] = _local_event_time(public["start_at"])
     public["end_datetime"] = (
         _local_event_time(public["end_at"]) if public["end_at"] else None
@@ -1323,7 +1328,9 @@ def event_detail(event_key):
 def _event_attendance_failure(error):
     from shared_module.portal_data.domain import (
         AuthorizationError as PortalAuthorizationError,
-        ConflictError as PortalConflictError,
+    )
+    from shared_module.portal_data.domain import ConflictError as PortalConflictError
+    from shared_module.portal_data.domain import (
         ValidationError as PortalValidationError,
     )
 
@@ -1440,10 +1447,19 @@ def _managed_event_page(event_id):
         preview = service.eligibility_preview(principal.person.id, event_id)
     except Exception as error:
         return _event_write_failure(error)
+    notification_preview = None
+    if event["status"] != "draft":
+        try:
+            notification_preview = service.preview_event_notification(
+                principal.person.id, event_id
+            )
+        except Exception:
+            notification_preview = None
     return render_template(
         "event_management_edit.html",
         event=event,
         preview=preview,
+        notification_preview=notification_preview,
         csrf_token=get_or_create_csrf_token(),
         new_request_id=lambda: secrets.token_urlsafe(24),
         event_types=EVENT_TYPE_LABELS,
@@ -1617,6 +1633,91 @@ def cancel_managed_event(event_key):
     except Exception as error:
         return _event_write_failure(error)
     return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/notification")
+@capability_required(MANAGE_EVENTS)
+def confirm_managed_event_notification(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.confirm_event_notification(
+            principal.person.id,
+            event_id,
+            notification_type=request.form.get("notification_type", ""),
+            preview_revision=request.form.get("preview_revision", ""),
+            typed_confirmation=request.form.get("typed_confirmation", ""),
+            request_id=request.form.get("request_id", ""),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.get("/manage/guests")
+@capability_required(MANAGE_EVENTS)
+def manage_guests():
+    state = request.args.get("state", "active")
+    if state not in {"scheduled", "active", "expired", "revoked"}:
+        abort(400)
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        guests = tuple(
+            {
+                **guest,
+                "valid_from_local": guest["valid_from"].astimezone(local_timezone),
+                "valid_until_local": guest["valid_until"].astimezone(local_timezone),
+            }
+            for guest in service.managed_guests(principal.person.id, state)
+        )
+        candidates = service.guest_candidates(principal.person.id)
+    except Exception as error:
+        return _event_write_failure(error)
+    return render_template(
+        "guest_management.html",
+        guests=guests,
+        candidates=candidates,
+        selected_state=state,
+        csrf_token=get_or_create_csrf_token(),
+        new_request_id=lambda: secrets.token_urlsafe(24),
+    )
+
+
+@app.post("/manage/guests/<person_key>")
+@capability_required(MANAGE_EVENTS)
+def mutate_managed_guest(person_key):
+    require_valid_csrf()
+    person_id = _parse_management_key(person_key, "person_")
+    _, principal = _event_management_context()
+    action = request.form.get("action", "")
+    try:
+        expected_version = int(request.form.get("expected_version", ""))
+    except ValueError:
+        abort(400)
+    service = _event_management_service()
+    try:
+        service.mutate_guest_qualification(
+            principal.person.id,
+            person_id,
+            action,
+            expected_version=expected_version,
+            reason=request.form.get("reason", ""),
+            request_id=request.form.get("request_id", ""),
+            valid_from=(
+                _optional_form_datetime("valid_from") if action == "grant" else None
+            ),
+            valid_until=(
+                _optional_form_datetime("valid_until")
+                if action in {"grant", "extend"}
+                else None
+            ),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("manage_guests"))
 
 
 @app.route("/dashboard")
@@ -2266,7 +2367,7 @@ def manage_person_qualifications(person_id):
         qualification = request.form.get("qualification", "")
         request_id = _required_request_id("qualification-")
         reason = request.form.get("reason", "").strip()
-        if qualification not in {"guest_player", "affiliate", "staff"}:
+        if qualification not in {"affiliate", "staff"}:
             abort(400)
         if not 3 <= len(reason) <= 300:
             abort(400)
@@ -2470,6 +2571,8 @@ def identity_admin_action():
     try:
         if action == "approve_non_member" and identity_id is not None:
             qualifications = request.form.getlist("qualification")
+            if "guest_player" in qualifications:
+                abort(400)
             repository.approve_non_member(
                 actor_person_id,
                 identity_id,

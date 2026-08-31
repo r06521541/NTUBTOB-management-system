@@ -584,6 +584,33 @@ class EventAttendance {
   final Map<String, int> counts;
 }
 
+enum EventParticipationCategory {
+  teamPlayer,
+  guestPlayer,
+  affiliate,
+  staff,
+  other
+}
+
+extension EventParticipationCategoryWire on EventParticipationCategory {
+  String get wire => switch (this) {
+        EventParticipationCategory.teamPlayer => 'team_player',
+        EventParticipationCategory.guestPlayer => 'guest_player',
+        EventParticipationCategory.affiliate => 'affiliate',
+        EventParticipationCategory.staff => 'staff',
+        EventParticipationCategory.other => 'other',
+      };
+
+  static EventParticipationCategory parse(Object? value) => switch (value) {
+        'team_player' => EventParticipationCategory.teamPlayer,
+        'guest_player' => EventParticipationCategory.guestPlayer,
+        'affiliate' => EventParticipationCategory.affiliate,
+        'staff' => EventParticipationCategory.staff,
+        'other' => EventParticipationCategory.other,
+        _ => throw const ContractException('invalid participation category'),
+      };
+}
+
 class TeamEvent {
   const TeamEvent({
     required this.id,
@@ -593,6 +620,7 @@ class TeamEvent {
     required this.startAt,
     required this.endAt,
     required this.activities,
+    required this.participationCategory,
     this.attendance,
   });
 
@@ -629,6 +657,8 @@ class TeamEvent {
       startAt: startAt,
       endAt: endAt,
       activities: activities,
+      participationCategory:
+          EventParticipationCategoryWire.parse(json['participation_category']),
       attendance: json['attendance'] == null
           ? null
           : EventAttendance.fromJson(
@@ -641,6 +671,7 @@ class TeamEvent {
   final DateTime startAt;
   final DateTime? endAt;
   final List<EventActivity> activities;
+  final EventParticipationCategory participationCategory;
   final EventAttendance? attendance;
   bool get cancelled => status == 'cancelled';
 }
@@ -786,6 +817,9 @@ enum MobileNotificationType {
   officerGameBroadcast,
   officerTeamBroadcast,
   adminSystemAnnouncement,
+  eventPublished,
+  eventUpdated,
+  eventCancelled,
 }
 
 const notificationRetention = Duration(days: 90);
@@ -810,6 +844,9 @@ extension MobileNotificationTypeWire on MobileNotificationType {
         MobileNotificationType.officerTeamBroadcast => 'officer_team_broadcast',
         MobileNotificationType.adminSystemAnnouncement =>
           'admin_system_announcement',
+        MobileNotificationType.eventPublished => 'event_published',
+        MobileNotificationType.eventUpdated => 'event_updated',
+        MobileNotificationType.eventCancelled => 'event_cancelled',
       };
 
   static MobileNotificationType parse(Object? value) => switch (value) {
@@ -821,11 +858,14 @@ extension MobileNotificationTypeWire on MobileNotificationType {
         'officer_team_broadcast' => MobileNotificationType.officerTeamBroadcast,
         'admin_system_announcement' =>
           MobileNotificationType.adminSystemAnnouncement,
+        'event_published' => MobileNotificationType.eventPublished,
+        'event_updated' => MobileNotificationType.eventUpdated,
+        'event_cancelled' => MobileNotificationType.eventCancelled,
         _ => throw const ContractException('unknown notification type'),
       };
 }
 
-enum NotificationDestinationType { notificationList, notification, game }
+enum NotificationDestinationType { notificationList, notification, game, event }
 
 class NotificationDestination {
   const NotificationDestination._(this.type, this.id);
@@ -835,6 +875,8 @@ class NotificationDestination {
       : this._(NotificationDestinationType.notification, id);
   const NotificationDestination.game(String id)
       : this._(NotificationDestinationType.game, id);
+  const NotificationDestination.event(String id)
+      : this._(NotificationDestinationType.event, id);
 
   static bool _hasExactKeys(Map<String, dynamic> value, Set<String> expected) =>
       value.length == expected.length && value.keys.every(expected.contains);
@@ -860,6 +902,10 @@ class NotificationDestination {
           when _hasExactKeys(value, {'type', 'game_id'}) &&
               _isCanonicalGameId(value['game_id']) =>
         NotificationDestination.game(value['game_id'] as String),
+      'event'
+          when _hasExactKeys(value, {'type', 'event_id'}) &&
+              _validPositiveOpaqueId(value['event_id'], 'event_', 26) =>
+        NotificationDestination.event(value['event_id'] as String),
       _ => const NotificationDestination.listFallback(),
     };
   }
@@ -870,12 +916,15 @@ class NotificationDestination {
   String safeRoute({
     required bool notificationVisible,
     Set<String> authorizedGameIds = const {},
+    Set<String> authorizedEventIds = const {},
   }) {
     if (!notificationVisible) return '/notifications';
     return switch (type) {
       NotificationDestinationType.notification => '/notifications/$id',
       NotificationDestinationType.game when authorizedGameIds.contains(id) =>
         '/games/$id',
+      NotificationDestinationType.event when authorizedEventIds.contains(id) =>
+        '/events/$id',
       _ => '/notifications',
     };
   }
@@ -886,6 +935,7 @@ class NotificationDestination {
             'notification_id': id,
           },
         NotificationDestinationType.game => {'type': 'game', 'game_id': id},
+        NotificationDestinationType.event => {'type': 'event', 'event_id': id},
         NotificationDestinationType.notificationList => {
             'type': 'notification_list',
           },

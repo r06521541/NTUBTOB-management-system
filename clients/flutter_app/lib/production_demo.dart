@@ -510,6 +510,7 @@ class _ProductionDemoApi extends BasicApi {
         title: '虛構秋季交流活動',
         type: 'trip',
         status: 'published',
+        participationCategory: EventParticipationCategory.guestPlayer,
         startAt: DateTime.utc(2026, 9, 12, 5, 30),
         endAt: DateTime.utc(2026, 9, 12, 10),
         attendance: _eventAttendance(_eventReply),

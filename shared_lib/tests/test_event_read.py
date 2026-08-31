@@ -37,6 +37,7 @@ class EventReadContractTest(unittest.TestCase):
                 "title": "Fictional trip",
                 "type": "trip",
                 "status": "published",
+                "participation_category": "guest_player",
                 "start_at": datetime(2026, 9, 1, tzinfo=timezone.utc),
                 "end_at": None,
                 "attendance": {
@@ -72,6 +73,7 @@ class EventReadContractTest(unittest.TestCase):
                 "title",
                 "type",
                 "status",
+                "participation_category",
                 "start_at",
                 "end_at",
                 "attendance",
@@ -79,6 +81,7 @@ class EventReadContractTest(unittest.TestCase):
             },
         )
         self.assertEqual(projected["id"], "event_9")
+        self.assertEqual(projected["participation_category"], "guest_player")
         self.assertEqual(projected["activities"][0]["id"], "activity_91")
         self.assertEqual(projected["activities"][0]["linked_game_id"], "game_23")
         self.assertIsNone(projected["activities"][0]["attendance"])
@@ -93,6 +96,7 @@ class EventReadContractTest(unittest.TestCase):
                     "title": "Trip",
                     "type": "trip",
                     "status": "published",
+                    "participation_category": "team_player",
                     "start_at": datetime(2026, 9, 1, tzinfo=timezone.utc),
                     "end_at": None,
                     "attendance": {

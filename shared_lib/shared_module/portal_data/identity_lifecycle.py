@@ -2627,6 +2627,18 @@ class IdentityLifecycleRepository:
                 .order_by(EventRecord.start_at, EventRecord.id)
             ).all()
             event_ids = tuple(event.id for event in events)
+            participation_categories = dict(
+                session.execute(
+                    select(
+                        EventInviteeRecord.event_id,
+                        EventInviteeRecord.participation_category,
+                    ).where(
+                        EventInviteeRecord.event_id.in_(event_ids or {-1}),
+                        EventInviteeRecord.person_id == person_id,
+                        EventInviteeRecord.included.is_(True),
+                    )
+                )
+            )
             activities_by_event: dict[int, list[dict]] = {
                 event_id: [] for event_id in event_ids
             }
@@ -2679,6 +2691,7 @@ class IdentityLifecycleRepository:
                     "title": event.title,
                     "type": event.event_type,
                     "status": event.status,
+                    "participation_category": participation_categories[event.id],
                     "start_at": event.start_at,
                     "end_at": event.end_at,
                     "attendance": (

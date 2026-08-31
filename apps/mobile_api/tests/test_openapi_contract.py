@@ -252,6 +252,9 @@ class OpenApiContractTest(unittest.TestCase):
                 "officer_game_broadcast",
                 "officer_team_broadcast",
                 "admin_system_announcement",
+                "event_published",
+                "event_updated",
+                "event_cancelled",
             ],
         )
         self.assertEqual(
@@ -359,6 +362,7 @@ class OpenApiContractTest(unittest.TestCase):
                 "title",
                 "type",
                 "status",
+                "participation_category",
                 "start_at",
                 "end_at",
                 "attendance",
@@ -367,6 +371,10 @@ class OpenApiContractTest(unittest.TestCase):
         )
         self.assertEqual(
             event["properties"]["status"]["enum"], ["published", "cancelled"]
+        )
+        self.assertEqual(
+            event["properties"]["participation_category"]["enum"],
+            ["team_player", "guest_player", "affiliate", "staff", "other"],
         )
         event_parameter = self.contract["components"]["parameters"]["EventId"]
         event_id_contracts = (

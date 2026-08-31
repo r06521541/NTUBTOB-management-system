@@ -1581,6 +1581,22 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 : CachedGameDetailPage(game: game!),
           ),
         );
+      case NotificationDestinationType.event:
+        if (!widget.online) {
+          _showDestinationFeedback('離線時無法載入活動，仍停留在通知中心。');
+          return;
+        }
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => EventDetailPage(
+              api: widget.api,
+              eventId: item.destination.id!,
+              principalScope: widget.person.id,
+              visibleGames: widget.games,
+              onTerminalSession: widget.onProfileTerminalSession,
+            ),
+          ),
+        );
       case NotificationDestinationType.notificationList:
         _showDestinationFeedback('此通知沒有可開啟的內容，仍停留在通知中心。');
     }
@@ -1999,6 +2015,8 @@ class _EventDetailPageState extends State<EventDetailPage> {
                         style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: AppSpacing.compact),
                     Text(_eventMetadata(context, event)),
+                    Text(
+                        '受邀身分：${_participationCategoryLabel(event.participationCategory)}'),
                     if (event.cancelled) ...[
                       const SizedBox(height: AppSpacing.regular),
                       const AppStatusPanel(
@@ -2139,6 +2157,15 @@ String _eventReplyLabel(EventAttendanceReply? reply) => switch (reply) {
       EventAttendanceReply.notAttending => '不參加',
       EventAttendanceReply.maybe => '可能參加',
       null => '尚未回覆',
+    };
+
+String _participationCategoryLabel(EventParticipationCategory category) =>
+    switch (category) {
+      EventParticipationCategory.teamPlayer => '正式球員',
+      EventParticipationCategory.guestPlayer => '客座球員',
+      EventParticipationCategory.affiliate => '關係成員',
+      EventParticipationCategory.staff => '工作人員',
+      EventParticipationCategory.other => '其他',
     };
 
 Game? visibleLinkedGame(String? linkedGameId, Iterable<Game> visibleGames) {
