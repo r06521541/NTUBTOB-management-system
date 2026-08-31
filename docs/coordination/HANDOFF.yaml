@@ -1,27 +1,25 @@
-active_task: TASK-169
-status: completed
-next_actor: main-work
+active_task: TASK-170
+status: in_progress
+next_actor: /root/task170_android_candidate_writer; /root/task170_play_evidence_writer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
-base_commit: d59663781c5602e1699f812d5a953cec12e0eeb4
-head_commit: 053888692ec1a5d6b7e2893c1f90c1d8320544d5
+base_commit: 0f81084c8c1e16c8b32f4634927e91a19617b206
+head_commit: 0f81084c8c1e16c8b32f4634927e91a19617b206
 
 updated_by: main-work
-updated_at: 2026-08-31T04:00:03+08:00
+updated_at: 2026-08-31T08:20:53+08:00
 
 note: >
-  TASK-169 completed through delivery PR #219 at merge commit
-  053888692ec1a5d6b7e2893c1f90c1d8320544d5. Independent Release/Security
-  review accepted the immutable implementation, and final hosted run
-  33331935470 passed every selected gate, including Android API 36, signed
-  fictional contract-test AAB build and artifact inspection. Control returned
-  to Main Work. The delivery did not upload or authorize any store candidate;
-  no signing Secret, provider, cloud, production or deployment action occurred.
+  Owner started TASK-170 and approved permanent package tw.org.ntubtob.portal,
+  Play App Signing with a repository-external upload key, exact Basic-only
+  staging candidate preparation, real-device verification and Google Play
+  Closed Testing upload. Production backend/data, open/public rollout,
+  publication, billing and destructive signing changes remain excluded.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-169.md
-report: docs/coordination/reports/TASK-169-ANDROID.md; docs/coordination/reports/TASK-169-IOS-COMPLIANCE.md
-review: accepted by task169-release-security-review at ab07b665a3812d59459e04df6792432930e3bd43
+task: docs/coordination/tasks/TASK-170.md
+report: pending
+review: pending

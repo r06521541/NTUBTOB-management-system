@@ -1,6 +1,11 @@
 # Flutter Basic native client
 
-The development build remains a deterministic fake. Staging and production compose the Basic-only native LINE login and HTTP client only when all required compile-time configuration is present. Officer/Admin APIs, push/deep links, release signing, deployment, and real service configuration are intentionally absent.
+The development build remains a deterministic fake. Staging composes the
+Basic-only native LINE login and HTTP client only when all required compile-time
+configuration is present. The only Android distribution channel is the bounded
+`android-closed` Closed Testing candidate described below. Production runtime,
+Officer/Admin APIs, push/deep links, deployment, and real service configuration
+remain outside this repository contract.
 
 ## Flavors and platform generation
 
@@ -17,7 +22,7 @@ account-data status, and Officer report are the current production widgets fed
 by deterministic in-memory adapters. Fake mode needs no account or credentials,
 does not call LINE or an API, and does not use platform secure storage.
 
-Staging/production require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, numeric
+Staging/production runtime compositions require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, numeric
 `LINE_CHANNEL_ID`, `GOOGLE_CLIENT_ID`, and `GOOGLE_SERVER_CLIENT_ID`, supplied by
 an approved local/runtime configuration mechanism. Android uses the Web server
 client ID for backend tokens. iOS requires its iOS client ID plus that same Web
@@ -49,6 +54,68 @@ For Android staging evidence, the existing `Invoke-MobileStaging.ps1` artifact
 gate reads the APK package identity and signer certificate fingerprint and
 compares them with the Owner-approved allowlist; it never creates a keystore or
 handles a signing password.
+
+### Android Closed Testing release contract
+
+Every Android `release` task is fail closed. A real candidate must use package
+`tw.org.ntubtob.portal`, API 36, `MOBILE_RELEASE_CHANNEL=android-closed`, and the
+exact Dart contract `RELEASE_CHANNEL=android-closed`, `APP_FLAVOR=staging`,
+`CLIENT_MODE=real`, and `RELEASE_SCOPE=basic`. Production, development, fake,
+Officer/Admin, unknown, duplicate, missing, or additional Dart configuration is
+rejected before compilation.
+
+The approved staging origin and provider IDs must enter only through the
+approved non-echoing external configuration mechanism; do not put them in Git,
+documentation, a command line, or retained logs. The build compares the actual
+HTTPS origin with `MOBILE_RELEASE_STAGING_API_ORIGIN_SHA256`, a lowercase digest
+approved for the isolated staging runtime. The generated public contract asset
+also requires `MOBILE_RELEASE_STAGING_PROVIDER_CONFIG_SHA256`, calculated from
+the exact LINE, Android Google, and Web server Google IDs joined in that order
+with LF separators and no trailing LF. The asset contains only these two
+digests, never the origin or provider IDs. This rejects a mixed staging API and
+provider configuration without retaining those identifiers.
+
+The pubspec version name/code, `MOBILE_RELEASE_VERSION_NAME`, and
+`MOBILE_RELEASE_VERSION_CODE` must agree. The current code must also be greater
+than the canonical non-negative `MOBILE_RELEASE_PREVIOUS_VERSION_CODE` obtained
+from the exact package's Closed Testing history (`0` is allowed only when the
+package is verified to have no previous version). Any rebuild with a new
+version or configuration is a new artifact and requires fresh inspection.
+
+Signing is injected from a repository-external JKS/keystore using
+`MOBILE_RELEASE_KEYSTORE_PATH`, `MOBILE_RELEASE_KEY_ALIAS`, and privately
+supplied store/key passwords. The repository neither creates nor retains that
+key. Before upload, `python -m tools.mobile_release inspect-aab` must be run in
+`android-closed` mode with the exact package, version, previous version, staging
+origin/provider digests, and approved upload-certificate SHA-256. Its single JSON result
+binds the AAB byte hash/size, channel, Basic-only staging contract, API levels,
+version transition, and signer fingerprint without printing the endpoint,
+provider IDs, keystore path, alias, or password. Rebuilding after acceptance
+invalidates that evidence.
+
+Inspection requires JDK 17 through `JAVA_HOME`. The standard `gradlew`,
+`gradlew.bat`, wrapper JAR, and wrapper properties are versioned, and their
+canonical SHA-256 values are pinned by the inspector. It reads and verifies
+each component once, copies the verified bytes into a private wrapper snapshot,
+and launches only that snapshot. Any missing, linked, or changed component
+fails before Gradle starts. The child receives a constructed minimal runtime
+environment rather than the caller environment; signing/provider variables,
+credentials, passwords, and Java/Gradle option injection are not forwarded.
+
+The inspector runs the pinned bundletool runtime strictly in offline mode:
+bundletool first
+validates the complete App Bundle (including `BundleConfig.pb`), then dumps the
+protobuf manifest used to establish the actual package, version name/code, and
+minimum/target/compile SDK values. APK-only analyzers are not accepted for an
+AAB. The caller artifact is copied once into a bounded private snapshot; bundle
+validation, manifest metadata, archive checks, byte hash, and all signer checks
+read only that same snapshot. Mutation of the original path after snapshotting
+cannot change the accepted evidence.
+
+The hosted gate checks out the tracked wrapper, builds the fictional signed AAB
+to materialize the pinned Gradle/bundletool cache, and only then runs the
+offline tooling tests and inspector. It does not regenerate the wrapper during
+the workflow.
 
 No release signing configuration is committed. Debug builds must use the explicit fake command above and must not contact LINE or an API.
 

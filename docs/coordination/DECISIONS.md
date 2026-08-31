@@ -335,9 +335,19 @@
 - Invariants：Android release必須target API 36、使用repository外部signing material且fail closed；iOS必須在macOS／Xcode／真機取得獨立證據。所有store、provider、production backend與signing material操作仍需未來精確Owner gate。
 - Non-goals：本決策不授權keystore／certificate建立或讀取、Play Console／App Store Connect、OAuth/provider、Secret、IAM、cloud、production、deployment、store upload／publish或真實通知。
 
+## DEC-104：Android Closed Testing 採永久 package、Play App Signing 與 staging-only candidate
+
+- 狀態：`active`
+- 日期：2026-08-31
+- 來源：Owner 對 TASK-170 package／signing／closed-track upload 的明確核准
+- Supersedes：DEC-103 中僅就首個 Android Closed Testing candidate 尚未授權 signing／store upload 的限制；不改變 iOS、Android public 或 production gate
+- 決策：永久 Google Play package 為 `tw.org.ntubtob.portal`；Android 發布採 Play App Signing，upload key 僅從 repository 外部注入。首個候選為 Basic-only `android-closed + staging:real`，只能連接 Owner 核准的隔離 staging runtime/data。Owner 核准 exact AAB 準備、簽章、Android 15 真機驗證及 Google Play Closed Testing upload。
+- Invariants：keystore/password/provider ID/endpoint/token/Secret不得進Git、log或report；AAB必須由merged exact commit產生並通過strict inspection；closed-track upload不等於open/public rollout或publication；production backend/data、billing、不可逆key rotation/deletion及公開發布仍需新的精確Owner決定。
+- Promotion：任何 Android public release 都要重新核對 production backend/auth、push/deep-link/crash、privacy/deletion、store metadata、device matrix、signing lineage與rollback，不得以Closed Testing結果直接推論。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-103`，下一個新決策從 `DEC-104` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-104`，下一個新決策從 `DEC-105` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

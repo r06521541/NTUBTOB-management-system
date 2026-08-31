@@ -16,6 +16,10 @@ repository 靜態檢查推論成 iOS archive／TestFlight／App Review 證據。
 所有實際 URL、bundle/package identity、帳號、聯絡資料、client/provider ID、certificate、profile、team ID、Secret、
 device identifier 與 backend endpoint 都不得填入本矩陣。
 
+TASK-170 的永久 Android package identity 已由 Owner 明定；其 exact candidate record 不填在本矩陣，而依
+[`ANDROID_CLOSED_TESTING_CHECKLIST.md`](ANDROID_CLOSED_TESTING_CHECKLIST.md) 以 package/version/artifact SHA 綁定。
+該 checklist／validator 只接受外部提供的去識別化 evidence，不查詢或操作 Play Console、signing、runtime 或裝置。
+
 ## Channel baseline
 
 | Channel | 近期產品範圍 | Repository candidate gate | 尚需外部證據／目前結論 |
