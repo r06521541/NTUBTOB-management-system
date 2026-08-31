@@ -3,17 +3,17 @@
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-173
 status: ready_for_review
-next_actor: main-work
+next_actor: /root/task170_release_security_review
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: 07fed38243883b95ef4c8371566b6859d9f57b31
-head_commit: b658ed02b8b535a5af321b7db9929be6e1119642
+head_commit: 3575bb266e46b260398210fb66a7311bea631397
 
-updated_by: task-173-governance-writer-20260831
-updated_at: 2026-08-31T18:43:48+08:00
+updated_by: main-work
+updated_at: 2026-08-31T19:02:00+08:00
 
 note: >
   TASK-173 consolidates active authority, assignment reporting, Owner interaction
