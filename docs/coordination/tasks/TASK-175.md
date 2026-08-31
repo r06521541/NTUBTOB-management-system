@@ -120,6 +120,16 @@ admin capabilities. Legacy generic qualification routes must reject `guest_playe
 serialize with Event notification recipient selection, and tests must prove bypass denial, authority separation, replay mismatch,
 rollback and status-race behavior.
 
+### Correction rereview
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 2
+- review_target: `5291158dbf4ca577d68f313987e96c431cde8065`
+- scope: verify closure of the three P1 findings and P2 adversarial coverage without regression of previously accepted boundaries
+- report_to: `/root`
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
