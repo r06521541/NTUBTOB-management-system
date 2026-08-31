@@ -33,7 +33,6 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
 
     def test_exact_fixture_and_migration_chain_are_reproducible(self):
         config = Config("alembic.ini")
-        command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()

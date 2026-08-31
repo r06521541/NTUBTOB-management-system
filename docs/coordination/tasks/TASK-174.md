@@ -86,7 +86,7 @@ Lease 8修正reviewer P1：test-only cleanup只可在version table存在且revis
 - actor_id: `/root/task170_release_security_review`
 - role: `advisor/reviewer`
 - claim_id: `task-174-apple-auth-security-reviewer-20260831`
-- lease_version: 4
+- lease_version: 5
 - write: `read-only`
 - report_to: `/root`
 - scope: immutable pushed TASK-174 SHA的Apple wire、one-shot exchange、cipher／token no-disclosure、notification replay／revocation、migration compatibility與LINE／Google isolation
@@ -108,6 +108,9 @@ fresh-schema zero-DDL no-op，與 existing ambiguous／unknown／future zero-DDL
 Reviewer lease 4 只驗收 hosted PostgreSQL 最後一個 legacy rehearsal dependency finding：測試必須先降至
 `0004`、經已驗證的test-only gate移除retained Apple tables，再降至`0001`；其餘只能是已點名測試檔的
 Black／isort機械格式，production migration與runtime不得改動。
+Hosted evidence顯示該suite第一輪實際由`0003`開始，因此reviewer撤回對`5bf20fa0722562e7e99ef49f362440069c83b45b`
+的acceptance。Reviewer lease 5驗收最終順序：第一輪直接在allowlisted current pre-0010 revision cleanup後降至
+`0001`；第二輪從head先降至`0004`、cleanup，再降至`0001`。
 
 ## Required behavior
 
