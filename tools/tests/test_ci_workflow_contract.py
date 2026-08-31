@@ -73,6 +73,20 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("postgres", block.lower())
         self.assertNotIn("services:", block)
 
+    def test_quality_job_uses_changed_paths_and_skips_docs_and_quick(self):
+        block = job_block(self.source, "quality")
+        self.assertIn("needs: classify", block)
+        self.assertIn("needs.classify.outputs.docs_only != 'true'", block)
+        self.assertIn("needs.classify.outputs.quick_only != 'true'", block)
+        self.assertIn("requirements-quality.txt", block)
+        self.assertIn("needs.classify.outputs.base_sha", block)
+        self.assertIn("needs.classify.outputs.head_sha", block)
+        self.assertIn('--git-diff "$BASE_SHA" "$HEAD_SHA"', block)
+        self.assertIn("--merge-base", block)
+        self.assertIn("tools.repository_quality check", block)
+        self.assertNotIn("black --check", block)
+        self.assertNotIn("isort --check", block)
+
     def test_database_job_retains_dual_version_full_contract(self):
         block = job_block(self.source, "portal_data")
         self.assertIn("needs.classify.outputs.full == 'true'", block)
@@ -82,19 +96,11 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("requirements-migrations.txt", block)
         self.assertIn("shared_lib/setup.py", block)
         self.assertIn(
-            "pip install -r requirements-migrations.txt ./shared_lib black==24.4.2",
+            "pip install -r requirements-migrations.txt ./shared_lib",
             block,
         )
-        for path in (
-            "shared_lib/shared_module/identity_linking.py",
-            "shared_lib/shared_module/portal_data/mobile_repository.py",
-            "shared_lib/shared_module/provider_verifiers.py",
-            "shared_lib/tests/test_identity_linking.py",
-            "tests/portal_data/test_mobile_api_foundation.py",
-        ):
-            self.assertIn(path, block)
-        self.assertIn("tools/ci_change_classifier.py", block)
-        self.assertIn("tools/tests/test_ci_workflow_contract.py", block)
+        self.assertNotIn("black==", block)
+        self.assertNotIn("black --check", block)
         self.assertIn("portal_data_phase_c_migration verify", block)
         self.assertIn("portal_data_phase_c_evidence verify", block)
         self.assertIn("portal_data_phase_c_readiness verify", block)
@@ -169,6 +175,7 @@ class WorkflowContractTests(unittest.TestCase):
         for job in (
             "classify",
             "quick",
+            "quality",
             "flutter",
             "portal_data",
             "web_portal",
@@ -180,6 +187,7 @@ class WorkflowContractTests(unittest.TestCase):
         ):
             self.assertIn(f"- {job}", block)
         self.assertIn("require_success classify", block)
+        self.assertIn("require_success quality", block)
         self.assertIn("classification selected no execution path", block)
         self.assertIn("unselected job was not skipped", block)
         self.assertNotIn("uses:", block)
@@ -195,6 +203,13 @@ class WorkflowContractTests(unittest.TestCase):
                 bash = str(git_bash)
         if bash is None:
             self.skipTest("bash is required for the workflow aggregate contract")
+        probe = subprocess.run(
+            [bash, "-c", "exit 0"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if probe.returncode:
+            self.skipTest("bash is installed but cannot start in this environment")
 
         block = job_block(self.source, "final")
         marker = "        run: |\n"
@@ -227,7 +242,11 @@ class WorkflowContractTests(unittest.TestCase):
             "LINE_WEBHOOK",
         ):
             base_environment[f"CI_RESULT_{job}"] = "skipped"
-        base_environment.update(CI_RESULT_CLASSIFY="success", CI_RESULT_QUICK="success")
+        base_environment.update(
+            CI_RESULT_CLASSIFY="success",
+            CI_RESULT_QUICK="success",
+            CI_RESULT_QUALITY="skipped",
+        )
         base_environment["CI_RESULT_FLUTTER"] = "skipped"
 
         def run_script(environment):
@@ -247,6 +266,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotEqual(run_script(quick_environment).returncode, 0)
 
         full_environment = dict(base_environment, CI_SCOPE_FULL="true")
+        full_environment["CI_RESULT_QUALITY"] = "success"
         for job in (
             "PORTAL_DATA",
             "WEB_PORTAL",
@@ -265,6 +285,7 @@ class WorkflowContractTests(unittest.TestCase):
         flutter_environment = dict(
             base_environment,
             CI_SCOPE_FLUTTER="true",
+            CI_RESULT_QUALITY="success",
             CI_RESULT_FLUTTER="success",
         )
         self.assertEqual(run_script(flutter_environment).returncode, 0)

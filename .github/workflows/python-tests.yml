@@ -97,6 +97,49 @@ jobs:
       - name: Run CI classifier and workflow contracts
         run: python -m unittest discover -s tools/tests -p "test_ci_*.py" -v
 
+  quality:
+    name: Changed Python quality
+    needs: classify
+    if: needs.classify.outputs.docs_only != 'true' && needs.classify.outputs.quick_only != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements-quality.txt
+
+      - name: Install pinned quality tools
+        run: python -m pip install -r requirements-quality.txt
+
+      - name: Check every changed Python file
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ needs.classify.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.classify.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$BASE_SHA" && -n "$HEAD_SHA" ]]; then
+            if [[ "$EVENT_NAME" == "pull_request" ]]; then
+              python -m tools.repository_quality check \
+                --git-diff "$BASE_SHA" "$HEAD_SHA" --merge-base
+            else
+              python -m tools.repository_quality check \
+                --git-diff "$BASE_SHA" "$HEAD_SHA"
+            fi
+          else
+            python -m tools.repository_quality check \
+              --git-diff "$(git rev-parse HEAD^)" "$(git rev-parse HEAD)"
+          fi
+
   flutter:
     name: Flutter tests
     needs: classify
@@ -145,58 +188,7 @@ jobs:
             shared_lib/setup.py
 
       - name: Install portal data test dependencies
-        run: python -m pip install -r requirements-migrations.txt ./shared_lib black==24.4.2
-
-      - name: Check portal data formatting
-        run: >-
-          python -m black --check
-          migrations/versions/0002_portal_data_foundation.py
-          migrations/versions/0004_phase_c_identity_lifecycle.py
-          apps/mobile_api/app.py
-          apps/mobile_api/bootstrap.py
-          apps/mobile_api/google_verifier.py
-          apps/mobile_api/line_verifier.py
-          apps/mobile_api/tests/test_app.py
-          apps/mobile_api/tests/test_google_verifier.py
-          apps/mobile_api/tests/test_openapi_contract.py
-          apps/web_portal/app.py
-          apps/web_portal/identity_link_oauth.py
-          apps/web_portal/identity_link_provider.py
-          apps/web_portal/identity_link_web.py
-          apps/web_portal/identity_maintenance.py
-          apps/web_portal/tests/test_admin_security.py
-          apps/web_portal/tests/test_identity_link_oauth.py
-          apps/web_portal/tests/test_identity_link_provider.py
-          apps/web_portal/tests/test_identity_link_web.py
-          functions/line_webhook_handler/webhook.py
-          shared_lib/setup.py
-          shared_lib/shared_module/attendance_analyzer.py
-          shared_lib/shared_module/identity_linking.py
-          shared_lib/shared_module/mobile_api.py
-          shared_lib/shared_module/portal_data/identity_lifecycle.py
-          shared_lib/shared_module/portal_data/mobile_repository.py
-          shared_lib/shared_module/portal_data/runtime.py
-          shared_lib/shared_module/provider_verifiers.py
-          shared_lib/tests/test_identity_linking.py
-          tools/ci_change_classifier.py
-          tools/phase_c_rollout_preflight.py
-          tools/portal_data_migration_readiness.py
-          tools/portal_data_phase_a_evidence.py
-          tools/portal_data_phase_c_evidence.py
-          tools/portal_data_phase_c_migration.py
-          tools/portal_data_phase_c_readiness.py
-          tools/setup_portal_data_legacy.py
-          tests/portal_data/test_migration_readiness.py
-          tests/portal_data/test_phase_a_evidence.py
-          tests/portal_data/test_phase_c_lifecycle.py
-          tests/portal_data/test_phase_c_attendance_analyzer.py
-          tests/portal_data/test_phase_c_cross_service_rollout.py
-          tests/portal_data/test_phase_c_readiness.py
-          tests/portal_data/test_phase_c_rollout_state.py
-          tests/portal_data/test_mobile_api_foundation.py
-          tools/tests/test_ci_change_classifier.py
-          tools/tests/test_ci_workflow_contract.py
-          tools/tests/test_deploy_phase_c_rollout.py
+        run: python -m pip install -r requirements-migrations.txt ./shared_lib
 
       - name: Verify Phase C review artifacts
         run: |
@@ -310,6 +302,7 @@ jobs:
     needs:
       - classify
       - quick
+      - quality
       - flutter
       - portal_data
       - web_portal
@@ -337,6 +330,7 @@ jobs:
           CI_SCOPE_FULL: ${{ needs.classify.outputs.full }}
           CI_RESULT_CLASSIFY: ${{ needs.classify.result }}
           CI_RESULT_QUICK: ${{ needs.quick.result }}
+          CI_RESULT_QUALITY: ${{ needs.quality.result }}
           CI_RESULT_FLUTTER: ${{ needs.flutter.result }}
           CI_RESULT_PORTAL_DATA: ${{ needs.portal_data.result }}
           CI_RESULT_WEB_PORTAL: ${{ needs.web_portal.result }}
@@ -356,6 +350,14 @@ jobs:
           }
           require_success classify "$CI_RESULT_CLASSIFY"
           require_success quick "$CI_RESULT_QUICK"
+          if [[ "$CI_SCOPE_DOCS_ONLY" == "true" || "$CI_SCOPE_QUICK_ONLY" == "true" ]]; then
+            if [[ "$CI_RESULT_QUALITY" != "skipped" ]]; then
+              echo "unselected job was not skipped: quality ($CI_RESULT_QUALITY)" >&2
+              failed=1
+            fi
+          else
+            require_success quality "$CI_RESULT_QUALITY"
+          fi
 
           enabled=0
           for output in DOCS_ONLY QUICK_ONLY FLUTTER PORTAL_DATA WEB_PORTAL GAME_BROADCAST \
