@@ -112,6 +112,10 @@ Hosted evidence顯示該suite第一輪實際由`0003`開始，因此reviewer撤�
 的acceptance。Reviewer lease 5驗收最終順序：第一輪直接在allowlisted current pre-0010 revision cleanup後降至
 `0001`；第二輪從head先降至`0004`、cleanup，再降至`0001`。
 
+Final acceptance：reviewer對`3f7aaaf686fb7de59178edca8485a4e6d6b0b95a`回報`ACCEPT`，hosted run
+`33413687350`的PostgreSQL 15.8／16.4、quality、affected services、Flutter Android API 36與final gate全數通過；
+PR #227已squash merge為`7f4168c3aca30c21d9c0c82be0aef67e4a049e8d`。
+
 ## Required behavior
 
 1. Native iOS bridge只回傳bounded `identity_token`與single-use `authorization_code`；Flutter只把兩者連同既有raw nonce、

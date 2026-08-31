@@ -1,27 +1,28 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-174
-status: ready_for_pr
-next_actor: main-work
+active_task: null
+status: completed
+next_actor: owner
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9
-head_commit: 820f5e13a8674a28972dfdb1931f0a6b32515feb
+head_commit: 7f4168c3aca30c21d9c0c82be0aef67e4a049e8d
 
 updated_by: main-work
-updated_at: 2026-08-31T23:25:00+08:00
+updated_at: 2026-09-01T00:35:00+08:00
 
 note: >
-  TASK-174 repository implementation and independent Auth/Security rereview are
-  accepted. The ready PR and single hosted gate remain. This does not
-  authorize Apple account/provider/signing, Secret, cloud, runtime, production,
-  App Store Connect, TestFlight or real-device identity mutation.
+  TASK-174 repository implementation, independent Auth/Security rereview,
+  PostgreSQL 15/16 matrix, Flutter Android API 36 gate and final hosted CI are
+  accepted and merged by PR #227. No assigned repository task remains. This
+  does not authorize Apple account/provider/signing, Secret, cloud, runtime,
+  production, App Store Connect, TestFlight or real-device identity mutation.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-174.md
-report: docs/coordination/reports/TASK-174.md
-review: docs/coordination/reports/TASK-174.md
+task: null
+report: null
+review: null
