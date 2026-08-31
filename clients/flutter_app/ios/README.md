@@ -15,7 +15,7 @@ The store validator accepts only these combinations:
 | `development` | `fake` | `Debug`／`Profile` | absent | allowed without signing/provider values |
 | `staging` | `real` | `Debug`／`Profile` | absent | non-distribution development only; cannot claim TestFlight/signing readiness |
 | `staging` | `real` | `Release` | `testflight` | allowed only with externally supplied signing metadata |
-| `production` | `real` | `Release` | `app-store` | blocked until Sign in with Apple is implemented and reviewed |
+| `production` | `real` | `Release` | `app-store` | blocked pending Apple provider/signing/runtime and public release gates |
 
 Any missing, mixed, unresolved, or unknown combination exits with status 2.
 Non-distribution Debug／Profile preserves existing fake and staging development
@@ -56,17 +56,18 @@ fails closed.
 but is not bound to the target. The real iOS Flutter composition now includes a
 dependency-free `AuthenticationServices` bridge. It hashes the one-time raw
 nonce with lowercase SHA-256 for the native request and returns only the Apple
-identity token; Flutter sends that token and the same raw nonce to the Mobile
-API. No email, relay email, name, Apple user identifier, authorization code, or
-profile hint is returned or used for identity linking. The server-verified
+identity token plus its single-use authorization code; Flutter sends that exact
+credential envelope and the same raw nonce to the Mobile API. No email, relay
+email, name, Apple user identifier, or profile hint is returned or used for
+identity linking. The server-verified
 stable Apple subject remains the sole provider identity key.
 
-This slice deliberately returns only the nonce-bound identity token. It does
-not return an authorization code, so server-side authorization-code validation
-and Apple refresh-token acquisition are not implemented. Apple credential-state
-checks, Apple server-to-server notifications, and the account revocation
-lifecycle are likewise not implemented; each remains a public provider/runtime
-Owner gate.
+The repository implements local ID-token verification followed by one-shot
+authorization-code exchange, encrypted refresh-credential retention, signed
+server-notification validation, idempotent receipts, and local identity/session/
+credential revocation. Active provider-token revocation, credential-state
+checks, provider/App ID and notification URL configuration, signing, deployment,
+and real-device Apple login remain public provider/runtime Owner gates.
 
 Repository implementation does not make the public release ready. A separately
 reviewed delivery must complete all of the following before changing the
@@ -80,8 +81,9 @@ repository marker to `ready`:
    compile-time markers alone are not runtime evidence.
 3. Enable the capability in the approved Apple provider/App ID, bind a reviewed
    `Runner/Runner.entitlements`, and supply provider/signing state externally.
-4. Implement and accept the required authorization-code/refresh-token,
-   credential-state, server-notification, and revocation lifecycle policy.
+4. Independently accept the repository authorization-code/refresh-token and
+   server-notification lifecycle, then complete provider credential-state and
+   active token-revocation evidence without exposing provider material.
 5. Pass the public iOS gates in
    `docs/releases/MOBILE_RELEASE_MATRIX.md`, including privacy, deletion,
    metadata, production-backend, push/deep-link, and anonymous-crash evidence.

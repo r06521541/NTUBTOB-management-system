@@ -26,6 +26,12 @@ class AuthenticationError(MobileApiError):
     code, status = "unauthenticated", 401
 
 
+class ProviderExchangeOutcomeUnknown(MobileApiError):
+    """A single-use provider mutation may have completed and must not retry."""
+
+    code, status = "provider_outcome_unknown", 503
+
+
 class MalformedRequest(MobileApiError):
     code, status = "malformed_request", 400
 
@@ -152,6 +158,17 @@ class AssertionVerifier(Protocol):
     ) -> VerifiedAssertion: ...
 
 
+class AppleCodeExchanger(Protocol):
+    def exchange(
+        self,
+        authorization_code: str,
+        *,
+        expected_subject: str,
+        nonce: str,
+        now: datetime,
+    ): ...
+
+
 class SuccessorCipher(Protocol):
     def seal(self, value: bytes) -> bytes: ...
     def open(self, value: bytes) -> bytes: ...
@@ -170,6 +187,9 @@ class MobileAuthRepository(Protocol):
         now: datetime,
     ) -> MobilePrincipal | None: ...
     def idempotent(self, **values) -> tuple[int, dict, bool]: ...
+    def reserve_apple_code(self, **values) -> None: ...
+    def mark_apple_code(self, **values) -> None: ...
+    def complete_apple_code_for_pending(self, **values) -> None: ...
 
 
 def utc_now() -> datetime:
@@ -382,6 +402,151 @@ class MobileAuthService:
     def _bounded(value: str, minimum: int, maximum: int) -> None:
         if not isinstance(value, str) or not minimum <= len(value) <= maximum:
             raise InvalidArgument("required field is malformed")
+
+
+class AppleLifecycleAuthService(MobileAuthService):
+    """Nonce-bound Apple login plus one-shot provider credential acquisition."""
+
+    def __init__(
+        self,
+        repository: MobileAuthRepository,
+        verifier: AssertionVerifier,
+        cipher: SuccessorCipher,
+        provider_cipher: SuccessorCipher,
+        token_codec: HmacAccessTokenCodec,
+        exchanger: AppleCodeExchanger,
+        *,
+        audience: str,
+        clock: Callable[[], datetime] = utc_now,
+        token_factory: Callable[[], str] = lambda: secrets.token_urlsafe(48),
+    ):
+        super().__init__(
+            repository,
+            verifier,
+            cipher,
+            token_codec,
+            audience=audience,
+            clock=clock,
+            token_factory=token_factory,
+        )
+        self.exchanger = exchanger
+        self.provider_cipher = provider_cipher
+
+    def exchange(
+        self,
+        *,
+        assertion: str,
+        authorization_code: str,
+        nonce: str | None,
+        login_attempt_id: str,
+        installation_id: str,
+        platform: str,
+    ) -> TokenPair:
+        self._bounded(assertion, 1, 16_384)
+        self._bounded(authorization_code, 1, 4096)
+        self._bounded(nonce, 16, 200)
+        for value in (login_attempt_id, installation_id):
+            self._bounded(value, 16, 200)
+        if platform != "ios":
+            raise InvalidArgument("Apple sign-in requires iOS")
+        now = self.clock()
+        verified = self.verifier.verify(assertion, self.audience, nonce, now)
+        if (
+            verified.provider != "apple"
+            or verified.audience != self.audience
+            or verified.nonce != nonce
+            or verified.expires_at <= now
+        ):
+            raise AuthenticationError("invalid provider assertion")
+        code_hash = secret_hash(authorization_code)
+        attempt_hash = secret_hash(login_attempt_id)
+        self.repository.reserve_apple_code(
+            code_hash=code_hash,
+            login_attempt_hash=attempt_hash,
+            now=now,
+        )
+        try:
+            credential = self.exchanger.exchange(
+                authorization_code,
+                expected_subject=verified.subject,
+                nonce=nonce,
+                now=now,
+            )
+        except ProviderExchangeOutcomeUnknown:
+            self.repository.mark_apple_code(
+                code_hash=code_hash, state="unknown", now=now
+            )
+            raise
+        except AuthenticationError:
+            self.repository.mark_apple_code(
+                code_hash=code_hash, state="rejected", now=now
+            )
+            raise
+        refresh = self.token_factory()
+        try:
+            principal = self.repository.exchange(
+                provider="apple",
+                subject=verified.subject,
+                assertion_hash=secret_hash(assertion),
+                login_attempt_hash=attempt_hash,
+                installation_id_hash=secret_hash(installation_id),
+                platform=platform,
+                refresh_hash=secret_hash(refresh),
+                provider_code_hash=code_hash,
+                encrypted_provider_refresh=self.provider_cipher.seal(
+                    credential.refresh_token.encode("utf-8")
+                ),
+                provider_refresh_hash=secret_hash(credential.refresh_token),
+                now=now,
+            )
+        except IdentityPending as error:
+            if error.identity_id is None:
+                raise
+            self.repository.complete_apple_code_for_pending(
+                code_hash=code_hash,
+                identity_id=error.identity_id,
+                subject=verified.subject,
+                encrypted_provider_refresh=self.provider_cipher.seal(
+                    credential.refresh_token.encode("utf-8")
+                ),
+                provider_refresh_hash=secret_hash(credential.refresh_token),
+                now=now,
+            )
+            review, expires = self.token_codec.issue_review(error.identity_id, now)
+            return PendingReviewEnvelope(review, expires)
+        except AccountUnavailable:
+            self.repository.mark_apple_code(
+                code_hash=code_hash, state="completed", now=now
+            )
+            raise
+        access, expires = self.token_codec.issue(principal, now)
+        return TokenPair(access, refresh, principal.session_id, expires)
+
+
+class AppleNotificationService:
+    def __init__(self, repository, verifier, *, audience: str, clock=utc_now):
+        if (
+            not isinstance(audience, str)
+            or not 1 <= len(audience) <= 255
+            or not audience.isascii()
+            or not audience.isprintable()
+        ):
+            raise ValueError("Apple notification audience is required")
+        self.repository = repository
+        self.verifier = verifier
+        self.audience = audience
+        self.clock = clock
+
+    def receive(self, signed_payload: str) -> bool:
+        now = self.clock()
+        verified = self.verifier.verify(signed_payload, self.audience, now)
+        return self.repository.apply_apple_notification(
+            jti_hash=secret_hash(verified.jti),
+            event_type=verified.event_type,
+            subject=verified.subject,
+            event_at=verified.event_at,
+            now=now,
+        )
 
 
 class BasicApiService:

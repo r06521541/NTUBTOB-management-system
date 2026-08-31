@@ -14,12 +14,11 @@ from sqlalchemy import create_engine, text
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tools.portal_data_phase_c_migration import ARTIFACT, PhaseCMigrationError
 from tools.portal_data_phase_c_migration import (
-    ARTIFACT,
-    PhaseCMigrationError,
     verify_artifact as verify_migration_artifact,
-    verify_sql,
 )
+from tools.portal_data_phase_c_migration import verify_sql
 from tools.portal_data_phase_c_readiness import (
     FIELDS,
     INVENTORY_SCHEMA,
@@ -30,10 +29,9 @@ from tools.portal_data_phase_c_readiness import (
     compare_evidence,
     validate_rows,
     verify_repository_artifacts,
-    verify_sql as verify_evidence_sql,
 )
+from tools.portal_data_phase_c_readiness import verify_sql as verify_evidence_sql
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
-
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -193,7 +191,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
     def test_migration_verifier_rejects_an_additional_head(self):
         scripts = Mock()
         scripts.get_heads.return_value = [
-            "0009_event_management_writes",
+            "0010_apple_provider_lifecycle",
             "fake_additional_head",
         ]
         with patch(
@@ -217,7 +215,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             ):
                 verify_migration_artifact()
 
-    def test_migration_verifier_accepts_the_single_event_management_head(self):
+    def test_migration_verifier_accepts_the_single_apple_lifecycle_head(self):
         verify_migration_artifact()
 
 

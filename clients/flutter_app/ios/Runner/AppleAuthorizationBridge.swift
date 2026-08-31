@@ -97,16 +97,21 @@ extension AppleAuthorizationBridge: ASAuthorizationControllerDelegate {
       controller === activeController,
       let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
       let tokenData = credential.identityToken,
-      tokenData.count <= 32_768,
+      tokenData.count <= 16_384,
       let token = String(data: tokenData, encoding: .utf8),
-      !token.isEmpty
+      !token.isEmpty,
+      let codeData = credential.authorizationCode,
+      codeData.count <= 4_096,
+      let code = String(data: codeData, encoding: .utf8),
+      !code.isEmpty,
+      code.utf8.allSatisfy({ $0 >= 33 && $0 <= 126 })
     else {
       complete(Self.error("apple_authorization_failed"))
       return
     }
-    // The provider subject remains inside the signed token. Do not return the
-    // Apple user identifier, email, name, authorization code, or profile hints.
-    complete(["identity_token": token])
+    // The provider subject remains inside the signed token. Return only the
+    // bounded, single-use exchange inputs; never return profile hints.
+    complete(["identity_token": token, "authorization_code": code])
   }
 
   func authorizationController(

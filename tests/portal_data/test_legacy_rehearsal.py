@@ -10,6 +10,9 @@ from sqlalchemy import create_engine, text
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tests.portal_data._apple_lifecycle_test_harness import (
+    remove_retained_apple_evidence_from_isolated_test_database,
+)
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -30,10 +33,13 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
 
     def test_exact_fixture_and_migration_chain_are_reproducible(self):
         config = Config("alembic.ini")
+        remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.stamp(config, "0001_legacy_baseline")
         command.upgrade(config, "head")
+        command.downgrade(config, "0004_phase_c_identity_lifecycle")
+        remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.upgrade(config, "head")
@@ -97,7 +103,12 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
                     ("game_attendance_replies", "game_id", "games", "id"),
                     ("game_attendance_replies", "member_id", "members", "id"),
                     ("game_attendance_replies", "person_id", "people", "id"),
-                    ("game_attendance_replies", "reply", "attendance_reply_types", "id"),
+                    (
+                        "game_attendance_replies",
+                        "reply",
+                        "attendance_reply_types",
+                        "id",
+                    ),
                     ("game_attendance_replies", "user_id", "line_users", "id"),
                     ("line_users", "member_id", "members", "id"),
                 },

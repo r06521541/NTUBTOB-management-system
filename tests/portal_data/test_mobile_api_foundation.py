@@ -27,6 +27,7 @@ from shared_module.portal_data.mobile_repository import MobileRepository
 from shared_module.portal_data.models import PortalDataBase
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
+
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -648,20 +649,23 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         with self.engine.begin() as connection:
             connection.execute(text("TRUNCATE ntubtob.people RESTART IDENTITY CASCADE"))
 
-    def test_five_tables_have_rls_and_revision_is_exact(self):
+    def test_security_tables_have_rls_and_revision_is_exact(self):
         expected = {
             "mobile_sessions",
             "mobile_refresh_tokens",
             "mobile_refresh_attempts",
             "mobile_idempotency_records",
             "mobile_auth_exchanges",
+            "apple_provider_code_exchanges",
+            "apple_provider_credentials",
+            "apple_provider_notifications",
         }
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0009_event_management_writes",
+                "0010_apple_provider_lifecycle",
             )
             tables = set(
                 connection.scalars(
@@ -736,6 +740,141 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
                 principal.access_epoch,
                 NOW + timedelta(seconds=3),
             )
+        )
+
+    def test_apple_code_credential_and_notification_revocation_are_atomic(self):
+        subject = f"apple-{self.id()}"
+        with self.engine.begin() as connection:
+            apple_identity_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('apple', :subject, :person, 'linked', :now, :now) "
+                    "RETURNING id"
+                ),
+                {"subject": subject, "person": self.person_id, "now": NOW},
+            )
+        self.repository.reserve_apple_code(
+            code_hash="a" * 64,
+            login_attempt_hash="b" * 64,
+            now=NOW,
+        )
+        principal = self.repository.exchange(
+            provider="apple",
+            subject=subject,
+            assertion_hash="c" * 64,
+            login_attempt_hash="b" * 64,
+            installation_id_hash="d" * 64,
+            platform="ios",
+            refresh_hash="e" * 64,
+            provider_code_hash="a" * 64,
+            encrypted_provider_refresh=b"fictional-ciphertext-only",
+            provider_refresh_hash="f" * 64,
+            now=NOW,
+        )
+        changed = self.repository.apply_apple_notification(
+            jti_hash="1" * 64,
+            event_type="consent-revoked",
+            subject=subject,
+            event_at=NOW + timedelta(seconds=1),
+            now=NOW + timedelta(seconds=2),
+        )
+        replay = self.repository.apply_apple_notification(
+            jti_hash="1" * 64,
+            event_type="consent-revoked",
+            subject=subject,
+            event_at=NOW + timedelta(seconds=1),
+            now=NOW + timedelta(seconds=3),
+        )
+
+        self.assertTrue(changed)
+        self.assertFalse(replay)
+        self.assertIsNone(
+            self.repository.principal(
+                principal.session_id,
+                principal.person_id,
+                principal.identity_id,
+                1,
+                NOW + timedelta(seconds=4),
+            )
+        )
+        with self.engine.connect() as connection:
+            state = connection.execute(
+                text(
+                    "SELECT i.status, c.status, c.encrypted_refresh_token, x.state "
+                    "FROM ntubtob.auth_identities i "
+                    "JOIN ntubtob.apple_provider_credentials c "
+                    "ON c.auth_identity_id=i.id "
+                    "JOIN ntubtob.apple_provider_code_exchanges x "
+                    "ON x.auth_identity_id=i.id WHERE i.id=:identity"
+                ),
+                {"identity": apple_identity_id},
+            ).one()
+            receipt_count = connection.scalar(
+                text("SELECT count(*) FROM ntubtob.apple_provider_notifications")
+            )
+        self.assertEqual(
+            (*state[:2], bytes(state[2]), state[3]),
+            (
+                "disabled",
+                "revoked",
+                b"fictional-ciphertext-only",
+                "completed",
+            ),
+        )
+        self.assertEqual(receipt_count, 1)
+
+    def test_pending_apple_identity_retains_consumed_credential_without_session(self):
+        subject = f"pending-apple-{self.id()}"
+        with self.engine.begin() as connection:
+            identity_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider, provider_subject, person_id, status, created_at, updated_at) "
+                    "VALUES ('apple', :subject, NULL, 'pending', :now, :now) "
+                    "RETURNING id"
+                ),
+                {"subject": subject, "now": NOW},
+            )
+        self.repository.reserve_apple_code(
+            code_hash="2" * 64,
+            login_attempt_hash="3" * 64,
+            now=NOW,
+        )
+        self.repository.complete_apple_code_for_pending(
+            code_hash="2" * 64,
+            identity_id=identity_id,
+            subject=subject,
+            encrypted_provider_refresh=b"fictional-pending-ciphertext",
+            provider_refresh_hash="4" * 64,
+            now=NOW + timedelta(seconds=1),
+        )
+
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                text(
+                    "SELECT x.state, x.auth_identity_id, c.status, "
+                    "c.encrypted_refresh_token, count(s.id) "
+                    "FROM ntubtob.apple_provider_code_exchanges x "
+                    "JOIN ntubtob.apple_provider_credentials c "
+                    "ON c.auth_identity_id=x.auth_identity_id "
+                    "LEFT JOIN ntubtob.mobile_sessions s "
+                    "ON s.auth_identity_id=x.auth_identity_id "
+                    "WHERE x.code_hash=:code "
+                    "GROUP BY x.state, x.auth_identity_id, c.status, "
+                    "c.encrypted_refresh_token"
+                ),
+                {"code": "2" * 64},
+            ).one()
+        self.assertEqual(
+            (*row[:3], bytes(row[3]), row[4]),
+            (
+                "completed",
+                identity_id,
+                "active",
+                b"fictional-pending-ciphertext",
+                0,
+            ),
         )
 
     def test_current_device_logout_and_family_expiry_fail_closed(self):

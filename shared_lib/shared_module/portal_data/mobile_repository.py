@@ -27,6 +27,9 @@ from sqlalchemy.orm import Session
 from .identity_lifecycle import ADMIN_LOCK_KEY, IdentityLifecycleRepository
 from .models import (
     AccessAuditRecord,
+    AppleProviderCodeExchangeRecord,
+    AppleProviderCredentialRecord,
+    AppleProviderNotificationRecord,
     AuthIdentityRecord,
     LegacyGameRecord,
     LegacyLineUserRecord,
@@ -50,6 +53,154 @@ class MobileRepository:
     def __init__(self, engine: Engine):
         self.engine = engine
         self.lifecycle = IdentityLifecycleRepository(engine)
+
+    def apple_lifecycle_ready(self) -> bool:
+        try:
+            with self.engine.connect() as connection:
+                return (
+                    connection.scalar(
+                        text("SELECT version_num FROM ntubtob.alembic_version")
+                    )
+                    == "0010_apple_provider_lifecycle"
+                )
+        except Exception:
+            return False
+
+    def reserve_apple_code(self, **values) -> None:
+        try:
+            with Session(self.engine) as session, session.begin():
+                session.add(
+                    AppleProviderCodeExchangeRecord(
+                        code_hash=values["code_hash"],
+                        login_attempt_hash=values["login_attempt_hash"],
+                        state="pending",
+                        created_at=values["now"],
+                        updated_at=values["now"],
+                    )
+                )
+        except IntegrityError:
+            raise Conflict(
+                "Apple authorization code or login attempt was already used"
+            ) from None
+
+    def mark_apple_code(self, **values) -> None:
+        if values["state"] not in {"completed", "rejected", "unknown"}:
+            raise ValueError("Apple code terminal state is invalid")
+        with Session(self.engine) as session, session.begin():
+            row = session.scalar(
+                select(AppleProviderCodeExchangeRecord)
+                .where(AppleProviderCodeExchangeRecord.code_hash == values["code_hash"])
+                .with_for_update()
+            )
+            if row is None or row.state != "pending":
+                raise Conflict("Apple authorization code is not pending")
+            row.state = values["state"]
+            row.updated_at = values["now"]
+
+    def complete_apple_code_for_pending(self, **values) -> None:
+        """Persist a consumed code credential for an exact pending Apple identity."""
+        with Session(self.engine) as session, session.begin():
+            code_row = session.scalar(
+                select(AppleProviderCodeExchangeRecord)
+                .where(AppleProviderCodeExchangeRecord.code_hash == values["code_hash"])
+                .with_for_update()
+            )
+            identity = session.scalar(
+                select(AuthIdentityRecord)
+                .where(
+                    AuthIdentityRecord.id == values["identity_id"],
+                    AuthIdentityRecord.provider == "apple",
+                    AuthIdentityRecord.provider_subject == values["subject"],
+                    AuthIdentityRecord.status == "pending",
+                )
+                .with_for_update()
+            )
+            if code_row is None or code_row.state != "pending" or identity is None:
+                raise Conflict("Apple pending credential state changed")
+            credential = session.scalar(
+                select(AppleProviderCredentialRecord)
+                .where(AppleProviderCredentialRecord.auth_identity_id == identity.id)
+                .with_for_update()
+            )
+            if credential is None:
+                session.add(
+                    AppleProviderCredentialRecord(
+                        auth_identity_id=identity.id,
+                        encrypted_refresh_token=values["encrypted_provider_refresh"],
+                        refresh_token_hash=values["provider_refresh_hash"],
+                        status="active",
+                        created_at=values["now"],
+                        updated_at=values["now"],
+                    )
+                )
+            else:
+                credential.encrypted_refresh_token = values[
+                    "encrypted_provider_refresh"
+                ]
+                credential.refresh_token_hash = values["provider_refresh_hash"]
+                credential.status = "active"
+                credential.revoked_at = None
+                credential.updated_at = values["now"]
+            code_row.state = "completed"
+            code_row.auth_identity_id = identity.id
+            code_row.updated_at = values["now"]
+
+    def apply_apple_notification(self, **values) -> bool:
+        """Atomically record one verified event and revoke Apple-owned access."""
+        try:
+            with Session(self.engine) as session, session.begin():
+                receipt = AppleProviderNotificationRecord(
+                    jti_hash=values["jti_hash"],
+                    event_type=values["event_type"],
+                    disposition=(
+                        "revoked"
+                        if values["event_type"]
+                        in {"consent-revoked", "account-deleted"}
+                        else "receipt_only"
+                    ),
+                    auth_identity_id=None,
+                    event_at=values["event_at"],
+                    created_at=values["now"],
+                )
+                session.add(receipt)
+                session.flush()
+                identity = session.scalar(
+                    select(AuthIdentityRecord)
+                    .where(
+                        AuthIdentityRecord.provider == "apple",
+                        AuthIdentityRecord.provider_subject == values["subject"],
+                    )
+                    .with_for_update()
+                )
+                receipt.auth_identity_id = None if identity is None else identity.id
+                if receipt.disposition == "revoked" and identity is not None:
+                    identity.status = "disabled"
+                    identity.updated_at = values["now"]
+                    devices = session.scalars(
+                        select(MobileSessionRecord)
+                        .where(
+                            MobileSessionRecord.auth_identity_id == identity.id,
+                            MobileSessionRecord.status == "active",
+                        )
+                        .with_for_update()
+                    ).all()
+                    for device in devices:
+                        self._revoke_family(session, device, values["now"])
+                    credential = session.scalar(
+                        select(AppleProviderCredentialRecord)
+                        .where(
+                            AppleProviderCredentialRecord.auth_identity_id
+                            == identity.id
+                        )
+                        .with_for_update()
+                    )
+                    if credential is not None and credential.status == "active":
+                        credential.status = "revoked"
+                        credential.revoked_at = values["now"]
+                        credential.updated_at = values["now"]
+        except IntegrityError:
+            return False
+        return True
 
     def exchange(self, **values) -> MobilePrincipal:
         principal = self.lifecycle.resolve_principal(
@@ -81,6 +232,29 @@ class MobileRepository:
         )
         try:
             with Session(self.engine) as session, session.begin():
+                if values["provider"] == "apple":
+                    code_row = session.scalar(
+                        select(AppleProviderCodeExchangeRecord)
+                        .where(
+                            AppleProviderCodeExchangeRecord.code_hash
+                            == values.get("provider_code_hash")
+                        )
+                        .with_for_update()
+                    )
+                    if code_row is None or code_row.state != "pending":
+                        raise Conflict("Apple authorization code is not pending")
+                    identity = session.scalar(
+                        select(AuthIdentityRecord)
+                        .where(
+                            AuthIdentityRecord.id == principal.identity.id,
+                            AuthIdentityRecord.provider == "apple",
+                            AuthIdentityRecord.provider_subject == values["subject"],
+                            AuthIdentityRecord.status == "linked",
+                        )
+                        .with_for_update()
+                    )
+                    if identity is None:
+                        raise AccountUnavailable("linked active account is unavailable")
                 session.add(session_row)
                 session.flush()
                 session.add(
@@ -103,6 +277,38 @@ class MobileRepository:
                         created_at=now,
                     )
                 )
+                if values["provider"] == "apple":
+                    credential = session.scalar(
+                        select(AppleProviderCredentialRecord)
+                        .where(
+                            AppleProviderCredentialRecord.auth_identity_id
+                            == principal.identity.id
+                        )
+                        .with_for_update()
+                    )
+                    if credential is None:
+                        credential = AppleProviderCredentialRecord(
+                            auth_identity_id=principal.identity.id,
+                            encrypted_refresh_token=values[
+                                "encrypted_provider_refresh"
+                            ],
+                            refresh_token_hash=values["provider_refresh_hash"],
+                            status="active",
+                            created_at=now,
+                            updated_at=now,
+                        )
+                        session.add(credential)
+                    else:
+                        credential.encrypted_refresh_token = values[
+                            "encrypted_provider_refresh"
+                        ]
+                        credential.refresh_token_hash = values["provider_refresh_hash"]
+                        credential.status = "active"
+                        credential.revoked_at = None
+                        credential.updated_at = now
+                    code_row.state = "completed"
+                    code_row.auth_identity_id = principal.identity.id
+                    code_row.updated_at = now
         except IntegrityError:
             raise Conflict(
                 "provider assertion or login attempt was already used"

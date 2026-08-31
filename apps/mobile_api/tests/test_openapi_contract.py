@@ -17,6 +17,7 @@ class OpenApiContractTest(unittest.TestCase):
                 "/auth/line/exchange",
                 "/auth/google/exchange",
                 "/auth/apple/exchange",
+                "/auth/apple/notifications",
                 "/auth/identities",
                 "/auth/identity-link/candidates/{provider}",
                 "/auth/identity-link/proofs/{provider}",
@@ -92,18 +93,26 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertFalse(apple["additionalProperties"])
         self.assertEqual(
             set(apple["required"]),
-            {"id_token", "nonce", "login_attempt_id", "installation_id", "platform"},
+            {
+                "id_token",
+                "authorization_code",
+                "nonce",
+                "login_attempt_id",
+                "installation_id",
+                "platform",
+            },
         )
         self.assertEqual(apple["properties"]["platform"]["const"], "ios")
         self.assertIn(
-            "lowercase SHA-256(raw nonce)",
+            "reserves the code hash",
             paths["/auth/apple/exchange"]["post"]["description"],
         )
         self.assertIn(
-            "verified sub", paths["/auth/apple/exchange"]["post"]["description"]
+            "correlates the returned ID-token subject",
+            paths["/auth/apple/exchange"]["post"]["description"],
         )
         self.assertIn(
-            "runtime audience is absent",
+            "Missing lifecycle configuration or schema disables only Apple",
             paths["/auth/apple/exchange"]["post"]["description"],
         )
         for schema_name in (
@@ -114,6 +123,17 @@ class OpenApiContractTest(unittest.TestCase):
             rendered = json.dumps(schemas[schema_name], sort_keys=True)
             for hint in ('email"', 'name"', 'user"', 'real_user_status"'):
                 self.assertNotIn(hint, rendered)
+        notification = paths["/auth/apple/notifications"]["post"]
+        self.assertEqual(notification["security"], [])
+        self.assertIn("idempotent receipt", notification["description"])
+        self.assertEqual(
+            set(
+                notification["requestBody"]["content"][
+                    "application/x-www-form-urlencoded"
+                ]
+            ),
+            {"schema"},
+        )
 
     def test_public_reply_enum_and_error_codes_are_exact(self):
         schemas = self.contract["components"]["schemas"]
@@ -207,12 +227,15 @@ class OpenApiContractTest(unittest.TestCase):
             bootstrap,
         )
         self.assertIn(
-            "if apple_audience and apple_audience == apple_audience.strip()",
+            "if apple_lifecycle_configuration_is_valid(apple_values, refresh_replay_key)",
             bootstrap,
         )
         self.assertNotIn('required("MOBILE_API_APPLE_AUDIENCE")', bootstrap)
         self.assertNotIn("MOBILE_LINE_PUBLIC_KEY", bootstrap + env_example)
         self.assertIn('MOBILE_API_APPLE_AUDIENCE: ""', env_example)
+        self.assertIn('MOBILE_API_APPLE_CLIENT_SECRET: ""', env_example)
+        self.assertIn('MOBILE_API_APPLE_PROVIDER_CREDENTIAL_KEY: ""', env_example)
+        self.assertIn('MOBILE_API_APPLE_NOTIFICATION_AUDIENCE: ""', env_example)
         self.assertIn("cryptography==43.0.3", requirements)
         self.assertIn(".env.yaml", ignored)
         self.assertNotIn("gcloud", dockerfile + (root / "cloudbuild.yaml").read_text())

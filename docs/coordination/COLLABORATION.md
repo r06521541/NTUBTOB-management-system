@@ -40,7 +40,7 @@ lease_version=<positive integer>
 scope=<bounded outcome>
 owned_paths=<exact paths or globs>
 write=<allowed|read-only>
-report_to=<exact actor or main-work>
+report_to=<exact canonical agent path or Codex thread id>
 stop_conditions=<bounded list>
 ```
 
@@ -51,6 +51,11 @@ Task 是 packet 權威；訊息只負責喚醒與傳送。接收者必須：
 3. 完成時主動通知 Main，不可只停在自己的 session。Final packet 包含 task、branch、commit full SHA（未 commit 則
    current full HEAD 與 exact dirty paths）、tests、findings、remaining limits、external mutations。
 4. Claim 缺失、actor／lease／owned paths 不符或 next actor 不符時維持 read-only 並通知 Main。
+
+Main派工時不得要求接收者自行猜測recipient或thread id；packet直接提供canonical agent path或exact Codex thread id，
+接收者在ACK、heartbeat與completion皆原樣回報。只要delegated agent／sibling task仍在執行，Main不得先結束自己的active
+turn並假設completion會自動喚醒；必須以bounded `wait_agent`／`wait_threads`持續追蹤，遇Owner新輸入可中斷等待，處理後
+仍須恢復追蹤。Main實際收到並處理completion packet後，delegated work才算完成交棒。
 
 Domain Work 完成正式 task 後交回 Main；Main 只回 `changes_requested`、`accepted` 或 `next_task_assigned`。未收到
 `next_task_assigned` 前不得自行開始下一個正式 implementation task。

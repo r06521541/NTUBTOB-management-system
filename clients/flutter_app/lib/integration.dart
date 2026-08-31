@@ -1474,6 +1474,17 @@ abstract interface class GoogleLoginPort {
 
 abstract interface class AppleLoginPort {
   Future<String> login(String nonce);
+  Future<AppleAuthorizationEnvelope> authorize(String nonce);
+}
+
+class AppleAuthorizationEnvelope {
+  const AppleAuthorizationEnvelope(
+    this.identityToken,
+    this.authorizationCode,
+  );
+
+  final String identityToken;
+  final String authorizationCode;
 }
 
 class NativeAppleLogin implements AppleLoginPort {
@@ -1486,7 +1497,11 @@ class NativeAppleLogin implements AppleLoginPort {
   final MethodChannel _channel;
 
   @override
-  Future<String> login(String nonce) async {
+  Future<String> login(String nonce) async =>
+      (await authorize(nonce)).identityToken;
+
+  @override
+  Future<AppleAuthorizationEnvelope> authorize(String nonce) async {
     if (nonce.length < 16 ||
         nonce.length > 128 ||
         !RegExp(r'^[A-Za-z0-9_-]+$').hasMatch(nonce)) {
@@ -1497,19 +1512,28 @@ class NativeAppleLogin implements AppleLoginPort {
       {'raw_nonce': nonce},
     );
     if (raw is! Map ||
-        raw.length != 1 ||
-        raw.keys.single != 'identity_token' ||
-        raw['identity_token'] is! String) {
+        raw.length != 2 ||
+        raw['identity_token'] is! String ||
+        raw['authorization_code'] is! String ||
+        raw.keys.toSet().difference(
+          const {'identity_token', 'authorization_code'},
+        ).isNotEmpty) {
       throw const ContractException('Apple authorization result is invalid');
     }
     final token = raw['identity_token'] as String;
+    final code = raw['authorization_code'] as String;
     if (token.isEmpty ||
-        token.length > 32768 ||
+        token.length > 16384 ||
         !RegExp(r'^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$')
             .hasMatch(token)) {
       throw const ContractException('Apple identity token is invalid');
     }
-    return token;
+    if (code.isEmpty ||
+        code.length > 4096 ||
+        !RegExp(r'^[\x21-\x7E]+$').hasMatch(code)) {
+      throw const ContractException('Apple authorization code is invalid');
+    }
+    return AppleAuthorizationEnvelope(token, code);
   }
 }
 
@@ -1949,10 +1973,10 @@ class AppleLoginCoordinator extends ChangeNotifier {
     _nativeAttempt = attempt;
     state = LoginState.providerActive;
     _notify();
-    late final Future<String> nativeLogin;
+    late final Future<AppleAuthorizationEnvelope> nativeLogin;
     try {
-      nativeLogin = apple.login(nonce);
-      final token = await nativeLogin.timeout(loginTimeout);
+      nativeLogin = apple.authorize(nonce);
+      final authorization = await nativeLogin.timeout(loginTimeout);
       if (_nativeAttempt != attempt || _activeAttempt != attempt) {
         state = LoginState.stale;
         return;
@@ -1961,7 +1985,8 @@ class AppleLoginCoordinator extends ChangeNotifier {
       state = LoginState.exchanging;
       _notify();
       final response = await api.send('POST', '/auth/apple/exchange', body: {
-        'id_token': token,
+        'id_token': authorization.identityToken,
+        'authorization_code': authorization.authorizationCode,
         'nonce': nonce,
         'login_attempt_id': attempt,
         'installation_id': installationId,
@@ -2014,7 +2039,7 @@ class AppleLoginCoordinator extends ChangeNotifier {
 
   Future<void> _settleTimedOutNativeFlow(
     String attempt,
-    Future<String> nativeLogin,
+    Future<AppleAuthorizationEnvelope> nativeLogin,
   ) async {
     LoginState resolvedState;
     try {

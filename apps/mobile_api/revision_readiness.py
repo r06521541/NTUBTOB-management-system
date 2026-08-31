@@ -1,11 +1,36 @@
 """Safe database revision readiness checks for the mobile API runtime."""
 
+import secrets
 import socket
 
 from sqlalchemy import text
 
-EXPECTED_REVISION = "0008_mobile_notification_delivery"
-ACCEPTED_REVISIONS = (EXPECTED_REVISION,)
+EXPECTED_REVISION = "0010_apple_provider_lifecycle"
+ACCEPTED_REVISIONS = (
+    "0008_mobile_notification_delivery",
+    "0009_event_management_writes",
+    EXPECTED_REVISION,
+)
+APPLE_LIFECYCLE_CONFIGURATION_KEYS = frozenset(
+    {"audience", "client_secret", "credential_key", "notification_audience"}
+)
+
+
+def apple_lifecycle_configuration_is_valid(values, refresh_replay_key: str) -> bool:
+    if (
+        not isinstance(values, dict)
+        or set(values) != APPLE_LIFECYCLE_CONFIGURATION_KEYS
+        or not isinstance(refresh_replay_key, str)
+        or not refresh_replay_key
+        or any(
+            not isinstance(value, str) or not value or value != value.strip()
+            for value in values.values()
+        )
+    ):
+        return False
+    return not secrets.compare_digest(
+        values["credential_key"].encode("utf-8"), refresh_replay_key.encode("utf-8")
+    )
 
 
 def _safe_error_category(error: Exception) -> tuple[str, str]:

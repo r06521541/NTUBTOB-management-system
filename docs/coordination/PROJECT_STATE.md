@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository authority HEAD：`b05a6df3feeef6631dc8b3d95e42fb19a15a6087`
+Repository authority HEAD：`dc18f264929057eb9c23e3efd0f9d2e5dbe79ae9`
 
 ## Active role lanes
 
@@ -68,6 +68,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 ## Active work and external gates
 
+- TASK-174為目前assigned active task：repository-only補齊Sign in with Apple authorization-code、encrypted provider
+  credential與server-notification revocation foundation；不授權Apple provider、Secret、signing、runtime、production或
+  TestFlight操作。
 - TASK-169保留active：repository release-readiness已合併，但Android/iOS store、signing、provider、production backend、
   device與public-release gates仍是現在的release boundary。
 - TASK-170保留active：repository Android candidate contract已通過review/CI；外部階段等待Owner Google Play developer-

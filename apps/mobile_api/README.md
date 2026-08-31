@@ -4,27 +4,37 @@ Independent Flask/Cloud Run deployment unit for the native API. Basic access
 remains isolated; Officer/Admin receive only explicitly projected bounded reads.
 The canonical machine-readable contract is `openapi.json`.
 
-The runtime fails closed unless PostgreSQL reports the exact revision
-`0008_mobile_notification_delivery`, and all
-signing, refresh-response encryption, and existing provider audience
-configuration is present. The
+The runtime core accepts only the rollout-compatible revisions
+`0008_mobile_notification_delivery`, `0009_event_management_writes`, and
+`0010_apple_provider_lifecycle`. This permits deploying the compatible runtime
+before migrating to `0010`; unknown, malformed, and future revisions fail
+closed. Apple exchange and notifications remain independently unavailable until
+the schema is exactly `0010`. All signing, refresh-response encryption, and
+existing provider audience configuration must also be present. The
 LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
-plain runtime values. `MOBILE_API_APPLE_AUDIENCE` is optional for this repository
-slice: a missing or blank value disables only Apple authentication, while LINE
-and Google remain available. A configured value must be one exact audience;
-Apple ID tokens are nonce-bound and verified with a bounded, thread-safe cache
-of Apple's public RSA signing keys. Database, signing, and replay keys remain
-Secret-backed.
-The readiness check remains read-only and does not inspect the broker journal or
-notification tables. These values are runtime configuration only; this directory
-contains no credential and no deploy target.
+plain runtime values. Apple lifecycle configuration is optional as one
+indivisible group: exact client audience, runtime-injected client secret,
+independent provider-credential encryption key, and exact notification audience.
+The provider-credential key must differ from the mobile refresh replay key. A
+missing or blank value, reused key material, or pre-`0010` lifecycle schema disables Apple
+authentication and notifications only; LINE and Google remain available. Apple
+ID tokens and server notifications use a bounded, thread-safe cache of Apple's
+public RSA signing keys. Database, signing, replay, client-secret, and
+provider-encryption keys remain Secret-backed. Readiness checks are read-only;
+this directory contains no credential and no deploy target.
 
-This slice receives an Apple ID token and raw nonce only. It does not receive an
-authorization code, obtain an Apple refresh token, or handle provider
-revocation. Those capabilities remain future public-provider/runtime gates, so
-this repository slice does not claim a complete Apple provider-session
-lifecycle. Its access and refresh tokens are existing server-owned application
-sessions, not Apple provider sessions.
+Apple login accepts an exact nonce-bound ID token plus a single-use
+authorization code. The server verifies the assertion before reserving the code,
+exchanges it once with a bounded HTTPS client, correlates the returned subject,
+and persists only an independently encrypted provider refresh credential plus
+hashes. Timeout or unknown exchange outcomes are terminal and never retried.
+The public notification route accepts exactly one bounded Apple-signed JWS;
+revocation/deletion events atomically disable the Apple identity, its app
+sessions, and provider credential, while email-forwarding events are receipt
+only. Provider configuration, endpoint registration, active token revocation,
+credential-state inspection, deployment, and provider smoke remain future
+Owner gates. App access/refresh tokens remain server-owned application sessions,
+not Apple provider sessions.
 
 Officer publishing uses the exact `notifications:publish` capability. Preview
 recipient expansion and confirmation remain server-owned; confirmation writes

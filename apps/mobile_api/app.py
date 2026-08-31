@@ -31,6 +31,8 @@ class Dependencies:
     google_auth: MobileAuthService | None = None
     identity_link: object | None = None
     apple_auth: MobileAuthService | None = None
+    apple_lifecycle_ready: Callable[[], bool] | None = None
+    apple_notifications: object | None = None
 
 
 def create_app(dependencies: Dependencies) -> Flask:
@@ -210,11 +212,16 @@ def create_app(dependencies: Dependencies) -> Flask:
 
     @app.post("/api/v1/auth/apple/exchange")
     def apple_exchange():
-        if dependencies.apple_auth is None:
+        if (
+            dependencies.apple_auth is None
+            or dependencies.apple_lifecycle_ready is None
+            or not dependencies.apple_lifecycle_ready()
+        ):
             raise MobileApiError("Apple sign-in is unavailable")
         body = json_body(
             {
                 "id_token",
+                "authorization_code",
                 "nonce",
                 "login_attempt_id",
                 "installation_id",
@@ -225,6 +232,7 @@ def create_app(dependencies: Dependencies) -> Flask:
             raise InvalidArgument("Apple sign-in requires iOS")
         result = dependencies.apple_auth.exchange(
             assertion=body.get("id_token"),
+            authorization_code=body.get("authorization_code"),
             nonce=body.get("nonce"),
             login_attempt_id=body.get("login_attempt_id"),
             installation_id=body.get("installation_id"),
@@ -233,6 +241,25 @@ def create_app(dependencies: Dependencies) -> Flask:
         return jsonify(result.__dict__), (
             202 if hasattr(result, "review_credential") else 201
         )
+
+    @app.post("/api/v1/auth/apple/notifications")
+    def apple_notifications():
+        if (
+            dependencies.apple_notifications is None
+            or dependencies.apple_lifecycle_ready is None
+            or not dependencies.apple_lifecycle_ready()
+        ):
+            raise MobileApiError("Apple notifications are unavailable")
+        if (
+            request.mimetype != "application/x-www-form-urlencoded"
+            or request.content_length is None
+            or not 1 <= request.content_length <= 20_000
+            or set(request.form) != {"payload"}
+            or len(request.form.getlist("payload")) != 1
+        ):
+            raise MalformedRequest("Apple notification form is malformed")
+        dependencies.apple_notifications.receive(request.form["payload"])
+        return "", 204
 
     @app.get("/api/v1/auth/identities")
     def linked_identities():

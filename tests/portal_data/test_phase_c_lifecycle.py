@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
 
+from shared_lib.shared_module.mobile_api import BasicApiService, MobilePrincipal
 from shared_lib.shared_module.portal_data.domain import (
     AuthorizationError,
     ConflictError,
@@ -22,9 +23,11 @@ from shared_lib.shared_module.portal_data.domain import (
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
-from shared_lib.shared_module.mobile_api import BasicApiService, MobilePrincipal
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
+)
+from tests.portal_data._apple_lifecycle_test_harness import (
+    remove_retained_apple_evidence_from_isolated_test_database,
 )
 from tools import portal_data_production_zero_admin_bootstrap as production_bootstrap
 from tools import portal_data_zero_admin_bootstrap as bootstrap_operator
@@ -77,10 +80,12 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         setup_legacy_fixture()
         config = Config("alembic.ini")
         command.upgrade(config, "head")
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
+        remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -1137,8 +1142,9 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             (pending.identity.id + 9999, 7001, "fake-wrong-identity"),
             (pending.identity.id, 7999, "fake-wrong-member"),
         ):
-            with self.subTest(request_id=request_id), self.assertRaises(
-                (AuthorizationError, ConflictError)
+            with (
+                self.subTest(request_id=request_id),
+                self.assertRaises((AuthorizationError, ConflictError)),
             ):
                 self.repository.bootstrap_zero_admin_member(
                     identity_id,
@@ -1152,12 +1158,10 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
 
         def invoke(mode, values):
             output = io.StringIO()
-            with patch.dict(
-                os.environ, {"PORTAL_DATA_DATABASE_URL": DATABASE_URL}
-            ), patch.object(
-                bootstrap_operator.getpass, "getpass", side_effect=values
-            ), contextlib.redirect_stdout(
-                output
+            with (
+                patch.dict(os.environ, {"PORTAL_DATA_DATABASE_URL": DATABASE_URL}),
+                patch.object(bootstrap_operator.getpass, "getpass", side_effect=values),
+                contextlib.redirect_stdout(output),
             ):
                 bootstrap_operator.run(mode)
             return json.loads(output.getvalue())
@@ -1241,9 +1245,11 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             production_bootstrap.ALLOWLIST_ENV: "7001",
         }
         for gate in ("_schema_ready", "_read_logging_safe"):
-            with self.subTest(gate=gate), patch.object(
-                production_bootstrap, gate, return_value=False
-            ), self.assertRaises(production_bootstrap.ProductionBootstrapError):
+            with (
+                self.subTest(gate=gate),
+                patch.object(production_bootstrap, gate, return_value=False),
+                self.assertRaises(production_bootstrap.ProductionBootstrapError),
+            ):
                 production_bootstrap.run("dry-run", environ=environment)
         with self.engine.connect() as connection:
             self.assertEqual(
