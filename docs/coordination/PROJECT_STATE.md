@@ -55,8 +55,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   fail closed。這是repository evidence，不是已上傳的store candidate。
 - iOS有TestFlight/App Store fail-closed config與Sign in with Apple source contract；macOS/Xcode、signed archive、provider、
   capability/profile與real-device evidence仍是外部gate。
-- TASK-177進行中：Flutter匿名crash foundation固定default-off、local-only、provider-neutral與嚴格去識別化；尚無
-  provider／endpoint、真實上傳或receipt evidence。
+- TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
+  default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
   docs/archive與核准bootstrap wrapper可走quick gate，unknown/shared/workflow仍fail-safe full。
 
