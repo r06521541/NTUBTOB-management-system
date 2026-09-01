@@ -24,7 +24,7 @@ from sqlalchemy import Engine, and_, func, literal, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .identity_lifecycle import ADMIN_LOCK_KEY, IdentityLifecycleRepository
+from .identity_lifecycle import IdentityLifecycleRepository
 from .models import (
     AccessAuditRecord,
     AppleProviderCodeExchangeRecord,
@@ -47,6 +47,7 @@ from .models import (
     PersonQualificationRecord,
     PersonRecord,
 )
+from .runtime import ADMIN_LOCK_KEY
 
 
 class MobileRepository:
@@ -62,6 +63,7 @@ class MobileRepository:
                 ) in {
                     "0010_apple_provider_lifecycle",
                     "0011_event_notification_guest_lifecycle",
+                    "0012_persistent_admin_authority",
                 }
         except Exception:
             return False
@@ -902,10 +904,12 @@ class MobileRepository:
         unread_only: bool,
     ) -> list[dict]:
         with Session(self.engine) as session:
-            event_lifecycle_ready = (
-                session.scalar(text("SELECT version_num FROM ntubtob.alembic_version"))
-                == "0011_event_notification_guest_lifecycle"
-            )
+            event_lifecycle_ready = session.scalar(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ) in {
+                "0011_event_notification_guest_lifecycle",
+                "0012_persistent_admin_authority",
+            }
             category = (
                 MobileNotificationRecipientRecord.participation_category
                 if event_lifecycle_ready
@@ -962,10 +966,12 @@ class MobileRepository:
         self, person_id: int, notification_id: int, now: datetime
     ) -> dict | None:
         with Session(self.engine) as session:
-            event_lifecycle_ready = (
-                session.scalar(text("SELECT version_num FROM ntubtob.alembic_version"))
-                == "0011_event_notification_guest_lifecycle"
-            )
+            event_lifecycle_ready = session.scalar(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ) in {
+                "0011_event_notification_guest_lifecycle",
+                "0012_persistent_admin_authority",
+            }
             category = (
                 MobileNotificationRecipientRecord.participation_category
                 if event_lifecycle_ready

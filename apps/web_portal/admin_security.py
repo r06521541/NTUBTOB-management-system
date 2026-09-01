@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import os
 import secrets
+import time
 from functools import wraps
 
 from flask import abort, g, redirect, request, session, url_for
@@ -13,6 +16,8 @@ from role_policy import (
 ADMIN_MEMBER_IDS_ENV = "WEB_PORTAL_ADMIN_MEMBER_IDS"
 CSRF_SESSION_KEY = "member_matching_csrf_token"
 LOGOUT_CSRF_SESSION_KEY = "logout_csrf_token"
+ADMIN_REAUTH_SESSION_KEY = "admin_reauthenticated_at"
+ADMIN_REAUTH_MAX_AGE_SECONDS = 300
 _phase_c_principal_loader = None
 
 
@@ -75,6 +80,15 @@ def get_current_principal():
             if principal is not None:
                 g.portal_principal = principal
             return principal
+    try:
+        from shared_module.portal_data.runtime import admin_authority_mode
+    except ImportError:
+        return None
+    mode = admin_authority_mode()
+    if mode != "legacy_allowlist":
+        # Authentication can remain valid, but no administrator source is
+        # selected.  Resolve only the basic principal so admin fails with 403.
+        return resolve_production_principal(session, frozenset())
     allowlist = parse_admin_member_ids(os.environ.get(ADMIN_MEMBER_IDS_ENV))
     principal = resolve_production_principal(session, allowlist)
     if principal is not None:
@@ -109,6 +123,26 @@ def require_valid_csrf():
         abort(400)
     if not secrets.compare_digest(expected, received):
         abort(400)
+
+
+def mark_fresh_admin_reauthentication(now: int | None = None):
+    value = int(time.time()) if now is None else now
+    if type(value) is not int or value <= 0:
+        raise ValueError("invalid reauthentication time")
+    session[ADMIN_REAUTH_SESSION_KEY] = value
+
+
+def require_fresh_admin_reauthentication(now: int | None = None):
+    current = int(time.time()) if now is None else now
+    authenticated_at = session.get(ADMIN_REAUTH_SESSION_KEY)
+    if (
+        type(current) is not int
+        or type(authenticated_at) is not int
+        or authenticated_at <= 0
+        or current < authenticated_at
+        or current - authenticated_at > ADMIN_REAUTH_MAX_AGE_SECONDS
+    ):
+        abort(403)
 
 
 def get_or_create_logout_csrf_token():

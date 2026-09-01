@@ -100,7 +100,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
         setup_legacy_fixture()
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", DATABASE_URL)
-        command.upgrade(config, "head")
+        command.upgrade(config, "0011_event_notification_guest_lifecycle")
         with self.engine.begin() as connection:
             self.people = tuple(
                 connection.scalars(

@@ -56,6 +56,25 @@
 - forbidden_paths: deployment/cloud/Secret/provider operators, production data artifacts, broker fixture/adapter,
   unrelated services and archive
 
+### Lease 1 accepted compatibility expansion
+
+Main accepted one narrow scope expansion after the writer proved that the existing Mobile API startup gate rejected a
+linear 0012 head. `apps/mobile_api/revision_readiness.py` and its focused test are owned only to accept and classify exact
+`0012_persistent_admin_authority` while retaining the prior historical revisions and rejecting malformed, unknown or
+future values. No endpoint, Apple configuration, provider, auth, deployment or other Mobile runtime behavior is in scope.
+
+Main also accepted the Phase C verifier and its directly corresponding tests only to classify exact
+`0012_persistent_admin_authority` as the single current Alembic head. The checksummed 0001–0003 artifact and all
+historical revision semantics remain unchanged; unknown, future and branched heads still fail closed.
+
+Main accepted one test-only isolation path so the existing Event guest cleanup first removes exact retained 0012
+authority evidence on the guarded localhost test database, then performs its unchanged exact-0011 cleanup. Unknown,
+multi-head, nonlocal and future revisions still stop before DDL; no migration or runtime cleanup behavior changed.
+
+Main accepted one hosted-targeted repository contract fixture correction so admin mutation actors are deterministic,
+fictional active people with linked identities. The explicit unlinked-admin denial case and all product authorization
+behavior remain unchanged.
+
 Writer must ACK `received/executing`, send heartbeat every 10–15 minutes, report blockers immediately, and proactively
 deliver full SHA, dirty paths, tests, findings, limits and external mutations. Writer may commit and push the task branch,
 but must not create/merge a PR or perform external runtime actions.

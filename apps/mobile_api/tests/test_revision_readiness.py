@@ -22,6 +22,9 @@ class _ConnectionContext:
 
 
 class RevisionReadinessTest(unittest.TestCase):
+    def test_current_revision_is_exact_0012(self):
+        self.assertEqual(EXPECTED_REVISION, "0012_persistent_admin_authority")
+
     def test_apple_provider_credential_key_must_be_distinct_from_refresh_key(self):
         refresh_key = urlsafe_b64encode(b"r" * 32).decode("ascii")
         provider_key = urlsafe_b64encode(b"p" * 32).decode("ascii")
@@ -56,6 +59,7 @@ class RevisionReadinessTest(unittest.TestCase):
                 "0009_event_management_writes",
                 "0010_apple_provider_lifecycle",
                 "0011_event_notification_guest_lifecycle",
+                "0012_persistent_admin_authority",
             ),
         )
 

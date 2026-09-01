@@ -68,6 +68,28 @@ class PersonRecord(PortalDataBase):
     )
 
 
+class PortalAuthorityStateRecord(PortalDataBase):
+    """Singleton rollout state; Person rows remain the only durable role source."""
+
+    __tablename__ = "portal_authority_state"
+    __table_args__ = (
+        CheckConstraint("singleton_id = 1", name="ck_portal_authority_singleton"),
+        CheckConstraint(
+            "mode IN ('legacy_allowlist', 'persistent')",
+            name="ck_portal_authority_mode",
+        ),
+        CheckConstraint("epoch >= 1", name="ck_portal_authority_epoch"),
+        {"schema": SCHEMA},
+    )
+
+    singleton_id: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    mode: Mapped[str] = mapped_column(String(32), nullable=False)
+    epoch: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
 class LegacyMemberRecord(PortalDataBase):
     __tablename__ = "members"
     __table_args__ = {"schema": SCHEMA}

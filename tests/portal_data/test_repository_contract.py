@@ -30,7 +30,11 @@ class RepositoryContractMixin:
     repository = None
 
     def make_admin(self, name="虛構管理員"):
-        return self.repository.create_person(name, access_level="admin")
+        person = self.repository.create_person(name, access_level="admin")
+        make_reachable = getattr(self, "_make_admin_reachable", None)
+        if make_reachable is not None:
+            make_reachable(person)
+        return person
 
     def test_same_person_can_link_multiple_accounts_from_same_provider(self):
         admin = self.make_admin()
@@ -178,8 +182,8 @@ class RepositoryContractMixin:
         self.assertEqual(self.repository.get_person(target.id).access_level, "officer")
 
     def test_last_admin_concurrent_demotion_keeps_an_active_admin(self):
-        first = self.repository.create_person("虛構管理員甲", access_level="admin")
-        second = self.repository.create_person("虛構管理員乙", access_level="admin")
+        first = self.make_admin("虛構管理員甲")
+        second = self.make_admin("虛構管理員乙")
         barrier = threading.Barrier(2)
         outcomes = []
 
@@ -322,7 +326,7 @@ class RepositoryContractMixin:
 
     def test_event_attendance_rechecks_active_and_open_state(self):
         now = datetime.now(timezone.utc)
-        admin = self.repository.create_person("虛構出席管理員", access_level="admin")
+        admin = self.make_admin("虛構出席管理員")
         manager = self.repository.create_person(
             "虛構出席活動管理員", access_level="officer"
         )
@@ -959,6 +963,20 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
         self.repository = PostgresTeamPortalRepository(
             self.engine, allow_persisted_event_managers=True
         )
+
+    def _make_admin_reachable(self, person):
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider,provider_subject,person_id,status,created_at,updated_at) "
+                    "VALUES ('line',:subject,:person_id,'linked',now(),now())"
+                ),
+                {
+                    "subject": f"fictional-repository-admin-{person.id}",
+                    "person_id": person.id,
+                },
+            )
 
     def test_event_manager_allowlist_accepts_linked_basic_person(self):
         actor = self.repository.create_person(
