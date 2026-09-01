@@ -309,6 +309,8 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
     def test_build_failure_does_not_emit_child_output(self):
         private_values = ["safe"] * len(operator.PRIVATE_LABELS)
         with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(operator, "CLIENT", Path(directory)),
             mock.patch.object(
                 operator,
                 "preflight",
