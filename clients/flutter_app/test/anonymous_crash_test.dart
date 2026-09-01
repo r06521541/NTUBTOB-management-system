@@ -276,6 +276,16 @@ void main() {
     hooks.zone(TypeError(), StackTrace.empty, (_, __) => zoneCalls++);
     expect([flutterCalls, platformCalls, zoneCalls], [1, 1, 1]);
     expect(await queue.pending(), hasLength(3));
+
+    hooks.flutter(
+      FlutterErrorDetails(
+        exception: StateError('private'),
+        stack: _ThrowingStackTrace(),
+      ),
+      (_) => flutterCalls++,
+    );
+    expect(flutterCalls, 2);
+    expect(await queue.pending(), hasLength(3));
     expect(
       await AnonymousCrashReporter(
         queue: queue,
