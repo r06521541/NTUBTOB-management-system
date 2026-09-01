@@ -381,9 +381,23 @@
 - Non-goals：本決策不新增無 Person 的 guest companion，不發送真實通知，不授權 production schema／runtime／data、
   deployment、Secret、provider／IAM／cloud mutation。
 
+## DEC-107：匿名 crash reporting 採預設關閉、local-first 與 provider-neutral 邊界
+
+- 狀態：`active`
+- 日期：2026-09-01
+- 來源：Owner選定TASK-177作為Google Play／Apple外部操作等待期間的repository delivery
+- 決策：Flutter真實composition只建立provider-neutral的匿名crash foundation。使用者未明確opt in時不收集；opt in
+  後也只保存installation-scoped、bounded、local-only固定schema。repository不選provider、不加入SDK／endpoint，
+  不把本機queue誤稱為已上傳或receipt evidence。
+- Invariants：禁止raw error／message／stack、route／URL、帳號／Person／identity／installation ID、token、payload、通知
+  內容與device identifier。opt out停止後續capture並清除queue；fake mode不收集。未來provider必須保留同一redaction、
+  opt-in、bounded retry、external disable與synthetic receipt gate。
+- Non-goals：本決策不授權provider帳號／SDK、cloud／Secret、store表單、production、真實上傳、device evidence、部署或
+  public release。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-106`，下一個新決策從 `DEC-107` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-107`，下一個新決策從 `DEC-108` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

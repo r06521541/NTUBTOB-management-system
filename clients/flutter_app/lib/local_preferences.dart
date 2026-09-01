@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
+import 'anonymous_crash.dart';
 import 'integration.dart';
 
 enum LocalThemePreference { system, light, dark }
@@ -61,9 +62,11 @@ class LocalPreferencesPage extends StatefulWidget {
   const LocalPreferencesPage(
       {super.key,
       required this.preferences,
+      this.crashQueue,
       required this.permissions,
       required this.onThemeChanged});
   final LocalPreferences preferences;
+  final AnonymousCrashQueue? crashQueue;
   final NotificationPermissionActions permissions;
   final ValueChanged<LocalThemePreference> onThemeChanged;
   @override
@@ -72,11 +75,22 @@ class LocalPreferencesPage extends StatefulWidget {
 
 class _LocalPreferencesPageState extends State<LocalPreferencesPage> {
   LocalThemePreference _theme = LocalThemePreference.system;
+  bool _crashEnabled = false;
+  bool _crashPreferenceLoaded = false;
+  bool _crashPreferenceBusy = false;
   @override
   void initState() {
     super.initState();
     widget.preferences.theme().then((value) {
       if (mounted) setState(() => _theme = value);
+    });
+    widget.crashQueue?.enabled().then((value) {
+      if (mounted) {
+        setState(() {
+          _crashEnabled = value;
+          _crashPreferenceLoaded = true;
+        });
+      }
     });
   }
 
@@ -120,7 +134,67 @@ class _LocalPreferencesPageState extends State<LocalPreferencesPage> {
             subtitle: const Text('若已拒絕，請自行在系統設定變更'),
             key: const ValueKey('open-notification-settings'),
             onTap: () => widget.permissions.openSettingsAfterExplicitTap()),
+        if (widget.crashQueue != null) ...[
+          const Divider(),
+          const ListTile(title: Text('隱私與診斷')),
+          SwitchListTile(
+            key: const ValueKey('anonymous-crash-reporting-preference'),
+            value: _crashEnabled,
+            onChanged: !_crashPreferenceLoaded || _crashPreferenceBusy
+                ? null
+                : _setCrashPreference,
+            title: const Text('匿名錯誤診斷'),
+            subtitle: const Text(
+              '明確同意後，只在此裝置暫存去識別化的錯誤分類；目前不會傳送至外部服務。',
+            ),
+          ),
+        ],
       ]));
+
+  Future<void> _setCrashPreference(bool enabled) async {
+    final queue = widget.crashQueue;
+    if (queue == null) return;
+    if (enabled) {
+      final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('啟用匿名錯誤診斷？'),
+              content: const Text(
+                '只記錄固定錯誤分類、日期、平台類別與不透明指紋；不保存帳號、姓名、權杖、網址、通知內容、錯誤文字或原始堆疊。目前資料只留在此裝置。',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('同意啟用'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!confirmed || !mounted) return;
+    }
+    setState(() => _crashPreferenceBusy = true);
+    try {
+      if (enabled) {
+        await queue.optIn();
+      } else {
+        await queue.optOut();
+      }
+      if (mounted) setState(() => _crashEnabled = enabled);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('診斷設定未完成，請稍後再試。')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _crashPreferenceBusy = false);
+    }
+  }
 }
 
 class OnboardingPage extends StatefulWidget {

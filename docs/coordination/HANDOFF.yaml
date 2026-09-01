@@ -1,29 +1,29 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-176
-status: ready_for_review
-next_actor: auth-security-reviewer
+active_task: TASK-177
+status: ready_for_merge
+next_actor: main-work
 
-claim_id: task-176-hosted-pg-correction-writer-20260901
+claim_id: task-177-main-implementation-20260901
 lease_version: 1
-actor_id: /root/task170_play_evidence_writer
+actor_id: /root
 
-base_commit: 201bb56c37a0552961456a9212f62d959cd7182a
-head_commit: 13f4057fa3bb80287a083cc70ecaaacb2098a685
+base_commit: 1a8f5e660fe731b3996577c22380050283473c31
+head_commit: 70abdc3adc584c60ff6c0805d151edb7079d00ce
 
-updated_by: codex-writer
-updated_at: 2026-09-01T15:26:35+08:00
+updated_by: main-work
+updated_at: 2026-09-01T19:30:00+08:00
 
 note: >
-  TASK-176 hosted correction is committed at the immutable review target. Known
-  Person-era pre-0012 compatibility remains legacy-only with no retained authority
-  state, persistent PostgreSQL cases rebuild an isolated fixture per test, and the
-  fake admin now has a deterministic fictional linked identity. No real allowlist,
-  production database, provider call or runtime mutation occurred. Hosted
-  PostgreSQL 15/16 acceptance remains required.
+  TASK-177 implementation and privacy corrections are committed at the immutable
+  accepted review target. The foundation is default-off, provider-neutral,
+  local-only and strictly deidentified. Independent privacy/security review accepted
+  the exact target with no findings, and hosted run 33501642531 passed. No external
+  provider, endpoint, SDK, real event, store, cloud, deployment or production
+  mutation occurred. PR #231 is ready for Main to merge.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-176.md
-report: docs/coordination/reports/TASK-176.md
-review: pending
+task: docs/coordination/tasks/TASK-177.md
+report: docs/coordination/reports/TASK-177.md
+review: accepted
