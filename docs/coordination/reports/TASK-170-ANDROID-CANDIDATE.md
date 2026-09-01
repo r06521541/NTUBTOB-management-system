@@ -69,6 +69,10 @@
   path is canonicalized, rejected if it resolves into Git or traverses a reparse point, and created exclusively. Copying streams the
   inspected snapshot through a fresh SHA-256, requires exact digest agreement, fsyncs the new file and removes partial/drifted output.
   Regressions cover post-preflight drift, repository/reparse destinations, pre-existing output and copied-byte digest drift.
+- Independent Release/Security rereview accepted immutable correction commit
+  `2843fc9b7e37876fc236226587d4ae2abfa71ae7` with no remaining actionable finding. Reviewer independently ran 11 operator tests and
+  `git diff --check`; external mutations were zero. The documented same-user/privileged atomic-swap residual remains outside this local
+  Owner-operator threat boundary and does not weaken fail-closed handling of ordinary concurrent drift or accidental redirection.
 
 - Before implementation, focused tests reproduced the mismatch: the inspector
   rejected `android-closed`, `APP_FLAVOR=production` remained accepted, and the

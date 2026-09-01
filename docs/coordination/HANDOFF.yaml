@@ -2,26 +2,27 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-170
-status: ready_for_review
-next_actor: release-security-reviewer
+status: ready_for_hosted_gate
+next_actor: main-work
 
 claim_id: task-170-candidate-operator-writer-20260902
 lease_version: 1
 actor_id: /root
 
 base_commit: 5af3410dfbb7d8f748b25941b35c920070f8caa3
-head_commit: null
+head_commit: 2843fc9b7e37876fc236226587d4ae2abfa71ae7
 
 updated_by: main-work
-updated_at: 2026-09-02T04:08:00+08:00
+updated_at: 2026-09-02T04:20:00+08:00
 
 note: >
-  TASK-170 repository implementation and local fictional verification are complete
-  and await one independent Release/Security review. Play app creation is externally
-  reported complete, but no real upload key, AAB, device, Console track, provider,
-  cloud, deployment, open/production rollout or public release mutation occurred.
+  TASK-170 repository implementation, local fictional verification and independent
+  Release/Security rereview are accepted at the immutable head. The single hosted
+  gate remains. Play app creation is externally reported complete, but no real upload
+  key, AAB, device, Console track, provider, cloud, deployment, open/production rollout
+  or public release mutation occurred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-170.md
 report: docs/coordination/reports/TASK-170-ANDROID-CANDIDATE.md
-review: pending
+review: accepted
