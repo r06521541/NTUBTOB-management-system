@@ -93,8 +93,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 - Completed TASK-142～168、171～173的原始task/report/review群組已由merged Git ancestry證據索引至
   `archive/phase-d/PHASE_D_CLOSEOUT.md`；archive只證明歷史，不授權現在操作。
-- Active入口保留TASK-169、170、174及其current/external-gate evidence；目前沒有assigned active task。任何完成狀態不明或外部gate仍由
-  該task承載的群組不得封存。
+- Active入口保留TASK-169、170、174及其current/external-gate evidence；TASK-177在merge／closeout前仍是assigned
+  active task。任何完成狀態不明或外部gate仍由該task承載的群組不得封存。
 - 當前task與next actor只看`HANDOFF.yaml`；協作規則看`COLLABORATION.md`；長期決策看`DECISIONS.md`。
 
 ## Safety boundary
