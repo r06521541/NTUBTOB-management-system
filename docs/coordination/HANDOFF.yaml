@@ -5,22 +5,23 @@ active_task: TASK-176
 status: ready_for_review
 next_actor: auth-security-reviewer
 
-claim_id: task-176-admin-core-writer-20260901
-lease_version: 3
+claim_id: task-176-hosted-pg-correction-writer-20260901
+lease_version: 1
 actor_id: /root/task170_play_evidence_writer
 
-base_commit: 7dc96ed3fbb9ebb668a0f99749a9e987f0cd54e3
-head_commit: 9770fdbf03f7adc2f47d25bb614a6c4f86ba72bf
+base_commit: 201bb56c37a0552961456a9212f62d959cd7182a
+head_commit: 13f4057fa3bb80287a083cc70ecaaacb2098a685
 
 updated_by: codex-writer
-updated_at: 2026-09-01T15:02:15+08:00
+updated_at: 2026-09-01T15:26:35+08:00
 
 note: >
-  TASK-176 final bounded correction is committed at the immutable review target.
-  Retained authority state before exact 0012 now fails closed and the Apple/admin
-  race asserts terminal state and audit evidence. No real allowlist, production
-  database, provider call or runtime mutation occurred. Hosted PostgreSQL 15/16
-  acceptance remains required.
+  TASK-176 hosted correction is committed at the immutable review target. Known
+  Person-era pre-0012 compatibility remains legacy-only with no retained authority
+  state, persistent PostgreSQL cases rebuild an isolated fixture per test, and the
+  fake admin now has a deterministic fictional linked identity. No real allowlist,
+  production database, provider call or runtime mutation occurred. Hosted
+  PostgreSQL 15/16 acceptance remains required.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-176.md
