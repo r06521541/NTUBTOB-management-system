@@ -1577,11 +1577,15 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            self._require_admin(session, actor_person_id)
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(:key)"),
+                {"key": ADMIN_LOCK_KEY},
+            )
             session.execute(
                 text("SELECT pg_advisory_xact_lock(:key)"),
                 {"key": EVENT_SNAPSHOT_LOCK_KEY},
             )
+            self._require_admin(session, actor_person_id)
             if actor_person_id == target_person_id:
                 raise ConflictError("cannot change own Person status")
             target = session.scalar(

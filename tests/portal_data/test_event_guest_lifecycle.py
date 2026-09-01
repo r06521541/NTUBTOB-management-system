@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import concurrent.futures
 import os
+import threading
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -9,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, event, text
 
 from shared_lib.shared_module.portal_data import identity_lifecycle as lifecycle_module
 from shared_lib.shared_module.portal_data import local_database
@@ -40,40 +42,72 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 class EventGuestLifecycleStaticTests(unittest.TestCase):
     def test_person_status_uses_canonical_admin_then_event_snapshot_lock_order(self):
-        repository = IdentityLifecycleRepository(MagicMock())
+        repository = IdentityLifecycleRepository(MagicMock(), {7001})
         session = MagicMock()
         session_manager = MagicMock()
         session_manager.__enter__.return_value = session
         order = []
-        session.execute.side_effect = lambda *_args, **_kwargs: order.append("snapshot")
+        session.execute.side_effect = lambda _statement, values: order.append(
+            f"lock:{values['key']}"
+        )
 
-        repository._require_admin = MagicMock(
-            side_effect=lambda *_args, **_kwargs: order.append("admin")
+        scalar_results = iter(
+            (
+                SimpleNamespace(portal_status="active", portal_access_level="admin"),
+                SimpleNamespace(id=7001),
+                1,
+            )
         )
 
         def stop_at_target(*_args, **_kwargs):
-            order.append("target")
-            raise RuntimeError("stop after lock order")
+            try:
+                result = next(scalar_results)
+            except StopIteration:
+                order.append("target")
+                raise RuntimeError("stop after lock order") from None
+            order.append("actor" if len(order) == 3 else "admin-evidence")
+            return result
 
         session.scalar.side_effect = stop_at_target
-        with patch.object(
-            lifecycle_module, "Session", return_value=session_manager
-        ), self.assertRaisesRegex(RuntimeError, "lock order"):
+        with (
+            patch.object(lifecycle_module, "Session", return_value=session_manager),
+            self.assertRaisesRegex(RuntimeError, "lock order"),
+        ):
             repository.change_person_status(
                 1, 2, "disabled", "Fictional reason", "lock-order-fictional"
             )
 
-        self.assertEqual(order, ["admin", "snapshot", "target"])
         self.assertEqual(
-            session.execute.call_args.args[1],
-            {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY},
+            order,
+            [
+                f"lock:{lifecycle_module.ADMIN_LOCK_KEY}",
+                f"lock:{lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY}",
+                f"lock:{lifecycle_module.ADMIN_LOCK_KEY}",
+                "actor",
+                "admin-evidence",
+                "admin-evidence",
+                "target",
+            ],
+        )
+        self.assertEqual(
+            [call.args[1] for call in session.execute.call_args_list],
+            [
+                {"key": lifecycle_module.ADMIN_LOCK_KEY},
+                {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY},
+                {"key": lifecycle_module.ADMIN_LOCK_KEY},
+            ],
         )
 
     def test_legacy_identity_repository_rejects_guest_lifecycle_bypass(self):
         repository = IdentityLifecycleRepository(MagicMock())
         calls = (
             lambda: repository.create_member_person(
-                1, 2, "Fictional", "Fictional reason", "legacy-create", ("guest_player",)
+                1,
+                2,
+                "Fictional",
+                "Fictional reason",
+                "legacy-create",
+                ("guest_player",),
             ),
             lambda: repository.approve_non_member(
                 1,
@@ -91,10 +125,12 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
             ),
         )
         for call in calls:
-            with self.subTest(call=call), self.assertRaisesRegex(
-                ValidationError, "guest lifecycle"
+            with (
+                self.subTest(call=call),
+                self.assertRaisesRegex(ValidationError, "guest lifecycle"),
             ):
                 call()
+
     def test_migration_is_linear_additive_and_retains_evidence_on_downgrade(self):
         source = (
             ROOT / "migrations/versions/0011_event_notification_guest_lifecycle.py"
@@ -347,6 +383,132 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
                     {"notification_id": result["notification_id"]},
                 ),
                 1,
+            )
+
+    def test_event_preview_and_status_change_complete_without_actor_lock_deadlock(self):
+        manager_id = 9701
+        actor = self.repository.create_person("Fictional Shared Lock Actor")
+        target = self.repository.create_person(
+            "Fictional Status Recipient", qualifications=("affiliate",)
+        )
+        remaining = self.repository.create_person(
+            "Fictional Remaining Recipient", qualifications=("affiliate",)
+        )
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO ntubtob.members (id,name,person_id) "
+                    "VALUES (:member_id,'Fictional Shared Lock Member',:person_id); "
+                    "INSERT INTO ntubtob.auth_identities "
+                    "(provider,provider_subject,person_id,status,created_at,updated_at) "
+                    "VALUES ('line','fictional-shared-lock-actor',:person_id,'linked',now(),now())"
+                ),
+                {"member_id": manager_id, "person_id": actor.id},
+            )
+        event_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids={manager_id}
+        )
+        lifecycle_repository = IdentityLifecycleRepository(self.engine, {manager_id})
+        event_id = event_repository.create_event(
+            actor.id,
+            "Fictional Lock Ordering Event",
+            "other",
+            datetime.now(timezone.utc) + timedelta(days=2),
+            ("affiliate",),
+        )
+        event_repository.publish_event(actor.id, event_id, "publish-lock-order-event")
+
+        event_holds_snapshot = threading.Event()
+        release_event_actor_read = threading.Event()
+        status_requests_snapshot = threading.Event()
+
+        def before_statement(
+            _connection, _cursor, statement, parameters, _context, _many
+        ):
+            if (
+                threading.current_thread().name.startswith("status-change")
+                and "pg_advisory_xact_lock" in statement
+                and (
+                    parameters == {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY}
+                    or parameters == (lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY,)
+                )
+            ):
+                status_requests_snapshot.set()
+
+        def after_statement(
+            _connection, _cursor, statement, parameters, _context, _many
+        ):
+            if (
+                threading.current_thread().name.startswith("event-preview")
+                and "pg_advisory_xact_lock" in statement
+                and (
+                    parameters == {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY}
+                    or parameters == (lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY,)
+                )
+            ):
+                event_holds_snapshot.set()
+                if not release_event_actor_read.wait(5):
+                    raise RuntimeError("status change did not request Event lock")
+
+        event.listen(self.engine, "before_cursor_execute", before_statement)
+        event.listen(self.engine, "after_cursor_execute", after_statement)
+        try:
+            with (
+                concurrent.futures.ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix="event-preview"
+                ) as event_executor,
+                concurrent.futures.ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix="status-change"
+                ) as status_executor,
+            ):
+                preview_future = event_executor.submit(
+                    event_repository.preview_event_notification, actor.id, event_id
+                )
+                self.assertTrue(event_holds_snapshot.wait(2))
+                status_future = status_executor.submit(
+                    lifecycle_repository.change_person_status,
+                    actor.id,
+                    target.id,
+                    "disabled",
+                    "Fictional concurrent status exclusion",
+                    "status-event-lock-order",
+                )
+                self.assertTrue(status_requests_snapshot.wait(2))
+                self.assertFalse(status_future.done())
+                release_event_actor_read.set()
+                self.assertEqual(preview_future.result(timeout=5)["recipient_count"], 2)
+                status_future.result(timeout=5)
+        finally:
+            release_event_actor_read.set()
+            event.remove(self.engine, "before_cursor_execute", before_statement)
+            event.remove(self.engine, "after_cursor_execute", after_statement)
+
+        self.assertEqual(
+            event_repository.preview_event_notification(actor.id, event_id)[
+                "recipient_count"
+            ],
+            1,
+        )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT portal_status FROM ntubtob.people "
+                        "WHERE id=:person_id"
+                    ),
+                    {"person_id": target.id},
+                ),
+                "disabled",
+            )
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT portal_status FROM ntubtob.people "
+                        "WHERE id=:person_id"
+                    ),
+                    {"person_id": remaining.id},
+                ),
+                "active",
             )
 
     def test_guest_lifecycle_is_versioned_idempotent_and_event_time_eligible(self):

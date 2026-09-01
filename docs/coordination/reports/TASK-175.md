@@ -18,10 +18,12 @@
   Officers and active allowlisted Member admins. The legacy broad qualification
   and identity-approval surfaces no longer grant guest-player state, and the
   narrow Officer authority does not open any broad identity/member administration.
-- Production Person status writes acquire the canonical Admin lock first and then
-  the Event snapshot advisory lock before reading the target, serializing active
-  recipient selection with disable/block/inactivate and rolling back status if
-  audit persistence fails.
+- Production Person status writes explicitly acquire the canonical Admin lock and
+  then the Event snapshot advisory lock before `_require_admin` reads or locks the
+  actor row. The re-entrant Admin lock inside `_require_admin` remains intact, and
+  the target row is read only after both advisory locks. This removes the actor-row
+  versus Event-lock cycle while preserving active-recipient exclusion and rollback
+  on audit failure.
 - Web and Mobile Event reads expose only the caller's immutable participation
   category. Mobile notifications accept Event destinations; Flutter opens the
   authorized online Event detail and safely remains in notifications offline.
@@ -37,9 +39,16 @@
 - `$env:PYTHONPATH='.'; py -3.10 -m unittest discover -s apps/web_portal/tests -v`:
   243 passed after the targeted authorization corrections.
 - `py -3.10 -m unittest tests.portal_data.test_event_guest_lifecycle tests.portal_data.test_phase_c_lifecycle -v`:
-  47 passed or expected isolated-PostgreSQL skips locally.
-- `py -3.10 -m unittest discover -s tests/portal_data -v`: 311 passed,
-  157 expected skips without the isolated PostgreSQL URL.
+  49 cases: 11 passed and 38 expected isolated-PostgreSQL skips locally. The static
+  regression observes `Admin -> Event -> re-entrant Admin -> actor -> target`
+  instead of mocking `_require_admin`.
+- `py -3.10 -m unittest discover -s tests/portal_data -v`: 312 cases: 154 passed
+  and 158 expected skips without the isolated PostgreSQL URL.
+- Added an isolated-PostgreSQL concurrency regression that runs a real Event
+  notification preview holding the Event lock while `change_person_status`
+  requests it. Both transactions must complete without deadlock; the preview
+  serialized before the status mutation sees two recipients and the following
+  preview excludes the disabled recipient.
 - Flutter focused tests: 175 passed.
 - Flutter analyze on the five affected files: no issues; Dart format check changed
   zero files.
@@ -51,8 +60,9 @@
 
 ## Hosted and external limits
 
-- Local isolated PostgreSQL was unavailable, so PostgreSQL 15.8/16.4 migration,
-  concurrency, and exact rollback-harness behavior remain for hosted CI. The
+- Local isolated PostgreSQL was unavailable, so the new real-transaction lock
+  regression plus PostgreSQL 15.8/16.4 migration, concurrency, and exact
+  rollback-harness behavior remain for hosted CI. The
   test-only 0011 reversal is restricted to the isolated test database and exact
   known revisions; production migration downgrade still preserves evidence.
 - No notification provider, cloud, Secret, deployment, production database,
