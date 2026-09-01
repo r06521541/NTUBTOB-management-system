@@ -22,6 +22,19 @@ class _QueueWriteFailingStore extends MemoryStore {
   }
 }
 
+class _QueueDeleteFailOnceStore extends MemoryStore {
+  bool failNextQueueDelete = false;
+
+  @override
+  Future<void> delete(String key) async {
+    if (failNextQueueDelete && key.endsWith(':queue')) {
+      failNextQueueDelete = false;
+      throw StateError('private queue deletion failed');
+    }
+    await super.delete(key);
+  }
+}
+
 class _ScriptedSink implements AnonymousCrashSink {
   _ScriptedSink(this.results);
   final List<CrashDeliveryDisposition> results;
@@ -38,6 +51,23 @@ class _NeverSink implements AnonymousCrashSink {
   @override
   Future<CrashDeliveryDisposition> submit(AnonymousCrashEvent event) =>
       Completer<CrashDeliveryDisposition>().future;
+}
+
+class _AcceptedThenFailingSink implements AnonymousCrashSink {
+  _AcceptedThenFailingSink({required this.timeout});
+
+  final bool timeout;
+  var calls = 0;
+
+  @override
+  Future<CrashDeliveryDisposition> submit(AnonymousCrashEvent event) {
+    calls++;
+    if (calls == 1) {
+      return Future.value(CrashDeliveryDisposition.accepted);
+    }
+    if (timeout) return Completer<CrashDeliveryDisposition>().future;
+    throw StateError('private sink failure');
+  }
 }
 
 class _PermissionPort implements NotificationPermissionPort {
@@ -131,6 +161,17 @@ void main() {
       expect(captured.category, AnonymousCrashCategory.unknown);
       expect(captured.platformClass, 'other');
     });
+
+    test('rejects extra or malformed fields at the event boundary', () {
+      final raw = event().toJson();
+      raw['raw_error'] = 'private-token-sentinel';
+      expect(() => AnonymousCrashEvent.fromJson(raw), throwsFormatException);
+
+      final malformed = event().toJson();
+      malformed['fingerprint'] = 'private-token-sentinel';
+      expect(
+          () => AnonymousCrashEvent.fromJson(malformed), throwsFormatException);
+    });
   });
 
   group('bounded queue', () {
@@ -197,6 +238,33 @@ void main() {
         expect(await queue.pending(), isEmpty);
         expect(store.values, isNot(contains(key)));
       }
+
+      await store.write(
+        key,
+        jsonEncode({
+          'version': crashQueueVersion,
+          'events': [event(now: DateTime.utc(2026, 9, 11)).toJson()],
+        }),
+      );
+      expect(await queue.pending(), isEmpty);
+      expect(store.values, isNot(contains(key)));
+    });
+
+    test('failed opt-out purge remains fail-closed and resumes cleanup',
+        () async {
+      final store = _QueueDeleteFailOnceStore();
+      final queue = AnonymousCrashQueue(store, 'installation');
+      await queue.optIn();
+      await queue.capture(event());
+
+      store.failNextQueueDelete = true;
+      await expectLater(queue.optOut(), throwsStateError);
+      expect(await queue.enabled(), isFalse);
+      expect(await queue.pending(), isEmpty);
+      expect(
+        store.values,
+        isNot(contains('anonymous-crash:v1:installation:queue')),
+      );
     });
 
     test('capture failures are swallowed and never expose private reason',
@@ -240,6 +308,28 @@ void main() {
       expect(await queue.flush(_NeverSink()), 0);
       expect(await queue.pending(), hasLength(1));
     });
+
+    for (final timeout in [true, false]) {
+      test(
+          'persists accepted progress before later ${timeout ? 'timeout' : 'throw'}',
+          () async {
+        final queue = AnonymousCrashQueue(
+          MemoryStore(),
+          'installation',
+          deliveryTimeout: const Duration(milliseconds: 1),
+        );
+        await queue.optIn();
+        await queue.capture(event(source: AnonymousCrashSource.zone));
+        await queue
+            .capture(event(source: AnonymousCrashSource.flutterFramework));
+        final sink = _AcceptedThenFailingSink(timeout: timeout);
+
+        expect(await queue.flush(sink), 1);
+        final remaining = await queue.pending();
+        expect(remaining, hasLength(1));
+        expect(remaining.single.source, AnonymousCrashSource.flutterFramework);
+      });
+    }
   });
 
   test('capture hooks preserve existing handler results and ordering',

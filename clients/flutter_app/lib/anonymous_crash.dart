@@ -32,7 +32,7 @@ enum AnonymousCrashCategory {
 enum CrashDeliveryDisposition { accepted, retryLater, terminalReject }
 
 class AnonymousCrashEvent {
-  const AnonymousCrashEvent({
+  const AnonymousCrashEvent._({
     required this.source,
     required this.category,
     required this.dayUtc,
@@ -50,7 +50,7 @@ class AnonymousCrashEvent {
     required String platformClass,
   }) {
     final utc = now.toUtc();
-    return AnonymousCrashEvent(
+    return AnonymousCrashEvent._(
       source: source,
       category: _categoryFor(error),
       dayUtc: DateTime.utc(utc.year, utc.month, utc.day),
@@ -86,7 +86,7 @@ class AnonymousCrashEvent {
         !RegExp(r'^(?:none|[0-9a-f]{16})$').hasMatch(fingerprint)) {
       throw const FormatException('invalid anonymous crash event');
     }
-    return AnonymousCrashEvent(
+    return AnonymousCrashEvent._(
       source: AnonymousCrashSource.values.byName(json['source'] as String),
       category:
           AnonymousCrashCategory.values.byName(json['category'] as String),
@@ -138,7 +138,10 @@ class AnonymousCrashQueue {
 
   Future<bool> enabled() async {
     try {
-      return await store.read(_consentKey) == 'enabled';
+      return await _serialized(() async {
+        await _finishPendingPurge();
+        return await store.read(_consentKey) == 'enabled';
+      });
     } on Object {
       return false;
     }
@@ -150,16 +153,18 @@ class AnonymousCrashQueue {
       });
 
   Future<void> optOut() => _serialized(() async {
-        await store.write(_consentKey, 'disabled');
+        await store.write(_consentKey, 'purge_pending');
         await store.delete(_queueKey);
+        await store.write(_consentKey, 'disabled');
       });
 
   Future<bool> capture(AnonymousCrashEvent event) async {
     try {
       return await _serialized(() async {
         if (await store.read(_consentKey) != 'enabled') return false;
+        final canonical = _canonicalEvent(event);
         final events = await _readValidEvents();
-        events.add(event);
+        events.add(canonical);
         final bounded = _bounded(events, clock().toUtc());
         if (bounded.isEmpty) {
           await store.delete(_queueKey);
@@ -177,8 +182,11 @@ class AnonymousCrashQueue {
 
   Future<List<AnonymousCrashEvent>> pending() async {
     try {
-      return await _serialized(() async =>
-          List<AnonymousCrashEvent>.unmodifiable(await _readValidEvents()));
+      return await _serialized(() async {
+        await _finishPendingPurge();
+        if (await store.read(_consentKey) == 'purge_pending') return const [];
+        return List<AnonymousCrashEvent>.unmodifiable(await _readValidEvents());
+      });
     } on Object {
       return const [];
     }
@@ -192,16 +200,17 @@ class AnonymousCrashQueue {
         final pending = await _readValidEvents();
         var removed = 0;
         while (pending.isNotEmpty) {
-          final disposition =
-              await sink.submit(pending.first).timeout(deliveryTimeout);
+          CrashDeliveryDisposition disposition;
+          try {
+            disposition =
+                await sink.submit(pending.first).timeout(deliveryTimeout);
+          } on Object {
+            break;
+          }
           if (disposition == CrashDeliveryDisposition.retryLater) break;
           pending.removeAt(0);
           removed++;
-        }
-        if (pending.isEmpty) {
-          await store.delete(_queueKey);
-        } else {
-          await store.write(_queueKey, _encodeQueue(pending));
+          await _persist(pending);
         }
         return removed;
       });
@@ -251,14 +260,39 @@ class AnonymousCrashQueue {
     }
   }
 
+  Future<void> _finishPendingPurge() async {
+    if (await store.read(_consentKey) != 'purge_pending') return;
+    await store.delete(_queueKey);
+    await store.write(_consentKey, 'disabled');
+  }
+
+  AnonymousCrashEvent _canonicalEvent(AnonymousCrashEvent event) {
+    final canonical = AnonymousCrashEvent.fromJson(event.toJson());
+    if (utf8.encode(jsonEncode(canonical.toJson())).length >
+        crashEventMaximumBytes) {
+      throw const FormatException('invalid anonymous crash event');
+    }
+    return canonical;
+  }
+
+  Future<void> _persist(List<AnonymousCrashEvent> events) async {
+    if (events.isEmpty) {
+      await store.delete(_queueKey);
+    } else {
+      await store.write(_queueKey, _encodeQueue(events));
+    }
+  }
+
   List<AnonymousCrashEvent> _bounded(
     List<AnonymousCrashEvent> events,
     DateTime now,
   ) {
     final oldest = DateTime.utc(now.year, now.month, now.day)
         .subtract(crashQueueRetention);
+    final today = DateTime.utc(now.year, now.month, now.day);
     final retained = events
-        .where((event) => !event.dayUtc.isBefore(oldest))
+        .where((event) =>
+            !event.dayUtc.isBefore(oldest) && !event.dayUtc.isAfter(today))
         .toList(growable: true);
     if (retained.length > crashQueueMaximumEvents) {
       retained.removeRange(0, retained.length - crashQueueMaximumEvents);
