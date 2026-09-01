@@ -10,8 +10,10 @@ import 'integration.dart';
 import 'production_demo.dart';
 
 Future<void> main() async {
-  final config = AppConfig.fromEnvironment();
-  if (config.mode == ClientMode.fake) {
+  const flavor = String.fromEnvironment('APP_FLAVOR');
+  const mode = String.fromEnvironment('CLIENT_MODE');
+  if (flavor == 'development' && mode == 'fake') {
+    final config = AppConfig.fromEnvironment();
     WidgetsFlutterBinding.ensureInitialized();
     runApp(composeRoot(config));
     return;
@@ -22,6 +24,7 @@ Future<void> main() async {
         () async {
           // Binding initialization and runApp must remain in the same zone.
           WidgetsFlutterBinding.ensureInitialized();
+          final config = await AppConfig.load();
           final store = SecureStore();
           late final AnonymousCrashQueue queue;
           try {

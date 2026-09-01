@@ -10,6 +10,24 @@
 - report_to: `main-work`
 - owner_approved: 2026-08-31
 
+## 2026-09-02 candidate-operator continuation
+
+- actor_id: `/root`
+- role: `codex-writer`
+- claim_id: `task-170-candidate-operator-writer-20260902`
+- lease_version: 1
+- base: `5af3410dfbb7d8f748b25941b35c920070f8caa3`
+- branch: `codex/task-170-candidate-operator`
+- owned_paths: Android release Gradle/runtime config, Flutter bootstrap/config tests, mobile release/candidate tools and tests,
+  Flutter hosted workflow, TASK-170 release/task/report/checklist files, `PROJECT_STATE.md` and `HANDOFF.yaml`.
+
+Execution checkpoint: goal is a repository-owned, one-pass candidate operator from exact merged main. The invariant is that
+runtime/signing values never enter command arguments, environment, Git, retained temporary input or emitted child output; Gradle
+receives them once over an authenticated loopback memory channel and the inspector hashes the actual bundled runtime config against
+the public contract. Minimum evidence is Python tool suites, Flutter test/analyze/format, fictional signed release build plus strict
+inspection, independent Release/Security review and one hosted gate. Real key creation/backup, candidate derivation, device, Play
+Console/upload and any provider/cloud mutation remain later Owner-visible gates.
+
 ## Owner decisions and bounded authority
 
 1. Permanent Google Play package identity is `tw.org.ntubtob.portal`.
@@ -69,6 +87,9 @@ Each writer must acknowledge `received/executing`, self-review and run focused t
 6. Install the exact candidate on the connected Android 15 device and execute the bounded staging matrix.
 7. Complete only the exact Play Console Closed Testing listing/Data Safety/tester gates, upload the accepted AAB, and verify its package/version/track/processing state without open/public rollout.
 8. Record deidentified evidence and close TASK-170. Store availability and tester delivery remain external observations, not inferred from upload acceptance.
+
+The Owner has since created the Play application with permanent package `tw.org.ntubtob.portal`, app name `NTUBTOB`, locale zh-TW,
+application/free classification. No AAB, track release, tester notification, open/production rollout or public publication has occurred.
 
 ## Verification budget
 

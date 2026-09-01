@@ -1,3 +1,7 @@
+import java.io.DataInputStream
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.net.URI
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
@@ -7,6 +11,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
@@ -26,6 +31,10 @@ class MobileReleaseConfig(
     val keyAlias: String,
     val storePassword: String,
     val keyPassword: String,
+    val apiOrigin: String,
+    val lineChannelId: String,
+    val googleClientId: String,
+    val googleServerClientId: String,
     val apiOriginSha256: String,
     val providerConfigSha256: String,
     val contractTest: Boolean,
@@ -43,6 +52,21 @@ abstract class GenerateMobileReleaseContract : DefaultTask() {
         val output = outputDirectory.file("mobile-release-contract.properties").get().asFile
         output.parentFile.mkdirs()
         output.writeText(contractContents.get(), StandardCharsets.UTF_8)
+    }
+}
+
+abstract class GenerateMobileRuntimeConfig : DefaultTask() {
+    @get:Internal
+    abstract val runtimeConfigContents: Property<String>
+
+    @get:OutputDirectory
+    abstract val outputDirectory: DirectoryProperty
+
+    @TaskAction
+    fun generate() {
+        val output = outputDirectory.file("flutter_assets/mobile-runtime-config.json").get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(runtimeConfigContents.get(), StandardCharsets.UTF_8)
     }
 }
 
@@ -83,11 +107,66 @@ fun sha256(value: String): String = MessageDigest.getInstance("SHA-256")
     .digest(value.toByteArray(StandardCharsets.UTF_8))
     .joinToString("") { "%02x".format(it) }
 
+fun loadPrivateReleaseInput(): List<String> {
+    val mode = providers.gradleProperty("mobile-release-private-mode").orNull
+        ?: throw GradleException("private release input mode is required")
+    if (mode !in setOf("candidate", "contract-test")) {
+        throw GradleException("private release input mode is invalid")
+    }
+    val port = providers.gradleProperty("mobile-release-private-port").orNull?.toIntOrNull()
+        ?: throw GradleException("private release input channel is invalid")
+    val nonce = providers.gradleProperty("mobile-release-private-nonce").orNull
+        ?: throw GradleException("private release input channel is invalid")
+    if (port !in 1024..65535 || !Regex("^[0-9a-f]{32}$").matches(nonce)) {
+        throw GradleException("private release input channel is invalid")
+    }
+    val lines = try {
+        Socket().use { socket ->
+            socket.connect(
+                InetSocketAddress(InetAddress.getByName("127.0.0.1"), port),
+                30000,
+            )
+            socket.soTimeout = 30000
+            socket.getOutputStream().apply {
+                write("$nonce\n".toByteArray(StandardCharsets.US_ASCII))
+                flush()
+            }
+            DataInputStream(socket.getInputStream().buffered()).use { input ->
+                val framed = buildList {
+                    repeat(8) {
+                        val byteLength = input.readInt()
+                        if (byteLength !in 1..8192) {
+                            throw GradleException("private release input contract is invalid")
+                        }
+                        val bytes = ByteArray(byteLength)
+                        input.readFully(bytes)
+                        add(String(bytes, StandardCharsets.UTF_8))
+                    }
+                }
+                if (input.read() != -1) {
+                    throw GradleException("private release input contract is invalid")
+                }
+                framed
+            }
+        }
+    } catch (_: Exception) {
+        throw GradleException("private release input channel is unavailable")
+    }
+    if (lines.size != 8 || lines.any { it.isEmpty() || it != it.trim() || it.length > 2048 }) {
+        throw GradleException("private release input contract is invalid")
+    }
+    return lines
+}
+
 fun loadMobileReleaseConfig(): MobileReleaseConfig {
     val contractTest = when (System.getenv("MOBILE_RELEASE_CONTRACT_TEST")) {
         null, "false" -> false
         "true" -> true
         else -> throw GradleException("MOBILE_RELEASE_CONTRACT_TEST must be true, false, or absent")
+    }
+    val privateInputMode = providers.gradleProperty("mobile-release-private-mode").orNull
+    if (privateInputMode != if (contractTest) "contract-test" else "candidate") {
+        throw GradleException("private release input mode does not match build mode")
     }
     val releaseChannel = requiredReleaseEnvironment("MOBILE_RELEASE_CHANNEL")
     if (releaseChannel != "android-closed") {
@@ -131,10 +210,6 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         "CLIENT_MODE",
         "RELEASE_CHANNEL",
         "RELEASE_SCOPE",
-        "API_BASE_URL",
-        "LINE_CHANNEL_ID",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_SERVER_CLIENT_ID",
     )
     val flutterBuildDefines = setOf(
         "FLUTTER_BUILD_NAME",
@@ -191,7 +266,8 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         throw GradleException("Android release RELEASE_SCOPE must be explicitly basic")
     }
 
-    val apiOrigin = requiredDefine("API_BASE_URL")
+    val privateInput = loadPrivateReleaseInput()
+    val apiOrigin = privateInput[0]
     val uri = try {
         URI(apiOrigin)
     } catch (_: Exception) {
@@ -241,9 +317,9 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         throw GradleException("API_BASE_URL does not match the approved staging origin digest")
     }
 
-    val lineChannelId = requiredDefine("LINE_CHANNEL_ID")
-    val googleClientId = requiredDefine("GOOGLE_CLIENT_ID")
-    val googleServerClientId = requiredDefine("GOOGLE_SERVER_CLIENT_ID")
+    val lineChannelId = privateInput[1]
+    val googleClientId = privateInput[2]
+    val googleServerClientId = privateInput[3]
     val googlePattern = Regex("^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\\.apps\\.googleusercontent\\.com$")
     if (!Regex("^[1-9][0-9]{4,19}$").matches(lineChannelId)) {
         throw GradleException("LINE_CHANNEL_ID is malformed")
@@ -287,18 +363,18 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         throw GradleException("provider IDs do not match the approved staging configuration digest")
     }
 
-    val keyStore = file(requiredReleaseEnvironment("MOBILE_RELEASE_KEYSTORE_PATH")).canonicalFile
+    val keyStore = file(privateInput[4]).canonicalFile
     val repositoryRoot = rootProject.projectDir.parentFile.parentFile.parentFile.canonicalFile
     if (
         !keyStore.isFile ||
         keyStore.toPath().startsWith(repositoryRoot.toPath()) ||
         keyStore.extension.lowercase() !in setOf("jks", "keystore")
     ) {
-        throw GradleException("MOBILE_RELEASE_KEYSTORE_PATH must be an external JKS/keystore file")
+        throw GradleException("release signing path must be an external JKS/keystore file")
     }
-    val keyAlias = requiredReleaseEnvironment("MOBILE_RELEASE_KEY_ALIAS")
-    val storePassword = requiredReleaseEnvironment("MOBILE_RELEASE_STORE_PASSWORD", secret = true)
-    val keyPassword = requiredReleaseEnvironment("MOBILE_RELEASE_KEY_PASSWORD", secret = true)
+    val keyAlias = privateInput[5]
+    val storePassword = privateInput[6]
+    val keyPassword = privateInput[7]
     if (storePassword.length < 8 || keyPassword.length < 8) {
         throw GradleException("release signing passwords must be externally supplied and nontrivial")
     }
@@ -323,6 +399,10 @@ fun loadMobileReleaseConfig(): MobileReleaseConfig {
         keyAlias = keyAlias,
         storePassword = storePassword,
         keyPassword = keyPassword,
+        apiOrigin = apiOrigin,
+        lineChannelId = lineChannelId,
+        googleClientId = googleClientId,
+        googleServerClientId = googleServerClientId,
         apiOriginSha256 = expectedApiOriginSha256,
         providerConfigSha256 = expectedProviderConfigSha256,
         contractTest = contractTest,
@@ -334,6 +414,7 @@ val releaseRequested = gradle.startParameter.taskNames.any {
 }
 val mobileReleaseConfig = if (releaseRequested) loadMobileReleaseConfig() else null
 val releaseContractDirectory = layout.buildDirectory.dir("generated/mobileReleaseContract/release")
+val runtimeConfigDirectory = layout.buildDirectory.dir("generated/mobileRuntimeConfig/release")
 
 android {
     namespace = "tw.org.ntubtob.portal"
@@ -373,6 +454,39 @@ android {
     }
 }
 
+fun jsonString(value: String): String = buildString {
+    append('"')
+    value.forEach { character ->
+        when (character) {
+            '"' -> append("\\\"")
+            '\\' -> append("\\\\")
+            else -> {
+                if (character.code < 0x20) {
+                    throw GradleException("private release input contains forbidden characters")
+                }
+                append(character)
+            }
+        }
+    }
+    append('"')
+}
+
+val generateMobileRuntimeConfig = mobileReleaseConfig?.let { config ->
+    tasks.register<GenerateMobileRuntimeConfig>("generateMobileRuntimeConfig") {
+        outputs.upToDateWhen { false }
+        outputs.cacheIf { false }
+        runtimeConfigContents.set(
+            "{" +
+                "\"API_BASE_URL\":" + jsonString(config.apiOrigin) + "," +
+                "\"GOOGLE_CLIENT_ID\":" + jsonString(config.googleClientId) + "," +
+                "\"GOOGLE_SERVER_CLIENT_ID\":" + jsonString(config.googleServerClientId) + "," +
+                "\"LINE_CHANNEL_ID\":" + jsonString(config.lineChannelId) +
+                "}\n",
+        )
+        outputDirectory.set(runtimeConfigDirectory)
+    }
+}
+
 val generateMobileReleaseContract = mobileReleaseConfig?.let { config ->
     val values = sortedMapOf(
         "api_origin_sha256" to config.apiOriginSha256,
@@ -408,6 +522,14 @@ androidComponents {
             releaseAssets.addGeneratedSourceDirectory(
                 taskProvider,
                 GenerateMobileReleaseContract::outputDirectory,
+            )
+        }
+        generateMobileRuntimeConfig?.let { taskProvider ->
+            val releaseAssets = variant.sources.assets
+                ?: throw GradleException("Android release assets source API is unavailable")
+            releaseAssets.addGeneratedSourceDirectory(
+                taskProvider,
+                GenerateMobileRuntimeConfig::outputDirectory,
             )
         }
     }

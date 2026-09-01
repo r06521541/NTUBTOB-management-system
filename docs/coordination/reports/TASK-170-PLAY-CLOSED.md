@@ -1,5 +1,12 @@
 # TASK-170 Play Closed Testing evidence writer report
 
+## 2026-09-02 Play application checkpoint
+
+Owner has created the Play application as `NTUBTOB`, package `tw.org.ntubtob.portal`, zh-TW, application/free. No artifact was uploaded
+and no track/open/production/tester notification action occurred. `ANDROID_CLOSED_TESTING_PLAY_ANSWERS.md` now records bounded
+Basic-only Data Safety/tester-answer principles and leaves current Console questions plus public privacy/support/deletion URLs as
+explicit Owner-visible verification gates rather than guessed values.
+
 - actor: `/root/task170_play_evidence_writer`
 - claim: `task-170-play-closed-evidence-writer-20260831` / lease 1
 - scope: repository-only, deidentified external evidence contract
