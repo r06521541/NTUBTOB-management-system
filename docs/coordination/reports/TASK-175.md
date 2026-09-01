@@ -58,11 +58,35 @@
   passed. Broad Black CLI was terminated after its known Windows high-CPU stall;
   no formatter process was left running.
 
+## Hosted correction
+
+- PR #229 run `33461913443` exposed three exact Python quality files and four
+  PostgreSQL-only fixture/metadata compatibility problems. The files are now
+  formatted individually with pinned Black 24.4.2 and isort 5.13.2; no broad
+  repository formatter was used.
+- Guest audit metadata now uses PostgreSQL JSONB exactly as 0011 creates it.
+  `PersonQualificationRecord` disables eager non-primary server-default fetching,
+  so 0004-0010 repository inserts do not add a `RETURNING version` reference before
+  0011 exists. The existing additive 0011 version column and positive-version
+  constraint are covered by an explicit regression.
+- Event/guest PostgreSQL fixtures allocate isolated member IDs instead of colliding
+  with legacy fixture IDs. Test classes restore the retained 0011 evidence boundary
+  to 0010 after their head-only coverage, preventing revision leakage into adjacent
+  suites.
+- Phase C guest fixtures now approve a plain non-Member Person and then grant or
+  revoke `guest_player` only through the formal versioned guest lifecycle. The
+  blocked generic qualification path remains blocked.
+- Local correction evidence: Web Portal full suite 243 passed; portal-data full
+  suite 313 passed with 158 expected isolated-PostgreSQL skips; nine focused Event
+  static regressions passed; Python compile passed; isort check and per-file Black
+  API comparisons passed; Alembic reports the single
+  `0011_event_notification_guest_lifecycle` head.
+
 ## Hosted and external limits
 
 - Local isolated PostgreSQL was unavailable, so the new real-transaction lock
-  regression plus PostgreSQL 15.8/16.4 migration, concurrency, and exact
-  rollback-harness behavior remain for hosted CI. The
+  regression plus PostgreSQL 15.8/16.4 migration, metadata diff, compatibility,
+  concurrency, and exact rollback-harness behavior remain for hosted CI. The
   test-only 0011 reversal is restricted to the isolated test database and exact
   known revisions; production migration downgrade still preserves evidence.
 - No notification provider, cloud, Secret, deployment, production database,

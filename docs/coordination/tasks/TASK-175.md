@@ -183,6 +183,23 @@ other behavior. The prior writer claim is complete and has no write authority in
 - scope: verify both advisory locks precede actor row acquisition and the real competing Event-transaction regression closes the deadlock
 - report_to: `/root`
 
+### Hosted correction lease
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 1
+- correction_base: `366aefaece204274d35dc4d5eb9b375f9fd96704`
+- scope: correct only PR #229 hosted Python quality, isolated fixture collisions,
+  0011/model metadata compatibility, and legacy test fixture use of the blocked
+  guest path; preserve accepted product and lock semantics
+- report_to: `/root`
+
+This correction uses generated isolated member IDs, exact PostgreSQL JSONB
+metadata, a pre-0011-safe deferred qualification version default, and the formal
+guest lifecycle in affected tests. PostgreSQL 15/16 hosted CI remains the
+acceptance evidence; no production migration or runtime operation is authorized.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。

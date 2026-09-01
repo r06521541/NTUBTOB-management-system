@@ -22,16 +22,16 @@ from admin_security import parse_admin_member_ids  # noqa: E402
 from line_login import create_oauth_state  # noqa: E402
 from role_policy import ROLE_ADMIN, Principal  # noqa: E402
 
-from shared_lib.shared_module import (
+from shared_lib.shared_module import (  # noqa: E402
     attendance_reply as attendance_reply_service,
-)  # noqa: E402
+)
 from shared_lib.shared_module import event_read as event_read_contract  # noqa: E402
-from shared_lib.shared_module.portal_data import (
+from shared_lib.shared_module.portal_data import (  # noqa: E402
     local_database as portal_local_database,
-)  # noqa: E402
-from shared_lib.shared_module.portal_data import (
+)
+from shared_lib.shared_module.portal_data import (  # noqa: E402
     runtime as phase_c_runtime,
-)  # noqa: E402
+)
 
 
 class AdminAllowlistTest(unittest.TestCase):
@@ -331,9 +331,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "userId": "fake-authenticated-user",
             "displayName": "Demo User",
         }
-        with patch.object(
-            self.app_module.requests, "post", return_value=token_response
-        ), patch.object(self.app_module.requests, "get", return_value=profile_response):
+        with (
+            patch.object(self.app_module.requests, "post", return_value=token_response),
+            patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ),
+        ):
             response = self.client.get(f"/line/callback?code=fake-code&state={state}")
         self.assertEqual(response.status_code, 302)
         with self.client.session_transaction() as current_session:
@@ -371,9 +374,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "userId": "fake-authenticated-user",
             "displayName": "Demo User",
         }
-        with patch.object(
-            self.app_module.requests, "post", return_value=token_response
-        ), patch.object(self.app_module.requests, "get", return_value=profile_response):
+        with (
+            patch.object(self.app_module.requests, "post", return_value=token_response),
+            patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ),
+        ):
             callback = self.client.get(f"/line/callback?code=fake-code&state={state}")
 
         self.assertEqual(callback.status_code, 302)
@@ -437,13 +443,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "userId": "sentinel-line-user",
             "displayName": "sentinel-display-name",
         }
-        with patch.object(
-            self.app_module.requests, "post", return_value=token_response
-        ), patch.object(
-            self.app_module.requests, "get", return_value=profile_response
-        ), self.assertLogs(
-            self.app.logger.name, level="INFO"
-        ) as captured:
+        with (
+            patch.object(self.app_module.requests, "post", return_value=token_response),
+            patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ),
+            self.assertLogs(self.app.logger.name, level="INFO") as captured,
+        ):
             response = self.client.get(
                 f"/line/callback?code=sentinel-code&state={state}",
                 headers={"Cookie": "sentinel-cookie"},
@@ -483,10 +489,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
         failing_handler = FailingHandler()
         self.app.logger.addHandler(failing_handler)
         try:
-            with patch.object(
-                self.app_module.requests, "post", return_value=token_response
-            ), patch.object(
-                self.app_module.requests, "get", return_value=profile_response
+            with (
+                patch.object(
+                    self.app_module.requests, "post", return_value=token_response
+                ),
+                patch.object(
+                    self.app_module.requests, "get", return_value=profile_response
+                ),
             ):
                 response = self.client.get(
                     f"/line/callback?code=fake-code&state={state}"
@@ -519,14 +528,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
             identity=identity, created=False
         )
         repository.resolve_line_principal.return_value = principal
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-        ), patch.object(
-            self.app_module.requests, "post", return_value=token_response
-        ), patch.object(
-            self.app_module.requests, "get", return_value=profile_response
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+            patch.object(self.app_module.requests, "post", return_value=token_response),
+            patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             response = self.client.get(f"/line/callback?code=fake-code&state={state}")
         self.assertEqual(response.status_code, 302)
@@ -541,19 +551,20 @@ class MemberMatchingRouteTest(unittest.TestCase):
         login = self.client.get("/line/login?next=/attendance")
         state = parse_qs(urlsplit(login.headers["Location"]).query)["state"][0]
         repository = MagicMock()
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module.requests, "post"
-        ) as token_request, patch.object(
-            self.app_module.requests, "get"
-        ) as profile_request, patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+                },
+                clear=False,
+            ),
+            patch.object(self.app_module.requests, "post") as token_request,
+            patch.object(self.app_module.requests, "get") as profile_request,
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             response = self.client.get(f"/line/callback?code=fake-code&state={state}")
 
@@ -570,14 +581,17 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.assert_not_called()
         self.notifier.notify_management_message.assert_not_called()
 
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
-            },
-            clear=False,
-        ), patch.object(self.app_module.requests, "post") as invalid_token_request:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+                },
+                clear=False,
+            ),
+            patch.object(self.app_module.requests, "post") as invalid_token_request,
+        ):
             invalid = self.client.get(
                 "/line/callback?code=fake-code&state=invalid-state"
             )
@@ -590,9 +604,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
             current_session.update(person_id=80, auth_identity_id=81)
         repository = MagicMock()
         repository.resolve_line_principal.return_value = None
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/account")
         self.assertEqual(response.status_code, 302)
         self.assertIn("/redirect-to-login", response.headers["Location"])
@@ -609,10 +626,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.resolve_principal_by_ids.return_value = principal
         with self.app.test_request_context("/account"):
             session.update(person_id=80, auth_identity_id=81)
-            with patch.dict(
-                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-            ), patch.object(
-                self.app_module, "phase_c_repository", return_value=repository
+            with (
+                patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+                patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ),
             ):
                 loaded = self.app_module.load_phase_c_web_principal(session)
             self.assertIsNotNone(loaded)
@@ -644,13 +662,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=80, auth_identity_id=81, member_id=7)
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.dict(
-            sys.modules,
-            {"shared_module.portal_data.mobile_repository": mobile_module},
+        with (
+            patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.dict(
+                sys.modules,
+                {"shared_module.portal_data.mobile_repository": mobile_module},
+            ),
         ):
             response = self.client.get("/account")
         self.assertEqual(response.status_code, 200)
@@ -672,8 +692,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_IDENTITY_LINK_LINE_CLIENT_SECRET": "",
             "WEB_IDENTITY_LINK_LINE_REDIRECT_URI": "",
         }
-        with patch.dict(os.environ, names, clear=False), patch.object(
-            self.app_module, "phase_c_repository", repository
+        with (
+            patch.dict(os.environ, names, clear=False),
+            patch.object(self.app_module, "phase_c_repository", repository),
         ):
             self.assertFalse(self.app_module.register_identity_link_routes())
         repository.assert_not_called()
@@ -716,12 +737,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 "https://portal.example/api/v1/auth/identity-link/web/callback/line"
             ),
         }
-        with patch.dict(os.environ, config, clear=False), patch.object(
-            self.app_module, "app", fresh_app
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.dict(
-            sys.modules, modules
+        with (
+            patch.dict(os.environ, config, clear=False),
+            patch.object(self.app_module, "app", fresh_app),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.dict(sys.modules, modules),
         ):
             self.assertTrue(self.app_module.register_identity_link_routes())
         self.assertIn("identity_link_composition_test", fresh_app.blueprints)
@@ -731,10 +753,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.resolve_principal_by_ids.return_value = None
         with self.app.test_request_context("/account"):
             session.update(person_id=80, auth_identity_id=81, member_id=7)
-            with patch.dict(
-                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-            ), patch.object(
-                self.app_module, "phase_c_repository", return_value=repository
+            with (
+                patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+                patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ),
             ):
                 self.assertIsNone(self.app_module.load_phase_c_web_principal(session))
             for key in ("person_id", "auth_identity_id", "member_id", "user_id"):
@@ -754,10 +777,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 auth_identity_id=81,
                 member_id=7,
             )
-            with patch.dict(
-                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-            ), patch.object(
-                self.app_module, "phase_c_repository", return_value=repository
+            with (
+                patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+                patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ),
             ):
                 self.assertIsNotNone(
                     self.app_module.load_phase_c_web_principal(session)
@@ -810,11 +834,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
             callback_session["display_name"] = "Existing User"
             callback_session["oauth_state_nonce"] = "other-transaction"
             callback_session["next_url"] = "/future-games"
-        with patch.object(
-            self.app_module.requests, "post"
-        ) as token_request, patch.object(
-            self.app_module.requests, "get"
-        ) as profile_request:
+        with (
+            patch.object(self.app_module.requests, "post") as token_request,
+            patch.object(self.app_module.requests, "get") as profile_request,
+        ):
             response = callback_client.get(
                 f"/line/callback?code=fake-code&state={state}"
             )
@@ -847,9 +870,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 if session_nonce is not None:
                     with client.session_transaction() as current_session:
                         current_session["oauth_state_nonce"] = session_nonce
-                with patch.object(
-                    self.app_module.requests, "post"
-                ) as token_request, self.assertLogs("app", level="WARNING") as captured:
+                with (
+                    patch.object(self.app_module.requests, "post") as token_request,
+                    self.assertLogs("app", level="WARNING") as captured,
+                ):
                     response = client.get(
                         f"/line/callback?code=sentinel-code&state={callback_state}"
                     )
@@ -1112,9 +1136,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "userId": "fake-authenticated-user",
             "displayName": "Demo User",
         }
-        with patch.object(
-            self.app_module.requests, "post", return_value=token_response
-        ), patch.object(self.app_module.requests, "get", return_value=profile_response):
+        with (
+            patch.object(self.app_module.requests, "post", return_value=token_response),
+            patch.object(
+                self.app_module.requests, "get", return_value=profile_response
+            ),
+        ):
             callback = client.get(
                 f"/line/callback?code=fake-code&state={state}",
                 base_url=canonical_origin,
@@ -1151,9 +1178,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     base_url=canonical_origin
                 ) as current_session:
                     current_session.update(session_values)
-                with patch.object(
-                    self.app_module, "create_oauth_state"
-                ) as create_state, self.assertLogs("app", level="WARNING") as captured:
+                with (
+                    patch.object(self.app_module, "create_oauth_state") as create_state,
+                    self.assertLogs("app", level="WARNING") as captured,
+                ):
                     response = client.get(
                         "/line/login/browser/authorize?state=sentinel-state"
                         "&code=sentinel-code&cookie=sentinel-cookie",
@@ -1195,9 +1223,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
             base_url="https://alternate.example"
         ) as current_session:
             current_session["sentinel"] = "preserved"
-        with patch.object(
-            self.app_module, "create_oauth_state"
-        ) as create_state, self.assertLogs("app", level="WARNING") as captured:
+        with (
+            patch.object(self.app_module, "create_oauth_state") as create_state,
+            self.assertLogs("app", level="WARNING") as captured,
+        ):
             response = self.client.get(
                 f"{bootstrap_parts.path}?{bootstrap_parts.query}",
                 base_url="https://alternate.example",
@@ -1281,14 +1310,17 @@ class MemberMatchingRouteTest(unittest.TestCase):
             base_url=canonical_origin
         ) as current_session:
             current_session["sentinel"] = "preserved"
-        with patch(
-            "itsdangerous.timed.time.time",
-            return_value=(
-                2_000_000_000
-                + self.app_module.BROWSER_BOOTSTRAP_INITIATION_MAX_AGE_SECONDS
-                + 1
+        with (
+            patch(
+                "itsdangerous.timed.time.time",
+                return_value=(
+                    2_000_000_000
+                    + self.app_module.BROWSER_BOOTSTRAP_INITIATION_MAX_AGE_SECONDS
+                    + 1
+                ),
             ),
-        ), patch.object(self.app_module, "create_oauth_state") as create_state:
+            patch.object(self.app_module, "create_oauth_state") as create_state,
+        ):
             response = self.client.get(
                 "/line/login/browser/bootstrap?"
                 + urlencode({"initiation": initiation}),
@@ -1389,11 +1421,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
             current_session["display_name"] = "Existing User"
             current_session["oauth_state_nonce"] = "stale-nonce"
             current_session["next_url"] = "/future-games"
-        with patch.object(
-            self.app_module.requests, "post"
-        ) as token_request, patch.object(
-            self.app_module.requests, "get"
-        ) as profile_request:
+        with (
+            patch.object(self.app_module.requests, "post") as token_request,
+            patch.object(self.app_module.requests, "get") as profile_request,
+        ):
             response = self.client.get(
                 "/line/callback?code=fake-code&state=tampered-state"
             )
@@ -1472,13 +1503,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         with self.client.session_transaction() as current_session:
             current_session["oauth_state_nonce"] = "fake-nonce"
-        with patch.object(
-            self.app_module.requests,
-            "post",
-            side_effect=self.app_module.requests.Timeout("fake timeout"),
-        ) as token_request, patch.object(
-            self.app_module.requests, "get"
-        ) as profile_request:
+        with (
+            patch.object(
+                self.app_module.requests,
+                "post",
+                side_effect=self.app_module.requests.Timeout("fake timeout"),
+            ) as token_request,
+            patch.object(self.app_module.requests, "get") as profile_request,
+        ):
             response = self.client.get(f"/line/callback?code=fake-code&state={state}")
 
         self.assertEqual(response.status_code, 502)
@@ -1497,9 +1529,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 ][0]
                 token_response = MagicMock()
                 token_response.json.return_value = payload
-                with patch.object(
-                    self.app_module.requests, "post", return_value=token_response
-                ), patch.object(self.app_module.requests, "get") as profile_request:
+                with (
+                    patch.object(
+                        self.app_module.requests, "post", return_value=token_response
+                    ),
+                    patch.object(self.app_module.requests, "get") as profile_request,
+                ):
                     response = self.client.get(
                         f"/line/callback?code=fake-code&state={state}"
                     )
@@ -1523,10 +1558,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 token_response.json.return_value = {"access_token": "fake-access-token"}
                 profile_response = MagicMock()
                 profile_response.json.return_value = payload
-                with patch.object(
-                    self.app_module.requests, "post", return_value=token_response
-                ), patch.object(
-                    self.app_module.requests, "get", return_value=profile_response
+                with (
+                    patch.object(
+                        self.app_module.requests, "post", return_value=token_response
+                    ),
+                    patch.object(
+                        self.app_module.requests, "get", return_value=profile_response
+                    ),
                 ):
                     response = self.client.get(
                         f"/line/callback?code=fake-code&state={state}"
@@ -1544,14 +1582,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.line_identity.return_value = SimpleNamespace(id=72)
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.post(
                 "/match-member/match",
                 data={
@@ -1624,8 +1667,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             people = self.client.get("/manage/people?q=正式")
             active_only = self.client.get("/manage/people")
@@ -1672,13 +1718,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             active_only = self.client.get("/manage/people?q=Member")
             second_page = self.client.get(
                 "/manage/people?q=Member&show_inactive=1&page=2"
@@ -1749,8 +1800,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             page = self.client.get("/manage/pending-identities")
             forged = self.client.post(
@@ -1811,14 +1865,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         }
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/manage/pending-identities")
 
         page = response.get_data(as_text=True)
@@ -1848,14 +1907,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "identity-match-非ascii",
             "identity-match-" + ("x" * 121),
         )
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             for extra in values:
                 with self.subTest(payload=extra):
                     response = self.client.post(
@@ -1904,14 +1968,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "identity-ignore-非ascii",
             "identity-ignore-" + ("x" * 121),
         )
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             for extra in payloads:
                 with self.subTest(payload=extra):
                     response = self.client.post(
@@ -1949,14 +2018,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.line_identity.return_value = SimpleNamespace(id=72)
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.post(
                 "/match-member/ignore",
                 data={
@@ -1994,8 +2068,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             first = self.client.post("/match-member/ignore", data=payload)
             retry = self.client.post("/match-member/ignore", data=payload)
@@ -2023,9 +2100,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.post(
                 "/account/profile",
                 data={
@@ -2102,8 +2182,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 },
             ),
         )
-        with patch.dict(os.environ, environment, clear=False), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, environment, clear=False),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             for path, data in requests_to_test:
                 with self.subTest(path=path):
@@ -2125,16 +2208,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_freeze_does_not_bypass_admin_or_csrf_guards(self):
         token = self.get_csrf_token()
         self.login(member_id=8)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "is_rollout_freeze_enabled", return_value=True
-        ) as freeze_check:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "is_rollout_freeze_enabled", return_value=True
+            ) as freeze_check,
+        ):
             unauthorized = self.client.post(
                 "/identity-admin/action", data={"csrf_token": token}
             )
@@ -2142,16 +2228,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         freeze_check.assert_not_called()
 
         self.login()
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "is_rollout_freeze_enabled", return_value=True
-        ) as freeze_check:
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED": "true",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "is_rollout_freeze_enabled", return_value=True
+            ) as freeze_check,
+        ):
             bad_csrf = self.client.post(
                 "/identity-admin/action", data={"csrf_token": "wrong-token"}
             )
@@ -2167,14 +2256,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.post(
                 "/identity-admin/action",
                 data={
@@ -2236,11 +2330,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch(
-            "admin_security.get_current_principal",
-            return_value=Principal(ROLE_ADMIN, 7),
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch(
+                "admin_security.get_current_principal",
+                return_value=Principal(ROLE_ADMIN, 7),
+            ),
         ):
             page = self.client.get("/manage/people/80/qualifications")
             response = self.client.post(
@@ -2294,11 +2392,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch(
-            "admin_security.get_current_principal",
-            return_value=Principal(ROLE_ADMIN, 7),
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch(
+                "admin_security.get_current_principal",
+                return_value=Principal(ROLE_ADMIN, 7),
+            ),
         ):
             page = self.client.get("/manage/people/80/qualifications")
         self.assertEqual(page.status_code, 200)
@@ -2331,11 +2433,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch(
-            "admin_security.get_current_principal",
-            return_value=Principal(ROLE_ADMIN, 7),
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch(
+                "admin_security.get_current_principal",
+                return_value=Principal(ROLE_ADMIN, 7),
+            ),
         ):
             page = self.client.get("/manage/people/80")
         self.assertEqual(page.status_code, 200)
@@ -2369,11 +2475,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch(
-            "admin_security.get_current_principal",
-            return_value=Principal(ROLE_ADMIN, 7),
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch(
+                "admin_security.get_current_principal",
+                return_value=Principal(ROLE_ADMIN, 7),
+            ),
         ):
             page = self.client.get("/manage/people/80")
         self.assertEqual(page.status_code, 200)
@@ -2427,11 +2537,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch(
-            "admin_security.get_current_principal",
-            return_value=Principal(ROLE_ADMIN, 7),
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch(
+                "admin_security.get_current_principal",
+                return_value=Principal(ROLE_ADMIN, 7),
+            ),
         ):
             page = self.client.get("/manage/people/80?tab=attendance")
         self.assertEqual(page.status_code, 200)
@@ -2494,8 +2608,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             page = self.client.get("/match-member")
             missing_confirmation = self.client.post(
@@ -2571,14 +2688,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 person_id=70,
                 auth_identity_id=71,
             )
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/match-member")
 
         self.assertEqual(response.status_code, 200)
@@ -2603,11 +2725,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 with self.client.session_transaction() as current_session:
                     current_session.clear()
                     current_session.update(session_values)
-                with patch.object(
-                    self.app_module.requests, "get"
-                ) as http_get, patch.object(
-                    self.app_module.requests, "post"
-                ) as http_post:
+                with (
+                    patch.object(self.app_module.requests, "get") as http_get,
+                    patch.object(self.app_module.requests, "post") as http_post,
+                ):
                     response = self.client.get("/game-roster/23")
 
                 self.assertEqual(response.status_code, 302)
@@ -2674,10 +2795,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     )
                     if member_id is not None:
                         current_session["member_id"] = member_id
-                with patch.dict(
-                    os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
+                with (
+                    patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
                 ):
                     response = self.client.get("/game-roster/23")
 
@@ -2711,9 +2833,12 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 person_id=70,
                 auth_identity_id=71,
             )
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             formal = self.client.get("/game-roster/23")
             display = self.client.get("/game-roster/23?name_style=display")
             invalid = self.client.get("/game-roster/23?name_style=nickname")
@@ -2875,13 +3000,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
         clock_values = iter((10.000, 10.003, 10.008, 10.021, 10.023, 10.030))
         timing_type = self.app_module.AttendanceTiming
 
-        with patch.object(
-            self.app_module,
-            "AttendanceTiming",
-            side_effect=lambda: timing_type(clock=lambda: next(clock_values)),
-        ), patch.object(self.app.logger, "info") as log_info, patch.object(
-            self.app_module, "datetime"
-        ) as fake_datetime:
+        with (
+            patch.object(
+                self.app_module,
+                "AttendanceTiming",
+                side_effect=lambda: timing_type(clock=lambda: next(clock_values)),
+            ),
+            patch.object(self.app.logger, "info") as log_info,
+            patch.object(self.app_module, "datetime") as fake_datetime,
+        ):
             fake_datetime.now.return_value.strftime.return_value = "fake update time"
             response = self.client.get("/attendance?query=query-sentinel")
 
@@ -2916,11 +3043,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.game_model.search_for_invited.return_value = []
         self.login()
 
-        with patch.object(
-            self.app.logger,
-            "info",
-            side_effect=RuntimeError("logging unavailable"),
-        ), patch.object(self.app_module, "datetime") as fake_datetime:
+        with (
+            patch.object(
+                self.app.logger,
+                "info",
+                side_effect=RuntimeError("logging unavailable"),
+            ),
+            patch.object(self.app_module, "datetime") as fake_datetime,
+        ):
             fake_datetime.now.return_value.strftime.return_value = "fake update time"
             response = self.client.get("/attendance")
 
@@ -2938,9 +3068,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.return_value = None
         self.login()
 
-        with patch.object(self.app_module.requests, "get") as http_get, patch.object(
-            self.app_module.requests, "post"
-        ) as http_post:
+        with (
+            patch.object(self.app_module.requests, "get") as http_get,
+            patch.object(self.app_module.requests, "post") as http_post,
+        ):
             response = self.client.get("/attendance")
 
         self.assertEqual(response.status_code, 403)
@@ -2989,9 +3120,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.member_model.search_by_id.return_value = None
         self.login()
 
-        with patch.object(self.app_module.requests, "get") as http_get, patch.object(
-            self.app_module.requests, "post"
-        ) as http_post:
+        with (
+            patch.object(self.app_module.requests, "get") as http_get,
+            patch.object(self.app_module.requests, "post") as http_post,
+        ):
             response = self.client.get("/account")
 
         self.assertEqual(response.status_code, 403)
@@ -3373,9 +3505,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
             {**self._event_fixture(status="cancelled"), "id": 8, "title": "雨備聚餐"},
         )
         repository, _ = self._event_repository(events=events)
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/events")
 
         self.assertEqual(response.status_code, 200)
@@ -3397,9 +3534,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_event_list_has_explicit_empty_and_safe_error_states(self):
         self._login_for_events()
         repository, _ = self._event_repository()
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             empty = self.client.get("/events")
             repository.scoped_events.side_effect = RuntimeError(
                 "sentinel database address and private row"
@@ -3416,9 +3558,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self._login_for_events()
         repository, _ = self._event_repository()
         repository.scoped_event.return_value = self._event_fixture()
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/events/event_7")
 
         self.assertEqual(response.status_code, 200)
@@ -3439,9 +3586,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository, _ = self._event_repository()
         with self.client.session_transaction() as current_session:
             current_session["member_matching_csrf_token"] = "event-reply-csrf"
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             missing = self.client.post(
                 "/events/event_7/attendance", data={"reply": "attending"}
             )
@@ -3475,9 +3627,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
     def test_event_detail_rejects_noncanonical_or_unscoped_keys(self):
         self._login_for_events()
         repository, _ = self._event_repository()
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             for key in (
                 "event_0",
                 "event_07",
@@ -3498,9 +3655,14 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.scoped_event.side_effect = RuntimeError(
             "sentinel database address and private row"
         )
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/events/event_7")
 
         self.assertEqual(response.status_code, 503)
@@ -3552,17 +3714,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "eligibility": "team_player",
         }
         service.create_event.return_value = 7
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             missing = self.client.post("/manage/events/new", data=payload)
             saved = self.client.post(
@@ -3580,12 +3746,16 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self._login_for_events()
         service = self._event_management_service()
         repository, principal = self._event_repository()
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}, clear=False
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             for access_level in ("basic", "owner", ""):
                 with self.subTest(access_level=access_level):
@@ -3594,7 +3764,9 @@ class MemberMatchingRouteTest(unittest.TestCase):
 
         service.managed_events.assert_not_called()
 
-    def test_event_management_production_allows_officer_or_allowlisted_member_only(self):
+    def test_event_management_production_allows_officer_or_allowlisted_member_only(
+        self,
+    ):
         self._login_for_events()
         service = self._event_management_service()
         repository, principal = self._event_repository()
@@ -3606,18 +3778,22 @@ class MemberMatchingRouteTest(unittest.TestCase):
         for access_level, allowlist, expected in cases:
             with self.subTest(access_level=access_level, allowlist=allowlist):
                 principal.person.access_level = access_level
-                with patch.dict(
-                    os.environ,
-                    {
-                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
-                    },
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
-                ), patch.object(
-                    self.app_module,
-                    "_event_management_service",
-                    return_value=service,
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                        },
+                    ),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
+                    patch.object(
+                        self.app_module,
+                        "_event_management_service",
+                        return_value=service,
+                    ),
                 ):
                     response = self.client.get("/manage/events")
                 self.assertEqual(response.status_code, expected)
@@ -3635,20 +3811,23 @@ class MemberMatchingRouteTest(unittest.TestCase):
         ):
             with self.subTest(access_level=access_level):
                 principal.person.access_level = access_level
-                with patch.dict(
-                    os.environ,
-                    {
-                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                        "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-                    },
-                ), patch.object(
-                    self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
-                ), patch.object(
-                    self.app_module,
-                    "_event_management_service",
-                    return_value=service,
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                        },
+                    ),
+                    patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
+                    patch.object(
+                        self.app_module,
+                        "_event_management_service",
+                        return_value=service,
+                    ),
                 ):
                     response = self.client.get("/manage/events")
                 self.assertEqual(response.status_code, expected)
@@ -3680,24 +3859,29 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     PostgresTeamPortalRepository=repository_constructor
                 )
                 services_module = self._module(PortalDataService=service_constructor)
-                with patch.dict(
-                    os.environ,
-                    {
-                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
-                    },
-                ), patch.object(
-                    self.app_module,
-                    "LOCAL_PREVIEW_MODE_ENABLED",
-                    local_preview,
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
-                ), patch.dict(
-                    sys.modules,
-                    {
-                        "shared_module.portal_data.repository": repository_module,
-                        "shared_module.portal_data.services": services_module,
-                    },
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                        },
+                    ),
+                    patch.object(
+                        self.app_module,
+                        "LOCAL_PREVIEW_MODE_ENABLED",
+                        local_preview,
+                    ),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
+                    patch.dict(
+                        sys.modules,
+                        {
+                            "shared_module.portal_data.repository": repository_module,
+                            "shared_module.portal_data.services": services_module,
+                        },
+                    ),
                 ):
                     response = self.client.get("/manage/events")
 
@@ -3715,17 +3899,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         service = self._event_management_service()
         repository, principal = self._event_repository()
         principal.person.access_level = "officer"
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             event_page = self.client.get("/manage/events")
             broad_admin = self.client.get("/manage/people")
@@ -3743,14 +3931,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         )
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             for action in ("grant_qualification", "revoke_qualification"):
                 with self.subTest(action=action):
                     response = self.client.post(
@@ -3772,17 +3965,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self._login_for_events()
         service = self._event_management_service()
         repository, principal = self._event_repository()
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             principal.person.portal_status = "inactive"
             self.assertEqual(self.client.get("/manage/events").status_code, 403)
@@ -3819,16 +4016,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
                         person_id=80,
                         auth_identity_id=81,
                     )
-                    with patch.dict(
-                        os.environ,
-                        {
-                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                            "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
-                        },
-                    ), patch.object(
-                        self.app_module,
-                        "phase_c_repository",
-                        return_value=repository,
+                    with (
+                        patch.dict(
+                            os.environ,
+                            {
+                                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                                "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                            },
+                        ),
+                        patch.object(
+                            self.app_module,
+                            "phase_c_repository",
+                            return_value=repository,
+                        ),
                     ):
                         self.assertIsNotNone(self.app_module.get_current_principal())
                         portal_context = self.app_module.inject_portal_copy()
@@ -3851,18 +4051,22 @@ class MemberMatchingRouteTest(unittest.TestCase):
                         person_id=80,
                         auth_identity_id=81,
                     )
-                    with patch.dict(
-                        os.environ,
-                        {
-                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                            "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-                        },
-                    ), patch.object(
-                        self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
-                    ), patch.object(
-                        self.app_module,
-                        "phase_c_repository",
-                        return_value=repository,
+                    with (
+                        patch.dict(
+                            os.environ,
+                            {
+                                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                            },
+                        ),
+                        patch.object(
+                            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
+                        ),
+                        patch.object(
+                            self.app_module,
+                            "phase_c_repository",
+                            return_value=repository,
+                        ),
                     ):
                         self.assertIsNotNone(self.app_module.get_current_principal())
                         portal_context = self.app_module.inject_portal_copy()
@@ -3874,17 +4078,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         service = self._event_management_service()
         repository, principal = self._event_repository()
         principal.person.access_level = "admin"
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             for key in ("event_0", "event_07", "7", "event_-1"):
                 self.assertEqual(
@@ -3899,17 +4107,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         principal.person.access_level = "admin"
         with self.client.session_transaction() as current_session:
             current_session["member_matching_csrf_token"] = "event-csrf"
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             for key in (
                 "activity_7",
@@ -3961,17 +4173,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         service = self._event_management_service()
         repository, principal = self._event_repository()
         principal.person.access_level = "officer"
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             response = self.client.get("/manage/events/event_7")
 
@@ -3993,17 +4209,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         principal.person.access_level = "admin"
         with self.client.session_transaction() as current_session:
             current_session["member_matching_csrf_token"] = "event-csrf"
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             published = self.client.post(
                 "/manage/events/event_7/publish",
@@ -4033,17 +4253,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "typed_confirmation": "NOTIFY 3",
             "request_id": "notify-web-fictional",
         }
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             page = self.client.get("/manage/events/event_7")
             rejected = self.client.post(
@@ -4092,17 +4316,21 @@ class MemberMatchingRouteTest(unittest.TestCase):
         principal.person.access_level = "admin"
         with self.client.session_transaction() as current_session:
             current_session["member_matching_csrf_token"] = "event-csrf"
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-            clear=False,
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
-        ), patch.object(
-            self.app_module, "_event_management_service", return_value=service
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module, "_event_management_service", return_value=service
+            ),
         ):
             page = self.client.get("/manage/guests")
             bad_state = self.client.get("/manage/guests?state=unknown")
@@ -4380,14 +4608,17 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 repository.resolve_line_principal.return_value = self.command_principal(
                     access, status
                 )
-                with patch.dict(
-                    os.environ,
-                    {
-                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
-                    },
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                        },
+                    ),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
                 ):
                     response = self.client.get("/manage/games")
                 self.assertEqual(response.status_code, expected)
@@ -4417,13 +4648,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.login()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             game_page = self.client.get("/manage/games")
             pending = self.client.get("/manage/pending-identities")
             qualifications = self.client.get("/manage/people/70/qualifications")
@@ -4444,16 +4680,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.login()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-            },
-        ), patch.object(
-            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                },
+            ),
+            patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             response = self.client.get(
                 "/manage/pending-identities", base_url="http://localhost:8080"
@@ -4480,14 +4718,17 @@ class MemberMatchingRouteTest(unittest.TestCase):
                         member_id=7,
                         **session_values,
                     )
-                with patch.dict(
-                    os.environ,
-                    {
-                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                        "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-                    },
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                        },
+                    ),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
                 ):
                     response = self.client.get("/manage/games")
                 self.assertEqual(response.status_code, 403)
@@ -4523,13 +4764,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.login()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             pages = (
                 self.client.get("/manage/games"),
                 self.client.get("/manage/games/23"),
@@ -4566,10 +4812,15 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.login()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {"PORTAL_DATA_PHASE_C_ENABLED": "true"},
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {"PORTAL_DATA_PHASE_C_ENABLED": "true"},
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             self.game_model.search_games.return_value = []
             missing = self.client.get("/manage/games/404")
             malformed = self.client.get("/manage/games/not-a-number")
@@ -4596,18 +4847,22 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 repository.resolve_line_principal.return_value = self.command_principal(
                     access
                 )
-                with patch.object(
-                    self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
+                with (
+                    patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
                 ):
                     response = self.client.get(
                         "/manage/games", base_url="http://localhost:8080"
                     )
                 self.assertEqual(response.status_code, expected)
-        with patch.object(
-            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             blocked = self.client.post(
                 "/manage/games", base_url="http://localhost:8080"
             )
@@ -4620,13 +4875,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         token = self.get_csrf_token()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             promoted = self.client.post(
                 "/manage/people/80/access",
                 data={
@@ -4670,14 +4930,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         token = self.get_csrf_token()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.post(
                 "/manage/people/new",
                 data={
@@ -4708,14 +4973,19 @@ class MemberMatchingRouteTest(unittest.TestCase):
         token = self.get_csrf_token()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-                "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                    "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED": "true",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.post(
                 "/manage/people/new",
                 data={
@@ -4738,8 +5008,11 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "PORTAL_DATA_PHASE_C_ENABLED": "true",
             "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
         }
-        with patch.dict(os.environ, environment), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             bad_csrf = self.client.post(
                 "/manage/people/80/access",
@@ -4761,13 +5034,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.resolve_line_principal.return_value = self.command_principal(
             "officer"
         )
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             denied = self.client.post(
                 "/manage/people/80/access",
                 data={
@@ -4793,13 +5071,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
             "person-access-測試",
             "person-access-" + "x" * 108,
         )
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             for request_id in cases:
                 with self.subTest(request_id=request_id):
                     data = {
@@ -4830,14 +5113,17 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 repository.resolve_line_principal.return_value = self.command_principal(
                     access
                 )
-                with patch.dict(
-                    os.environ,
-                    {
-                        "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                        "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
-                    },
-                ), patch.object(
-                    self.app_module, "phase_c_repository", return_value=repository
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                            "WEB_PORTAL_ADMIN_MEMBER_IDS": allowlist,
+                        },
+                    ),
+                    patch.object(
+                        self.app_module, "phase_c_repository", return_value=repository
+                    ),
                 ):
                     response = self.client.get("/manage")
                 self.assertEqual(response.status_code, expected)
@@ -4861,13 +5147,18 @@ class MemberMatchingRouteTest(unittest.TestCase):
         self.login()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ,
-            {
-                "PORTAL_DATA_PHASE_C_ENABLED": "true",
-                "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
-            },
-        ), patch.object(self.app_module, "phase_c_repository", return_value=repository):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_MEMBER_IDS": "",
+                },
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
             response = self.client.get("/manage")
         self.assertEqual(response.status_code, 200)
         repository.resolve_line_principal.assert_called_once_with(
@@ -4881,14 +5172,13 @@ class MemberMatchingRouteTest(unittest.TestCase):
         token = self.get_csrf_token()
         with self.client.session_transaction() as current_session:
             current_session.update(person_id=70, auth_identity_id=71)
-        with patch.dict(
-            os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
-        ), patch.object(
-            self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True
-        ), patch.object(
-            self.app_module, "FICTIONAL_DEMO_MODE_ENABLED", True
-        ), patch.object(
-            self.app_module, "phase_c_repository", return_value=repository
+        with (
+            patch.dict(os.environ, {"PORTAL_DATA_PHASE_C_ENABLED": "true"}),
+            patch.object(self.app_module, "LOCAL_PREVIEW_MODE_ENABLED", True),
+            patch.object(self.app_module, "FICTIONAL_DEMO_MODE_ENABLED", True),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
         ):
             allowed = self.client.post(
                 "/manage/people/80/access",

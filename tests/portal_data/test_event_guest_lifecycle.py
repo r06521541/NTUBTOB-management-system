@@ -23,6 +23,10 @@ from shared_lib.shared_module.portal_data.domain import (
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
+from shared_lib.shared_module.portal_data.models import (
+    GuestQualificationAuditRecord,
+    PersonQualificationRecord,
+)
 from shared_lib.shared_module.portal_data.repository import (
     EVENT_LIFECYCLE_REVISION,
     PostgresTeamPortalRepository,
@@ -143,9 +147,22 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         self.assertIn("destination_event_id", source)
         self.assertIn("event_notification_publish_audits_append_only", source)
         self.assertIn("guest_qualification_audits_append_only", source)
+        self.assertIn("ADD COLUMN version integer NOT NULL DEFAULT 1", source)
+        self.assertIn("ck_person_qualification_version", source)
         downgrade = source.split("def downgrade() -> None:", 1)[1]
         for destructive in ("DROP TABLE", "DELETE FROM", "TRUNCATE"):
             self.assertNotIn(destructive, downgrade.upper())
+
+    def test_guest_audit_metadata_matches_postgresql_migration_types(self):
+        self.assertEqual(
+            GuestQualificationAuditRecord.__table__.c.before_state.type.__class__.__name__,
+            "JSONB",
+        )
+        self.assertEqual(
+            GuestQualificationAuditRecord.__table__.c.after_state.type.__class__.__name__,
+            "JSONB",
+        )
+        self.assertFalse(PersonQualificationRecord.__mapper__.eager_defaults)
 
     def test_guest_state_is_derived_at_the_requested_time(self):
         now = datetime(2026, 9, 1, tzinfo=timezone.utc)
@@ -273,7 +290,12 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.engine.dispose()
+        try:
+            prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
+                cls.engine
+            )
+        finally:
+            cls.engine.dispose()
 
     def setUp(self):
         with self.engine.begin() as connection:
@@ -641,8 +663,17 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
 
     def test_guest_grant_rejects_member_and_active_team_player_overlap(self):
         now = datetime.now(timezone.utc)
+        with self.engine.begin() as connection:
+            member_id = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.members (name) "
+                    "VALUES ('Fictional Isolated Member') RETURNING id"
+                )
+            )
         for person in (
-            self.repository.create_person("Fictional Existing Member", member_id=9301),
+            self.repository.create_person(
+                "Fictional Existing Member", member_id=member_id
+            ),
             self.repository.create_person(
                 "Fictional Existing Team Player", qualifications=("team_player",)
             ),
@@ -664,15 +695,15 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
     def test_allowlisted_active_member_can_manage_without_persisted_admin_access(self):
         manager = self.repository.create_person("Fictional Allowlisted Manager")
         with self.engine.begin() as connection:
-            connection.execute(
+            manager_member_id = connection.scalar(
                 text(
-                    "INSERT INTO ntubtob.members (id,name,person_id) "
-                    "VALUES (9201,'Fictional Allowlisted Member',:person_id)"
+                    "INSERT INTO ntubtob.members (name,person_id) "
+                    "VALUES ('Fictional Allowlisted Member',:person_id) RETURNING id"
                 ),
                 {"person_id": manager.id},
             )
         repository = PostgresTeamPortalRepository(
-            self.engine, event_manager_member_ids={9201}
+            self.engine, event_manager_member_ids={manager_member_id}
         )
         candidate = repository.create_person(
             "Fictional Guest Candidate", qualifications=("affiliate",)

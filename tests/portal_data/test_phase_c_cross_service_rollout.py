@@ -18,6 +18,10 @@ from shared_lib.shared_module.portal_data.identity_lifecycle import (
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from shared_lib.shared_module.portal_data.repository import PostgresTeamPortalRepository
+from tests.portal_data._event_guest_lifecycle_test_harness import (
+    prepare_event_guest_lifecycle_downgrade_for_isolated_test_database,
+)
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -33,7 +37,12 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.engine.dispose()
+        try:
+            prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
+                cls.engine
+            )
+        finally:
+            cls.engine.dispose()
 
     def setUp(self):
         with self.engine.begin() as connection:
@@ -117,6 +126,9 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
                 )
             )
         self.repository = IdentityLifecycleRepository(self.engine, {7601})
+        self.guest_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids={7601}
+        )
 
     def _approve_member(self):
         pending = self.repository.ensure_pending_line_identity(
@@ -135,17 +147,26 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
             "fake-rollout-guest", "Fake Guest Login", "pending-rollout-guest"
         )
         now = datetime.now(timezone.utc)
-        return self.repository.approve_non_member(
+        principal = self.repository.approve_non_member(
             self.admin_person_id,
             pending.identity.id,
             "Fake Guest Display",
             "Approved fictional bounded guest",
             "approve-rollout-guest",
             formal_name="Fake Guest Formal",
-            qualifications=("guest_player",),
-            guest_valid_from=now - timedelta(days=1),
-            guest_valid_until=now + timedelta(days=10),
         )
+        self.guest_repository.mutate_guest_qualification(
+            self.admin_person_id,
+            principal.person.id,
+            "grant",
+            expected_version=0,
+            reason="Approved fictional bounded guest",
+            request_id="grant-rollout-guest",
+            valid_from=now - timedelta(days=1),
+            valid_until=now + timedelta(days=10),
+            at=now,
+        )
+        return principal
 
     def test_schema_0004_with_flags_off_keeps_legacy_write_shape_and_zero_identity_side_effects(
         self,
@@ -175,14 +196,20 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
             )
 
         legacy_projection = {1: [SimpleNamespace(name="Fake Player Member")]}
-        with patch.dict(os.environ, {}, clear=True), patch.object(
-            attendance_analyzer,
-            "get_identity_lifecycle_repository",
-            side_effect=AssertionError(
-                "flags-off must not construct Phase C repository"
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(
+                attendance_analyzer,
+                "get_identity_lifecycle_repository",
+                side_effect=AssertionError(
+                    "flags-off must not construct Phase C repository"
+                ),
             ),
-        ), patch.object(
-            attendance_analyzer, "_legacy_attendance", return_value=legacy_projection
+            patch.object(
+                attendance_analyzer,
+                "_legacy_attendance",
+                return_value=legacy_projection,
+            ),
         ):
             self.assertEqual(
                 attendance_analyzer.get_attendance_of_game(self.game_id),
@@ -236,14 +263,17 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
             self.repository.reply_to_game(principal.person.id, self.game_id, 1)
         )
         portal_summary = self.repository.attendance_summary(self.game_id)
-        with patch.object(
-            attendance_analyzer,
-            "is_phase_c_enabled",
-            return_value=True,
-        ), patch.object(
-            attendance_analyzer,
-            "get_identity_lifecycle_repository",
-            return_value=self.repository,
+        with (
+            patch.object(
+                attendance_analyzer,
+                "is_phase_c_enabled",
+                return_value=True,
+            ),
+            patch.object(
+                attendance_analyzer,
+                "get_identity_lifecycle_repository",
+                return_value=self.repository,
+            ),
         ):
             webhook_projection = attendance_analyzer.get_attendance_of_game(
                 self.game_id
@@ -316,12 +346,13 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
         self.assertEqual(display.participants[0]["name"], "Fake Guest Display")
         self.assertEqual(formal.participants[0]["qualification"], "guest_player")
 
-        self.repository.revoke_qualification(
+        self.guest_repository.mutate_guest_qualification(
             self.admin_person_id,
             guest.person.id,
-            "guest_player",
-            "Bounded guest access ended",
-            "revoke-rollout-guest",
+            "revoke",
+            expected_version=1,
+            reason="Bounded guest access ended",
+            request_id="revoke-rollout-guest",
         )
         with self.assertRaises(AuthorizationError):
             self.repository.reply_to_game(guest.person.id, self.game_id, 2)

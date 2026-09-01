@@ -21,6 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SCHEMA = "ntubtob"
@@ -230,6 +231,7 @@ class PersonQualificationRecord(PortalDataBase):
         CheckConstraint("version > 0", name="ck_person_qualification_version"),
         {"schema": SCHEMA},
     )
+    __mapper_args__ = {"eager_defaults": False}
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     person_id: Mapped[int] = mapped_column(
@@ -918,8 +920,8 @@ class GuestQualificationAuditRecord(PortalDataBase):
     reason: Mapped[str] = mapped_column(String(300), nullable=False)
     request_id: Mapped[str] = mapped_column(String(100), nullable=False)
     request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
-    before_state: Mapped[Optional[dict]] = mapped_column(JSON)
-    after_state: Mapped[dict] = mapped_column(JSON, nullable=False)
+    before_state: Mapped[Optional[dict]] = mapped_column(JSONB)
+    after_state: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
     )

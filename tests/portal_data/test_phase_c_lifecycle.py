@@ -28,6 +28,7 @@ from shared_lib.shared_module.portal_data.identity_lifecycle import (
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from shared_lib.shared_module.portal_data.repository import PostgresTeamPortalRepository
 from tests.portal_data._apple_lifecycle_test_harness import (
     remove_retained_apple_evidence_from_isolated_test_database,
 )
@@ -228,7 +229,9 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         with self.engine.connect() as connection:
             self.assertEqual(
                 connection.scalar(
-                    text("SELECT portal_status FROM ntubtob.people WHERE id=:person_id"),
+                    text(
+                        "SELECT portal_status FROM ntubtob.people WHERE id=:person_id"
+                    ),
                     {"person_id": target_id},
                 ),
                 "active",
@@ -712,6 +715,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             )
 
     def test_non_member_guest_has_no_fake_member_and_is_excluded_after_expiry(self):
+        command.upgrade(Config("alembic.ini"), "head")
         pending = self._pending("guest")
         now = datetime.now(timezone.utc)
         principal = self.repository.approve_non_member(
@@ -721,9 +725,20 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             "Approve bounded guest",
             "approve-guest",
             formal_name="Guest Formal",
-            qualifications={"guest_player"},
-            guest_valid_from=now - timedelta(days=1),
-            guest_valid_until=now + timedelta(days=7),
+        )
+        guest_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids={7001}
+        )
+        guest_repository.mutate_guest_qualification(
+            self.admin_person_id,
+            principal.person.id,
+            "grant",
+            expected_version=0,
+            reason="Approve bounded guest",
+            request_id="grant-approved-guest",
+            valid_from=now - timedelta(days=1),
+            valid_until=now + timedelta(days=7),
+            at=now,
         )
         with self.engine.begin() as connection:
             self.assertIsNone(

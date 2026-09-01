@@ -2577,9 +2577,10 @@ def identity_admin_action():
     action = request.form.get("action", "")
     reason = request.form.get("reason", "")
     request_id = request.form.get("request_id", "")
-    if action in {"grant_qualification", "revoke_qualification"} and request.form.get(
-        "qualification", ""
-    ) == "guest_player":
+    if (
+        action in {"grant_qualification", "revoke_qualification"}
+        and request.form.get("qualification", "") == "guest_player"
+    ):
         abort(400)
     if action == "create_member" and "guest_player" in request.form.getlist(
         "qualification"
