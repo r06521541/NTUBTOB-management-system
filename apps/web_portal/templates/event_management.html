@@ -1,7 +1,7 @@
 {% extends '_portal_base.html' %}
 {% block title %}活動管理｜NTUBTOB{% endblock %}
 {% block content %}
-<section class="portal-title"><p class="portal-eyebrow">EVENT MANAGEMENT</p><h1>活動管理</h1><p>建立活動草稿；發布會固定當下邀請名單，但不會發送通知。</p></section>
+<section class="portal-title"><p class="portal-eyebrow">EVENT MANAGEMENT</p><h1>活動管理</h1><p>建立活動草稿；發布會固定當下邀請名單，但不會發送通知。</p><a class="portal-action" href="{{ url_for('manage_guests') }}">管理客座球員</a></section>
 <section class="portal-card event-admin-panel"><h2>建立活動草稿</h2>
 <form method="post" action="{{ url_for('create_managed_event') }}" class="event-admin-form" data-event-confirm="建立這份活動草稿？"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><label>活動名稱<input name="title" maxlength="200" required></label><label>類型<select name="event_type" required>{% for value, label in event_types.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}</select></label><label>開始時間<input name="start_at" type="datetime-local" required></label><label>結束時間<input name="end_at" type="datetime-local"></label><fieldset class="event-admin-wide"><legend>邀請資格（至少一種）</legend>{% for value, label in eligibility_labels.items() %}<label class="event-check"><input type="checkbox" name="eligibility" value="{{ value }}">{{ label }}</label>{% endfor %}</fieldset><button type="submit" class="portal-action" disabled>建立草稿</button></form></section>
 <section class="portal-section-heading"><div><p class="portal-eyebrow">ALL EVENTS</p><h2>現有活動</h2></div></section>

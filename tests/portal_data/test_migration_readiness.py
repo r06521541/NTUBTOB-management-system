@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from psycopg2 import Error as PsycopgError
@@ -25,12 +26,54 @@ from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
 )
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class MigrationReadinessStaticTests(unittest.TestCase):
     def test_revision_chain_is_single_and_exact(self):
         self.assertEqual(revision_chain(), EXPECTED_REVISIONS)
-        self.assertEqual(EXPECTED_REVISIONS[-1], "0010_apple_provider_lifecycle")
+        self.assertEqual(
+            EXPECTED_REVISIONS[-1], "0011_event_notification_guest_lifecycle"
+        )
+
+    def test_historical_suites_pin_0010_and_current_suites_own_head(self):
+        historical_suites = (
+            "test_mobile_api_foundation.py",
+            "test_staging_broker_journal.py",
+        )
+        for name in historical_suites:
+            with self.subTest(name=name):
+                source = (ROOT / "tests" / "portal_data" / name).read_text(
+                    encoding="utf-8"
+                )
+                setup = source.split("    def setUp(self):", 1)[1].split(
+                    "\n    def ", 1
+                )[0]
+                self.assertIn(
+                    'command.upgrade(config, "0010_apple_provider_lifecycle")',
+                    setup,
+                )
+                self.assertNotIn('"head"', setup)
+
+        current_suites = {
+            "test_mobile_notifications.py": 'command.upgrade(config, "head")',
+            "test_event_guest_lifecycle.py": 'command.upgrade(self.config, "head")',
+        }
+        for name, expected_upgrade in current_suites.items():
+            with self.subTest(name=name):
+                source = (ROOT / "tests" / "portal_data" / name).read_text(
+                    encoding="utf-8"
+                )
+                setup = source.split("    def setUp(self):", 1)[1].split(
+                    "\n    def ", 1
+                )[0]
+                self.assertIn(expected_upgrade, setup)
+                self.assertIn("0011_event_notification_guest_lifecycle", source)
+
+        notification_source = (
+            ROOT / "tests" / "portal_data" / "test_mobile_notifications.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("destination_event_id", notification_source)
 
     def test_committed_artifact_is_current_and_safe(self):
         verify_artifact()

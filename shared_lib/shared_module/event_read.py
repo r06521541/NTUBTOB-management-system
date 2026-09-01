@@ -9,6 +9,9 @@ ACTIVITY_TYPES = frozenset(
     {"game", "meal", "transport", "lodging", "gathering", "other"}
 )
 EVENT_ATTENDANCE_REPLIES = frozenset({"attending", "not_attending", "maybe"})
+PARTICIPATION_CATEGORIES = frozenset(
+    {"team_player", "guest_player", "affiliate", "staff", "other"}
+)
 
 
 class EventReadContractError(ValueError):
@@ -93,6 +96,9 @@ def project_public_event(event: dict) -> dict:
     status = event.get("status")
     if status not in EVENT_STATUSES:
         raise EventReadContractError("stored event status is malformed")
+    participation_category = event.get("participation_category")
+    if participation_category not in PARTICIPATION_CATEGORIES:
+        raise EventReadContractError("stored participation category is malformed")
 
     source_activities = event.get("activities")
     if not isinstance(source_activities, (list, tuple)):
@@ -162,6 +168,7 @@ def project_public_event(event: dict) -> dict:
         "title": bounded_text(event.get("title"), "event title"),
         "type": event_type,
         "status": status,
+        "participation_category": participation_category,
         "start_at": utc(event.get("start_at")),
         "end_at": utc(event.get("end_at")),
         "attendance": event_attendance,

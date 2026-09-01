@@ -16,6 +16,9 @@ from shared_lib.shared_module.portal_data.local_database import (
 from tests.portal_data._apple_lifecycle_test_harness import (
     remove_retained_apple_evidence_from_isolated_test_database,
 )
+from tests.portal_data._event_guest_lifecycle_test_harness import (
+    prepare_event_guest_lifecycle_downgrade_for_isolated_test_database,
+)
 from tools import portal_data_production_activate_allowlisted_admins as operator
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
@@ -35,10 +38,12 @@ class ExactTwoActivationPostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         setup_legacy_fixture()
         config = Config("alembic.ini")
         command.upgrade(config, "head")
+        prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:

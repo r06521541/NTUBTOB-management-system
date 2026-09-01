@@ -199,3 +199,54 @@ class PortalDataService:
 
     def cancel_event(self, actor_id: int, event_id: int, request_id: str) -> dict:
         return self.repository.cancel_event(actor_id, event_id, request_id)
+
+    def preview_event_notification(self, actor_id: int, event_id: int) -> dict:
+        return self.repository.preview_event_notification(actor_id, event_id)
+
+    def confirm_event_notification(
+        self,
+        actor_id: int,
+        event_id: int,
+        *,
+        notification_type: str,
+        preview_revision: str,
+        typed_confirmation: str,
+        request_id: str,
+    ) -> dict:
+        return self.repository.confirm_event_notification(
+            actor_id,
+            event_id,
+            notification_type=notification_type,
+            preview_revision=preview_revision,
+            typed_confirmation=typed_confirmation,
+            request_id=request_id,
+        )
+
+    def managed_guests(self, actor_id: int, state: str = "active") -> tuple[dict, ...]:
+        return self.repository.managed_guests(actor_id, state)
+
+    def guest_candidates(self, actor_id: int) -> tuple[dict, ...]:
+        return self.repository.guest_candidates(actor_id)
+
+    def mutate_guest_qualification(
+        self,
+        actor_id: int,
+        target_person_id: int,
+        action: str,
+        *,
+        expected_version: int,
+        reason: str,
+        request_id: str,
+        valid_from: datetime | None = None,
+        valid_until: datetime | None = None,
+    ) -> dict:
+        return self.repository.mutate_guest_qualification(
+            actor_id,
+            target_person_id,
+            action,
+            expected_version=expected_version,
+            reason=reason,
+            request_id=request_id,
+            valid_from=valid_from,
+            valid_until=valid_until,
+        )

@@ -20,7 +20,7 @@ from shared_module.mobile_api import (
     MobilePrincipal,
     TokenPair,
 )
-from sqlalchemy import Engine, and_, func, or_, select, text, update
+from sqlalchemy import Engine, and_, func, literal, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -57,12 +57,12 @@ class MobileRepository:
     def apple_lifecycle_ready(self) -> bool:
         try:
             with self.engine.connect() as connection:
-                return (
-                    connection.scalar(
-                        text("SELECT version_num FROM ntubtob.alembic_version")
-                    )
-                    == "0010_apple_provider_lifecycle"
-                )
+                return connection.scalar(
+                    text("SELECT version_num FROM ntubtob.alembic_version")
+                ) in {
+                    "0010_apple_provider_lifecycle",
+                    "0011_event_notification_guest_lifecycle",
+                }
         except Exception:
             return False
 
@@ -864,7 +864,13 @@ class MobileRepository:
                 self._revoke_family(session, device, now)
 
     @staticmethod
-    def _notification_row(notification, read_at, cursor_created_at) -> dict:
+    def _notification_row(
+        notification,
+        read_at,
+        cursor_created_at,
+        participation_category=None,
+        destination_event_id=None,
+    ) -> dict:
         return {
             "id": notification.id,
             "type": notification.notification_type,
@@ -875,6 +881,8 @@ class MobileRepository:
             "read_at": read_at,
             "destination_type": notification.destination_type,
             "destination_game_id": notification.destination_game_id,
+            "destination_event_id": destination_event_id,
+            "participation_category": participation_category,
             "_cursor_created_at": cursor_created_at,
         }
 
@@ -893,69 +901,101 @@ class MobileRepository:
         limit: int,
         unread_only: bool,
     ) -> list[dict]:
-        statement = (
-            select(
-                MobileNotificationRecord,
-                MobileNotificationRecipientRecord.read_at,
-                MobileNotificationRecord.created_at,
-            )
-            .join(
-                MobileNotificationRecipientRecord,
-                MobileNotificationRecipientRecord.notification_id
-                == MobileNotificationRecord.id,
-            )
-            .where(
-                MobileNotificationRecipientRecord.person_id == person_id,
-                MobileNotificationRecipientRecord.created_at <= now,
-                self._visible_notification(now),
-            )
-            .order_by(
-                MobileNotificationRecord.created_at.desc(),
-                MobileNotificationRecord.id.desc(),
-            )
-            .limit(limit)
-        )
-        if unread_only:
-            statement = statement.where(
-                MobileNotificationRecipientRecord.read_at.is_(None)
-            )
-        if cursor is not None:
-            created_at, notification_id = cursor
-            statement = statement.where(
-                or_(
-                    MobileNotificationRecord.created_at < created_at,
-                    and_(
-                        MobileNotificationRecord.created_at == created_at,
-                        MobileNotificationRecord.id < notification_id,
-                    ),
-                )
-            )
         with Session(self.engine) as session:
+            event_lifecycle_ready = (
+                session.scalar(text("SELECT version_num FROM ntubtob.alembic_version"))
+                == "0011_event_notification_guest_lifecycle"
+            )
+            category = (
+                MobileNotificationRecipientRecord.participation_category
+                if event_lifecycle_ready
+                else literal(None)
+            )
+            destination_event_id = (
+                MobileNotificationRecord.destination_event_id
+                if event_lifecycle_ready
+                else literal(None)
+            )
+            statement = (
+                select(
+                    MobileNotificationRecord,
+                    MobileNotificationRecipientRecord.read_at,
+                    MobileNotificationRecord.created_at,
+                    category,
+                    destination_event_id,
+                )
+                .join(
+                    MobileNotificationRecipientRecord,
+                    MobileNotificationRecipientRecord.notification_id
+                    == MobileNotificationRecord.id,
+                )
+                .where(
+                    MobileNotificationRecipientRecord.person_id == person_id,
+                    MobileNotificationRecipientRecord.created_at <= now,
+                    self._visible_notification(now),
+                )
+                .order_by(
+                    MobileNotificationRecord.created_at.desc(),
+                    MobileNotificationRecord.id.desc(),
+                )
+                .limit(limit)
+            )
+            if unread_only:
+                statement = statement.where(
+                    MobileNotificationRecipientRecord.read_at.is_(None)
+                )
+            if cursor is not None:
+                created_at, notification_id = cursor
+                statement = statement.where(
+                    or_(
+                        MobileNotificationRecord.created_at < created_at,
+                        and_(
+                            MobileNotificationRecord.created_at == created_at,
+                            MobileNotificationRecord.id < notification_id,
+                        ),
+                    )
+                )
             rows = session.execute(statement).all()
         return [self._notification_row(*row) for row in rows]
 
     def notification_detail(
         self, person_id: int, notification_id: int, now: datetime
     ) -> dict | None:
-        statement = (
-            select(
-                MobileNotificationRecord,
-                MobileNotificationRecipientRecord.read_at,
-                MobileNotificationRecord.created_at,
-            )
-            .join(
-                MobileNotificationRecipientRecord,
-                MobileNotificationRecipientRecord.notification_id
-                == MobileNotificationRecord.id,
-            )
-            .where(
-                MobileNotificationRecord.id == notification_id,
-                MobileNotificationRecipientRecord.person_id == person_id,
-                MobileNotificationRecipientRecord.created_at <= now,
-                self._visible_notification(now),
-            )
-        )
         with Session(self.engine) as session:
+            event_lifecycle_ready = (
+                session.scalar(text("SELECT version_num FROM ntubtob.alembic_version"))
+                == "0011_event_notification_guest_lifecycle"
+            )
+            category = (
+                MobileNotificationRecipientRecord.participation_category
+                if event_lifecycle_ready
+                else literal(None)
+            )
+            destination_event_id = (
+                MobileNotificationRecord.destination_event_id
+                if event_lifecycle_ready
+                else literal(None)
+            )
+            statement = (
+                select(
+                    MobileNotificationRecord,
+                    MobileNotificationRecipientRecord.read_at,
+                    MobileNotificationRecord.created_at,
+                    category,
+                    destination_event_id,
+                )
+                .join(
+                    MobileNotificationRecipientRecord,
+                    MobileNotificationRecipientRecord.notification_id
+                    == MobileNotificationRecord.id,
+                )
+                .where(
+                    MobileNotificationRecord.id == notification_id,
+                    MobileNotificationRecipientRecord.person_id == person_id,
+                    MobileNotificationRecipientRecord.created_at <= now,
+                    self._visible_notification(now),
+                )
+            )
             row = session.execute(statement).one_or_none()
         return None if row is None else self._notification_row(*row)
 

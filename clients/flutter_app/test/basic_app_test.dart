@@ -106,6 +106,7 @@ Map<String, dynamic> eventJson({
       'title': '移地訓練',
       'type': 'trip',
       'status': status,
+      'participation_category': 'guest_player',
       'start_at': '2026-09-01T01:00:00Z',
       'end_at': '2026-09-01T04:00:00Z',
       'attendance': withAttendance
@@ -341,10 +342,13 @@ class DestinationNotificationClient implements NotificationClient {
       const NotificationReadAllResult(0, 0);
 }
 
-MobileNotification destinationNotification(Map<String, dynamic> destination) =>
+MobileNotification destinationNotification(
+  Map<String, dynamic> destination, {
+  String type = 'game_change',
+}) =>
     MobileNotification.fromJson({
       'id': 'notification_147',
-      'type': 'game_change',
+      'type': type,
       'title': '場地異動',
       'body': '比賽改到第二球場。',
       'created_at': '2026-08-22T11:00:00Z',
@@ -656,6 +660,48 @@ void main() {
     expect(find.text('比賽改到第二球場。'), findsOneWidget);
     expect(client.detailReads, 0);
     expect(client.readMutations, 1);
+  });
+
+  testWidgets('Event notification destination loads the authorized Event',
+      (tester) async {
+    final item = destinationNotification(
+      {'type': 'event', 'event_id': 'event_147'},
+      type: 'event_updated',
+    );
+    final client = DestinationNotificationClient([item]);
+    final controller = NotificationCenterController(
+      client: client,
+      cache: NotificationCache(MemoryStore(), 'install'),
+      principal: const Person(
+        'p',
+        'Basic',
+        ['notifications:read', 'events:read'],
+      ),
+    );
+    await controller.load(online: true);
+    final transport = QueueTransport()
+      ..responses.add(ApiResponse(200, eventJson(id: 'event_147')));
+    final api = await apiFor(transport, MemoryStore());
+    await tester.pumpWidget(MaterialApp(
+      home: BasicGamesView(
+        api: api,
+        person: controller.principal,
+        games: const [],
+        online: true,
+        lastSyncedAt: DateTime.utc(2026),
+        notificationController: controller,
+      ),
+    ));
+
+    await tester.tap(find.byKey(const ValueKey('notification-center-entry')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('場地異動'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EventDetailPage), findsOneWidget);
+    expect(find.text('受邀身分：客座球員'), findsOneWidget);
+    expect(transport.calls.single.$2, '/events/event_147');
+    expect(client.detailReads, 0);
   });
 
   testWidgets('unauthorized game destination stays in centre without I/O',

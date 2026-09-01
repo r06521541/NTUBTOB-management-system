@@ -21,6 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SCHEMA = "ntubtob"
@@ -227,8 +228,10 @@ class PersonQualificationRecord(PortalDataBase):
             "valid_until <= valid_from + interval '5 years')",
             name="ck_guest_player_bounded",
         ),
+        CheckConstraint("version > 0", name="ck_person_qualification_version"),
         {"schema": SCHEMA},
     )
+    __mapper_args__ = {"eager_defaults": False}
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     person_id: Mapped[int] = mapped_column(
@@ -249,6 +252,11 @@ class PersonQualificationRecord(PortalDataBase):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
+    )
+    # Added by 0011 and intentionally deferred so the additive migration can
+    # be applied before the new runtime without breaking 0010 read paths.
+    version: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("1"), deferred=True
     )
 
 
@@ -564,7 +572,8 @@ class MobileNotificationRecord(PortalDataBase):
             "notification_type IN ("
             "'game_reminder', 'attendance_reminder', 'game_change', "
             "'officer_personal', 'officer_game_broadcast', "
-            "'officer_team_broadcast', 'admin_system_announcement')",
+            "'officer_team_broadcast', 'admin_system_announcement', "
+            "'event_published', 'event_updated', 'event_cancelled')",
             name="ck_mobile_notification_type",
         ),
         CheckConstraint(
@@ -580,8 +589,12 @@ class MobileNotificationRecord(PortalDataBase):
             name="ck_mobile_notification_visibility",
         ),
         CheckConstraint(
-            "(destination_type = 'notification' AND destination_game_id IS NULL) OR "
-            "(destination_type = 'game' AND destination_game_id IS NOT NULL)",
+            "(destination_type = 'notification' AND destination_game_id IS NULL "
+            "AND destination_event_id IS NULL) OR "
+            "(destination_type = 'game' AND destination_game_id IS NOT NULL "
+            "AND destination_event_id IS NULL) OR "
+            "(destination_type = 'event' AND destination_game_id IS NULL "
+            "AND destination_event_id IS NOT NULL)",
             name="ck_mobile_notification_destination",
         ),
         {"schema": SCHEMA},
@@ -594,6 +607,12 @@ class MobileNotificationRecord(PortalDataBase):
     destination_type: Mapped[str] = mapped_column(String(20), nullable=False)
     destination_game_id: Mapped[Optional[int]] = mapped_column(
         BigInteger, ForeignKey(f"{SCHEMA}.games.id", ondelete="RESTRICT")
+    )
+    destination_event_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="RESTRICT"),
+        server_default=text("NULL"),
+        deferred=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
@@ -758,6 +777,11 @@ class MobileNotificationRecipientRecord(PortalDataBase):
             "read_at IS NULL OR read_at >= created_at",
             name="ck_mobile_notification_read_time",
         ),
+        CheckConstraint(
+            "participation_category IS NULL OR participation_category IN "
+            "('team_player', 'guest_player', 'affiliate', 'staff', 'other')",
+            name="ck_mobile_notification_recipient_category",
+        ),
         {"schema": SCHEMA},
     )
 
@@ -776,6 +800,9 @@ class MobileNotificationRecipientRecord(PortalDataBase):
         DateTime(timezone=True), nullable=False
     )
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    participation_category: Mapped[Optional[str]] = mapped_column(
+        String(30), server_default=text("NULL"), deferred=True
+    )
 
 
 Index(
@@ -788,6 +815,122 @@ Index(
     MobileNotificationRecipientRecord.person_id,
     MobileNotificationRecipientRecord.notification_id,
     postgresql_where=text("read_at IS NULL"),
+)
+
+
+class EventNotificationPublishAuditRecord(PortalDataBase):
+    __tablename__ = "event_notification_publish_audits"
+    __table_args__ = (
+        UniqueConstraint(
+            "notification_id", name="uq_event_notification_audit_notification"
+        ),
+        UniqueConstraint("request_id", name="uq_event_notification_audit_request"),
+        CheckConstraint(
+            "notification_type IN "
+            "('event_published', 'event_updated', 'event_cancelled')",
+            name="ck_event_notification_audit_type",
+        ),
+        CheckConstraint(
+            "event_version > 0", name="ck_event_notification_audit_version"
+        ),
+        CheckConstraint(
+            "recipient_count BETWEEN 1 AND 500",
+            name="ck_event_notification_audit_recipients",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    notification_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.mobile_notifications.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    event_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.events.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    event_audit_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.event_audit.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    actor_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    notification_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    event_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    preview_revision: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    recipient_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    request_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_event_notification_audits_event",
+    EventNotificationPublishAuditRecord.event_id,
+    EventNotificationPublishAuditRecord.id,
+)
+
+
+class GuestQualificationAuditRecord(PortalDataBase):
+    __tablename__ = "guest_qualification_audits"
+    __table_args__ = (
+        UniqueConstraint("request_id", name="uq_guest_qualification_audit_request"),
+        CheckConstraint(
+            "action IN ('granted', 'extended', 'revoked')",
+            name="ck_guest_qualification_audit_action",
+        ),
+        CheckConstraint(
+            "expected_version >= 0 AND resulting_version > 0",
+            name="ck_guest_qualification_audit_versions",
+        ),
+        CheckConstraint(
+            "length(reason) BETWEEN 3 AND 300",
+            name="ck_guest_qualification_audit_reason",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    qualification_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.person_qualifications.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    target_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    actor_person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    action: Mapped[str] = mapped_column(String(20), nullable=False)
+    expected_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    resulting_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False)
+    request_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    request_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    before_state: Mapped[Optional[dict]] = mapped_column(JSONB)
+    after_state: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+
+Index(
+    "ix_guest_qualification_audits_target",
+    GuestQualificationAuditRecord.target_person_id,
+    GuestQualificationAuditRecord.id,
 )
 
 

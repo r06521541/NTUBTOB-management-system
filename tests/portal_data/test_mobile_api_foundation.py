@@ -65,7 +65,7 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
         setup_legacy_fixture()
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", DATABASE_URL)
-        command.upgrade(config, "head")
+        command.upgrade(config, "0010_apple_provider_lifecycle")
         with self.engine.begin() as connection:
             connection.execute(
                 text(

@@ -6,6 +6,7 @@
             <p class="portal-eyebrow">{{ event.type_label }}</p>
             <h1>{{ event.title }}</h1>
             <p>{{ event.start_datetime.year }} 年 {{ event.start_datetime.month }} 月 {{ event.start_datetime.day }} 日 · {{ event.start_datetime.strftime('%H:%M') }}{% if event.end_datetime %}－{{ event.end_datetime.strftime('%m/%d %H:%M') }}{% endif %}</p>
+            <p class="portal-muted">受邀身分：{{ event.participation_category_label }}</p>
         </div>
         {% if event.status == 'cancelled' %}<span class="portal-badge portal-badge-declined">活動已取消</span>{% else %}<span class="portal-badge portal-badge-attending">已發布</span>{% endif %}
     </section>

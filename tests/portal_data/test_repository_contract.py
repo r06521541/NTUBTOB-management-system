@@ -323,17 +323,20 @@ class RepositoryContractMixin:
     def test_event_attendance_rechecks_active_and_open_state(self):
         now = datetime.now(timezone.utc)
         admin = self.repository.create_person("虛構出席管理員", access_level="admin")
+        manager = self.repository.create_person(
+            "虛構出席活動管理員", access_level="officer"
+        )
         player = self.repository.create_person(
             "虛構待停用球員", qualifications=("team_player",)
         )
         event_id = self.repository.create_event(
-            admin.id,
+            manager.id,
             "虛構狀態活動",
             "practice",
             now + timedelta(days=2),
             ("team_player",),
         )
-        self.repository.publish_event(admin.id, event_id, "publish-status-event")
+        self.repository.publish_event(manager.id, event_id, "publish-status-event")
         self.repository.change_status(
             admin.id,
             player.id,
@@ -350,16 +353,18 @@ class RepositoryContractMixin:
             "虛構取消活動球員", qualifications=("team_player",)
         )
         cancelled_id = self.repository.create_event(
-            admin.id,
+            manager.id,
             "虛構取消活動",
             "practice",
             now + timedelta(days=3),
             ("team_player",),
         )
         self.repository.publish_event(
-            admin.id, cancelled_id, "publish-cancelled-attendance"
+            manager.id, cancelled_id, "publish-cancelled-attendance"
         )
-        self.repository.cancel_event(admin.id, cancelled_id, "cancel-attendance-event")
+        self.repository.cancel_event(
+            manager.id, cancelled_id, "cancel-attendance-event"
+        )
         with self.assertRaises(ConflictError):
             self.repository.reply_to_event_attendance(
                 active.id, cancelled_id, "attending", False, now
@@ -1025,8 +1030,9 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
         )
 
         for actor in (inactive, unlinked):
-            with self.subTest(person_id=actor.id), self.assertRaises(
-                AuthorizationError
+            with (
+                self.subTest(person_id=actor.id),
+                self.assertRaises(AuthorizationError),
             ):
                 production_repository.create_event(
                     actor.id,

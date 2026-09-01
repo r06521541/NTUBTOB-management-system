@@ -13,6 +13,9 @@ from shared_lib.shared_module.portal_data.local_database import (
 from tests.portal_data._apple_lifecycle_test_harness import (
     remove_retained_apple_evidence_from_isolated_test_database,
 )
+from tests.portal_data._event_guest_lifecycle_test_harness import (
+    prepare_event_guest_lifecycle_downgrade_for_isolated_test_database,
+)
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -33,11 +36,26 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
 
     def test_exact_fixture_and_migration_chain_are_reproducible(self):
         config = Config("alembic.ini")
+        current_revision = (
+            prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
+                self.engine
+            )
+        )
+        if current_revision in {
+            "0005_mobile_auth_api_foundation",
+            "0006_staging_broker_operation_journal",
+            "0007_mobile_notifications",
+            "0008_mobile_notification_delivery",
+            "0009_event_management_writes",
+            "0010_apple_provider_lifecycle",
+        }:
+            command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.stamp(config, "0001_legacy_baseline")
         command.upgrade(config, "head")
+        prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         command.downgrade(config, "0001_legacy_baseline")

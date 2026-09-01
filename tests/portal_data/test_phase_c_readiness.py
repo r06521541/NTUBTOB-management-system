@@ -191,7 +191,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
     def test_migration_verifier_rejects_an_additional_head(self):
         scripts = Mock()
         scripts.get_heads.return_value = [
-            "0010_apple_provider_lifecycle",
+            "0011_event_notification_guest_lifecycle",
             "fake_additional_head",
         ]
         with patch(
@@ -215,7 +215,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
             ):
                 verify_migration_artifact()
 
-    def test_migration_verifier_accepts_the_single_apple_lifecycle_head(self):
+    def test_migration_verifier_accepts_the_single_current_head(self):
         verify_migration_artifact()
 
 

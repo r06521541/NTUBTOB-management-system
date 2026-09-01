@@ -1,0 +1,303 @@
+# TASK-175：Event Notification and Guest-Player Lifecycle
+
+## Task metadata
+
+- task_type: `delivery`
+- delivery_group: `task-175-event-guest-lifecycle`
+- requires_independent_pr: `true`
+- acceptance_level: `L3`（schema／notification／authorization；repository-only）
+- base: `ccc5f596dc9560d713dbf93a305c64d2d1642927`
+- branch: `codex/task-175-event-guest-lifecycle`
+- owner_approved: 2026-09-01
+
+## Product outcome
+
+將已完成的Event／Activity管理與attendance補成可用的內部通知與guest-player管理閉環。Event發布、編輯、取消
+仍不自動發通知；Officer／Admin必須從immutable invitee snapshot預覽exact recipient count，以typed confirmation與
+idempotency key明確建立durable in-app notification。本任務不接真實push、LINE、Discord或provider delivery。
+
+Guest-player管理只涵蓋stable Person的bounded `guest_player` qualification：授予／延長／撤銷、有效／已過期分類、
+reason與append-only audit，以及Event eligibility／immutable invitee snapshot的team／guest分流。不新增無Person的同行者、
+不從名字自動配對identity，不將guest計入正式隊員統計。
+
+## Required behavior
+
+1. 新Event notification必須是發布後的獨立操作；preview與confirm都重讀active Officer／Admin、published／
+   cancelled state、immutable included invitees與exact event version。預覽變動、snapshot缺失、空或超界audience一律停止。
+2. 第一版只建立durable in-app history，destination可回到Event detail。Publish／update／cancel notification type必須
+   schema-bounded，recipient rows與publish audit在同transaction建立，同session／idempotency key及同request安全重試，
+   conflict或unknown不自動重送。External delivery outbox不建立可發送工作。
+3. 收件者只能來自該Event已發布的included invitee snapshot；不依當前qualification重算，不將manual exclude、
+   inactive／disabled／blocked Person或其他Event混入。歷史notification保留發送當下的recipient snapshot。
+4. Guest-player mutation只對active Person，必須Asia/Taipei-aware bounded period，最長五年、reason、request ID、
+   CSRF／server authorization與audit。延長與撤銷重讀actor／target／version；失敗不部分改寫。
+5. Web Portal預設顯示active guest，可切換expired／revoked；明確顯示期限、與Member／team-player分類，
+   並提供授予／延長／撤銷確認。不顯示provider subject、原始identity或非必要個資。
+6. Mobile/Web Event read可安全顯示team／guest分類與in-app notification destination；Basic不取得管理預覽、
+   未回覆全名單或qualification mutation capability。
+7. Additive migration需與0010 runtime安全共存；新Event notification寫入只在exact new head啟用，舊版LINE／Google／
+   Apple login、Game notification與Event attendance不得因migration ordering失效。Downgrade不刪除notification／audit evidence。
+
+## Advisor claims
+
+### Notification/Data advisor
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `advisor/read-only`
+- claim_id: `task-175-event-notification-discovery-20260901`
+- lease_version: 1
+- scope: 盤點Event snapshot、notification schema/service、Web/Mobile callers與minimal migration/test boundary
+- write: `read-only`
+- report_to: `/root`
+
+### Guest/Auth advisor
+
+- actor_id: `/root/task170_android_candidate_writer`
+- role: `advisor/read-only`
+- claim_id: `task-175-guest-auth-discovery-20260901`
+- lease_version: 1
+- scope: 盤點guest qualification現況、UI gap、authorization/audit/concurrency與minimal tests
+- write: `read-only`
+- report_to: `/root`
+
+Advisor不得修改working tree、commit、push、PR或外部狀態；完成時必須主動送回full HEAD、findings、
+recommended owned paths、tests、limits與external mutations。
+
+## Accepted discovery and writer claim
+
+- Event notification 使用專用 preview／confirm service，不擴張會建立 `push=pending` 的 generic publisher。
+- 同一線性 additive `0011` 同時承載 Event notification destination／audit／recipient immutability 與
+  guest qualification version／extended audit；不建立 parallel migration head。
+- Guest lifecycle 固定為 `scheduled`／`active`／`expired`／`revoked`；Event eligibility 以 Event `start_at` 判定。
+- Guest manager 使用狹義 projection／route，不放寬 broad `admin_dashboard`；active persisted Officer 與 active
+  allowlisted Member admin 可管理，persisted Admin 本身不足以越過 DEC-082。
+- Mobile 本任務只讀 Event 通知／own snapshot category，不新增 guest mutation endpoint。
+
+### Sole writer
+
+- actor_id: `/root/task174_apple_lifecycle_writer`
+- role: `codex-writer`
+- claim_id: `task-175-event-guest-writer-20260901`
+- lease_version: 1
+- discovery_head: `82bdb7956d4b8f1a6ef35292779c772e40235c07`
+- assigned_head: supplied as the exact immutable authority commit in the mandatory assignment packet
+- owned_paths: `migrations/versions/0011_event_notification_guest_lifecycle.py`, Event／notification／qualification related
+  sections in `shared_lib/shared_module/**`, `apps/web_portal/**`, `apps/mobile_api/**`, `clients/flutter_app/**`, focused tests,
+  `docs/coordination/reports/TASK-175.md`, and this task／HANDOFF status only
+- forbidden_paths: broker fixture／adapter, deployment／cloud／Secret／provider operators, unrelated services, archive
+- report_to: `/root`
+
+Writer must immediately ACK the exact claim and report target, send a heartbeat every 10–15 minutes, and proactively deliver full
+commit SHA／tests／dirty paths／findings／limits／external mutations to Main. One writer owns all shared/schema paths until immutable
+handoff; no second writer may edit this branch concurrently.
+
+### Independent Data/Auth reviewer
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 1
+- review_target: `6c35bb6245326f14c08676293750b8b73747307c`
+- scope: migration safety, snapshot-derived recipients, in-app-only delivery, idempotency/concurrency, guest authority/lifecycle,
+  Event-start eligibility, no-disclosure and pre-0011 compatibility
+- write: `read-only`
+- report_to: `/root`
+
+### Correction lease
+
+- actor_id: `/root/task174_apple_lifecycle_writer`
+- role: `codex-writer`
+- claim_id: `task-175-event-guest-writer-20260901`
+- lease_version: 3
+- correction_base: `563eb5d801f3d4d6ee1e7b073446c69fff46d83c`
+- scope: close the reviewed legacy guest bypass, production status/notification race, persisted-Officer Web reachability,
+  and the directly corresponding adversarial regression gaps only
+- report_to: `/root`
+
+The correction must keep broad identity administration allowlisted-admin-only. Persisted Officer authority may be used only by the narrow
+Event/guest surfaces through a dedicated production resolver/context; it must not grant member, identity, role, status, audit or unrelated
+admin capabilities. Legacy generic qualification routes must reject `guest_player` server-side. Actual production status mutation must
+serialize with Event notification recipient selection, and tests must prove bypass denial, authority separation, replay mismatch,
+rollback and status-race behavior.
+
+### Correction rereview
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 2
+- review_target: `5291158dbf4ca577d68f313987e96c431cde8065`
+- scope: verify closure of the three P1 findings and P2 adversarial coverage without regression of previously accepted boundaries
+- report_to: `/root`
+
+### Final correction lease
+
+- actor_id: `/root/task174_apple_lifecycle_writer`
+- role: `codex-writer`
+- claim_id: `task-175-event-guest-writer-20260901`
+- lease_version: 4
+- correction_base: `83211e1f628f549665bb93ab415e6d1dd6a91a58`
+- scope: canonicalize advisory locks to `ADMIN_LOCK_KEY` then `EVENT_SNAPSHOT_LOCK_KEY`, move Event serialization to the
+  actual `change_person_status` production writer, remove the misplaced qualification locks, and correct only the corresponding tests
+- report_to: `/root`
+
+This is the second and final bounded correction round. Tests must call `change_person_status` directly and prove its canonical lock order;
+grant/revoke qualification must not acquire Event before Admin. No previously accepted route, replay, lifecycle or notification behavior
+may be broadened.
+
+### Final correction rereview
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 3
+- review_target: `67e260f8dae4cb3078736e6b11374dc6eaffa17d`
+- scope: verify actual status-writer serialization, global lock order and regression-test correction; confirm all earlier accepted boundaries remain
+- report_to: `/root`
+
+### Owner-approved exceptional lock correction
+
+- owner_approved: 2026-09-01
+- reason: the normal two-round correction budget was exhausted while one exact actor-row/advisory-lock deadlock remained
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-lock-preamble-correction-20260901`
+- lease_version: 1
+- correction_base: `72781ec2e0c143de872037908b3c6d5a7b09167b`
+- owned_paths: `shared_lib/shared_module/portal_data/identity_lifecycle.py`, the two directly corresponding portal-data tests,
+  `docs/coordination/reports/TASK-175.md`, this task and HANDOFF status
+- exact_scope: acquire `ADMIN_LOCK_KEY`, then `EVENT_SNAPSHOT_LOCK_KEY`, then perform actor/target row validation and mutation;
+  add a deterministic PostgreSQL test that exercises the competing Event transaction and actor-row acquisition
+- report_to: `/root`
+
+This exceptional correction may not alter guest lifecycle, Web authority, Event notification contents, migration, API, Flutter or any
+other behavior. The prior writer claim is complete and has no write authority in this lease.
+
+### Exceptional correction rereview
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 4
+- review_target: `e64c915e50b409d0c924503e00689f0eaf518a73`
+- scope: verify both advisory locks precede actor row acquisition and the real competing Event-transaction regression closes the deadlock
+- report_to: `/root`
+
+### Hosted correction lease
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 1
+- correction_base: `366aefaece204274d35dc4d5eb9b375f9fd96704`
+- scope: correct only PR #229 hosted Python quality, isolated fixture collisions,
+  0011/model metadata compatibility, and legacy test fixture use of the blocked
+  guest path; preserve accepted product and lock semantics
+- report_to: `/root`
+
+This correction uses generated isolated member IDs, exact PostgreSQL JSONB
+metadata, a pre-0011-safe deferred qualification version default, and the formal
+guest lifecycle in affected tests. PostgreSQL 15/16 hosted CI remains the
+acceptance evidence; no production migration or runtime operation is authorized.
+
+### Hosted correction lease 2
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 2
+- correction_base: `6eebdf9d26b94a157425a94125c9ecee25935c14`
+- scope: correct the hosted SQLAlchemy result-consumption error, the attendance
+  test's stale manager fixture, and exact test-database revision leakage only;
+  preserve accepted authorization, advisory-lock, migration, and rollout checks
+- report_to: `/root`
+
+Older rollout tests must establish their intended exact 0010 schema rather than
+following the moving Alembic head. TASK-175 integration classes remain responsible
+for exact, test-database-gated 0011 cleanup. Unknown, missing, non-test, or future
+revisions must still stop before DDL.
+
+### Hosted correction lease 3
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 3
+- correction_base: `1460d76b76b2570d6a09ac05befee58f77aa471b`
+- scope: restore the Event rollout drift suite's isolated PostgreSQL database to
+  a canonical exact 0010 schema after its final mutation; do not change rollout
+  checks, legacy revision expectations, product code, or migrations
+- report_to: `/root`
+
+The canonical reset may run only against the repository's local isolated test
+database and one known pre-0011 revision. Non-PostgreSQL, nonlocal, wrong-name,
+missing, branched, unknown, and 0011-or-later revisions must stop before its
+destructive test-schema rebuild.
+
+### Hosted correction lease 4
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 4
+- correction_base: `0e7b47b72894c2307df6dd9b287f61b70321d92e`
+- scope: route Event rollout per-test setup through the same guarded canonical
+  reset as class cleanup, targeting exact 0004 for setup and exact 0010 for
+  teardown; preserve drift checks and all product and migration code
+- report_to: `/root`
+
+The reset target itself must be an allowlisted pre-0011 revision. Setup and
+teardown both reject unproven database identity or revision state before any
+schema DDL.
+
+### Hosted correction lease 5
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 5
+- correction_base: `91d32e266326dbf3a4acd60bef3234c0b5484dc8`
+- scope: pin the three older Mobile foundation, Mobile notification, and staging
+  broker migration integration fixtures to the exact 0010 revision their schema
+  assertions own; retain TASK-175 as the current head/0011 suite
+- report_to: `/root`
+
+Older suites must not follow a moving Alembic head while asserting an historical
+exact revision. Their exact assertions remain unchanged and TASK-175 continues to
+own the newest additive migration coverage.
+
+### Hosted correction lease 6
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 6
+- correction_base: `033cc56346ae8b1a4bc34cfa7a05fc6bed8ba5f9`
+- scope: correct Mobile notification migration ownership to current head/0011
+  because it validates the current notification ORM and Event destination column;
+  retain Mobile API foundation and staging broker as historical exact-0010 suites
+- report_to: `/root`
+
+Current-model integration tests must establish the current migration revision.
+Historical suites remain pinned to the revision whose schema contract they own;
+neither class may weaken its RLS, model, constraint, index, or service assertions.
+
+## Verification budget
+
+- Test-first repository／service／Web／Mobile focused suites。
+- PostgreSQL 15.8／16.4 additive migration matrix。
+- Web Portal full、Mobile API affected-full、shared callers／OpenAPI／Flutter notification/event focused tests。
+- 一位Data／Authorization targeted reviewer與Main diff/scope review。
+- 一個ready PR；required hosted CI全綠才可merge。
+
+## Stop conditions
+
+- 需發送真實LINE／push／Discord／email、讀取Secret payload、新provider／IAM／cloud／production／真實使用者或資料mutation。
+- 需將Event publish改為自動通知、重算published invitee snapshot、接受client提供recipient IDs或放寬Officer／Admin授權。
+- 需新增無Person的guest companion、將guest自動轉Member／team_player、或修改crawler／linked Game ownership。
+- dirty paths超出active writer owned paths，或base／branch／claim不一致。
+
+## External boundary
+
+本任務只授權repository branch／commit／push／PR／CI／merge。Production schema／runtime／deployment、真實notification與
+guest資料mutation是完成repository delivery後的獨立Owner gate。

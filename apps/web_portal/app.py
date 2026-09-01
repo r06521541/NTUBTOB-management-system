@@ -9,7 +9,6 @@ from urllib.parse import urlencode, urlsplit
 
 import messages
 import requests
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from admin_security import (
     admin_required,
     capability_required,
@@ -56,6 +55,7 @@ from identity_maintenance import (
     is_phase_c_enabled,
     is_rollout_freeze_enabled,
 )
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from line_login import (
     LINE_HTTP_TIMEOUT_SECONDS,
     InvalidOAuthState,
@@ -1121,7 +1121,7 @@ def _parse_event_datetime(name, *, required=True):
 
 
 def _event_management_context():
-    if not has_capability(get_current_principal(), MANAGE_EVENTS):
+    if not _has_narrow_event_management_authority():
         abort(403)
     context = _event_read_context()
     if context is None:
@@ -1148,9 +1148,36 @@ def _event_management_service():
         PostgresTeamPortalRepository(
             repository.engine,
             parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
-            allow_persisted_event_managers=LOCAL_PREVIEW_MODE_ENABLED,
+            allow_persisted_event_managers=True,
         )
     )
+
+
+def _has_narrow_event_management_authority():
+    principal = get_current_principal()
+    if has_capability(principal, MANAGE_EVENTS):
+        return True
+    lifecycle_context = getattr(g, "portal_lifecycle_context", None)
+    if lifecycle_context is None:
+        return False
+    lifecycle_principal = lifecycle_context[1]
+    person = lifecycle_principal.person
+    return (
+        getattr(person, "status", getattr(person, "portal_status", None)) == "active"
+        and getattr(person, "access_level", None) == "officer"
+    )
+
+
+def event_manager_required(view):
+    @wraps(view)
+    def protected_view(*args, **kwargs):
+        if get_current_principal() is None:
+            return redirect(url_for("redirect_to_login", next=request.path))
+        if not _has_narrow_event_management_authority():
+            abort(403)
+        return view(*args, **kwargs)
+
+    return protected_view
 
 
 def _event_management_projection(event):
@@ -1179,7 +1206,9 @@ def _event_management_projection(event):
 def _event_write_failure(error):
     from shared_module.portal_data.domain import (
         AuthorizationError as PortalAuthorizationError,
-        ConflictError as PortalConflictError,
+    )
+    from shared_module.portal_data.domain import ConflictError as PortalConflictError
+    from shared_module.portal_data.domain import (
         ValidationError as PortalValidationError,
     )
 
@@ -1200,6 +1229,9 @@ def _local_event_time(value):
 def _web_event_projection(event):
     public = project_public_event(event)
     public["type_label"] = EVENT_TYPE_LABELS[public["type"]]
+    public["participation_category_label"] = EVENT_ELIGIBILITY_LABELS.get(
+        public["participation_category"], "其他"
+    )
     public["start_datetime"] = _local_event_time(public["start_at"])
     public["end_datetime"] = (
         _local_event_time(public["end_at"]) if public["end_at"] else None
@@ -1323,7 +1355,9 @@ def event_detail(event_key):
 def _event_attendance_failure(error):
     from shared_module.portal_data.domain import (
         AuthorizationError as PortalAuthorizationError,
-        ConflictError as PortalConflictError,
+    )
+    from shared_module.portal_data.domain import ConflictError as PortalConflictError
+    from shared_module.portal_data.domain import (
         ValidationError as PortalValidationError,
     )
 
@@ -1390,7 +1424,7 @@ def reply_to_activity_attendance(event_key, activity_key):
 
 
 @app.get("/manage/events")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def manage_events():
     _, principal = _event_management_context()
     service = _event_management_service()
@@ -1411,7 +1445,7 @@ def manage_events():
 
 
 @app.post("/manage/events/new")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def create_managed_event():
     require_valid_csrf()
     _, principal = _event_management_context()
@@ -1440,10 +1474,19 @@ def _managed_event_page(event_id):
         preview = service.eligibility_preview(principal.person.id, event_id)
     except Exception as error:
         return _event_write_failure(error)
+    notification_preview = None
+    if event["status"] != "draft":
+        try:
+            notification_preview = service.preview_event_notification(
+                principal.person.id, event_id
+            )
+        except Exception:
+            notification_preview = None
     return render_template(
         "event_management_edit.html",
         event=event,
         preview=preview,
+        notification_preview=notification_preview,
         csrf_token=get_or_create_csrf_token(),
         new_request_id=lambda: secrets.token_urlsafe(24),
         event_types=EVENT_TYPE_LABELS,
@@ -1453,13 +1496,13 @@ def _managed_event_page(event_id):
 
 
 @app.get("/manage/events/<event_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def edit_managed_event(event_key):
     return _managed_event_page(_parse_management_key(event_key, "event_"))
 
 
 @app.post("/manage/events/<event_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def update_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1487,7 +1530,7 @@ def update_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/activities")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def add_managed_activity(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1509,7 +1552,7 @@ def add_managed_activity(event_key):
 
 
 @app.post("/manage/events/<event_key>/activities/<activity_key>")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def update_managed_activity(event_key, activity_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1533,7 +1576,7 @@ def update_managed_activity(event_key, activity_key):
 
 
 @app.post("/manage/events/<event_key>/activities/<activity_key>/action")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def managed_activity_action(event_key, activity_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1565,7 +1608,7 @@ def managed_activity_action(event_key, activity_key):
 
 
 @app.post("/manage/events/<event_key>/overrides")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def set_managed_event_override(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1588,7 +1631,7 @@ def set_managed_event_override(event_key):
 
 
 @app.post("/manage/events/<event_key>/publish")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def publish_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1604,7 +1647,7 @@ def publish_managed_event(event_key):
 
 
 @app.post("/manage/events/<event_key>/cancel")
-@capability_required(MANAGE_EVENTS)
+@event_manager_required
 def cancel_managed_event(event_key):
     require_valid_csrf()
     event_id = _parse_management_key(event_key, "event_")
@@ -1617,6 +1660,91 @@ def cancel_managed_event(event_key):
     except Exception as error:
         return _event_write_failure(error)
     return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.post("/manage/events/<event_key>/notification")
+@event_manager_required
+def confirm_managed_event_notification(event_key):
+    require_valid_csrf()
+    event_id = _parse_management_key(event_key, "event_")
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        service.confirm_event_notification(
+            principal.person.id,
+            event_id,
+            notification_type=request.form.get("notification_type", ""),
+            preview_revision=request.form.get("preview_revision", ""),
+            typed_confirmation=request.form.get("typed_confirmation", ""),
+            request_id=request.form.get("request_id", ""),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("edit_managed_event", event_key=event_key))
+
+
+@app.get("/manage/guests")
+@event_manager_required
+def manage_guests():
+    state = request.args.get("state", "active")
+    if state not in {"scheduled", "active", "expired", "revoked"}:
+        abort(400)
+    _, principal = _event_management_context()
+    service = _event_management_service()
+    try:
+        guests = tuple(
+            {
+                **guest,
+                "valid_from_local": guest["valid_from"].astimezone(local_timezone),
+                "valid_until_local": guest["valid_until"].astimezone(local_timezone),
+            }
+            for guest in service.managed_guests(principal.person.id, state)
+        )
+        candidates = service.guest_candidates(principal.person.id)
+    except Exception as error:
+        return _event_write_failure(error)
+    return render_template(
+        "guest_management.html",
+        guests=guests,
+        candidates=candidates,
+        selected_state=state,
+        csrf_token=get_or_create_csrf_token(),
+        new_request_id=lambda: secrets.token_urlsafe(24),
+    )
+
+
+@app.post("/manage/guests/<person_key>")
+@event_manager_required
+def mutate_managed_guest(person_key):
+    require_valid_csrf()
+    person_id = _parse_management_key(person_key, "person_")
+    _, principal = _event_management_context()
+    action = request.form.get("action", "")
+    try:
+        expected_version = int(request.form.get("expected_version", ""))
+    except ValueError:
+        abort(400)
+    service = _event_management_service()
+    try:
+        service.mutate_guest_qualification(
+            principal.person.id,
+            person_id,
+            action,
+            expected_version=expected_version,
+            reason=request.form.get("reason", ""),
+            request_id=request.form.get("request_id", ""),
+            valid_from=(
+                _optional_form_datetime("valid_from") if action == "grant" else None
+            ),
+            valid_until=(
+                _optional_form_datetime("valid_until")
+                if action in {"grant", "extend"}
+                else None
+            ),
+        )
+    except Exception as error:
+        return _event_write_failure(error)
+    return redirect(url_for("manage_guests"))
 
 
 @app.route("/dashboard")
@@ -2266,7 +2394,7 @@ def manage_person_qualifications(person_id):
         qualification = request.form.get("qualification", "")
         request_id = _required_request_id("qualification-")
         reason = request.form.get("reason", "").strip()
-        if qualification not in {"guest_player", "affiliate", "staff"}:
+        if qualification not in {"affiliate", "staff"}:
             abort(400)
         if not 3 <= len(reason) <= 300:
             abort(400)
@@ -2449,6 +2577,15 @@ def identity_admin_action():
     action = request.form.get("action", "")
     reason = request.form.get("reason", "")
     request_id = request.form.get("request_id", "")
+    if (
+        action in {"grant_qualification", "revoke_qualification"}
+        and request.form.get("qualification", "") == "guest_player"
+    ):
+        abort(400)
+    if action == "create_member" and "guest_player" in request.form.getlist(
+        "qualification"
+    ):
+        abort(400)
     if action == "create_member":
         request_id = _required_request_id("member-create-")
     identity_id = request.form.get("identity_id", type=int)
@@ -2470,6 +2607,8 @@ def identity_admin_action():
     try:
         if action == "approve_non_member" and identity_id is not None:
             qualifications = request.form.getlist("qualification")
+            if "guest_player" in qualifications:
+                abort(400)
             repository.approve_non_member(
                 actor_person_id,
                 identity_id,

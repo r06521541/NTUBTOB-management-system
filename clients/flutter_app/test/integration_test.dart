@@ -192,6 +192,7 @@ Map<String, dynamic> eventJson(
       'title': '移地訓練',
       'type': 'trip',
       'status': status,
+      'participation_category': 'guest_player',
       'start_at': '2026-09-01T01:00:00Z',
       'end_at': '2026-09-01T04:00:00Z',
       'activities': [
@@ -1625,6 +1626,10 @@ void main() {
     expect(
         events.first.activities.map((activity) => activity.position), [1, 2]);
     expect(events.last.cancelled, isTrue);
+    expect(
+      events.first.participationCategory,
+      EventParticipationCategory.guestPlayer,
+    );
     expect(transport.calls.last.$2, '/events?cursor=next');
   });
 
@@ -1844,6 +1849,10 @@ void main() {
       'type': 'game',
       'game_id': 'game_-112001',
     }, notificationId);
+    final event = NotificationDestination.parseOrFallback({
+      'type': 'event',
+      'event_id': 'event_91',
+    }, notificationId);
     final unknown = NotificationDestination.parseOrFallback({
       'type': 'url',
       'url': 'https://example.invalid/private',
@@ -1861,6 +1870,8 @@ void main() {
       {'type': 'game', 'game_id': 'game_01'},
       {'type': 'game', 'game_id': 'game_-9223372036854775809'},
       {'type': 'game', 'game_id': 'game_9223372036854775808'},
+      {'type': 'event', 'event_id': 'event_01'},
+      {'type': 'event', 'event_id': 'event_9223372036854775808'},
       {
         'type': 'game',
         'game_id': 'game_1',
@@ -1881,6 +1892,14 @@ void main() {
       '/games/game_-112001',
     );
     expect(game.safeRoute(notificationVisible: true), '/notifications');
+    expect(
+      event.safeRoute(
+        notificationVisible: true,
+        authorizedEventIds: const {'event_91'},
+      ),
+      '/events/event_91',
+    );
+    expect(event.safeRoute(notificationVisible: true), '/notifications');
     expect(unknown.safeRoute(notificationVisible: true), '/notifications');
     expect(
       minimum.safeRoute(

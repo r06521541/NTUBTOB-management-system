@@ -5,6 +5,7 @@ import sys
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 SHARED_LIB_ROOT = Path(__file__).resolve().parents[2] / "shared_lib"
 if str(SHARED_LIB_ROOT) not in sys.path:
@@ -15,7 +16,11 @@ from alembic.config import Config
 from shared_module.mobile_api import Conflict, MobilePrincipal, secret_hash
 from shared_module.mobile_notifications import NotificationPublishingService
 from shared_module.portal_data.mobile_repository import MobileRepository
-from shared_module.portal_data.models import PortalDataBase
+from shared_module.portal_data.models import (
+    MobileNotificationRecipientRecord,
+    MobileNotificationRecord,
+    PortalDataBase,
+)
 from sqlalchemy import create_engine, text
 
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
@@ -48,6 +53,38 @@ class MobileNotificationModelContractTest(unittest.TestCase):
         self.assertIn(
             "status = 'active'",
             str(active_token.dialect_options["postgresql"]["where"]),
+        )
+
+    def test_pre_0011_notification_projection_does_not_load_event_column(self):
+        notification = SimpleNamespace(
+            id=1,
+            notification_type="game_reminder",
+            title="Fictional reminder",
+            body="Fictional body",
+            created_at=NOW,
+            visible_until=NOW + timedelta(days=90),
+            destination_type="notification",
+            destination_game_id=None,
+        )
+        projected = MobileRepository._notification_row(
+            notification, None, NOW, None, None
+        )
+        self.assertIsNone(projected["destination_event_id"])
+
+    def test_additive_nullable_columns_are_deferred_and_server_defaulted(self):
+        notification_table = PortalDataBase.metadata.tables[
+            "ntubtob.mobile_notifications"
+        ]
+        recipient_table = PortalDataBase.metadata.tables[
+            "ntubtob.mobile_notification_recipients"
+        ]
+        self.assertIsNotNone(notification_table.c.destination_event_id.server_default)
+        self.assertIsNotNone(recipient_table.c.participation_category.server_default)
+        self.assertTrue(
+            MobileNotificationRecord.__mapper__.attrs.destination_event_id.deferred
+        )
+        self.assertTrue(
+            MobileNotificationRecipientRecord.__mapper__.attrs.participation_category.deferred
         )
 
 
@@ -191,7 +228,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0010_apple_provider_lifecycle",
+                "0011_event_notification_guest_lifecycle",
             )
             rls = set(
                 connection.scalars(

@@ -21,6 +21,7 @@
                         </div>
                         <h2>{{ event.title }}</h2>
                         <p>{{ event.start_datetime.strftime('%H:%M') }}{% if event.end_datetime %}－{{ event.end_datetime.strftime('%m/%d %H:%M') }}{% endif %}</p>
+                        <p class="portal-muted">受邀身分：{{ event.participation_category_label }}</p>
                     </div>
                     <span class="portal-event-arrow" aria-hidden="true">→</span>
                 </a>

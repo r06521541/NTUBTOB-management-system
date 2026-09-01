@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import concurrent.futures
 import contextlib
 import io
 import json
@@ -9,7 +10,7 @@ import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
@@ -21,13 +22,18 @@ from shared_lib.shared_module.portal_data.domain import (
     ValidationError,
 )
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
+    EVENT_SNAPSHOT_LOCK_KEY,
     IdentityLifecycleRepository,
 )
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from shared_lib.shared_module.portal_data.repository import PostgresTeamPortalRepository
 from tests.portal_data._apple_lifecycle_test_harness import (
     remove_retained_apple_evidence_from_isolated_test_database,
+)
+from tests.portal_data._event_guest_lifecycle_test_harness import (
+    prepare_event_guest_lifecycle_downgrade_for_isolated_test_database,
 )
 from tools import portal_data_production_zero_admin_bootstrap as production_bootstrap
 from tools import portal_data_zero_admin_bootstrap as bootstrap_operator
@@ -68,6 +74,54 @@ class PhaseCArtifactTests(unittest.TestCase):
         with self.assertRaises(PhaseCEvidenceError):
             verify_evidence_sql(sql.replace("ROLLBACK;", "DELETE FROM ntubtob.people;"))
 
+    def test_scoped_events_materializes_participation_pairs_before_dict_conversion(
+        self,
+    ):
+        class PairResult:
+            def __init__(self):
+                self.all_calls = 0
+
+            def keys(self):
+                return ("event_id", "participation_category")
+
+            def all(self):
+                self.all_calls += 1
+                return [(41, "affiliate")]
+
+        now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        event_row = SimpleNamespace(
+            id=41,
+            title="Fictional Cancelled Event",
+            event_type="other",
+            status="cancelled",
+            start_at=now + timedelta(days=1),
+            end_at=None,
+        )
+        event_rows = MagicMock()
+        event_rows.all.return_value = [event_row]
+        activity_rows = MagicMock()
+        activity_rows.all.return_value = []
+        pair_result = PairResult()
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(portal_status="active")
+        session.scalars.side_effect = (event_rows, activity_rows)
+        session.execute.return_value = pair_result
+        session_context = MagicMock()
+        session_context.__enter__.return_value = session
+        repository = IdentityLifecycleRepository(MagicMock())
+
+        with (
+            patch.object(repository, "scoped_games", return_value=()),
+            patch(
+                "shared_lib.shared_module.portal_data.identity_lifecycle.Session",
+                return_value=session_context,
+            ),
+        ):
+            events = repository.scoped_events(7, now)
+
+        self.assertEqual(events[0]["participation_category"], "affiliate")
+        self.assertEqual(pair_result.all_calls, 1)
+
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class PhaseCLifecyclePostgresTests(unittest.TestCase):
@@ -80,10 +134,12 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         setup_legacy_fixture()
         config = Config("alembic.ini")
         command.upgrade(config, "head")
+        prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
@@ -148,6 +204,86 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         return self.repository.ensure_pending_line_identity(
             f"fake-pending-{suffix}", "Fake Applicant", f"pending-{suffix}"
         )
+
+    def _status_target(self, name="Fictional Status Target"):
+        with self.engine.begin() as connection:
+            return connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name,portal_access_level,portal_status,version,created_at,updated_at) "
+                    "VALUES (:name,'basic','active',1,now(),now()) RETURNING id"
+                ),
+                {"name": name},
+            )
+
+    def test_person_status_serializes_behind_event_snapshot_lock(self):
+        target_id = self._status_target()
+        attempted = threading.Event()
+
+        def observe_lock(_connection, _cursor, statement, parameters, _context, _many):
+            if "pg_advisory_xact_lock" in statement and (
+                parameters == {"key": EVENT_SNAPSHOT_LOCK_KEY}
+                or parameters == (EVENT_SNAPSHOT_LOCK_KEY,)
+            ):
+                attempted.set()
+
+        event.listen(self.engine, "before_cursor_execute", observe_lock)
+        blocker = self.engine.connect()
+        transaction = blocker.begin()
+        blocker.execute(
+            text("SELECT pg_advisory_xact_lock(:key)"),
+            {"key": EVENT_SNAPSHOT_LOCK_KEY},
+        )
+        attempted.clear()
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    self.repository.change_person_status,
+                    self.admin_person_id,
+                    target_id,
+                    "disabled",
+                    "Fictional serialized change",
+                    "status-lock-fictional",
+                )
+                self.assertTrue(attempted.wait(2))
+                self.assertFalse(future.done())
+                transaction.commit()
+                future.result(timeout=5)
+        finally:
+            if transaction.is_active:
+                transaction.rollback()
+            blocker.close()
+            event.remove(self.engine, "before_cursor_execute", observe_lock)
+
+    def test_person_status_rolls_back_when_audit_insert_fails(self):
+        target_id = self._status_target("Fictional Rollback Target")
+
+        def reject_audit(_connection, _cursor, statement, _parameters, _context, _many):
+            if "INSERT INTO ntubtob.access_audit" in statement:
+                raise RuntimeError("fictional audit failure")
+
+        event.listen(self.engine, "before_cursor_execute", reject_audit)
+        try:
+            with self.assertRaisesRegex(RuntimeError, "fictional audit failure"):
+                self.repository.change_person_status(
+                    self.admin_person_id,
+                    target_id,
+                    "disabled",
+                    "Fictional rollback",
+                    "status-rollback-fictional",
+                )
+        finally:
+            event.remove(self.engine, "before_cursor_execute", reject_audit)
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text(
+                        "SELECT portal_status FROM ntubtob.people WHERE id=:person_id"
+                    ),
+                    {"person_id": target_id},
+                ),
+                "active",
+            )
 
     def test_event_reads_require_included_snapshot_and_filter_linked_games(self):
         now = datetime(2026, 9, 1, 8, 0, tzinfo=timezone.utc)
@@ -627,6 +763,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             )
 
     def test_non_member_guest_has_no_fake_member_and_is_excluded_after_expiry(self):
+        command.upgrade(Config("alembic.ini"), "head")
         pending = self._pending("guest")
         now = datetime.now(timezone.utc)
         principal = self.repository.approve_non_member(
@@ -636,9 +773,20 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             "Approve bounded guest",
             "approve-guest",
             formal_name="Guest Formal",
-            qualifications={"guest_player"},
-            guest_valid_from=now - timedelta(days=1),
-            guest_valid_until=now + timedelta(days=7),
+        )
+        guest_repository = PostgresTeamPortalRepository(
+            self.engine, event_manager_member_ids={7001}
+        )
+        guest_repository.mutate_guest_qualification(
+            self.admin_person_id,
+            principal.person.id,
+            "grant",
+            expected_version=0,
+            reason="Approve bounded guest",
+            request_id="grant-approved-guest",
+            valid_from=now - timedelta(days=1),
+            valid_until=now + timedelta(days=7),
+            at=now,
         )
         with self.engine.begin() as connection:
             self.assertIsNone(

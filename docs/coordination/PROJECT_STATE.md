@@ -69,6 +69,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 ## Active work and external gates
 
+- TASK-175為目前assigned active task：repository-only補齊Event獨立in-app notification與bounded guest-player管理；
+  不授權真實通知、production schema/runtime/data mutation或deployment。
 - TASK-174 repository delivery已由PR #227合併，其Apple provider lifecycle foundation只是repository capability；不授權
   Apple provider、Secret、signing、runtime、production或TestFlight操作。
 - TASK-169保留active：repository release-readiness已合併，但Android/iOS store、signing、provider、production backend、

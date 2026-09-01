@@ -630,6 +630,9 @@ class BasicApiServiceTest(unittest.TestCase):
                 "title": f"Event {value}",
                 "type": "trip",
                 "status": "cancelled" if value == 2 else "published",
+                "participation_category": (
+                    "guest_player" if value == 1 else "team_player"
+                ),
                 "start_at": NOW + timedelta(days=value),
                 "end_at": None,
                 "activities": (
@@ -665,6 +668,7 @@ class BasicApiServiceTest(unittest.TestCase):
             first["items"][0]["activities"][0]["linked_game_id"], "game_44"
         )
         self.assertEqual(first["items"][1]["status"], "cancelled")
+        self.assertEqual(first["items"][0]["participation_category"], "guest_player")
         self.assertNotIn("invitees", str(first))
         self.assertNotIn("manager", str(first))
         self.assertEqual(service.event(repository.device, 1), first["items"][0])
@@ -723,6 +727,7 @@ class BasicApiServiceTest(unittest.TestCase):
                 "title": "Event",
                 "type": "trip",
                 "status": "published",
+                "participation_category": "team_player",
                 "start_at": NOW + timedelta(days=1),
                 "end_at": None,
                 "attendance": state,
@@ -789,6 +794,7 @@ class BasicApiServiceTest(unittest.TestCase):
                 "title": "Signed linked Games",
                 "type": "other",
                 "status": "published",
+                "participation_category": "team_player",
                 "start_at": NOW,
                 "end_at": None,
                 "activities": tuple(
