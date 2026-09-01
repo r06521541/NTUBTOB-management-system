@@ -41,7 +41,8 @@ class StagingBrokerJournalIntegrationTest(unittest.TestCase):
         with self.engine.begin() as connection:
             connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
         setup_legacy_fixture()
-        command.upgrade(Config("alembic.ini"), "head")
+        config = Config("alembic.ini")
+        command.upgrade(config, "0010_apple_provider_lifecycle")
         self.journal = PostgresJournal(self.engine)
 
     def test_revision_constraints_indexes_and_safe_downgrade(self):

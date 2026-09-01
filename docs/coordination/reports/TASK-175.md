@@ -138,6 +138,25 @@
   319 tests successfully with 160 expected PostgreSQL skips. Hosted PostgreSQL
   15/16 remains required for the real guarded setup and cleanup sequence.
 
+### Hosted correction lease 5
+
+- PostgreSQL 16 job `99724128325` reduced the remaining failure set to three
+  older integration fixtures. Each upgraded the moving Alembic `head` to 0011
+  and then correctly asserted the historical schema revision it owns was 0010.
+- Mobile API foundation, Mobile notification, and staging broker journal setup
+  now upgrade explicitly to `0010_apple_provider_lifecycle`. Their exact revision,
+  RLS, model, constraint, index, and downgrade assertions are unchanged.
+- A static migration contract proves all three historical suites pin 0010 and
+  the TASK-175 Event guest lifecycle suite remains the owner of current
+  `head`/0011 coverage. Adjacent head callers either validate current head or
+  immediately exercise an explicit downgrade; no fourth matching defect was
+  found.
+- Local lease-5 evidence: the red-first contract failed for all three moving-head
+  fixtures, then passed after pinning; all 10 migration-readiness static tests
+  passed; portal-data full ran 320 tests successfully with 160 expected
+  PostgreSQL skips. Hosted PostgreSQL 15/16 remains required for the three
+  integration assertions.
+
 ## Hosted and external limits
 
 - Local isolated PostgreSQL was unavailable, so the new real-transaction lock

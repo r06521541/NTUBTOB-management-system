@@ -250,6 +250,22 @@ The reset target itself must be an allowlisted pre-0011 revision. Setup and
 teardown both reject unproven database identity or revision state before any
 schema DDL.
 
+### Hosted correction lease 5
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 5
+- correction_base: `91d32e266326dbf3a4acd60bef3234c0b5484dc8`
+- scope: pin the three older Mobile foundation, Mobile notification, and staging
+  broker migration integration fixtures to the exact 0010 revision their schema
+  assertions own; retain TASK-175 as the current head/0011 suite
+- report_to: `/root`
+
+Older suites must not follow a moving Alembic head while asserting an historical
+exact revision. Their exact assertions remain unchanged and TASK-175 continues to
+own the newest additive migration coverage.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
