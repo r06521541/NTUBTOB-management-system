@@ -2,25 +2,26 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-176
-status: in_progress
-next_actor: codex-writer
+status: ready_for_review
+next_actor: auth-security-reviewer
 
 claim_id: task-176-admin-core-writer-20260901
 lease_version: 1
 actor_id: /root/task170_play_evidence_writer
 
 base_commit: 7dc96ed3fbb9ebb668a0f99749a9e987f0cd54e3
-head_commit: 7dc96ed3fbb9ebb668a0f99749a9e987f0cd54e3
+head_commit: 038c1931dcb4cad25152175c12cdddae8ce3c1ca
 
-updated_by: main-work
-updated_at: 2026-09-01T01:00:00+08:00
+updated_by: codex-writer
+updated_at: 2026-09-01T14:31:47+08:00
 
 note: >
-  TASK-176 is a repository-only persistent admin authority core. It must not read
-  the real allowlist, connect production data, deploy, flip runtime authority mode,
-  change Secrets or mutate external state.
+  TASK-176 repository implementation is committed at the immutable review target.
+  No real allowlist, production database, inventory execution, deployment, mode
+  flip, Secret, provider or other runtime mutation occurred. Hosted PostgreSQL
+  15/16 acceptance remains required.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-176.md
-report: null
-review: null
+report: docs/coordination/reports/TASK-176.md
+review: pending
