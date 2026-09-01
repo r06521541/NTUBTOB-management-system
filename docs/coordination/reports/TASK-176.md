@@ -63,3 +63,12 @@ observation remain separate Owner-gated work packages.
 - Correction validation: focused authority 16 passed/5 PostgreSQL skipped; full Portal Data 342 passed/165 PostgreSQL
   skipped; full Web Portal 251 passed; full Mobile API 78 passed; shared Mobile service 26 passed. Exact-path formatter,
   compile and diff checks were rerun before the correction commit.
+
+## Lease 3 final bounded correction
+
+- A present retained authority table now requires exact 0012 before its singleton can be read or accepted. Exact 0011
+  plus retained matching `legacy_allowlist` and exact 0011 plus retained matching `persistent` both deny; only exact
+  0011 legacy mode with a proven-absent authority table retains deploy-new-runtime-first compatibility.
+- The deterministic provider-disable/admin-revoke PostgreSQL regression now asserts terminal Apple identity disable,
+  unchanged persistent mode, exactly one final reachable admin, one expected access-change audit and zero provider
+  recovery audit because the revoked Apple identity is not the last administrator in that race.

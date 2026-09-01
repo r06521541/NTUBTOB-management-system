@@ -231,7 +231,9 @@ class IdentityLifecycleRepository:
                 revisions == (PRE_AUTHORITY_REVISION,)
                 and self.authority_mode == "legacy_allowlist"
             )
-        if authority_table != "ntubtob.portal_authority_state":
+        if authority_table != "ntubtob.portal_authority_state" or revisions != (
+            CURRENT_AUTHORITY_REVISION,
+        ):
             return False
         states = tuple(
             session.scalars(

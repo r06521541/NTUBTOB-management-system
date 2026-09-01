@@ -307,20 +307,25 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
                     repository.authority_mode_is_ready(session=session), expected
                 )
 
-        retained = IdentityLifecycleRepository(
-            MagicMock(), (7,), authority_mode="legacy_allowlist"
-        )
-        session = MagicMock()
-        revision = MagicMock()
-        revision.all.return_value = ["0011_event_notification_guest_lifecycle"]
-        presence = MagicMock()
-        presence.one_or_none.return_value = "ntubtob.portal_authority_state"
-        state = MagicMock()
-        state.all.return_value = [
-            SimpleNamespace(singleton_id=1, mode="persistent", epoch=2)
-        ]
-        session.scalars.side_effect = [revision, presence, state]
-        self.assertFalse(retained.authority_mode_is_ready(session=session))
+        for mode in ("legacy_allowlist", "persistent"):
+            retained = IdentityLifecycleRepository(
+                MagicMock(),
+                (7,) if mode == "legacy_allowlist" else (),
+                authority_mode=mode,
+            )
+            session = MagicMock()
+            revision = MagicMock()
+            revision.all.return_value = ["0011_event_notification_guest_lifecycle"]
+            presence = MagicMock()
+            presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+            state = MagicMock()
+            state.all.return_value = [
+                SimpleNamespace(singleton_id=1, mode=mode, epoch=2)
+            ]
+            session.scalars.side_effect = [revision, presence, state]
+            with self.subTest(retained_mode=mode):
+                self.assertFalse(retained.authority_mode_is_ready(session=session))
+                state.all.assert_not_called()
 
     def test_pre_0012_preview_compatibility_uses_persisted_role_without_state(self):
         actor = self._person(9, "admin")
@@ -703,6 +708,42 @@ class PersistentAdminAuthorityPostgresTests(unittest.TestCase):
         finally:
             event.remove(self.engine, "before_cursor_execute", observe)
             executor.shutdown(wait=True)
+        with self.engine.connect() as connection:
+            identity_status, durable_mode = connection.execute(
+                text(
+                    "SELECT i.status, s.mode FROM ntubtob.auth_identities i "
+                    "CROSS JOIN ntubtob.portal_authority_state s "
+                    "WHERE i.provider='apple' AND i.provider_subject=:subject"
+                ),
+                {"subject": subject},
+            ).one()
+            reachable_admins = connection.scalar(
+                text(
+                    "SELECT count(DISTINCT p.id) FROM ntubtob.people p "
+                    "JOIN ntubtob.auth_identities i ON i.person_id=p.id "
+                    "WHERE p.portal_status='active' "
+                    "AND p.portal_access_level='admin' AND i.status='linked'"
+                )
+            )
+            revoke_audits = connection.scalar(
+                text(
+                    "SELECT count(*) FROM ntubtob.access_audit "
+                    "WHERE request_id='provider-disable-admin-revoke' "
+                    "AND action='access_changed'"
+                )
+            )
+            recovery_audits = connection.scalar(
+                text(
+                    "SELECT count(*) FROM ntubtob.access_audit "
+                    "WHERE request_id=:request_id"
+                ),
+                {"request_id": f"apple-admin-recovery-{'b' * 64}"},
+            )
+        self.assertEqual(identity_status, "disabled")
+        self.assertEqual(durable_mode, "persistent")
+        self.assertEqual(reachable_admins, 1)
+        self.assertEqual(revoke_audits, 1)
+        self.assertEqual(recovery_audits, 0)
 
 
 if __name__ == "__main__":

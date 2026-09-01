@@ -84,6 +84,13 @@ absent. Retained authority evidence, missing/malformed/multiple state and revers
 Provider revocation remains terminal; disabling the last reachable persistent administrator keeps persistent mode,
 records bounded recovery-required audit evidence and never falls back to the allowlist.
 
+### Lease 3 final bounded correction
+
+Rereview required any retained `portal_authority_state` table to be accepted only at exact 0012, even when its mode
+matches an exact-0011 runtime selection. Exact 0011 compatibility therefore applies only when the table is absent. The
+existing provider-disable/admin-revoke PostgreSQL race also proves the Apple identity ends disabled, durable mode stays
+persistent, exactly one reachable admin remains, the revoke audit exists and no last-admin recovery audit is emitted.
+
 Writer must ACK `received/executing`, send heartbeat every 10–15 minutes, report blockers immediately, and proactively
 deliver full SHA, dirty paths, tests, findings, limits and external mutations. Writer may commit and push the task branch,
 but must not create/merge a PR or perform external runtime actions.
