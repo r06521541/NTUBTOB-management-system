@@ -39,6 +39,15 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             pubspec = Path(directory) / "pubspec.yaml"
             pubspec.write_text("version: 0.1.0+1\n", encoding="utf-8")
+            java_home = Path(directory) / "java"
+            android_home = Path(directory) / "android"
+            (java_home / "bin").mkdir(parents=True)
+            (android_home / "platforms" / "android-36").mkdir(parents=True)
+            for executable in (
+                java_home / "bin" / "keytool.exe",
+                java_home / "bin" / "jarsigner.exe",
+            ):
+                executable.touch()
             values = iter(("main", "a" * 40, "a" * 40, ""))
             with (
                 mock.patch.object(
@@ -46,6 +55,10 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
                 ),
                 mock.patch.object(operator, "PUBSPEC", pubspec),
                 mock.patch.object(operator, "FLUTTER_WRAPPER", pubspec),
+                mock.patch.object(operator, "PINNED_DART", pubspec),
+                mock.patch.object(operator, "FLUTTER_SNAPSHOT", pubspec),
+                mock.patch.object(operator, "BUNDLED_JAVA_HOME", java_home),
+                mock.patch.object(operator, "BUNDLED_ANDROID_HOME", android_home),
             ):
                 result = operator.preflight(previous_version_code=0)
         self.assertEqual(result["classification"], "READY_FOR_PRIVATE_INPUT")
