@@ -5016,6 +5016,38 @@ class MemberMatchingRouteTest(unittest.TestCase):
         repository.web_role_for_principal.assert_called_once()
         repository.person_directory.assert_called_once_with(70)
 
+    def test_durable_mode_mismatch_denies_both_web_authority_paths(self):
+        for mode in ("legacy_allowlist", "persistent"):
+            repository = MagicMock()
+            repository.resolve_line_principal.return_value = self.command_principal(
+                "admin", member_id=7
+            )
+            repository.authority_mode_is_ready.return_value = False
+            with self.client.session_transaction() as current_session:
+                current_session.update(
+                    user_id="fictional-mode-mismatch",
+                    member_id=7,
+                    person_id=70,
+                    auth_identity_id=71,
+                )
+            environment = {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_AUTHORITY_MODE": mode,
+            }
+            if mode == "legacy_allowlist":
+                environment["WEB_PORTAL_ADMIN_MEMBER_IDS"] = "7"
+            with (
+                self.subTest(mode=mode),
+                patch.dict(os.environ, environment, clear=False),
+                patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ),
+            ):
+                response = self.client.get("/manage/people")
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("/redirect-to-login", response.headers["Location"])
+            repository.person_directory.assert_not_called()
+
     def test_post_cutover_missing_or_malformed_mode_stops_before_repository(self):
         with self.client.session_transaction() as current_session:
             current_session.update(

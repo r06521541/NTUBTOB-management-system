@@ -75,6 +75,15 @@ Main accepted one hosted-targeted repository contract fixture correction so admi
 fictional active people with linked identities. The explicit unlinked-admin denial case and all product authorization
 behavior remain unchanged.
 
+### Lease 2 independent-review correction
+
+Independent review required exact 0012 durable/runtime mode agreement in both directions, including the legacy path,
+and canonical ADMIN-then-EVENT serialization before Apple provider revocation reads any identity or reachability row.
+The correction preserves only exact 0011 deploy-new-runtime-first legacy compatibility when the 0012 authority table is
+absent. Retained authority evidence, missing/malformed/multiple state and reverse mode mismatch remain fail closed.
+Provider revocation remains terminal; disabling the last reachable persistent administrator keeps persistent mode,
+records bounded recovery-required audit evidence and never falls back to the allowlist.
+
 Writer must ACK `received/executing`, send heartbeat every 10–15 minutes, report blockers immediately, and proactively
 deliver full SHA, dirty paths, tests, findings, limits and external mutations. Writer may commit and push the task branch,
 but must not create/merge a PR or perform external runtime actions.

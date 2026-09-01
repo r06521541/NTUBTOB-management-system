@@ -55,6 +55,8 @@ QUALIFICATIONS = frozenset({"team_player", "guest_player", "affiliate", "staff"}
 APPLICANT_MESSAGE_INTERVAL = timedelta(hours=24)
 REVIEW_RETENTION = timedelta(days=365)
 BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
+CURRENT_AUTHORITY_REVISION = "0012_persistent_admin_authority"
+PRE_AUTHORITY_REVISION = "0011_event_notification_guest_lifecycle"
 
 
 @dataclass(frozen=True)
@@ -122,7 +124,7 @@ class IdentityLifecycleRepository:
             raise ValueError("persistent authority rejects an allowlist source")
         # Preserve the pre-0012 local-preview constructor only. Production Web
         # passes an explicit authority_mode and must prove the singleton state.
-        self._requires_persistent_state = not compatibility_preview
+        self._requires_authority_state = not compatibility_preview
 
     @staticmethod
     def _identity(row: AuthIdentityRecord) -> AuthIdentity:
@@ -178,6 +180,8 @@ class IdentityLifecycleRepository:
 
     def _require_admin(self, session: Session, actor_person_id: int) -> PersonRecord:
         acquire_admin_lock(session)
+        if not self._authority_mode_matches_in_session(session):
+            raise AuthorizationError("administrator authority mode mismatch")
         person = session.scalar(
             select(PersonRecord)
             .where(PersonRecord.id == actor_person_id)
@@ -202,22 +206,59 @@ class IdentityLifecycleRepository:
             if member is None or member.id not in self.admin_member_ids:
                 raise AuthorizationError("active allowlisted administrator required")
         else:
-            state = (
-                session.get(PortalAuthorityStateRecord, 1)
-                if self._requires_persistent_state
-                else None
-            )
-            if person.portal_access_level != "admin" or (
-                self._requires_persistent_state
-                and (
-                    state is None
-                    or state.mode != "persistent"
-                    or type(state.epoch) is not int
-                    or state.epoch < 1
-                )
-            ):
+            if person.portal_access_level != "admin":
                 raise AuthorizationError("persistent administrator required")
         return person
+
+    def _authority_mode_matches_in_session(self, session: Session) -> bool:
+        if not self._requires_authority_state:
+            return True
+        revisions = tuple(
+            session.scalars(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ).all()
+        )
+        if revisions not in {
+            (PRE_AUTHORITY_REVISION,),
+            (CURRENT_AUTHORITY_REVISION,),
+        }:
+            return False
+        authority_table = session.scalars(
+            text("SELECT to_regclass('ntubtob.portal_authority_state')")
+        ).one_or_none()
+        if authority_table is None:
+            return (
+                revisions == (PRE_AUTHORITY_REVISION,)
+                and self.authority_mode == "legacy_allowlist"
+            )
+        if authority_table != "ntubtob.portal_authority_state":
+            return False
+        states = tuple(
+            session.scalars(
+                select(PortalAuthorityStateRecord).order_by(
+                    PortalAuthorityStateRecord.singleton_id
+                )
+            ).all()
+        )
+        if len(states) != 1:
+            return False
+        state = states[0]
+        return (
+            state.singleton_id == 1
+            and state.mode == self.authority_mode
+            and type(state.epoch) is int
+            and state.epoch >= 1
+        )
+
+    def authority_mode_is_ready(self, *, session: Session | None = None) -> bool:
+        """Fail closed unless runtime mode matches the durable authority state."""
+        if session is not None:
+            return self._authority_mode_matches_in_session(session)
+        try:
+            with Session(self.engine) as database_session:
+                return self._authority_mode_matches_in_session(database_session)
+        except SQLAlchemyError:
+            return False
 
     def web_role_for_principal(self, principal: Principal) -> str | None:
         """Resolve one request against exactly one configured authority source."""
@@ -227,17 +268,14 @@ class IdentityLifecycleRepository:
             or principal.identity.person_id != principal.person.id
         ):
             return None
+        if not self.authority_mode_is_ready():
+            return None
         if self.authority_mode == "legacy_allowlist":
             return (
                 "admin"
                 if principal.person.member_id in self.admin_member_ids
                 else "basic"
             )
-        if self._requires_persistent_state:
-            with Session(self.engine) as session:
-                state = session.get(PortalAuthorityStateRecord, 1)
-                if state is None or state.mode != "persistent" or state.epoch < 1:
-                    return None
         return "admin" if principal.person.access_level == "admin" else "basic"
 
     @staticmethod

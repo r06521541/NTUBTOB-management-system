@@ -311,6 +311,8 @@ def load_phase_c_web_principal(session_values):
         from shared_module.portal_data.runtime import admin_authority_mode
 
         mode = admin_authority_mode()
+        if not repository.authority_mode_is_ready():
+            return None
         if mode == "legacy_allowlist":
             allowlist = parse_admin_member_ids(
                 os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")

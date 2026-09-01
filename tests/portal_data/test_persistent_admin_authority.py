@@ -27,6 +27,10 @@ from shared_lib.shared_module.portal_data.identity_lifecycle import (
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from shared_lib.shared_module.portal_data.mobile_repository import (
+    APPLE_ADMIN_RECOVERY_REQUIRED,
+    MobileRepository,
+)
 from shared_lib.shared_module.portal_data.models import PersonRecord
 from shared_lib.shared_module.portal_data.runtime import (
     ADMIN_LOCK_KEY,
@@ -117,6 +121,23 @@ class PersistentAdminAuthorityStaticTests(unittest.TestCase):
                     body.index(".with_for_update()"),
                 )
 
+    def test_apple_provider_disable_takes_canonical_order_before_identity_rows(self):
+        source = (
+            ROOT
+            / "shared_lib"
+            / "shared_module"
+            / "portal_data"
+            / "mobile_repository.py"
+        ).read_text(encoding="utf-8")
+        body = source.split("    def apply_apple_notification(", 1)[1].split(
+            "\n    def ", 1
+        )[0]
+        self.assertLess(
+            body.index("acquire_admin_event_locks(session)"),
+            body.index("select(AuthIdentityRecord)"),
+        )
+        self.assertNotIn("UPDATE ntubtob.portal_authority_state", body)
+
     def test_test_cleanup_rejects_unknown_or_branched_revision_before_ddl(self):
         for revisions in (
             ("0013_future",),
@@ -163,12 +184,23 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
     def _session_patch(self, scalar_values):
         session = MagicMock()
         session.scalar.side_effect = scalar_values
+        session.scalars.side_effect = self._exact_authority_rows("legacy_allowlist")
         factory = MagicMock()
         factory.return_value.__enter__.return_value = session
         return session, patch(
             "shared_lib.shared_module.portal_data.identity_lifecycle.Session",
             factory,
         )
+
+    @staticmethod
+    def _exact_authority_rows(mode):
+        revision = MagicMock()
+        revision.all.return_value = ["0012_persistent_admin_authority"]
+        presence = MagicMock()
+        presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+        state = MagicMock()
+        state.all.return_value = [SimpleNamespace(singleton_id=1, mode=mode, epoch=3)]
+        return [revision, presence, state]
 
     def test_grant_uses_expected_version_and_append_only_audit(self):
         actor = self._person(1, "admin")
@@ -200,12 +232,95 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
         actor = self._person(9, "admin")
         session = MagicMock()
         session.scalar.side_effect = [actor, 1]
-        session.get.return_value = SimpleNamespace(mode="persistent", epoch=3)
+        session.scalars.side_effect = self._exact_authority_rows("persistent")
         repository = IdentityLifecycleRepository(
             MagicMock(), (), authority_mode="persistent"
         )
         self.assertIs(repository._require_admin(session, 9), actor)
         self.assertEqual(session.scalar.call_count, 2)
+
+    def test_runtime_and_durable_modes_must_match_exactly(self):
+        principal = Principal(
+            Person(9, "Fictional", "admin", "active", member_id=7),
+            AuthIdentity(10, "line", "fictional", "linked", 9),
+            frozenset(),
+        )
+        for runtime_mode, durable_mode in (
+            ("legacy_allowlist", "persistent"),
+            ("persistent", "legacy_allowlist"),
+        ):
+            with self.subTest(runtime_mode=runtime_mode, durable_mode=durable_mode):
+                repository = IdentityLifecycleRepository(
+                    MagicMock(),
+                    (7,) if runtime_mode == "legacy_allowlist" else (),
+                    authority_mode=runtime_mode,
+                )
+                session = MagicMock()
+                session.scalars.side_effect = self._exact_authority_rows(durable_mode)
+                factory = MagicMock()
+                factory.return_value.__enter__.return_value = session
+                with patch(
+                    "shared_lib.shared_module.portal_data.identity_lifecycle.Session",
+                    factory,
+                ):
+                    self.assertIsNone(repository.web_role_for_principal(principal))
+
+    def test_missing_malformed_or_multiple_durable_state_fails_closed(self):
+        repository = IdentityLifecycleRepository(
+            MagicMock(), (7,), authority_mode="legacy_allowlist"
+        )
+        invalid_states = (
+            (),
+            (SimpleNamespace(singleton_id=1, mode="legacy_allowlist", epoch=0),),
+            (
+                SimpleNamespace(singleton_id=1, mode="legacy_allowlist", epoch=1),
+                SimpleNamespace(singleton_id=1, mode="legacy_allowlist", epoch=2),
+            ),
+        )
+        for states in invalid_states:
+            with self.subTest(states=states):
+                session = MagicMock()
+                revision = MagicMock()
+                revision.all.return_value = ["0012_persistent_admin_authority"]
+                presence = MagicMock()
+                presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+                durable = MagicMock()
+                durable.all.return_value = list(states)
+                session.scalars.side_effect = [revision, presence, durable]
+                self.assertFalse(repository.authority_mode_is_ready(session=session))
+
+    def test_only_exact_0011_legacy_mode_has_pre_0012_compatibility(self):
+        for mode, expected in (("legacy_allowlist", True), ("persistent", False)):
+            repository = IdentityLifecycleRepository(
+                MagicMock(),
+                (7,) if mode == "legacy_allowlist" else (),
+                authority_mode=mode,
+            )
+            session = MagicMock()
+            revision = MagicMock()
+            revision.all.return_value = ["0011_event_notification_guest_lifecycle"]
+            presence = MagicMock()
+            presence.one_or_none.return_value = None
+            session.scalars.side_effect = [revision, presence]
+            with self.subTest(mode=mode):
+                self.assertIs(
+                    repository.authority_mode_is_ready(session=session), expected
+                )
+
+        retained = IdentityLifecycleRepository(
+            MagicMock(), (7,), authority_mode="legacy_allowlist"
+        )
+        session = MagicMock()
+        revision = MagicMock()
+        revision.all.return_value = ["0011_event_notification_guest_lifecycle"]
+        presence = MagicMock()
+        presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+        state = MagicMock()
+        state.all.return_value = [
+            SimpleNamespace(singleton_id=1, mode="persistent", epoch=2)
+        ]
+        session.scalars.side_effect = [revision, presence, state]
+        self.assertFalse(retained.authority_mode_is_ready(session=session))
 
     def test_pre_0012_preview_compatibility_uses_persisted_role_without_state(self):
         actor = self._person(9, "admin")
@@ -476,6 +591,118 @@ class PersistentAdminAuthorityPostgresTests(unittest.TestCase):
             event.remove(self.engine, "before_cursor_execute", observe)
             executor.shutdown(wait=True)
         self.assertEqual(result.access_level, "admin")
+
+    def test_last_apple_admin_revocation_is_terminal_and_requires_recovery(self):
+        subject = "fictional-last-apple-admin"
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET portal_access_level='basic' "
+                    "WHERE id=:person_id"
+                ),
+                {"person_id": self.actor_two},
+            )
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.auth_identities SET provider='apple', "
+                    "provider_subject=:subject WHERE person_id=:person_id"
+                ),
+                {"subject": subject, "person_id": self.actor_one},
+            )
+        result = MobileRepository(self.engine).apply_apple_notification(
+            jti_hash="a" * 64,
+            event_type="consent-revoked",
+            subject=subject,
+            event_at=datetime.now(timezone.utc),
+            now=datetime.now(timezone.utc),
+        )
+        self.assertEqual(result, APPLE_ADMIN_RECOVERY_REQUIRED)
+        with self.engine.connect() as connection:
+            state = connection.execute(
+                text(
+                    "SELECT i.status, s.mode FROM ntubtob.auth_identities i "
+                    "CROSS JOIN ntubtob.portal_authority_state s "
+                    "WHERE i.provider='apple' AND i.provider_subject=:subject"
+                ),
+                {"subject": subject},
+            ).one()
+            audit = connection.execute(
+                text(
+                    "SELECT action, after_state FROM ntubtob.access_audit "
+                    "WHERE request_id=:request_id"
+                ),
+                {"request_id": f"apple-admin-recovery-{'a' * 64}"},
+            ).one()
+        self.assertEqual(tuple(state), ("disabled", "persistent"))
+        self.assertEqual(audit.action, "identity_disabled")
+        self.assertEqual(audit.after_state["admin_recovery"], "required")
+
+    def test_provider_disable_and_admin_revoke_share_deadlock_free_order(self):
+        subject = "fictional-competing-apple-admin"
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.auth_identities SET provider='apple', "
+                    "provider_subject=:subject WHERE person_id=:person_id"
+                ),
+                {"subject": subject, "person_id": self.actor_one},
+            )
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET portal_access_level='admin' "
+                    "WHERE id=:person_id"
+                ),
+                {"person_id": self.target},
+            )
+        provider_requested_event = threading.Event()
+
+        def observe(_connection, _cursor, statement, parameters, _context, _many):
+            if (
+                threading.current_thread() is not threading.main_thread()
+                and "pg_advisory_xact_lock" in statement
+                and parameters == {"key": EVENT_SNAPSHOT_LOCK_KEY}
+            ):
+                provider_requested_event.set()
+
+        event.listen(self.engine, "before_cursor_execute", observe)
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        try:
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text("SELECT pg_advisory_xact_lock(:key)"),
+                    {"key": EVENT_SNAPSHOT_LOCK_KEY},
+                )
+                provider = executor.submit(
+                    MobileRepository(self.engine).apply_apple_notification,
+                    jti_hash="b" * 64,
+                    event_type="account-deleted",
+                    subject=subject,
+                    event_at=datetime.now(timezone.utc),
+                    now=datetime.now(timezone.utc),
+                )
+                self.assertTrue(provider_requested_event.wait(timeout=5))
+                revoke = executor.submit(
+                    self.repository.change_admin_access,
+                    self.actor_two,
+                    self.target,
+                    "basic",
+                    1,
+                    "Concurrent provider disable and admin revoke",
+                    "provider-disable-admin-revoke",
+                )
+                connection.execute(
+                    text(
+                        "SELECT id FROM ntubtob.auth_identities "
+                        "WHERE provider='apple' AND provider_subject=:subject "
+                        "FOR UPDATE"
+                    ),
+                    {"subject": subject},
+                )
+            self.assertTrue(provider.result(timeout=10))
+            self.assertEqual(revoke.result(timeout=10).access_level, "basic")
+        finally:
+            event.remove(self.engine, "before_cursor_execute", observe)
+            executor.shutdown(wait=True)
 
 
 if __name__ == "__main__":

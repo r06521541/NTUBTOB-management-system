@@ -54,6 +54,15 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         session.execute.side_effect = lambda _statement, values: order.append(
             f"lock:{values['key']}"
         )
+        revision = MagicMock()
+        revision.all.return_value = ["0012_persistent_admin_authority"]
+        presence = MagicMock()
+        presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+        state = MagicMock()
+        state.all.return_value = [
+            SimpleNamespace(singleton_id=1, mode="legacy_allowlist", epoch=1)
+        ]
+        session.scalars.side_effect = [revision, presence, state]
 
         scalar_results = iter(
             (

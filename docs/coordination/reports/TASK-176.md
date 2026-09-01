@@ -45,3 +45,21 @@ observation remain separate Owner-gated work packages.
 - PG15/16 migration/metadata, exact replay, append-only rollback, concurrent last-admin revoke, Event-holder lock-order
   and cross-suite retained-evidence isolation tests are included for the hosted matrix; local PostgreSQL execution was
   unavailable and remains the required hosted acceptance limit.
+
+## Lease 2 correction
+
+- Both explicit runtime modes now verify an exact single Alembic revision and, whenever the retained authority table is
+  present, an exact singleton whose mode and positive integer epoch agree with runtime. Exact 0011 legacy compatibility
+  applies only when that table is absent; mismatch, missing/malformed/multiple state and retained reverse-mode evidence
+  authorize nobody. Web checks this boundary before either legacy allowlist or persistent role resolution.
+- Apple terminal revocation now takes the canonical ADMIN then EVENT locks before identity, Person or reachability row
+  reads. If the revoked identity was the last reachable persistent admin, the transaction still disables the identity,
+  revokes sessions/credential, leaves durable mode persistent, appends bounded `identity_disabled` recovery-required
+  evidence and returns the bounded `recovery_required` outcome. It never restores provider login or switches authority
+  source.
+- Added direct/static mismatch and lock-order regressions plus hosted PostgreSQL tests for last-Apple-admin recovery and
+  a competing provider-disable/admin-revoke transaction. Local PostgreSQL remains unavailable, so those deterministic
+  PG15/16 cases still require hosted acceptance.
+- Correction validation: focused authority 16 passed/5 PostgreSQL skipped; full Portal Data 342 passed/165 PostgreSQL
+  skipped; full Web Portal 251 passed; full Mobile API 78 passed; shared Mobile service 26 passed. Exact-path formatter,
+  compile and diff checks were rerun before the correction commit.
