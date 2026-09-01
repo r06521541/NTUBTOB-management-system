@@ -2,23 +2,22 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-175
-status: changes_requested
-next_actor: codex-writer
+status: ready_for_review
+next_actor: targeted-reviewer
 
 claim_id: main-work-20260825
 lease_version: 17
 actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
 
 base_commit: ccc5f596dc9560d713dbf93a305c64d2d1642927
-head_commit: 67e260f8dae4cb3078736e6b11374dc6eaffa17d
+head_commit: e64c915e50b409d0c924503e00689f0eaf518a73
 
 updated_by: main-work
 updated_at: 2026-09-01T01:00:00+08:00
 
 note: >
-  Owner approved one exceptional lock-only correction after the normal budget.
-  It is limited to ADMIN-to-EVENT advisory acquisition before actor/target rows
-  and a real competing-transaction regression. No external mutation is authorized.
+  The Owner-approved exceptional lock-only correction is pushed for immutable
+  rereview. No provider delivery, production mutation or deployment is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-175.md

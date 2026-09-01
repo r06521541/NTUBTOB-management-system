@@ -173,6 +173,16 @@ may be broadened.
 This exceptional correction may not alter guest lifecycle, Web authority, Event notification contents, migration, API, Flutter or any
 other behavior. The prior writer claim is complete and has no write authority in this lease.
 
+### Exceptional correction rereview
+
+- actor_id: `/root/task170_release_security_review`
+- role: `targeted-reviewer/read-only`
+- claim_id: `task-175-data-auth-review-20260901`
+- lease_version: 4
+- review_target: `e64c915e50b409d0c924503e00689f0eaf518a73`
+- scope: verify both advisory locks precede actor row acquisition and the real competing Event-transaction regression closes the deadlock
+- report_to: `/root`
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
