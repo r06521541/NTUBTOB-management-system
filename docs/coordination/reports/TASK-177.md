@@ -2,6 +2,8 @@
 
 Implementation SHA: `49eaf355c3d7e2a513ed4bc29421f6c9087af5ee`
 
+Handler-propagation regression SHA: `e7993eaac8a928371d583c602c6faa6814e12b99`
+
 ## Implemented boundary
 
 - Added a default-off, installation-scoped anonymous crash queue shared by real Android／iOS composition.

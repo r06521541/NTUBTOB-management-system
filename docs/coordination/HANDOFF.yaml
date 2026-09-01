@@ -10,13 +10,14 @@ lease_version: 1
 actor_id: /root
 
 base_commit: 1a8f5e660fe731b3996577c22380050283473c31
-head_commit: 49eaf355c3d7e2a513ed4bc29421f6c9087af5ee
+head_commit: e7993eaac8a928371d583c602c6faa6814e12b99
 
 updated_by: main-work
-updated_at: 2026-09-01T16:20:00+08:00
+updated_at: 2026-09-01T16:30:00+08:00
 
 note: >
-  TASK-177 implementation is committed at the immutable review target. It is
+  TASK-177 implementation and handler-propagation regression are committed at
+  the immutable review target. The foundation is
   default-off, provider-neutral, local-only and strictly deidentified. No external
   provider, endpoint, SDK, real event, store, cloud, deployment or production
   mutation occurred. Independent privacy/security review and hosted CI remain.
