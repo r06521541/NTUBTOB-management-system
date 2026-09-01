@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
+import 'anonymous_crash.dart';
 import 'integration.dart';
 import 'identity_link.dart';
 import 'local_preferences.dart';
@@ -254,11 +255,13 @@ class BasicBootstrapApp extends StatefulWidget {
     required this.config,
     this.diagnosticEnabled = true,
     this.store,
+    this.crashQueue,
     this.permissionPort = const UnsupportedNotificationPermissionPort(),
   });
   final AppConfig config;
   final bool diagnosticEnabled;
   final DurableStore? store;
+  final AnonymousCrashQueue? crashQueue;
   final NotificationPermissionPort permissionPort;
   @override
   State<BasicBootstrapApp> createState() => _BasicBootstrapAppState();
@@ -294,6 +297,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   LocalPreferences? _preferences;
   LocalThemePreference _themePreference = LocalThemePreference.system;
   bool? _onboardingComplete;
+  AnonymousCrashQueue? _crashQueue;
 
   @override
   void initState() {
@@ -306,6 +310,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   Future<void> _boot() async {
     try {
       final installationId = await _installationId();
+      _crashQueue =
+          widget.crashQueue ?? AnonymousCrashQueue(_store, installationId);
       final preferences = LocalPreferences(_store, installationId);
       final themePreference = await preferences.theme();
       final onboardingComplete = await preferences.onboardingComplete();
@@ -397,12 +403,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   }
 
   Future<String> _installationId() async {
-    const key = 'installation:v1';
-    final existing = await _store.read(key);
-    if (existing != null) return existing;
-    final created = _ids.next();
-    await _store.write(key, created);
-    return created;
+    return ensureInstallationId(_store, _ids);
   }
 
   Future<void> _signIn() async {
@@ -882,6 +883,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => LocalPreferencesPage(
         preferences: _preferences!,
+        crashQueue: _crashQueue,
         permissions: NotificationPermissionActions(widget.permissionPort),
         onThemeChanged: (value) => setState(() => _themePreference = value),
       ),

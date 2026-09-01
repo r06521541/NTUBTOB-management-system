@@ -28,6 +28,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   Person role尚未取代它。
 - Web Portal支援LINE登入、Person/identity管理、Game／attendance、Event／Activity read與allowlist-gated Event
   create/edit/publish/cancel。發布建立immutable invitee snapshot；管理寫入與通知分離。
+- Repository已合併persistent admin authority與linear `0012` capability；production仍維持runtime allowlist及revision
+  `0009`，尚未執行seed、migration、mode flip或部署。
 - Event與一般Activity採三態attendance；linked Game在同一Event surface重用既有Game五態且不重複儲存。此
   repository delivery尚未部署至production。
 - Desktop LINE login以固定callback origin及短效same-browser initiation維持session continuity；state、nonce、TTL、
@@ -53,6 +55,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   fail closed。這是repository evidence，不是已上傳的store candidate。
 - iOS有TestFlight/App Store fail-closed config與Sign in with Apple source contract；macOS/Xcode、signed archive、provider、
   capability/profile與real-device evidence仍是外部gate。
+- TASK-177進行中：Flutter匿名crash foundation固定default-off、local-only、provider-neutral與嚴格去識別化；尚無
+  provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
   docs/archive與核准bootstrap wrapper可走quick gate，unknown/shared/workflow仍fail-safe full。
 
@@ -69,14 +73,15 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 ## Active work and external gates
 
-- TASK-175為目前assigned active task：repository-only補齊Event獨立in-app notification與bounded guest-player管理；
-  不授權真實通知、production schema/runtime/data mutation或deployment。
+- TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換
+  production，外部mutation維持獨立Owner gate。
 - TASK-174 repository delivery已由PR #227合併，其Apple provider lifecycle foundation只是repository capability；不授權
   Apple provider、Secret、signing、runtime、production或TestFlight操作。
 - TASK-169保留active：repository release-readiness已合併，但Android/iOS store、signing、provider、production backend、
   device與public-release gates仍是現在的release boundary。
-- TASK-170保留active：repository Android candidate contract已通過review/CI；外部階段等待Owner Google Play developer-
-  account verification。尚未建立Play app、產生／上傳exact Closed Testing AAB或完成store/device evidence。
+- TASK-170保留active：repository Android candidate contract已通過review/CI；Owner回報Google Play developer account
+  已可用，但目前無暇操作。尚未建立Play app、產生／上傳exact Closed Testing AAB或完成store/device evidence。
+- TASK-177為目前assigned active task；只交付anonymous crash repository foundation，不啟用外部collection。
 - Production mobile deployment、Google production publishing/client migration、Apple provider lifecycle、iOS signing／
   TestFlight、Android public release、push/deep-link delivery與anonymous crash evidence都需未來exact Owner gate。
 - Event attendance尚待production deployment；Event notification與guest-player管理仍未成為production capability。

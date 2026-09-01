@@ -144,6 +144,30 @@ the workflow.
 
 No release signing configuration is committed. Debug builds must use the explicit fake command above and must not contact LINE or an API.
 
+## Anonymous crash diagnostics foundation
+
+Real Android／iOS composition installs a provider-neutral capture boundary for
+Flutter framework, platform-dispatcher, and uncaught zone failures. Collection
+is default-off. The user must explicitly enable it from App preferences after a
+notice that describes the exact local-only behavior; disabling it stops future
+capture and purges the installation-scoped queue.
+
+The queue stores only a fixed schema: source, bounded failure category, UTC day,
+app flavor, platform class, and an opaque fingerprint derived exclusively from
+first-party Dart file frames. It never stores raw errors, messages, stacks,
+routes, URLs, account／Person／identity／installation IDs, tokens, payloads,
+notification content, or device identifiers. Corrupt, oversized, future, or
+expired queue data is discarded, and capture failures never replace the app's
+existing framework／platform error behavior.
+
+There is deliberately no provider SDK, endpoint, or network sink in this
+repository delivery. Data remains on-device even after opt-in, and fake mode
+does not install collection. Android Closed Testing and iOS TestFlight must
+continue to state that anonymous crash upload is not enabled. A future public
+release requires a separate Owner-gated provider selection, privacy/store
+review, synthetic receipt, real-device evidence, and external disable/rollback
+check before any upload can be claimed.
+
 ## Verification gate
 
 From this directory, run `flutter pub get`, `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test`, and the debug build with both fake defines. The fake repository remains fixed/injected and network-free. Real cached data is versioned/installation-partitioned, and offline behavior is read-only; attendance mutations are refused until online.

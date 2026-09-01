@@ -1512,6 +1512,18 @@ class SecureIds {
       .replaceAll('=', '');
 }
 
+Future<String> ensureInstallationId(
+  DurableStore store,
+  SecureIds ids,
+) async {
+  const key = 'installation:v1';
+  final existing = await store.read(key);
+  if (existing != null) return existing;
+  final created = ids.next();
+  await store.write(key, created);
+  return created;
+}
+
 abstract interface class LineLoginPort {
   Future<String> login(String nonce);
   Future<void> logout();
