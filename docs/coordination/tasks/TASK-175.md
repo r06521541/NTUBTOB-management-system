@@ -155,6 +155,24 @@ may be broadened.
 - scope: verify actual status-writer serialization, global lock order and regression-test correction; confirm all earlier accepted boundaries remain
 - report_to: `/root`
 
+### Owner-approved exceptional lock correction
+
+- owner_approved: 2026-09-01
+- reason: the normal two-round correction budget was exhausted while one exact actor-row/advisory-lock deadlock remained
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-lock-preamble-correction-20260901`
+- lease_version: 1
+- correction_base: `72781ec2e0c143de872037908b3c6d5a7b09167b`
+- owned_paths: `shared_lib/shared_module/portal_data/identity_lifecycle.py`, the two directly corresponding portal-data tests,
+  `docs/coordination/reports/TASK-175.md`, this task and HANDOFF status
+- exact_scope: acquire `ADMIN_LOCK_KEY`, then `EVENT_SNAPSHOT_LOCK_KEY`, then perform actor/target row validation and mutation;
+  add a deterministic PostgreSQL test that exercises the competing Event transaction and actor-row acquisition
+- report_to: `/root`
+
+This exceptional correction may not alter guest lifecycle, Web authority, Event notification contents, migration, API, Flutter or any
+other behavior. The prior writer claim is complete and has no write authority in this lease.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
