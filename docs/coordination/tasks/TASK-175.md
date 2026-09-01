@@ -200,6 +200,23 @@ metadata, a pre-0011-safe deferred qualification version default, and the formal
 guest lifecycle in affected tests. PostgreSQL 15/16 hosted CI remains the
 acceptance evidence; no production migration or runtime operation is authorized.
 
+### Hosted correction lease 2
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 2
+- correction_base: `6eebdf9d26b94a157425a94125c9ecee25935c14`
+- scope: correct the hosted SQLAlchemy result-consumption error, the attendance
+  test's stale manager fixture, and exact test-database revision leakage only;
+  preserve accepted authorization, advisory-lock, migration, and rollout checks
+- report_to: `/root`
+
+Older rollout tests must establish their intended exact 0010 schema rather than
+following the moving Alembic head. TASK-175 integration classes remain responsible
+for exact, test-database-gated 0011 cleanup. Unknown, missing, non-test, or future
+revisions must still stop before DDL.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。

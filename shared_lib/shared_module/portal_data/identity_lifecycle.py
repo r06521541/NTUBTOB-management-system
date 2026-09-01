@@ -2650,7 +2650,7 @@ class IdentityLifecycleRepository:
                         EventInviteeRecord.person_id == person_id,
                         EventInviteeRecord.included.is_(True),
                     )
-                )
+                ).all()
             )
             activities_by_event: dict[int, list[dict]] = {
                 event_id: [] for event_id in event_ids

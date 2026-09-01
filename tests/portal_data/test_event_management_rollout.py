@@ -27,7 +27,7 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls._upgrade("head")
+        cls._upgrade("0010_apple_provider_lifecycle")
         cls.engine.dispose()
 
     @classmethod
@@ -105,7 +105,7 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
                 rollout._run_locked(connection, execute=False)
 
         self.setUp()
-        self._upgrade("head")
+        self._upgrade("0010_apple_provider_lifecycle")
         with self.assertRaises(rollout.RolloutError):
             with self.engine.begin() as connection:
                 rollout._run_locked(connection, execute=False)
@@ -261,7 +261,7 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
         for label, mutation, reason in cases:
             with self.subTest(label=label):
                 self.setUp()
-                self._upgrade("head")
+                self._upgrade("0010_apple_provider_lifecycle")
                 with self.engine.begin() as connection:
                     connection.execute(text(mutation))
                 self.engine.dispose()

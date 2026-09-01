@@ -10,7 +10,7 @@ import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.exc import IntegrityError
@@ -73,6 +73,54 @@ class PhaseCArtifactTests(unittest.TestCase):
         sql = EVIDENCE_ARTIFACTS[0].read_text(encoding="utf-8")
         with self.assertRaises(PhaseCEvidenceError):
             verify_evidence_sql(sql.replace("ROLLBACK;", "DELETE FROM ntubtob.people;"))
+
+    def test_scoped_events_materializes_participation_pairs_before_dict_conversion(
+        self,
+    ):
+        class PairResult:
+            def __init__(self):
+                self.all_calls = 0
+
+            def keys(self):
+                return ("event_id", "participation_category")
+
+            def all(self):
+                self.all_calls += 1
+                return [(41, "affiliate")]
+
+        now = datetime(2026, 9, 1, tzinfo=timezone.utc)
+        event_row = SimpleNamespace(
+            id=41,
+            title="Fictional Cancelled Event",
+            event_type="other",
+            status="cancelled",
+            start_at=now + timedelta(days=1),
+            end_at=None,
+        )
+        event_rows = MagicMock()
+        event_rows.all.return_value = [event_row]
+        activity_rows = MagicMock()
+        activity_rows.all.return_value = []
+        pair_result = PairResult()
+        session = MagicMock()
+        session.get.return_value = SimpleNamespace(portal_status="active")
+        session.scalars.side_effect = (event_rows, activity_rows)
+        session.execute.return_value = pair_result
+        session_context = MagicMock()
+        session_context.__enter__.return_value = session
+        repository = IdentityLifecycleRepository(MagicMock())
+
+        with (
+            patch.object(repository, "scoped_games", return_value=()),
+            patch(
+                "shared_lib.shared_module.portal_data.identity_lifecycle.Session",
+                return_value=session_context,
+            ),
+        ):
+            events = repository.scoped_events(7, now)
+
+        self.assertEqual(events[0]["participation_category"], "affiliate")
+        self.assertEqual(pair_result.all_calls, 1)
 
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")

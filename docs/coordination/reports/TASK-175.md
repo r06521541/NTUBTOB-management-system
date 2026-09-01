@@ -82,6 +82,27 @@
   API comparisons passed; Alembic reports the single
   `0011_event_notification_guest_lifecycle` head.
 
+### Hosted correction lease 2
+
+- The raw completed PostgreSQL 16 job `99719247947` contained exactly two errors
+  and fifteen failures. The errors were one SQLAlchemy result-consumption error and
+  one stale Event-manager fixture; the failures were twelve material-drift subtests
+  and three exact 0010 revision checks. PostgreSQL 15 reported the same set.
+- `scoped_events` now materializes the two-column SQLAlchemy result with `.all()`
+  before converting it to a dictionary. A red-first focused regression reproduces
+  the hosted `ChunkedIteratorResult` mapping behavior without PostgreSQL.
+- The shared attendance contract now uses an active Officer for Event mutations
+  and retains its separate Admin for Person-status mutation. Product authorization
+  is unchanged and no persisted-Admin shortcut was introduced.
+- The older Event rollout suite now upgrades and restores the exact
+  `0010_apple_provider_lifecycle` revision it validates, rather than following the
+  moving Alembic head into 0011. TASK-175 integration suites continue using the
+  reviewed isolated-test cleanup helper; rollout drift detection and legacy exact
+  revision assertions are unchanged.
+- Local lease-2 evidence: the focused result and attendance regressions both
+  passed; portal-data full suite 314 passed with 158 expected PostgreSQL skips;
+  Web Portal full suite 243 passed.
+
 ## Hosted and external limits
 
 - Local isolated PostgreSQL was unavailable, so the new real-transaction lock
