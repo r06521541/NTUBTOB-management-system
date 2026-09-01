@@ -218,6 +218,8 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
         private_values = tuple("safe" for _ in operator.PRIVATE_LABELS)
         build = mock.Mock(return_value=0)
         with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch.object(operator, "CLIENT", Path(directory)),
             mock.patch.object(
                 operator,
                 "preflight",
