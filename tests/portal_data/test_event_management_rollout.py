@@ -15,7 +15,6 @@ from tests.portal_data._event_guest_lifecycle_test_harness import (
     reset_pre_0011_schema_for_isolated_test_database,
 )
 from tools import portal_data_event_management_rollout as rollout
-from tools.setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
@@ -43,13 +42,18 @@ class EventManagementRolloutIsolationStaticTests(unittest.TestCase):
                 engine.url = url
                 upgrade = MagicMock()
                 with self.assertRaisesRegex(RuntimeError, "isolated test database"):
-                    reset_pre_0011_schema_for_isolated_test_database(engine, upgrade)
+                    reset_pre_0011_schema_for_isolated_test_database(
+                        engine,
+                        upgrade,
+                        target_revision="0004_phase_c_identity_lifecycle",
+                    )
                 engine.begin.assert_not_called()
                 upgrade.assert_not_called()
 
         for has_version_table, revisions in (
             (False, ()),
             (True, ()),
+            (True, ("unknown_revision",)),
             (True, ("0011_event_notification_guest_lifecycle",)),
             (True, ("0010_apple_provider_lifecycle", "branch")),
         ):
@@ -70,7 +74,11 @@ class EventManagementRolloutIsolationStaticTests(unittest.TestCase):
                     patch.object(cleanup_harness, "inspect", return_value=inspector),
                     self.assertRaisesRegex(RuntimeError, "known pre-0011 revision"),
                 ):
-                    reset_pre_0011_schema_for_isolated_test_database(engine, upgrade)
+                    reset_pre_0011_schema_for_isolated_test_database(
+                        engine,
+                        upgrade,
+                        target_revision="0004_phase_c_identity_lifecycle",
+                    )
                 engine.begin.assert_not_called()
                 upgrade.assert_not_called()
 
@@ -88,7 +96,11 @@ class EventManagementRolloutIsolationStaticTests(unittest.TestCase):
         inspector.has_table.return_value = True
         upgrade = MagicMock()
         with patch.object(cleanup_harness, "inspect", return_value=inspector):
-            reset_pre_0011_schema_for_isolated_test_database(engine, upgrade)
+            reset_pre_0011_schema_for_isolated_test_database(
+                engine,
+                upgrade,
+                target_revision="0004_phase_c_identity_lifecycle",
+            )
 
         statements = tuple(
             str(call.args[0])
@@ -96,7 +108,26 @@ class EventManagementRolloutIsolationStaticTests(unittest.TestCase):
         )
         self.assertIn("DROP SCHEMA IF EXISTS ntubtob CASCADE", statements[0])
         self.assertIn("CREATE SCHEMA", statements[1])
-        upgrade.assert_called_once_with("0010_apple_provider_lifecycle")
+        upgrade.assert_called_once_with("0004_phase_c_identity_lifecycle")
+
+    def test_setup_uses_guarded_reset_to_exact_0004(self):
+        case = EventManagementRolloutPostgresTests(
+            "test_dry_run_is_read_only_and_execute_is_atomic_with_zero_application_dml"
+        )
+        case.engine = MagicMock()
+        case._upgrade = MagicMock()
+        with patch(
+            __name__ + ".reset_pre_0011_schema_for_isolated_test_database"
+        ) as guarded_reset:
+            case.setUp()
+
+        guarded_reset.assert_called_once_with(
+            case.engine,
+            case._upgrade,
+            target_revision="0004_phase_c_identity_lifecycle",
+        )
+        case.engine.begin.assert_not_called()
+        case.engine.dispose.assert_called_once_with()
 
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
@@ -111,7 +142,11 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         try:
-            reset_pre_0011_schema_for_isolated_test_database(cls.engine, cls._upgrade)
+            reset_pre_0011_schema_for_isolated_test_database(
+                cls.engine,
+                cls._upgrade,
+                target_revision="0010_apple_provider_lifecycle",
+            )
         finally:
             cls.engine.dispose()
 
@@ -125,10 +160,11 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
                 cls.config.attributes.pop("connection", None)
 
     def setUp(self):
-        with self.engine.begin() as connection:
-            connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
-            connection.execute(text(LEGACY_FIXTURE_SQL))
-        self._upgrade("0004_phase_c_identity_lifecycle")
+        reset_pre_0011_schema_for_isolated_test_database(
+            self.engine,
+            self._upgrade,
+            target_revision="0004_phase_c_identity_lifecycle",
+        )
         self.engine.dispose()
 
     def test_dry_run_is_read_only_and_execute_is_atomic_with_zero_application_dml(self):
@@ -369,7 +405,11 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
             with self.assertRaisesRegex(rollout.RolloutError, "trigger definition"):
                 rollout._future_schema_safe(connection)
 
-        reset_pre_0011_schema_for_isolated_test_database(self.engine, self._upgrade)
+        reset_pre_0011_schema_for_isolated_test_database(
+            self.engine,
+            self._upgrade,
+            target_revision="0010_apple_provider_lifecycle",
+        )
 
         with self.engine.connect() as connection:
             self.assertEqual(

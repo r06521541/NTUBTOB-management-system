@@ -234,6 +234,22 @@ database and one known pre-0011 revision. Non-PostgreSQL, nonlocal, wrong-name,
 missing, branched, unknown, and 0011-or-later revisions must stop before its
 destructive test-schema rebuild.
 
+### Hosted correction lease 4
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 4
+- correction_base: `0e7b47b72894c2307df6dd9b287f61b70321d92e`
+- scope: route Event rollout per-test setup through the same guarded canonical
+  reset as class cleanup, targeting exact 0004 for setup and exact 0010 for
+  teardown; preserve drift checks and all product and migration code
+- report_to: `/root`
+
+The reset target itself must be an allowlisted pre-0011 revision. Setup and
+teardown both reject unproven database identity or revision state before any
+schema DDL.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。

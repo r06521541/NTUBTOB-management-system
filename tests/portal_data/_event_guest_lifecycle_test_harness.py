@@ -105,9 +105,15 @@ def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
     return "0010_apple_provider_lifecycle"
 
 
-def reset_pre_0011_schema_for_isolated_test_database(engine, upgrade) -> str:
-    """Rebuild a proven pre-0011 test schema at canonical revision 0010."""
+def reset_pre_0011_schema_for_isolated_test_database(
+    engine, upgrade, *, target_revision: str
+) -> str:
+    """Rebuild a proven pre-0011 test schema at an allowlisted revision."""
 
+    if target_revision not in PRE_0011_NOOP_REVISIONS:
+        raise RuntimeError(
+            "Event lifecycle reset requires a known pre-0011 target revision"
+        )
     _require_isolated_test_database(engine)
     current_rows = _revision_rows(engine)
     if (
@@ -119,5 +125,5 @@ def reset_pre_0011_schema_for_isolated_test_database(engine, upgrade) -> str:
     with engine.begin() as connection:
         connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
         connection.execute(text(LEGACY_FIXTURE_SQL))
-    upgrade("0010_apple_provider_lifecycle")
-    return "0010_apple_provider_lifecycle"
+    upgrade(target_revision)
+    return target_revision

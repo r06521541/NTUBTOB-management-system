@@ -122,6 +122,22 @@
   py_compile, pinned Black 24.4.2 per-file API comparison, isort 5.13.2, and diff
   checks passed. Hosted PostgreSQL 15/16 remains required for the real reset.
 
+### Hosted correction lease 4
+
+- Per-test Event rollout setup no longer performs a URL-only direct schema drop.
+  It delegates to the same test-only guarded reset as class cleanup, with exact
+  allowlisted targets: 0004 for each test fixture and 0010 after the class.
+- The shared reset validates its target plus local isolated PostgreSQL identity
+  and one known pre-0011 source revision before DDL. Missing, empty, unknown,
+  0011-or-later, or branched revision state stops without beginning a transaction.
+- Static regressions prove setup delegates to the guard and performs no direct
+  transaction, while the existing PostgreSQL drift/reset/follower regressions
+  retain clean 0004-per-test and canonical 0010-next-suite evidence.
+- Local lease-4 evidence: 12 focused static regressions passed; the rollout module
+  ran 11 tests successfully with 8 expected PostgreSQL skips; portal-data full ran
+  319 tests successfully with 160 expected PostgreSQL skips. Hosted PostgreSQL
+  15/16 remains required for the real guarded setup and cleanup sequence.
+
 ## Hosted and external limits
 
 - Local isolated PostgreSQL was unavailable, so the new real-transaction lock
