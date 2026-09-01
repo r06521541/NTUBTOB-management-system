@@ -239,6 +239,24 @@ void main() {
         expect(store.values, isNot(contains(key)));
       }
 
+      for (final malformedEvent in [
+        {...event().toJson(), 'platform_class': 'private-device-sentinel'},
+        {
+          ...event().toJson(),
+          'day_utc': '2026-09-01T00:00:00.001Z',
+        },
+      ]) {
+        await store.write(
+          key,
+          jsonEncode({
+            'version': crashQueueVersion,
+            'events': [malformedEvent],
+          }),
+        );
+        expect(await queue.pending(), isEmpty);
+        expect(store.values, isNot(contains(key)));
+      }
+
       await store.write(
         key,
         jsonEncode({

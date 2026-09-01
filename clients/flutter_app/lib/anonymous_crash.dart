@@ -77,11 +77,12 @@ class AnonymousCrashEvent {
     }
     final day = DateTime.tryParse(json['day_utc'] as String? ?? '');
     final fingerprint = json['fingerprint'];
+    final platformClass = json['platform_class'];
     if (day == null ||
         !day.isUtc ||
-        day.hour != 0 ||
-        day.minute != 0 ||
-        day.second != 0 ||
+        day != DateTime.utc(day.year, day.month, day.day) ||
+        platformClass is! String ||
+        !const {'android', 'ios', 'other'}.contains(platformClass) ||
         fingerprint is! String ||
         !RegExp(r'^(?:none|[0-9a-f]{16})$').hasMatch(fingerprint)) {
       throw const FormatException('invalid anonymous crash event');
@@ -92,7 +93,7 @@ class AnonymousCrashEvent {
           AnonymousCrashCategory.values.byName(json['category'] as String),
       dayUtc: day,
       appFlavor: AppFlavor.values.byName(json['app_flavor'] as String),
-      platformClass: _platformClass(json['platform_class'] as String),
+      platformClass: platformClass,
       fingerprint: fingerprint,
     );
   }
