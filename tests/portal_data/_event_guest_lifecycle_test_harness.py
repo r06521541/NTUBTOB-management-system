@@ -6,6 +6,9 @@ from shared_lib.shared_module.portal_data.local_database import (
     LOCAL_DATABASE_NAME,
     LOCAL_HOSTS,
 )
+from tests.portal_data._persistent_admin_authority_test_harness import (
+    remove_retained_admin_authority_from_isolated_test_database,
+)
 from tools.setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 PRE_0011_NOOP_REVISIONS = frozenset(
@@ -53,6 +56,9 @@ def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
 
     _require_isolated_test_database(engine)
     current_rows = _revision_rows(engine)
+    if current_rows == ("0012_persistent_admin_authority",):
+        remove_retained_admin_authority_from_isolated_test_database(engine)
+        current_rows = _revision_rows(engine)
     if current_rows is None:
         return None
     if len(current_rows) != 1:

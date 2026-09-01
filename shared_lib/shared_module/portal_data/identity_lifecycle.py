@@ -35,6 +35,13 @@ from .models import (
     LegacyMemberRecord,
     PersonQualificationRecord,
     PersonRecord,
+    PortalAuthorityStateRecord,
+)
+from .runtime import (
+    ADMIN_LOCK_KEY,
+    EVENT_SNAPSHOT_LOCK_KEY,
+    acquire_admin_event_locks,
+    acquire_admin_lock,
 )
 
 IDENTITY_STATUSES = frozenset({"pending", "linked", "disabled", "blocked"})
@@ -47,9 +54,20 @@ PERSON_TRANSITIONS = {
 QUALIFICATIONS = frozenset({"team_player", "guest_player", "affiliate", "staff"})
 APPLICANT_MESSAGE_INTERVAL = timedelta(hours=24)
 REVIEW_RETENTION = timedelta(days=365)
-ADMIN_LOCK_KEY = 70070
-EVENT_SNAPSHOT_LOCK_KEY = 0x4E545542 + 0x100000
 BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
+CURRENT_AUTHORITY_REVISION = "0012_persistent_admin_authority"
+PRE_AUTHORITY_REVISIONS = frozenset(
+    {
+        "0004_phase_c_identity_lifecycle",
+        "0005_mobile_auth_api_foundation",
+        "0006_staging_broker_operation_journal",
+        "0007_mobile_notifications",
+        "0008_mobile_notification_delivery",
+        "0009_event_management_writes",
+        "0010_apple_provider_lifecycle",
+        "0011_event_notification_guest_lifecycle",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -95,11 +113,29 @@ class IdentityLifecycleRepository:
         engine: Engine,
         admin_member_ids: Iterable[int] = (),
         *,
-        allow_persisted_admins: bool = False,
+        authority_mode: str | None = None,
+        allow_persisted_admins: bool | None = None,
     ):
         self.engine = engine
         self.admin_member_ids = frozenset(int(value) for value in admin_member_ids)
-        self.allow_persisted_admins = allow_persisted_admins is True
+        compatibility_preview = (
+            allow_persisted_admins is True and authority_mode is None
+        )
+        if allow_persisted_admins is not None:
+            compatibility_mode = (
+                "persistent" if allow_persisted_admins is True else "legacy_allowlist"
+            )
+            if authority_mode is not None and authority_mode != compatibility_mode:
+                raise ValueError("conflicting admin authority modes")
+            authority_mode = compatibility_mode
+        self.authority_mode = authority_mode or "legacy_allowlist"
+        if self.authority_mode not in {"legacy_allowlist", "persistent"}:
+            raise ValueError("invalid admin authority mode")
+        if self.authority_mode == "persistent" and self.admin_member_ids:
+            raise ValueError("persistent authority rejects an allowlist source")
+        # Preserve the pre-0012 local-preview constructor only. Production Web
+        # passes an explicit authority_mode and must prove the singleton state.
+        self._requires_authority_state = not compatibility_preview
 
     @staticmethod
     def _identity(row: AuthIdentityRecord) -> AuthIdentity:
@@ -153,43 +189,150 @@ class IdentityLifecycleRepository:
             session.flush()
         return thread
 
-    def _require_admin(
-        self, session: Session, actor_person_id: int
-    ) -> LegacyMemberRecord:
-        session.execute(
-            text("SELECT pg_advisory_xact_lock(:key)"), {"key": ADMIN_LOCK_KEY}
-        )
+    def _require_admin(self, session: Session, actor_person_id: int) -> PersonRecord:
+        acquire_admin_lock(session)
+        if not self._authority_mode_matches_in_session(session):
+            raise AuthorizationError("administrator authority mode mismatch")
         person = session.scalar(
             select(PersonRecord)
             .where(PersonRecord.id == actor_person_id)
             .with_for_update()
         )
-        member = session.scalar(
-            select(LegacyMemberRecord).where(
-                LegacyMemberRecord.person_id == actor_person_id,
+        member = None
+        if self.authority_mode == "legacy_allowlist":
+            member = session.scalar(
+                select(LegacyMemberRecord).where(
+                    LegacyMemberRecord.person_id == actor_person_id,
+                )
             )
-        )
         linked = session.scalar(
             select(func.count(AuthIdentityRecord.id)).where(
                 AuthIdentityRecord.person_id == actor_person_id,
                 AuthIdentityRecord.status == "linked",
             )
         )
-        if (
-            person is None
-            or person.portal_status != "active"
-            or member is None
-            or (
-                member.id not in self.admin_member_ids
-                and not (
-                    self.allow_persisted_admins
-                    and person.portal_access_level == "admin"
-                )
-            )
-            or not linked
+        if person is None or person.portal_status != "active" or not linked:
+            raise AuthorizationError("active reachable administrator required")
+        if self.authority_mode == "legacy_allowlist":
+            if member is None or member.id not in self.admin_member_ids:
+                raise AuthorizationError("active allowlisted administrator required")
+        else:
+            if person.portal_access_level != "admin":
+                raise AuthorizationError("persistent administrator required")
+        return person
+
+    def _authority_mode_matches_in_session(self, session: Session) -> bool:
+        if not self._requires_authority_state:
+            return True
+        revisions = tuple(
+            session.scalars(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ).all()
+        )
+        if len(revisions) != 1 or (
+            revisions[0] not in PRE_AUTHORITY_REVISIONS
+            and revisions[0] != CURRENT_AUTHORITY_REVISION
         ):
-            raise AuthorizationError("active allowlisted administrator required")
-        return member
+            return False
+        authority_table = session.scalars(
+            text("SELECT to_regclass('ntubtob.portal_authority_state')")
+        ).one_or_none()
+        if authority_table is None:
+            return (
+                revisions[0] in PRE_AUTHORITY_REVISIONS
+                and self.authority_mode == "legacy_allowlist"
+            )
+        if authority_table != "ntubtob.portal_authority_state" or revisions != (
+            CURRENT_AUTHORITY_REVISION,
+        ):
+            return False
+        states = tuple(
+            session.scalars(
+                select(PortalAuthorityStateRecord).order_by(
+                    PortalAuthorityStateRecord.singleton_id
+                )
+            ).all()
+        )
+        if len(states) != 1:
+            return False
+        state = states[0]
+        return (
+            state.singleton_id == 1
+            and state.mode == self.authority_mode
+            and type(state.epoch) is int
+            and state.epoch >= 1
+        )
+
+    def authority_mode_is_ready(self, *, session: Session | None = None) -> bool:
+        """Fail closed unless runtime mode matches the durable authority state."""
+        if session is not None:
+            return self._authority_mode_matches_in_session(session)
+        try:
+            with Session(self.engine) as database_session:
+                return self._authority_mode_matches_in_session(database_session)
+        except SQLAlchemyError:
+            return False
+
+    def web_role_for_principal(self, principal: Principal) -> str | None:
+        """Resolve one request against exactly one configured authority source."""
+        if (
+            principal.person.status != "active"
+            or principal.identity.status != "linked"
+            or principal.identity.person_id != principal.person.id
+        ):
+            return None
+        if not self.authority_mode_is_ready():
+            return None
+        if self.authority_mode == "legacy_allowlist":
+            return (
+                "admin"
+                if principal.person.member_id in self.admin_member_ids
+                else "basic"
+            )
+        return "admin" if principal.person.access_level == "admin" else "basic"
+
+    @staticmethod
+    def _reachable_persistent_admin_count(
+        session: Session,
+        *,
+        excluding_person_id: int | None = None,
+        excluding_identity_id: int | None = None,
+    ) -> int:
+        statement = (
+            select(func.count(func.distinct(PersonRecord.id)))
+            .join(
+                AuthIdentityRecord,
+                AuthIdentityRecord.person_id == PersonRecord.id,
+            )
+            .where(
+                PersonRecord.portal_access_level == "admin",
+                PersonRecord.portal_status == "active",
+                AuthIdentityRecord.status == "linked",
+            )
+        )
+        if excluding_person_id is not None:
+            statement = statement.where(PersonRecord.id != excluding_person_id)
+        if excluding_identity_id is not None:
+            statement = statement.where(AuthIdentityRecord.id != excluding_identity_id)
+        return int(session.scalar(statement) or 0)
+
+    @classmethod
+    def _assert_reachable_admin_remains(
+        cls,
+        session: Session,
+        *,
+        excluding_person_id: int | None = None,
+        excluding_identity_id: int | None = None,
+    ) -> None:
+        if (
+            cls._reachable_persistent_admin_count(
+                session,
+                excluding_person_id=excluding_person_id,
+                excluding_identity_id=excluding_identity_id,
+            )
+            < 1
+        ):
+            raise ConflictError("cannot remove the last reachable administrator")
 
     def ensure_pending_line_identity(
         self, subject: str, nickname: str, request_id: str
@@ -321,6 +464,7 @@ class IdentityLifecycleRepository:
                     "display_name": person.display_name,
                     "formal_name": person.formal_name,
                     "access_level": person.portal_access_level,
+                    "version": person.version,
                     "member_id": member.id if member is not None else None,
                 }
                 for identity, person, member in rows
@@ -589,6 +733,7 @@ class IdentityLifecycleRepository:
                     "admin_note": person.admin_note,
                     "status": person.portal_status,
                     "access_level": person.portal_access_level,
+                    "version": person.version,
                     "member_id": member.id if member else None,
                     "member": (
                         {
@@ -748,6 +893,7 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             target = session.scalar(
                 select(PersonRecord)
@@ -790,6 +936,128 @@ class IdentityLifecycleRepository:
                 )
             )
             session.flush()
+            return self._person(target, member)
+
+    def change_admin_access(
+        self,
+        actor_person_id: int,
+        target_person_id: int,
+        access_level: str,
+        expected_version: int,
+        reason: str,
+        request_id: str,
+    ) -> Person:
+        """Grant or revoke durable admin role with exact idempotent replay."""
+        if access_level not in {"admin", "basic"}:
+            raise ValidationError("admin access must be admin or basic")
+        if type(expected_version) is not int or expected_version < 1:
+            raise ValidationError("expected version must be a positive integer")
+        if (
+            not isinstance(request_id, str)
+            or not 1 <= len(request_id) <= 100
+            or not request_id.isascii()
+            or any(
+                not (character.isalnum() or character in "-_")
+                for character in request_id
+            )
+        ):
+            raise ValidationError("request ID is invalid")
+        reason = require_reason(reason)
+        now = utc_now()
+        with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
+            self._require_admin(session, actor_person_id)
+            target = session.scalar(
+                select(PersonRecord)
+                .where(PersonRecord.id == target_person_id)
+                .with_for_update()
+            )
+            if target is None:
+                raise ConflictError("person not found")
+            if actor_person_id == target_person_id:
+                raise AuthorizationError(
+                    "administrators cannot change their own access"
+                )
+
+            prior = session.scalar(
+                select(AccessAuditRecord).where(
+                    AccessAuditRecord.request_id == request_id
+                )
+            )
+            desired_after = {
+                "access_level": access_level,
+                "expected_version": expected_version,
+                "resulting_version": expected_version + 1,
+            }
+            if prior is not None:
+                if (
+                    prior.action != "access_changed"
+                    or prior.actor_person_id != actor_person_id
+                    or prior.target_person_id != target_person_id
+                    or prior.reason != reason
+                    or prior.after_state != desired_after
+                    or target.portal_access_level != access_level
+                    or target.version != expected_version + 1
+                ):
+                    raise ConflictError("request replay does not match")
+                member = session.scalar(
+                    select(LegacyMemberRecord).where(
+                        LegacyMemberRecord.person_id == target_person_id
+                    )
+                )
+                return self._person(target, member)
+
+            if target.version != expected_version:
+                raise ConflictError("stale Person version")
+            if access_level == "admin":
+                if target.portal_status != "active":
+                    raise ConflictError("admin must be active")
+                linked = session.scalar(
+                    select(func.count(AuthIdentityRecord.id)).where(
+                        AuthIdentityRecord.person_id == target.id,
+                        AuthIdentityRecord.status == "linked",
+                    )
+                )
+                if not linked:
+                    raise ConflictError("admin must have a linked identity")
+                if target.portal_access_level == "admin":
+                    raise ConflictError("admin access is unchanged")
+            else:
+                if target.portal_access_level != "admin":
+                    raise ConflictError("admin access is unchanged")
+                self._assert_reachable_admin_remains(
+                    session, excluding_person_id=target.id
+                )
+
+            before = target.portal_access_level
+            target.portal_access_level = access_level
+            target.version += 1
+            target.updated_at = now
+            session.add(
+                AccessAuditRecord(
+                    action="access_changed",
+                    actor_person_id=actor_person_id,
+                    target_person_id=target_person_id,
+                    auth_identity_id=None,
+                    before_state={
+                        "access_level": before,
+                        "expected_version": expected_version,
+                    },
+                    after_state=desired_after,
+                    reason=reason,
+                    request_id=request_id,
+                    created_at=now,
+                )
+            )
+            member = session.scalar(
+                select(LegacyMemberRecord).where(
+                    LegacyMemberRecord.person_id == target_person_id
+                )
+            )
+            try:
+                session.flush()
+            except IntegrityError as error:
+                raise ConflictError("admin access mutation conflict") from error
             return self._person(target, member)
 
     def person_directory(self, actor_person_id: int) -> tuple[dict, ...]:
@@ -1332,6 +1600,7 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
                 select(AuthIdentityRecord)
@@ -1366,6 +1635,15 @@ class IdentityLifecycleRepository:
                 subject = identity.provider_subject
             else:
                 old_person_id = identity.person_id
+                old_person = session.get(PersonRecord, old_person_id)
+                if (
+                    old_person is not None
+                    and old_person.portal_status == "active"
+                    and old_person.portal_access_level == "admin"
+                ):
+                    self._assert_reachable_admin_remains(
+                        session, excluding_identity_id=identity.id
+                    )
                 legacy = session.scalar(
                     select(LegacyLineUserRecord)
                     .where(
@@ -1427,6 +1705,7 @@ class IdentityLifecycleRepository:
             "pending": "identity_unblocked",
         }
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
                 select(AuthIdentityRecord)
@@ -1452,6 +1731,16 @@ class IdentityLifecycleRepository:
             )
             if not valid:
                 raise ConflictError("invalid identity status transition")
+            if before == "linked" and status != "linked" and identity.person_id:
+                person = session.get(PersonRecord, identity.person_id)
+                if (
+                    person is not None
+                    and person.portal_status == "active"
+                    and person.portal_access_level == "admin"
+                ):
+                    self._assert_reachable_admin_remains(
+                        session, excluding_identity_id=identity.id
+                    )
             if status == "linked" and identity.person_id is None:
                 raise ConflictError("linked identity requires Person")
             if status == "pending" and identity.person_id is not None:
@@ -1515,6 +1804,7 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
                 select(AuthIdentityRecord)
@@ -1532,6 +1822,15 @@ class IdentityLifecycleRepository:
             if self._audit_exists(session, request_id):
                 raise ConflictError("request already applied")
             before_person_id = identity.person_id
+            source_person = session.get(PersonRecord, before_person_id)
+            if (
+                source_person is not None
+                and source_person.portal_status == "active"
+                and source_person.portal_access_level == "admin"
+            ):
+                self._assert_reachable_admin_remains(
+                    session, excluding_identity_id=identity.id
+                )
             legacy = session.scalar(
                 select(LegacyLineUserRecord)
                 .where(LegacyLineUserRecord.line_user_id == identity.provider_subject)
@@ -1577,14 +1876,7 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": ADMIN_LOCK_KEY},
-            )
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             if actor_person_id == target_person_id:
                 raise ConflictError("cannot change own Person status")
@@ -1600,6 +1892,14 @@ class IdentityLifecycleRepository:
             if self._audit_exists(session, request_id):
                 raise ConflictError("request already applied")
             before = target.portal_status
+            if (
+                before == "active"
+                and status != "active"
+                and target.portal_access_level == "admin"
+            ):
+                self._assert_reachable_admin_remains(
+                    session, excluding_person_id=target.id
+                )
             if before == "active" and status != "active":
                 member = session.scalar(
                     select(LegacyMemberRecord).where(

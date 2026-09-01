@@ -234,11 +234,29 @@ minimum instances, startup CPU, database pooling, queries, indexes, or caching.
 
 ## Member matching administration
 
-The production member matching routes require both an authenticated LINE Login
-session and a Member ID listed in `WEB_PORTAL_ADMIN_MEMBER_IDS`. The setting is
-a comma-separated list of positive integer Member IDs, for example `7,12`.
-Missing, empty, malformed, or duplicate values deny access to everyone; do not
-place names, LINE user IDs, or credentials in this setting.
+Administrator authority selects exactly one source with
+`WEB_PORTAL_ADMIN_AUTHORITY_MODE=legacy_allowlist|persistent`. Missing or
+unknown values deny administrator access. `legacy_allowlist` uses only the
+validated Member-ID allowlist. `persistent` never reads or falls back to that
+allowlist: it requires the database authority state to match, plus an active
+Person with `portal_access_level=admin` and at least one active linked login
+identity. A Member row is optional in persistent mode. Admin grant/revoke also
+requires a five-minute fresh login, CSRF, reason, request ID and expected Person
+version; self-lockout and removal of the final reachable admin are denied.
+
+`python -m tools.persistent_admin_inventory` is offline by default and only
+prints `status=preflight_only`. Its future `--execute` path requires an exact
+private host, port and database from named environment inputs plus exact 0012
+revision, uses a bounded read-only transaction, and emits deidentified aggregate
+categories/counts only. Private values are never command-line arguments. This
+task does not authorize executing it or changing the database authority mode.
+
+In `legacy_allowlist` mode, the production member matching routes require both
+an authenticated LINE Login session and a Member ID listed in
+`WEB_PORTAL_ADMIN_MEMBER_IDS`. The setting is a comma-separated list of positive
+integer Member IDs, for example `7,12`. Missing, empty, malformed, or duplicate
+values deny legacy administrator access; do not place names, LINE user IDs, or
+credentials in this setting.
 
 The member matching page creates a session CSRF token, and both matching actions
 require that token. Unauthorized requests are rejected before management data is
@@ -259,9 +277,10 @@ opt-in, `PORTAL_DATA_PHASE_C_ENABLED=true`. It defaults off. When enabled, LINE
 Login persists `person_id` and `auth_identity_id`, every protected request
 refreshes identity, Person, Member, and qualification state from PostgreSQL,
 and an invalid principal fails closed without legacy-session fallback. Admin
-mutations additionally require the existing maintenance flag and Member-ID
-allowlist. Do not enable either production flag until the Phase C migration and
-pre/post evidence have been separately approved and completed.
+mutations additionally require the existing maintenance flag and the one exact
+authority source selected above. Do not enable either production flag until the
+Phase C migration and pre/post evidence have been separately approved and
+completed.
 
 The shared runtime state machine also makes the otherwise invalid
 `PORTAL_DATA_PHASE_C_ENABLED=false` plus

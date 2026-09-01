@@ -59,6 +59,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             {
                 "WEB_PORTAL_ENV": "production",
                 "WEB_PORTAL_DEMO_MODE": "false",
+                "WEB_PORTAL_ADMIN_AUTHORITY_MODE": "legacy_allowlist",
                 "SECRET_KEY": "fake-test-session-key",
             },
             clear=False,
@@ -270,7 +271,10 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     self.line_user_model.reset_mock()
                     self.member_model.reset_mock()
                     self.notifier.reset_mock()
-                    environment = {"WEB_PORTAL_ADMIN_MEMBER_IDS": "7"}
+                    environment = {
+                        "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+                        "WEB_PORTAL_ADMIN_AUTHORITY_MODE": "legacy_allowlist",
+                    }
                     if value is not None:
                         environment["WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED"] = value
                     with patch.dict(os.environ, environment, clear=True):
@@ -4922,6 +4926,151 @@ class MemberMatchingRouteTest(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_admin_grant_requires_fresh_reauth_and_versioned_exact_command(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal("admin")
+        token = self.get_csrf_token()
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                person_id=70,
+                auth_identity_id=71,
+                admin_reauthenticated_at=int(datetime.now(timezone.utc).timestamp()),
+            )
+        environment = {
+            "PORTAL_DATA_PHASE_C_ENABLED": "true",
+            "WEB_PORTAL_ADMIN_MEMBER_IDS": "7",
+            "WEB_PORTAL_ADMIN_AUTHORITY_MODE": "legacy_allowlist",
+        }
+        payload = {
+            "csrf_token": token,
+            "action": "grant_admin",
+            "expected_version": "4",
+            "reason": "Approve persistent administrator",
+            "request_id": "person-admin-grant-80",
+        }
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
+            response = self.client.post("/manage/people/80/access", data=payload)
+        self.assertEqual(response.status_code, 302)
+        repository.change_admin_access.assert_called_once_with(
+            70,
+            80,
+            "admin",
+            4,
+            "Approve persistent administrator",
+            "person-admin-grant-80",
+        )
+
+        repository.change_admin_access.reset_mock()
+        with self.client.session_transaction() as current_session:
+            current_session["admin_reauthenticated_at"] = 1
+        with (
+            patch.dict(os.environ, environment),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+        ):
+            stale = self.client.post("/manage/people/80/access", data=payload)
+        self.assertEqual(stale.status_code, 403)
+        repository.change_admin_access.assert_not_called()
+
+    def test_persistent_memberless_admin_uses_database_role_without_allowlist(self):
+        repository = MagicMock()
+        repository.resolve_line_principal.return_value = self.command_principal(
+            "admin", member_id=None
+        )
+        repository.web_role_for_principal.return_value = "admin"
+        repository.person_directory.return_value = ()
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fictional-persistent-admin",
+                person_id=70,
+                auth_identity_id=71,
+            )
+            current_session.pop("member_id", None)
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                    "WEB_PORTAL_ADMIN_AUTHORITY_MODE": "persistent",
+                },
+                clear=False,
+            ),
+            patch.object(
+                self.app_module, "phase_c_repository", return_value=repository
+            ),
+            patch.object(
+                self.app_module,
+                "parse_admin_member_ids",
+                side_effect=AssertionError("persistent mode read the allowlist"),
+            ),
+        ):
+            response = self.client.get("/manage/people")
+        self.assertEqual(response.status_code, 200)
+        repository.web_role_for_principal.assert_called_once()
+        repository.person_directory.assert_called_once_with(70)
+
+    def test_durable_mode_mismatch_denies_both_web_authority_paths(self):
+        for mode in ("legacy_allowlist", "persistent"):
+            repository = MagicMock()
+            repository.resolve_line_principal.return_value = self.command_principal(
+                "admin", member_id=7
+            )
+            repository.authority_mode_is_ready.return_value = False
+            with self.client.session_transaction() as current_session:
+                current_session.update(
+                    user_id="fictional-mode-mismatch",
+                    member_id=7,
+                    person_id=70,
+                    auth_identity_id=71,
+                )
+            environment = {
+                "PORTAL_DATA_PHASE_C_ENABLED": "true",
+                "WEB_PORTAL_ADMIN_AUTHORITY_MODE": mode,
+            }
+            if mode == "legacy_allowlist":
+                environment["WEB_PORTAL_ADMIN_MEMBER_IDS"] = "7"
+            with (
+                self.subTest(mode=mode),
+                patch.dict(os.environ, environment, clear=False),
+                patch.object(
+                    self.app_module, "phase_c_repository", return_value=repository
+                ),
+            ):
+                response = self.client.get("/manage/people")
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("/redirect-to-login", response.headers["Location"])
+            repository.person_directory.assert_not_called()
+
+    def test_post_cutover_missing_or_malformed_mode_stops_before_repository(self):
+        with self.client.session_transaction() as current_session:
+            current_session.update(
+                user_id="fictional-signed-session",
+                member_id=7,
+                person_id=70,
+                auth_identity_id=71,
+            )
+        for mode in (None, "persistent "):
+            environment = {"PORTAL_DATA_PHASE_C_ENABLED": "true"}
+            if mode is not None:
+                environment["WEB_PORTAL_ADMIN_AUTHORITY_MODE"] = mode
+            with (
+                self.subTest(mode=mode),
+                patch.dict(os.environ, environment, clear=True),
+                patch.object(
+                    phase_c_runtime, "get_identity_lifecycle_repository"
+                ) as repository_factory,
+            ):
+                response = self.client.get("/manage/people")
+            self.assertEqual(response.status_code, 302)
+            self.assertIn("/redirect-to-login", response.headers["Location"])
+            repository_factory.assert_not_called()
 
     def test_admin_member_create_uses_formal_name_as_initial_display_name(self):
         repository = MagicMock()

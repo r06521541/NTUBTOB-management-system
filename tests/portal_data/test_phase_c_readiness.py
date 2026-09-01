@@ -191,7 +191,7 @@ class PhaseCReadinessArtifactTests(unittest.TestCase):
     def test_migration_verifier_rejects_an_additional_head(self):
         scripts = Mock()
         scripts.get_heads.return_value = [
-            "0011_event_notification_guest_lifecycle",
+            "0012_persistent_admin_authority",
             "fake_additional_head",
         ]
         with patch(

@@ -32,11 +32,9 @@ ROOT = Path(__file__).resolve().parents[2]
 class MigrationReadinessStaticTests(unittest.TestCase):
     def test_revision_chain_is_single_and_exact(self):
         self.assertEqual(revision_chain(), EXPECTED_REVISIONS)
-        self.assertEqual(
-            EXPECTED_REVISIONS[-1], "0011_event_notification_guest_lifecycle"
-        )
+        self.assertEqual(EXPECTED_REVISIONS[-1], "0012_persistent_admin_authority")
 
-    def test_historical_suites_pin_0010_and_current_suites_own_head(self):
+    def test_historical_suites_pin_owned_revisions_and_current_suite_owns_head(self):
         historical_suites = (
             "test_mobile_api_foundation.py",
             "test_staging_broker_journal.py",
@@ -55,11 +53,15 @@ class MigrationReadinessStaticTests(unittest.TestCase):
                 )
                 self.assertNotIn('"head"', setup)
 
-        current_suites = {
-            "test_mobile_notifications.py": 'command.upgrade(config, "head")',
-            "test_event_guest_lifecycle.py": 'command.upgrade(self.config, "head")',
+        historical_0011_suites = {
+            "test_mobile_notifications.py": (
+                'command.upgrade(config, "0011_event_notification_guest_lifecycle")'
+            ),
+            "test_event_guest_lifecycle.py": (
+                'self.config, "0011_event_notification_guest_lifecycle"'
+            ),
         }
-        for name, expected_upgrade in current_suites.items():
+        for name, expected_upgrade in historical_0011_suites.items():
             with self.subTest(name=name):
                 source = (ROOT / "tests" / "portal_data" / name).read_text(
                     encoding="utf-8"
@@ -68,7 +70,15 @@ class MigrationReadinessStaticTests(unittest.TestCase):
                     "\n    def ", 1
                 )[0]
                 self.assertIn(expected_upgrade, setup)
-                self.assertIn("0011_event_notification_guest_lifecycle", source)
+                self.assertNotIn('"head"', setup)
+
+        current_suites = ("test_persistent_admin_authority.py",)
+        for name in current_suites:
+            with self.subTest(name=name):
+                source = (ROOT / "tests" / "portal_data" / name).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("0012_persistent_admin_authority", source)
 
         notification_source = (
             ROOT / "tests" / "portal_data" / "test_mobile_notifications.py"

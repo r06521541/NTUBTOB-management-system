@@ -54,6 +54,15 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         session.execute.side_effect = lambda _statement, values: order.append(
             f"lock:{values['key']}"
         )
+        revision = MagicMock()
+        revision.all.return_value = ["0012_persistent_admin_authority"]
+        presence = MagicMock()
+        presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+        state = MagicMock()
+        state.all.return_value = [
+            SimpleNamespace(singleton_id=1, mode="legacy_allowlist", epoch=1)
+        ]
+        session.scalars.side_effect = [revision, presence, state]
 
         scalar_results = iter(
             (
@@ -278,6 +287,44 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         self.assertIn("guest_qualification_audits", statement)
         self.assertIn("SET version_num = '0010_apple_provider_lifecycle'", statement)
 
+    def test_test_cleanup_orders_exact_0012_before_existing_0011_cleanup(self):
+        engine = MagicMock()
+        engine.url = SimpleNamespace(
+            drivername="postgresql",
+            host="localhost",
+            database=cleanup_harness.LOCAL_DATABASE_NAME,
+        )
+        rows = (
+            engine.connect.return_value.__enter__.return_value.scalars.return_value.all
+        )
+        rows.side_effect = [
+            ("0012_persistent_admin_authority",),
+            ("0011_event_notification_guest_lifecycle",),
+        ]
+        inspector = MagicMock()
+        inspector.has_table.return_value = True
+        order = []
+
+        def cleanup(_engine):
+            order.append("0012")
+
+        begin_context = engine.begin.return_value
+        engine.begin.side_effect = lambda: (order.append("0011") or begin_context)
+        with (
+            patch.object(cleanup_harness, "inspect", return_value=inspector),
+            patch.object(
+                cleanup_harness,
+                "remove_retained_admin_authority_from_isolated_test_database",
+                side_effect=cleanup,
+            ) as admin_cleanup,
+        ):
+            result = prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
+                engine
+            )
+        self.assertEqual(result, "0010_apple_provider_lifecycle")
+        self.assertEqual(order, ["0012", "0011"])
+        admin_cleanup.assert_called_once_with(engine)
+
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class EventGuestLifecyclePostgresTests(unittest.TestCase):
@@ -303,7 +350,7 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
             connection.execute(text(LEGACY_FIXTURE_SQL))
             self.config.attributes["connection"] = connection
             try:
-                command.upgrade(self.config, "head")
+                command.upgrade(self.config, "0011_event_notification_guest_lifecycle")
             finally:
                 self.config.attributes.pop("connection", None)
         self.repository = PostgresTeamPortalRepository(

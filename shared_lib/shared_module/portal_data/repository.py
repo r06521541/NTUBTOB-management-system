@@ -51,6 +51,8 @@ from .models import (
     PersonQualificationRecord,
     PersonRecord,
 )
+from .runtime import ADMIN_LOCK_KEY as CANONICAL_ADMIN_LOCK_KEY
+from .runtime import EVENT_SNAPSHOT_LOCK_KEY as CANONICAL_EVENT_SNAPSHOT_LOCK_KEY
 
 EVENT_TYPES = frozenset({"game", "meal", "trip", "practice", "social", "other"})
 ACTIVITY_TYPES = frozenset(
@@ -65,6 +67,9 @@ EVENT_NOTIFICATION_ACTION_TYPES = {
     "cancelled": "event_cancelled",
 }
 EVENT_LIFECYCLE_REVISION = "0011_event_notification_guest_lifecycle"
+EVENT_LIFECYCLE_REVISIONS = frozenset(
+    {EVENT_LIFECYCLE_REVISION, "0012_persistent_admin_authority"}
+)
 MAX_EVENT_NOTIFICATION_RECIPIENTS = 500
 
 
@@ -1406,8 +1411,8 @@ class InMemoryTeamPortalRepository:
 class PostgresTeamPortalRepository:
     """PostgreSQL adapter used only when explicitly constructed by local tests."""
 
-    ADMIN_LOCK_KEY = 0x4E545542
-    EVENT_SNAPSHOT_LOCK_KEY = ADMIN_LOCK_KEY + 0x100000
+    ADMIN_LOCK_KEY = CANONICAL_ADMIN_LOCK_KEY
+    EVENT_SNAPSHOT_LOCK_KEY = CANONICAL_EVENT_SNAPSHOT_LOCK_KEY
 
     def __init__(
         self,
@@ -1441,12 +1446,19 @@ class PostgresTeamPortalRepository:
         if for_update:
             statement = statement.with_for_update()
         person = session.scalar(statement)
+        linked = session.scalar(
+            select(func.count(AuthIdentityRecord.id)).where(
+                AuthIdentityRecord.person_id == person_id,
+                AuthIdentityRecord.status == "linked",
+            )
+        )
         if (
             person is None
             or person.portal_status != "active"
             or person.portal_access_level != "admin"
+            or not linked
         ):
-            raise AuthorizationError("active admin required")
+            raise AuthorizationError("active reachable admin required")
         return person
 
     def _require_event_manager(self, session: Session, person_id: int) -> PersonRecord:
@@ -2015,7 +2027,7 @@ class PostgresTeamPortalRepository:
         revisions = tuple(
             session.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
         )
-        if revisions != (EVENT_LIFECYCLE_REVISION,):
+        if len(revisions) != 1 or revisions[0] not in EVENT_LIFECYCLE_REVISIONS:
             raise ConflictError("event lifecycle schema is unavailable")
 
     @staticmethod
@@ -2381,11 +2393,16 @@ class PostgresTeamPortalRepository:
                     raise AuthorizationError("admins cannot change their own access")
                 if target.portal_access_level == "admin" and access_level != "admin":
                     active_admins = session.scalar(
-                        select(func.count())
+                        select(func.count(func.distinct(PersonRecord.id)))
                         .select_from(PersonRecord)
+                        .join(
+                            AuthIdentityRecord,
+                            AuthIdentityRecord.person_id == PersonRecord.id,
+                        )
                         .where(
                             PersonRecord.portal_access_level == "admin",
                             PersonRecord.portal_status == "active",
+                            AuthIdentityRecord.status == "linked",
                         )
                     )
                     if active_admins is None or active_admins <= 1:
@@ -2443,11 +2460,16 @@ class PostgresTeamPortalRepository:
                     and status != "active"
                 ):
                     active_admins = session.scalar(
-                        select(func.count())
+                        select(func.count(func.distinct(PersonRecord.id)))
                         .select_from(PersonRecord)
+                        .join(
+                            AuthIdentityRecord,
+                            AuthIdentityRecord.person_id == PersonRecord.id,
+                        )
                         .where(
                             PersonRecord.portal_access_level == "admin",
                             PersonRecord.portal_status == "active",
+                            AuthIdentityRecord.status == "linked",
                         )
                     )
                     if active_admins is None or active_admins <= 1:

@@ -1,26 +1,29 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-175
-status: in_progress
-next_actor: main-work
+active_task: TASK-176
+status: ready_for_review
+next_actor: auth-security-reviewer
 
-claim_id: main-work-20260825
-lease_version: 17
-actor_id: 01a03587-d263-7e92-9965-54816f38b8a3
+claim_id: task-176-hosted-pg-correction-writer-20260901
+lease_version: 1
+actor_id: /root/task170_play_evidence_writer
 
-base_commit: ccc5f596dc9560d713dbf93a305c64d2d1642927
-head_commit: e64c915e50b409d0c924503e00689f0eaf518a73
+base_commit: 201bb56c37a0552961456a9212f62d959cd7182a
+head_commit: 13f4057fa3bb80287a083cc70ecaaacb2098a685
 
-updated_by: main-work
-updated_at: 2026-09-01T01:00:00+08:00
+updated_by: codex-writer
+updated_at: 2026-09-01T15:26:35+08:00
 
 note: >
-  TASK-175 independent Data/Auth review accepted the immutable implementation.
-  Main will create the single ready PR and require hosted PostgreSQL and full CI.
-  No provider delivery, production mutation or deployment is authorized.
+  TASK-176 hosted correction is committed at the immutable review target. Known
+  Person-era pre-0012 compatibility remains legacy-only with no retained authority
+  state, persistent PostgreSQL cases rebuild an isolated fixture per test, and the
+  fake admin now has a deterministic fictional linked identity. No real allowlist,
+  production database, provider call or runtime mutation occurred. Hosted
+  PostgreSQL 15/16 acceptance remains required.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-175.md
-report: docs/coordination/reports/TASK-175.md
-review: docs/coordination/reviews/TASK-175.md
+task: docs/coordination/tasks/TASK-176.md
+report: docs/coordination/reports/TASK-176.md
+review: pending

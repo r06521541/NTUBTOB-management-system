@@ -34,6 +34,16 @@
   {% if person.access_level in ['basic','officer'] and person.person_id != session.person_id %}{% set target_access = 'officer' if person.access_level == 'basic' else 'basic' %}
   <form class="portal-form" method="post" action="{{ url_for('change_person_access', person_id=person.person_id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="request_id" value="{{ 'person-access-' ~ person.person_id ~ '-' ~ target_access if fictional_access_reason else 'person-access-' ~ person.person_id ~ '-' ~ request_nonce }}"><label>原因<input name="reason" minlength="3" maxlength="300"{% if fictional_access_reason %} value="{{ fictional_access_reason }}" readonly{% endif %} required></label><button class="portal-button portal-button-primary" name="action" value="{{ 'promote_officer' if person.access_level == 'basic' else 'demote_basic' }}" type="submit">{{ '指派為幹部' if person.access_level == 'basic' else '解除幹部' }}</button></form>
   {% else %}<p class="portal-muted">此帳號不可由本介面變更。</p>{% endif %}
+  {% if not fictional_access_reason and person.person_id != session.person_id %}
+  <form class="portal-form" method="post" action="{{ url_for('change_person_access', person_id=person.person_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="request_id" value="person-admin-{{ person.person_id }}-{{ request_nonce }}">
+    <input type="hidden" name="expected_version" value="{{ person.version }}">
+    <label>管理員權限變更原因<input name="reason" minlength="3" maxlength="300" required></label>
+    <button class="portal-button portal-button-primary" name="action" value="{{ 'revoke_admin' if person.access_level == 'admin' else 'grant_admin' }}" type="submit">{{ '解除系統管理者' if person.access_level == 'admin' else '指派為系統管理者' }}</button>
+  </form>
+  <p class="portal-muted">此高風險操作只接受五分鐘內完成的登入驗證，並使用頁面載入時的版本避免覆寫競爭變更。</p>
+  {% endif %}
 </section>{% endif %}
 
 {% elif active_tab == 'member' %}

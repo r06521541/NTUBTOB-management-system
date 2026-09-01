@@ -71,6 +71,7 @@ ROLE_CAPABILITIES = MappingProxyType(
 class Principal:
     role: str
     member_id: object = None
+    person_id: object = None
 
 
 def has_capability(principal, capability):
@@ -80,7 +81,17 @@ def has_capability(principal, capability):
     if not isinstance(principal.role, str) or not isinstance(capability, str):
         return False
     capabilities = ROLE_CAPABILITIES.get(principal.role)
-    return capabilities is not None and capability in capabilities
+    if capabilities is None or capability not in capabilities:
+        return False
+    if (
+        capability in {VIEW_MEMBER_PORTAL, REPLY_OWN_ATTENDANCE}
+        and principal.role == ROLE_ADMIN
+        and isinstance(principal.person_id, int)
+        and not isinstance(principal.person_id, bool)
+        and principal.member_id is None
+    ):
+        return False
+    return True
 
 
 def role_label(principal):
@@ -95,11 +106,7 @@ def resolve_production_principal(session_values, admin_member_ids):
     member_id = session_values.get("member_id")
     if not isinstance(user_id, str) or not user_id.strip():
         return None
-    if (
-        not isinstance(member_id, int)
-        or isinstance(member_id, bool)
-        or member_id <= 0
-    ):
+    if not isinstance(member_id, int) or isinstance(member_id, bool) or member_id <= 0:
         return None
     role = ROLE_ADMIN if member_id in admin_member_ids else ROLE_BASIC
     return Principal(role=role, member_id=member_id)

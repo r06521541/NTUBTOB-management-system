@@ -11,11 +11,41 @@ from shared_lib.shared_module.portal_data.local_database import (
 )
 from shared_lib.shared_module.portal_data.models import AuthIdentityRecord
 from shared_lib.shared_module.portal_data.repository import PostgresTeamPortalRepository
+from shared_lib.shared_module.portal_data.runtime import acquire_admin_lock
 
 FAKE_IDENTITIES = (
     ("fake-line-affiliate", "虛構親友丙", ("affiliate",)),
     ("fake-line-guest-player", "虛構客座球員丁", ("guest_player",)),
 )
+FAKE_ADMIN_IDENTITY_SUBJECT = "fake-line-seed-admin"
+
+
+def _ensure_fake_admin_identity(engine: Engine, admin_person_id: int) -> None:
+    now = datetime.now(timezone.utc)
+    with Session(engine) as session, session.begin():
+        acquire_admin_lock(session)
+        identity = session.scalar(
+            select(AuthIdentityRecord)
+            .where(
+                AuthIdentityRecord.provider == "line",
+                AuthIdentityRecord.provider_subject == FAKE_ADMIN_IDENTITY_SUBJECT,
+            )
+            .with_for_update()
+        )
+        if identity is None:
+            session.add(
+                AuthIdentityRecord(
+                    provider="line",
+                    provider_subject=FAKE_ADMIN_IDENTITY_SUBJECT,
+                    person_id=admin_person_id,
+                    status="linked",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            return
+        if identity.person_id != admin_person_id or identity.status != "linked":
+            raise RuntimeError("fake seed admin identity does not match local fixture")
 
 
 def seed_fake_data(engine: Engine) -> dict[str, int]:
@@ -26,6 +56,7 @@ def seed_fake_data(engine: Engine) -> dict[str, int]:
         admin_person_id = connection.exec_driver_sql(
             "SELECT person_id FROM ntubtob.members WHERE id = 7001"
         ).scalar_one()
+    _ensure_fake_admin_identity(engine, admin_person_id)
 
     created = 0
     reused = 0

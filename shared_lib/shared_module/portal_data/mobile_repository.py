@@ -24,7 +24,7 @@ from sqlalchemy import Engine, and_, func, literal, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .identity_lifecycle import ADMIN_LOCK_KEY, IdentityLifecycleRepository
+from .identity_lifecycle import IdentityLifecycleRepository
 from .models import (
     AccessAuditRecord,
     AppleProviderCodeExchangeRecord,
@@ -46,7 +46,11 @@ from .models import (
     MobileSessionRecord,
     PersonQualificationRecord,
     PersonRecord,
+    PortalAuthorityStateRecord,
 )
+from .runtime import ADMIN_LOCK_KEY, acquire_admin_event_locks
+
+APPLE_ADMIN_RECOVERY_REQUIRED = "recovery_required"
 
 
 class MobileRepository:
@@ -62,6 +66,7 @@ class MobileRepository:
                 ) in {
                     "0010_apple_provider_lifecycle",
                     "0011_event_notification_guest_lifecycle",
+                    "0012_persistent_admin_authority",
                 }
         except Exception:
             return False
@@ -145,8 +150,9 @@ class MobileRepository:
             code_row.auth_identity_id = identity.id
             code_row.updated_at = values["now"]
 
-    def apply_apple_notification(self, **values) -> bool:
+    def apply_apple_notification(self, **values) -> bool | str:
         """Atomically record one verified event and revoke Apple-owned access."""
+        outcome: bool | str = True
         try:
             with Session(self.engine) as session, session.begin():
                 receipt = AppleProviderNotificationRecord(
@@ -164,6 +170,8 @@ class MobileRepository:
                 )
                 session.add(receipt)
                 session.flush()
+                if receipt.disposition == "revoked":
+                    acquire_admin_event_locks(session)
                 identity = session.scalar(
                     select(AuthIdentityRecord)
                     .where(
@@ -174,6 +182,45 @@ class MobileRepository:
                 )
                 receipt.auth_identity_id = None if identity is None else identity.id
                 if receipt.disposition == "revoked" and identity is not None:
+                    recovery_required = False
+                    revisions = tuple(
+                        session.scalars(
+                            text("SELECT version_num FROM ntubtob.alembic_version")
+                        ).all()
+                    )
+                    if revisions == ("0012_persistent_admin_authority",):
+                        states = tuple(
+                            session.scalars(
+                                select(PortalAuthorityStateRecord).order_by(
+                                    PortalAuthorityStateRecord.singleton_id
+                                )
+                            ).all()
+                        )
+                        person = (
+                            session.scalar(
+                                select(PersonRecord)
+                                .where(PersonRecord.id == identity.person_id)
+                                .with_for_update()
+                            )
+                            if identity.person_id is not None and len(states) == 1
+                            else None
+                        )
+                        state = states[0] if len(states) == 1 else None
+                        recovery_required = bool(
+                            state is not None
+                            and state.singleton_id == 1
+                            and state.mode == "persistent"
+                            and type(state.epoch) is int
+                            and state.epoch >= 1
+                            and identity.status == "linked"
+                            and person is not None
+                            and person.portal_status == "active"
+                            and person.portal_access_level == "admin"
+                            and self.lifecycle._reachable_persistent_admin_count(
+                                session, excluding_identity_id=identity.id
+                            )
+                            == 0
+                        )
                     identity.status = "disabled"
                     identity.updated_at = values["now"]
                     devices = session.scalars(
@@ -198,9 +245,32 @@ class MobileRepository:
                         credential.status = "revoked"
                         credential.revoked_at = values["now"]
                         credential.updated_at = values["now"]
+                    if recovery_required:
+                        session.add(
+                            AccessAuditRecord(
+                                action="identity_disabled",
+                                actor_person_id=None,
+                                target_person_id=identity.person_id,
+                                auth_identity_id=identity.id,
+                                before_state={"identity_status": "linked"},
+                                after_state={
+                                    "identity_status": "disabled",
+                                    "admin_recovery": "required",
+                                    "authority_mode": "persistent",
+                                },
+                                reason=(
+                                    "Apple provider revocation requires admin recovery"
+                                ),
+                                request_id=(
+                                    f"apple-admin-recovery-{values['jti_hash']}"
+                                ),
+                                created_at=values["now"],
+                            )
+                        )
+                        outcome = APPLE_ADMIN_RECOVERY_REQUIRED
         except IntegrityError:
             return False
-        return True
+        return outcome
 
     def exchange(self, **values) -> MobilePrincipal:
         principal = self.lifecycle.resolve_principal(
@@ -902,10 +972,12 @@ class MobileRepository:
         unread_only: bool,
     ) -> list[dict]:
         with Session(self.engine) as session:
-            event_lifecycle_ready = (
-                session.scalar(text("SELECT version_num FROM ntubtob.alembic_version"))
-                == "0011_event_notification_guest_lifecycle"
-            )
+            event_lifecycle_ready = session.scalar(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ) in {
+                "0011_event_notification_guest_lifecycle",
+                "0012_persistent_admin_authority",
+            }
             category = (
                 MobileNotificationRecipientRecord.participation_category
                 if event_lifecycle_ready
@@ -962,10 +1034,12 @@ class MobileRepository:
         self, person_id: int, notification_id: int, now: datetime
     ) -> dict | None:
         with Session(self.engine) as session:
-            event_lifecycle_ready = (
-                session.scalar(text("SELECT version_num FROM ntubtob.alembic_version"))
-                == "0011_event_notification_guest_lifecycle"
-            )
+            event_lifecycle_ready = session.scalar(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ) in {
+                "0011_event_notification_guest_lifecycle",
+                "0012_persistent_admin_authority",
+            }
             category = (
                 MobileNotificationRecipientRecord.participation_category
                 if event_lifecycle_ready

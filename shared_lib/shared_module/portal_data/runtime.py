@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
 from typing import Iterable, Mapping
@@ -6,6 +8,39 @@ PHASE_C_ENABLED_ENV = "PORTAL_DATA_PHASE_C_ENABLED"
 IDENTITY_MAINTENANCE_ENV = "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED"
 ROLLOUT_FREEZE_ENV = "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED"
 ROLLOUT_SERVICES = ("web_portal", "line_webhook", "notify_cron")
+ADMIN_AUTHORITY_MODE_ENV = "WEB_PORTAL_ADMIN_AUTHORITY_MODE"
+ADMIN_AUTHORITY_MODES = frozenset({"legacy_allowlist", "persistent"})
+# All admin-reachability writers use this one transaction advisory lock.  Event
+# writers take the second key only after this key.
+ADMIN_LOCK_KEY = 70070
+# Preserve the accepted Event key while making every reachability writer take
+# the legacy/recovery-compatible ADMIN key first.
+EVENT_SNAPSHOT_LOCK_KEY = 0x4E545542 + 0x100000
+
+
+def admin_authority_mode(
+    environment: Mapping[str, str] | None = None,
+) -> str | None:
+    """Return the one explicit authority source, or None for fail-closed input."""
+    values = os.environ if environment is None else environment
+    value = values.get(ADMIN_AUTHORITY_MODE_ENV)
+    return value if value in ADMIN_AUTHORITY_MODES else None
+
+
+def acquire_admin_lock(session) -> None:
+    from sqlalchemy import text
+
+    session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": ADMIN_LOCK_KEY})
+
+
+def acquire_admin_event_locks(session) -> None:
+    from sqlalchemy import text
+
+    acquire_admin_lock(session)
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": EVENT_SNAPSHOT_LOCK_KEY},
+    )
 
 
 @dataclass(frozen=True)
@@ -169,7 +204,10 @@ def is_rollout_freeze_enabled(
 
 
 def get_identity_lifecycle_repository(
-    admin_member_ids: Iterable[int] = (), *, allow_persisted_admins: bool = False
+    admin_member_ids: Iterable[int] = (),
+    *,
+    authority_mode: str | None = None,
+    allow_persisted_admins: bool | None = None,
 ):
     """Construct the repository lazily so imports do not connect to the database."""
     from shared_module.models.db import engine
@@ -179,5 +217,6 @@ def get_identity_lifecycle_repository(
     return IdentityLifecycleRepository(
         engine,
         admin_member_ids,
+        authority_mode=authority_mode,
         allow_persisted_admins=allow_persisted_admins,
     )

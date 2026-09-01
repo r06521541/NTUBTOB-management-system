@@ -16,8 +16,10 @@ from admin_security import (
     get_current_principal,
     get_or_create_csrf_token,
     get_or_create_logout_csrf_token,
+    mark_fresh_admin_reauthentication,
     member_required,
     parse_admin_member_ids,
+    require_fresh_admin_reauthentication,
     require_valid_csrf,
     require_valid_logout_csrf,
 )
@@ -252,12 +254,24 @@ def phase_c_repository():
     if not is_phase_c_enabled(demo_mode=DEMO_MODE_ENABLED):
         return None
     try:
-        from shared_module.portal_data.runtime import get_identity_lifecycle_repository
+        from shared_module.portal_data.runtime import (
+            admin_authority_mode,
+            get_identity_lifecycle_repository,
+        )
     except ImportError:
         return None
+    if LOCAL_PREVIEW_MODE_ENABLED:
+        return get_identity_lifecycle_repository((), allow_persisted_admins=True)
+    mode = admin_authority_mode()
+    if mode is None:
+        return None
     return get_identity_lifecycle_repository(
-        parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
-        allow_persisted_admins=LOCAL_PREVIEW_MODE_ENABLED,
+        (
+            parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS"))
+            if mode == "legacy_allowlist"
+            else ()
+        ),
+        authority_mode=mode,
     )
 
 
@@ -285,7 +299,6 @@ def load_phase_c_web_principal(session_values):
             session.pop(key, None)
         return None
     g.portal_lifecycle_context = (repository, principal)
-    allowlist = parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS"))
     if LOCAL_PREVIEW_MODE_ENABLED:
         role = {
             "admin": ROLE_ADMIN,
@@ -295,8 +308,27 @@ def load_phase_c_web_principal(session_values):
         if role is None:
             return None
     else:
-        role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_BASIC
-    return WebPrincipal(role=role, member_id=principal.person.member_id)
+        from shared_module.portal_data.runtime import admin_authority_mode
+
+        mode = admin_authority_mode()
+        if not repository.authority_mode_is_ready():
+            return None
+        if mode == "legacy_allowlist":
+            allowlist = parse_admin_member_ids(
+                os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")
+            )
+            role = ROLE_ADMIN if principal.person.member_id in allowlist else ROLE_BASIC
+        elif mode == "persistent":
+            role = repository.web_role_for_principal(principal)
+            if role is None:
+                return None
+        else:
+            return None
+    return WebPrincipal(
+        role=role,
+        member_id=principal.person.member_id,
+        person_id=principal.person.id,
+    )
 
 
 configure_phase_c_principal_loader(load_phase_c_web_principal)
@@ -418,10 +450,11 @@ def _game_management_context():
         for key in PHASE_C_SESSION_KEYS:
             session.pop(key, None)
         return None
+    member_ids, persisted_admins = _game_authority_inputs()
     role = bounded_game_role(
         lifecycle_principal.person,
-        parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
-        local_preview=LOCAL_PREVIEW_MODE_ENABLED,
+        member_ids,
+        local_preview=persisted_admins,
     )
     if role is None:
         return None
@@ -451,14 +484,33 @@ def game_management_required(view):
 def _can_manage_games(lifecycle_principal):
     if lifecycle_principal is None:
         return False
+    member_ids, persisted_admins = _game_authority_inputs()
     return (
         bounded_game_role(
             lifecycle_principal.person,
-            parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
-            local_preview=LOCAL_PREVIEW_MODE_ENABLED,
+            member_ids,
+            local_preview=persisted_admins,
         )
         is not None
     )
+
+
+def _game_authority_inputs():
+    if LOCAL_PREVIEW_MODE_ENABLED:
+        return frozenset(), True
+    try:
+        from shared_module.portal_data.runtime import admin_authority_mode
+    except ImportError:
+        return (), False
+    mode = admin_authority_mode()
+    if mode == "persistent":
+        return frozenset(), True
+    if mode == "legacy_allowlist":
+        return (
+            parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
+            False,
+        )
+    return frozenset(), False
 
 
 # 設定 Cache 配置
@@ -943,6 +995,7 @@ def line_callback():
             else:
                 session.pop("member_id", None)
             session.pop("pending_identity_id", None)
+            mark_fresh_admin_reauthentication()
             log_login_callback_destination(next_url)
             return redirect(next_url)
         session["pending_identity_id"] = pending.identity.id
@@ -970,6 +1023,7 @@ def line_callback():
             # 儲存使用者資訊於session中
             session["user_id"] = user_id
             session["member_id"] = member.id
+            mark_fresh_admin_reauthentication()
 
     if is_authenticated:
         log_login_callback_destination(next_url)
@@ -1144,10 +1198,11 @@ def _event_management_service():
     from shared_module.portal_data.repository import PostgresTeamPortalRepository
     from shared_module.portal_data.services import PortalDataService
 
+    member_ids, _ = _game_authority_inputs()
     return PortalDataService(
         PostgresTeamPortalRepository(
             repository.engine,
-            parse_admin_member_ids(os.environ.get("WEB_PORTAL_ADMIN_MEMBER_IDS")),
+            member_ids,
             allow_persisted_event_managers=True,
         )
     )
@@ -2292,23 +2347,43 @@ def change_person_access(person_id):
     access_level = {
         "promote_officer": "officer",
         "demote_basic": "basic",
+        "grant_admin": "admin",
+        "revoke_admin": "basic",
     }.get(request.form.get("action", ""))
     if access_level is None:
         abort(400)
-    request_id = _required_request_id("person-access-")
+    admin_action = request.form.get("action") in {"grant_admin", "revoke_admin"}
+    request_id = _required_request_id(
+        "person-admin-" if admin_action else "person-access-"
+    )
     if FICTIONAL_DEMO_MODE_ENABLED and (
         request_id != f"person-access-{person_id}-{access_level}"
         or request.form.get("reason") != FICTIONAL_ACCESS_REASON
     ):
         abort(400)
     try:
-        repository.change_access(
-            actor_person_id,
-            person_id,
-            access_level,
-            request.form.get("reason", ""),
-            request_id,
-        )
+        if admin_action:
+            require_fresh_admin_reauthentication()
+            try:
+                expected_version = int(request.form.get("expected_version", ""))
+            except (TypeError, ValueError):
+                abort(400)
+            repository.change_admin_access(
+                actor_person_id,
+                person_id,
+                access_level,
+                expected_version,
+                request.form.get("reason", ""),
+                request_id,
+            )
+        else:
+            repository.change_access(
+                actor_person_id,
+                person_id,
+                access_level,
+                request.form.get("reason", ""),
+                request_id,
+            )
     except Exception as error:
         if _is_portal_data_domain_error(error):
             return "Access could not be changed", 409
