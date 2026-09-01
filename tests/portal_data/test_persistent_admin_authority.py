@@ -46,11 +46,11 @@ from tests.portal_data._apple_lifecycle_test_harness import (
 )
 from tests.portal_data._event_guest_lifecycle_test_harness import (
     prepare_event_guest_lifecycle_downgrade_for_isolated_test_database,
+    reset_pre_0011_schema_for_isolated_test_database,
 )
 from tests.portal_data._persistent_admin_authority_test_harness import (
     remove_retained_admin_authority_from_isolated_test_database,
 )
-from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -289,43 +289,73 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
                 session.scalars.side_effect = [revision, presence, durable]
                 self.assertFalse(repository.authority_mode_is_ready(session=session))
 
-    def test_only_exact_0011_legacy_mode_has_pre_0012_compatibility(self):
-        for mode, expected in (("legacy_allowlist", True), ("persistent", False)):
-            repository = IdentityLifecycleRepository(
-                MagicMock(),
-                (7,) if mode == "legacy_allowlist" else (),
-                authority_mode=mode,
-            )
-            session = MagicMock()
-            revision = MagicMock()
-            revision.all.return_value = ["0011_event_notification_guest_lifecycle"]
-            presence = MagicMock()
-            presence.one_or_none.return_value = None
-            session.scalars.side_effect = [revision, presence]
-            with self.subTest(mode=mode):
-                self.assertIs(
-                    repository.authority_mode_is_ready(session=session), expected
+    def test_known_person_era_revisions_allow_only_table_absent_legacy_mode(self):
+        known_revisions = (
+            "0004_phase_c_identity_lifecycle",
+            "0005_mobile_auth_api_foundation",
+            "0006_staging_broker_operation_journal",
+            "0007_mobile_notifications",
+            "0008_mobile_notification_delivery",
+            "0009_event_management_writes",
+            "0010_apple_provider_lifecycle",
+            "0011_event_notification_guest_lifecycle",
+        )
+        for revision_value in known_revisions:
+            for mode, expected in (("legacy_allowlist", True), ("persistent", False)):
+                repository = IdentityLifecycleRepository(
+                    MagicMock(),
+                    (7,) if mode == "legacy_allowlist" else (),
+                    authority_mode=mode,
                 )
+                session = MagicMock()
+                revision = MagicMock()
+                revision.all.return_value = [revision_value]
+                presence = MagicMock()
+                presence.one_or_none.return_value = None
+                session.scalars.side_effect = [revision, presence]
+                with self.subTest(revision=revision_value, mode=mode):
+                    self.assertIs(
+                        repository.authority_mode_is_ready(session=session), expected
+                    )
 
-        for mode in ("legacy_allowlist", "persistent"):
-            retained = IdentityLifecycleRepository(
-                MagicMock(),
-                (7,) if mode == "legacy_allowlist" else (),
-                authority_mode=mode,
-            )
+            for mode in ("legacy_allowlist", "persistent"):
+                retained = IdentityLifecycleRepository(
+                    MagicMock(),
+                    (7,) if mode == "legacy_allowlist" else (),
+                    authority_mode=mode,
+                )
+                session = MagicMock()
+                revision = MagicMock()
+                revision.all.return_value = [revision_value]
+                presence = MagicMock()
+                presence.one_or_none.return_value = "ntubtob.portal_authority_state"
+                state = MagicMock()
+                session.scalars.side_effect = [revision, presence, state]
+                with self.subTest(revision=revision_value, retained=True, mode=mode):
+                    self.assertFalse(retained.authority_mode_is_ready(session=session))
+                    state.all.assert_not_called()
+
+    def test_pre_person_unknown_future_and_multi_revision_fail_closed(self):
+        repository = IdentityLifecycleRepository(
+            MagicMock(), (7,), authority_mode="legacy_allowlist"
+        )
+        revision_rows = (
+            ("0003_legacy_bigint_activity_game",),
+            ("0013_future",),
+            ("unknown",),
+            (
+                "0009_event_management_writes",
+                "0010_apple_provider_lifecycle",
+            ),
+        )
+        for rows in revision_rows:
             session = MagicMock()
             revision = MagicMock()
-            revision.all.return_value = ["0011_event_notification_guest_lifecycle"]
-            presence = MagicMock()
-            presence.one_or_none.return_value = "ntubtob.portal_authority_state"
-            state = MagicMock()
-            state.all.return_value = [
-                SimpleNamespace(singleton_id=1, mode=mode, epoch=2)
-            ]
-            session.scalars.side_effect = [revision, presence, state]
-            with self.subTest(retained_mode=mode):
-                self.assertFalse(retained.authority_mode_is_ready(session=session))
-                state.all.assert_not_called()
+            revision.all.return_value = list(rows)
+            session.scalars.return_value = revision
+            with self.subTest(rows=rows):
+                self.assertFalse(repository.authority_mode_is_ready(session=session))
+                self.assertEqual(session.scalars.call_count, 1)
 
     def test_pre_0012_preview_compatibility_uses_persisted_role_without_state(self):
         actor = self._person(9, "admin")
@@ -416,7 +446,11 @@ class PersistentAdminAuthorityPostgresTests(unittest.TestCase):
         remove_retained_admin_authority_from_isolated_test_database(self.engine)
         prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
-        setup_legacy_fixture()
+        reset_pre_0011_schema_for_isolated_test_database(
+            self.engine,
+            lambda revision: command.upgrade(Config("alembic.ini"), revision),
+            target_revision="0010_apple_provider_lifecycle",
+        )
         command.upgrade(Config("alembic.ini"), "head")
         with self.engine.begin() as connection:
             connection.execute(

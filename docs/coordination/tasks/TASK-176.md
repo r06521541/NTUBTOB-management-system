@@ -91,6 +91,19 @@ matches an exact-0011 runtime selection. Exact 0011 compatibility therefore appl
 existing provider-disable/admin-revoke PostgreSQL race also proves the Apple identity ends disabled, durable mode stays
 persistent, exactly one reachable admin remains, the revoke audit exists and no last-admin recovery audit is emitted.
 
+### Hosted PostgreSQL correction
+
+Hosted correction claim: `task-176-hosted-pg-correction-writer-20260901`, lease 1, actor
+`/root/task170_play_evidence_writer`, report to `/root`.
+
+PG15/16 evidence exposed three bounded integration defects. The deploy-new-runtime-first compatibility window now
+recognizes only the explicit linear Person-era revisions 0004 through 0011 when the authority table is proven absent
+and runtime mode is `legacy_allowlist`; persistent mode, pre-Person/unknown/future/branched revisions and retained
+pre-0012 authority evidence still fail closed. Persistent authority PostgreSQL cases rebuild the guarded localhost test
+database from an exact known 0010 fixture before upgrading to head, so last-admin and race counts cannot inherit prior
+suite data. The repository-owned fake seed also creates or reuses one deterministic fictional linked identity for its
+fictional admin before exercising admin mutations; no real identity value or external data is used.
+
 Writer must ACK `received/executing`, send heartbeat every 10–15 minutes, report blockers immediately, and proactively
 deliver full SHA, dirty paths, tests, findings, limits and external mutations. Writer may commit and push the task branch,
 but must not create/merge a PR or perform external runtime actions.

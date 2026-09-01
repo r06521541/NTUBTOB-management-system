@@ -72,3 +72,19 @@ observation remain separate Owner-gated work packages.
 - The deterministic provider-disable/admin-revoke PostgreSQL regression now asserts terminal Apple identity disable,
   unchanged persistent mode, exactly one final reachable admin, one expected access-change audit and zero provider
   recovery audit because the revoked Apple identity is not the last administrator in that race.
+
+## Hosted PostgreSQL correction
+
+- Legacy deploy-first readiness accepts exactly the known linear Person-era revisions 0004–0011 only when
+  `portal_authority_state` is absent and runtime mode is `legacy_allowlist`. Exact 0012 retains singleton/mode/epoch
+  agreement; persistent mode, pre-Person/unknown/future/multi-head revisions and any retained pre-0012 table deny.
+- Every persistent-authority PostgreSQL case now uses the established localhost/test-database guard to rebuild a clean
+  exact-0010 fixture and then upgrade to head. This removes cross-suite people/identity contamination without adding a
+  production cleanup path or weakening last-admin assertions.
+- The fake-data seed creates or reuses a fixed fictional linked identity for member 7001's fictional admin under the
+  canonical admin lock before approving fake identities. Its existing idempotency test now also proves the resulting
+  admin is linked, active and `admin` and that only three fictional identities exist after two runs.
+- Local correction evidence: authority suite 17 passed with 5 PostgreSQL cases skipped; full Portal Data suite 178
+  passed with 165 PostgreSQL cases skipped (343 total), and the full Web Portal suite passed 251. The seed/constraint
+  PostgreSQL suite imported cleanly but all 6 cases skipped because no isolated local PostgreSQL URL was configured.
+  PG15/16 execution remains the hosted gate.

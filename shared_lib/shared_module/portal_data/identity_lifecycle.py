@@ -56,7 +56,18 @@ APPLICANT_MESSAGE_INTERVAL = timedelta(hours=24)
 REVIEW_RETENTION = timedelta(days=365)
 BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
 CURRENT_AUTHORITY_REVISION = "0012_persistent_admin_authority"
-PRE_AUTHORITY_REVISION = "0011_event_notification_guest_lifecycle"
+PRE_AUTHORITY_REVISIONS = frozenset(
+    {
+        "0004_phase_c_identity_lifecycle",
+        "0005_mobile_auth_api_foundation",
+        "0006_staging_broker_operation_journal",
+        "0007_mobile_notifications",
+        "0008_mobile_notification_delivery",
+        "0009_event_management_writes",
+        "0010_apple_provider_lifecycle",
+        "0011_event_notification_guest_lifecycle",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -218,17 +229,17 @@ class IdentityLifecycleRepository:
                 text("SELECT version_num FROM ntubtob.alembic_version")
             ).all()
         )
-        if revisions not in {
-            (PRE_AUTHORITY_REVISION,),
-            (CURRENT_AUTHORITY_REVISION,),
-        }:
+        if len(revisions) != 1 or (
+            revisions[0] not in PRE_AUTHORITY_REVISIONS
+            and revisions[0] != CURRENT_AUTHORITY_REVISION
+        ):
             return False
         authority_table = session.scalars(
             text("SELECT to_regclass('ntubtob.portal_authority_state')")
         ).one_or_none()
         if authority_table is None:
             return (
-                revisions == (PRE_AUTHORITY_REVISION,)
+                revisions[0] in PRE_AUTHORITY_REVISIONS
                 and self.authority_mode == "legacy_allowlist"
             )
         if authority_table != "ntubtob.portal_authority_state" or revisions != (

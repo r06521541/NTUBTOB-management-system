@@ -208,7 +208,19 @@ class PostgresConstraintTests(unittest.TestCase):
             )
             self.assertEqual(
                 connection.scalar(text("SELECT count(*) FROM ntubtob.auth_identities")),
-                2,
+                3,
+            )
+            self.assertEqual(
+                connection.execute(
+                    text(
+                        "SELECT i.status, p.portal_status, p.portal_access_level "
+                        "FROM ntubtob.auth_identities i "
+                        "JOIN ntubtob.people p ON p.id=i.person_id "
+                        "WHERE i.provider='line' "
+                        "AND i.provider_subject='fake-line-seed-admin'"
+                    )
+                ).one(),
+                ("linked", "active", "admin"),
             )
 
 
