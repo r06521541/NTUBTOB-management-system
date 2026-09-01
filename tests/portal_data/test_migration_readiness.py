@@ -36,13 +36,12 @@ class MigrationReadinessStaticTests(unittest.TestCase):
             EXPECTED_REVISIONS[-1], "0011_event_notification_guest_lifecycle"
         )
 
-    def test_older_migration_suites_pin_0010_and_task_175_owns_head(self):
-        older_suites = (
+    def test_historical_suites_pin_0010_and_current_suites_own_head(self):
+        historical_suites = (
             "test_mobile_api_foundation.py",
-            "test_mobile_notifications.py",
             "test_staging_broker_journal.py",
         )
-        for name in older_suites:
+        for name in historical_suites:
             with self.subTest(name=name):
                 source = (ROOT / "tests" / "portal_data" / name).read_text(
                     encoding="utf-8"
@@ -56,13 +55,25 @@ class MigrationReadinessStaticTests(unittest.TestCase):
                 )
                 self.assertNotIn('"head"', setup)
 
-        task_175_source = (
-            ROOT / "tests" / "portal_data" / "test_event_guest_lifecycle.py"
+        current_suites = {
+            "test_mobile_notifications.py": 'command.upgrade(config, "head")',
+            "test_event_guest_lifecycle.py": 'command.upgrade(self.config, "head")',
+        }
+        for name, expected_upgrade in current_suites.items():
+            with self.subTest(name=name):
+                source = (ROOT / "tests" / "portal_data" / name).read_text(
+                    encoding="utf-8"
+                )
+                setup = source.split("    def setUp(self):", 1)[1].split(
+                    "\n    def ", 1
+                )[0]
+                self.assertIn(expected_upgrade, setup)
+                self.assertIn("0011_event_notification_guest_lifecycle", source)
+
+        notification_source = (
+            ROOT / "tests" / "portal_data" / "test_mobile_notifications.py"
         ).read_text(encoding="utf-8")
-        task_175_setup = task_175_source.split("    def setUp(self):", 1)[1].split(
-            "\n    def ", 1
-        )[0]
-        self.assertIn('command.upgrade(self.config, "head")', task_175_setup)
+        self.assertIn("destination_event_id", notification_source)
 
     def test_committed_artifact_is_current_and_safe(self):
         verify_artifact()

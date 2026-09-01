@@ -157,6 +157,24 @@
   PostgreSQL skips. Hosted PostgreSQL 15/16 remains required for the three
   integration assertions.
 
+### Hosted correction lease 6
+
+- PostgreSQL 15 job `99725514547` showed the Mobile notification suite was not an
+  historical 0010 suite: it exercises the current notification ORM, including
+  `mobile_notifications.destination_event_id`, which belongs to additive 0011.
+- Mobile notification setup again upgrades current `head` and its exact revision
+  assertion now requires `0011_event_notification_guest_lifecycle`. All RLS,
+  database/model column, constraint, delivery, and notification service assertions
+  remain unchanged.
+- The static ownership contract now classifies exactly Mobile API foundation and
+  staging broker as historical 0010 suites, while Mobile notification and Event
+  guest lifecycle own current head/0011 integration coverage.
+- Local lease-6 evidence: the red-first ownership contract rejected the stale
+  Mobile notification 0010 setup, then passed; all 10 migration-readiness static
+  tests passed; portal-data full ran 320 tests successfully with 160 expected
+  PostgreSQL skips. Hosted PostgreSQL 15/16 remains required for current ORM/0011
+  metadata integration.
+
 ## Hosted and external limits
 
 - Local isolated PostgreSQL was unavailable, so the new real-transaction lock

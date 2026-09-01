@@ -100,7 +100,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
         setup_legacy_fixture()
         config = Config("alembic.ini")
         config.set_main_option("sqlalchemy.url", DATABASE_URL)
-        command.upgrade(config, "0010_apple_provider_lifecycle")
+        command.upgrade(config, "head")
         with self.engine.begin() as connection:
             self.people = tuple(
                 connection.scalars(
@@ -228,7 +228,7 @@ class MobileNotificationIntegrationTest(unittest.TestCase):
                 connection.scalar(
                     text("SELECT version_num FROM ntubtob.alembic_version")
                 ),
-                "0010_apple_provider_lifecycle",
+                "0011_event_notification_guest_lifecycle",
             )
             rls = set(
                 connection.scalars(

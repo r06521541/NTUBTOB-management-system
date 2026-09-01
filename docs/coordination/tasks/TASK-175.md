@@ -266,6 +266,22 @@ Older suites must not follow a moving Alembic head while asserting an historical
 exact revision. Their exact assertions remain unchanged and TASK-175 continues to
 own the newest additive migration coverage.
 
+### Hosted correction lease 6
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 6
+- correction_base: `033cc56346ae8b1a4bc34cfa7a05fc6bed8ba5f9`
+- scope: correct Mobile notification migration ownership to current head/0011
+  because it validates the current notification ORM and Event destination column;
+  retain Mobile API foundation and staging broker as historical exact-0010 suites
+- report_to: `/root`
+
+Current-model integration tests must establish the current migration revision.
+Historical suites remain pinned to the revision whose schema contract they own;
+neither class may weaken its RLS, model, constraint, index, or service assertions.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。
