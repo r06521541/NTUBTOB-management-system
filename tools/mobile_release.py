@@ -25,7 +25,6 @@ from typing import Iterator, Mapping, Sequence
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
-
 CONTRACT_ENTRY = "base/assets/mobile-release-contract.properties"
 RUNTIME_CONFIG_ENTRY = "base/assets/flutter_assets/mobile-runtime-config.json"
 REQUIRED_ENTRIES = frozenset(

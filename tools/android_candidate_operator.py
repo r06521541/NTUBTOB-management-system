@@ -28,7 +28,6 @@ from typing import Callable, Mapping, Sequence
 
 from tools import mobile_release
 
-
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT = ROOT / "clients" / "flutter_app"
 PUBSPEC = CLIENT / "pubspec.yaml"
