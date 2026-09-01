@@ -103,6 +103,25 @@
   passed; portal-data full suite 314 passed with 158 expected PostgreSQL skips;
   Web Portal full suite 243 passed.
 
+### Hosted correction lease 3
+
+- The Event rollout drift suite now uses a canonical test-only reset in class
+  cleanup. It rebuilds the legacy fixture and upgrades to exact 0010, so the
+  final material-drift mutation cannot leak into the next hosted suite merely
+  because the Alembic revision label already reads 0010.
+- The reset reuses the repository's isolated database identity and revision
+  boundary. It rejects non-PostgreSQL, nonlocal, wrong-name, missing, branched,
+  unknown, and 0011-or-later revisions before destructive DDL.
+- Static regressions prove the fail-closed boundary and DDL ordering. An isolated
+  PostgreSQL regression disables the final trigger-drift object, observes the
+  expected failure, resets, then verifies exact revision 0010 and the complete
+  canonical future-schema fingerprint. An ordered follower class independently
+  verifies the next suite receives that canonical 0010 state.
+- Local lease-3 evidence: 11 focused static regressions passed; portal-data full
+  suite ran 318 tests successfully with 160 expected isolated-PostgreSQL skips;
+  py_compile, pinned Black 24.4.2 per-file API comparison, isort 5.13.2, and diff
+  checks passed. Hosted PostgreSQL 15/16 remains required for the real reset.
+
 ## Hosted and external limits
 
 - Local isolated PostgreSQL was unavailable, so the new real-transaction lock

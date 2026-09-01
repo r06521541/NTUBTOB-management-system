@@ -217,6 +217,23 @@ following the moving Alembic head. TASK-175 integration classes remain responsib
 for exact, test-database-gated 0011 cleanup. Unknown, missing, non-test, or future
 revisions must still stop before DDL.
 
+### Hosted correction lease 3
+
+- actor_id: `/root/task170_play_evidence_writer`
+- role: `codex-writer`
+- claim_id: `task-175-hosted-correction-writer-20260901`
+- lease_version: 3
+- correction_base: `1460d76b76b2570d6a09ac05befee58f77aa471b`
+- scope: restore the Event rollout drift suite's isolated PostgreSQL database to
+  a canonical exact 0010 schema after its final mutation; do not change rollout
+  checks, legacy revision expectations, product code, or migrations
+- report_to: `/root`
+
+The canonical reset may run only against the repository's local isolated test
+database and one known pre-0011 revision. Non-PostgreSQL, nonlocal, wrong-name,
+missing, branched, unknown, and 0011-or-later revisions must stop before its
+destructive test-schema rebuild.
+
 ## Verification budget
 
 - Test-first repository／service／Web／Mobile focused suites。

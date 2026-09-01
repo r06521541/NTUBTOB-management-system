@@ -6,6 +6,7 @@ from shared_lib.shared_module.portal_data.local_database import (
     LOCAL_DATABASE_NAME,
     LOCAL_HOSTS,
 )
+from tools.setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 PRE_0011_NOOP_REVISIONS = frozenset(
     {
@@ -23,11 +24,7 @@ PRE_0011_NOOP_REVISIONS = frozenset(
 )
 
 
-def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
-    engine,
-) -> str | None:
-    """Reverse 0011 only so an isolated test may exercise older migrations."""
-
+def _require_isolated_test_database(engine) -> None:
     if (
         engine.url.drivername not in {"postgresql", "postgresql+psycopg2"}
         or (engine.url.host or "").lower() not in LOCAL_HOSTS
@@ -36,14 +33,28 @@ def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
         raise RuntimeError(
             "Event lifecycle cleanup requires the isolated test database"
         )
+
+
+def _revision_rows(engine) -> tuple[str, ...] | None:
     if not inspect(engine).has_table("alembic_version", schema="ntubtob"):
         return None
     with engine.connect() as connection:
-        current_rows = tuple(
+        return tuple(
             connection.scalars(
                 text("SELECT version_num FROM ntubtob.alembic_version")
             ).all()
         )
+
+
+def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
+    engine,
+) -> str | None:
+    """Reverse 0011 only so an isolated test may exercise older migrations."""
+
+    _require_isolated_test_database(engine)
+    current_rows = _revision_rows(engine)
+    if current_rows is None:
+        return None
     if len(current_rows) != 1:
         raise RuntimeError("Event lifecycle cleanup requires exact revision 0011")
     current = current_rows[0]
@@ -91,4 +102,22 @@ def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
                 """
             )
         )
+    return "0010_apple_provider_lifecycle"
+
+
+def reset_pre_0011_schema_for_isolated_test_database(engine, upgrade) -> str:
+    """Rebuild a proven pre-0011 test schema at canonical revision 0010."""
+
+    _require_isolated_test_database(engine)
+    current_rows = _revision_rows(engine)
+    if (
+        current_rows is None
+        or len(current_rows) != 1
+        or current_rows[0] not in PRE_0011_NOOP_REVISIONS
+    ):
+        raise RuntimeError("Event lifecycle reset requires one known pre-0011 revision")
+    with engine.begin() as connection:
+        connection.execute(text("DROP SCHEMA IF EXISTS ntubtob CASCADE"))
+        connection.execute(text(LEGACY_FIXTURE_SQL))
+    upgrade("0010_apple_provider_lifecycle")
     return "0010_apple_provider_lifecycle"

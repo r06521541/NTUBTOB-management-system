@@ -2,18 +2,101 @@ from __future__ import annotations
 
 import os
 import unittest
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
 
 from shared_lib.shared_module.portal_data import local_database
+from tests.portal_data import _event_guest_lifecycle_test_harness as cleanup_harness
+from tests.portal_data._event_guest_lifecycle_test_harness import (
+    reset_pre_0011_schema_for_isolated_test_database,
+)
 from tools import portal_data_event_management_rollout as rollout
 from tools.setup_portal_data_legacy import LEGACY_FIXTURE_SQL
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
     "PORTAL_DATA_DATABASE_URL"
 )
+
+
+class EventManagementRolloutIsolationStaticTests(unittest.TestCase):
+    def test_canonical_reset_rejects_unproven_database_before_ddl(self):
+        invalid_urls = (
+            SimpleNamespace(
+                drivername="sqlite", host="localhost", database="ntubtob_portal_local"
+            ),
+            SimpleNamespace(
+                drivername="postgresql",
+                host="database.example.invalid",
+                database="ntubtob_portal_local",
+            ),
+            SimpleNamespace(
+                drivername="postgresql", host="localhost", database="production"
+            ),
+        )
+        for url in invalid_urls:
+            with self.subTest(url=url):
+                engine = MagicMock()
+                engine.url = url
+                upgrade = MagicMock()
+                with self.assertRaisesRegex(RuntimeError, "isolated test database"):
+                    reset_pre_0011_schema_for_isolated_test_database(engine, upgrade)
+                engine.begin.assert_not_called()
+                upgrade.assert_not_called()
+
+        for has_version_table, revisions in (
+            (False, ()),
+            (True, ()),
+            (True, ("0011_event_notification_guest_lifecycle",)),
+            (True, ("0010_apple_provider_lifecycle", "branch")),
+        ):
+            with self.subTest(has_version_table=has_version_table, revisions=revisions):
+                engine = MagicMock()
+                engine.url = SimpleNamespace(
+                    drivername="postgresql",
+                    host="localhost",
+                    database=cleanup_harness.LOCAL_DATABASE_NAME,
+                )
+                engine.connect.return_value.__enter__.return_value.scalars.return_value.all.return_value = (
+                    revisions
+                )
+                inspector = MagicMock()
+                inspector.has_table.return_value = has_version_table
+                upgrade = MagicMock()
+                with (
+                    patch.object(cleanup_harness, "inspect", return_value=inspector),
+                    self.assertRaisesRegex(RuntimeError, "known pre-0011 revision"),
+                ):
+                    reset_pre_0011_schema_for_isolated_test_database(engine, upgrade)
+                engine.begin.assert_not_called()
+                upgrade.assert_not_called()
+
+    def test_canonical_reset_rebuilds_only_after_exact_known_revision(self):
+        engine = MagicMock()
+        engine.url = SimpleNamespace(
+            drivername="postgresql",
+            host="localhost",
+            database=cleanup_harness.LOCAL_DATABASE_NAME,
+        )
+        engine.connect.return_value.__enter__.return_value.scalars.return_value.all.return_value = [
+            "0010_apple_provider_lifecycle"
+        ]
+        inspector = MagicMock()
+        inspector.has_table.return_value = True
+        upgrade = MagicMock()
+        with patch.object(cleanup_harness, "inspect", return_value=inspector):
+            reset_pre_0011_schema_for_isolated_test_database(engine, upgrade)
+
+        statements = tuple(
+            str(call.args[0])
+            for call in engine.begin.return_value.__enter__.return_value.execute.call_args_list
+        )
+        self.assertIn("DROP SCHEMA IF EXISTS ntubtob CASCADE", statements[0])
+        self.assertIn("CREATE SCHEMA", statements[1])
+        upgrade.assert_called_once_with("0010_apple_provider_lifecycle")
 
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
@@ -27,8 +110,10 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls._upgrade("0010_apple_provider_lifecycle")
-        cls.engine.dispose()
+        try:
+            reset_pre_0011_schema_for_isolated_test_database(cls.engine, cls._upgrade)
+        finally:
+            cls.engine.dispose()
 
     @classmethod
     def _upgrade(cls, revision: str) -> None:
@@ -270,6 +355,53 @@ class EventManagementRolloutPostgresTests(unittest.TestCase):
                         rollout._future_schema_safe(connection)
         with self.engine.begin() as connection:
             connection.execute(text("DROP SCHEMA IF EXISTS task164_rogue CASCADE"))
+
+    def test_canonical_reset_restores_final_drift_and_exact_0010(self):
+        self._upgrade("0010_apple_provider_lifecycle")
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE ntubtob.mobile_notifications DISABLE TRIGGER "
+                    "mobile_notification_content_immutable"
+                )
+            )
+        with self.engine.connect() as connection:
+            with self.assertRaisesRegex(rollout.RolloutError, "trigger definition"):
+                rollout._future_schema_safe(connection)
+
+        reset_pre_0011_schema_for_isolated_test_database(self.engine, self._upgrade)
+
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT version_num FROM ntubtob.alembic_version")
+                ),
+                "0010_apple_provider_lifecycle",
+            )
+            rollout._future_schema_safe(connection)
+
+
+@unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
+class EventManagementRolloutZZCanonicalFollowerPostgresTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.engine = create_engine(
+            local_database.require_local_database_url(DATABASE_URL)
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.engine.dispose()
+
+    def test_previous_drift_suite_left_canonical_exact_0010(self):
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(
+                    text("SELECT version_num FROM ntubtob.alembic_version")
+                ),
+                "0010_apple_provider_lifecycle",
+            )
+            rollout._future_schema_safe(connection)
 
 
 if __name__ == "__main__":
