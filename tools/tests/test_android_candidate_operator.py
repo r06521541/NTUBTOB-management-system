@@ -201,6 +201,81 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
             expected.extend(encoded)
         self.assertEqual(received, expected)
 
+    def test_repository_drift_after_preflight_stops_before_build(self):
+        private_values = tuple("safe" for _ in operator.PRIVATE_LABELS)
+        build = mock.Mock(return_value=0)
+        with (
+            mock.patch.object(
+                operator,
+                "preflight",
+                return_value={
+                    "commit": "a" * 40,
+                    "version_name": "0.1.0",
+                    "version_code": 1,
+                },
+            ),
+            mock.patch.object(
+                operator, "validate_private_lines", return_value=private_values
+            ),
+            mock.patch.object(
+                operator,
+                "_assert_reviewed_main",
+                side_effect=operator.OperatorError(
+                    "repository is not the clean reviewed main commit"
+                ),
+            ),
+            mock.patch.object(operator, "_run_private_build", build),
+            self.assertRaisesRegex(operator.OperatorError, "clean reviewed main"),
+        ):
+            operator.build_candidate(
+                previous_version_code=0,
+                prompt=lambda _: operator.APPROVAL,
+                hidden_prompt=lambda label: "a" * 64 if "SHA-256" in label else "safe",
+            )
+        build.assert_not_called()
+
+    def test_candidate_directory_rejects_repository_and_reparse_paths(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            repository = base / "repository"
+            repository.mkdir()
+            inside = repository / "local"
+            inside.mkdir()
+            outside = base / "local"
+            outside.mkdir()
+            with (
+                mock.patch.object(operator, "ROOT", repository),
+                self.assertRaisesRegex(operator.OperatorError, "outside"),
+            ):
+                operator._candidate_output_directory(str(inside))
+            with (
+                mock.patch.object(operator, "ROOT", repository),
+                mock.patch.object(operator, "_is_reparse_point", return_value=True),
+                self.assertRaisesRegex(operator.OperatorError, "reparse"),
+            ):
+                operator._candidate_output_directory(str(outside))
+
+    def test_candidate_copy_is_exclusive_verified_and_cleans_drift(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.aab"
+            source.write_bytes(b"fictional-aab")
+            expected = operator.hashlib.sha256(b"fictional-aab").hexdigest()
+            output = root / "candidate.aab"
+            operator._copy_verified_exclusive(source, output, expected)
+            self.assertEqual(output.read_bytes(), b"fictional-aab")
+
+            occupied = root / "occupied.aab"
+            occupied.write_bytes(b"do-not-replace")
+            with self.assertRaisesRegex(operator.OperatorError, "already exists"):
+                operator._copy_verified_exclusive(source, occupied, expected)
+            self.assertEqual(occupied.read_bytes(), b"do-not-replace")
+
+            drifted = root / "drifted.aab"
+            with self.assertRaisesRegex(operator.OperatorError, "does not match"):
+                operator._copy_verified_exclusive(source, drifted, "0" * 64)
+            self.assertFalse(drifted.exists())
+
     def test_cli_failure_is_fixed_and_does_not_echo_private_reason(self):
         stderr = io.StringIO()
         with (
@@ -224,7 +299,11 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
             mock.patch.object(
                 operator,
                 "preflight",
-                return_value={"version_name": "0.1.0", "version_code": 1},
+                return_value={
+                    "commit": "a" * 40,
+                    "version_name": "0.1.0",
+                    "version_code": 1,
+                },
             ),
             mock.patch.object(
                 operator, "validate_private_lines", return_value=tuple(private_values)
@@ -233,6 +312,7 @@ class AndroidCandidateOperatorTests(unittest.TestCase):
                 "tools.android_candidate_operator._run_private_build",
                 return_value=1,
             ),
+            mock.patch.object(operator, "_assert_reviewed_main"),
             contextlib.redirect_stdout(io.StringIO()),
             self.assertRaisesRegex(operator.OperatorError, "failed safely"),
         ):

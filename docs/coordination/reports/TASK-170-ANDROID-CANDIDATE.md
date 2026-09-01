@@ -56,13 +56,19 @@
 
 ## Regression and verification
 
-- Current continuation verification: the combined operator/release/evidence suite passed 47/47; CI workflow contracts passed 12/12;
+- Current continuation verification: the combined operator/release/evidence suite passed 50/50; CI workflow contracts passed 12/12;
   full Flutter analyze reported no issues and full Flutter tests passed 316/316. Per-file Black checks passed for all four changed Python
   files, Dart format changed zero files, and `git diff --check` passed with line-ending conversion warnings only.
 - The final current-tree fictional build passed through the nonce-authenticated, length-framed channel and produced a 52.6 MB AAB.
   Strict inspection of that same AAB passed with 655 entries, package `tw.org.ntubtob.portal.contracttest`, version `0.1.0 (1)`,
   min SDK 24, target/compile SDK 36, `android-closed`, Basic scope, exact runtime/contract digest agreement, archive integrity and exact
   fictional signer agreement. The AAB, build directory and two-day fictional keystore were removed immediately afterward.
+- Independent review of the first immutable continuation commit requested two P1 corrections. The operator now binds the commit returned
+  by preflight and rechecks exact clean `main == origin/main == reviewed commit` immediately before Gradle, after build and again after
+  retaining the candidate. Repository drift stops without reporting success and removes any newly copied candidate. The external output
+  path is canonicalized, rejected if it resolves into Git or traverses a reparse point, and created exclusively. Copying streams the
+  inspected snapshot through a fresh SHA-256, requires exact digest agreement, fsyncs the new file and removes partial/drifted output.
+  Regressions cover post-preflight drift, repository/reparse destinations, pre-existing output and copied-byte digest drift.
 
 - Before implementation, focused tests reproduced the mismatch: the inspector
   rejected `android-closed`, `APP_FLAVOR=production` remained accepted, and the

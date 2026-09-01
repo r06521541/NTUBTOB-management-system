@@ -17,6 +17,7 @@ import re
 import secrets
 import shutil
 import socket
+import stat
 import struct
 import subprocess
 import sys
@@ -82,6 +83,20 @@ def _git(*args: str) -> str:
     return completed.stdout.strip()
 
 
+def _assert_reviewed_main(expected_commit: str | None = None) -> str:
+    branch = _git("branch", "--show-current")
+    head = _git("rev-parse", "HEAD")
+    origin_main = _git("rev-parse", "refs/remotes/origin/main")
+    if (
+        branch != "main"
+        or head != origin_main
+        or (expected_commit is not None and head != expected_commit)
+        or _git("status", "--porcelain")
+    ):
+        raise OperatorError("repository is not the clean reviewed main commit")
+    return head
+
+
 def parse_version(source: str) -> Version:
     line = next(
         (line for line in source.splitlines() if line.startswith("version:")), ""
@@ -106,11 +121,7 @@ def parse_version(source: str) -> Version:
 def preflight(*, previous_version_code: int) -> dict[str, object]:
     if previous_version_code < 0:
         raise OperatorError("previous version code is invalid")
-    branch = _git("branch", "--show-current")
-    head = _git("rev-parse", "HEAD")
-    origin_main = _git("rev-parse", "refs/remotes/origin/main")
-    if branch != "main" or head != origin_main or _git("status", "--porcelain"):
-        raise OperatorError("repository is not the clean reviewed main commit")
+    head = _assert_reviewed_main()
     version = parse_version(PUBSPEC.read_text(encoding="utf-8"))
     if version.code <= previous_version_code:
         raise OperatorError("candidate version is not monotonic")
@@ -195,6 +206,96 @@ def _minimal_environment(extra: Mapping[str, str]) -> dict[str, str]:
         environment.setdefault("ANDROID_SDK_ROOT", str(BUNDLED_ANDROID_HOME))
     environment.update(extra)
     return environment
+
+
+def _is_reparse_point(path: Path) -> bool:
+    try:
+        attributes = getattr(os.lstat(path), "st_file_attributes", 0)
+    except OSError:
+        raise OperatorError("external candidate directory is unavailable") from None
+    return path.is_symlink() or bool(
+        attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    )
+
+
+def _assert_no_reparse_chain(path: Path) -> None:
+    current = Path(path.anchor)
+    for component in path.parts[1:]:
+        current = current / component
+        if current.exists() and _is_reparse_point(current):
+            raise OperatorError("candidate directory must not use a reparse point")
+
+
+def _candidate_output_directory(local_app_data: str) -> Path:
+    local_root = Path(local_app_data)
+    if not local_root.is_absolute():
+        raise OperatorError("external candidate directory is unavailable")
+    try:
+        resolved_root = local_root.resolve(strict=True)
+    except OSError:
+        raise OperatorError("external candidate directory is unavailable") from None
+    repository_root = ROOT.resolve()
+    try:
+        resolved_root.relative_to(repository_root)
+    except ValueError:
+        pass
+    else:
+        raise OperatorError("candidate directory must remain outside the repository")
+    _assert_no_reparse_chain(local_root)
+    current = local_root
+    for component in ("NTUBTOB", "android-closed-candidate"):
+        current = current / component
+        try:
+            current.mkdir(exist_ok=True)
+            resolved = current.resolve(strict=True)
+        except OSError:
+            raise OperatorError("external candidate directory is unavailable") from None
+        _assert_no_reparse_chain(current)
+        try:
+            resolved.relative_to(repository_root)
+        except ValueError:
+            pass
+        else:
+            raise OperatorError(
+                "candidate directory must remain outside the repository"
+            )
+        current = resolved
+    return current
+
+
+def _copy_verified_exclusive(source: Path, output: Path, expected_sha256: str) -> None:
+    created = False
+    digest = hashlib.sha256()
+    try:
+        _assert_no_reparse_chain(output.parent)
+        with source.open("rb") as source_file, output.open("xb") as output_file:
+            created = True
+            while chunk := source_file.read(1024 * 1024):
+                output_file.write(chunk)
+                digest.update(chunk)
+            output_file.flush()
+            os.fsync(output_file.fileno())
+        if digest.hexdigest() != expected_sha256:
+            raise OperatorError("retained candidate does not match inspected snapshot")
+    except FileExistsError:
+        raise OperatorError(
+            "candidate output already exists; reconcile before retry"
+        ) from None
+    except OSError:
+        if created:
+            _remove_candidate_output(output)
+        raise OperatorError("candidate output could not be retained") from None
+    except BaseException:
+        if created:
+            _remove_candidate_output(output)
+        raise
+
+
+def _remove_candidate_output(output: Path) -> None:
+    try:
+        output.unlink(missing_ok=True)
+    except OSError:
+        raise OperatorError("candidate output could not be removed") from None
 
 
 def build_command(
@@ -402,6 +503,7 @@ def build_candidate(
     if mobile_release._SHA256.fullmatch(expected_signer) is None:
         raise OperatorError("expected signer fingerprint is invalid")
     version = Version(str(ready["version_name"]), int(ready["version_code"]))
+    reviewed_commit = str(ready["commit"])
     api_digest = hashlib.sha256(private_lines[0].encode()).hexdigest()
     provider_digest = hashlib.sha256("\n".join(private_lines[1:4]).encode()).hexdigest()
     environment = _minimal_environment(
@@ -421,7 +523,10 @@ def build_candidate(
         private_port = int(reservation.getsockname()[1])
     private_nonce = secrets.token_hex(16)
     build_root = CLIENT / "build"
+    copied_output: Path | None = None
+    completed_successfully = False
     try:
+        _assert_reviewed_main(reviewed_commit)
         if (
             _run_private_build(
                 build_command(
@@ -433,6 +538,7 @@ def build_candidate(
             != 0
         ):
             raise OperatorError("candidate build failed safely; reconcile before retry")
+        _assert_reviewed_main(reviewed_commit)
         artifact = (
             build_root / "app" / "outputs" / "bundle" / "release" / "app-release.aab"
         )
@@ -458,18 +564,17 @@ def build_candidate(
             )
             if result["sha256"] != stable.sha256:
                 raise OperatorError("candidate snapshot evidence is inconsistent")
-            local_root = Path(os.environ.get("LOCALAPPDATA", ""))
-            if not local_root.is_absolute():
-                raise OperatorError("external candidate directory is unavailable")
-            output_directory = local_root / "NTUBTOB" / "android-closed-candidate"
-            output_directory.mkdir(parents=True, exist_ok=True)
+            output_directory = _candidate_output_directory(
+                os.environ.get("LOCALAPPDATA", "")
+            )
             output = output_directory / f"ntubtob-{version.name}-{version.code}.aab"
-            if output.exists():
-                raise OperatorError(
-                    "candidate output already exists; reconcile before retry"
-                )
-            shutil.copyfile(stable.path, output)
+            _copy_verified_exclusive(stable.path, output, stable.sha256)
+            copied_output = output
+        _assert_reviewed_main(reviewed_commit)
+        completed_successfully = True
     finally:
+        if not completed_successfully and copied_output is not None:
+            _remove_candidate_output(copied_output)
         shutil.rmtree(build_root, ignore_errors=True)
         if build_root.exists():
             raise OperatorError("private build outputs could not be removed")
