@@ -1,5 +1,21 @@
 # TASK-170 Android candidate contract writer report
 
+## 2026-09-02 secure operator correction
+
+- Real runtime/provider values and signing path/alias/passwords are no longer Dart defines or environment variables. They enter the
+  repository operator through hidden input and reach Gradle through one nonce-authenticated loopback connection held only in memory.
+- Gradle emits the four runtime values only into the exact Android runtime asset required by the app. The public release-contract asset
+  retains digests only. Strict AAB inspection now reads the actual runtime asset and recomputes both digests, preventing contract/payload drift.
+- Flutter startup loads the Android Closed runtime asset inside the same guarded zone as binding initialization. Development fake mode
+  and non-Android-Closed composition retain their existing behavior.
+- `tools.android_candidate_operator` requires clean exact `main == origin/main`, monotonic version history and one typed approval; it
+  suppresses child output, constructs a minimal environment, builds and strictly inspects one AAB, then reports sanitized metadata.
+  It cannot create/rotate a key, upload, open Console, deploy or operate a device.
+- A local signed fictional release build completed through the new memory channel. The channel uses a fixed LF nonce challenge from
+  Gradle to the already-listening repository operator, followed by exactly eight length-framed UTF-8 values; malformed peers receive no
+  private input. The temporary fictional key and repository build directory were deleted; real
+  configuration/signing/provider/account/device/store/cloud/production state was not accessed.
+
 ## Delivered
 
 - Android `release` is now an explicit `android-closed` channel. It accepts
@@ -39,6 +55,14 @@
   longer echo the decoded key.
 
 ## Regression and verification
+
+- Current continuation verification: the combined operator/release/evidence suite passed 47/47; CI workflow contracts passed 12/12;
+  full Flutter analyze reported no issues and full Flutter tests passed 316/316. Per-file Black checks passed for all four changed Python
+  files, Dart format changed zero files, and `git diff --check` passed with line-ending conversion warnings only.
+- The final current-tree fictional build passed through the nonce-authenticated, length-framed channel and produced a 52.6 MB AAB.
+  Strict inspection of that same AAB passed with 655 entries, package `tw.org.ntubtob.portal.contracttest`, version `0.1.0 (1)`,
+  min SDK 24, target/compile SDK 36, `android-closed`, Basic scope, exact runtime/contract digest agreement, archive integrity and exact
+  fictional signer agreement. The AAB, build directory and two-day fictional keystore were removed immediately afterward.
 
 - Before implementation, focused tests reproduced the mismatch: the inspector
   rejected `android-closed`, `APP_FLAVOR=production` remained accepted, and the
@@ -117,10 +141,8 @@ configuration or authorization for external work.
 - This lane did not discover a real staging endpoint/provider tuple, Play
   package history, upload certificate, keystore, or password. Those values and
   their digests remain external exact approvals.
-- Main still owns workflow reconciliation, combined-diff review, full affected
-  Flutter/analyze verification, independent Release/Security acceptance, and
-  the single hosted gate. No real candidate may be derived before the accepted
-  contract commit is merged.
+- Independent Release/Security acceptance and the single hosted gate remain required before merge. No real candidate may be derived
+  before the accepted contract commit is merged.
 - Store upload, Android 15 device validation, account/MFA, Play processing, and
   Closed Testing evidence remain later bounded phases of TASK-170.
 
@@ -138,5 +160,4 @@ configuration or authorization for external work.
 - `tools/tests/test_mobile_release.py`
 - `docs/coordination/reports/TASK-170-ANDROID-CANDIDATE.md`
 
-`clients/flutter_app/pubspec.yaml` was inspected but intentionally unchanged at
-`0.1.0+1`; no commit or push was made by this writer.
+`clients/flutter_app/pubspec.yaml` was inspected but intentionally unchanged at `0.1.0+1`.

@@ -24,7 +24,10 @@ does not call LINE or an API, and does not use platform secure storage.
 
 Staging/production runtime compositions require `CLIENT_MODE=real`, an HTTPS `API_BASE_URL`, numeric
 `LINE_CHANNEL_ID`, `GOOGLE_CLIENT_ID`, and `GOOGLE_SERVER_CLIENT_ID`, supplied by
-an approved local/runtime configuration mechanism. Android uses the Web server
+an approved local/runtime configuration mechanism. Android Closed Testing loads these four values
+from an exact generated runtime asset; the repository operator feeds them to Gradle over a
+nonce-authenticated, one-use loopback memory channel, never Dart defines, environment variables,
+temporary files, or command-line values. Android uses the Web server
 client ID for backend tokens. iOS requires its iOS client ID plus that same Web
 server client ID. Never commit real IDs or credentials.
 
@@ -107,10 +110,16 @@ from the exact package's Closed Testing history (`0` is allowed only when the
 package is verified to have no previous version). Any rebuild with a new
 version or configuration is a new artifact and requires fresh inspection.
 
-Signing is injected from a repository-external JKS/keystore using
-`MOBILE_RELEASE_KEYSTORE_PATH`, `MOBILE_RELEASE_KEY_ALIAS`, and privately
-supplied store/key passwords. The repository neither creates nor retains that
-key. Before upload, `python -m tools.mobile_release inspect-aab` must be run in
+Signing is injected from a repository-external JKS/keystore. Its path, alias and privately supplied
+store/key passwords use the same one-use memory channel. The repository neither creates nor retains
+that key. `python -m tools.android_candidate_operator preflight --previous-version-code <N>` is the
+read-only first step; only a clean exact `main == origin/main` can proceed. The subsequent `build`
+action shows the exact public target, requires one typed approval, displays one `*` per private input
+character on Windows, suppresses child output, strictly inspects the produced AAB, and reports only
+sanitized metadata. It copies only the immutable inspected snapshot to the fixed external candidate
+directory and removes repository-local build outputs even on failure. It never creates/rotates a key,
+uploads, opens Console, deploys, or touches a
+device. Before upload, `python -m tools.mobile_release inspect-aab` must be run in
 `android-closed` mode with the exact package, version, previous version, staging
 origin/provider digests, and approved upload-certificate SHA-256. Its single JSON result
 binds the AAB byte hash/size, channel, Basic-only staging contract, API levels,

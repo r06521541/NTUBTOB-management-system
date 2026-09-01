@@ -163,6 +163,7 @@ jobs:
           echo "CONTRACT_SIGNER_SHA256=$fingerprint" >> "$GITHUB_ENV"
 
       - name: Build signed contract-test Android App Bundle
+        working-directory: ${{ github.workspace }}
         env:
           MOBILE_RELEASE_CONTRACT_TEST: "true"
           MOBILE_RELEASE_CHANNEL: android-closed
@@ -172,26 +173,15 @@ jobs:
           MOBILE_RELEASE_PREVIOUS_VERSION_CODE: "0"
           MOBILE_RELEASE_STAGING_API_ORIGIN_SHA256: 9e60f93f593ab35cc5e3ed1fa443c25a670f32e0342e5c1876f6ab29876c195c
           MOBILE_RELEASE_STAGING_PROVIDER_CONFIG_SHA256: 47c660e43fc0a90f4c02fdf48584f10cb97137413c42e92ec926c652690c6ced
-          MOBILE_RELEASE_KEYSTORE_PATH: ${{ runner.temp }}/mobile-release-contract.jks
-          MOBILE_RELEASE_KEY_ALIAS: mobile-release-contract
         run: |
           set -euo pipefail
-          MOBILE_RELEASE_STORE_PASSWORD="$CONTRACT_PASSWORD" \
-          MOBILE_RELEASE_KEY_PASSWORD="$CONTRACT_PASSWORD" \
-            flutter build appbundle --release \
-              --dart-define=RELEASE_CHANNEL=android-closed \
-              --dart-define=APP_FLAVOR=staging \
-              --dart-define=CLIENT_MODE=real \
-              --dart-define=RELEASE_SCOPE=basic \
-              --dart-define=API_BASE_URL=https://mobile-release.invalid \
-              --dart-define=LINE_CHANNEL_ID=12345 \
-              --dart-define=GOOGLE_CLIENT_ID=android-contract.apps.googleusercontent.com \
-              --dart-define=GOOGLE_SERVER_CLIENT_ID=server-contract.apps.googleusercontent.com
+          python3 -m tools.android_candidate_operator contract-test-build
 
       - name: Run mobile release tooling tests with offline bundletool
         working-directory: ${{ github.workspace }}
         run: >-
           python3 -m unittest
+          tools.tests.test_android_candidate_operator
           tools.tests.test_mobile_release
           tools.tests.test_android_closed_testing
           -v

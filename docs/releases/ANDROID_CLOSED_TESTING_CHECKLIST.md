@@ -11,7 +11,9 @@ Console/store/cloud/device/production。任何未知、缺欄、`BLOCKED`、prod
 
 1. 只從已接受且合併的 exact 40-character commit 產生 candidate；hosted gates、獨立 Release/Security review 與 strict AAB
    inspection 必須先完成。重建後視為新 artifact，重新檢查所有 hash、version 與 device/track 綁定。
-2. Signing 與 Play Console 操作必須在 repository 外的 Owner-gated surface 完成。不得把 keystore、password、private key、
+2. Signing key 的建立／備份與 Play Console 操作必須在 repository 外的 Owner-gated surface 完成。候選包 build 則只能使用
+   `tools.android_candidate_operator`：先 read-only preflight，再單次文字批准，所有 runtime/signing input 經隱藏輸入及
+   nonce-authenticated one-use loopback memory channel交給 Gradle。不得把 keystore、password、private key、
    Console account/session、provider/client ID、backend endpoint、token、Secret 或個人／裝置識別資料寫入 JSON、Git、報告、
    command line 或 retained artifact。
 3. Evidence record 只保留 exact package/version/artifact SHA、signer fingerprint comparison input、布林／enum 結果與 `EV-*`
@@ -21,6 +23,8 @@ Console/store/cloud/device/production。任何未知、缺欄、`BLOCKED`、prod
    外部 observer、Main 與 reviewer 仍須檢查原始受控證據及 exact artifact。
 5. 只允許 Closed Testing。不得切到 open testing／production rollout，不通知 testers；若 Console 要求 billing、公開發布、
    destructive signing rotation、未知聲明或 package ownership 有衝突，mutation 前停止並回 Owner。
+6. Operator 只接受 clean exact `main == refs/remotes/origin/main`。目前 Play app 已建立；首次 track history 若經 Owner 可見
+   read-only頁面確認為空，`previous-version-code=0` 才成立。Operator 不會替代這項外部事實判讀。
 
 ## Completion checklist
 
@@ -140,3 +144,16 @@ python tools/android_closed_testing.py <deidentified-evidence.json>
 
 成功回傳 sanitized JSON summary；失敗在 stderr 回傳不含 caller value 的 `BLOCKED` reason 並 exit 2。輸出中的
 `external_truth_attested: false` 是刻意邊界：此工具無法把 self-attested input 升格為 Console、device 或 runtime truth。
+
+## Candidate operator（Owner 在場時）
+
+```powershell
+py -3.10 -m tools.android_candidate_operator preflight --previous-version-code 0
+py -3.10 -m tools.android_candidate_operator build --previous-version-code 0
+```
+
+第二行只在 preflight 顯示 package `tw.org.ntubtob.portal`、`android-closed`、`staging-real`、Basic-only、exact merged commit
+與 monotonic version 都正確後執行。依序隱藏輸入 staging API origin、LINE channel ID、Android／Web Google client ID、
+repository-external keystore path、alias、store/key passwords 與 expected upload-certificate SHA-256。成功只會產生一份
+repository-external候選包及 sanitized JSON；仍未授權／完成實機、Console upload、tester、open或production動作。
+Operator 只複製已檢查的immutable snapshot，隨後清除repository-local build outputs；清除失敗即STOP，不能回報成功。

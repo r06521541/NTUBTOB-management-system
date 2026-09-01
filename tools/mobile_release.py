@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import os
 import re
@@ -21,16 +22,19 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Iterator, Mapping, Sequence
+from urllib.parse import urlsplit
 from xml.etree import ElementTree
 
 
 CONTRACT_ENTRY = "base/assets/mobile-release-contract.properties"
+RUNTIME_CONFIG_ENTRY = "base/assets/flutter_assets/mobile-runtime-config.json"
 REQUIRED_ENTRIES = frozenset(
     {
         "BundleConfig.pb",
         "base/manifest/AndroidManifest.xml",
         "base/dex/classes.dex",
         CONTRACT_ENTRY,
+        RUNTIME_CONFIG_ENTRY,
     }
 )
 CONTRACT_KEYS = frozenset(
@@ -138,6 +142,107 @@ def parse_contract(raw: bytes) -> dict[str, str]:
     if values.keys() != CONTRACT_KEYS:
         raise ContractError("release contract keys are incomplete")
     return values
+
+
+def validate_runtime_config(raw: bytes, contract: Mapping[str, str]) -> None:
+    if len(raw) > 8192:
+        raise ContractError("runtime configuration is invalid")
+
+    def no_duplicates(pairs: Sequence[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ContractError("runtime configuration is invalid")
+            result[key] = value
+        return result
+
+    try:
+        decoded = json.loads(raw.decode("utf-8"), object_pairs_hook=no_duplicates)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise ContractError("runtime configuration is invalid") from None
+    expected_keys = {
+        "API_BASE_URL",
+        "LINE_CHANNEL_ID",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_SERVER_CLIENT_ID",
+    }
+    if (
+        not isinstance(decoded, dict)
+        or set(decoded) != expected_keys
+        or any(not isinstance(value, str) or not value for value in decoded.values())
+    ):
+        raise ContractError("runtime configuration is invalid")
+    canonical = (
+        json.dumps(decoded, ensure_ascii=False, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    if raw != canonical:
+        raise ContractError("runtime configuration is invalid")
+    try:
+        origin = urlsplit(decoded["API_BASE_URL"])
+        port = origin.port
+    except ValueError:
+        raise ContractError("runtime configuration is invalid") from None
+    if (
+        origin.scheme != "https"
+        or not origin.hostname
+        or origin.username is not None
+        or origin.password is not None
+        or port not in {None, 443}
+        or origin.path not in {"", "/"}
+        or origin.query
+        or origin.fragment
+    ):
+        raise ContractError("runtime configuration is invalid")
+    line_channel_id = decoded["LINE_CHANNEL_ID"]
+    google_client_id = decoded["GOOGLE_CLIENT_ID"]
+    google_server_client_id = decoded["GOOGLE_SERVER_CLIENT_ID"]
+    google_pattern = re.compile(
+        r"^[0-9A-Za-z][0-9A-Za-z._-]{5,199}\.apps\.googleusercontent\.com$"
+    )
+    if (
+        re.fullmatch(r"[1-9][0-9]{4,19}", line_channel_id) is None
+        or google_pattern.fullmatch(google_client_id) is None
+        or google_pattern.fullmatch(google_server_client_id) is None
+        or google_client_id == google_server_client_id
+    ):
+        raise ContractError("runtime configuration is invalid")
+    if contract["contract_test"] == "false":
+        host = origin.hostname.lower()
+        reserved_suffixes = (".localhost", ".invalid", ".test", ".example")
+        reserved_examples = {"example.com", "example.net", "example.org"}
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        noncandidate = re.compile(
+            r"(?:^|[-_.])(debug|dev|fake|test|contract)(?:$|[-_.])", re.IGNORECASE
+        )
+        if (
+            host == "localhost"
+            or "." not in host
+            or host.endswith(reserved_suffixes)
+            or host in reserved_examples
+            or any(host.endswith(f".{value}") for value in reserved_examples)
+            or (address is not None and not address.is_global)
+            or noncandidate.search(google_client_id)
+            or noncandidate.search(google_server_client_id)
+        ):
+            raise ContractError("runtime configuration is invalid")
+    api_digest = hashlib.sha256(decoded["API_BASE_URL"].encode()).hexdigest()
+    provider_digest = hashlib.sha256(
+        "\n".join(
+            (
+                decoded["LINE_CHANNEL_ID"],
+                decoded["GOOGLE_CLIENT_ID"],
+                decoded["GOOGLE_SERVER_CLIENT_ID"],
+            )
+        ).encode()
+    ).hexdigest()
+    if (
+        api_digest != contract["api_origin_sha256"]
+        or provider_digest != contract["provider_config_sha256"]
+    ):
+        raise ContractError("runtime configuration does not match release contract")
 
 
 def validate_contract(
@@ -517,6 +622,7 @@ def _inspect_snapshot(
                 parse_contract(archive.read(CONTRACT_ENTRY)),
                 expected_mode=expected_mode,
             )
+            validate_runtime_config(archive.read(RUNTIME_CONFIG_ENTRY), contract)
     except (OSError, zipfile.BadZipFile, zipfile.LargeZipFile):
         raise ContractError("artifact is not a readable AAB") from None
 

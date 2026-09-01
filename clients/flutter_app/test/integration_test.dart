@@ -303,6 +303,50 @@ void main() {
         throwsFormatException,
       );
     });
+    test('Android closed runtime configuration is exact and Basic-only', () {
+      const source = '{'
+          '"API_BASE_URL":"https://mobile-release.invalid",'
+          '"GOOGLE_CLIENT_ID":"android-client.apps.googleusercontent.com",'
+          '"GOOGLE_SERVER_CLIENT_ID":"server-client.apps.googleusercontent.com",'
+          '"LINE_CHANNEL_ID":"12345"'
+          '}\n';
+      final config = AppConfig.fromRuntimeConfig(
+        source,
+        flavor: 'staging',
+        mode: 'real',
+        releaseScope: 'basic',
+      );
+      expect(config.mode, ClientMode.real);
+      expect(config.apiBaseUrl.toString(), 'https://mobile-release.invalid');
+      for (final changed in [
+        source.replaceFirst('"LINE_CHANNEL_ID"', '"UNKNOWN"'),
+        source.replaceFirst('"12345"', '12345'),
+        source.replaceFirst(
+          '"LINE_CHANNEL_ID"',
+          '"LINE_CHANNEL_ID":"12345","LINE_CHANNEL_ID"',
+        ),
+        '$source\n{}',
+      ]) {
+        expect(
+          () => AppConfig.fromRuntimeConfig(
+            changed,
+            flavor: 'staging',
+            mode: 'real',
+            releaseScope: 'basic',
+          ),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => AppConfig.fromRuntimeConfig(
+          source,
+          flavor: 'staging',
+          mode: 'real',
+          releaseScope: 'officer',
+        ),
+        throwsFormatException,
+      );
+    });
   });
 
   group('process-wide Google SDK configuration', () {

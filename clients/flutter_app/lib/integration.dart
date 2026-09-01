@@ -81,6 +81,73 @@ class AppConfig {
         googleServerClientId:
             const String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID'),
       );
+
+  static Future<AppConfig> load({AssetBundle? bundle}) async {
+    const flavor = String.fromEnvironment('APP_FLAVOR');
+    const mode = String.fromEnvironment('CLIENT_MODE');
+    const releaseChannel = String.fromEnvironment('RELEASE_CHANNEL');
+    const releaseScope = String.fromEnvironment('RELEASE_SCOPE');
+    if (releaseChannel != 'android-closed') {
+      return fromEnvironment();
+    }
+    if (flavor != 'staging' || mode != 'real' || releaseScope != 'basic') {
+      throw const FormatException('Android release contract is invalid');
+    }
+    final source =
+        await (bundle ?? rootBundle).loadString('mobile-runtime-config.json');
+    return fromRuntimeConfig(
+      source,
+      flavor: flavor,
+      mode: mode,
+      releaseScope: releaseScope,
+    );
+  }
+
+  static AppConfig fromRuntimeConfig(
+    String source, {
+    required String flavor,
+    required String mode,
+    required String releaseScope,
+  }) {
+    if (flavor != 'staging' || mode != 'real' || releaseScope != 'basic') {
+      throw const FormatException('Android release contract is invalid');
+    }
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(source);
+    } on FormatException {
+      throw const FormatException('runtime configuration is invalid');
+    }
+    const keys = {
+      'API_BASE_URL',
+      'LINE_CHANNEL_ID',
+      'GOOGLE_CLIENT_ID',
+      'GOOGLE_SERVER_CLIENT_ID',
+    };
+    if (decoded is! Map<String, dynamic> ||
+        decoded.keys.toSet().difference(keys).isNotEmpty ||
+        keys.difference(decoded.keys.toSet()).isNotEmpty ||
+        decoded.values.any((value) => value is! String)) {
+      throw const FormatException('runtime configuration is invalid');
+    }
+    final canonical = jsonEncode(<String, String>{
+      'API_BASE_URL': decoded['API_BASE_URL'] as String,
+      'GOOGLE_CLIENT_ID': decoded['GOOGLE_CLIENT_ID'] as String,
+      'GOOGLE_SERVER_CLIENT_ID': decoded['GOOGLE_SERVER_CLIENT_ID'] as String,
+      'LINE_CHANNEL_ID': decoded['LINE_CHANNEL_ID'] as String,
+    });
+    if (source != '$canonical\n') {
+      throw const FormatException('runtime configuration is invalid');
+    }
+    return parse(
+      flavor: flavor,
+      mode: mode,
+      apiBaseUrl: decoded['API_BASE_URL'] as String,
+      lineChannelId: decoded['LINE_CHANNEL_ID'] as String,
+      googleClientId: decoded['GOOGLE_CLIENT_ID'] as String,
+      googleServerClientId: decoded['GOOGLE_SERVER_CLIENT_ID'] as String,
+    );
+  }
 }
 
 class ContractException implements Exception {

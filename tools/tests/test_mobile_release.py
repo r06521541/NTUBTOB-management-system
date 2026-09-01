@@ -59,6 +59,13 @@ def _aab_bytes(contract: bytes | None = None, *, signed: bool = True) -> bytes:
             "base/assets/mobile-release-contract.properties",
             contract if contract is not None else _contract_bytes(),
         )
+        archive.writestr(
+            "base/assets/flutter_assets/mobile-runtime-config.json",
+            b'{"API_BASE_URL":"https://mobile-release.invalid",'
+            b'"GOOGLE_CLIENT_ID":"android-contract.apps.googleusercontent.com",'
+            b'"GOOGLE_SERVER_CLIENT_ID":"server-contract.apps.googleusercontent.com",'
+            b'"LINE_CHANNEL_ID":"12345"}\n',
+        )
         if signed:
             archive.writestr("META-INF/MANIFEST.MF", b"Manifest-Version: 1.0\n")
             archive.writestr("META-INF/RELEASE.SF", b"Signature-Version: 1.0\n")
@@ -97,6 +104,36 @@ def _inspect_contract_test(artifact: Path) -> dict[str, object]:
 
 
 class MobileReleaseConfigurationTests(unittest.TestCase):
+    def test_runtime_config_requires_exact_keys_and_matching_digests(self):
+        contract = mobile_release.validate_contract(
+            mobile_release.parse_contract(_contract_bytes()),
+            expected_mode="contract-test",
+        )
+        valid = (
+            b'{"API_BASE_URL":"https://mobile-release.invalid",'
+            b'"GOOGLE_CLIENT_ID":"android-contract.apps.googleusercontent.com",'
+            b'"GOOGLE_SERVER_CLIENT_ID":"server-contract.apps.googleusercontent.com",'
+            b'"LINE_CHANNEL_ID":"12345"}\n'
+        )
+        mobile_release.validate_runtime_config(valid, contract)
+        for changed in (
+            valid.replace(b'"LINE_CHANNEL_ID"', b'"UNKNOWN"'),
+            valid.replace(b'"12345"', b"12345"),
+            valid.replace(b"12345", b"99999"),
+            valid.replace(b"12345", b'12345","LINE_CHANNEL_ID":"12345'),
+            valid.replace(b"https://", b"http://"),
+            valid + b"x" * 8192,
+            b"not-json",
+        ):
+            with (
+                self.subTest(changed=changed),
+                self.assertRaisesRegex(
+                    mobile_release.ContractError,
+                    "^runtime configuration (?:is invalid|does not match release contract)$",
+                ),
+            ):
+                mobile_release.validate_runtime_config(changed, contract)
+
     def test_android_closed_configuration_is_staging_real_and_basic_only(self):
         values = mobile_release.validate_contract(
             {
@@ -176,9 +213,12 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
             (b"schema=2\n", "release contract keys are incomplete"),
         )
         for raw, message in cases:
-            with self.subTest(message=message), self.assertRaisesRegex(
-                mobile_release.ContractError, f"^{message}$"
-            ) as raised:
+            with (
+                self.subTest(message=message),
+                self.assertRaisesRegex(
+                    mobile_release.ContractError, f"^{message}$"
+                ) as raised,
+            ):
                 mobile_release.parse_contract(raw)
             self.assertIsNone(raised.exception.__cause__)
 
@@ -207,8 +247,9 @@ class MobileReleaseConfigurationTests(unittest.TestCase):
             {"api_origin_sha256": "AB" * 32},
             {"provider_config_sha256": "CD" * 32},
         ):
-            with self.subTest(overrides=overrides), self.assertRaises(
-                mobile_release.ContractError
+            with (
+                self.subTest(overrides=overrides),
+                self.assertRaises(mobile_release.ContractError),
             ):
                 mobile_release.validate_contract(
                     dict(valid, **overrides), expected_mode="android-closed"
@@ -225,9 +266,10 @@ class MobileReleaseArtifactTests(unittest.TestCase):
             "gradle/wrapper/gradle-wrapper.properties",
         )
         for tampered in components:
-            with self.subTest(
-                tampered=tampered
-            ), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(tampered=tampered),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 repository_root = Path(directory)
                 android_root = repository_root / "clients/flutter_app/android"
                 for relative in components:
@@ -237,9 +279,12 @@ class MobileReleaseArtifactTests(unittest.TestCase):
                 target = android_root / tampered
                 target.write_bytes(target.read_bytes() + b"\nSECRET-SENTINEL\n")
 
-                with mock.patch.object(
-                    mobile_release, "_REPOSITORY_ROOT", repository_root
-                ), mock.patch.object(mobile_release, "_ANDROID_ROOT", android_root):
+                with (
+                    mock.patch.object(
+                        mobile_release, "_REPOSITORY_ROOT", repository_root
+                    ),
+                    mock.patch.object(mobile_release, "_ANDROID_ROOT", android_root),
+                ):
                     with self.assertRaisesRegex(
                         mobile_release.ContractError,
                         "^bundletool runner integrity is invalid$",
@@ -264,8 +309,11 @@ class MobileReleaseArtifactTests(unittest.TestCase):
             "GRADLE_OPTS": "-Dprovider=SECRET-SENTINEL",
             "MOBILE_RELEASE_STORE_PASSWORD": "SECRET-SENTINEL",
         }
-        with mock.patch.dict(os.environ, inherited), mock.patch(
-            "tools.mobile_release.subprocess.run", side_effect=completed_run
+        with (
+            mock.patch.dict(os.environ, inherited),
+            mock.patch(
+                "tools.mobile_release.subprocess.run", side_effect=completed_run
+            ),
         ):
             mobile_release._run_bundletool_task(
                 "verifyCandidateBundle", Path("fictional-snapshot.aab")
@@ -282,12 +330,13 @@ class MobileReleaseArtifactTests(unittest.TestCase):
         )
 
     def test_unusable_runtime_environment_is_rejected_without_echo(self):
-        with mock.patch.dict(
-            os.environ, {"JAVA_HOME": "SECRET-SENTINEL"}
-        ), self.assertRaisesRegex(
-            mobile_release.ContractError,
-            "^bundletool runtime environment is unavailable$",
-        ) as raised:
+        with (
+            mock.patch.dict(os.environ, {"JAVA_HOME": "SECRET-SENTINEL"}),
+            self.assertRaisesRegex(
+                mobile_release.ContractError,
+                "^bundletool runtime environment is unavailable$",
+            ) as raised,
+        ):
             mobile_release._bundletool_environment()
         self.assertNotIn("SECRET-SENTINEL", str(raised.exception))
 
@@ -311,8 +360,9 @@ class MobileReleaseArtifactTests(unittest.TestCase):
             manifest.replace(' android:versionCode="1"', ' android:versionCode="01"'),
             "not XML",
         ):
-            with self.subTest(changed=changed), self.assertRaises(
-                mobile_release.ContractError
+            with (
+                self.subTest(changed=changed),
+                self.assertRaises(mobile_release.ContractError),
             ):
                 mobile_release.parse_bundletool_manifest(changed)
 
@@ -350,14 +400,17 @@ class MobileReleaseArtifactTests(unittest.TestCase):
                 self.assertEqual(snapshot.read_bytes(), original)
                 return "ef" * 32
 
-            with mock.patch.object(
-                mobile_release,
-                "read_bundletool_metadata",
-                side_effect=metadata_reader,
-            ), mock.patch.object(
-                mobile_release,
-                "verify_aab_signer",
-                side_effect=signer_reader,
+            with (
+                mock.patch.object(
+                    mobile_release,
+                    "read_bundletool_metadata",
+                    side_effect=metadata_reader,
+                ),
+                mock.patch.object(
+                    mobile_release,
+                    "verify_aab_signer",
+                    side_effect=signer_reader,
+                ),
             ):
                 result = mobile_release.inspect_and_verify_aab(
                     artifact,
@@ -391,9 +444,10 @@ class MobileReleaseArtifactTests(unittest.TestCase):
             ),
         )
         for data, message in cases:
-            with self.subTest(
-                message=message
-            ), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(message=message),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 artifact = Path(directory) / "candidate.aab"
                 artifact.write_bytes(data)
                 with self.assertRaisesRegex(mobile_release.ContractError, message):
@@ -580,6 +634,7 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
                     "--no-daemon",
                     "-q",
                     "helpRelease",
+                    "-Pmobile-release-private-mode=contract-test",
                     f"-Pdart-defines={encoded}",
                 ],
                 cwd=mobile_release._ANDROID_ROOT,
@@ -591,6 +646,14 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
                 errors="replace",
                 env=environment,
                 timeout=120,
+                input=(
+                    "https://mobile-release.invalid\n12345\n"
+                    "android-contract.apps.googleusercontent.com\n"
+                    "server-contract.apps.googleusercontent.com\n"
+                    f"{Path(tempfile.gettempdir()) / 'mobile-release-contract.jks'}\n"
+                    "mobile-release-contract\nfictional-password\n"
+                    "fictional-password\n"
+                ),
             )
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("dart-defines contain duplicate entries", completed.stdout)
@@ -608,17 +671,27 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             "MOBILE_RELEASE_PREVIOUS_VERSION_CODE",
             "MOBILE_RELEASE_STAGING_API_ORIGIN_SHA256",
             "MOBILE_RELEASE_STAGING_PROVIDER_CONFIG_SHA256",
-            "MOBILE_RELEASE_KEYSTORE_PATH",
-            "MOBILE_RELEASE_KEY_ALIAS",
-            "MOBILE_RELEASE_STORE_PASSWORD",
-            "MOBILE_RELEASE_KEY_PASSWORD",
+            "mobile-release-private-mode",
+            "private release input contract is invalid",
             "mobile-release-contract.properties",
+            "mobile-runtime-config.json",
             'releaseScope = "basic"',
             'requiredDefine("APP_FLAVOR") != "staging"',
             'requiredDefine("RELEASE_CHANNEL") != releaseChannel',
         ):
             self.assertIn(fragment, source)
         self.assertNotIn('signingConfigs.getByName("debug")', source)
+        for forbidden in (
+            "MOBILE_RELEASE_KEYSTORE_PATH",
+            "MOBILE_RELEASE_KEY_ALIAS",
+            "MOBILE_RELEASE_STORE_PASSWORD",
+            "MOBILE_RELEASE_KEY_PASSWORD",
+            'requiredDefine("API_BASE_URL")',
+            'requiredDefine("LINE_CHANNEL_ID")',
+            'requiredDefine("GOOGLE_CLIENT_ID")',
+            'requiredDefine("GOOGLE_SERVER_CLIENT_ID")',
+        ):
+            self.assertNotIn(forbidden, source)
         self.assertNotIn("APP_FLAVOR must be production", source)
         self.assertIn('throw GradleException("API_BASE_URL is malformed")', source)
         self.assertNotIn('GradleException("API_BASE_URL is malformed",', source)
@@ -642,6 +715,9 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
             "variant.sources.assets",
             "addGeneratedSourceDirectory(",
             "GenerateMobileReleaseContract::outputDirectory",
+            "GenerateMobileRuntimeConfig::outputDirectory",
+            "outputs.upToDateWhen { false }",
+            "outputs.cacheIf { false }",
         ):
             self.assertIn(fragment, source)
         self.assertNotIn('sourceSets.getByName("release").assets.srcDir', source)
@@ -711,11 +787,15 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertIn("MOBILE_RELEASE_CHANNEL: android-closed", source)
         self.assertIn('MOBILE_RELEASE_PREVIOUS_VERSION_CODE: "0"', source)
         self.assertEqual(
-            source.count("--dart-define=RELEASE_CHANNEL=android-closed"), 2
+            source.count("--dart-define=RELEASE_CHANNEL=android-closed"), 1
         )
-        self.assertEqual(source.count("--dart-define=APP_FLAVOR=staging"), 2)
+        self.assertEqual(source.count("--dart-define=APP_FLAVOR=staging"), 1)
         self.assertNotIn("--dart-define=APP_FLAVOR=production", source)
         self.assertIn("tools.tests.test_android_closed_testing", source)
+        self.assertIn("tools.tests.test_android_candidate_operator", source)
+        self.assertIn(
+            "python3 -m tools.android_candidate_operator contract-test-build", source
+        )
         self.assertIn("flutter build appbundle --release", source)
         self.assertIn("python3 -m tools.mobile_release inspect-aab", source)
         self.assertIn("bundletool", source.lower())

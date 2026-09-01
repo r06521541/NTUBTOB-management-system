@@ -1,29 +1,27 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-177
-status: ready_for_merge
-next_actor: main-work
+active_task: TASK-170
+status: ready_for_review
+next_actor: release-security-reviewer
 
-claim_id: task-177-main-implementation-20260901
+claim_id: task-170-candidate-operator-writer-20260902
 lease_version: 1
 actor_id: /root
 
-base_commit: 1a8f5e660fe731b3996577c22380050283473c31
-head_commit: 70abdc3adc584c60ff6c0805d151edb7079d00ce
+base_commit: 5af3410dfbb7d8f748b25941b35c920070f8caa3
+head_commit: null
 
 updated_by: main-work
-updated_at: 2026-09-01T19:30:00+08:00
+updated_at: 2026-09-02T04:08:00+08:00
 
 note: >
-  TASK-177 implementation and privacy corrections are committed at the immutable
-  accepted review target. The foundation is default-off, provider-neutral,
-  local-only and strictly deidentified. Independent privacy/security review accepted
-  the exact target with no findings, and hosted run 33501642531 passed. No external
-  provider, endpoint, SDK, real event, store, cloud, deployment or production
-  mutation occurred. PR #231 is ready for Main to merge.
+  TASK-170 repository implementation and local fictional verification are complete
+  and await one independent Release/Security review. Play app creation is externally
+  reported complete, but no real upload key, AAB, device, Console track, provider,
+  cloud, deployment, open/production rollout or public release mutation occurred.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-177.md
-report: docs/coordination/reports/TASK-177.md
-review: accepted
+task: docs/coordination/tasks/TASK-170.md
+report: docs/coordination/reports/TASK-170-ANDROID-CANDIDATE.md
+review: pending
