@@ -175,12 +175,16 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("git diff --cached --exit-code", ios)
         self.assertIn("git ls-files --others --exclude-standard", ios)
         self.assertIn(
-            "grep -Fvx "
-            "'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved'",
+            "grep -Fvx",
             ios,
         )
-        self.assertNotIn(
-            "ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        self.assertIn(
+            "-e 'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved'",
+            ios,
+        )
+        self.assertIn(
+            "-e "
+            "'ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'",
             ios,
         )
         self.assertNotIn('test -z "$(git status --short)"', ios)

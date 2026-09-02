@@ -69,10 +69,12 @@
   cleanliness contract was added.
 - Hosted run `33602027590` again passed Android and all non-iOS jobs and built
   the unsigned iOS Release app. Its safe path-only diagnostic established the
-  exact generated lock path under `Runner.xcworkspace`, rather than the initially
-  inferred `Runner.xcodeproj/project.xcworkspace`. The allowlist uses fixed-string,
-  whole-line matching so punctuation cannot broaden it; hosted revalidation is
-  pending.
+  generated lock path under `Runner.xcworkspace`.
+- Hosted run `33603242804` again compiled iOS and passed Android and all non-iOS
+  jobs, but the same Xcode/Flutter resolution also produced the alternate lock
+  under `Runner.xcodeproj/project.xcworkspace`. The allowlist now enumerates only
+  those two observed complete paths using fixed-string, whole-line matching;
+  hosted revalidation is pending.
 
 ## Remaining external limits
 
