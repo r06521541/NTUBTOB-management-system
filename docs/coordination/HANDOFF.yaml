@@ -2,7 +2,7 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-179
-status: in_progress
+status: ready_for_pr
 next_actor: main-work
 
 claim_id: task-179-ios-candidate-inspector-writer-20260902
@@ -26,4 +26,4 @@ note: >
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-179.md
 report: docs/coordination/reports/TASK-179.md
-review: pending
+review: accepted

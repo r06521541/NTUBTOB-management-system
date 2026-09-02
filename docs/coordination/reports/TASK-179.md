@@ -47,4 +47,7 @@ isolated PostgreSQL的舊工具測試，與TASK-179 owned paths無交集；本ta
 - Round-1 reviewer對該SHA提出三項P1：第二個無Info.plist的app root未被計數、tool output完整buffer後才檢查、
   malformed profile逸出TypeError。Correction commit `6ffb7807474bb1501f524449e2717eb0d079b26a`已逐項修正並加入
   exact regression；等待同一位reviewer lease 2複審。
-- 獨立Release／Security verdict、hosted CI與PR integration待後續段落更新。
+- Independent Release／Security correction rereview：`ACCEPT`，reviewed exact SHA
+  `6ffb7807474bb1501f524449e2717eb0d079b26a`；27 passed、1 expected local Bash skip，無actionable finding、
+  external mutation為none。
+- Hosted CI與PR integration待後續段落更新。
