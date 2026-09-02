@@ -43,4 +43,5 @@ isolated PostgreSQL的舊工具測試，與TASK-179 owned paths無交集；本ta
 - Apple enrollment、App ID/capability、certificate/profile、App Store Connect app、provider/runtime binding、
   TestFlight upload/install與真機auth/session仍是外部Owner gate。
 - Repository Apple readiness marker仍為`not_implemented`；不得把本次交付解讀為TestFlight或public release ready。
-- immutable SHA、獨立Release／Security verdict、hosted CI與PR integration待後續段落更新。
+- Implementation commit：`fb8edb025d2ec30c3b8dcdfa03a7e77465b23d2d`。
+- 獨立Release／Security verdict、hosted CI與PR integration待後續段落更新。
