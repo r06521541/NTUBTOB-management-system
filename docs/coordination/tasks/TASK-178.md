@@ -44,6 +44,19 @@
    讀取Secret或保留真實provider資料。
 4. 現有`APPLE_SIGN_IN_REPOSITORY_STATUS=not_implemented`保持不變；本task不提前解鎖公開版。
 
+## Independent reviewer claim
+
+- actor_id: `/root/task178_release_security_review`
+- role: `advisor/reviewer`
+- claim_id: `task-178-ios-compile-release-security-reviewer-20260902`
+- lease_version: 1
+- write: `read-only`
+- report_to: `/root`
+- scope: immutable TASK-178 SHA的compile-only isolation、actual candidate non-regression、workflow no-secret/no-artifact boundary
+
+Reviewer須先回`received/executing`；超過10分鐘主動heartbeat；完成後主動回完整SHA、verdict、tests、findings、
+remaining limits與external mutations。不得修改working tree、commit、push、PR或任何外部狀態。
+
 ## Verification budget
 
 - iOS shell validator完整regression。
