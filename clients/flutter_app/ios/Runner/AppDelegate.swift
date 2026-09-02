@@ -12,9 +12,11 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    let appleRegistrar = engineBridge.pluginRegistry.registrar(
+    guard let appleRegistrar = engineBridge.pluginRegistry.registrar(
       forPlugin: "AppleAuthorizationBridge"
-    )
+    ) else {
+      return
+    }
     AppleAuthorizationBridge.register(with: appleRegistrar)
   }
 }

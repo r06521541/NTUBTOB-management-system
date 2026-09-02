@@ -25,6 +25,15 @@ and build values, a non-debug bundle identity, code signing enabled, and
 non-empty team/profile/expanded signing identity values supplied by Xcode.
 The validator never prints those values.
 
+Hosted CI additionally owns one compile-only vector:
+`staging + real + Release + testflight` with
+`IOS_TESTFLIGHT_CONTRACT_TEST=YES`. It must use `--no-codesign`, the exact
+repository bundle identity, fictional provider values, and no team, profile,
+signing identity, entitlement, or provider-ready claim. This vector compiles
+the iOS source and native Apple bridge on macOS/Xcode, but it cannot be archived,
+uploaded, installed, or treated as TestFlight/signing evidence. Production and
+actual candidate paths cannot select contract-test mode.
+
 The validator scans every `DART_DEFINES` entry before selecting a mode. Empty,
 malformed, non-canonical, binary/multiline, or non-`key=value` entries fail;
 release-critical environment, service-auth, and Apple keys must occur exactly
@@ -105,6 +114,12 @@ what was codesigned.
 The non-Darwin test locks the fixed PlistBuddy path and both array-element
 commands as a source contract. It does not execute PlistBuddy or claim macOS
 evidence; the Darwin branch still requires a future macOS runner check.
+
+The hosted macOS compile gate executes the normal Xcode build phases with the
+compile-only vector and verifies the resulting unsigned app bundle identity.
+It does not change the repository marker, bind Apple entitlements, inspect a
+signed archive, or satisfy any provider, signing, TestFlight, device, or public
+release gate.
 
 ## Local deterministic check
 

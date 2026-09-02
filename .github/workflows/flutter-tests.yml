@@ -199,3 +199,89 @@ jobs:
           --expected-staging-api-origin-sha256 9e60f93f593ab35cc5e3ed1fa443c25a670f32e0342e5c1876f6ab29876c195c
           --expected-staging-provider-config-sha256 47c660e43fc0a90f4c02fdf48584f10cb97137413c42e92ec926c652690c6ced
           --expected-signer-sha256 "$CONTRACT_SIGNER_SHA256"
+
+  ios_compile_contract:
+    name: Flutter 3.47.0 / iOS Release compile gate
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: clients/flutter_app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Flutter 3.47.0
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: "3.47.0"
+          cache: true
+          pub-cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Record hosted Apple toolchain
+        run: |
+          xcodebuild -version
+          flutter --version
+
+      - name: Prepare fictional compile-only configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' \
+            'GOOGLE_REVERSED_CLIENT_ID=com.googleusercontent.apps.123-ios' \
+            > ios/Flutter/AuthConfig.xcconfig
+          printf '%s\n' \
+            'IOS_DISTRIBUTION_CHANNEL=testflight' \
+            'IOS_TESTFLIGHT_CONTRACT_TEST=YES' \
+            'IOS_EXTERNAL_SIGNING_READY=NO' \
+            'APPLE_PROVIDER_CONFIGURED_EXTERNALLY=NO' \
+            > ios/Flutter/StoreReleaseConfig.xcconfig
+
+      - name: Compile staging TestFlight source without signing
+        run: >-
+          flutter build ios --release --no-codesign --no-pub
+          --build-name=0.1.0
+          --build-number=1
+          --dart-define=APP_FLAVOR=staging
+          --dart-define=CLIENT_MODE=real
+          --dart-define=API_BASE_URL=https://mobile-release.invalid
+          --dart-define=LINE_CHANNEL_ID=1234567890
+          --dart-define=GOOGLE_CLIENT_ID=123-ios.apps.googleusercontent.com
+          --dart-define=GOOGLE_SERVER_CLIENT_ID=456-web.apps.googleusercontent.com
+
+      - name: Verify compile-only output and remove private-shaped config
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d build/ios/iphoneos/Runner.app
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/ios/iphoneos/Runner.app/Info.plist)" = "tw.org.ntubtob.portal"
+          if codesign --verify build/ios/iphoneos/Runner.app >/dev/null 2>&1; then
+            echo "compile-only iOS output unexpectedly contains a valid signature" >&2
+            exit 1
+          fi
+          rm -f ios/Flutter/AuthConfig.xcconfig ios/Flutter/StoreReleaseConfig.xcconfig
+          test ! -e ios/Flutter/AuthConfig.xcconfig
+          test ! -e ios/Flutter/StoreReleaseConfig.xcconfig
+          if ! git diff --quiet; then
+            echo "compile-only iOS build changed tracked paths" >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet; then
+            echo "compile-only iOS build changed staged paths" >&2
+            exit 1
+          fi
+          unexpected_untracked="$(
+            git ls-files --others --exclude-standard |
+              grep -Fvx \
+                -e 'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved' \
+                -e 'ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved' || true
+          )"
+          if [[ -n "$unexpected_untracked" ]]; then
+            echo "compile-only iOS build left unexpected untracked paths" >&2
+            printf '%s\n' "$unexpected_untracked" >&2
+            exit 1
+          fi

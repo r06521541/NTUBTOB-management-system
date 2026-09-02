@@ -226,6 +226,7 @@ require_external_value() {
 scan_dart_defines
 configuration="${CONFIGURATION:-}"
 distribution_channel="${IOS_DISTRIBUTION_CHANNEL:-}"
+contract_test="${IOS_TESTFLIGHT_CONTRACT_TEST:-NO}"
 contract_file="${SRCROOT:-}/Flutter/StoreReleaseContract.xcconfig"
 [ -f "$contract_file" ] || \
   fail 'repository-owned iOS release contract file is missing'
@@ -247,8 +248,14 @@ case "$repository_status" in
 esac
 [ "${APPLE_SIGN_IN_REPOSITORY_STATUS:-}" = "$repository_status" ] || \
   fail 'resolved Sign in with Apple status does not match repository source'
+case "$contract_test" in
+  YES|NO) ;;
+  *) fail 'iOS TestFlight contract-test mode is invalid' ;;
+esac
 
 if [ "$app_flavor" = development ] && [ "$client_mode" = fake ]; then
+  [ "$contract_test" = NO ] || \
+    fail 'iOS contract-test mode accepts only staging real Release builds'
   if [ "$api_base_url_seen" = true ] || [ "$line_channel_id_seen" = true ] || \
       [ "$google_client_id_seen" = true ] || \
       [ "$google_server_client_id_seen" = true ] || \
@@ -290,6 +297,8 @@ fi
 
 if [ "$app_flavor" = staging ] && [ "$client_mode" = real ] && \
     [ "$non_distribution_configuration" = true ]; then
+  [ "$contract_test" = NO ] || \
+    fail 'iOS contract-test mode accepts only staging real Release builds'
   [ -z "$distribution_channel" ] || \
     fail 'non-distribution staging builds must not select a distribution channel'
   [ "${IOS_EXTERNAL_SIGNING_READY:-NO}" != YES ] || \
@@ -309,16 +318,6 @@ case "$app_flavor:$distribution_channel" in
   *) fail 'iOS flavor and distribution channel are missing or mixed' ;;
 esac
 
-[ "${IOS_EXTERNAL_SIGNING_READY:-}" = YES ] || \
-  fail 'iOS distribution signing must be explicitly supplied outside the repository'
-[ "${CODE_SIGNING_ALLOWED:-}" = YES ] || \
-  fail 'code signing is disabled for this distribution candidate'
-require_external_value DEVELOPMENT_TEAM "${DEVELOPMENT_TEAM:-}"
-require_external_value PROVISIONING_PROFILE_SPECIFIER \
-  "${PROVISIONING_PROFILE_SPECIFIER:-}"
-require_external_value EXPANDED_CODE_SIGN_IDENTITY \
-  "${EXPANDED_CODE_SIGN_IDENTITY:-}"
-
 bundle_id="${PRODUCT_BUNDLE_IDENTIFIER:-}"
 printf '%s\n' "$bundle_id" | \
   grep -Eq '^[A-Za-z0-9][A-Za-z0-9-]*(\.[A-Za-z0-9][A-Za-z0-9-]*){2,}$' || \
@@ -333,6 +332,36 @@ printf '%s\n' "${FLUTTER_BUILD_NAME:-}" | \
   fail 'FLUTTER_BUILD_NAME must be an explicit three-part numeric version'
 printf '%s\n' "${FLUTTER_BUILD_NUMBER:-}" | grep -Eq '^[1-9][0-9]*$' || \
   fail 'FLUTTER_BUILD_NUMBER must be an explicit positive integer'
+
+if [ "$contract_test" = YES ]; then
+  [ "$app_flavor" = staging ] && [ "$client_mode" = real ] || \
+    fail 'iOS contract-test mode accepts only staging real builds'
+  [ "${IOS_EXTERNAL_SIGNING_READY:-NO}" = NO ] || \
+    fail 'iOS contract-test mode must not claim external signing readiness'
+  [ "${CODE_SIGNING_ALLOWED:-NO}" = NO ] || \
+    fail 'iOS contract-test mode must disable code signing'
+  [ -z "${DEVELOPMENT_TEAM:-}" ] && \
+    [ -z "${PROVISIONING_PROFILE_SPECIFIER:-}" ] && \
+    [ -z "${EXPANDED_CODE_SIGN_IDENTITY:-}" ] || \
+    fail 'iOS contract-test mode must not receive signing metadata'
+  [ "${APPLE_PROVIDER_CONFIGURED_EXTERNALLY:-NO}" = NO ] || \
+    fail 'iOS contract-test mode must not claim Apple provider readiness'
+  [ -z "${CODE_SIGN_ENTITLEMENTS:-}" ] || \
+    fail 'iOS contract-test mode must not bind distribution entitlements'
+  [ "$bundle_id" = tw.org.ntubtob.portal ] || \
+    fail 'iOS contract-test bundle identity does not match repository authority'
+  exit 0
+fi
+
+[ "${IOS_EXTERNAL_SIGNING_READY:-}" = YES ] || \
+  fail 'iOS distribution signing must be explicitly supplied outside the repository'
+[ "${CODE_SIGNING_ALLOWED:-}" = YES ] || \
+  fail 'code signing is disabled for this distribution candidate'
+require_external_value DEVELOPMENT_TEAM "${DEVELOPMENT_TEAM:-}"
+require_external_value PROVISIONING_PROFILE_SPECIFIER \
+  "${PROVISIONING_PROFILE_SPECIFIER:-}"
+require_external_value EXPANDED_CODE_SIGN_IDENTITY \
+  "${EXPANDED_CODE_SIGN_IDENTITY:-}"
 
 if [ "$app_flavor" = staging ]; then
   exit 0

@@ -97,11 +97,12 @@ packages:
   flutter_line_sdk:
     dependency: "direct main"
     description:
-      name: flutter_line_sdk
-      sha256: a311289a2f38d1c1c5ea05fc6b421185e571752f51b84df8e01c195e8e890d02
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.7.2"
+      path: "."
+      ref: c48b87b430f2d0c7b50926d04cc4de8050ad413a
+      resolved-ref: c48b87b430f2d0c7b50926d04cc4de8050ad413a
+      url: "https://github.com/line/flutter_line_sdk.git"
+    source: git
+    version: "3.0.0"
   flutter_lints:
     dependency: "direct dev"
     description:

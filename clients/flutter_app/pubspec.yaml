@@ -7,7 +7,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  flutter_line_sdk: 2.7.2
+  flutter_line_sdk:
+    git:
+      url: https://github.com/line/flutter_line_sdk.git
+      ref: c48b87b430f2d0c7b50926d04cc4de8050ad413a
   google_sign_in: 7.2.0
   flutter_secure_storage: 10.3.1
   http: 1.6.0
