@@ -13,6 +13,9 @@ FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
 IOS_PROJECT = (
     ROOT / "clients" / "flutter_app" / "ios" / "Runner.xcodeproj" / "project.pbxproj"
 )
+IOS_APP_DELEGATE = (
+    ROOT / "clients" / "flutter_app" / "ios" / "Runner" / "AppDelegate.swift"
+)
 SHARED_SETUP = ROOT / "shared_lib" / "setup.py"
 MIGRATION_REQUIREMENTS = ROOT / "requirements-migrations.txt"
 
@@ -187,6 +190,13 @@ class WorkflowContractTests(unittest.TestCase):
                 "IPHONEOS_DEPLOYMENT_TARGET = 15.0;",
                 runner_configuration.group(1),
             )
+
+    def test_ios_apple_bridge_registrar_fails_closed_when_unavailable(self):
+        source = IOS_APP_DELEGATE.read_text(encoding="utf-8")
+        self.assertIn("guard let appleRegistrar", source)
+        self.assertIn('forPlugin: "AppleAuthorizationBridge"', source)
+        self.assertIn("AppleAuthorizationBridge.register(with: appleRegistrar)", source)
+        self.assertNotIn('registrar(forPlugin: "AppleAuthorizationBridge")!', source)
 
     def test_python_workflow_calls_flutter_conditionally(self):
         block = job_block(self.source, "flutter")

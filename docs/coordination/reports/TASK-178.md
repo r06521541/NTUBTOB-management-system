@@ -19,6 +19,10 @@
   Because that release is not yet available from pub.dev, the dependency uses
   its immutable official commit rather than a floating tag; comparison of the
   official tags shows no plugin Dart-library changes.
+- The following hosted compile reached project Swift and exposed Flutter 3.47's
+  optional plugin registrar. `AppDelegate` now registers the Apple bridge only
+  after a guarded unwrap; an unavailable registrar leaves the bridge absent and
+  authentication fail-closed.
 
 ## Verification
 
@@ -50,6 +54,9 @@
   the plugin Swift package still declared iOS 13. Its Android job also exposed
   an obsolete workflow-wide staging-define count; that assertion is now scoped
   to the Android job. Both corrections remain pending hosted revalidation.
+- Hosted run `33599585738` passed Android and all non-iOS jobs, resolved the
+  plugin's iOS 15 package contract, then failed at the optional registrar in
+  `AppDelegate.swift`. The guarded registration fix is pending hosted compile.
 
 ## Remaining external limits
 

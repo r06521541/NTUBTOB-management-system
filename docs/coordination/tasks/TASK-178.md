@@ -30,6 +30,7 @@
   - `clients/flutter_app/ios/tests/validate_store_release_config_test.sh`
   - `clients/flutter_app/ios/README.md`
   - `clients/flutter_app/ios/Runner.xcodeproj/project.pbxproj`
+  - `clients/flutter_app/ios/Runner/AppDelegate.swift`
   - `clients/flutter_app/pubspec.yaml`
   - `clients/flutter_app/pubspec.lock`
   - `tools/tests/test_mobile_release.py`
@@ -52,6 +53,8 @@
    以符合現行LINE SDK的最低平台要求。
 6. `flutter_line_sdk`須使用官方已將Swift package最低平台修正為iOS 15、且相容Flutter 3.47的版本；
    不得在hosted runner內修改pub cache或vendor未審查的套件副本。
+7. Flutter 3.47回傳的optional plugin registrar須安全解包；registrar unavailable時Apple bridge不得註冊，
+   且不得使用force unwrap或放寬登入失敗邊界。
 
 ## Independent reviewer claim
 
