@@ -79,9 +79,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   Apple provider、Secret、signing、runtime、production或TestFlight操作。
 - TASK-169保留active：repository release-readiness已合併，但Android/iOS store、signing、provider、production backend、
   device與public-release gates仍是現在的release boundary。
-- TASK-170為目前assigned active task：Play app `NTUBTOB`／`tw.org.ntubtob.portal` 已建立；repository正補上安全的
-  candidate operator與bundle/runtime一致性驗證。尚未建立真實upload key、產生／上傳exact Closed Testing AAB或完成
-  store/device evidence；open／production／公開發布皆未執行。
+- TASK-170 repository delivery已由PR #232合併；Play app `NTUBTOB`／`tw.org.ntubtob.portal` 已建立，但尚未建立真實
+  upload key、產生／上傳exact Closed Testing AAB或完成store/device evidence；open／production／公開發布皆未執行。
+- TASK-178為目前assigned active task：新增compile-only hosted macOS／Xcode gate，驗證iOS staging TestFlight source與
+  原生Apple bridge可在Release/no-codesign向量編譯；不提前宣稱signing、provider、TestFlight或公開版ready。
 - TASK-177 repository foundation已由PR #231合併；external crash collection仍未啟用。
 - Production mobile deployment、Google production publishing/client migration、Apple provider lifecycle、iOS signing／
   TestFlight、Android public release、push/deep-link delivery與anonymous crash evidence都需未來exact Owner gate。
@@ -94,7 +95,7 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 
 - Completed TASK-142～168、171～173的原始task/report/review群組已由merged Git ancestry證據索引至
   `archive/phase-d/PHASE_D_CLOSEOUT.md`；archive只證明歷史，不授權現在操作。
-- Active入口保留TASK-169、170、174及其current/external-gate evidence；TASK-170是目前assigned active task。
+- Active入口保留TASK-169、170、174及其current/external-gate evidence；TASK-178是目前assigned active task。
   任何完成狀態不明或外部gate仍由該task承載的群組不得封存。
 - 當前task與next actor只看`HANDOFF.yaml`；協作規則看`COLLABORATION.md`；長期決策看`DECISIONS.md`。
 
