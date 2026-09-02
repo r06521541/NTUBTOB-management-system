@@ -26,7 +26,7 @@ TASK-170 的永久 Android package identity 已由 Owner 明定；其 exact cand
 | --- | --- | --- | --- |
 | Android Closed Testing | Basic-only；Officer／Admin、push、deep-link delivery、匿名 crash reporting可延至公開版 gate | API 36、release flavor/package/version、HTTPS real-client config、external signing injection與AAB inspection須由同一 TASK 的 Android lane及Main驗證 | Play Console track、tester access、Data Safety問卷與實機安裝仍是Owner-gated；repository通過不等於已上傳或可公開 |
 | Android public | Basic + 經產品核准的公開版能力 | Closed Testing gate全部重跑於exact public artifact；Officer／Admin若納入，須有server authorization與UI evidence | `blocked`：push、deep link、匿名 crash、production backend、公開metadata/privacy/deletion與公開實機matrix尚未完成 |
-| iOS TestFlight | staging／real client；只作隔離測試，不宣稱production | `staging:real + Release + testflight`、explicit version/build、非debug bundle identity、外部signing metadata及既有auth validator；hosted macOS另以no-codesign contract-test編譯iOS source／native Apple bridge，但不得作為candidate evidence；repository已有Apple code exchange／加密credential／notification revocation foundation | signed archive、codesign/profile、App Store Connect、TestFlight install與真機auth/session仍未驗證；provider capability、runtime binding及smoke仍為external gate，不可推論公開版或App Review readiness |
+| iOS TestFlight | staging／real client；只作隔離測試，不宣稱production | `staging:real + Release + testflight`、explicit version/build、非debug bundle identity、外部signing metadata及既有auth validator；hosted macOS另以no-codesign contract-test編譯iOS source／native Apple bridge；未來signed IPA可由離線inspector綁定SHA、metadata、codesign/profile/Apple entitlement，但目前repository marker仍先行阻擋actual mode | signed archive尚未產生，App Store Connect、TestFlight install與真機auth/session仍未驗證；provider capability、runtime binding及smoke仍為external gate，不可推論公開版或App Review readiness |
 | iOS public | production／real client；公開版必須提供Sign in with Apple | `production:real + Release + app-store`，且Apple runtime、entitlement、provider readiness與完整public gates全部通過 | `blocked/fail-closed`：repository marker仍為`not_implemented`；repository lifecycle foundation不等於provider、signing、deployment或App Review evidence，不得以review例外、private override或TestFlight結果繞過 |
 
 ## Compliance 與 release evidence matrix
@@ -60,7 +60,8 @@ App 的支援頁目前提供「帳號刪除申請」說明，要求使用既有�
 
 ## Evidence record template
 
-每個實際 channel candidate 應另產生受控、去識別化 evidence，至少包含：
+每個實際 channel candidate 應另產生受控、去識別化 evidence，至少包含；iOS另依
+[`IOS_TESTFLIGHT_CHECKLIST.md`](IOS_TESTFLIGHT_CHECKLIST.md)執行：
 
 ```text
 channel: <android-closed|android-public|ios-testflight|ios-public>

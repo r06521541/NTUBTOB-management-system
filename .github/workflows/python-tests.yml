@@ -266,7 +266,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
-      - run: python -m unittest discover -s tools/tests -p "test_deploy_*.py" -v
+      - name: Run deployment and release inspector tests
+        run: |
+          python -m unittest discover -s tools/tests -p "test_deploy_*.py" -v
+          python -m unittest tools.tests.test_ios_candidate_inspector -v
 
   update_schedule:
     name: Update schedule tests

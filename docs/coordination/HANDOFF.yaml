@@ -1,30 +1,29 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-178
-status: ready_for_merge
+active_task: TASK-179
+status: in_progress
 next_actor: main-work
 
-claim_id: task-178-ios-testflight-compile-gate-writer-20260902
+claim_id: task-179-ios-candidate-inspector-writer-20260902
 lease_version: 1
 actor_id: /root
 
-base_commit: 1c5348f923d23347071cc09b31408ff8703b8805
-head_commit: e47d1ced618792063a12974d3d5b0581cb068705
+base_commit: dea9571a7b446f37c600c7e2f70146810e534c57
+head_commit: dea9571a7b446f37c600c7e2f70146810e534c57
 
 updated_by: main-work
-updated_at: 2026-09-02T15:46:09+08:00
+updated_at: 2026-09-02T18:20:00+08:00
 
 note: >
-  TASK-170 repository delivery was merged by PR #232 as exact main commit
-  1c5348f923d23347071cc09b31408ff8703b8805; its real upload key, AAB, device and
-  Console gates remain external. TASK-178 now adds a compile-only hosted macOS/Xcode
-  gate for the iOS staging TestFlight source without signing, provider, store, device,
-  runtime or production mutation. Local and hosted gates passed, including macOS/Xcode
-  Release compilation and Android API 36; immutable Release/Security review accepted
-  exact SHA e47d1ced618792063a12974d3d5b0581cb068705 with no findings. PR merge is next.
+  TASK-178 was merged by PR #233 as exact main commit
+  dea9571a7b446f37c600c7e2f70146810e534c57. TASK-179 adds a repository-only,
+  fail-closed signed IPA inspector and TestFlight evidence checklist. It does not
+  access Apple accounts, create signing material, archive, upload, install, deploy or
+  change provider/runtime state. Actual candidates remain blocked while the committed
+  Apple readiness marker is not_implemented.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-178.md
-report: docs/coordination/reports/TASK-178.md
-review: accepted
+task: docs/coordination/tasks/TASK-179.md
+report: pending
+review: pending
