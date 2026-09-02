@@ -54,8 +54,17 @@ profile UUID/name、certificate、application identifier、provider value或原�
 
 ## Independent reviewer
 
-由一位獨立Release／Security reviewer對immutable SHA執行read-only targeted review；須依mandatory assignment packet
-立即ACK、10–15分鐘heartbeat、blocker即報、完成主動回報SHA／tests／findings／limits／external mutations。
+- actor_id: `/root/task178_release_security_review`
+- role: `advisor/reviewer`
+- claim_id: `task-179-ios-candidate-release-security-reviewer-20260902`
+- lease_version: 1
+- write: `read-only`
+- report_to: `/root`
+- scope: immutable TASK-179 SHA的snapshot/archive safety、macOS command boundary、plist/profile/entitlement validation、
+  deidentification、actual-marker block與CI execution
+
+Reviewer須依mandatory assignment packet立即ACK、10–15分鐘heartbeat、blocker即報、完成主動回報SHA／tests／findings／
+limits／external mutations；不得修改working tree、commit、push、PR或任何外部狀態。
 
 ## Verification budget
 
