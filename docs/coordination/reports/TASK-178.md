@@ -70,8 +70,9 @@
 - Hosted run `33602027590` again passed Android and all non-iOS jobs and built
   the unsigned iOS Release app. Its safe path-only diagnostic established the
   exact generated lock path under `Runner.xcworkspace`, rather than the initially
-  inferred `Runner.xcodeproj/project.xcworkspace`; the exact allowlist correction
-  is pending hosted revalidation.
+  inferred `Runner.xcodeproj/project.xcworkspace`. The allowlist uses fixed-string,
+  whole-line matching so punctuation cannot broaden it; hosted revalidation is
+  pending.
 
 ## Remaining external limits
 

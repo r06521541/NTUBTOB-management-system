@@ -276,7 +276,7 @@ jobs:
           fi
           unexpected_untracked="$(
             git ls-files --others --exclude-standard |
-              grep -v '^ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved$' || true
+              grep -Fvx 'ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved' || true
           )"
           if [[ -n "$unexpected_untracked" ]]; then
             echo "compile-only iOS build left unexpected untracked paths" >&2
