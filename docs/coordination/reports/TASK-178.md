@@ -23,6 +23,11 @@
   optional plugin registrar. `AppDelegate` now registers the Apple bridge only
   after a guarded unwrap; an unavailable registrar leaves the bridge absent and
   authentication fail-closed.
+- The next hosted compile built the unsigned Release `Runner.app` successfully.
+  Its final cleanliness assertion was narrowed from a blanket worktree check to
+  tracked-source integrity, removal of both ephemeral configuration files, and
+  an exact allowance for Xcode's expected generated SwiftPM resolution file.
+  Other unexpected untracked paths still fail with a path-only diagnostic.
 
 ## Verification
 
@@ -56,7 +61,11 @@
   to the Android job. Both corrections remain pending hosted revalidation.
 - Hosted run `33599585738` passed Android and all non-iOS jobs, resolved the
   plugin's iOS 15 package contract, then failed at the optional registrar in
-  `AppDelegate.swift`. The guarded registration fix is pending hosted compile.
+  `AppDelegate.swift`.
+- Hosted run `33600566696` passed Android and all non-iOS jobs and successfully
+  compiled the unsigned iOS Release app. The job failed only at the old blanket
+  worktree assertion after configuration cleanup; the narrowed, diagnostic
+  cleanliness contract is pending hosted revalidation.
 
 ## Remaining external limits
 
