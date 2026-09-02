@@ -111,6 +111,15 @@ evidence. The future Apple delivery must additionally inspect the entitlement
 embedded in the signed archive; validating the source plist alone cannot prove
 what was codesigned.
 
+TASK-179 adds the repository-owned, read-only signed IPA inspector described in
+`docs/releases/IOS_TESTFLIGHT_CHECKLIST.md`. It snapshots an already-created IPA,
+rejects unsafe archive shapes, and uses fixed macOS `codesign` and `security cms`
+commands to classify the embedded signature, distribution profile, and Apple
+entitlement without returning Team/profile/certificate identifiers or raw tool
+output. It never signs, archives, uploads, or contacts Apple. Actual inspection
+still fails before artifact access while the committed repository status is
+`not_implemented`; fictional contract tests are not candidate evidence.
+
 The non-Darwin test locks the fixed PlistBuddy path and both array-element
 commands as a source contract. It does not execute PlistBuddy or claim macOS
 evidence; the Darwin branch still requires a future macOS runner check.

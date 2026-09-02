@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-Repository authority HEAD：`5af3410dfbb7d8f748b25941b35c920070f8caa3`
+Repository authority HEAD：`dea9571a7b446f37c600c7e2f70146810e534c57`
 
 ## Active role lanes
 
@@ -83,6 +83,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   upload key、產生／上傳exact Closed Testing AAB或完成store/device evidence；open／production／公開發布皆未執行。
 - TASK-178 repository delivery已通過獨立Release／Security review及hosted CI：iOS staging TestFlight source與原生Apple
   bridge可在Release/no-codesign向量編譯；仍不構成signing、provider、TestFlight或公開版ready。
+- TASK-179進行中：建立signed IPA的離線fail-closed檢查與TestFlight evidence checklist；不登入Apple、不建立簽章材料、
+  不archive／upload／install，且目前Apple readiness marker仍使真實candidate維持blocked。
 - TASK-177 repository foundation已由PR #231合併；external crash collection仍未啟用。
 - Production mobile deployment、Google production publishing/client migration、Apple provider lifecycle、iOS signing／
   TestFlight、Android public release、push/deep-link delivery與anonymous crash evidence都需未來exact Owner gate。
