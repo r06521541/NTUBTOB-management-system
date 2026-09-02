@@ -74,7 +74,11 @@
   jobs, but the same Xcode/Flutter resolution also produced the alternate lock
   under `Runner.xcodeproj/project.xcworkspace`. The allowlist now enumerates only
   those two observed complete paths using fixed-string, whole-line matching;
-  hosted revalidation is pending.
+  hosted run `33604244001` passed the iOS Release compile/cleanup job, Android API
+  36 gate, all selected repository suites and the final gate on exact SHA
+  `e47d1ced618792063a12974d3d5b0581cb068705`.
+- Independent Release/Security review accepted exact SHA
+  `e47d1ced618792063a12974d3d5b0581cb068705` with no actionable findings.
 
 ## Remaining external limits
 

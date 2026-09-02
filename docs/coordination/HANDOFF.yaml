@@ -2,28 +2,29 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-178
-status: ready_for_review
-next_actor: task178_release_security_review
+status: ready_for_merge
+next_actor: main-work
 
 claim_id: task-178-ios-testflight-compile-gate-writer-20260902
 lease_version: 1
 actor_id: /root
 
 base_commit: 1c5348f923d23347071cc09b31408ff8703b8805
-head_commit: e94875b4d68904665d85870791b20c10c8ee9f50
+head_commit: e47d1ced618792063a12974d3d5b0581cb068705
 
 updated_by: main-work
-updated_at: 2026-09-02T11:30:00+08:00
+updated_at: 2026-09-02T15:46:09+08:00
 
 note: >
   TASK-170 repository delivery was merged by PR #232 as exact main commit
   1c5348f923d23347071cc09b31408ff8703b8805; its real upload key, AAB, device and
   Console gates remain external. TASK-178 now adds a compile-only hosted macOS/Xcode
   gate for the iOS staging TestFlight source without signing, provider, store, device,
-  runtime or production mutation. Local shell and focused Flutter evidence passed;
-  immutable Release/Security review is next.
+  runtime or production mutation. Local and hosted gates passed, including macOS/Xcode
+  Release compilation and Android API 36; immutable Release/Security review accepted
+  exact SHA e47d1ced618792063a12974d3d5b0581cb068705 with no findings. PR merge is next.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-178.md
 report: docs/coordination/reports/TASK-178.md
-review: pending
+review: accepted
