@@ -27,7 +27,8 @@
   Its final cleanliness assertion was narrowed from a blanket worktree check to
   tracked-source integrity, removal of both ephemeral configuration files, and
   an exact allowance for Xcode's expected generated SwiftPM resolution file.
-  Other unexpected untracked paths still fail with a path-only diagnostic.
+  Tracked/staged drift fails silently with a fixed message; other unexpected
+  untracked paths fail with a path-only diagnostic, so no diff content is logged.
 
 ## Verification
 

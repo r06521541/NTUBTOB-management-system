@@ -169,8 +169,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("APPLE_PROVIDER_CONFIGURED_EXTERNALLY=NO", ios)
         self.assertIn("codesign --verify", ios)
         self.assertIn("tw.org.ntubtob.portal", ios)
-        self.assertIn("git diff --exit-code", ios)
-        self.assertIn("git diff --cached --exit-code", ios)
+        self.assertIn("git diff --quiet", ios)
+        self.assertIn("git diff --cached --quiet", ios)
+        self.assertNotIn("git diff --exit-code", ios)
+        self.assertNotIn("git diff --cached --exit-code", ios)
         self.assertIn("git ls-files --others --exclude-standard", ios)
         self.assertIn(
             "ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
