@@ -11,11 +11,14 @@ import argparse
 import hashlib
 import json
 import plistlib
+import queue
 import re
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import zipfile
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -141,6 +144,15 @@ def _safe_archive_entries(infos: Sequence[zipfile.ZipInfo]) -> list[str]:
 
 
 def _single_app_prefix(names: Sequence[str]) -> str:
+    app_roots = {
+        "/".join(PurePosixPath(name).parts[:2])
+        for name in names
+        if len(PurePosixPath(name).parts) >= 2
+        and PurePosixPath(name).parts[0] == "Payload"
+        and PurePosixPath(name).parts[1].endswith(".app")
+    }
+    if len(app_roots) != 1:
+        raise CandidateError("candidate IPA must contain exactly one application")
     info_suffix = "/Info.plist"
     prefixes = {
         name[: -len(info_suffix)]
@@ -149,7 +161,7 @@ def _single_app_prefix(names: Sequence[str]) -> str:
         and name.endswith(".app/Info.plist")
         and len(PurePosixPath(name).parts) == 3
     }
-    if len(prefixes) != 1:
+    if len(prefixes) != 1 or prefixes != app_roots:
         raise CandidateError("candidate IPA must contain exactly one application")
     return next(iter(prefixes))
 
@@ -284,21 +296,123 @@ def _default_tool_runner(command: Sequence[str], cwd: Path) -> ToolResult:
         raise CandidateError("candidate inspection command is not approved")
     environment = {"LANG": "C", "LC_ALL": "C", "PATH": "/usr/bin:/bin"}
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             list(command),
             cwd=cwd,
             env=environment,
-            check=False,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=_TOOL_TIMEOUT_SECONDS,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError:
         raise CandidateError("candidate inspection command failed") from None
-    if len(completed.stdout) + len(completed.stderr) > _MAX_TOOL_OUTPUT_BYTES:
-        raise CandidateError("candidate inspection output exceeds the limit")
-    return ToolResult(completed.returncode, completed.stdout, completed.stderr)
+    return _collect_bounded_process_output(process)
+
+
+def _collect_bounded_process_output(process: subprocess.Popen[bytes]) -> ToolResult:
+    if process.stdout is None or process.stderr is None:
+        raise CandidateError("candidate inspection command failed")
+    messages: queue.Queue[tuple[str, bytes | None]] = queue.Queue(maxsize=8)
+    stop = threading.Event()
+
+    def read_stream(name: str, stream: object) -> None:
+        try:
+            while not stop.is_set():
+                chunk = stream.read(65_536)  # type: ignore[attr-defined]
+                if not chunk:
+                    break
+                while not stop.is_set():
+                    try:
+                        messages.put((name, chunk), timeout=0.05)
+                        break
+                    except queue.Full:
+                        continue
+        except OSError:
+            if not stop.is_set():
+                try:
+                    messages.put(("error", None), timeout=0.05)
+                except queue.Full:
+                    pass
+        finally:
+            while not stop.is_set():
+                try:
+                    messages.put((name, None), timeout=0.05)
+                    break
+                except queue.Full:
+                    continue
+
+    threads = [
+        threading.Thread(
+            target=read_stream,
+            args=("stdout", process.stdout),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=read_stream,
+            args=("stderr", process.stderr),
+            daemon=True,
+        ),
+    ]
+    for thread in threads:
+        thread.start()
+
+    output = {"stdout": bytearray(), "stderr": bytearray()}
+    finished: set[str] = set()
+    deadline = time.monotonic() + _TOOL_TIMEOUT_SECONDS
+    failure: CandidateError | None = None
+    try:
+        while len(finished) < 2:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = CandidateError("candidate inspection command failed")
+                break
+            try:
+                name, chunk = messages.get(timeout=min(remaining, 0.1))
+            except queue.Empty:
+                continue
+            if name == "error":
+                failure = CandidateError("candidate inspection command failed")
+                break
+            if chunk is None:
+                finished.add(name)
+                continue
+            output[name].extend(chunk)
+            if len(output["stdout"]) + len(output["stderr"]) > _MAX_TOOL_OUTPUT_BYTES:
+                failure = CandidateError(
+                    "candidate inspection output exceeds the limit"
+                )
+                break
+        if failure is None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                failure = CandidateError("candidate inspection command failed")
+            else:
+                try:
+                    process.wait(timeout=remaining)
+                except subprocess.TimeoutExpired:
+                    failure = CandidateError("candidate inspection command failed")
+    finally:
+        if failure is not None:
+            stop.set()
+            if process.poll() is None:
+                process.terminate()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=2)
+        for stream in (process.stdout, process.stderr):
+            stream.close()
+        stop.set()
+        for thread in threads:
+            thread.join(timeout=1)
+    if failure is not None:
+        raise failure
+    return ToolResult(
+        process.returncode,
+        bytes(output["stdout"]),
+        bytes(output["stderr"]),
+    )
 
 
 def _successful_tool_result(result: ToolResult, *, category: str) -> ToolResult:
@@ -385,9 +499,10 @@ def _validate_signing_contract(
         raise CandidateError("candidate provisioning profile is invalid")
     if profile_entitlements.get("get-task-allow") is not False:
         raise CandidateError("candidate uses a development provisioning profile")
-    if profile.get("ProvisionedDevices") is not None or profile.get(
-        "ProvisionsAllDevices"
-    ) not in {None, False}:
+    provisions_all_devices = profile.get("ProvisionsAllDevices")
+    if profile.get("ProvisionedDevices") is not None or (
+        provisions_all_devices is not None and provisions_all_devices is not False
+    ):
         raise CandidateError("candidate provisioning profile is not distribution-only")
     expiration = profile.get("ExpirationDate")
     if not isinstance(expiration, datetime):
@@ -397,6 +512,8 @@ def _validate_signing_contract(
         if expiration.tzinfo is None
         else expiration.astimezone(timezone.utc)
     )
+    if now.tzinfo is None:
+        raise CandidateError("candidate inspection time is invalid")
     if normalized_expiration <= now.astimezone(timezone.utc):
         raise CandidateError("candidate provisioning profile is expired")
 
@@ -434,9 +551,16 @@ def inspect_ipa(
         raise CandidateError("candidate inspection mode is invalid")
     if mode == "testflight" and not repository_apple_ready(readiness_contract):
         raise CandidateError("repository Apple readiness is blocked")
-    if not _SEMANTIC_VERSION.fullmatch(expected_version):
+    if not isinstance(expected_version, str) or not _SEMANTIC_VERSION.fullmatch(
+        expected_version
+    ):
         raise CandidateError("expected candidate version is invalid")
-    if expected_build < 1 or previous_build < 0:
+    if (
+        type(expected_build) is not int
+        or type(previous_build) is not int
+        or expected_build < 1
+        or previous_build < 0
+    ):
         raise CandidateError("expected candidate build is invalid")
 
     with snapshot_ipa(artifact) as snapshot:
@@ -533,6 +657,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     except CandidateError as error:
         print(f"ERROR: {error}", file=sys.stderr)
+        return 2
+    except Exception:
+        print("ERROR: candidate inspection failed", file=sys.stderr)
         return 2
     print(json.dumps(result, sort_keys=True, separators=(",", ":")))
     return 0

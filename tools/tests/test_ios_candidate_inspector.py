@@ -3,6 +3,8 @@ from __future__ import annotations
 import io
 import plistlib
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -250,6 +252,10 @@ class IOSCandidateInspectorTests(unittest.TestCase):
                 _ipa_bytes(extra_entries=(("Payload/Other.app/Info.plist", _plist()),)),
                 "exactly one application",
             ),
+            (
+                _ipa_bytes(extra_entries=(("Payload/Other.app/extra", b"x"),)),
+                "exactly one application",
+            ),
         ]
         duplicate = io.BytesIO()
         with zipfile.ZipFile(duplicate, "w") as archive:
@@ -304,21 +310,89 @@ class IOSCandidateInspectorTests(unittest.TestCase):
         with mock.patch.object(inspector.sys, "platform", "darwin"):
             with self.assertRaisesRegex(inspector.CandidateError, "not approved"):
                 inspector._default_tool_runner(["/tmp/unapproved"], self.root)
-        completed = mock.Mock(returncode=0, stdout=b"", stderr=b"")
+        completed = mock.Mock(
+            returncode=0,
+            stdout=io.BytesIO(),
+            stderr=io.BytesIO(),
+            wait=mock.Mock(return_value=0),
+            poll=mock.Mock(return_value=0),
+        )
         with (
             mock.patch.object(inspector.sys, "platform", "darwin"),
             mock.patch.object(
-                inspector.subprocess, "run", return_value=completed
-            ) as run,
+                inspector.subprocess, "Popen", return_value=completed
+            ) as popen,
         ):
             result = inspector._default_tool_runner(
                 ["/usr/bin/codesign", "--verify"], self.root
             )
         self.assertEqual(result.returncode, 0)
-        kwargs = run.call_args.kwargs
-        self.assertEqual(kwargs["timeout"], inspector._TOOL_TIMEOUT_SECONDS)
+        kwargs = popen.call_args.kwargs
         self.assertEqual(kwargs["stdin"], inspector.subprocess.DEVNULL)
         self.assertEqual(kwargs["env"]["PATH"], "/usr/bin:/bin")
+
+    def test_production_runner_stops_and_reaps_oversized_output(self) -> None:
+        real_popen = subprocess.Popen
+
+        def start_oversized(
+            *_args: object, **_kwargs: object
+        ) -> subprocess.Popen[bytes]:
+            return real_popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; sys.stdout.buffer.write(b'x' * 1200000)",
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+        with (
+            mock.patch.object(inspector.sys, "platform", "darwin"),
+            mock.patch.object(
+                inspector.subprocess, "Popen", side_effect=start_oversized
+            ),
+            self.assertRaisesRegex(inspector.CandidateError, "output exceeds"),
+        ):
+            inspector._default_tool_runner(
+                ["/usr/bin/security", "cms", "-D", "-i", "redacted"], self.root
+            )
+
+    def test_malformed_profile_values_return_fixed_candidate_error(self) -> None:
+        for malformed in ([], {}, "true", 1):
+            with (
+                self.subTest(malformed=malformed),
+                self.assertRaisesRegex(inspector.CandidateError, "distribution-only"),
+            ):
+                self.inspect(
+                    runner=_runner(profile=_profile(ProvisionsAllDevices=malformed))
+                )
+
+    def test_cli_catches_unexpected_errors_without_traceback(self) -> None:
+        with (
+            mock.patch.object(
+                inspector, "inspect_ipa", side_effect=TypeError("private")
+            ),
+            mock.patch.object(
+                inspector.sys, "stderr", new_callable=io.StringIO
+            ) as error,
+        ):
+            result = inspector.main(
+                [
+                    "inspect",
+                    "--artifact",
+                    str(self.artifact),
+                    "--expected-version",
+                    "1.2.3",
+                    "--expected-build",
+                    "42",
+                    "--previous-build",
+                    "41",
+                ]
+            )
+        self.assertEqual(result, 2)
+        self.assertEqual(error.getvalue(), "ERROR: candidate inspection failed\n")
 
     def test_tool_output_and_error_messages_do_not_echo_sensitive_data(self) -> None:
         secret = "SENSITIVE-TEAM-PROFILE-VALUE"
