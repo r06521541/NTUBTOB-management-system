@@ -22,6 +22,12 @@
   test/support_app_info_test.dart`: no issues.
 - `git diff --check`: passed; Windows emitted only expected LF-to-CRLF checkout
   warnings.
+- Initial hosted Quick repository gate exposed the previous one-job/two-action
+  Flutter workflow assumption. The workflow contract now names and verifies the
+  macOS job, four pinned actions, no-codesign/provider-off settings, unsigned
+  check, exact bundle identity, and absence of artifact upload.
+- `py -3.10 -m unittest discover -s tools/tests -p "test_ci_*.py" -v`:
+  32 passed with one expected local Bash-environment skip.
 - Hosted macOS/Xcode compile and workflow parsing remain pending until the PR
   gate runs.
 

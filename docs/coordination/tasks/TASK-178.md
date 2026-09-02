@@ -25,6 +25,7 @@
 - scope: iOS no-codesign contract-test vector、hosted macOS compile gate、focused regression與release evidence
 - owned_paths:
   - `.github/workflows/flutter-tests.yml`
+  - `tools/tests/test_ci_workflow_contract.py`
   - `clients/flutter_app/ios/validate_store_release_config.sh`
   - `clients/flutter_app/ios/tests/validate_store_release_config_test.sh`
   - `clients/flutter_app/ios/README.md`

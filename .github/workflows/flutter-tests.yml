@@ -200,7 +200,7 @@ jobs:
           --expected-staging-provider-config-sha256 47c660e43fc0a90f4c02fdf48584f10cb97137413c42e92ec926c652690c6ced
           --expected-signer-sha256 "$CONTRACT_SIGNER_SHA256"
 
-  ios-compile-contract:
+  ios_compile_contract:
     name: Flutter 3.47.0 / iOS Release compile gate
     runs-on: macos-latest
     timeout-minutes: 30

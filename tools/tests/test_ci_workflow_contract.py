@@ -140,7 +140,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertIn(command, block)
                 self.assertNotIn("services:", block)
 
-    def test_flutter_is_reusable_only_exact_and_fake(self):
+    def test_flutter_is_reusable_with_pinned_platform_contracts(self):
         self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")
         self.assertNotRegex(self.flutter_source, r"(?m)^  (?:push|pull_request):$")
         self.assertIn('flutter-version: "3.47.0"', self.flutter_source)
@@ -155,8 +155,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("flutter test", self.flutter_source)
         self.assertIn("--dart-define=APP_FLAVOR=development", self.flutter_source)
         self.assertIn("--dart-define=CLIENT_MODE=fake", self.flutter_source)
+        ios = job_block(self.flutter_source, "ios_compile_contract")
+        self.assertIn("runs-on: macos-latest", ios)
+        self.assertIn("flutter build ios --release --no-codesign", ios)
+        self.assertIn("IOS_TESTFLIGHT_CONTRACT_TEST=YES", ios)
+        self.assertIn("IOS_EXTERNAL_SIGNING_READY=NO", ios)
+        self.assertIn("APPLE_PROVIDER_CONFIGURED_EXTERNALLY=NO", ios)
+        self.assertIn("codesign --verify", ios)
+        self.assertIn("tw.org.ntubtob.portal", ios)
+        self.assertNotIn("upload-artifact", ios)
         uses = re.findall(r"(?m)^\s*-?\s*uses:\s*([^\s#]+)", self.flutter_source)
-        self.assertEqual(len(uses), 2)
+        self.assertEqual(len(uses), 4)
         self.assertTrue(
             all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action) for action in uses)
         )
