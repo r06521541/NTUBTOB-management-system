@@ -763,10 +763,22 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         source = (ROOT / "clients/flutter_app/pubspec.yaml").read_text(encoding="utf-8")
         self.assertRegex(source, r"(?m)^version: [0-9]+\.[0-9]+\.[0-9]+\+[1-9][0-9]*$")
 
+    def test_line_sdk_uses_immutable_official_ios_15_release(self):
+        expected_revision = "c48b87b430f2d0c7b50926d04cc4de8050ad413a"
+        pubspec = (ROOT / "clients/flutter_app/pubspec.yaml").read_text(
+            encoding="utf-8"
+        )
+        lock = (ROOT / "clients/flutter_app/pubspec.lock").read_text(encoding="utf-8")
+        self.assertIn("url: https://github.com/line/flutter_line_sdk.git", pubspec)
+        self.assertIn(f"ref: {expected_revision}", pubspec)
+        self.assertIn(f"resolved-ref: {expected_revision}", lock)
+        self.assertIn('version: "3.0.0"', lock)
+
     def test_hosted_gate_builds_and_inspects_only_contract_test_aab(self):
         source = (ROOT / ".github/workflows/flutter-tests.yml").read_text(
             encoding="utf-8"
         )
+        android_source = source.partition("\n  ios_compile_contract:\n")[0]
         for fragment in (
             '"${ANDROID_SDK_ROOT:-}"',
             '"${ANDROID_HOME:-}"',
@@ -788,7 +800,7 @@ class MobileReleaseRepositoryContractTests(unittest.TestCase):
         self.assertEqual(
             source.count("--dart-define=RELEASE_CHANNEL=android-closed"), 1
         )
-        self.assertEqual(source.count("--dart-define=APP_FLAVOR=staging"), 1)
+        self.assertEqual(android_source.count("--dart-define=APP_FLAVOR=staging"), 1)
         self.assertNotIn("--dart-define=APP_FLAVOR=production", source)
         self.assertIn("tools.tests.test_android_closed_testing", source)
         self.assertIn("tools.tests.test_android_candidate_operator", source)

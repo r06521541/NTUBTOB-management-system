@@ -30,6 +30,9 @@
   - `clients/flutter_app/ios/tests/validate_store_release_config_test.sh`
   - `clients/flutter_app/ios/README.md`
   - `clients/flutter_app/ios/Runner.xcodeproj/project.pbxproj`
+  - `clients/flutter_app/pubspec.yaml`
+  - `clients/flutter_app/pubspec.lock`
+  - `tools/tests/test_mobile_release.py`
   - `docs/releases/MOBILE_RELEASE_MATRIX.md`
   - `docs/coordination/tasks/TASK-178.md`
   - `docs/coordination/reports/TASK-178.md`
@@ -47,6 +50,8 @@
 4. 現有`APPLE_SIGN_IN_REPOSITORY_STATUS=not_implemented`保持不變；本task不提前解鎖公開版。
 5. Xcode project與Runner target的Debug／Release／Profile皆須明確使用iOS 15.0；不得依賴Flutter預設值，
    以符合現行LINE SDK的最低平台要求。
+6. `flutter_line_sdk`須使用官方已將Swift package最低平台修正為iOS 15、且相容Flutter 3.47的版本；
+   不得在hosted runner內修改pub cache或vendor未審查的套件副本。
 
 ## Independent reviewer claim
 
