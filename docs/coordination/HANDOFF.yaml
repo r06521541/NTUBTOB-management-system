@@ -2,7 +2,7 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-179
-status: ready_for_pr
+status: ready_for_merge
 next_actor: main-work
 
 claim_id: task-179-ios-candidate-inspector-writer-20260902

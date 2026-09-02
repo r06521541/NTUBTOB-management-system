@@ -50,4 +50,6 @@ isolated PostgreSQL的舊工具測試，與TASK-179 owned paths無交集；本ta
 - Independent Release／Security correction rereview：`ACCEPT`，reviewed exact SHA
   `6ffb7807474bb1501f524449e2717eb0d079b26a`；27 passed、1 expected local Bash skip，無actionable finding、
   external mutation為none。
-- Hosted CI與PR integration待後續段落更新。
+- PR：`#234`；hosted run `33614968710`全綠，包含changed Python quality、deployment inspector tests、
+  dual-PostgreSQL、Web／functions、Flutter Android API 36、iOS Release/no-codesign compile及final aggregate gate。
+- PR尚待依standing authorization squash merge與post-merge main gate。
