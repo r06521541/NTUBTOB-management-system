@@ -66,7 +66,12 @@
 - Hosted run `33600566696` passed Android and all non-iOS jobs and successfully
   compiled the unsigned iOS Release app. The job failed only at the old blanket
   worktree assertion after configuration cleanup; the narrowed, diagnostic
-  cleanliness contract is pending hosted revalidation.
+  cleanliness contract was added.
+- Hosted run `33602027590` again passed Android and all non-iOS jobs and built
+  the unsigned iOS Release app. Its safe path-only diagnostic established the
+  exact generated lock path under `Runner.xcworkspace`, rather than the initially
+  inferred `Runner.xcodeproj/project.xcworkspace`; the exact allowlist correction
+  is pending hosted revalidation.
 
 ## Remaining external limits
 
