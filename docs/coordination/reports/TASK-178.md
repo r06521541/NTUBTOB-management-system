@@ -10,6 +10,9 @@
   the exact bundle identity and proves the output is unsigned.
 - Actual TestFlight/App Store candidate validation remains unchanged and
   fail-closed. The public Apple repository marker remains `not_implemented`.
+- The first hosted Xcode compile exposed that the Runner target inherited an
+  iOS 13 default even though the project and current LINE SDK require iOS 15.
+  Debug, Release and Profile now explicitly require iOS 15 at both levels.
 
 ## Verification
 
@@ -28,8 +31,9 @@
   check, exact bundle identity, and absence of artifact upload.
 - `py -3.10 -m unittest discover -s tools/tests -p "test_ci_*.py" -v`:
   32 passed with one expected local Bash-environment skip.
-- Hosted macOS/Xcode compile and workflow parsing remain pending until the PR
-  gate runs.
+- Hosted run `33597055753` passed the workflow and non-iOS gates but failed the
+  macOS compile because the app target was below the LINE SDK's iOS 15 minimum.
+  The aligned target setting and regression are pending hosted revalidation.
 
 ## Remaining external limits
 

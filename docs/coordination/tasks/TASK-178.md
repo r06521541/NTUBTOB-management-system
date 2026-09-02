@@ -29,6 +29,7 @@
   - `clients/flutter_app/ios/validate_store_release_config.sh`
   - `clients/flutter_app/ios/tests/validate_store_release_config_test.sh`
   - `clients/flutter_app/ios/README.md`
+  - `clients/flutter_app/ios/Runner.xcodeproj/project.pbxproj`
   - `docs/releases/MOBILE_RELEASE_MATRIX.md`
   - `docs/coordination/tasks/TASK-178.md`
   - `docs/coordination/reports/TASK-178.md`
@@ -44,6 +45,8 @@
 3. Hosted macOS job只編譯no-codesign iOS app並確認產物存在；不得upload artifact、登入App Store Connect、建立profile、
    讀取Secret或保留真實provider資料。
 4. 現有`APPLE_SIGN_IN_REPOSITORY_STATUS=not_implemented`保持不變；本task不提前解鎖公開版。
+5. Xcode project與Runner target的Debug／Release／Profile皆須明確使用iOS 15.0；不得依賴Flutter預設值，
+   以符合現行LINE SDK的最低平台要求。
 
 ## Independent reviewer claim
 

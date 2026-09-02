@@ -10,6 +10,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "python-tests.yml"
 FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
+IOS_PROJECT = (
+    ROOT
+    / "clients"
+    / "flutter_app"
+    / "ios"
+    / "Runner.xcodeproj"
+    / "project.pbxproj"
+)
 SHARED_SETUP = ROOT / "shared_lib" / "setup.py"
 MIGRATION_REQUIREMENTS = ROOT / "requirements-migrations.txt"
 
@@ -169,6 +177,21 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertTrue(
             all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action) for action in uses)
         )
+
+    def test_ios_project_and_runner_target_require_ios_15(self):
+        source = IOS_PROJECT.read_text(encoding="utf-8")
+        self.assertEqual(source.count("IPHONEOS_DEPLOYMENT_TARGET = 15.0;"), 6)
+        for configuration in ("Debug", "Release", "Profile"):
+            runner_configuration = re.search(
+                rf"(?s)baseConfigurationReference = .*?buildSettings = \{{(.*?)"
+                rf"\n\s*\}};\n\s*name = {configuration};",
+                source,
+            )
+            self.assertIsNotNone(runner_configuration, configuration)
+            self.assertIn(
+                "IPHONEOS_DEPLOYMENT_TARGET = 15.0;",
+                runner_configuration.group(1),
+            )
 
     def test_python_workflow_calls_flutter_conditionally(self):
         block = job_block(self.source, "flutter")
