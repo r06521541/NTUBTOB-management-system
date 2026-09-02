@@ -11,12 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "python-tests.yml"
 FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
 IOS_PROJECT = (
-    ROOT
-    / "clients"
-    / "flutter_app"
-    / "ios"
-    / "Runner.xcodeproj"
-    / "project.pbxproj"
+    ROOT / "clients" / "flutter_app" / "ios" / "Runner.xcodeproj" / "project.pbxproj"
 )
 SHARED_SETUP = ROOT / "shared_lib" / "setup.py"
 MIGRATION_REQUIREMENTS = ROOT / "requirements-migrations.txt"
