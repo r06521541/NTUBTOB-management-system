@@ -10,7 +10,7 @@ lease_version: 1
 actor_id: /root
 
 base_commit: dea9571a7b446f37c600c7e2f70146810e534c57
-head_commit: fb8edb025d2ec30c3b8dcdfa03a7e77465b23d2d
+head_commit: 6ffb7807474bb1501f524449e2717eb0d079b26a
 
 updated_by: main-work
 updated_at: 2026-09-02T18:20:00+08:00

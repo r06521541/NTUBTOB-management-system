@@ -14,10 +14,10 @@
 
 ## Verification
 
-- `py -3.10 -m unittest tools.tests.test_ios_candidate_inspector -v`：11 passed。
+- `py -3.10 -m unittest tools.tests.test_ios_candidate_inspector -v`：14 passed。
 - `py -3.10 -m unittest discover -s tools/tests -p "test_deploy_*.py" -v`：89 passed。
 - `py -3.10 -m unittest discover -s tools/tests -p "test_ci_*.py" -v`：33 passed，1 skipped（本機Git Bash無法啟動）。
-- `py -3.10 -m unittest tools.tests.test_ios_candidate_inspector tools.tests.test_ci_workflow_contract -v`：24 passed，
+- `py -3.10 -m unittest tools.tests.test_ios_candidate_inspector tools.tests.test_ci_workflow_contract -v`：27 passed，
   1 skipped（同上）。
 - `py -3.10 -m compileall -q tools/ios_candidate_inspector.py tools/tests/test_ios_candidate_inspector.py`：passed。
 - `py -3.10 -m isort --check-only tools/ios_candidate_inspector.py tools/tests/test_ios_candidate_inspector.py`：passed。
@@ -43,5 +43,8 @@ isolated PostgreSQL的舊工具測試，與TASK-179 owned paths無交集；本ta
 - Apple enrollment、App ID/capability、certificate/profile、App Store Connect app、provider/runtime binding、
   TestFlight upload/install與真機auth/session仍是外部Owner gate。
 - Repository Apple readiness marker仍為`not_implemented`；不得把本次交付解讀為TestFlight或public release ready。
-- Implementation commit：`fb8edb025d2ec30c3b8dcdfa03a7e77465b23d2d`。
+- Initial implementation commit：`fb8edb025d2ec30c3b8dcdfa03a7e77465b23d2d`。
+- Round-1 reviewer對該SHA提出三項P1：第二個無Info.plist的app root未被計數、tool output完整buffer後才檢查、
+  malformed profile逸出TypeError。Correction commit `6ffb7807474bb1501f524449e2717eb0d079b26a`已逐項修正並加入
+  exact regression；等待同一位reviewer lease 2複審。
 - 獨立Release／Security verdict、hosted CI與PR integration待後續段落更新。

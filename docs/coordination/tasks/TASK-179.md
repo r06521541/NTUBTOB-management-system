@@ -57,7 +57,7 @@ profile UUID/name、certificate、application identifier、provider value或原�
 - actor_id: `/root/task178_release_security_review`
 - role: `advisor/reviewer`
 - claim_id: `task-179-ios-candidate-release-security-reviewer-20260902`
-- lease_version: 1
+- lease_version: 2
 - write: `read-only`
 - report_to: `/root`
 - scope: immutable TASK-179 SHA的snapshot/archive safety、macOS command boundary、plist/profile/entitlement validation、
