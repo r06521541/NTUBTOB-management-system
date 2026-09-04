@@ -46,5 +46,8 @@
   IPv4/IPv6與durable implementation head finding；實作修正固定於
   `fce24bbbb3d8770276ef1db4400405ea9aee8818`。
 - Round-3 review發現`IPv4:port`未被完整解析；新增host/port fail-closed處理與端到端regression，最終實作修正固定於
-  `6d465b0fe495bf6d368d854755bbdeab3e706560`，待同一reviewer lease 4複審。
+  `6d465b0fe495bf6d368d854755bbdeab3e706560`。
+- Round-4 review發現句尾標點可使IPv4／host-port解析失敗後放行；改為獨立擷取IPv4 host並正規化IPv6候選句點，新增
+  裸IPv4、IPv4:port與IPv6句尾標點regression。最終實作固定於
+  `0821849a0897d5a2ec80c683f7d6e8a2bc2cb13d`，待同一reviewer lease 5複審。
 - 尚待獨立最終複審、push、ready PR hosted gate與merge。

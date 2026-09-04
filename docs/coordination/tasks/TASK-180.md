@@ -61,7 +61,8 @@ manifest及fail-closed validator。現有帳號刪除文字不得被誤標為符
 - round 1 lease_version: 1；reviewed SHA `a0c041353c4e4d955b877486e03fc93a5dc94557`；`REQUEST_CHANGES`
 - round 2 lease_version: 2；reviewed SHA `59569f1e40ad9b471cb1d4615d758249b811a7de`；`REQUEST_CHANGES`
 - round 3 lease_version: 3；reviewed implementation SHA `fce24bbbb3d8770276ef1db4400405ea9aee8818`；`REQUEST_CHANGES`
-- final correction rereview lease_version: 4；implementation SHA `6d465b0fe495bf6d368d854755bbdeab3e706560`
+- round 4 lease_version: 4；reviewed implementation SHA `6d465b0fe495bf6d368d854755bbdeab3e706560`；`REQUEST_CHANGES`
+- final correction rereview lease_version: 5；implementation SHA `0821849a0897d5a2ec80c683f7d6e8a2bc2cb13d`
 - write: `read-only`
 - report_to: `/root`
 - scope: immutable manifest/parser/classifier、deidentification、Apple privacy/account deletion boundary與hosted execution
