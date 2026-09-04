@@ -96,6 +96,7 @@ SENSITIVE_TEXT = re.compile(
 ADDRESS_CANDIDATE = re.compile(
     r"(?<![\w])(?:\[[0-9A-Fa-f:.]+\]|[0-9A-Fa-f:.]+)(?![\w])"
 )
+IPV4_CANDIDATE = re.compile(r"(?<![\w])(?:\d{1,3}\.){3}\d{1,3}(?![\w])")
 
 
 class ReadinessError(ValueError):
@@ -103,8 +104,14 @@ class ReadinessError(ValueError):
 
 
 def _contains_network_address(value: str) -> bool:
+    for candidate in IPV4_CANDIDATE.findall(value):
+        try:
+            ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        return True
     for raw in ADDRESS_CANDIDATE.findall(value):
-        candidate = raw.strip("[]")
+        candidate = raw.strip("[]").rstrip(".")
         if "." not in candidate and ":" not in candidate:
             continue
         try:
