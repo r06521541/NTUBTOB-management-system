@@ -2,8 +2,8 @@
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
 active_task: TASK-180
-status: in_progress
-next_actor: /root
+status: ready_for_pr
+next_actor: main-work
 
 claim_id: task-180-ios-store-readiness-writer-20260905
 lease_version: 1
@@ -19,12 +19,12 @@ note: >
   TASK-179 was merged by PR #234 as exact main commit
   578b3bf0ad75983a99139da235a3e7f3146be729. TASK-180 prepares a repository-only,
   fail-closed TestFlight metadata and privacy-fact contract. Independent review
-  lease 1 through 4 findings were corrected. Lease 5 found an IPv6 colon-delimited
-  prose bypass; the final implementation correction is fixed at
-  99f7dd343c421eddf11731ec843ba7c5bef3f563 and awaits lease 6 review. No Apple,
+  lease 1 through 5 findings were corrected. Lease 6 ACCEPTED the final
+  implementation fixed at 99f7dd343c421eddf11731ec843ba7c5bef3f563 with no
+  findings. TASK-180 is ready for its single PR and hosted gate. No Apple,
   signing, provider/runtime or production mutation is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-180.md
 report: docs/coordination/reports/TASK-180.md
-review: pending
+review: accepted

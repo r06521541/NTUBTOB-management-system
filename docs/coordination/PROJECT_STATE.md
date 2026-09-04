@@ -85,8 +85,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   bridge可在Release/no-codesign向量編譯；仍不構成signing、provider、TestFlight或公開版ready。
 - TASK-179已由PR #234合併：signed IPA離線fail-closed inspector與TestFlight evidence checklist已進repository；尚無真實
   signed IPA，Apple readiness marker仍使actual inspection維持blocked。
-- TASK-180進行中：建立repository-only TestFlight metadata、privacy fact與外部gate manifest／validator；不建立Apple資源，
-  且現有「聯絡管理員」帳號刪除文字不得被誤標為符合完整App內刪除要求。
+- TASK-180 repository delivery已通過獨立Release／Privacy review：TestFlight metadata、privacy fact與外部gate
+  manifest／validator維持fail closed；現有「聯絡管理員」帳號刪除文字仍是hard blocker，且尚待單一PR hosted gate／merge。
 - TASK-177 repository foundation已由PR #231合併；external crash collection仍未啟用。
 - Production mobile deployment、Google production publishing/client migration、Apple provider lifecycle、iOS signing／
   TestFlight、Android public release、push/deep-link delivery與anonymous crash evidence都需未來exact Owner gate。
