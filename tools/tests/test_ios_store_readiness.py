@@ -45,6 +45,28 @@ class IOSStoreReadinessTests(unittest.TestCase):
                 ):
                     ios_store_readiness.validate_manifest(changed)
 
+    def test_schema_and_candidate_values_require_exact_json_types(self):
+        changed = deepcopy(self.manifest)
+        changed["schema"] = True
+        with self.assertRaisesRegex(
+            ios_store_readiness.ReadinessError, "schema is unsupported"
+        ):
+            ios_store_readiness.validate_manifest(changed)
+        for key in (
+            "production_data",
+            "push_delivery",
+            "deep_link_delivery",
+            "crash_upload",
+        ):
+            with self.subTest(key=key):
+                changed = deepcopy(self.manifest)
+                changed["candidate"][key] = 0
+                with self.assertRaisesRegex(
+                    ios_store_readiness.ReadinessError,
+                    "approved TestFlight vector",
+                ):
+                    ios_store_readiness.validate_manifest(changed)
+
     def test_unknown_missing_and_duplicate_fields_are_rejected(self):
         changed = deepcopy(self.manifest)
         changed["unknown"] = True
@@ -67,6 +89,11 @@ class IOSStoreReadinessTests(unittest.TestCase):
         for value in (
             "reply@example.test",
             "https://private.example.test",
+            "ftp://private.example.test",
+            "private.example.test",
+            "provider=private",
+            "signing: private",
+            "credential=private",
             "password=value",
             "1234567890.apps.googleusercontent.com",
         ):
@@ -121,6 +148,20 @@ class IOSStoreReadinessTests(unittest.TestCase):
             ios_store_readiness.ReadinessError, "privacy fact values are invalid"
         ):
             ios_store_readiness.validate_manifest(changed)
+
+    def test_load_is_bounded_and_rejects_non_regular_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            oversized = root / "oversized.json"
+            oversized.write_bytes(b"x" * (ios_store_readiness.MAX_MANIFEST_BYTES + 1))
+            with self.assertRaisesRegex(
+                ios_store_readiness.ReadinessError, "encoding or size is invalid"
+            ):
+                ios_store_readiness.load_manifest(oversized)
+            with self.assertRaisesRegex(
+                ios_store_readiness.ReadinessError, "unavailable"
+            ):
+                ios_store_readiness.load_manifest(root)
         changed = deepcopy(self.manifest)
         changed["gates"]["feedback_contact"] = []
         with self.assertRaisesRegex(

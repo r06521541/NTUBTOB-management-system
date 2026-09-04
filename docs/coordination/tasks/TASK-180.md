@@ -26,6 +26,8 @@ manifest及fail-closed validator。現有帳號刪除文字不得被誤標為符
 - owned_paths:
   - `tools/ios_store_readiness.py`
   - `tools/tests/test_ios_store_readiness.py`
+  - `tools/ci_change_classifier.py`
+  - `tools/tests/test_ci_change_classifier.py`
   - `.github/workflows/python-tests.yml`
   - `tools/tests/test_ci_workflow_contract.py`
   - `docs/releases/ios-testflight-preparation.json`
@@ -50,6 +52,17 @@ manifest及fail-closed validator。現有帳號刪除文字不得被誤標為符
 - Python unit tests覆蓋exact scope、unknown/duplicate、draft identifier/length、privacy consistency、tracking與gate fail-closed。
 - CI workflow contract確認deployment-tools hosted job執行validator tests。
 - changed Python quality、focused tests、獨立read-only Release／Privacy review及一次ready PR hosted gate。
+
+## Independent reviewer
+
+- actor_id: `/root/task178_release_security_review`
+- role: `advisor/reviewer`
+- claim_id: `task-180-ios-store-release-privacy-reviewer-20260905`
+- round 1 lease_version: 1；reviewed SHA `a0c041353c4e4d955b877486e03fc93a5dc94557`；`REQUEST_CHANGES`
+- correction rereview lease_version: 2
+- write: `read-only`
+- report_to: `/root`
+- scope: immutable manifest/parser/classifier、deidentification、Apple privacy/account deletion boundary與hosted execution
 
 ## Stop conditions
 

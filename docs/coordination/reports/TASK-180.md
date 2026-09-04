@@ -14,13 +14,16 @@
 
 ## Verification
 
-- `py -3.10 -m unittest tools.tests.test_ios_store_readiness tools.tests.test_ios_candidate_inspector tools.tests.test_ci_workflow_contract -v`：
-  36 passed，1 expected local Bash-environment skip。
+- Initial focused suite：35 passed，1 expected local Bash-environment skip（36 total）。
+- Reviewer round-1 correction後執行`py -3.10 -m unittest tools.tests.test_ios_store_readiness
+  tools.tests.test_ci_change_classifier tools.tests.test_ci_workflow_contract tools.tests.test_ios_candidate_inspector -v`：
+  58 passed，1 expected local Bash-environment skip（59 total）。
 - `py -3.10 -m compileall -q tools/ios_store_readiness.py tools/tests/test_ios_store_readiness.py`：passed。
 - `py -3.10 -m isort --check-only tools/ios_store_readiness.py tools/tests/test_ios_store_readiness.py`：passed。
 - Pinned Black CLI在Windows出現專案已知高CPU停滯，終止本次exact child/parent processes後改用同版本formatter API逐檔
   比對：passed。
-- `py -3.10 -m tools.ios_store_readiness`：`PREPARATION_ONLY`，13 blocked、9 required、release_ready=false。
+- `py -3.10 -m tools.ios_store_readiness`：`PREPARATION_ONLY`，14 blocked、9 required、release_ready=false。
+- `py -3.10 -m unittest discover -s tools/tests -p "test_deploy_*.py" -v`：89 passed。
 - `git diff --check`：passed。
 
 ## External mutations
@@ -34,4 +37,7 @@
   工作包，不在文件任務假稱完成。
 - 第三方SDK privacy與archive內PrivacyInfo聚合、出口合規法律判斷、年齡問卷、content rights、DSA/地區、公開URL與
   screenshots仍需未來exact candidate／Owner-visible evidence。
-- 尚待獨立Release／Privacy review、commit/push、ready PR hosted gate與merge。
+- Round-1 independent Release／Privacy review對SHA `a0c041353c4e4d955b877486e03fc93a5dc94557`提出五項finding：manifest-only
+  CI分類、JSON exact type／禁止字串、App內privacy policy獨立gate、bounded read與durable reviewer claim。Correction已逐項
+  修正並加regression，待同一reviewer lease 2複審。
+- 尚待correction commit、獨立複審、push、ready PR hosted gate與merge。

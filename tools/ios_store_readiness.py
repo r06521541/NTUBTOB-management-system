@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import stat
 from collections import Counter
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -58,6 +60,7 @@ REQUIRED_GATES = {
     "feedback_contact",
     "public_support_url",
     "public_privacy_policy_url",
+    "in_app_privacy_policy_access",
     "in_app_account_deletion",
     "apple_app_id",
     "sign_in_with_apple_capability",
@@ -80,9 +83,11 @@ REQUIRED_GATES = {
 GATE_STATES = {"required", "blocked"}
 PURPOSES = {"app_functionality", "authentication_and_security", "not_applicable"}
 SENSITIVE_TEXT = re.compile(
-    r"(?:https?://|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|"
+    r"(?:(?:[a-z][a-z0-9+.-]*)://|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|"
+    r"(?<![\w@])(?:[a-z0-9-]+\.)+[a-z]{2,}(?!\w)|"
     r"\.apps\.googleusercontent\.com|"
-    r"(?:team[_ -]?id|client[_ -]?id|secret|token|password|private[_ -]?key)\s*[:=])",
+    r"(?:team[_ -]?id|client[_ -]?id|provider|signing|certificate|profile|"
+    r"credential|secret|token|password|private[_ -]?key)\s*[:=])",
     re.IGNORECASE,
 )
 
@@ -101,9 +106,39 @@ def _unique_object(pairs: Sequence[tuple[str, object]]) -> dict[str, object]:
 
 
 def load_manifest(path: Path = DEFAULT_MANIFEST) -> dict[str, object]:
-    if not path.is_file() or path.is_symlink():
+    try:
+        before = path.lstat()
+    except OSError:
+        raise ReadinessError("preparation manifest is unavailable") from None
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    if not stat.S_ISREG(before.st_mode) or (
+        reparse_flag and getattr(before, "st_file_attributes", 0) & reparse_flag
+    ):
         raise ReadinessError("preparation manifest is unavailable")
-    raw = path.read_bytes()
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        raise ReadinessError("preparation manifest is unavailable") from None
+    try:
+        opened = os.fstat(descriptor)
+        if not stat.S_ISREG(opened.st_mode) or opened.st_size > MAX_MANIFEST_BYTES:
+            raise ReadinessError("preparation manifest encoding or size is invalid")
+        chunks: list[bytes] = []
+        remaining = MAX_MANIFEST_BYTES + 1
+        while remaining:
+            chunk = os.read(descriptor, min(65_536, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        raw = b"".join(chunks)
+        after = os.fstat(descriptor)
+        identity = ("st_dev", "st_ino", "st_size", "st_mtime_ns")
+        if any(getattr(opened, key) != getattr(after, key) for key in identity):
+            raise ReadinessError("preparation manifest changed during inspection")
+    finally:
+        os.close(descriptor)
     if not raw or len(raw) > MAX_MANIFEST_BYTES or raw.startswith(b"\xef\xbb\xbf"):
         raise ReadinessError("preparation manifest encoding or size is invalid")
     try:
@@ -123,9 +158,14 @@ def _exact_mapping(value: object, keys: set[str], label: str) -> Mapping[str, ob
 
 def validate_manifest(manifest: Mapping[str, object]) -> dict[str, object]:
     _exact_mapping(manifest, TOP_LEVEL_KEYS, "top-level")
-    if manifest["schema"] != 1:
+    if type(manifest["schema"]) is not int or manifest["schema"] != 1:
         raise ReadinessError("preparation manifest schema is unsupported")
-    if manifest["channel"] != "ios-testflight" or manifest["locale"] != "zh-Hant":
+    if (
+        type(manifest["channel"]) is not str
+        or type(manifest["locale"]) is not str
+        or manifest["channel"] != "ios-testflight"
+        or manifest["locale"] != "zh-Hant"
+    ):
         raise ReadinessError("preparation manifest channel or locale is invalid")
 
     candidate = _exact_mapping(manifest["candidate"], CANDIDATE_KEYS, "candidate")
@@ -139,7 +179,12 @@ def validate_manifest(manifest: Mapping[str, object]) -> dict[str, object]:
         "deep_link_delivery": False,
         "crash_upload": False,
     }
-    if candidate != expected_candidate:
+    if any(
+        key not in candidate
+        or type(candidate[key]) is not type(expected)
+        or candidate[key] != expected
+        for key, expected in expected_candidate.items()
+    ):
         raise ReadinessError("candidate scope is not the approved TestFlight vector")
 
     draft = _exact_mapping(manifest["draft"], DRAFT_KEYS, "draft")

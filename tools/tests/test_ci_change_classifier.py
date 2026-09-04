@@ -125,6 +125,19 @@ class ChangeClassifierTests(unittest.TestCase):
             "deployment_tools",
         )
 
+    def test_ios_store_manifest_always_selects_its_validator(self):
+        self.assertScopes(
+            ["docs/releases/ios-testflight-preparation.json"],
+            "deployment_tools",
+        )
+        self.assertScopes(
+            [
+                "docs/releases/ios-testflight-preparation.json",
+                "docs/releases/IOS_APP_STORE_CONNECT_ANSWERS.md",
+            ],
+            "deployment_tools",
+        )
+
     def test_shared_dependencies_workflow_models_and_unknown_paths_are_full(self):
         for path in (
             "shared_lib/shared_module/models/member.py",

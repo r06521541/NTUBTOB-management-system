@@ -50,7 +50,8 @@ App Store Connect當下對各資料類別的精確映射。三者未完成前不
 
 ## 現在必須保持BLOCKED的項目
 
-1. **公開URL**：privacy policy與support URL尚未由公開、匿名可達的exact頁面證明；不得猜URL。
+1. **公開URL與App內入口**：privacy policy與support URL尚未由公開、匿名可達的exact頁面證明；App內目前也沒有可點擊的
+   privacy policy入口。兩者是分開的gate，不得以補上一個公開URL推論App內已可達，也不得猜URL。
 2. **帳號刪除**：App目前只提供聯絡管理員的文字說明。這不等於一般App可在App內直接啟動完整帳號刪除，故維持
    hard blocker；需要另立跨Flutter／Mobile API／data lifecycle工作包，定義確認、保留、稽核與重試語意。
 3. **年齡分級**：必須依App Store Connect當下questionnaire回答。Repository只證明本candidate沒有廣告、賭博、IAP、

@@ -29,6 +29,7 @@
     "export_compliance_determination": "required",
     "feedback_contact": "required",
     "in_app_account_deletion": "blocked",
+    "in_app_privacy_policy_access": "blocked",
     "macos_xcode_builder": "blocked",
     "owner_branding_confirmation": "required",
     "privacy_manifest_archive_inspection": "blocked",
