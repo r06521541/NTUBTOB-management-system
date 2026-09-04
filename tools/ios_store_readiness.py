@@ -111,22 +111,17 @@ def _contains_network_address(value: str) -> bool:
             continue
         return True
     for raw in ADDRESS_CANDIDATE.findall(value):
-        candidate = raw.strip("[]").rstrip(".")
-        if "." not in candidate and ":" not in candidate:
+        candidate = raw.strip("[]")
+        without_period = candidate.rstrip(".")
+        variants = (candidate, without_period, without_period.removesuffix(":"))
+        if not any(":" in variant for variant in variants):
             continue
-        try:
-            ipaddress.ip_address(candidate)
-        except ValueError:
-            if "." not in candidate:
-                continue
-            host, separator, port = candidate.rstrip(":").rpartition(":")
-            if not separator or not port.isdigit():
-                continue
+        for variant in dict.fromkeys(variants):
             try:
-                ipaddress.ip_address(host)
+                ipaddress.ip_address(variant)
             except ValueError:
                 continue
-        return True
+            return True
     return False
 
 

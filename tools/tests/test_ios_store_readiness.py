@@ -108,6 +108,8 @@ class IOSStoreReadinessTests(unittest.TestCase):
             "connect to 192.0.2.10:443.",
             "[2001:db8::1]",
             "connect to 2001:db8::1.",
+            "connect to 2001:db8::1:",
+            "endpoint 2001:db8::1: use this",
         ):
             with self.subTest(value=value):
                 changed = deepcopy(self.manifest)
