@@ -110,7 +110,15 @@ def _contains_network_address(value: str) -> bool:
         try:
             ipaddress.ip_address(candidate)
         except ValueError:
-            continue
+            if "." not in candidate:
+                continue
+            host, separator, port = candidate.rstrip(":").rpartition(":")
+            if not separator or not port.isdigit():
+                continue
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                continue
         return True
     return False
 

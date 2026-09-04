@@ -103,6 +103,7 @@ class IOSStoreReadinessTests(unittest.TestCase):
             "password=value",
             "1234567890.apps.googleusercontent.com",
             "192.0.2.10",
+            "connect to 192.0.2.10:443",
             "[2001:db8::1]",
         ):
             with self.subTest(value=value):
