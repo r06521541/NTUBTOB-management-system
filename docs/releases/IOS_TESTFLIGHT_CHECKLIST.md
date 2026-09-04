@@ -8,11 +8,14 @@ Team ID、App ID、certificate/profile識別值、private key、provider值、�
 
 - iOS staging／real Release source已由hosted macOS/Xcode以`--no-codesign`編譯；這只證明source可編譯。
 - `APPLE_SIGN_IN_REPOSITORY_STATUS`仍為`not_implemented`，所以actual signed candidate inspector必須回BLOCKED。
-- Apple Developer enrollment、App ID/capability、distribution certificate/profile、App Store Connect app、signed IPA、
-  TestFlight upload/install及真機登入仍是外部gate。
+- Apple Developer membership與Account Holder access已由Owner-visible、去識別化分類確認；App ID/capability、distribution
+  certificate/profile與App Store Connect app record均尚未建立。signed IPA、TestFlight upload/install及真機登入仍是外部gate。
+- TestFlight文案與App Privacy repository事實已整理於
+  [`IOS_APP_STORE_CONNECT_ANSWERS.md`](IOS_APP_STORE_CONNECT_ANSWERS.md)；公開privacy/support URL、App內完整帳號刪除、
+  第三方SDK privacy、出口合規與年齡分級仍不可填PASS。
 - 本清單與inspector不會建立、修改或上傳任何Apple資源。
 
-## A. Enrollment等待期間可完成
+## A. Mac／Xcode與Apple資源建立前可完成
 
 1. 保持bundle identity、iOS 15 minimum、staging／real／Release／testflight組合及version/build contract不漂移。
 2. 確認beta scope只使用隔離staging backend；不得填production endpoint或把TestFlight成功推論為production ready。

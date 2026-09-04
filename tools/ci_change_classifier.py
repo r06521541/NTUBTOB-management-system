@@ -72,6 +72,8 @@ def _path_scope(path: str) -> Optional[str]:
         return "flutter"
     if lower == ".gitattributes" or lower.startswith(".github/workflows/"):
         return "full"
+    if lower == "docs/releases/ios-testflight-preparation.json":
+        return "deployment_tools"
     if lower in (
         "tools/ci_change_classifier.py",
         "tools/repository_quality.py",

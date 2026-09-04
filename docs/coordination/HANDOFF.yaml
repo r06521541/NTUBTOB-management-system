@@ -1,29 +1,30 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-179
-status: ready_for_merge
+active_task: TASK-180
+status: ready_for_pr
 next_actor: main-work
 
-claim_id: task-179-ios-candidate-inspector-writer-20260902
+claim_id: task-180-ios-store-readiness-writer-20260905
 lease_version: 1
 actor_id: /root
 
-base_commit: dea9571a7b446f37c600c7e2f70146810e534c57
-head_commit: 6ffb7807474bb1501f524449e2717eb0d079b26a
+base_commit: 578b3bf0ad75983a99139da235a3e7f3146be729
+head_commit: 99f7dd343c421eddf11731ec843ba7c5bef3f563
 
 updated_by: main-work
-updated_at: 2026-09-02T18:20:00+08:00
+updated_at: 2026-09-05T12:00:00+08:00
 
 note: >
-  TASK-178 was merged by PR #233 as exact main commit
-  dea9571a7b446f37c600c7e2f70146810e534c57. TASK-179 adds a repository-only,
-  fail-closed signed IPA inspector and TestFlight evidence checklist. It does not
-  access Apple accounts, create signing material, archive, upload, install, deploy or
-  change provider/runtime state. Actual candidates remain blocked while the committed
-  Apple readiness marker is not_implemented.
+  TASK-179 was merged by PR #234 as exact main commit
+  578b3bf0ad75983a99139da235a3e7f3146be729. TASK-180 prepares a repository-only,
+  fail-closed TestFlight metadata and privacy-fact contract. Independent review
+  lease 1 through 5 findings were corrected. Lease 6 ACCEPTED the final
+  implementation fixed at 99f7dd343c421eddf11731ec843ba7c5bef3f563 with no
+  findings. TASK-180 is ready for its single PR and hosted gate. No Apple,
+  signing, provider/runtime or production mutation is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-179.md
-report: docs/coordination/reports/TASK-179.md
+task: docs/coordination/tasks/TASK-180.md
+report: docs/coordination/reports/TASK-180.md
 review: accepted

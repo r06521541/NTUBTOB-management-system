@@ -1,0 +1,90 @@
+{
+  "candidate": {
+    "app_flavor": "staging",
+    "client_mode": "real",
+    "crash_upload": false,
+    "deep_link_delivery": false,
+    "minimum_ios": "15.0",
+    "production_data": false,
+    "push_delivery": false,
+    "release_scope": "basic"
+  },
+  "channel": "ios-testflight",
+  "draft": {
+    "app_name": "NTUBTOB",
+    "beta_description": "NTUBTOB 是台大棒球校友隊的隊務與賽事資訊平台。本 TestFlight 版本僅供受邀測試者使用，連接隔離的測試環境與測試資料，不會存取正式環境資料。",
+    "subtitle": "台大棒球校友隊平台",
+    "what_to_test": "請測試安裝、冷啟動、登入與登出、工作階段延續、賽程與活動瀏覽、出席回覆、離線唯讀及重新連線。此版本不提供推播、deep link 或 crash report 上傳；請勿在回報中附上帳號、權杖、裝置識別碼或其他個人資料。"
+  },
+  "gates": {
+    "age_rating_console_answers": "required",
+    "app_store_connect_record": "blocked",
+    "apple_app_id": "blocked",
+    "apple_provider_runtime": "blocked",
+    "beta_review_contact_and_access": "required",
+    "content_rights_confirmation": "required",
+    "distribution_certificate": "blocked",
+    "distribution_profile": "blocked",
+    "distribution_regions_and_dsa": "required",
+    "export_compliance_determination": "required",
+    "feedback_contact": "required",
+    "in_app_account_deletion": "blocked",
+    "in_app_privacy_policy_access": "blocked",
+    "macos_xcode_builder": "blocked",
+    "owner_branding_confirmation": "required",
+    "privacy_manifest_archive_inspection": "blocked",
+    "public_privacy_policy_url": "blocked",
+    "public_support_url": "blocked",
+    "real_device_testflight": "blocked",
+    "sign_in_with_apple_capability": "blocked",
+    "signed_ipa": "blocked",
+    "store_screenshot_set": "required",
+    "third_party_sdk_privacy_review": "required"
+  },
+  "locale": "zh-Hant",
+  "privacy_facts": [
+    {
+      "category": "provider_account_identifier",
+      "collected": true,
+      "linked_to_user": true,
+      "purpose": "app_functionality",
+      "tracking": false
+    },
+    {
+      "category": "person_display_name",
+      "collected": true,
+      "linked_to_user": true,
+      "purpose": "app_functionality",
+      "tracking": false
+    },
+    {
+      "category": "attendance_and_team_activity",
+      "collected": true,
+      "linked_to_user": true,
+      "purpose": "app_functionality",
+      "tracking": false
+    },
+    {
+      "category": "installation_identifier",
+      "collected": true,
+      "linked_to_user": true,
+      "purpose": "authentication_and_security",
+      "tracking": false
+    },
+    {
+      "category": "crash_diagnostics",
+      "collected": false,
+      "linked_to_user": false,
+      "purpose": "not_applicable",
+      "tracking": false
+    },
+    {
+      "category": "notification_device_token",
+      "collected": false,
+      "linked_to_user": false,
+      "purpose": "not_applicable",
+      "tracking": false
+    }
+  ],
+  "schema": 1
+}

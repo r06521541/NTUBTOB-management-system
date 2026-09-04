@@ -270,6 +270,7 @@ jobs:
         run: |
           python -m unittest discover -s tools/tests -p "test_deploy_*.py" -v
           python -m unittest tools.tests.test_ios_candidate_inspector -v
+          python -m unittest tools.tests.test_ios_store_readiness -v
 
   update_schedule:
     name: Update schedule tests

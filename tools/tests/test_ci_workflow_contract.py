@@ -147,6 +147,7 @@ class WorkflowContractTests(unittest.TestCase):
                 self.assertNotIn("services:", block)
         deployment = job_block(self.source, "deployment_tools")
         self.assertIn("tools.tests.test_ios_candidate_inspector", deployment)
+        self.assertIn("tools.tests.test_ios_store_readiness", deployment)
 
     def test_flutter_is_reusable_with_pinned_platform_contracts(self):
         self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")
