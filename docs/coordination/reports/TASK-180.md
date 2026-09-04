@@ -44,5 +44,7 @@
   修正並加regression。
 - Round-2 review對SHA `59569f1e40ad9b471cb1d4615d758249b811a7de`補充API/access key、Authorization/Bearer、endpoint、
   IPv4/IPv6與durable implementation head finding；實作修正固定於
-  `fce24bbbb3d8770276ef1db4400405ea9aee8818`，待同一reviewer lease 3複審。
+  `fce24bbbb3d8770276ef1db4400405ea9aee8818`。
+- Round-3 review發現`IPv4:port`未被完整解析；新增host/port fail-closed處理與端到端regression，最終實作修正固定於
+  `6d465b0fe495bf6d368d854755bbdeab3e706560`，待同一reviewer lease 4複審。
 - 尚待獨立最終複審、push、ready PR hosted gate與merge。
