@@ -94,8 +94,16 @@ class IOSStoreReadinessTests(unittest.TestCase):
             "provider=private",
             "signing: private",
             "credential=private",
+            "api_key=private",
+            "access_key: private",
+            "authorization=Bearer-private",
+            "bearer: private",
+            "endpoint=private",
+            "api_url=private",
             "password=value",
             "1234567890.apps.googleusercontent.com",
+            "192.0.2.10",
+            "[2001:db8::1]",
         ):
             with self.subTest(value=value):
                 changed = deepcopy(self.manifest)

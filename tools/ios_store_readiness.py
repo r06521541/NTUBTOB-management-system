@@ -8,6 +8,7 @@ only classify the current document as preparation, never as release approval.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import os
 import re
@@ -87,13 +88,31 @@ SENSITIVE_TEXT = re.compile(
     r"(?<![\w@])(?:[a-z0-9-]+\.)+[a-z]{2,}(?!\w)|"
     r"\.apps\.googleusercontent\.com|"
     r"(?:team[_ -]?id|client[_ -]?id|provider|signing|certificate|profile|"
-    r"credential|secret|token|password|private[_ -]?key)\s*[:=])",
+    r"credential|secret|token|password|private[_ -]?key|api[_ -]?key|"
+    r"access[_ -]?key|authorization|bearer|auth[_ -]?(?:token|key)|endpoint|"
+    r"(?:api|base|callback|redirect)[_ -]?url|redirect[_ -]?uri|origin)\s*[:=])",
     re.IGNORECASE,
+)
+ADDRESS_CANDIDATE = re.compile(
+    r"(?<![\w])(?:\[[0-9A-Fa-f:.]+\]|[0-9A-Fa-f:.]+)(?![\w])"
 )
 
 
 class ReadinessError(ValueError):
     """The preparation manifest is incomplete, unsafe, or internally mixed."""
+
+
+def _contains_network_address(value: str) -> bool:
+    for raw in ADDRESS_CANDIDATE.findall(value):
+        candidate = raw.strip("[]")
+        if "." not in candidate and ":" not in candidate:
+            continue
+        try:
+            ipaddress.ip_address(candidate)
+        except ValueError:
+            continue
+        return True
+    return False
 
 
 def _unique_object(pairs: Sequence[tuple[str, object]]) -> dict[str, object]:
@@ -191,7 +210,7 @@ def validate_manifest(manifest: Mapping[str, object]) -> dict[str, object]:
     for key, value in draft.items():
         if not isinstance(value, str) or not value or value != value.strip():
             raise ReadinessError("draft text is incomplete")
-        if SENSITIVE_TEXT.search(value):
+        if SENSITIVE_TEXT.search(value) or _contains_network_address(value):
             raise ReadinessError("draft text contains a prohibited identifier category")
     if not 2 <= len(draft["app_name"]) <= 30:
         raise ReadinessError("draft app name length is invalid")
