@@ -49,5 +49,8 @@
   `6d465b0fe495bf6d368d854755bbdeab3e706560`。
 - Round-4 review發現句尾標點可使IPv4／host-port解析失敗後放行；改為獨立擷取IPv4 host並正規化IPv6候選句點，新增
   裸IPv4、IPv4:port與IPv6句尾標點regression。最終實作固定於
-  `0821849a0897d5a2ec80c683f7d6e8a2bc2cb13d`，待同一reviewer lease 5複審。
+  `0821849a0897d5a2ec80c683f7d6e8a2bc2cb13d`。
+- Round-5 review發現IPv6後接語句分隔冒號仍可放行；移除不必要的IPv4 host/port猜測，IPv6改以原值、去句點及去單一
+  分隔冒號variants逐一標準解析，並加入冒號分隔regression。最終實作固定於
+  `99f7dd343c421eddf11731ec843ba7c5bef3f563`，待同一reviewer lease 6複審。
 - 尚待獨立最終複審、push、ready PR hosted gate與merge。

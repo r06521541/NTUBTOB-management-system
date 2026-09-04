@@ -10,7 +10,7 @@ lease_version: 1
 actor_id: /root
 
 base_commit: 578b3bf0ad75983a99139da235a3e7f3146be729
-head_commit: 0821849a0897d5a2ec80c683f7d6e8a2bc2cb13d
+head_commit: 99f7dd343c421eddf11731ec843ba7c5bef3f563
 
 updated_by: main-work
 updated_at: 2026-09-05T12:00:00+08:00
@@ -19,11 +19,10 @@ note: >
   TASK-179 was merged by PR #234 as exact main commit
   578b3bf0ad75983a99139da235a3e7f3146be729. TASK-180 prepares a repository-only,
   fail-closed TestFlight metadata and privacy-fact contract. Independent review
-  lease 1 through 3 findings were corrected. Lease 4 found sentence-final
-  punctuation bypasses in network-address detection; the final implementation
-  correction is fixed at 0821849a0897d5a2ec80c683f7d6e8a2bc2cb13d and awaits
-  lease 5 review. No Apple, signing, provider/runtime or production mutation is
-  authorized.
+  lease 1 through 4 findings were corrected. Lease 5 found an IPv6 colon-delimited
+  prose bypass; the final implementation correction is fixed at
+  99f7dd343c421eddf11731ec843ba7c5bef3f563 and awaits lease 6 review. No Apple,
+  signing, provider/runtime or production mutation is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-180.md
