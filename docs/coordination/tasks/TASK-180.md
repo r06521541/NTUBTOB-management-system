@@ -59,7 +59,8 @@ manifest及fail-closed validator。現有帳號刪除文字不得被誤標為符
 - role: `advisor/reviewer`
 - claim_id: `task-180-ios-store-release-privacy-reviewer-20260905`
 - round 1 lease_version: 1；reviewed SHA `a0c041353c4e4d955b877486e03fc93a5dc94557`；`REQUEST_CHANGES`
-- correction rereview lease_version: 2
+- round 2 lease_version: 2；reviewed SHA `59569f1e40ad9b471cb1d4615d758249b811a7de`；`REQUEST_CHANGES`
+- final correction rereview lease_version: 3；implementation SHA `fce24bbbb3d8770276ef1db4400405ea9aee8818`
 - write: `read-only`
 - report_to: `/root`
 - scope: immutable manifest/parser/classifier、deidentification、Apple privacy/account deletion boundary與hosted execution

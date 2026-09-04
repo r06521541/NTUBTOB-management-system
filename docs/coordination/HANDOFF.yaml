@@ -10,7 +10,7 @@ lease_version: 1
 actor_id: /root
 
 base_commit: 578b3bf0ad75983a99139da235a3e7f3146be729
-head_commit: a0c041353c4e4d955b877486e03fc93a5dc94557
+head_commit: fce24bbbb3d8770276ef1db4400405ea9aee8818
 
 updated_by: main-work
 updated_at: 2026-09-05T12:00:00+08:00
@@ -19,9 +19,11 @@ note: >
   TASK-179 was merged by PR #234 as exact main commit
   578b3bf0ad75983a99139da235a3e7f3146be729. TASK-180 prepares a repository-only,
   fail-closed TestFlight metadata and privacy-fact contract. Independent review
-  lease 1 requested changes to classifier execution, exact JSON typing, privacy
-  policy gates and bounded reads; writer is applying those corrections. No Apple,
-  signing, provider/runtime or production mutation is authorized.
+  lease 1 findings were corrected. Lease 2 found remaining credential-label and
+  network-address draft categories plus a stale durable implementation head; the
+  implementation correction is fixed at fce24bbbb3d8770276ef1db4400405ea9aee8818
+  and awaits lease 3 review. No Apple, signing, provider/runtime or production
+  mutation is authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-180.md

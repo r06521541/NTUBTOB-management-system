@@ -18,6 +18,8 @@
 - Reviewer round-1 correction後執行`py -3.10 -m unittest tools.tests.test_ios_store_readiness
   tools.tests.test_ci_change_classifier tools.tests.test_ci_workflow_contract tools.tests.test_ios_candidate_inspector -v`：
   58 passed，1 expected local Bash-environment skip（59 total）。
+- Reviewer round-2 correction後重跑同一59-test suite：58 passed，1 expected local Bash-environment skip；新增API/access key、
+  Authorization/Bearer、endpoint與IPv4/IPv6禁止類別的回歸案例。
 - `py -3.10 -m compileall -q tools/ios_store_readiness.py tools/tests/test_ios_store_readiness.py`：passed。
 - `py -3.10 -m isort --check-only tools/ios_store_readiness.py tools/tests/test_ios_store_readiness.py`：passed。
 - Pinned Black CLI在Windows出現專案已知高CPU停滯，終止本次exact child/parent processes後改用同版本formatter API逐檔
@@ -39,5 +41,8 @@
   screenshots仍需未來exact candidate／Owner-visible evidence。
 - Round-1 independent Release／Privacy review對SHA `a0c041353c4e4d955b877486e03fc93a5dc94557`提出五項finding：manifest-only
   CI分類、JSON exact type／禁止字串、App內privacy policy獨立gate、bounded read與durable reviewer claim。Correction已逐項
-  修正並加regression，待同一reviewer lease 2複審。
-- 尚待correction commit、獨立複審、push、ready PR hosted gate與merge。
+  修正並加regression。
+- Round-2 review對SHA `59569f1e40ad9b471cb1d4615d758249b811a7de`補充API/access key、Authorization/Bearer、endpoint、
+  IPv4/IPv6與durable implementation head finding；實作修正固定於
+  `fce24bbbb3d8770276ef1db4400405ea9aee8818`，待同一reviewer lease 3複審。
+- 尚待獨立最終複審、push、ready PR hosted gate與merge。
