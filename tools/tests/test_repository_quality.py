@@ -190,6 +190,87 @@ class RepositoryQualityTest(unittest.TestCase):
                     version_lookup=self.versions,
                 )
 
+    def test_black_cache_is_ephemeral_and_parent_environment_unchanged(self):
+        observed = []
+
+        def runner(command, **kwargs):
+            if command[3] == "black":
+                cache = Path(kwargs["env"]["BLACK_CACHE_DIR"])
+                self.assertTrue(cache.is_dir())
+                self.assertNotEqual(str(cache), "fictional-old-cache")
+                observed.append(cache)
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+
+        with patch.dict("os.environ", {"BLACK_CACHE_DIR": "fictional-old-cache"}):
+            import os
+
+            self.assertEqual(
+                run_quality(
+                    self.root,
+                    ("pkg/one.py",),
+                    mode="check",
+                    runner=runner,
+                    version_lookup=self.versions,
+                ),
+                (),
+            )
+            self.assertEqual(os.environ["BLACK_CACHE_DIR"], "fictional-old-cache")
+        self.assertEqual(len(observed), 1)
+        self.assertFalse(observed[0].exists())
+
+    def test_quality_cli_failure_has_fixed_guidance_not_raw_process_output(self):
+        from tools.repository_quality import QualityFailure
+
+        output = io.StringIO()
+        with patch("tools.repository_quality.ROOT", self.root):
+            with patch(
+                "tools.repository_quality.run_quality",
+                return_value=(QualityFailure("timeout", "black", "pkg/one.py"),),
+            ):
+                with contextlib.redirect_stderr(output):
+                    self.assertEqual(main(["check", "--paths", "pkg/one.py"]), 1)
+        self.assertIn("source_mutation=none", output.getvalue())
+        self.assertIn("next_action=inspect_local_tool_environment", output.getvalue())
+
+    def test_cache_cleanup_after_black_timeout_does_not_retry(self):
+        observed = []
+
+        def runner(command, **kwargs):
+            if command[3] == "black":
+                observed.append(Path(kwargs["env"]["BLACK_CACHE_DIR"]))
+                raise subprocess.TimeoutExpired(command, 1, output=b"fictional-private")
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+
+        failures = run_quality(
+            self.root,
+            ("pkg/one.py",),
+            mode="check",
+            runner=runner,
+            version_lookup=self.versions,
+        )
+        self.assertEqual(len(observed), 1)
+        self.assertFalse(observed[0].exists())
+        self.assertEqual(failures[0].kind, "timeout")
+        self.assertNotIn("fictional-private", repr(failures))
+
+    def test_format_failure_guidance_does_not_claim_no_source_changes(self):
+        from tools.repository_quality import QualityFailure
+
+        output = io.StringIO()
+        with patch("tools.repository_quality.ROOT", self.root):
+            with patch(
+                "tools.repository_quality.run_quality",
+                return_value=(
+                    QualityFailure("subprocess failure", "black", "pkg/one.py"),
+                ),
+            ):
+                with contextlib.redirect_stderr(output):
+                    self.assertEqual(main(["format", "--paths", "pkg/one.py"]), 1)
+        self.assertIn(
+            "source_mutation=possible_partial_local_format", output.getvalue()
+        )
+        self.assertIn("next_action=diagnose_local_tool", output.getvalue())
+
     def test_working_tree_combines_tracked_and_untracked_without_duplicates(self):
         runner = Mock(
             side_effect=[
