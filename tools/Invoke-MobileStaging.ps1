@@ -32,7 +32,7 @@ function Throw-Safe {
 
 function ConvertTo-SafeArgument {
     param([string]$Value)
-    if ($null -eq $Value) { return '""' }
+    if ([string]::IsNullOrEmpty($Value)) { return '""' }
     if ($Value -notmatch '[\s"]') { return $Value }
     return '"' + ($Value -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"'
 }
@@ -58,6 +58,8 @@ function Invoke-BoundedProcess {
     $start.CreateNoWindow = $true
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
+    $start.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
+    $start.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
     if ($WorkingDirectory) { $start.WorkingDirectory = $WorkingDirectory }
     foreach ($name in $ChildEnvironment.Keys) {
         $start.EnvironmentVariables[[string]$name] = [string]$ChildEnvironment[$name]

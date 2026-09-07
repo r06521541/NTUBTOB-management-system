@@ -4,6 +4,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -39,6 +40,84 @@ def powershell_available() -> bool:
 class PowerShellContractTest(unittest.TestCase):
     maxDiff = None
 
+    def test_security_module_harness_bootstrap(self):
+        result = self.run_harness(
+            """
+            try { Import-Module Microsoft.PowerShell.Security -ErrorAction Stop; Write-Output 'module_loaded' }
+            catch { Write-Output $_.Exception.Message; exit 1 }
+        """
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.strip(), "module_loaded")
+
+    def test_process_helper_preserves_empty_quoted_unicode_arguments_and_info_stderr(
+        self,
+    ):
+        executable = sys.executable.replace("'", "''")
+        result = self.run_harness(
+            f"""
+            $child = 'import sys,json; sys.stderr.write("INFO fictional diagnostic"); print(json.dumps(sys.argv[1:], ensure_ascii=False))'
+            $r = Invoke-BoundedProcess -Executable '{executable}' -Arguments @('-X','utf8','-c',$child,'','two words','quote"value','尾端\\')
+            $values = $r.Stdout | ConvertFrom-Json
+            $ok = $r.ExitCode -eq 0 -and -not $r.TimedOut -and $values.Count -eq 4
+            if ($ok) {{ $ok = $values[0] -ceq '' -and $values[1] -ceq 'two words' -and $values[2] -ceq 'quote"value' -and $values[3] -ceq '尾端\\' }}
+            [ordered]@{{ok=$ok; info_preserved=($r.Stderr -ceq 'INFO fictional diagnostic')}} | ConvertTo-Json -Compress
+        """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout), {"ok": True, "info_preserved": True}
+        )
+
+    def test_process_helper_reports_nonzero_without_throwing_or_echoing_child_error(
+        self,
+    ):
+        executable = sys.executable.replace("'", "''")
+        result = self.run_harness(
+            f"""
+            $child = 'import sys; sys.stderr.write("fictional-sensitive-marker"); sys.exit(7)'
+            $r = Invoke-BoundedProcess -Executable '{executable}' -Arguments @('-c',$child)
+            [ordered]@{{code=$r.ExitCode; timed_out=$r.TimedOut}} | ConvertTo-Json -Compress
+        """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), {"code": 7, "timed_out": False})
+        self.assertNotIn("fictional-sensitive-marker", result.stdout + result.stderr)
+
+    def test_serial_inventory_zero_one_many_under_strict_mode_without_adb(self):
+        result = self.run_harness(
+            """
+            function Invoke-BoundedProcess { param($Executable,$Arguments,$TimeoutSeconds)
+                return [pscustomobject]@{ExitCode=0;TimedOut=$false;Stdout=$script:fakeInventory;Stderr=''}
+            }
+            $config = [pscustomobject]@{adb_executable='fictional.exe';serial='fictional-one'}
+            $counts = @()
+            foreach ($inventory in @('List of devices attached', "fictional-one`tdevice", "fictional-one`tdevice`nfictional-two`tdevice")) {
+                $script:fakeInventory = $inventory
+                $counts += @(Get-AdbSerials $config).Count
+            }
+            ConvertTo-Json -InputObject $counts -Compress
+        """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [0, 1, 2])
+
+    def test_process_helper_timeout_is_not_success_and_does_not_echo_output(self):
+        executable = sys.executable.replace("'", "''")
+        result = self.run_harness(
+            f"""
+            $child = 'import time; print("fictional-sensitive-marker", flush=True); time.sleep(8)'
+            $r = Invoke-BoundedProcess -Executable '{executable}' -Arguments @('-c',$child) -TimeoutSeconds 1
+            [ordered]@{{timed_out=$r.TimedOut; no_code=($null -eq $r.ExitCode); no_output=($r.Stdout -ceq '' -and $r.Stderr -ceq '')}} | ConvertTo-Json -Compress
+        """
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            json.loads(result.stdout),
+            {"timed_out": True, "no_code": True, "no_output": True},
+        )
+        self.assertNotIn("fictional-sensitive-marker", result.stdout + result.stderr)
+
     def test_launcher_requires_current_mobile_api_database_revision(self):
         source = LAUNCHER.read_text(encoding="utf-8")
         self.assertIn(
@@ -70,6 +149,20 @@ class PowerShellContractTest(unittest.TestCase):
                     str(harness),
                 ],
                 cwd=ROOT,
+                # Python launched from PowerShell 7 can inherit its module path.
+                # Windows PowerShell 5 must load its own built-in type data.
+                # os.environ keys are uppercase on Windows: replace, do not
+                # create a second differently-cased key in the plain dict.
+                env=dict(
+                    os.environ,
+                    PSMODULEPATH=str(
+                        Path(os.environ["SystemRoot"])
+                        / "System32"
+                        / "WindowsPowerShell"
+                        / "v1.0"
+                        / "Modules"
+                    ),
+                ),
                 input=input_text,
                 capture_output=True,
                 text=True,
@@ -115,7 +208,9 @@ class PowerShellContractTest(unittest.TestCase):
                 abi: f"runtime-{abi}".encode("ascii")
                 for abi in ("armeabi-v7a", "arm64-v8a", "x86_64")
             }
-            with zipfile.ZipFile(stored_corrupt, "w", compression=zipfile.ZIP_STORED) as archive:
+            with zipfile.ZipFile(
+                stored_corrupt, "w", compression=zipfile.ZIP_STORED
+            ) as archive:
                 for abi, payload in stored_payloads.items():
                     archive.writestr(f"lib/{abi}/libflutter.so", payload)
             corrupted_bytes = bytearray(stored_corrupt.read_bytes())
@@ -137,8 +232,12 @@ class PowerShellContractTest(unittest.TestCase):
             self.assertIn("complete=PASS", result.stdout)
             self.assertIn("Fresh APK runtime ABI coverage is incomplete", result.stdout)
             self.assertIn("Fresh APK runtime ABI coverage is malformed", result.stdout)
-            self.assertIn("Fresh APK runtime ABI coverage is unavailable", result.stdout)
-            self.assertIn("stored=Fresh APK runtime ABI coverage is malformed", result.stdout)
+            self.assertIn(
+                "Fresh APK runtime ABI coverage is unavailable", result.stdout
+            )
+            self.assertIn(
+                "stored=Fresh APK runtime ABI coverage is malformed", result.stdout
+            )
 
     def test_signer_check_gates_runtime_abis_before_package_and_removes_candidate(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -147,7 +246,9 @@ class PowerShellContractTest(unittest.TestCase):
                 abi: f"runtime-{abi}".encode("ascii")
                 for abi in ("armeabi-v7a", "arm64-v8a", "x86_64")
             }
-            with zipfile.ZipFile(artifact, "w", compression=zipfile.ZIP_STORED) as archive:
+            with zipfile.ZipFile(
+                artifact, "w", compression=zipfile.ZIP_STORED
+            ) as archive:
                 for abi, payload in payloads.items():
                     archive.writestr(f"lib/{abi}/libflutter.so", payload)
             corrupted_bytes = bytearray(artifact.read_bytes())
@@ -178,12 +279,7 @@ class PowerShellContractTest(unittest.TestCase):
             snapshot = root / "snapshot"
             app_root = snapshot / "clients" / "flutter_app"
             build_output = (
-                app_root
-                / "build"
-                / "app"
-                / "outputs"
-                / "flutter-apk"
-                / "app-debug.apk"
+                app_root / "build" / "app" / "outputs" / "flutter-apk" / "app-debug.apk"
             )
             artifact = root / "evidence" / "app-debug.apk"
             incomplete = root / "incomplete.apk"
@@ -1505,12 +1601,7 @@ mFocusedActivity: ActivityRecord{222 u0 com.android.chrome/.Main t88}""",
             snapshot = root / "snapshot"
             app_root = snapshot / "clients" / "flutter_app"
             build_output = (
-                app_root
-                / "build"
-                / "app"
-                / "outputs"
-                / "flutter-apk"
-                / "app-debug.apk"
+                app_root / "build" / "app" / "outputs" / "flutter-apk" / "app-debug.apk"
             )
             app_root.mkdir(parents=True)
             artifact = root / "evidence" / "app-debug.apk"

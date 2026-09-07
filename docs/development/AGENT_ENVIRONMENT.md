@@ -47,6 +47,29 @@
 - Bundled Windows Python 的 broad／multi-file Black CLI 可能持續高 CPU 停滯；repository runner會逐檔終止 timeout
   process並繼續回報其他 selected files。終止舊 command 後仍須確認沒有殘留 process。
 
+### 已定位的 Black cache 阻塞（TASK-182）
+
+- 2026-09-07以Python3.10／Black24.4.2的5秒bounded stack dump重現：CLI停在`tempfile.NamedTemporaryFile`
+  的建立重試；Black cache writer會在per-user cache目錄建立此檔。隔離可寫`BLACK_CACHE_DIR`後同一CLI立即成功。
+  證據指向本機cache寫入路徑，不是格式演算法；不推論所有Black timeout都是同一原因。
+- 既有runner現在為每次Black子程序提供自動清理的暫存cache，保留原CLI、版本、config與timeout；不改全域
+  environment、ACL或使用者cache，也不使用timeout後自動retry/API fallback來掩蓋失敗。
+- 固定`quality guidance`列提供stage、source_mutation與next_action。check失敗不改source；format失敗可能已有
+  部分本機格式化，應先看diff。這些欄位不是任何DB／部署／provider mutation結果，也不授權重試外部操作。
+
+### PowerShell process 邊界
+
+- `Invoke-MobileStaging.ps1`的既有process helper保留空字串參數，明確以UTF-8讀取stdout/stderr。
+  呼叫的工具必須輸出UTF-8（ASCII亦相容）；不靠本機code page猜測文字。
+- 是否成功看exit code與timeout；stderr含INFO不等於失敗。Timeout只回固定分類與空輸出，不推定副作用為零。
+- 新離線測試只啟動虛構Python child，驗證引號／空白／空字串／Unicode、exit7、INFO stderr及timeout；
+  serial 0/1/many測試mock process，不啟動ADB。不需要Owner提供輸入或設備。
+- 本機測試可用`py -3.10 -m unittest tools.tests.test_repository_quality tools.tests.test_mobile_staging_launcher -q`；
+  Windows-only部分在沒有Windows PowerShell的host會skip，不能用Linux綠燈宣稱已驗證Windows。
+- 測試harness對Windows PowerShell子程序固定其內建Modules搜尋路徑，避免從PowerShell7經Python繼承不相容
+  module/type data。Python Windows環境鍵使用`PSMODULEPATH`覆寫既有鍵，不在普通dict加入僅大小寫不同的重複鍵。
+  只影響虛構測試child；不改Owner shell、機器ModulePath或Security模組本身。
+
 ### Flutter 3.47／Dart 3.13 固定工具鏈
 
 - Windows 不以 PATH 判定 Flutter 不可用。先執行

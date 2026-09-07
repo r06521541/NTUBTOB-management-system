@@ -8,6 +8,8 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Callable, Iterable, Optional, Sequence
@@ -229,15 +231,30 @@ def run_quality(
         for tool in TOOL_ORDER:
             command = _tool_command(tool, mode, path, config, executable)
             try:
-                completed = runner(
-                    command,
-                    cwd=root,
-                    check=False,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=timeout_seconds,
-                    shell=False,
+                # Black's default per-user cache may be outside the writable
+                # workspace. On Windows tempfile can spin retrying a denied
+                # cache write. Isolate it without changing the CLI or globals.
+                cache = (
+                    tempfile.TemporaryDirectory(prefix="ntubtob-quality-")
+                    if tool == "black"
+                    else nullcontext(None)
                 )
+                with cache as cache_directory:
+                    environment = (
+                        dict(os.environ, BLACK_CACHE_DIR=cache_directory)
+                        if cache_directory
+                        else None
+                    )
+                    completed = runner(
+                        command,
+                        cwd=root,
+                        check=False,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=timeout_seconds,
+                        shell=False,
+                        env=environment,
+                    )
             except subprocess.TimeoutExpired:
                 failures.append(QualityFailure("timeout", tool, path))
                 continue
@@ -290,10 +307,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"quality selection failed: {error}", file=sys.stderr)
         return 2
     if failures:
+        source_mutation = (
+            "none" if args.mode == "check" else "possible_partial_local_format"
+        )
+        guidance = {
+            "timeout": "inspect_local_tool_environment",
+            "missing tool": "install_pinned_quality_dependencies",
+            "wrong tool version": "install_pinned_quality_dependencies",
+            "formatting required": "format_explicit_owned_paths",
+        }
         for failure in failures:
             location = f": {failure.path}" if failure.path else ""
             print(
                 f"quality failed: {failure.kind}: {failure.tool}{location}",
+                file=sys.stderr,
+            )
+            print(
+                f"quality guidance: stage=local_quality source_mutation={source_mutation} "
+                f"next_action={guidance.get(failure.kind, 'diagnose_local_tool')}",
                 file=sys.stderr,
             )
         return 1

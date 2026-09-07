@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`9a5158ab285dad6f60e51dff520106104aaf0cb0`（TASK-180）。
+本次工作起點／已合併證據：`c780f2499a0b08c634ee531258db37c711eeeb92`（TASK-181）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -90,8 +90,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   signed IPA，Apple readiness marker仍使actual inspection維持blocked。
 - TASK-180 repository delivery已合併至上述固定Git基準：TestFlight metadata、privacy fact與外部gate
   manifest／validator維持fail closed；現有「聯絡管理員」帳號刪除文字仍是hard blocker；不推定外部gate完成。
-- TASK-181 為 Owner 核准的 repository-only 工程減摩擦：文件校正、local quality selection、未生效流程／CI提案。
-  不改CI規則、產品行為、授權、runtime或store。
+- TASK-181已合併：文件校正、local quality selection、未生效流程／CI提案；不改CI規則或授權。
+- TASK-182為local工具穩定化：Black cache隔離、PowerShell process helper及離線回歸；不執行runtime／store操作。
 - TASK-177 repository foundation已由PR #231合併；external crash collection仍未啟用。
 - Production mobile deployment、Google production publishing/client migration、Apple provider lifecycle、iOS signing／
   TestFlight、Android public release、push/deep-link delivery與anonymous crash evidence都需未來exact Owner gate。
