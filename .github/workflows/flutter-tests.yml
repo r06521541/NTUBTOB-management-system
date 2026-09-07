@@ -222,6 +222,11 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      - name: Restore pinned iOS engine even when SDK cache is incomplete
+        run: |
+          flutter precache --ios --force
+          test -f "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release/Flutter.xcframework/Info.plist"
+
       - name: Record hosted Apple toolchain
         run: |
           xcodebuild -version

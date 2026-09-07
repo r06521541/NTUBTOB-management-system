@@ -12,7 +12,7 @@
 
 - `tools/ios_candidate_inspector.py`, `tools/tests/test_ios_candidate_inspector.py`: explicit artifact-only inspection; retained signature/profile/entitlement checks plus rejecting application debugging entitlements; never upload authority.
 - `tools/ios_release_pipeline.py`, `tools/tests/test_ios_release_pipeline.py`: secret-free, deterministic rehearsal of staged build/inspection/upload lifecycle, exact commit contract, cleanup/failure/no-retry semantics. No live adapter or private input.
-- `.github/workflows/flutter-tests.yml`, `.github/workflows/python-tests.yml`: exercise rehearsal in existing hosted gates without additional signing workflow, secrets, permissions or paid runner.
+- `.github/workflows/flutter-tests.yml`, `.github/workflows/python-tests.yml`: exercise rehearsal in existing hosted gates without additional signing workflow, secrets, permissions or paid runner; explicitly restore pinned iOS engine when hosted SDK cache lacks release frameworks.
 - `docs/releases/IOS_CLOUD_BUILD_RUNBOOK.md`, `docs/releases/IOS_TESTFLIGHT_CHECKLIST.md`, `clients/flutter_app/ios/README.md`: phased workflow, actual remaining gates, Owner-reported Apple records.
 - This task, `docs/coordination/reports/TASK-183.md`, `docs/coordination/HANDOFF.yaml`, `docs/coordination/PROJECT_STATE.md`.
 
@@ -32,9 +32,9 @@ Owner accepted future protected GitHub Secrets -> ephemeral hosted runner -> tem
 
 ## Reviewer claim
 
-- actor_id: `/root/task181_review`; role: advisor; claim_id: task-183-security-review-20260908; lease_version: 1
+- actor_id: `/root/task181_review`; role: advisor; claim_id: task-183-security-review-20260908; lease_version: 2
 - owned_paths: none; write: read-only; report_to: `/root`
-- Scope: architecture then exact diff independent Security/Release acceptance. TASK-182 claim revoked/completed; no parallel writer. Architecture and final implementation ACCEPT received; 37 independent tests PASS. Main accepted; reviewer claim complete.
+- Scope: architecture then exact diff independent Security/Release acceptance. Lease 1 ACCEPT received; 37 independent tests PASS. Lease 2 pinned iOS engine pre-cache and regression review ACCEPT; Main acknowledged and claim complete. Final hosted gate pending.
 - Follow COLLABORATION section 2 packet: immediate received/executing ACK; heartbeat every 10–15 min, blocker immediately; final SHA/dirty paths/tests/findings/limits/external mutations sent proactively to `/root`.
 
 ## Stop conditions

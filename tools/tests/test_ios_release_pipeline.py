@@ -141,6 +141,17 @@ class IOSReleasePipelineTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, step)
 
+    def test_hosted_ios_rehydrates_pinned_engine_before_compiling(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[2] / ".github/workflows/flutter-tests.yml"
+        ).read_text(encoding="utf-8")
+        ios = source.split("    runs-on: macos-latest", 1)[1]
+        self.assertIn("flutter precache --ios --force", ios)
+        self.assertIn("ios-release/Flutter.xcframework/Info.plist", ios)
+        self.assertLess(
+            ios.index("flutter precache --ios --force"), ios.index("flutter build ios")
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

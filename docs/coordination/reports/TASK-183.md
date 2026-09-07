@@ -25,6 +25,11 @@ Base: `e6fe9b9e7612831cdd5fa75defe9ce022db846e6`; branch: `codex/task-183-ios-cl
 - Independent architecture and final implementation review by `/root/task181_review`: ACCEPT, no blocker; independently ran 37 tests, all PASS plus diff check. Main received and accepted completion; review claim complete.
 - Hosted gates, immutable commit, PR and merge pending. This checkpoint does not assert them complete.
 
-## Limits / external mutations
+## Hosted correction
+
+- PR #238 initial head `5f46b77b76e8c0a447b2f4005e027951b766f8c9`, run `34150685760`: macOS rehearsal 27 tests and CLI succeeded. Native compile then failed because restored Flutter SDK cache lacked `ios-release/Flutter.xcframework`; not an Apple/provider or source-code failure.
+- Added explicit `flutter precache --ios --force` using already-pinned Flutter 3.47.0 plus release framework Info.plist check before compilation. No toolchain upgrade, secret, signing or paid service. Added failing-then-passing workflow regression; 38 focused local tests PASS; lease 2 independent correction review ACCEPT and Main acknowledged. Final hosted evidence pending.
+
+## Remaining external gates
 
 No actual IPA, macOS local signature run, keychain cleanup, Apple upload, device/provider or staging runtime evidence. Fictional cleanup and upload cannot establish those facts. Real bootstrap/live adapter and exact account/credential custody remain later Owner gates. No real secrets read, Apple/GCP/production/paid action; Git/CI integration only when reviewed.
