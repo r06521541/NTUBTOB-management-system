@@ -222,10 +222,25 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      - name: Restore pinned iOS engine even when SDK cache is incomplete
+        run: |
+          flutter precache --ios --force
+          test -f "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios-release/Flutter.xcframework/Info.plist"
+
       - name: Record hosted Apple toolchain
         run: |
           xcodebuild -version
           flutter --version
+
+      - name: Rehearse iOS release lifecycle without credentials
+        working-directory: .
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          python3 -m unittest tools.tests.test_ios_release_pipeline tools.tests.test_ios_candidate_inspector -v
+          python3 -m tools.ios_release_pipeline rehearse \
+            --expected-commit "$EXPECTED_COMMIT" \
+            --checkout-commit "$(git rev-parse HEAD)"
 
       - name: Prepare fictional compile-only configuration
         shell: bash

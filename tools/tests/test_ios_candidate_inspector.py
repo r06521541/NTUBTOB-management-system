@@ -166,6 +166,67 @@ class IOSCandidateInspectorTests(unittest.TestCase):
                 with self.assertRaises(inspector.CandidateError):
                     self.inspect(mode="testflight")
 
+    def test_artifact_only_verifies_without_claiming_release_readiness(self) -> None:
+        self.ready_contract.write_text(
+            "APPLE_SIGN_IN_REPOSITORY_STATUS=not_implemented\n", encoding="utf-8"
+        )
+        result = self.inspect(mode="artifact-only")
+        self.assertEqual(result["classification"], "ARTIFACT_VERIFIED")
+        self.assertTrue(result["signature_verified"])
+        self.assertFalse(result["upload_authorized"])
+        self.assertFalse(result["release_authorized"])
+        self.assertFalse(result["real_device_verified"])
+        with self.assertRaisesRegex(inspector.CandidateError, "readiness is blocked"):
+            self.inspect(mode="testflight")
+
+    def test_artifact_only_keeps_signature_and_profile_guards(self) -> None:
+        for runner in (
+            _runner(signature_code=1),
+            _runner(profile=_profile(ExpirationDate=NOW - timedelta(seconds=1))),
+            _runner(profile=_profile(ProvisionedDevices=["fictional-device"])),
+            _runner(entitlements=_entitlements(**{"get-task-allow": True})),
+        ):
+            with (
+                self.subTest(runner=runner),
+                self.assertRaises(inspector.CandidateError),
+            ):
+                self.inspect(mode="artifact-only", runner=runner)
+
+    def test_application_debugging_is_rejected_in_all_modes(self) -> None:
+        for mode in ("testflight", "contract-test", "artifact-only"):
+            for value in (True, "false", 0, []):
+                with (
+                    self.subTest(mode=mode, value=value),
+                    self.assertRaisesRegex(
+                        inspector.CandidateError, "application enables debugging"
+                    ),
+                ):
+                    self.inspect(
+                        mode=mode,
+                        runner=_runner(
+                            entitlements=_entitlements(**{"get-task-allow": value})
+                        ),
+                    )
+
+    def test_artifact_only_is_explicit_cli_option(self) -> None:
+        arguments = [
+            "inspect",
+            "--artifact",
+            str(self.artifact),
+            "--expected-version",
+            "1.2.3",
+            "--expected-build",
+            "42",
+            "--previous-build",
+            "41",
+        ]
+        with mock.patch.object(inspector, "inspect_ipa", return_value={}) as inspect:
+            with mock.patch("sys.stdout", new=io.StringIO()):
+                self.assertEqual(inspector.main(arguments), 0)
+                self.assertEqual(inspect.call_args.kwargs["mode"], "testflight")
+                self.assertEqual(inspector.main(arguments + ["--artifact-only"]), 0)
+                self.assertEqual(inspect.call_args.kwargs["mode"], "artifact-only")
+
     def test_metadata_and_signed_application_drift_fail_closed(self) -> None:
         cases = (
             (

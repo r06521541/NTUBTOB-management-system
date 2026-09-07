@@ -499,6 +499,8 @@ def _validate_signing_contract(
         raise CandidateError("candidate provisioning profile is invalid")
     if profile_entitlements.get("get-task-allow") is not False:
         raise CandidateError("candidate uses a development provisioning profile")
+    if app_entitlements.get("get-task-allow", False) is not False:
+        raise CandidateError("candidate application enables debugging")
     provisions_all_devices = profile.get("ProvisionsAllDevices")
     if profile.get("ProvisionedDevices") is not None or (
         provisions_all_devices is not None and provisions_all_devices is not False
@@ -547,7 +549,7 @@ def inspect_ipa(
     readiness_contract: Path = _READINESS_CONTRACT,
     now: datetime | None = None,
 ) -> dict[str, object]:
-    if mode not in {"testflight", "contract-test"}:
+    if mode not in {"testflight", "artifact-only", "contract-test"}:
         raise CandidateError("candidate inspection mode is invalid")
     if mode == "testflight" and not repository_apple_ready(readiness_contract):
         raise CandidateError("repository Apple readiness is blocked")
@@ -620,7 +622,13 @@ def inspect_ipa(
 
     return {
         "schema": 1,
-        "classification": "CONTRACT_TEST" if mode == "contract-test" else "PASS",
+        "classification": {
+            "contract-test": "CONTRACT_TEST",
+            "artifact-only": "ARTIFACT_VERIFIED",
+            "testflight": "PASS",
+        }[mode],
+        "upload_authorized": False,
+        "release_authorized": False,
         "artifact_sha256": snapshot.sha256,
         "artifact_size": snapshot.size,
         "version": version,
@@ -643,6 +651,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-version", required=True)
     parser.add_argument("--expected-build", required=True, type=int)
     parser.add_argument("--previous-build", required=True, type=int)
+    parser.add_argument(
+        "--artifact-only",
+        action="store_true",
+        help="Verify artifact integrity only; never authorize upload or release.",
+    )
     return parser
 
 
@@ -654,6 +667,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             expected_version=arguments.expected_version,
             expected_build=arguments.expected_build,
             previous_build=arguments.previous_build,
+            mode="artifact-only" if arguments.artifact_only else "testflight",
         )
     except CandidateError as error:
         print(f"ERROR: {error}", file=sys.stderr)
