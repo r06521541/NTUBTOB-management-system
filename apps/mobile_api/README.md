@@ -5,11 +5,13 @@ remains isolated; Officer/Admin receive only explicitly projected bounded reads.
 The canonical machine-readable contract is `openapi.json`.
 
 The runtime core accepts only the rollout-compatible revisions
-`0008_mobile_notification_delivery`, `0009_event_management_writes`, and
-`0010_apple_provider_lifecycle`. This permits deploying the compatible runtime
-before migrating to `0010`; unknown, malformed, and future revisions fail
-closed. Apple exchange and notifications remain independently unavailable until
-the schema is exactly `0010`. All signing, refresh-response encryption, and
+the explicit revision allowlist in `revision_readiness.py` (currently `0008`
+through `0012`, using their full migration identifiers). This permits deploying
+the compatible runtime before the Apple lifecycle migration; unknown, malformed,
+and unlisted future revisions fail closed. Apple exchange and notifications use
+the independent allowlist in `MobileRepository.apple_lifecycle_ready` (currently
+`0010`, `0011`, `0012`), not an exact-0010-only gate. These are code compatibility
+contracts, not evidence that any environment has been migrated. All signing, refresh-response encryption, and
 existing provider audience configuration must also be present. The
 LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
 plain runtime values. Apple lifecycle configuration is optional as one

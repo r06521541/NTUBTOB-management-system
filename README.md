@@ -34,19 +34,29 @@ Before you start developing locally, make sure to complete the following steps:
 - **Cloud Function Deployment**:
   After adding a new cloud function, add a corresponding deployment script in `makes/deploy.mk`.
 
-- **Code Formatting**:
-  Run the following command to format your code before committing:
+- **Code quality**:
+  Use the existing pinned runner to check on-disk Python changes (staged,
+  unstaged and non-ignored new files) without formatting unrelated files:
 
   ```sh
-  make format
+  python -m tools.repository_quality check --working-tree
   ```
+
+  Install the pinned tools from `requirements-quality.txt` into the selected
+  Python environment. On Windows use `py -3.10 -m ...` when available; consult
+  [`AGENT_ENVIRONMENT.md`](docs/development/AGENT_ENVIRONMENT.md) for runtime
+  discovery and the existing Flutter toolchain entry. To apply formatting, use
+  `python -m tools.repository_quality format --paths path/to/owned_file.py`.
+  `--working-tree` checks disk contents, not an independently staged snapshot;
+  it requires an existing HEAD. Use `--paths` for an initial checkout without a commit.
+  `make quality` / `make format` remain explicit whole-repository operations.
 
 ## Local Person and Event persistence
 
-The opt-in Person/access/qualification/Event data foundation runs against an
-isolated Docker PostgreSQL database. It is not connected to the Web Portal
-request path and rejects non-local database URLs. Setup, migration rehearsal,
-tests, and cleanup are documented in
+The local rehearsal harness uses an isolated Docker PostgreSQL database and
+rejects non-local database URLs. This is a property of that harness, not a claim
+that the application has no persistent Portal data request path. Setup,
+migration rehearsal, tests, and cleanup are documented in
 [`docs/development/LOCAL_PORTAL_DATA.md`](docs/development/LOCAL_PORTAL_DATA.md).
 
 ## Web Portal deployment preflight

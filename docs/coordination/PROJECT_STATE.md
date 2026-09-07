@@ -1,10 +1,11 @@
 # 專案狀態
 
-更新時間：2026-09-05
+更新時間：2026-09-07（repository 核對；未重新查詢 runtime）
 
 維護角色：Main Work
 
-Repository authority HEAD：`578b3bf0ad75983a99139da235a3e7f3146be729`
+本次工作起點／已合併證據：`9a5158ab285dad6f60e51dff520106104aaf0cb0`（TASK-180）。
+這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
 
@@ -44,7 +45,7 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   Shared primary Google provider仍為External／Testing，runtime/data固定在`ntubtob-mobile-staging`；staging成功不代表
   production provider publishing或deployment。
 - Apple nonce-bound identity-token、single-use authorization-code exchange、加密provider credential、server notification
-  receipt/revocation與exact-0010 runtime gate已完成repository foundation；verified stable`sub`仍是唯一identity key，
+  receipt/revocation與explicit revision allowlist已完成repository foundation；verified stable`sub`仍是唯一identity key，
   不以email/name自動合併。Apple Developer capability/profile、真實client secret/Secret binding、credential-state實測、
   active token revocation、runtime deployment與real-device/TestFlight仍未完成。
 
@@ -60,7 +61,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
   docs/archive與核准bootstrap wrapper可走quick gate，unknown/shared/workflow仍fail-safe full。
 
-## Confirmed production state
+## Last recorded production state
+
+以下是既有部署／查證紀錄，不是本次即時雲端盤點；執行外部操作前必須重新核對 exact target/state。
 
 - Web Portal：`web-portal-00054-rtp`，100% traffic；image tag commit
   `0d6efacac2f20fe1ff66f1aa9ae84fd888ab0961`。Identity maintenance為true，identity-link plain runtime config未完整啟用。
@@ -85,8 +88,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   bridge可在Release/no-codesign向量編譯；仍不構成signing、provider、TestFlight或公開版ready。
 - TASK-179已由PR #234合併：signed IPA離線fail-closed inspector與TestFlight evidence checklist已進repository；尚無真實
   signed IPA，Apple readiness marker仍使actual inspection維持blocked。
-- TASK-180 repository delivery已通過獨立Release／Privacy review：TestFlight metadata、privacy fact與外部gate
-  manifest／validator維持fail closed；現有「聯絡管理員」帳號刪除文字仍是hard blocker，且尚待單一PR hosted gate／merge。
+- TASK-180 repository delivery已合併至上述固定Git基準：TestFlight metadata、privacy fact與外部gate
+  manifest／validator維持fail closed；現有「聯絡管理員」帳號刪除文字仍是hard blocker；不推定外部gate完成。
+- TASK-181 為 Owner 核准的 repository-only 工程減摩擦：文件校正、local quality selection、未生效流程／CI提案。
+  不改CI規則、產品行為、授權、runtime或store。
 - TASK-177 repository foundation已由PR #231合併；external crash collection仍未啟用。
 - Production mobile deployment、Google production publishing/client migration、Apple provider lifecycle、iOS signing／
   TestFlight、Android public release、push/deep-link delivery與anonymous crash evidence都需未來exact Owner gate。

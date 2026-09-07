@@ -144,6 +144,39 @@ def select_tracked_python_paths(
     )
 
 
+def select_working_tree_python_paths(
+    root: Path,
+    *,
+    runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> tuple[str, ...]:
+    """Select final on-disk changes relative to HEAD, not an index snapshot.
+
+    Deleted files and ignored untracked files are excluded. An unborn HEAD or
+    either failed Git query is an error, never a clean working tree.
+    """
+    tracked = _git_paths(
+        root,
+        [
+            "git",
+            "diff",
+            "--name-only",
+            "-z",
+            "--diff-filter=ACMRTUXB",
+            "--no-renames",
+            "HEAD",
+            "--",
+        ],
+        runner=runner,
+    )
+    untracked = _git_paths(
+        root,
+        ["git", "ls-files", "--others", "--exclude-standard", "-z", "--", "*.py"],
+        runner=runner,
+    )
+    combined = sorted(set(tracked) | set(untracked))
+    return select_explicit_paths(root, combined) if combined else ()
+
+
 def _tool_command(
     tool: str, mode: str, path: str, config: Path, executable: str
 ) -> list[str]:
@@ -228,11 +261,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     source.add_argument("--paths", nargs="+")
     source.add_argument("--git-diff", nargs=2, metavar=("BASE", "HEAD"))
     source.add_argument("--all", action="store_true")
+    source.add_argument("--working-tree", action="store_true")
     parser.add_argument("--merge-base", action="store_true")
     parser.add_argument("--timeout-seconds", type=int, default=20)
     args = parser.parse_args(argv)
     if args.merge_base and not args.git_diff:
         parser.error("--merge-base requires --git-diff")
+    if args.working_tree and args.mode != "check":
+        parser.error("--working-tree is check-only; format requires explicit selection")
     try:
         if args.paths:
             paths = select_explicit_paths(ROOT, args.paths)
@@ -240,6 +276,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             paths = select_changed_python_paths(
                 ROOT, *args.git_diff, merge_base=args.merge_base
             )
+        elif args.working_tree:
+            paths = select_working_tree_python_paths(ROOT)
         else:
             paths = select_tracked_python_paths(ROOT)
         if not paths:

@@ -37,6 +37,10 @@
   設定由 repository 管理。不要另行全域安裝或從網路動態選版本。
 - `python -m tools.repository_quality check --paths path/to/file.py` 會依序、逐檔、以 bounded timeout 執行 pinned
   isort／Black check；不使用 shell，也不回顯 formatter diff／source。`format --paths ...` 才會寫檔。
+- 一般本機可用 `python -m tools.repository_quality check --working-tree`：相對 HEAD 檢查最終磁碟差異，
+  包含 staged／unstaged 與 non-ignored untracked Python，排除刪除檔；不是 index snapshot 驗證。
+  若 staged 修改在磁碟上已還原成 HEAD，該檔不入選。沒有 HEAD 或 Git 失敗會報錯，不假裝無變更。
+  此 selection 僅允許 check；局部修正用 `format --paths`，不自動格式化所有 dirty files。
 - CI 使用 classifier 已解析的 exact base/head SHA 與 `--git-diff`，以 NUL-delimited Git paths涵蓋每個新增／修改的
   `.py`，deleted path明確排除。任一路徑缺失、不安全或非 `.py` 的 explicit selection都會 fail closed。
 - `make quality`／`make format` 會逐檔處理全部 tracked Python；新建但尚未納入 Git 的檔案應用 `--paths` 明確選取。
@@ -118,8 +122,9 @@
 
 ## 11. 專案特定語意提醒
 
-- Production admin authority 目前來自 `WEB_PORTAL_ADMIN_MEMBER_IDS` runtime allowlist，不是 Person role。
+- Production admin authority 與維護旗標的最近已記錄值見 `PROJECT_STATE.md`，本環境指南不另存 runtime 快照。
+  真正操作前仍須按既有 runbook 重新核對；repository 已有 Person role 能力不代表 production 已切換。
 - 已棄用的是 LINE Notify API 與 legacy `line_notify_tokens`；LINE Official Account／Messaging API、LINE Login／
   webhook 與 Discord 仍是不同能力，caller、credential 與副作用邊界必須分開查證。
-- Identity maintenance flag 目前仍為 false；Phase C 完成不代表所有 pending identity 管理操作已開放。
+- Phase C 完成不代表所有 pending identity 管理操作已開放。
 - 歷史 Phase C 文件已封存，平常先讀 closeout 與 `PROJECT_STATE.md`，不要掃讀整個 archive。

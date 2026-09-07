@@ -49,6 +49,8 @@ TASK-088～122 位於 `coordination/archive/mobile-foundation-2026-08/`，TASK-1
 
 ## 本機開發
 
+- `development/ENGINEERING_FRICTION_PROPOSAL.md`：TASK-181 的流程／CI成本盤點；提案尚未生效，不授權放寬gate。
+
 - `development/AGENT_ENVIRONMENT.md`：Windows／Codex runtime、Git、Black、gcloud、Docker、psql、checksum 與
   中斷重試的已知陷阱；本機作業必讀。
 - `development/LOCAL_PORTAL_DATA.md`：TASK-048 專用的隔離 PostgreSQL、Alembic migration rehearsal、contract tests 與 named-volume 清理方式；不授權或連接 production。

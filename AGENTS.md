@@ -92,13 +92,14 @@ python -m pip install -r requirements.txt
 make build-and-install-shared-lib
 ```
 
-格式化：
+日常先檢查 working-tree Python 變更（不寫檔）；需要格式化時限 owned paths：
 
 ```sh
-make format
+python -m tools.repository_quality check --working-tree
+python -m tools.repository_quality format --paths path/to/owned_file.py
 ```
 
-目前 repository 中明確提供的測試：
+以下為其中一個 service suite；其他模組依各自測試目錄與 CI 選擇 affected suite：
 
 ```sh
 python -m unittest discover -s apps/game_broadcast_service/tests -v
@@ -124,7 +125,8 @@ git status --short
 - 修改 `game_broadcast_service`：執行其完整 unittest suite。
 - 修改其他服務：至少做受影響模組的 import/compile 檢查；若新增行為，應同時新增可離線執行的測試。
 - 修改 `shared_lib`：重建並安裝 shared library，再驗證所有直接受影響的服務。
-- 修改格式或多個 Python 模組：執行 `make format` 後檢查 diff，避免格式化無關檔案。
+- 修改格式或多個 Python 模組：以既有 quality runner 對 owned paths 格式化後檢查 diff；
+  `make format` 是全庫操作，不作為一般局部修改的預設。
 - 修改 Docker、Cloud Build 或 deployment Makefile：做靜態檢查並清楚回報未實際 build/deploy；除非使用者明確要求，不呼叫 `gcloud`。
 
 若依賴、憑證或外部服務使測試無法執行，先用 mock/stub 隔離；仍無法執行時，回報實際命令、錯誤與未驗證風險，不可宣稱通過。

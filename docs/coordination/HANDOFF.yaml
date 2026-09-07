@@ -1,30 +1,30 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-180
+active_task: TASK-181
 status: ready_for_pr
 next_actor: main-work
 
-claim_id: task-180-ios-store-readiness-writer-20260905
+claim_id: task-181-engineering-friction-20260907
 lease_version: 1
 actor_id: /root
 
-base_commit: 578b3bf0ad75983a99139da235a3e7f3146be729
-head_commit: 99f7dd343c421eddf11731ec843ba7c5bef3f563
+base_commit: 9a5158ab285dad6f60e51dff520106104aaf0cb0
 
 updated_by: main-work
-updated_at: 2026-09-05T12:00:00+08:00
+updated_at: 2026-09-07
 
 note: >
-  TASK-179 was merged by PR #234 as exact main commit
-  578b3bf0ad75983a99139da235a3e7f3146be729. TASK-180 prepares a repository-only,
-  fail-closed TestFlight metadata and privacy-fact contract. Independent review
-  lease 1 through 5 findings were corrected. Lease 6 ACCEPTED the final
-  implementation fixed at 99f7dd343c421eddf11731ec843ba7c5bef3f563 with no
-  findings. TASK-180 is ready for its single PR and hosted gate. No Apple,
-  signing, provider/runtime or production mutation is authorized.
+  Owner approved repository-only engineering friction work. TASK-180 repository
+  delivery is present in base_commit; its writer lease is no longer active.
+  TASK-181 adds local check-only working-tree quality selection and corrects
+  stale documentation. Workflow/authorization/CI changes remain proposals only.
+  No runtime, provider, signing, store, Secret or production action is authorized.
+  Independent targeted review accepted the implementation; Main must verify the
+  single PR and required hosted checks before merge. Check Git/PR for later
+  integration evidence; this checkpoint itself does not claim merge completion.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-180.md
-report: docs/coordination/reports/TASK-180.md
-review: accepted
+task: docs/coordination/tasks/TASK-181.md
+report: docs/coordination/reports/TASK-181.md
+review: docs/coordination/reports/TASK-181.md
