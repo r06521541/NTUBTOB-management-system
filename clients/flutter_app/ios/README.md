@@ -6,6 +6,13 @@ reviewed, installed, or exercised on a real device.
 
 ## Build modes
 
+Cloud rehearsal and the future signing custody boundary are documented in
+[`IOS_CLOUD_BUILD_RUNBOOK.md`](../../../docs/releases/IOS_CLOUD_BUILD_RUNBOOK.md).
+The inspector's explicit `--artifact-only` option verifies an existing signed
+IPA without treating Apple runtime readiness as artifact integrity. It retains
+all signature/profile/entitlement checks and never authorizes upload/release.
+The default TestFlight guard and committed readiness marker remain unchanged.
+
 The Xcode `Validate Auth Config` build phase runs both
 `validate_store_release_config.sh` and the existing Google callback validator.
 The store validator accepts only these combinations:

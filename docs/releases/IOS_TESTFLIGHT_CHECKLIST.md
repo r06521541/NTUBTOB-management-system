@@ -7,9 +7,11 @@ Team ID、App ID、certificate/profile識別值、private key、provider值、�
 ## 目前結論
 
 - iOS staging／real Release source已由hosted macOS/Xcode以`--no-codesign`編譯；這只證明source可編譯。
-- `APPLE_SIGN_IN_REPOSITORY_STATUS`仍為`not_implemented`，所以actual signed candidate inspector必須回BLOCKED。
-- Apple Developer membership與Account Holder access已由Owner-visible、去識別化分類確認；App ID/capability、distribution
-  certificate/profile與App Store Connect app record均尚未建立。signed IPA、TestFlight upload/install及真機登入仍是外部gate。
+- `APPLE_SIGN_IN_REPOSITORY_STATUS`仍為`not_implemented`，default TestFlight inspection仍BLOCKED；明確
+  `--artifact-only`只檢查既存IPA完整性，不授權upload／release，見`IOS_CLOUD_BUILD_RUNBOOK.md`。
+- Apple Developer membership與Account Holder access已由Owner-visible、去識別化分類確認。Owner後續已回報App ID/capability
+  及App Store Connect record建立；本次未獨立查證，不重建。Distribution certificate/profile尚無已接受證據；signed IPA、
+  TestFlight upload/install及真機登入仍是外部gate。
 - TestFlight文案與App Privacy repository事實已整理於
   [`IOS_APP_STORE_CONNECT_ANSWERS.md`](IOS_APP_STORE_CONNECT_ANSWERS.md)；公開privacy/support URL、App內完整帳號刪除、
   第三方SDK privacy、出口合規與年齡分級仍不可填PASS。
@@ -58,7 +60,7 @@ python3 -m tools.ios_candidate_inspector inspect \
 - bundle/minimum-iOS/signature/distribution-profile/Apple-entitlement match分類；
 - 明確的`provider_runtime_verified=false`、`testflight_upload_verified=false`及`real_device_verified=false`。
 
-不得把`CONTRACT_TEST`當candidate evidence。actual mode在repository marker未ready時必須先停止，且不得為了讓工具PASS而
+不得把`CONTRACT_TEST`當candidate evidence。default mode在repository marker未ready時必須先停止，且不得為了讓工具PASS而
 手動改marker或跳過codesign/profile/entitlement檢查。
 
 ## D. Upload前仍需的外部gate

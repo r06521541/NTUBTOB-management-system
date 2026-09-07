@@ -1,32 +1,30 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-182
+active_task: TASK-183
 status: ready_for_pr
 next_actor: main-work
 
-claim_id: task-182-local-tool-stability-20260907
+claim_id: task-183-ios-cloud-rehearsal-20260908
 lease_version: 1
 actor_id: /root
 
-base_commit: c780f2499a0b08c634ee531258db37c711eeeb92
+base_commit: e6fe9b9e7612831cdd5fa75defe9ce022db846e6
 
 updated_by: main-work
-updated_at: 2026-09-07
+updated_at: 2026-09-08
 
 note: >
-  Owner approved local tool stability work. TASK-181 repository delivery is
-  present in base_commit; its claims are complete. TASK-182 isolates Black's
-  cache, preserves empty/UTF-8 subprocess arguments/output and adds offline
-  Windows regressions and fixed local-quality failure guidance.
-  No runtime, provider, signing, store, Secret or production action is authorized.
-  Approval/retry rules and CI selection remain unchanged. No existing exact
-  launcher approval may be reused for changed artifacts.
-  Independent review leases 1 and 2 accepted; 83 local tests passed without
-  skips. Main must verify single PR hosted checks before merge; later Git/PR
-  evidence supersedes this pre-PR integration checkpoint, not runtime gates.
+  Owner approved secret-free iOS cloud rehearsal and separate artifact-only
+  inspection, plus the future ephemeral signing-material design. TASK-182 is
+  merged in base_commit and its claims are complete. No actual credentials,
+  signing, upload, provider, runtime, production or paid action is authorized.
+  Readiness marker remains blocked. See TASK-183 for bounded design exceptions.
+  Independent architecture and final review accepted; local focused tests passed.
+  Main proceeds to one PR and required hosted gates. Subsequent Git/PR evidence
+  supersedes this integration checkpoint, not the live signing/store Owner gates.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-182.md
-report: docs/coordination/reports/TASK-182.md
-review: docs/coordination/reports/TASK-182.md
+task: docs/coordination/tasks/TASK-183.md
+report: docs/coordination/reports/TASK-183.md
+review: docs/coordination/reports/TASK-183.md
