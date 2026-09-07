@@ -1,19 +1,23 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.metadata
+import io
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from tools.repository_quality import (
     EXPECTED_TOOL_VERSIONS,
     MAX_SELECTED_FILES,
     QualitySelectionError,
+    main,
     run_quality,
     select_changed_python_paths,
     select_explicit_paths,
+    select_working_tree_python_paths,
 )
 
 
@@ -185,6 +189,83 @@ class RepositoryQualityTest(unittest.TestCase):
                     timeout_seconds=timeout,
                     version_lookup=self.versions,
                 )
+
+    def test_working_tree_combines_tracked_and_untracked_without_duplicates(self):
+        runner = Mock(
+            side_effect=[
+                subprocess.CompletedProcess([], 0, stdout=b"pkg/one.py\0"),
+                subprocess.CompletedProcess([], 0, stdout=b"pkg/two.py\0pkg/one.py\0"),
+            ]
+        )
+        self.assertEqual(
+            select_working_tree_python_paths(self.root, runner=runner),
+            ("pkg/one.py", "pkg/two.py"),
+        )
+        self.assertIn("HEAD", runner.call_args_list[0].args[0])
+        self.assertIn("--exclude-standard", runner.call_args_list[1].args[0])
+
+    def test_working_tree_git_error_is_not_an_empty_success(self):
+        runner = Mock(return_value=subprocess.CompletedProcess([], 128, stdout=b""))
+        with self.assertRaises(QualitySelectionError):
+            select_working_tree_python_paths(self.root, runner=runner)
+
+    def test_working_tree_cli_disallows_format_before_selection(self):
+        with patch(
+            "tools.repository_quality.select_working_tree_python_paths"
+        ) as select:
+            with (
+                contextlib.redirect_stderr(io.StringIO()),
+                self.assertRaises(SystemExit) as error,
+            ):
+                main(["format", "--working-tree"])
+            self.assertEqual(error.exception.code, 2)
+            select.assert_not_called()
+
+    def test_working_tree_empty_cli_skips_tools(self):
+        with patch(
+            "tools.repository_quality.select_working_tree_python_paths", return_value=()
+        ):
+            with patch("tools.repository_quality.run_quality") as run:
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(main(["check", "--working-tree"]), 0)
+                run.assert_not_called()
+
+    def test_real_git_working_tree_selects_disk_changes_not_index_snapshot(self):
+        def git(*args):
+            return subprocess.run(
+                ["git", *args],
+                cwd=self.root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=20,
+            )
+
+        git("init")
+        git("config", "user.name", "Fictional Quality Test")
+        git("config", "user.email", "quality@example.invalid")
+        git("config", "commit.gpgsign", "false")
+        git("config", "core.hooksPath", str(self.root / "no-hooks"))
+        for name in ("deleted.py", "renamed.py", "cancelled.py"):
+            (self.root / "pkg" / name).write_text("value = 1\n", encoding="utf-8")
+        (self.root / ".gitignore").write_text("ignored.py\n", encoding="utf-8")
+        git("add", ".")
+        git("commit", "-m", "fictional baseline")
+        self.assertEqual(select_working_tree_python_paths(self.root), ())
+        (self.root / "pkg/one.py").write_text("value = 3\n", encoding="utf-8")
+        git("add", "pkg/one.py")
+        (self.root / "pkg/two.py").write_text("value = 4\n", encoding="utf-8")
+        (self.root / "pkg/new file.py").write_text("value = 5\n", encoding="utf-8")
+        (self.root / "ignored.py").write_text("value = 6\n", encoding="utf-8")
+        (self.root / "pkg/deleted.py").unlink()
+        git("mv", "pkg/renamed.py", "pkg/moved.py")
+        (self.root / "pkg/cancelled.py").write_text("value = 2\n", encoding="utf-8")
+        git("add", "pkg/cancelled.py")
+        (self.root / "pkg/cancelled.py").write_text("value = 1\n", encoding="utf-8")
+        self.assertEqual(
+            select_working_tree_python_paths(self.root),
+            ("pkg/moved.py", "pkg/new file.py", "pkg/one.py", "pkg/two.py"),
+        )
 
 
 if __name__ == "__main__":
