@@ -21,9 +21,9 @@ note: >
   TASK-184 defines sole writer and independent Security review. Actual Owner
   operation requires exact release after verified repository implementation.
   Hosted Windows ACL timeout recurred; PR239 remains unmerged. Owner reopened
-  bounded diagnosis. Lease3 writer/reviewer complete,23 native tests PASS and
-  diagnostic safety ACCEPT. Main runs one test-only hosted stage diagnostic;
-  no operator correction or real key-creation authority is implied.
+  bounded diagnosis localized first module-backed commands. Lease4 writer and
+  independent reviewer complete,25 native tests PASS and ACCEPT. Main verifies
+  exact native imports in same PR once; real key-creation remains unapproved.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-184.md

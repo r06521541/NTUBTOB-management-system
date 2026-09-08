@@ -32,6 +32,16 @@ for this round; previous implementation leases remain complete. Reviewer
 report to `/root` under the mandatory packet; Main owns task/report/HANDOFF.
 Lease3 writer/reviewer completed,23 native tests PASS and diagnostic ACCEPT;
 Main received both completion packets and resumes the single diagnostic push.
+Diagnostic run34239518857 at `8286641a6bc62e6ea5277abfae1c53be7c418d6b`
+reached first New-Object and first Get-Acl, then timed out before ACL write.
+Lease4 writer owns the same operator/test files for one evidence-directed
+correction: disable automatic module discovery and explicitly import only
+native Windows PowerShell Utility/Security manifests. Keep30s, ACL rules and
+private boundaries unchanged. Reviewer lease4 independently accepts before
+push. If direct import still times out, stop with captured stage evidence;
+do not extend timeout or repeat the operation.
+Lease4 writer/reviewer completed with25 native tests PASS and ACCEPT; Main
+received both completions and independently reran25 PASS before hosted push.
 
 Repository-owned Windows-only operator: read-only preflight then explicit in-process one-shot Owner confirmation to create one RSA2048/SHA256 CSR plus encrypted PKCS8 private key in a newly secured local-only directory outside repository. Separate hidden common name/email/passphrase+confirmation; no CLI/env/private echoes, no fallback to visible input. Never overwrite/reuse existing output. Reject reparse/symlink/UNC/network/repository targets, dirty or SHA-mismatched repository, unsupported host/dependencies before private input. Set and verify restrictive Windows ACL before generating/writing private material. Fixed sanitized results and exact known filenames; partial failure preserves protected outputs and stops without automatic retry.
 

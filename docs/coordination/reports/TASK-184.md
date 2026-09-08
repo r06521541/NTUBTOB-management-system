@@ -50,6 +50,19 @@ generate fictional temporary assets. No Apple/certificate/sign/upload action.
 - Lease3 writer and independent Security reviewer each ran23 native tests PASS;
   review ACCEPT, quality/diff PASS. Main independently checked diagnostic3 PASS
   and zero operator diff, received both final packets; claims complete.
+- Diagnostic run34239518857 at `8286641a6bc62e6ea5277abfae1c53be7c418d6b`
+  reached `security_object_started` in establishment and `get_acl_started` in
+  negative verification, then timed out at30031/30046ms. Startup and identity
+  resolution completed; Set-Acl and key generation were not reached.
+- This localizes the stall to first module-backed commands, not a proven
+  underlying OS defect. Evidence-directed lease4 removes automatic discovery
+  in favor of exact built-in Utility/Security manifest imports, preserving30s
+  and ACL policy; one hosted confirmation, stop if it still stalls.
+  [Microsoft module-loading reference](https://github.com/MicrosoftDocs/PowerShell-Docs/blob/main/reference/5.1/Microsoft.PowerShell.Core/About/about_Modules.md)
+  documents first-command autoload and explicit full-path imports.
+- Lease4 writer/reviewer/Main each ran25 native tests PASS; reviewer ACCEPT,
+  quality/diff PASS. Main received both completions. Local establish610ms and
+  verify296ms (Main observation); hosted confirmation still pending.
 
 No live CSR accepted by Apple, genuine private key creation, imported
 certificate, PKCS12 conversion, GitHub Secrets, TestFlight upload or device

@@ -25,6 +25,9 @@ PRIVATE = (
 
 ACL_STAGES = (
     "script_started",
+    "utility_import_started",
+    "security_import_started",
+    "imports_ready",
     "identity_started",
     "security_object_started",
     "security_object_ready",
@@ -43,6 +46,15 @@ def diagnostic_acl_script():
     script = op.ACL_SCRIPT
     points = (
         ("$ErrorActionPreference", "script_started"),
+        (
+            "  Import-Module ($PSHOME + '\\Modules\\Microsoft.PowerShell.Utility",
+            "utility_import_started",
+        ),
+        (
+            "  Import-Module ($PSHOME + '\\Modules\\Microsoft.PowerShell.Security",
+            "security_import_started",
+        ),
+        ("  $p =", "imports_ready"),
         ("  $sid =", "identity_started"),
         ("    $acl = New-Object", "security_object_started"),
         ("    $acl.SetOwner", "security_object_ready"),
@@ -106,6 +118,25 @@ def diagnostic_secure_acl(path, *, establish):
 
 
 class DiagnosticTests(unittest.TestCase):
+    def test_native_imports_disable_discovery_before_cmdlets(self):
+        script = op.ACL_SCRIPT
+        disable = script.index("$PSModuleAutoLoadingPreference = 'None'")
+        imports = [
+            line.strip() for line in script.splitlines() if "Import-Module" in line
+        ]
+        self.assertEqual(
+            imports,
+            [
+                "Import-Module ($PSHOME + '\\Modules\\Microsoft.PowerShell.Utility\\Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop",
+                "Import-Module ($PSHOME + '\\Modules\\Microsoft.PowerShell.Security\\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop",
+            ],
+        )
+        self.assertLess(disable, script.index(imports[0]))
+        self.assertLess(script.index(imports[1]), script.index("New-Object"))
+        self.assertLess(script.index(imports[1]), script.index("Get-Acl"))
+        self.assertNotIn("Join-Path", script)
+        self.assertNotIn("Get-Command", script)
+
     def test_diagnostic_script_has_only_fixed_stages(self):
         script = diagnostic_acl_script()
         for stage in ACL_STAGES:
@@ -450,6 +481,22 @@ class ExecutionTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == "win32", "requires real Windows ACL APIs")
 class WindowsTests(unittest.TestCase):
+    def test_missing_native_manifest_rejected(self):
+        is_file = Path.is_file
+        for module in ("Microsoft.PowerShell.Utility", "Microsoft.PowerShell.Security"):
+            with (
+                self.subTest(module=module),
+                patch.object(
+                    Path,
+                    "is_file",
+                    lambda path: (
+                        False if path.name == module + ".psd1" else is_file(path)
+                    ),
+                ),
+                self.assertRaises(op.Rejected),
+            ):
+                op.powershell_home()
+
     def test_unc_and_unprotected_directory_rejected(self):
         with self.assertRaises(op.Rejected):
             op.safe_directory(Path(r"\\fictional-server\share\folder"), fresh=True)

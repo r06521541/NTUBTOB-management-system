@@ -139,7 +139,10 @@ def preflight(expected_commit: str) -> Path:
 # resolve from the Windows PowerShell installation, not inherited PS7 paths.
 ACL_SCRIPT = r"""
 $ErrorActionPreference = 'Stop'
+$PSModuleAutoLoadingPreference = 'None'
 try {
+  Import-Module ($PSHOME + '\Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
+  Import-Module ($PSHOME + '\Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
   $p = $env:NTUBTOB_CSR_ACL_TARGET
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
   if ($env:NTUBTOB_CSR_ACL_SET -eq '1') {
@@ -167,6 +170,9 @@ def powershell_home() -> Path:
     home = Path(buffer.value) / "WindowsPowerShell" / "v1.0"
     if not (home / "powershell.exe").is_file() or not (home / "Modules").is_dir():
         raise Rejected()
+    for name in ("Microsoft.PowerShell.Utility", "Microsoft.PowerShell.Security"):
+        if not (home / "Modules" / name / (name + ".psd1")).is_file():
+            raise Rejected()
     return home
 
 
