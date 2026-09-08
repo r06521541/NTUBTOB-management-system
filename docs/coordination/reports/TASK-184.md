@@ -35,6 +35,22 @@ generate fictional temporary assets. No Apple/certificate/sign/upload action.
 
 ## Remaining limits
 
+### Reopened diagnostic evidence
+
+- Corrected head `d8edafdf977c5ac1617a12a52e1587b6c811b622`,
+  run34237455594: Windows again timed out at30s in ACL establishment; all
+  other substantive jobs passed, final gate failed. PR239 remains unmerged.
+- Owner requested continued investigation. Main native local probes separated
+  PowerShell startup, explicit Security module import, identity resolution and
+  temporary-directory ACL set/read/rule checks; each completed within about1s.
+  This does not establish the hosted cause. No genuine key was generated.
+- Lease3 adds fixed test-only stage evidence for one hosted diagnostic run;
+  operator safeguards and30s timeout remain unchanged. No blind retry of real
+  operations and no weakening of key custody.
+- Lease3 writer and independent Security reviewer each ran23 native tests PASS;
+  review ACCEPT, quality/diff PASS. Main independently checked diagnostic3 PASS
+  and zero operator diff, received both final packets; claims complete.
+
 No live CSR accepted by Apple, genuine private key creation, imported
 certificate, PKCS12 conversion, GitHub Secrets, TestFlight upload or device
 evidence. Python cannot guarantee memory zeroization; ACL does not defend

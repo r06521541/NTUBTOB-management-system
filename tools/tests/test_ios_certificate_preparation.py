@@ -5,8 +5,10 @@ import getpass
 import io
 import os
 import stat
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import warnings
 from pathlib import Path
@@ -20,6 +22,140 @@ PRIVATE = (
     "fixture@example.invalid",
     b"fictional-test-passphrase",
 )
+
+ACL_STAGES = (
+    "script_started",
+    "identity_started",
+    "security_object_started",
+    "security_object_ready",
+    "access_rule_started",
+    "access_rule_ready",
+    "set_acl_started",
+    "set_acl_ready",
+    "get_acl_started",
+    "get_acl_ready",
+    "verification_passed",
+)
+
+
+def diagnostic_acl_script():
+    # Only this fictional test adds markers. The production script is unchanged.
+    script = op.ACL_SCRIPT
+    points = (
+        ("$ErrorActionPreference", "script_started"),
+        ("  $sid =", "identity_started"),
+        ("    $acl = New-Object", "security_object_started"),
+        ("    $acl.SetOwner", "security_object_ready"),
+        ("    $rule = New-Object", "access_rule_started"),
+        ("    $acl.AddAccessRule", "access_rule_ready"),
+        ("    Set-Acl", "set_acl_started"),
+        ("  }\n  $acl = Get-Acl", "set_acl_ready"),
+        ("  $acl = Get-Acl", "get_acl_started"),
+        ("  $rules =", "get_acl_ready"),
+        ("  exit 0", "verification_passed"),
+    )
+    for source, stage in points:
+        if script.count(source) != 1:
+            raise AssertionError("ACL_DIAGNOSTIC instrumentation_mismatch")
+        marker = "[Console]::WriteLine('ACL_STAGE " + stage + "');\n"
+        script = script.replace(source, marker + source, 1)
+    return script
+
+
+def diagnostic_acl_run(run, *args, **kwargs):
+    started = time.monotonic()
+    output = b""
+    status = "failed"
+    failure = False
+    try:
+        # stderr remains DEVNULL. Never render commands, paths or exceptions.
+        result = run(*args, **dict(kwargs, stdout=subprocess.PIPE))
+        output = result.stdout or b""
+        status = "success" if result.returncode == 0 else "rejected"
+    except subprocess.TimeoutExpired as error:
+        output = error.stdout or b""
+        status = "timeout"
+        failure = True
+    except (Exception, KeyboardInterrupt):
+        failure = True
+    allowed = {("ACL_STAGE " + stage).encode("ascii") for stage in ACL_STAGES}
+    if isinstance(output, bytes):
+        for line in output.splitlines():
+            if line in allowed:
+                print(line.decode("ascii"), flush=True)
+    elapsed = max(0, int((time.monotonic() - started) * 1000))
+    print("ACL_DIAGNOSTIC status=" + status + " elapsed_ms=" + str(elapsed), flush=True)
+    if failure:
+        raise AssertionError("ACL_DIAGNOSTIC process_failed") from None
+    return result
+
+
+def diagnostic_secure_acl(path, *, establish):
+    run = op.subprocess.run
+    with (
+        patch.object(op, "ACL_SCRIPT", diagnostic_acl_script()),
+        patch.object(
+            op.subprocess,
+            "run",
+            side_effect=lambda *args, **kwargs: diagnostic_acl_run(
+                run, *args, **kwargs
+            ),
+        ),
+    ):
+        op.secure_acl(path, establish=establish)
+
+
+class DiagnosticTests(unittest.TestCase):
+    def test_diagnostic_script_has_only_fixed_stages(self):
+        script = diagnostic_acl_script()
+        for stage in ACL_STAGES:
+            self.assertEqual(script.count("ACL_STAGE " + stage + "'"), 1)
+        for line in op.ACL_SCRIPT.splitlines():
+            self.assertIn(line, script)
+
+    def test_output_allowlist_and_timeout_no_retry(self):
+        private = b"fictional-private-command-path-env"
+        payload = (
+            b"ACL_STAGE script_started\n"
+            + private
+            + b"\nACL_STAGE set_acl_started injected\n"
+        )
+        runner = Mock(
+            side_effect=subprocess.TimeoutExpired(
+                private, 30, output=payload, stderr=private
+            )
+        )
+        output = io.StringIO()
+        with (
+            contextlib.redirect_stdout(output),
+            self.assertRaises(AssertionError) as error,
+        ):
+            diagnostic_acl_run(runner, [private], timeout=30, stderr=subprocess.DEVNULL)
+        runner.assert_called_once()
+        self.assertIn("ACL_STAGE script_started\n", output.getvalue())
+        self.assertIn("ACL_DIAGNOSTIC status=timeout elapsed_ms=", output.getvalue())
+        self.assertNotIn(private.decode(), output.getvalue() + str(error.exception))
+        self.assertNotIn("injected", output.getvalue())
+        self.assertTrue(error.exception.__suppress_context__)
+
+    def test_success_and_unexpected_failure_sanitized(self):
+        for result in (
+            Mock(returncode=0, stdout=b"private-untrusted"),
+            OSError("private-untrusted"),
+        ):
+            runner = (
+                Mock(side_effect=result)
+                if isinstance(result, Exception)
+                else Mock(return_value=result)
+            )
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                try:
+                    diagnostic_acl_run(runner)
+                except AssertionError as error:
+                    self.assertNotIn("private-untrusted", str(error))
+            self.assertNotIn("private-untrusted", output.getvalue())
+            runner.assert_called_once()
 
 
 class CryptoTests(unittest.TestCase):
@@ -319,7 +455,7 @@ class WindowsTests(unittest.TestCase):
             op.safe_directory(Path(r"\\fictional-server\share\folder"), fresh=True)
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaises(op.Rejected):
-                op.secure_acl(Path(temporary), establish=False)
+                diagnostic_secure_acl(Path(temporary), establish=False)
 
     def test_known_folder_ignores_environment(self):
         with patch.dict(os.environ, {"LOCALAPPDATA": "Z:\\fictional-network"}):
@@ -331,8 +467,8 @@ class WindowsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "fictional-csr"
             target.mkdir()
-            op.secure_acl(target, establish=True)
-            op.secure_acl(target, establish=False)
+            diagnostic_secure_acl(target, establish=True)
+            diagnostic_secure_acl(target, establish=False)
             op.safe_directory(target, fresh=False)
             key, csr = op.material(*PRIVATE)
             (target / op.KEY_FILE).write_bytes(key)

@@ -18,6 +18,21 @@
 
 ## Bounded deliverable
 
+### Owner-reopened hosted diagnosis (2026-09-08)
+
+Owner explicitly requested continued investigation after run34237455594 again
+timed out at30s. This is a bounded diagnostic round, not an automatic mutation
+retry: instrument the fictional native test with fixed stage labels only; keep
+the production operator, timeout and ACL unchanged until evidence identifies
+the blocked layer. No genuine assets or private inputs. One diagnostic push on
+PR239; no unbounded reruns. Main local stage probes completed in about1s.
+Writer `/root/csr_writer` lease3 owns only the existing certificate test file
+for this round; previous implementation leases remain complete. Reviewer
+`/root/task181_review` lease3 independently reviews diagnostic safety. Both
+report to `/root` under the mandatory packet; Main owns task/report/HANDOFF.
+Lease3 writer/reviewer completed,23 native tests PASS and diagnostic ACCEPT;
+Main received both completion packets and resumes the single diagnostic push.
+
 Repository-owned Windows-only operator: read-only preflight then explicit in-process one-shot Owner confirmation to create one RSA2048/SHA256 CSR plus encrypted PKCS8 private key in a newly secured local-only directory outside repository. Separate hidden common name/email/passphrase+confirmation; no CLI/env/private echoes, no fallback to visible input. Never overwrite/reuse existing output. Reject reparse/symlink/UNC/network/repository targets, dirty or SHA-mismatched repository, unsupported host/dependencies before private input. Set and verify restrictive Windows ACL before generating/writing private material. Fixed sanitized results and exact known filenames; partial failure preserves protected outputs and stops without automatic retry.
 
 Use cryptography existing local 50.0.0 (scoped pinned tool requirements, not service dependency changes); stdlib/process safety, no custom cryptography. Test ephemeral fictional keys only; no Owner private input or genuine asset. No keychain, Apple upload, provider calls, certificate download, GitHub Secret, signing or deployment.
