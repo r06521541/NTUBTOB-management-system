@@ -259,14 +259,23 @@ jobs:
     name: Deployment tool tests
     needs: classify
     if: needs.classify.outputs.full == 'true' || needs.classify.outputs.deployment_tools == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
+      - name: Install isolated certificate-tool dependency
+        run: python -m pip install -r tools/requirements-ios-certificate.txt
+      - name: Test certificate preparation with fictional temporary assets
+        run: python -m unittest tools.tests.test_ios_certificate_preparation -v
       - name: Run deployment and release inspector tests
+        if: runner.os == 'Linux'
         run: |
           python -m unittest discover -s tools/tests -p "test_deploy_*.py" -v
           python -m unittest tools.tests.test_ios_candidate_inspector -v

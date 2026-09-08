@@ -83,6 +83,73 @@ choice into one preparation session. A personally owned Mac is not required;
 Windows-to-Apple certificate bootstrap still needs reviewed implementation and
 is not provided by this rehearsal.
 
+## Windows local CSR preparation (TASK-184)
+
+The certificate-preparation operator is a separate local-only boundary, not the
+cloud rehearsal or upload adapter. Owner reports the upload API `.p8` is safely
+saved and Apple Certificates is empty; neither report authorizes reading that
+file, replacing a key or creating an Apple certificate automatically.
+
+The local tool prepares one RSA-2048/SHA-256 certificate signing request and its
+passphrase-encrypted PKCS8 private key. The CSR carries its common name/email;
+it is not a secret key but still must not be pasted into chat/logs/repository.
+Only the CSR is subsequently submitted by Owner to Apple. The encrypted private
+key and its passphrase stay private; the upload API `.p8` is a different key and
+cannot substitute for the certificate's matching private key.
+
+The repository entry is `python -m tools.ios_certificate_preparation
+--expected-commit <reviewed-full-SHA>` (read-only by default). Use Python 3.10
+with the isolated pinned requirements in `tools/requirements-ios-certificate.txt`;
+do not change service dependencies for this operator. A later exact Owner
+release permits adding `--execute` to that same command. Never pass private
+values as arguments or use a redirected input file. Do not run it from an
+unreviewed/dirty branch.
+
+The fixed output location is the Windows-native LocalAppData known folder plus
+`NTUBTOB-AppleDistribution-CSR`. Output filenames are `distribution.csr` and
+`distribution-private-key.pem`. The tool resolves the known folder itself, not
+an arbitrary path supplied in chat; it refuses an existing output directory.
+When prompted, common name is a label for the signing key; email is your chosen
+certificate request address. Encryption passphrase is a **new password you
+choose for this file**, not your Apple login password. Retain it securely and
+separately from the encrypted file. Confirm the exact displayed commit only
+after reviewing the fixed local action and filenames.
+
+Before actual operation, Owner must approve the exact reviewed commit and the
+creation of these local durable files. Implementation/test authorization does
+not execute the real operation. Input is hidden in an interactive local console;
+no email/name/passphrase arguments, environment values or saved transcripts.
+Redirection/non-interactive input must fail, not silently reveal input. A clean
+exact checkout, supported dependency/Windows host, new local non-reparse output
+and verified restrictive ACL are prerequisites to key generation.
+
+Input does not show characters while typing; after Enter, only the accepted
+length is displayed. Final confirmation is the fixed `CREATE CSR` phrase plus
+the displayed full commit. Results are `preflight_passed` (no creation),
+`pre_execution_rejected` (fix/check before trying a new preflight),
+`confirmed_success` (do not generate again) or `uncertain` (stop and preserve
+partial output; no automatic retry). Opening a normal personal terminal may be
+necessary: restricted agent sandboxes can deny Windows ACL writes. Do not
+relax the ACL or rerun a real uncertain operation outside sandbox as a workaround.
+
+The storage directory must not be a shared/synced/network/repository path. ACL
+restriction is not protection against malware running as the same Windows user,
+administrators or device loss; use a trusted personal computer and secure
+offline backup. Python immutable objects cannot guarantee memory zeroization.
+Do not lose the passphrase: there is no recovery mechanism. No plaintext key
+export, private backup/upload or certificate conversion is performed here.
+
+If cancellation or a write error occurs after directory creation, preserve the
+protected partial output and stop. Do not delete, overwrite or regenerate just
+to get a green result. A later read-only reconciliation/Owner decision is needed.
+Actual Apple acceptance of the CSR, certificate download, matching certificate
+validation, PKCS12 conversion and cloud provisioning remain separately reviewed
+steps; a locally valid CSR does not prove Apple accepted it.
+
+References: [Apple CSR instructions](https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request/),
+[Apple classic CSR format](https://developer.apple.com/forums/thread/699268),
+[cryptography serialization](https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/).
+
 ## Official references checked 2026-09-08
 
 - [GitHub runner scope/cost](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)

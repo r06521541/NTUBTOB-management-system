@@ -148,6 +148,11 @@ class WorkflowContractTests(unittest.TestCase):
         deployment = job_block(self.source, "deployment_tools")
         self.assertIn("tools.tests.test_ios_candidate_inspector", deployment)
         self.assertIn("tools.tests.test_ios_store_readiness", deployment)
+        self.assertIn("os: [ubuntu-latest, windows-latest]", deployment)
+        self.assertIn("runs-on: ${{ matrix.os }}", deployment)
+        self.assertIn("fail-fast: false", deployment)
+        self.assertIn("tools/requirements-ios-certificate.txt", deployment)
+        self.assertIn("tools.tests.test_ios_certificate_preparation", deployment)
 
     def test_flutter_is_reusable_with_pinned_platform_contracts(self):
         self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")

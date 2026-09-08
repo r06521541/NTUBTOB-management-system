@@ -1,30 +1,30 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-183
+active_task: TASK-184
 status: ready_for_pr
 next_actor: main-work
 
-claim_id: task-183-ios-cloud-rehearsal-20260908
+claim_id: task-184-main-20260908
 lease_version: 1
 actor_id: /root
 
-base_commit: e6fe9b9e7612831cdd5fa75defe9ce022db846e6
+base_commit: 9eb816613934a2517b70a828b4bcdd47a25a9ee6
 
 updated_by: main-work
 updated_at: 2026-09-08
 
 note: >
-  Owner approved secret-free iOS cloud rehearsal and separate artifact-only
-  inspection, plus the future ephemeral signing-material design. TASK-182 is
-  merged in base_commit and its claims are complete. No actual credentials,
-  signing, upload, provider, runtime, production or paid action is authorized.
-  Readiness marker remains blocked. See TASK-183 for bounded design exceptions.
-  Independent architecture and final review accepted; local focused tests passed.
-  Main proceeds to one PR and required hosted gates. Subsequent Git/PR evidence
-  supersedes this integration checkpoint, not the live signing/store Owner gates.
+  Owner requested Windows CSR operator implementation. TASK-183 is merged and
+  main CI passed. Development uses fictional test assets only. No real key/CSR
+  creation, saved API key access, signing, Secret configuration or Apple action.
+  TASK-184 defines sole writer and independent Security review. Actual Owner
+  operation requires exact release after verified repository implementation.
+  Writer and independent reviewer complete; 19 native/focused tests PASS,
+  review ACCEPT. Main proceeds one PR/required gates; subsequent Git/PR evidence
+  supersedes this integration checkpoint, not actual key-creation authority.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-183.md
-report: docs/coordination/reports/TASK-183.md
-review: docs/coordination/reports/TASK-183.md
+task: docs/coordination/tasks/TASK-184.md
+report: docs/coordination/reports/TASK-184.md
+review: docs/coordination/reports/TASK-184.md
