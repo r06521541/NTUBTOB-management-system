@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`e6fe9b9e7612831cdd5fa75defe9ce022db846e6`（TASK-182）。
+本次工作起點／已合併證據：`9eb816613934a2517b70a828b4bcdd47a25a9ee6`（TASK-183）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -58,6 +58,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   staging:real Release source可no-codesign編譯。Signed archive、provider、capability/profile與real-device evidence仍是外部gate。
 - TASK-183新增secret-free cloud rehearsal與artifact-only IPA inspection；後者不授權upload/release，default readiness
   gate不變。Owner回報App ID/capability與App Store Connect record已建立，未於本task獨立查證；真實憑證與store操作未做。
+- Owner另回報上傳API key已私人保存、Apple Certificates列表空白；未讀取key。本次TASK-184只開發Windows本機
+  CSR／加密PKCS8準備工具與虛構測試，真實產生／送Apple／GitHub保管仍待exact Owner release。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
