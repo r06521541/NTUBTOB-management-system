@@ -8,13 +8,13 @@
 
 ## Assignment / owned paths
 
-- Writer `/root/csr_writer`, role codex-writer, claim task-184-csr-writer-20260908, lease 1, report_to `/root`, write allowed only:
+- Writer `/root/csr_writer`, role codex-writer, claim task-184-csr-writer-20260908, lease 2, report_to `/root`, write allowed only:
   `tools/ios_certificate_preparation.py`, `tools/tests/test_ios_certificate_preparation.py`, `tools/requirements-ios-certificate.txt`.
 - Main owns this task, single `docs/coordination/reports/TASK-184.md`, HANDOFF, PROJECT_STATE, `docs/releases/IOS_CLOUD_BUILD_RUNBOOK.md`, `.github/workflows/python-tests.yml`, `tools/tests/test_ci_workflow_contract.py`.
-- Reviewer `/root/task181_review`, role advisor, claim task-184-security-review-20260908, lease 1, report_to `/root`, read-only, no owned paths.
+- Reviewer `/root/task181_review`, role advisor, claim task-184-security-review-20260908, lease 2, report_to `/root`, read-only, no owned paths.
 - Mandatory COLLABORATION section2: immediate received/executing ACK; heartbeat10–15m; blockers immediate; proactively send exact HEAD/dirty/tests/findings/limits/external mutations to `/root`. Main waits actively.
 - HANDOFF next_actor=codex-writer activates the sole implementation writer. Main may concurrently maintain only its listed coordination/docs/CI paths and perform read-only research; no overlapping implementation.
-- Writer completed and Main received 19 passing tests plus minimal child-environment correction; writer claim complete. Independent reviewer final ACCEPT/19 PASS received and accepted; reviewer claim complete. Main integrates through single PR and required CI.
+- Lease1 writer/reviewer completed and Main received ACCEPT/19 PASS. Lease2 writer completed native temp environment correction/20 PASS. Independent lease2 ACCEPT/20 native PASS received; both claims complete. Main pushes same PR; no private data or ACL weakening.
 
 ## Bounded deliverable
 

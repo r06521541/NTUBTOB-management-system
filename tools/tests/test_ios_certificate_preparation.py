@@ -113,15 +113,38 @@ class InputTests(unittest.TestCase):
 
 
 class PreflightTests(unittest.TestCase):
+    def test_missing_native_temp_fails_before_spawn(self):
+        with (
+            tempfile.TemporaryDirectory() as temporary,
+            patch.object(op, "local_app_data", return_value=Path(temporary)),
+            patch.object(op, "fixed_drive", return_value=True),
+            patch.object(op.subprocess, "run") as run,
+            self.assertRaises(op.Rejected),
+        ):
+            op.acl_environment(
+                Path("/fictional/Windows/System32/WindowsPowerShell/v1.0")
+            )
+        run.assert_not_called()
+
     def test_acl_child_receives_only_bounded_environment(self):
         with (
-            patch.dict(os.environ, {"FICTIONAL_PRIVATE_ENV": "never-forward"}),
+            patch.dict(
+                os.environ,
+                {
+                    "FICTIONAL_PRIVATE_ENV": "never-forward",
+                    "LOCALAPPDATA": "never-forward",
+                    "TMP": "never-forward",
+                    "TEMP": "never-forward",
+                },
+            ),
             patch.object(
                 op,
                 "powershell_home",
                 return_value=Path("/fictional/Windows/System32/WindowsPowerShell/v1.0"),
             ),
             patch.object(op.subprocess, "CREATE_NO_WINDOW", 0, create=True),
+            patch.object(op, "local_app_data", return_value=Path("/fictional/Local")),
+            patch.object(op, "safe_directory") as safe,
             patch.object(op.subprocess, "run", return_value=Mock(returncode=0)) as run,
         ):
             op.secure_acl(Path("/fictional-target"), establish=True)
@@ -131,11 +154,21 @@ class PreflightTests(unittest.TestCase):
                 "SYSTEMROOT",
                 "WINDIR",
                 "PSMODULEPATH",
+                "LOCALAPPDATA",
+                "TMP",
+                "TEMP",
                 "NTUBTOB_CSR_ACL_TARGET",
                 "NTUBTOB_CSR_ACL_SET",
             },
         )
         self.assertNotIn("never-forward", str(run.call_args))
+        self.assertEqual(
+            run.call_args.kwargs["env"]["TEMP"], str(Path("/fictional/Local/Temp"))
+        )
+        self.assertEqual(
+            run.call_args.kwargs["env"]["TMP"], run.call_args.kwargs["env"]["TEMP"]
+        )
+        safe.assert_called_once_with(Path("/fictional/Local/Temp"), fresh=False)
 
     def test_failures_precede_input_and_keygen(self):
         cases = [

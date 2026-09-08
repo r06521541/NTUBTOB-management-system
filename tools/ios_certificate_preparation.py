@@ -93,7 +93,7 @@ def safe_directory(path: Path, *, fresh: bool) -> None:
         try:
             info = item.lstat()
         except FileNotFoundError:
-            if item != path:
+            if item != path or not fresh:
                 raise Rejected() from None
             continue
         if (
@@ -125,7 +125,7 @@ def preflight(expected_commit: str) -> Path:
     if sys.platform != "win32" or not re.fullmatch("[0-9a-f]{40}", expected_commit):
         raise Rejected()
     dependencies()
-    powershell_home()
+    acl_environment(powershell_home())
     if git("rev-parse", "HEAD") != expected_commit or git(
         "status", "--porcelain", "--untracked-files=all"
     ):
@@ -170,16 +170,28 @@ def powershell_home() -> Path:
     return home
 
 
-def secure_acl(path: Path, *, establish: bool) -> None:
-    home = powershell_home()
+def acl_environment(home: Path) -> dict[str, str]:
+    # .NET/Windows PowerShell require a usable per-user temporary/cache root.
+    # Derive only these OS paths from KnownFolder; never inherit caller values.
+    local = local_app_data()
+    temporary = local / "Temp"
+    safe_directory(temporary, fresh=False)
     system_root = str(home.parents[2])
-    environment = {
+    return {
         "SYSTEMROOT": system_root,
         "WINDIR": system_root,
         "PSMODULEPATH": str(home / "Modules"),
-        "NTUBTOB_CSR_ACL_TARGET": str(path),
-        "NTUBTOB_CSR_ACL_SET": "1" if establish else "0",
+        "LOCALAPPDATA": str(local),
+        "TEMP": str(temporary),
+        "TMP": str(temporary),
     }
+
+
+def secure_acl(path: Path, *, establish: bool) -> None:
+    home = powershell_home()
+    environment = acl_environment(home)
+    environment["NTUBTOB_CSR_ACL_TARGET"] = str(path)
+    environment["NTUBTOB_CSR_ACL_SET"] = "1" if establish else "0"
     result = subprocess.run(
         [
             str(home / "powershell.exe"),

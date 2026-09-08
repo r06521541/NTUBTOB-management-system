@@ -26,7 +26,14 @@ generate fictional temporary assets. No Apple/certificate/sign/upload action.
 - Main independently reran focused19 (including native Windows fixture) PASS; working-tree quality3 Python paths and diff check PASS.
 - Independent Security reviewer `/root/task181_review`: ACCEPT, focused19 PASS in allowed native ACL test environment, diff PASS; Main received/accepted and reviewer claim complete. Immutable commit/hosted integration pending; later Git/PR evidence supersedes this checkpoint, not Owner gates.
 
-## Limits
+## Hosted Windows correction checkpoint
+
+- PR #239 initial head `8c99782c2584871a8b16a014ca789a7cd02fcd56`, run34236530908: Linux certificate/deployment gate PASS; Windows native ACL fixture timed out in the fixed PowerShell child after30s. Subsequent negative ACL verification took25s. No real Owner operation was run.
+- Writer lease2 investigates native child startup environment and bounded timeout, without weakening ACL or automatically retrying material operations. Cause beyond observed timeout remains unproven until corrected hosted evidence.
+- Correction supplies only native KnownFolder LOCALAPPDATA and its existing local non-reparse Temp as TEMP/TMP, preflighted before input. Missing Temp rejected rather than created; no caller environment forwarding, same30s timeout/ACL. Native focused20 PASS; source correction pending hosted confirmation, not a proven explanation of the original timeout.
+- Independent lease2 correction review ACCEPT; reviewer reran20 native tests PASS and diff check PASS; Main acknowledged. No more unbounded corrections/retries for the same hosted blocker.
+
+## Remaining limits
 
 No live CSR accepted by Apple, genuine private key creation, imported
 certificate, PKCS12 conversion, GitHub Secrets, TestFlight upload or device
