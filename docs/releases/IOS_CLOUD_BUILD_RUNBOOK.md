@@ -80,8 +80,9 @@ Before implementing/activating the live path:
 
 Group Owner identity confirmation, signing custody and minimal upload-role
 choice into one preparation session. A personally owned Mac is not required;
-Windows-to-Apple certificate bootstrap still needs reviewed implementation and
-is not provided by this rehearsal.
+Windows local CSR creation has a separate reviewed operator below; it is not
+provided by the cloud rehearsal. Certificate import/conversion and live cloud
+signing are still not implemented by that operator.
 
 ## Windows local CSR preparation (TASK-184)
 
@@ -149,6 +150,70 @@ steps; a locally valid CSR does not prove Apple accepted it.
 References: [Apple CSR instructions](https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request/),
 [Apple classic CSR format](https://developer.apple.com/forums/thread/699268),
 [cryptography serialization](https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/).
+
+## Certificate/CSR correspondence preparation (TASK-185)
+
+`tools.ios_certificate_pair` is an in-memory validation library, not a live
+file-reading operator. Existing pinned certificate-tool requirements apply.
+It accepts only bounded single public certificate/CSR byte objects and an
+explicit timezone-aware verification time. Tests generate fictional material
+in memory; no Owner key, saved API `.p8`, CSR or downloaded certificate is read.
+
+The checks cover RSA2048/SHA256 CSR signature, corresponding public keys,
+certificate validity interval and rejection of an explicitly CA certificate.
+Missing BasicConstraints remains unknown, not evidence that a certificate is
+qualified for distribution. Success is only `PAIR_MATCH_ONLY`.
+Fixed STOP reasons distinguish invalid input/encoding/time/dependency, unsupported
+CSR algorithm, invalid CSR signature, not-yet-valid/expired certificate, mismatched
+public key and rejected CA. Unexpected failures remain `PAIR_CHECK_REJECTED`.
+These categories contain no raw subject, dates or parser text, and do not grant
+automatic regeneration/retry authority.
+
+This deliberately does **not** verify certificate signature/Apple chain,
+revocation, Team/App identity, certificate distribution purpose or provisioning
+profile. It also does not establish that the private key is still available or
+decryptable. Self-signed fictional certificates can pass correspondence; all
+trust/possession/signing/upload/release authorities remain false. A future
+reviewed bounded Owner wrapper must obtain actual public files safely before
+this library can contribute real evidence. Never paste their payload into chat.
+
+Offline checks (no Owner input):
+
+```powershell
+py -3.10 -m unittest tools.tests.test_ios_certificate_pair tools.tests.test_ios_release_pipeline tools.tests.test_ios_candidate_inspector -v
+```
+
+## Short Owner return sequence and remaining software gaps
+
+1. **Local creation:** recheck the exact reviewed TASK184 checkout and fresh
+   output directory, then Owner personally enters hidden name/email/new
+   encryption password and the one-shot confirmation. The approved original
+   commit is `47e832e685b68c0f50803decd989f36c38fc2651`; do not silently substitute
+   a later checkout. No real output has been reported created as of2026-09-09.
+2. **Apple issuance:** after creation succeeds, Owner checks the intended team
+   and certificate type and submits only `distribution.csr` to Apple in an
+   explicitly scoped issuance step. Never upload `distribution-private-key.pem`
+   or the API `.p8` as the CSR. Downloaded certificate is separate from both keys.
+3. **Validation/conversion:** safe actual-file intake, trusted Apple chain and
+   distribution/team checks, encrypted-key possession and PKCS12 packaging still
+   need a reviewed wrapper. The new pair library supplies one check, not that
+   complete procedure. Do not ask Owner to improvise OpenSSL/private commands.
+4. **Profile/cloud custody:** select the matching existing App/capabilities and
+   distribution profile; establish protected Environment custody and a reviewed
+   temporary-keychain workflow. Neither is created by this delivery. No public
+   Actions artifact is an approved place for private signing assets or an IPA.
+5. **Build then upload separately:** exact candidate signing/cleanup/inspection,
+   private artifact handoff and one upload remain separate gates. Existing
+   lifecycle tests are simulated, not a live adapter. Verify provider/staging,
+   privacy/deletion and actual device behavior before any tester/public release.
+
+Owner need not perform steps2–5 merely to finish step1. Their acceptance and
+private-input boundaries must be ready before requesting another Owner session.
+No stage grants the next stage automatic authority; no repeated generation or
+upload after an uncertain result.
+
+Parsing/validity API reference:
+[cryptography X.509](https://cryptography.io/en/50.0.0/x509/reference/).
 
 ## Official references checked 2026-09-08
 

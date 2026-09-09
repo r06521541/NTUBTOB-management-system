@@ -14,6 +14,19 @@ class _MutableClock {
   DateTime call() => value;
 }
 
+DateTime fixtureNow() => DateTime.utc(2026, 9, 1, 12, 34);
+
+AnonymousCrashQueue fixtureQueue(
+  DurableStore store, {
+  Duration deliveryTimeout = crashDeliveryTimeout,
+}) =>
+    AnonymousCrashQueue(
+      store,
+      'installation',
+      clock: fixtureNow,
+      deliveryTimeout: deliveryTimeout,
+    );
+
 class _QueueWriteFailingStore extends MemoryStore {
   @override
   Future<void> write(String key, String value) async {
@@ -97,7 +110,7 @@ AnonymousCrashEvent event({
             '#0 secretUser package:ntubtob_portal/basic_app.dart:10:20\n'
             '#1 https://private.invalid/token external.dart:4:2',
           ),
-      now: now ?? DateTime.utc(2026, 9, 1, 12, 34),
+      now: now ?? fixtureNow(),
       appFlavor: AppFlavor.staging,
       platformClass: 'android',
     );
@@ -175,9 +188,17 @@ void main() {
   });
 
   group('bounded queue', () {
+    test('fixture queue and event share a deterministic clock', () async {
+      final queue = fixtureQueue(MemoryStore());
+      expect(queue.clock(), fixtureNow());
+      await queue.optIn();
+      expect(await queue.capture(event()), isTrue);
+      expect((await queue.pending()).single.dayUtc, event().dayUtc);
+    });
+
     test('is default-off and opt-out purges retained events', () async {
       final store = MemoryStore();
-      final queue = AnonymousCrashQueue(store, 'installation');
+      final queue = fixtureQueue(store);
       expect(await queue.capture(event()), isFalse);
       expect(await queue.pending(), isEmpty);
 
@@ -193,7 +214,7 @@ void main() {
     test('serializes concurrent capture and keeps only newest bounded events',
         () async {
       final store = MemoryStore();
-      final queue = AnonymousCrashQueue(store, 'installation');
+      final queue = fixtureQueue(store);
       await queue.optIn();
       final results = await Future.wait([
         for (var index = 0; index < 20; index++)
@@ -271,7 +292,7 @@ void main() {
     test('failed opt-out purge remains fail-closed and resumes cleanup',
         () async {
       final store = _QueueDeleteFailOnceStore();
-      final queue = AnonymousCrashQueue(store, 'installation');
+      final queue = fixtureQueue(store);
       await queue.optIn();
       await queue.capture(event());
 
@@ -288,7 +309,7 @@ void main() {
     test('capture failures are swallowed and never expose private reason',
         () async {
       final store = _QueueWriteFailingStore();
-      final queue = AnonymousCrashQueue(store, 'installation');
+      final queue = fixtureQueue(store);
       await queue.optIn();
       expect(await queue.capture(event()), isFalse);
       expect(await queue.pending(), isEmpty);
@@ -296,7 +317,7 @@ void main() {
 
     test('sink is explicit; retry retains while accepted and terminal remove',
         () async {
-      final queue = AnonymousCrashQueue(MemoryStore(), 'installation');
+      final queue = fixtureQueue(MemoryStore());
       await queue.optIn();
       await queue.capture(event(source: AnonymousCrashSource.zone));
       await queue.capture(event(source: AnonymousCrashSource.flutterFramework));
@@ -316,9 +337,8 @@ void main() {
     });
 
     test('sink timeout is bounded and retains pending event', () async {
-      final queue = AnonymousCrashQueue(
+      final queue = fixtureQueue(
         MemoryStore(),
-        'installation',
         deliveryTimeout: const Duration(milliseconds: 1),
       );
       await queue.optIn();
@@ -331,9 +351,8 @@ void main() {
       test(
           'persists accepted progress before later ${timeout ? 'timeout' : 'throw'}',
           () async {
-        final queue = AnonymousCrashQueue(
+        final queue = fixtureQueue(
           MemoryStore(),
-          'installation',
           deliveryTimeout: const Duration(milliseconds: 1),
         );
         await queue.optIn();
@@ -352,7 +371,7 @@ void main() {
 
   test('capture hooks preserve existing handler results and ordering',
       () async {
-    final queue = AnonymousCrashQueue(MemoryStore(), 'installation');
+    final queue = fixtureQueue(MemoryStore());
     await queue.optIn();
     final hooks = AnonymousCrashHooks(AnonymousCrashReporter(
       queue: queue,
@@ -411,7 +430,7 @@ void main() {
   testWidgets('preference requires notice confirmation and opt-out purges',
       (tester) async {
     final store = MemoryStore();
-    final queue = AnonymousCrashQueue(store, 'installation');
+    final queue = fixtureQueue(store);
     await tester.pumpWidget(MaterialApp(
       home: LocalPreferencesPage(
         preferences: LocalPreferences(store, 'installation'),

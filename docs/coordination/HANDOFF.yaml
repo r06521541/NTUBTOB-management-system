@@ -1,31 +1,33 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-184
+active_task: TASK-185
 status: in_progress
 next_actor: main-work
 
-claim_id: task-184-main-20260908
+claim_id: task-185-main-20260909
 lease_version: 1
 actor_id: /root
 
-base_commit: 9eb816613934a2517b70a828b4bcdd47a25a9ee6
+base_commit: 47e832e685b68c0f50803decd989f36c38fc2651
 
 updated_by: main-work
-updated_at: 2026-09-08
+updated_at: 2026-09-09
 
 note: >
-  Owner requested Windows CSR operator implementation. TASK-183 is merged and
-  main CI passed. Development uses fictional test assets only. No real key/CSR
-  creation, saved API key access, signing, Secret configuration or Apple action.
-  TASK-184 defines sole writer and independent Security review. Actual Owner
-  operation requires exact release after verified repository implementation.
-  Hosted Windows ACL timeout recurred; PR239 remains unmerged. Owner reopened
-  bounded diagnosis localized first module-backed commands. Lease4 writer and
-  independent reviewer complete,25 native tests PASS and ACCEPT. Main verifies
-  exact native imports in same PR once; real key-creation remains unapproved.
+  TASK184 merged PR239 with full PR CI success. Owner approved its exact local
+  creation action but is away; no real key was created. TASK185 prepares public
+  certificate/CSR correspondence checks with fictional inputs only. Architecture
+  review first, sole writer, independent acceptance. No saved API key access,
+  real file inspection, signing, Secrets or Apple action.
+  Writer/reviewer complete;13 pair tests PASS and independent ACCEPT. Main
+  verified existing67 tests and quality; final PR/CI integration is next.
+  Later immutable merge/CI evidence supersedes this checkpoint, not Owner gates.
+  First hosted gate exposed an existing test-only wall-clock dependency; fixed
+  fixture clocks preserve production behavior.16 tests PASS and independent
+  ACCEPT received. Main now verifies the corrected same-PR run.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-184.md
-report: docs/coordination/reports/TASK-184.md
-review: docs/coordination/reports/TASK-184.md
+task: docs/coordination/tasks/TASK-185.md
+report: docs/coordination/reports/TASK-185.md
+review: docs/coordination/reports/TASK-185.md
