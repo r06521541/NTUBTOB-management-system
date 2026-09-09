@@ -219,12 +219,16 @@ jobs:
       - name: Verify fictional PKCS12 memory-only native import
         working-directory: .
         run: |
-          python -m pip install -r tools/requirements-ios-certificate.txt
+          python -m pip install -r tools/requirements-ios-profile-intake.txt
           python -m tools.ios_pkcs12_compatibility
 
       - name: Verify fictional CMS signature and constrained profile trust
         working-directory: .
         run: python -m tools.ios_profile_cms_rehearsal
+
+      - name: Rehearse profile intake verification and cleanup without private input
+        working-directory: .
+        run: python -m tools.ios_profile_verification_runner --rehearsal
 
       - name: Set up Flutter 3.47.0
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0

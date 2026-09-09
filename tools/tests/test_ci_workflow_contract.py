@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "python-tests.yml"
 FLUTTER_WORKFLOW = ROOT / ".github" / "workflows" / "flutter-tests.yml"
+PROFILE_WORKFLOW = ROOT / ".github" / "workflows" / "ios-profile-verification.yml"
 IOS_PROJECT = (
     ROOT / "clients" / "flutter_app" / "ios" / "Runner.xcodeproj" / "project.pbxproj"
 )
@@ -151,7 +152,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("os: [ubuntu-latest, windows-latest]", deployment)
         self.assertIn("runs-on: ${{ matrix.os }}", deployment)
         self.assertIn("fail-fast: false", deployment)
-        self.assertIn("tools/requirements-ios-certificate.txt", deployment)
+        self.assertIn("tools/requirements-ios-profile-intake.txt", deployment)
         self.assertIn("tools.tests.test_ios_certificate_preparation", deployment)
         self.assertIn("tools.tests.test_ios_certificate_pair", deployment)
         self.assertIn("tools.tests.test_ios_certificate_packaging", deployment)
@@ -159,6 +160,8 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("tools.tests.test_ios_profile_validation", deployment)
         self.assertIn("tools.tests.test_ios_pkcs12_compatibility", deployment)
         self.assertIn("tools.tests.test_ios_profile_cms_verification", deployment)
+        self.assertIn("tools.tests.test_ios_profile_intake", deployment)
+        self.assertIn("tools.tests.test_ios_profile_verification_runner", deployment)
 
     def test_flutter_is_reusable_with_pinned_platform_contracts(self):
         self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")
@@ -179,7 +182,10 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("runs-on: macos-latest", ios)
         self.assertIn("python -m tools.ios_pkcs12_compatibility", ios)
         self.assertIn("python -m tools.ios_profile_cms_rehearsal", ios)
-        self.assertIn("tools/requirements-ios-certificate.txt", ios)
+        self.assertIn(
+            "python -m tools.ios_profile_verification_runner --rehearsal", ios
+        )
+        self.assertIn("tools/requirements-ios-profile-intake.txt", ios)
         self.assertIn("flutter build ios --release --no-codesign", ios)
         self.assertIn("IOS_TESTFLIGHT_CONTRACT_TEST=YES", ios)
         self.assertIn("IOS_EXTERNAL_SIGNING_READY=NO", ios)
@@ -226,6 +232,73 @@ class WorkflowContractTests(unittest.TestCase):
                 "IPHONEOS_DEPLOYMENT_TARGET = 15.0;",
                 runner_configuration.group(1),
             )
+
+    def test_private_profile_workflow_is_manual_and_separates_private_input(self):
+        source = PROFILE_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(source, r"(?m)^  workflow_dispatch:$")
+        self.assertNotRegex(
+            source,
+            r"(?m)^  (?:push|pull_request|pull_request_target|workflow_run|workflow_call):",
+        )
+        for required in (
+            "permissions:\n  contents: read",
+            "runs-on: macos-15",
+            "environment: ios-profile-verification",
+            "github.run_attempt == 1",
+            "github.sha == inputs.approved_sha",
+            "github.ref == 'refs/heads/main'",
+            "github.repository == 'r06521541/NTUBTOB-management-system'",
+            "persist-credentials: false",
+            "ref: ${{ github.sha }}",
+            "--no-cache-dir -r tools/requirements-ios-profile-intake.txt",
+            "if: always()",
+        ):
+            self.assertIn(required, source)
+        self.assertEqual(source.count("${{ secrets."), 1)
+        self.assertLess(source.index("--prepare"), source.index("${{ secrets."))
+        self.assertLess(source.index("--verify"), source.index("--cleanup"))
+        for forbidden in (
+            "upload-artifact",
+            "actions/cache",
+            "secrets: inherit",
+            "contents: write",
+            "id-token: write",
+            "self-hosted",
+            "set -x",
+        ):
+            self.assertNotIn(forbidden, source)
+        uses = re.findall(r"(?m)^\s*-?\s*uses:\s*([^\s#]+)", source)
+        self.assertEqual(len(uses), 2)
+        self.assertTrue(
+            all(re.fullmatch(r"actions/[^@\s]+@[0-9a-f]{40}", x) for x in uses)
+        )
+
+    def test_private_profile_dependencies_are_hash_locked_binary_only(self):
+        source = (ROOT / "tools" / "requirements-ios-profile-intake.txt").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--require-hashes", source)
+        self.assertIn("--only-binary=:all:", source)
+        logical = source.replace("\\\n", " ")
+        versions = {
+            "cryptography": "50.0.0",
+            "asn1crypto": "1.5.1",
+            "cffi": "2.1.1",
+            "pycparser": "3.0",
+            "typing-extensions": "4.16.0",
+            "PyNaCl": "1.6.2",
+        }
+        packages = [
+            line
+            for line in logical.splitlines()
+            if line and not line.startswith(("#", "--"))
+        ]
+        self.assertEqual(len(packages), len(versions))
+        for package, version in versions.items():
+            matches = [line for line in packages if line.startswith(package + "==")]
+            self.assertEqual(len(matches), 1)
+            self.assertTrue(matches[0].startswith(package + "==" + version + " "))
+            self.assertRegex(matches[0], r"--hash=sha256:[0-9a-f]{64}")
 
     def test_ios_apple_bridge_registrar_fails_closed_when_unavailable(self):
         source = IOS_APP_DELEGATE.read_text(encoding="utf-8")

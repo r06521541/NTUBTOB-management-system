@@ -1,18 +1,18 @@
-active_task: TASK-189
+active_task: TASK-190
 status: in_progress
 next_actor: main-work
-claim_id: task-189-main-20260910
+claim_id: task-190-main-20260910
 lease_version: 1
 actor_id: /root
-base_commit: b25a1c2834dd6418a1acd3bf4f868f4e154dc9fd
+base_commit: 58d90054b52f9c7f5a4788625bd3964ea358c214
 updated_by: main-work
 updated_at: 2026-09-10
 note: >
-  TASK188 merged PR243 with full CI and actual native import PASS. Claims complete.
-  TASK189 writer lease1 and advisor lease3 complete, source ACCEPT. Main integrates
-  one Draft PR; mandatory native rehearsal and full CI must pass before ready/merge.
-  No real assets, private SPI, keychain writes, signing or upload.
+  TASK189 merged PR244, full CI and actual native CMS rehearsal PASS. Claims complete.
+  TASK190 writer lease1 completed; advisor lease3 ACCEPT for software and fictional CI.
+  Live protection-field compatibility remains unverified and fail closed.
+  No real input, Secret or cloud mutation; Main retains integration ownership.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-189.md
-report: docs/coordination/reports/TASK-189.md
-review: docs/coordination/tasks/TASK-189.md
+task: docs/coordination/tasks/TASK-190.md
+report: docs/coordination/reports/TASK-190.md
+review: docs/coordination/reviews/TASK-190.md
