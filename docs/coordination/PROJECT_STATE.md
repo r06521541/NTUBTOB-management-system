@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-09-09（repository 核對；未重新查詢 runtime）
+更新時間：2026-09-10（repository 核對；未重新查詢 runtime）
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`f8c21fef3dc964b3df19121dc72d23d7f76a1f3b`（TASK-185）。
+本次工作起點／已合併證據：`c458d29326072444987fff70b43aa3ec46a5bfa1`（TASK-186）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -58,10 +58,12 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   staging:real Release source可no-codesign編譯。Signed archive、provider、capability/profile與real-device evidence仍是外部gate。
 - TASK-183新增secret-free cloud rehearsal與artifact-only IPA inspection；後者不授權upload/release，default readiness
   gate不變。Owner回報App ID/capability與App Store Connect record已建立，未於本task獨立查證；真實憑證與store操作未做。
-- Owner回報上傳API key已私人保存；另於上述base SHA完成CSR／加密PKCS8建立，Apple Distribution憑證已簽發下載。
+- Owner回報上傳API key已私人保存；另於TASK-185 merged SHA完成CSR／加密PKCS8建立，Apple Distribution憑證已簽發下載。
   未讀取或獨立驗證實際檔案，不再依據較早的Certificates空白狀態建立替代憑證。
 - TASK-185純記憶體配對工具已由PR240合併且完整CI成功；配對不等於Apple信任或簽章授權。
-- TASK-186實作安全本機讀檔、固定Apple公開信任鏈及加密PKCS12工具；僅虛構測試，實際私鑰讀取／轉檔仍待exact Owner gate。
+- TASK-186已合併；Owner於exact批准後回報加密PKCS12轉檔confirmed_success，另已下載App Store Connect profile。
+  不重做轉檔；profile可信CMS、Team/App配對及macOS native import尚未驗證。
+- TASK-187準備純記憶體profile內容配對核心；即使配對成功仍非CMS可信、私鑰持有或簽章授權，不讀Owner檔案。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

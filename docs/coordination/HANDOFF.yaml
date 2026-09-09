@@ -1,46 +1,19 @@
-# Singleton invariant: if active_task is null, status is completed,
-# next_actor is owner, and task/report/review are all null.
-# Cross-session messages are transport only and never override this file.
-active_task: TASK-186
+active_task: TASK-187
 status: in_progress
 next_actor: main-work
-
-claim_id: task-186-main-20260909
+claim_id: task-187-main-20260910
 lease_version: 1
 actor_id: /root
-
-base_commit: f8c21fef3dc964b3df19121dc72d23d7f76a1f3b
-
+base_commit: c458d29326072444987fff70b43aa3ec46a5bfa1
 updated_by: main-work
-updated_at: 2026-09-09
-
+updated_at: 2026-09-10
 note: >
-  Owner resumed bounded ACL diagnosis. Main researches native ownership semantics;
-  reviewer lease4 assesses correction without weakening existing-file checks.
-  Lease4 architecture accepted; writer lease3 makes CREATE_NEW ownership explicit
-  with protected single-user DACL. Existing files remain untouched and strict.
-  Writer lease3 complete, Main received packet; reviewer lease5 checks final delta.
-  Lease5 ACCEPT received; native14 run/13 PASS/1 symlink privilege skip. Claims
-  complete. Main runs one resumed evidence-bearing hosted gate before merge.
-  TASK185 merged PR240 with full CI34313053719 PASS. Old claims complete.
-  Owner reports local CSR creation succeeded at this base and Apple Distribution
-  certificate issued/downloaded; not independently inspected. TASK186 prepares
-  safe intake/trust/encrypted packaging with fictional fixtures only. Security
-  architecture review accepted; writer complete and Main received final packet.
-  Independent lease2 ACCEPT received; both agent claims complete. Main integrates
-  one PR and required CI before merge; later immutable evidence supersedes this
-  premerge checkpoint, never the actual Owner gate.
-  First Windows CI rejected four fixture directory metadata checks before I/O;
-  writer lease2 reproduced short-path fixture issue and corrected only fixtures.
-  Independent lease3 ACCEPT received; Main runs one corrected same-PR gate.
-  Corrected run34370291133 at6beeaac3d1321b8ec989eb16d10bb1a4a45bdfb0
-  passes path checks but four native fixture tests reject file ACL before I/O.
-  No further retry or guard weakening. PR241 remains unmerged. Next is bounded
-  fixture-only owner-SID/DACL category diagnosis and a new reviewed correction
-  scope, not a real Owner experiment. No private operation may be released.
-  No actual private files, signing, Apple actions, upload or Secrets authorized.
-
+  TASK186 merged PR241 with full CI PASS. Owner reports approved P12 success
+  and profile download. Never repeat generation. TASK187 architecture ACCEPT;
+  writer lease1 and advisor lease2 complete; Main received independent ACCEPT.
+  Main integrates one PR and required CI; merge does not authorize private operations.
+  No real assets, signing, upload or Apple mutation.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-186.md
-report: docs/coordination/reports/TASK-186.md
+task: docs/coordination/tasks/TASK-187.md
+report: docs/coordination/reports/TASK-187.md
 review: pending

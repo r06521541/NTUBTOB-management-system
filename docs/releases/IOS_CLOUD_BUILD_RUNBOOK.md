@@ -193,13 +193,15 @@ py -3.10 -m unittest tools.tests.test_ios_certificate_pair tools.tests.test_ios_
    explicitly scoped issuance step. Never upload `distribution-private-key.pem`
    or the API `.p8` as the CSR. Owner now reports Apple Distribution issuance
    and certificate download complete; the actual file remains uninspected.
-3. **Validation/conversion:** safe actual-file intake, trusted Apple chain and
-   distribution/team checks, encrypted-key possession and PKCS12 packaging still
-   need a reviewed wrapper. The new pair library supplies one check, not that
-   complete procedure. Do not ask Owner to improvise OpenSSL/private commands.
-4. **Profile/cloud custody:** select the matching existing App/capabilities and
-   distribution profile; establish protected Environment custody and a reviewed
-   temporary-keychain workflow. Neither is created by this delivery. No public
+3. **Validation/conversion completed (Owner report):** after exact approval at
+   `c458d29326072444987fff70b43aa3ec46a5bfa1`, TASK-186 returned
+   `OFFLINE_PACKAGE_VERIFIED` / `confirmed_success`. Do not package again.
+   Offline chain/purpose/private-key matching do not establish Team/profile,
+   revocation, native macOS import or signing authority.
+4. **Profile/cloud custody:** Owner reports App Store Connect profile downloaded;
+   no profile contents were inspected here. Verify the existing profile rather
+   than generating replacements. Protected Environment custody and a reviewed
+   temporary-keychain workflow remain unimplemented. No public
    Actions artifact is an approved place for private signing assets or an IPA.
 5. **Build then upload separately:** exact candidate signing/cleanup/inspection,
    private artifact handoff and one upload remain separate gates. Existing
@@ -214,6 +216,8 @@ upload after an uncertain result.
 ## TASK-186 local packaging boundary
 
 The separate packaging operator is implemented and tested with fictional assets.
+Owner subsequently reports the exact approved operation succeeded (see above).
+The instructions below describe its contract, not a request to execute again.
 Do not execute against genuine assets until independent review, hosted checks
 and exact Owner approval of the reviewed commit. Do not paste private inputs.
 It will preserve the existing CSR/key and exclusively create an encrypted
@@ -278,6 +282,37 @@ Native ownership reference:
 
 Parsing/validity API reference:
 [cryptography X.509](https://cryptography.io/en/50.0.0/x509/reference/).
+
+## TASK-187 profile content boundary
+
+The pure in-memory `tools.ios_profile_validation` core checks bounded decoded
+XML plist content against expected App/Team/certificate categories and an explicit
+verification time. It is not a `.mobileprovision` reader, CMS decoder, Owner-input
+wrapper or cloud signing entry. Only fictional fixtures are used in this delivery.
+Binary plist is deliberately unsupported; XML entity expansion and arbitrary DTD
+declarations are rejected. A recognized standard Apple DTD is never fetched.
+
+Success is `PROFILE_CONTENT_MATCH_ONLY`. Even a forged profile with matching
+content cannot establish CMS signature, Apple trust, revocation, private-key
+possession, native import, signing, upload or release authority. No caller flag
+can upgrade this result. The initial contract is intentionally narrower than all
+historical Apple profiles; unsupported prefixes/types stop, not auto-correct.
+
+The existing IPA inspector's `security cms -D` call is not accepted as proof of
+trusted CMS verification or a side-effect-free standalone intake. Apple's source
+contains certificate import paths and does not propagate every signer verification
+failure as a decode failure. Its existing output must not be promoted into a new
+profile trust gate. TASK-187 does not invoke or alter that native path.
+
+Before real signing, separately reviewed maintained native CMS verification must
+establish the signer, Apple trust/purpose and exact authenticated content. Then
+the content core can contribute correspondence evidence. Native macOS import of
+the actual PKCS12 encryption format is another independent prerequisite; Python
+roundtrip and simulated lifecycle traces cannot replace it. No cloud workflow or
+real downloaded-profile inspection is released by this content-only delivery.
+
+Sources: [Apple profile structure](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles),
+[Apple CMS command implementation](https://github.com/apple-oss-distributions/Security/blob/main/SecurityTool/macOS/cmsutil.c).
 
 ## Official references checked 2026-09-08
 
