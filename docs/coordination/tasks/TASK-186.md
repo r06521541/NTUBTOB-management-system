@@ -1,5 +1,38 @@
 # TASK-186: Safe local Apple certificate packaging
 
+## Owner-resumed ACL diagnosis
+
+Owner explicitly resumes2026-09-09 after corrected CI ACL failure. Current head
+`6beeaac3d1321b8ec989eb16d10bb1a4a45bdfb0`; existing dirty HANDOFF/report are Main's
+blocked checkpoint and must be preserved. Scope: classify fictional native file
+owner/DACL only, prove cause before correction. No Owner assets, relaxed ACL
+acceptance or repair of existing files. Elevated-token default owner is a
+hypothesis, not yet hosted evidence. Main researches native creation semantics.
+Reviewer `/root/task181_review`, advisor, same security claim lease4, read-only,
+report_to `/root`: assess explicit owner/DACL at new-output creation versus
+fixture-only correction; send immediate ACK and bounded architectural verdict.
+No implementation claim until Main reconciles evidence/design.
+Lease4 architecture ACCEPT received. Microsoft documents token-default ownership;
+hosted exact root cause remains to be confirmed with fixed boolean categories.
+Writer `/root/csr_writer`, same writer claim lease3, owns only
+`tools/ios_certificate_custody.py`, `tools/tests/test_ios_certificate_custody.py`.
+Implement CREATE_NEW-only explicit current-user owner/protected single-user full
+control DACL via SECURITY_ATTRIBUTES, noninheritable handle, descriptors alive
+through call. No caller SDDL, token changes, privilege enablement, post-create
+repair or existing-input changes. Existing same-handle validation stays strict.
+Fictional fixtures use explicit creation and independently verify owner/DACL;
+diagnose default token owner equality with fixed booleans, never SID/account.
+Test wrong owner rejects and descriptor failure creates no writable payload.
+Immediate ACK/proactive completion to `/root`; independent implementation review
+and one evidence-bearing corrected CI before release. No real Owner operation.
+Writer lease3 completed; Main received native14 run/13 PASS/1 symlink skip,
+packaging12 PASS and quality/diff PASS. Local default-owner diagnostic booleans
+all true; hosted cause not yet established. Reviewer same security claim lease5
+now performs read-only implementation acceptance on the frozen two-file delta.
+Lease5 ACCEPT received with independently repeated native14 run/13 PASS/1 skip;
+Main received completion. Claims complete. Main integration26 run/1 platform skip
+otherwise PASS and quality/diff PASS. Proceed one resumed evidence-bearing CI.
+
 - type: delivery; delivery_group: task-186-ios-certificate-packaging; risk: L3
 - base: `f8c21fef3dc964b3df19121dc72d23d7f76a1f3b`
 - branch: `codex/task-186-ios-certificate-packaging`

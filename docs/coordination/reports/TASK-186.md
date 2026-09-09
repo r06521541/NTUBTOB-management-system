@@ -44,3 +44,30 @@ Native10 run/9 PASS/1 symlink privilege skip; explicit alias and junction PASS.
 Independent lease3 delta review and corrected same-PR CI required before merge.
 Lease3 ACCEPT received; independent native10 run/9 PASS/1 symlink skip. Product
 modules unchanged, diff check PASS. Main proceeds one corrected same-PR run.
+
+Corrected run34370291133 at6beeaac3d1321b8ec989eb16d10bb1a4a45bdfb0:
+Windows60 tests,4 errors at native file ACL check (line234), after directory
+metadata passed. This is not the prior short-path mismatch. Root cause remains
+unproven: owner SID mismatch or missing DACL/owner needs categorical fixture-only
+diagnosis. Do not infer that elevated runner ownership is proven. No further
+blind retry or real Owner run; PR241 is unmerged. Next scope must explicitly
+resolve native fixture ownership versus operator custody, independently reviewed.
+Current implementation cannot be handed to Owner as ready. Main retains local
+blocked handoff; no separate coordination-only PR/CI run.
+
+Owner resumed the blocked work. Microsoft native ownership documentation shows
+that unspecified owner comes from the creator token; parent ACL inheritance
+does not guarantee the current-user owner required by custody. Security lease4
+architecture ACCEPT: explicit CREATE_NEW owner/protected DACL, no repair of
+existing inputs or ACL relaxation. Writer lease3 implements the native creation
+boundary plus independent fictional metadata checks. Fixed boolean diagnostics
+will distinguish default token owner from user without outputting any SID.
+Prior corrected CI otherwise passed all required jobs; its final gate failure
+was downstream of Windows tools. No genuine private operation is released.
+Writer lease3 complete and independent lease5 ACCEPT received. Both native suites
+14 run/13 PASS/1 symlink privilege skip; packaging12 PASS; Main integration26
+run/1 platform skip otherwise PASS. Explicit current-user owner/protected DACL
+and noninheritable returned handle verified by native independent queries;
+descriptor failure never calls CreateFile, wrong-owner still rejects. Quality
+and diff PASS. Local diagnostic four booleans true; hosted mismatch remains
+unconfirmed until the evidence-bearing next run. Existing files are never repaired.

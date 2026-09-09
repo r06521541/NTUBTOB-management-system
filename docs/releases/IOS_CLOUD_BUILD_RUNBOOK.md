@@ -251,6 +251,11 @@ No shell arguments/environment/input-file fallback is supported for secrets.
 The operator locks directory rename and input write/delete while using the same
 native handles for metadata, ACL and I/O. It rejects unsafe ACL, reparse paths,
 multiple hardlinks, oversized input and existing output. It never repairs ACLs.
+New output is created with an explicit current-user owner and protected
+single-user DACL, not the process token's potentially different default owner.
+The returned handle is checked before any payload write. Existing input owner
+checks remain strict; an elevated terminal does not authorize taking ownership
+or changing original files. Use a normal personal terminal for the Owner flow.
 Copy (do not move) the public downloaded certificate into the protected folder
 only when the exact Owner procedure is released; moving may retain unsafe ACLs.
 Keep the original download; do not copy any private key into Downloads or Git.
@@ -267,6 +272,9 @@ Sources: [Apple PKI](https://www.apple.com/certificateauthority/),
 [WWDR purposes](https://developer.apple.com/help/account/certificates/wwdr-intermediate-certificates/),
 [Apple WWDR CPS1.32](https://images.apple.com/certificateauthority/pdf/Apple_WWDR_CPS_v1.32.pdf),
 [cryptography50 PKCS12](https://cryptography.io/en/50.0.0/hazmat/primitives/asymmetric/serialization/).
+
+Native ownership reference:
+[Microsoft: owner of a new object](https://learn.microsoft.com/en-us/windows/win32/secauthz/owner-of-a-new-object).
 
 Parsing/validity API reference:
 [cryptography X.509](https://cryptography.io/en/50.0.0/x509/reference/).

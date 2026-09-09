@@ -62,6 +62,26 @@ class ACLHeader(c.Structure):
     ]
 
 
+class SecurityDescriptor(c.Structure):
+    _fields_ = [
+        ("revision", c.c_ubyte),
+        ("reserved", c.c_ubyte),
+        ("control", w.WORD),
+        ("owner", c.c_void_p),
+        ("group", c.c_void_p),
+        ("sacl", c.c_void_p),
+        ("dacl", c.c_void_p),
+    ]
+
+
+class SecurityAttributes(c.Structure):
+    _fields_ = [
+        ("length", w.DWORD),
+        ("descriptor", c.c_void_p),
+        ("inherit_handle", w.BOOL),
+    ]
+
+
 class Native:
     def __init__(self):
         if sys.platform != "win32":
@@ -164,6 +184,7 @@ class Native:
             if not 8 <= length <= 68:
                 raise CustodyError("IDENTITY_REJECTED")
             self.sid = c.create_string_buffer(c.string_at(sid, length))
+            self.sid_size = length
         finally:
             self.close(token)
 
@@ -179,11 +200,14 @@ class Native:
         if create:
             access |= 0x40000000
         share = 3 if ancestor else 0 if create else 1
+        # Keep absolute descriptor, ACL and SID buffers alive through CreateFile.
+        # Existing inputs retain their original descriptor and open semantics.
+        security = self.creation_security() if create else None
         handle = self.open(
             str(path),
             access,
             share,
-            None,
+            c.byref(security[0]) if security else None,
             1 if create else 3,
             0x00200000 | (0x02000000 if directory else 0x80),
             None,
@@ -191,6 +215,48 @@ class Native:
         if handle == c.c_void_p(-1).value:
             raise CustodyError("HANDLE_REJECTED")
         return handle
+
+    def creation_security(self):
+        ptr = c.c_void_p
+        initialize_sd = self.bind(
+            self.security, "InitializeSecurityDescriptor", w.BOOL, [ptr, w.DWORD]
+        )
+        set_owner = self.bind(
+            self.security, "SetSecurityDescriptorOwner", w.BOOL, [ptr, ptr, w.BOOL]
+        )
+        initialize_acl = self.bind(
+            self.security, "InitializeAcl", w.BOOL, [ptr, w.DWORD, w.DWORD]
+        )
+        add_ace = self.bind(
+            self.security,
+            "AddAccessAllowedAceEx",
+            w.BOOL,
+            [ptr, w.DWORD, w.DWORD, w.DWORD, ptr],
+        )
+        set_dacl = self.bind(
+            self.security,
+            "SetSecurityDescriptorDacl",
+            w.BOOL,
+            [ptr, w.BOOL, ptr, w.BOOL],
+        )
+        set_control = self.bind(
+            self.security, "SetSecurityDescriptorControl", w.BOOL, [ptr, w.WORD, w.WORD]
+        )
+        descriptor = SecurityDescriptor()
+        acl = c.create_string_buffer(c.sizeof(ACLHeader) + 8 + self.sid_size)
+        if (
+            not initialize_sd(c.byref(descriptor), 1)
+            or not set_owner(c.byref(descriptor), self.sid, False)
+            or not initialize_acl(acl, len(acl), 2)
+            or not add_ace(acl, 2, 0, 0x1F01FF, self.sid)
+            or not set_dacl(c.byref(descriptor), True, acl, False)
+            or not set_control(c.byref(descriptor), 0x1000, 0x1000)
+        ):
+            raise CustodyError("ACL_REJECTED")
+        attributes = SecurityAttributes(
+            c.sizeof(SecurityAttributes), c.addressof(descriptor), False
+        )
+        return attributes, descriptor, acl
 
     def metadata(self, handle, path, *, directory=False, allow_empty=False):
         info = FileInfo()

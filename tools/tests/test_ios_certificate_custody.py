@@ -1,6 +1,7 @@
 """Windows custody tests only create disposable fictional files."""
 
 import ctypes
+import json
 import os
 import struct
 import sys
@@ -24,7 +25,186 @@ class CustodyTests(unittest.TestCase):
         self.path.mkdir()
         preparation.secure_acl(self.path, establish=True)
         for name in custody.INPUTS:
-            (self.path / name).write_bytes(b"fictional-public-or-encrypted-fixture")
+            native = custody.Native()
+            handle = native.open_handle(self.path / name, create=True)
+            try:
+                native.acl(handle)
+                data = b"fictional-public-or-encrypted-fixture"
+                count = custody.w.DWORD()
+                self.assertTrue(
+                    native.write(
+                        handle,
+                        ctypes.create_string_buffer(data),
+                        len(data),
+                        ctypes.byref(count),
+                        None,
+                    )
+                )
+                self.assertEqual(count.value, len(data))
+                self.assertTrue(native.flush(handle))
+            finally:
+                native.close(handle)
+
+    def security_facts(self, native, handle):
+        owner, dacl, descriptor = [ctypes.c_void_p() for _ in range(3)]
+        self.assertEqual(
+            native.get_security(
+                handle,
+                1,
+                5,
+                ctypes.byref(owner),
+                None,
+                ctypes.byref(dacl),
+                None,
+                ctypes.byref(descriptor),
+            ),
+            0,
+        )
+        try:
+            control, revision = custody.w.WORD(), custody.w.DWORD()
+            self.assertTrue(
+                native.get_control(
+                    descriptor, ctypes.byref(control), ctypes.byref(revision)
+                )
+            )
+            one_user = False
+            if (
+                dacl
+                and ctypes.cast(dacl, ctypes.POINTER(custody.ACLHeader)).contents.count
+                == 1
+            ):
+                ace = ctypes.c_void_p()
+                self.assertTrue(native.get_ace(dacl, 0, ctypes.byref(ace)))
+                data = ctypes.string_at(ace, 8)
+                one_user = (
+                    data[0] == 0
+                    and not data[1] & 8
+                    and int.from_bytes(data[4:8], "little") == 0x1F01FF
+                    and bool(native.equal_sid(ace.value + 8, native.sid))
+                )
+            return dict(
+                owner_present=bool(owner),
+                dacl_present=bool(dacl),
+                owner_matches_token_user=bool(
+                    owner and native.equal_sid(owner, native.sid)
+                ),
+                protected_dacl=bool(control.value & 0x1000),
+                single_user_full_control=one_user,
+            )
+        finally:
+            native.free(descriptor)
+
+    def test_explicit_creation_security_and_noninheritable_handle(self):
+        native = custody.Native()
+        handle = native.open_handle(self.path / "explicit-fictional-file", create=True)
+        try:
+            self.assertTrue(all(self.security_facts(native, handle).values()))
+            get_flags = native.bind(
+                native.kernel,
+                "GetHandleInformation",
+                custody.w.BOOL,
+                [custody.w.HANDLE, ctypes.POINTER(custody.w.DWORD)],
+            )
+            flags = custody.w.DWORD()
+            self.assertTrue(get_flags(handle, ctypes.byref(flags)))
+            self.assertEqual(flags.value & 1, 0)
+        finally:
+            native.close(handle)
+
+    def test_default_created_file_owner_diagnostic(self):
+        native = custody.Native()
+        path = self.path / "default-fictional-file"
+        path.write_bytes(b"fictional-default-owner-probe")
+        handle = native.open_handle(path)
+        try:
+            facts = self.security_facts(native, handle)
+            if not facts["owner_matches_token_user"]:
+                with self.assertRaises(custody.CustodyError):
+                    native.acl(handle)
+        finally:
+            native.close(handle)
+        open_token = native.bind(
+            native.security,
+            "OpenProcessToken",
+            custody.w.BOOL,
+            [custody.w.HANDLE, custody.w.DWORD, ctypes.POINTER(custody.w.HANDLE)],
+        )
+        token_info = native.bind(
+            native.security,
+            "GetTokenInformation",
+            custody.w.BOOL,
+            [
+                custody.w.HANDLE,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                custody.w.DWORD,
+                ctypes.POINTER(custody.w.DWORD),
+            ],
+        )
+        process = native.bind(native.kernel, "GetCurrentProcess", custody.w.HANDLE, [])
+        token = custody.w.HANDLE()
+        self.assertTrue(open_token(process(), 8, ctypes.byref(token)))
+        try:
+            size = custody.w.DWORD()
+            token_info(token, 4, None, 0, ctypes.byref(size))
+            self.assertTrue(0 < size.value <= 65536)
+            buffer = ctypes.create_string_buffer(size.value)
+            self.assertTrue(token_info(token, 4, buffer, size, ctypes.byref(size)))
+            owner = ctypes.cast(buffer, ctypes.POINTER(ctypes.c_void_p)).contents.value
+            default_matches = bool(native.equal_sid(owner, native.sid))
+        finally:
+            native.close(token)
+        diagnostic = {
+            key: facts[key]
+            for key in ("owner_present", "dacl_present", "owner_matches_token_user")
+        }
+        diagnostic["token_default_owner_matches_user"] = default_matches
+        self.assertTrue(all(type(value) is bool for value in diagnostic.values()))
+        print("DEFAULT_OWNER_DIAGNOSTIC " + json.dumps(diagnostic, sort_keys=True))
+
+    def test_wrong_owner_comparison_rejected(self):
+        native = custody.Native()
+        handle = native.open_handle(self.path / custody.INPUTS[0])
+        try:
+            # Compare the actual descriptor against a known different SID;
+            # no process token or existing file owner is changed.
+            world_sid = ctypes.create_string_buffer(68)
+            size = custody.w.DWORD(len(world_sid))
+            create_sid = native.bind(
+                native.security,
+                "CreateWellKnownSid",
+                custody.w.BOOL,
+                [
+                    ctypes.c_int,
+                    ctypes.c_void_p,
+                    ctypes.c_void_p,
+                    ctypes.POINTER(custody.w.DWORD),
+                ],
+            )
+            self.assertTrue(create_sid(1, None, world_sid, ctypes.byref(size)))
+            with (
+                patch.object(native, "sid", world_sid),
+                self.assertRaises(custody.CustodyError),
+            ):
+                native.acl(handle)
+        finally:
+            native.close(handle)
+
+    def test_descriptor_failure_never_calls_createfile(self):
+        with custody.Custody(self.path) as session:
+            with (
+                patch.object(
+                    session.native,
+                    "creation_security",
+                    side_effect=custody.CustodyError("ACL_REJECTED"),
+                ),
+                patch.object(session.native, "open") as createfile,
+            ):
+                with self.assertRaises(custody.CustodyError):
+                    session.write_output(b"fictional-encrypted-output")
+                createfile.assert_not_called()
+                self.assertTrue(session.output_attempted)
+        self.assertFalse((self.path / custody.OUTPUT).exists())
 
     def test_handle_read_write_locks_and_no_overwrite(self):
         with custody.Custody(self.path) as session:
