@@ -156,6 +156,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("tools.tests.test_ios_certificate_pair", deployment)
         self.assertIn("tools.tests.test_ios_certificate_packaging", deployment)
         self.assertIn("tools.tests.test_ios_certificate_custody", deployment)
+        self.assertIn("tools.tests.test_ios_profile_validation", deployment)
 
     def test_flutter_is_reusable_with_pinned_platform_contracts(self):
         self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")
