@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`c458d29326072444987fff70b43aa3ec46a5bfa1`（TASK-186）。
+本次工作起點／已合併證據：`e18f376f51ca755d1305052fe2f0ec13d0c175f4`（TASK-187）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -63,7 +63,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - TASK-185純記憶體配對工具已由PR240合併且完整CI成功；配對不等於Apple信任或簽章授權。
 - TASK-186已合併；Owner於exact批准後回報加密PKCS12轉檔confirmed_success，另已下載App Store Connect profile。
   不重做轉檔；profile可信CMS、Team/App配對及macOS native import尚未驗證。
-- TASK-187準備純記憶體profile內容配對核心；即使配對成功仍非CMS可信、私鑰持有或簽章授權，不讀Owner檔案。
+- TASK-187已合併純記憶體profile內容配對核心；配對成功仍非CMS可信、私鑰持有或簽章授權，不讀Owner檔案。
+- TASK-188準備macOS15+純記憶體PKCS12原生相容性測試；只用虛構資產，不寫入鑰匙圈或授權真實簽章。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
