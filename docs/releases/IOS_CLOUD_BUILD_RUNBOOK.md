@@ -88,8 +88,8 @@ signing are still not implemented by that operator.
 
 The certificate-preparation operator is a separate local-only boundary, not the
 cloud rehearsal or upload adapter. Owner reports the upload API `.p8` is safely
-saved and Apple Certificates is empty; neither report authorizes reading that
-file, replacing a key or creating an Apple certificate automatically.
+saved; it must not be read or replaced by this operator. The earlier empty
+Certificates report is superseded by Owner's subsequent issuance report.
 
 The local tool prepares one RSA-2048/SHA-256 certificate signing request and its
 passphrase-encrypted PKCS8 private key. The CSR carries its common name/email;
@@ -185,15 +185,14 @@ py -3.10 -m unittest tools.tests.test_ios_certificate_pair tools.tests.test_ios_
 
 ## Short Owner return sequence and remaining software gaps
 
-1. **Local creation:** recheck the exact reviewed TASK184 checkout and fresh
-   output directory, then Owner personally enters hidden name/email/new
-   encryption password and the one-shot confirmation. The approved original
-   commit is `47e832e685b68c0f50803decd989f36c38fc2651`; do not silently substitute
-   a later checkout. No real output has been reported created as of2026-09-09.
+1. **Local creation completed (Owner report):** Owner refreshed exact approval
+   to `f8c21fef3dc964b3df19121dc72d23d7f76a1f3b` and reported confirmed success.
+   Do not rerun creation, replace the key or treat this as independent inspection.
 2. **Apple issuance:** after creation succeeds, Owner checks the intended team
    and certificate type and submits only `distribution.csr` to Apple in an
    explicitly scoped issuance step. Never upload `distribution-private-key.pem`
-   or the API `.p8` as the CSR. Downloaded certificate is separate from both keys.
+   or the API `.p8` as the CSR. Owner now reports Apple Distribution issuance
+   and certificate download complete; the actual file remains uninspected.
 3. **Validation/conversion:** safe actual-file intake, trusted Apple chain and
    distribution/team checks, encrypted-key possession and PKCS12 packaging still
    need a reviewed wrapper. The new pair library supplies one check, not that
@@ -211,6 +210,71 @@ Owner need not perform steps2–5 merely to finish step1. Their acceptance and
 private-input boundaries must be ready before requesting another Owner session.
 No stage grants the next stage automatic authority; no repeated generation or
 upload after an uncertain result.
+
+## TASK-186 local packaging boundary
+
+The separate packaging operator is implemented and tested with fictional assets.
+Do not execute against genuine assets until independent review, hosted checks
+and exact Owner approval of the reviewed commit. Do not paste private inputs.
+It will preserve the existing CSR/key and exclusively create an encrypted
+`distribution.p12` in the existing protected local directory; no plaintext key
+file, public artifact, network call, system keychain or Apple resource mutation.
+Owner will later place the downloaded certificate as `distribution.cer` in that
+directory; do not search Downloads or copy it automatically during development.
+
+Pinned public Apple Root and WWDR G3 are repository trust inputs, not private
+Owner assets. Offline chain signatures/validity and Apple Distribution purpose
+do not establish current revocation status, intended Team/App/profile or signing
+authority. Those remain separate gates. Unknown chains or critical extensions
+must stop rather than fetching AIA URLs or trusting caller/system anchors.
+
+The fixed distribution profile is based on Apple WWDR CPS1.32 section4.11.24:
+RSA/SHA2, digital-signature usage, code-signing EKU, non-CA and both submission
+markers. This does not rely on a displayed certificate name. Only the pinned
+legacy root self-signature may use SHA1; leaf signatures may not.
+
+PKCS12 password encryption alone is not a safe custody boundary. Keep the
+restricted local ACL and separate strong password; do not email/upload the file
+or put it in Git. Future secure cloud custody requires its own approved flow.
+Modern AES256/SHA256 packaging compatibility with the eventual macOS import must
+be demonstrated there, not inferred from a Python roundtrip.
+
+Reviewed entry will be `py -3.10 -m tools.ios_certificate_packaging
+--expected-commit <reviewed-full-SHA>`. Default preflight only opens/validates
+metadata-bound handles and checks repository/trust configuration; it does not
+read file payloads, prompt for passwords or create output. A separately released
+Owner run adds `--execute`, displays the exact local action, then requires hidden
+`PACKAGE P12 <reviewed-full-SHA>` confirmation. Existing key password, new P12
+password and its repeat are entered only in that interactive local terminal.
+No shell arguments/environment/input-file fallback is supported for secrets.
+
+The operator locks directory rename and input write/delete while using the same
+native handles for metadata, ACL and I/O. It rejects unsafe ACL, reparse paths,
+multiple hardlinks, oversized input and existing output. It never repairs ACLs.
+New output is created with an explicit current-user owner and protected
+single-user DACL, not the process token's potentially different default owner.
+The returned handle is checked before any payload write. Existing input owner
+checks remain strict; an elevated terminal does not authorize taking ownership
+or changing original files. Use a normal personal terminal for the Owner flow.
+Copy (do not move) the public downloaded certificate into the protected folder
+only when the exact Owner procedure is released; moving may retain unsafe ACLs.
+Keep the original download; do not copy any private key into Downloads or Git.
+
+`preflight_passed` proves metadata only. `confirmed_success` proves local offline
+package checks, not signing permission. `pre_execution_rejected` requires fixing
+the reported fixed stage/reason and a new preflight; `uncertain` preserves partial
+encrypted output and prohibits retry/deletion until a separate reconciliation.
+No sensitive values, raw exceptions, private hashes or file contents appear in
+the single sanitized result. Same-user malware, administrators, device loss and
+guaranteed Python memory zeroization remain outside these safeguards.
+
+Sources: [Apple PKI](https://www.apple.com/certificateauthority/),
+[WWDR purposes](https://developer.apple.com/help/account/certificates/wwdr-intermediate-certificates/),
+[Apple WWDR CPS1.32](https://images.apple.com/certificateauthority/pdf/Apple_WWDR_CPS_v1.32.pdf),
+[cryptography50 PKCS12](https://cryptography.io/en/50.0.0/hazmat/primitives/asymmetric/serialization/).
+
+Native ownership reference:
+[Microsoft: owner of a new object](https://learn.microsoft.com/en-us/windows/win32/secauthz/owner-of-a-new-object).
 
 Parsing/validity API reference:
 [cryptography X.509](https://cryptography.io/en/50.0.0/x509/reference/).
