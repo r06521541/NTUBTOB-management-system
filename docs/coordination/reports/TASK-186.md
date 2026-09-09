@@ -34,3 +34,13 @@ suite55 run/1 platform skip otherwise PASS; working-tree quality6 files PASS.
 Hosted CI pending. Actual certificate/key validation,
 conversion, Apple/profile/cloud signing/upload remain unperformed and ungated.
 Owner reports issuance/download; this is not independently verified evidence.
+
+First PR241 run34369544503 at431e71b4f62c0346591dc56541e25ca17c75ac14:
+Windows four native tests rejected directory metadata before I/O. Writer locally
+reproduced an8.3 temp alias versus same-handle canonical final path mismatch.
+Test fixtures now resolve the existing temp root; a regression proves aliases
+still reject and canonical paths accept. Production custody is unchanged.
+Native10 run/9 PASS/1 symlink privilege skip; explicit alias and junction PASS.
+Independent lease3 delta review and corrected same-PR CI required before merge.
+Lease3 ACCEPT received; independent native10 run/9 PASS/1 symlink skip. Product
+modules unchanged, diff check PASS. Main proceeds one corrected same-PR run.

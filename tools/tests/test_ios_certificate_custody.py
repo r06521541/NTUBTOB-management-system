@@ -18,7 +18,9 @@ class CustodyTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.path = Path(temporary.name) / "fictional"
+        # Hosted Windows TEMP may use an 8.3 user-profile alias. Production
+        # custody deliberately requires the canonical handle path spelling.
+        self.path = Path(temporary.name).resolve(strict=True) / "fictional"
         self.path.mkdir()
         preparation.secure_acl(self.path, establish=True)
         for name in custody.INPUTS:
@@ -48,6 +50,33 @@ class CustodyTests(unittest.TestCase):
             with custody.Custody(self.path):
                 self.fail("existing output accepted")
 
+    def test_short_alias_rejected_canonical_handle_path_accepted(self):
+        directory = self.path / "fictional-long-directory"
+        directory.mkdir()
+        canonical = directory.resolve(strict=True)
+        native = custody.Native()
+        short_path = native.bind(
+            native.kernel,
+            "GetShortPathNameW",
+            custody.w.DWORD,
+            [custody.w.LPCWSTR, custody.w.LPWSTR, custody.w.DWORD],
+        )
+        buffer = ctypes.create_unicode_buffer(32768)
+        length = short_path(str(canonical), buffer, len(buffer))
+        self.assertGreater(length, 0)
+        self.assertLess(length, len(buffer))
+        alias = Path(buffer.value)
+        if os.path.normcase(str(alias)) == os.path.normcase(str(canonical)):
+            self.skipTest("8.3 aliases unavailable on the fixture volume")
+        handle = native.open_handle(alias, directory=True)
+        try:
+            with self.assertRaises(custody.CustodyError) as error:
+                native.metadata(handle, alias, directory=True)
+            self.assertEqual(str(error.exception), "METADATA_REJECTED")
+            native.metadata(handle, canonical, directory=True)
+        finally:
+            native.close(handle)
+
     def test_multiple_links_and_size_rejected(self):
         os.link(self.path / custody.INPUTS[0], self.path / "fictional-link")
         with self.assertRaises(custody.CustodyError):
@@ -62,7 +91,7 @@ class CustodyTests(unittest.TestCase):
     def test_unprotected_directory_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
             with self.assertRaises(custody.CustodyError):
-                with custody.Custody(Path(temporary)):
+                with custody.Custody(Path(temporary).resolve(strict=True)):
                     self.fail("unprotected directory accepted")
 
     def test_output_acl_failure_preserves_empty_file_without_write(self):

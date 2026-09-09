@@ -23,6 +23,9 @@ note: >
   Independent lease2 ACCEPT received; both agent claims complete. Main integrates
   one PR and required CI before merge; later immutable evidence supersedes this
   premerge checkpoint, never the actual Owner gate.
+  First Windows CI rejected four fixture directory metadata checks before I/O;
+  writer lease2 reproduced short-path fixture issue and corrected only fixtures.
+  Independent lease3 ACCEPT received; Main runs one corrected same-PR gate.
   No actual private files, signing, Apple actions, upload or Secrets authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system

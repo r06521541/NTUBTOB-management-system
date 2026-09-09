@@ -41,6 +41,23 @@ Independent lease2 ACCEPT received with21 run/20 PASS/1 symlink privilege skip;
 both claims complete. Main integrates one PR/full hosted gate under standing
 Git authorization. No actual private operation authorized by merge.
 
+## Hosted custody fixture correction
+
+PR241 head `431e71b4f62c0346591dc56541e25ca17c75ac14`, run34369544503:
+Linux tools PASS; Windows4 tests reject directory metadata before I/O.
+Writer same claim lease2 owns only `tools/tests/test_ios_certificate_custody.py`
+for bounded fictional diagnosis of short-path temp alias versus native final
+path, and fixture-only correction if proven. Do not relax production metadata
+checks or retry unchanged CI. Report reproduction/evidence; independent review
+before same-PR correction. If another cause or production change required,
+stop and report to Main. No Owner assets or external mutations.
+Writer lease2 complete: native8.3 alias mismatch reproduced; fixture canonicalized
+and explicit alias-reject/canonical-accept regression added.10 native run/9 PASS/
+1 symlink privilege skip, quality/diff PASS. Reviewer same security claim lease3
+read-only delta review now active; writer complete and Main received packet.
+Lease3 ACCEPT received with native10 run/9 PASS/1 symlink skip. Claims complete;
+Main performs corrected same-PR hosted verification. No production guard change.
+
 Stop on actual private input need, unprovable trust policy, unrelated overlap,
 required weakening of safe file custody or external mutation.
 
