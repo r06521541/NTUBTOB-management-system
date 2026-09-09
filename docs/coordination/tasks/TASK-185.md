@@ -11,9 +11,9 @@
 
 Main owns task/report/HANDOFF/PROJECT_STATE, `docs/releases/IOS_CLOUD_BUILD_RUNBOOK.md`,
 `.github/workflows/python-tests.yml`, `tools/tests/test_ci_workflow_contract.py`.
-Writer `/root/csr_writer`, claim task-185-pair-writer-20260909 lease2,
+Writer `/root/csr_writer`, claim task-185-pair-writer-20260909 lease3,
 owns only `tools/ios_certificate_pair.py`, `tools/tests/test_ios_certificate_pair.py`.
-Reviewer `/root/task181_review`, advisor, claim task-185-pair-review-20260909 lease3,
+Reviewer `/root/task181_review`, advisor, claim task-185-pair-review-20260909 lease4,
 read-only, no owned paths. Both report_to `/root`; mandatory COLLABORATION section2
 ACK/heartbeat/blocker/proactive final packet applies. Architecture acceptance
 before implementation; Main maintains nonoverlapping docs/CI and actively tracks.
@@ -32,6 +32,22 @@ lease3 performs final reason-code delta acceptance; implementation writer idle.
 Final lease3 ACCEPT received:13 tests PASS plus no-site-packages dependency
 absence check. Both claims complete; Main proceeds final PR/CI/merge under
 standing authorization, never real certificate/key/signing operations.
+
+## Hosted test-clock correction
+
+PR240 head `15f308a38b8b3b4608e3f1229791401accb61aee`, run34312441889:
+Windows/Linux tools PASS; Android failed7 anonymous_crash_test assertions.
+Fixed2026-09-01 events were compared with real2026-09-09 clock and expired under
+the unchanged7-day retention. Bounded test-only correction within same PR:
+writer claim task-185-pair-writer-20260909 lease3 owns only
+`clients/flutter_app/test/anonymous_crash_test.dart`; inject deterministic clock
+into all relevant queues/reporters, retain explicit expiry cases. No lib/runtime
+retention/privacy changes. Reproduce before fix, focused test/analyze, independent
+review and one corrected hosted gate. No blind retry or real notifications.
+Writer completed: pre-fix8 PASS/7 FAIL reproduced, post-fix16 PASS; focused
+analyze/format/diff PASS. Main received completion; lease4 review is test-only.
+Independent lease4 ACCEPT received,16 focused tests rerun PASS; writer/reviewer
+complete. Main performs one corrected same-PR hosted run before merge.
 
 Pure in-memory byte-input certificate/CSR pair validator using existing pinned
 cryptography50.0.0/Python3.10. Bounded single PEM or DER object, no trailing object

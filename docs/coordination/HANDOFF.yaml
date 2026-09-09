@@ -23,6 +23,9 @@ note: >
   Writer/reviewer complete;13 pair tests PASS and independent ACCEPT. Main
   verified existing67 tests and quality; final PR/CI integration is next.
   Later immutable merge/CI evidence supersedes this checkpoint, not Owner gates.
+  First hosted gate exposed an existing test-only wall-clock dependency; fixed
+  fixture clocks preserve production behavior.16 tests PASS and independent
+  ACCEPT received. Main now verifies the corrected same-PR run.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-185.md

@@ -27,6 +27,21 @@ private-key possession, release readiness or execution permission.
   Main received both proactive completion packets; writer/reviewer complete.
   Immutable Git/PR CI evidence follows this checkpoint; no real-asset permission.
 
+## Hosted correction
+
+- PR240 head `15f308a38b8b3b4608e3f1229791401accb61aee`, run34312441889:
+  Windows/Linux certificate gates PASS. Android existing anonymous-crash tests
+  failed7 assertions: fixedSep1 event timestamps were compared to realSep9,
+  exceeding unchanged7-day queue retention. Other substantive completed gates
+  passed; iOS was still running at diagnosis.
+- Writer lease3 corrects only fixture clock injection in the existing Dart test;
+  no production library/retention/privacy changes, no CI skip or blind rerun.
+- Pinned local Flutter reproduced8 PASS/7 FAIL before correction; fixed shared
+  fixture clock yielded16 PASS, focused analyze/format/diff PASS. Explicit expiry
+  MutableClock test preserved; no production library diff. Independent delta
+  review ACCEPT; reviewer independently reran16 PASS. First hosted run ended
+  with only Android/final gate failures. Main received both completion packets.
+
 ## Remaining gates
 
 Owner private-input CSR creation, Apple issuance, safe real-file wrapper,
