@@ -1,19 +1,19 @@
-active_task: TASK-187
+active_task: TASK-188
 status: in_progress
 next_actor: main-work
-claim_id: task-187-main-20260910
+claim_id: task-188-main-20260910
 lease_version: 1
 actor_id: /root
-base_commit: c458d29326072444987fff70b43aa3ec46a5bfa1
+base_commit: e18f376f51ca755d1305052fe2f0ec13d0c175f4
 updated_by: main-work
 updated_at: 2026-09-10
 note: >
-  TASK186 merged PR241 with full CI PASS. Owner reports approved P12 success
-  and profile download. Never repeat generation. TASK187 architecture ACCEPT;
-  writer lease1 and advisor lease2 complete; Main received independent ACCEPT.
-  Main integrates one PR and required CI; merge does not authorize private operations.
-  No real assets, signing, upload or Apple mutation.
+  TASK187 merged PR242, full CI PASS. Prior claims complete. TASK188 reviews
+  writer lease1 and advisor lease2 complete; Main received ACCEPT. Main obtains
+  mandatory macOS evidence in one Draft PR before ready/merge.
+  No real assets, persistent
+  keychains, Secrets, signing or upload. CMS trust remains a separate prerequisite.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-187.md
-report: docs/coordination/reports/TASK-187.md
+task: docs/coordination/tasks/TASK-188.md
+report: docs/coordination/reports/TASK-188.md
 review: pending

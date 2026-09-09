@@ -314,7 +314,47 @@ real downloaded-profile inspection is released by this content-only delivery.
 Sources: [Apple profile structure](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles),
 [Apple CMS command implementation](https://github.com/apple-oss-distributions/Security/blob/main/SecurityTool/macOS/cmsutil.c).
 
-## Official references checked 2026-09-08
+## TASK-188 native compatibility boundary
+
+`python -m tools.ios_pkcs12_compatibility` is a fictional-only test harness, not
+an Owner operator. It generates its own chain/key/CSR in memory and calls the
+existing TASK-186 packaging function, preventing encryption-parameter drift.
+It accepts no file path, real password or signing identity. Do not pipe Owner
+assets into the tool or use its native helper outside the test harness.
+
+The native helper requires macOS15+ and an SDK exposing `kSecImportToMemoryOnly`.
+It calls `SecPKCS12Import` with that option explicitly true. There is no fallback
+to default import, which would store identities in the macOS default keychain.
+The API's returned trust object is not evaluated or treated as trusted Apple
+identity. No trust-store edits, persistent keychain import or keychain inventory
+are part of this test. Process exit releases objects but does not prove memory
+zeroization.
+
+Bounded stdin carries generated fictional material; only code is compiled to a
+temporary executable. Fixture keys/P12s do not become files, logs, caches or
+Actions artifacts. Correct import must return the expected single identity and
+certificate; wrong password, corruption and contract mismatches must reject with
+expected categories, not merely crash. Hosted execution, not Windows mocks or
+Python PKCS12 roundtrip, establishes the native compatibility evidence.
+
+Even `FICTITIOUS_NATIVE_IMPORT_VERIFIED` is not proof about Owner's saved P12,
+app signing, trusted CMS, Team/App identity, upload or release. Actual custody and
+signing remain separately reviewed exact Owner gates. This test uses the existing
+standard hosted macOS job, with no new paid runner or cloud signing workflow.
+
+CMS research identified a distinct Apple iPhone provisioning-profile signing
+policy, not the WWDR Apple Distribution certificate policy. The source below is
+a design reference, not permission to call private SPI or replace profile trust
+with a generic X.509/TLS policy. Maintained native CMS verification must bind the
+signature to its authenticated content, validate the appropriate Apple signer
+and trust chain, and keep revocation limitations explicit. That implementation
+and real profile intake remain open; this task does not relabel decoding as trust.
+
+Sources checked 2026-09-10:
+[Apple import API contract](https://github.com/apple-oss-distributions/Security/blob/main/keychain/headers/SecImportExport.h),
+[Apple provisioning-profile policy implementation](https://github.com/apple-oss-distributions/Security/blob/main/OSX/sec/Security/SecPolicy.c).
+
+## Earlier official references checked 2026-09-08
 
 - [GitHub runner scope/cost](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
 - [macOS signing setup](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)
