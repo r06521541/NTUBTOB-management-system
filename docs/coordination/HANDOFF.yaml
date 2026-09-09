@@ -1,19 +1,18 @@
-active_task: TASK-188
+active_task: TASK-189
 status: in_progress
 next_actor: main-work
-claim_id: task-188-main-20260910
+claim_id: task-189-main-20260910
 lease_version: 1
 actor_id: /root
-base_commit: e18f376f51ca755d1305052fe2f0ec13d0c175f4
+base_commit: b25a1c2834dd6418a1acd3bf4f868f4e154dc9fd
 updated_by: main-work
 updated_at: 2026-09-10
 note: >
-  TASK187 merged PR242, full CI PASS. Prior claims complete. TASK188 reviews
-  writer lease1 and advisor lease2 complete; Main received ACCEPT. Main obtains
-  mandatory macOS evidence in one Draft PR before ready/merge.
-  No real assets, persistent
-  keychains, Secrets, signing or upload. CMS trust remains a separate prerequisite.
+  TASK188 merged PR243 with full CI and actual native import PASS. Claims complete.
+  TASK189 writer lease1 and advisor lease3 complete, source ACCEPT. Main integrates
+  one Draft PR; mandatory native rehearsal and full CI must pass before ready/merge.
+  No real assets, private SPI, keychain writes, signing or upload.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-188.md
-report: docs/coordination/reports/TASK-188.md
-review: pending
+task: docs/coordination/tasks/TASK-189.md
+report: docs/coordination/reports/TASK-189.md
+review: docs/coordination/tasks/TASK-189.md
