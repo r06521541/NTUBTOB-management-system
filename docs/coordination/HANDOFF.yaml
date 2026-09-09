@@ -1,33 +1,31 @@
 # Singleton invariant: if active_task is null, status is completed,
 # next_actor is owner, and task/report/review are all null.
 # Cross-session messages are transport only and never override this file.
-active_task: TASK-185
+active_task: TASK-186
 status: in_progress
 next_actor: main-work
 
-claim_id: task-185-main-20260909
+claim_id: task-186-main-20260909
 lease_version: 1
 actor_id: /root
 
-base_commit: 47e832e685b68c0f50803decd989f36c38fc2651
+base_commit: f8c21fef3dc964b3df19121dc72d23d7f76a1f3b
 
 updated_by: main-work
 updated_at: 2026-09-09
 
 note: >
-  TASK184 merged PR239 with full PR CI success. Owner approved its exact local
-  creation action but is away; no real key was created. TASK185 prepares public
-  certificate/CSR correspondence checks with fictional inputs only. Architecture
-  review first, sole writer, independent acceptance. No saved API key access,
-  real file inspection, signing, Secrets or Apple action.
-  Writer/reviewer complete;13 pair tests PASS and independent ACCEPT. Main
-  verified existing67 tests and quality; final PR/CI integration is next.
-  Later immutable merge/CI evidence supersedes this checkpoint, not Owner gates.
-  First hosted gate exposed an existing test-only wall-clock dependency; fixed
-  fixture clocks preserve production behavior.16 tests PASS and independent
-  ACCEPT received. Main now verifies the corrected same-PR run.
+  TASK185 merged PR240 with full CI34313053719 PASS. Old claims complete.
+  Owner reports local CSR creation succeeded at this base and Apple Distribution
+  certificate issued/downloaded; not independently inspected. TASK186 prepares
+  safe intake/trust/encrypted packaging with fictional fixtures only. Security
+  architecture review accepted; writer complete and Main received final packet.
+  Independent lease2 ACCEPT received; both agent claims complete. Main integrates
+  one PR and required CI before merge; later immutable evidence supersedes this
+  premerge checkpoint, never the actual Owner gate.
+  No actual private files, signing, Apple actions, upload or Secrets authorized.
 
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-185.md
-report: docs/coordination/reports/TASK-185.md
-review: docs/coordination/reports/TASK-185.md
+task: docs/coordination/tasks/TASK-186.md
+report: docs/coordination/reports/TASK-186.md
+review: pending
