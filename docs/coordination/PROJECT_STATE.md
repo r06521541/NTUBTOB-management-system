@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`e18f376f51ca755d1305052fe2f0ec13d0c175f4`（TASK-187）。
+本次工作起點／已合併證據：`b25a1c2834dd6418a1acd3bf4f868f4e154dc9fd`（TASK-188）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -64,7 +64,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - TASK-186已合併；Owner於exact批准後回報加密PKCS12轉檔confirmed_success，另已下載App Store Connect profile。
   不重做轉檔；profile可信CMS、Team/App配對及macOS native import尚未驗證。
 - TASK-187已合併純記憶體profile內容配對核心；配對成功仍非CMS可信、私鑰持有或簽章授權，不讀Owner檔案。
-- TASK-188準備macOS15+純記憶體PKCS12原生相容性測試；只用虛構資產，不寫入鑰匙圈或授權真實簽章。
+- TASK-188已由PR243合併；完整CI與macOS15+虛構PKCS12純記憶體原生import通過，不代表Owner資產已驗證。
+- TASK-189建置CMS結構預檢、原生驗簽與固定Apple root的受限profile信任檢查；尚待獨立review與macOS證據，
+  不讀Owner資產、不寫鑰匙圈，不授權真實簽章／上傳；revocation仍未驗證。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

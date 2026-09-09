@@ -158,6 +158,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("tools.tests.test_ios_certificate_custody", deployment)
         self.assertIn("tools.tests.test_ios_profile_validation", deployment)
         self.assertIn("tools.tests.test_ios_pkcs12_compatibility", deployment)
+        self.assertIn("tools.tests.test_ios_profile_cms_verification", deployment)
 
     def test_flutter_is_reusable_with_pinned_platform_contracts(self):
         self.assertRegex(self.flutter_source, r"(?m)^  workflow_call:$")
@@ -177,6 +178,7 @@ class WorkflowContractTests(unittest.TestCase):
         ios = job_block(self.flutter_source, "ios_compile_contract")
         self.assertIn("runs-on: macos-latest", ios)
         self.assertIn("python -m tools.ios_pkcs12_compatibility", ios)
+        self.assertIn("python -m tools.ios_profile_cms_rehearsal", ios)
         self.assertIn("tools/requirements-ios-certificate.txt", ios)
         self.assertIn("flutter build ios --release --no-codesign", ios)
         self.assertIn("IOS_TESTFLIGHT_CONTRACT_TEST=YES", ios)

@@ -354,6 +354,39 @@ Sources checked 2026-09-10:
 [Apple import API contract](https://github.com/apple-oss-distributions/Security/blob/main/keychain/headers/SecImportExport.h),
 [Apple provisioning-profile policy implementation](https://github.com/apple-oss-distributions/Security/blob/main/OSX/sec/Security/SecPolicy.c).
 
+## TASK-189 constrained CMS verification boundary
+
+TASK-189 adds a memory-only verification core and a fictional-only macOS rehearsal,
+not an Owner file intake or signing operator. Before any native decoder receives
+bytes, pinned `asn1crypto` must completely parse a bounded canonical DER SignedData
+envelope with one signer and embedded id-data. Encrypted, nested, detached,
+ambiguous, unsupported or trailing content is rejected before native invocation.
+Unsigned attributes and CRLs are outside this deliberately narrow contract.
+
+The public macOS CMS API must prove cryptographic signature validity separately
+from explicit SecTrust evaluation. Trust uses only the compiled repository Apple
+root, no network fetching, an explicit current verification time and a three-cert
+chain bound to the actual CMS signer and embedded certificates. Exact profile
+signer/issuer common-name constraints supplement basic X.509 validation. This is
+a reviewed restrictive subset, not equivalence with Apple's private policy; older
+expired signers or unsupported profile encodings fail closed. Revocation remains
+unverified. Only the authenticated, byte-matched payload reaches TASK-187.
+
+`python -m tools.ios_profile_cms_rehearsal` accepts no arguments or Owner assets.
+It uses separately marked fictional trust compiled into a test-only target; that
+target cannot produce a production verification classification. The production
+target must reject the fictional chain. Private-shaped fixtures remain in memory
+and bounded child pipes, never logs, files, caches or hosted artifacts. Actual
+macOS execution is required; Windows mocks are not native verification evidence.
+
+This delivery does not change the existing IPA inspector, inspect downloaded
+profiles, establish real key possession, grant signing/upload/release authority or
+authorize cloud custody. The next real-input wrapper still requires independent
+review and its exact Owner gate; a successful merge is not that release.
+
+References: [Apple public CMS API contract](https://github.com/apple-oss-distributions/Security/blob/main/CMS/CMSDecoder.h),
+[ASN.1 library](https://github.com/wbond/asn1crypto).
+
 ## Earlier official references checked 2026-09-08
 
 - [GitHub runner scope/cost](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
