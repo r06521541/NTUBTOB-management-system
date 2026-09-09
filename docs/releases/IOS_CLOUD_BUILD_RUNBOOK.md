@@ -387,6 +387,74 @@ review and its exact Owner gate; a successful merge is not that release.
 References: [Apple public CMS API contract](https://github.com/apple-oss-distributions/Security/blob/main/CMS/CMSDecoder.h),
 [ASN.1 library](https://github.com/wbond/asn1crypto).
 
+## TASK-190 private verification preparation and Owner gate
+
+TASK-190 prepares a complete local controller and manual-only verification job.
+Repository/fictional-test approval does not authorize reading real files, creating
+an Environment, writing Secrets or dispatching this live workflow. The proposed
+target is fixed: `r06521541/NTUBTOB-management-system`, Environment
+`ios-profile-verification`, workflow `ios-profile-verification.yml`, branch `main`.
+
+The private input is only the existing public distribution certificate, downloaded
+profile and expected Team. No P12, private key, password, CSR or App Store API key is
+required. A future Owner step copies the profile to `distribution.mobileprovision`
+inside the existing protected local directory; do not search Downloads, move private
+keys or repeat certificate creation. Existing `distribution.cer` is preserved.
+
+Before any live input, Owner must accept one exact reviewed full SHA and the following:
+
+- An existing Environment with required reviewer `r06521541`, main-only branch
+  protection and admin bypass disabled. Owner may approve their own dispatch; this
+  is visible Owner consent, not a claim of two-person GitHub approval. The wrapper
+  verifies protection and never creates or repairs it.
+- A single-writer window: no parallel controller or manual edits to the named
+  Environment/Secret. Local locking and absence rechecks are not remote atomic CAS.
+- One workflow dispatch, then one previously absent
+  `IOS_PROFILE_VERIFICATION_INPUT` Secret write bound to the returned exact run ID,
+  reviewed SHA, nonce and 60-minute validation expiry. No overwrite or split payload.
+  Approve the Environment job only after the controller confirms upload is ready.
+- Local controller waits up to 45 minutes and attempts cleanup on both success and
+  failure. Success requires the exact native verification job and confirmed Secret
+  removal. Upload/delete ambiguity is unresolved retention, never automatic retry.
+- Failure cleanup may cancel the one verified, nonterminal run once; no force-cancel,
+  guessed run or retry. Cancellation acceptance is not proof of termination. Uncertain
+  cancellation is reported separately and does not skip Secret cleanup. A failure before
+  any PUT never deletes a Secret. Deletion cannot erase input already loaded by a runner.
+- GitHub Secrets do not auto-delete on expiry. A crash, power loss or lost connection
+  can leave the input retained; Owner remains responsible for separately scoped
+  cleanup. TTL stops verification, not storage. No runner receives a cleanup PAT.
+
+The bounded envelope is neither field masking nor end-to-end custody protection:
+GitHub decrypts it for the authorized job. Raw/derived fields must never be logged,
+passed as arguments, cached or published as artifacts. Dependency installation and
+public native compilation precede the private step; required actions and dependency
+wheels are pinned. Native verification is memory-only and does not change keychains.
+
+The future entry is `py -3.10 -m tools.ios_profile_intake --expected-commit <full-SHA>`
+for metadata/configuration preflight; adding `--execute` requires the exact release
+above and local hidden confirmation. Do not run either against real files during
+software preparation. A timed-out dispatch is not retried or guessed from the latest
+run; no Secret is uploaded without the documented exact run ID and waiting approval.
+Another run or rerun cannot validate that run-bound input. Secrets are not literally
+read-once; this tool does not claim cryptographic consumption or automatic expiry.
+
+Live API compatibility remains unverified. In particular, the current official
+OpenAPI Environment schema does not document `can_admins_bypass`; the controller
+requires an explicit false value and must STOP if it is missing. Fictional fixtures
+do not establish that the live API exposes this protection. Do not weaken the check
+or repeatedly execute after a metadata preflight rejection; resolve that boundary
+read-only before any private upload.
+
+Even a real successful result proves only the constrained profile/Team/App/certificate
+verification. Private-key possession, live signing, upload, revocation and App Store
+release remain separate gates. No installable app is produced by this workflow.
+
+Official references checked 2026-09-10:
+[GitHub dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event),
+[Environment protections](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments),
+[Secret handling limitations](https://docs.github.com/en/actions/reference/security/secure-use),
+[Standard hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
 ## Earlier official references checked 2026-09-08
 
 - [GitHub runner scope/cost](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)

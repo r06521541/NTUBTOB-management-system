@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`b25a1c2834dd6418a1acd3bf4f868f4e154dc9fd`（TASK-188）。
+本次工作起點／已合併證據：`58d90054b52f9c7f5a4788625bd3964ea358c214`（TASK-189）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -65,8 +65,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   不重做轉檔；profile可信CMS、Team/App配對及macOS native import尚未驗證。
 - TASK-187已合併純記憶體profile內容配對核心；配對成功仍非CMS可信、私鑰持有或簽章授權，不讀Owner檔案。
 - TASK-188已由PR243合併；完整CI與macOS15+虛構PKCS12純記憶體原生import通過，不代表Owner資產已驗證。
-- TASK-189建置CMS結構預檢、原生驗簽與固定Apple root的受限profile信任檢查；尚待獨立review與macOS證據，
-  不讀Owner資產、不寫鑰匙圈，不授權真實簽章／上傳；revocation仍未驗證。
+- TASK-189已由PR244合併；CMS預檢／原生驗簽／受限Apple信任鏈及虛構macOS正反向演練通過完整CI。
+  不代表Owner資產已驗證；不授權真實簽章／上傳，revocation仍未驗證。
+- TASK-190準備受控profile/public-certificate intake與manual-only驗證workflow；僅軟體與虛構測試。
+  真實讀檔、protected Environment／Secret配置、dispatch及留存清理仍須exact Owner release。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
