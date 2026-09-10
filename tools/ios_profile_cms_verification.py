@@ -75,13 +75,103 @@ def _dependencies():
     return cms, x509, serialization
 
 
+PREDICATE_KEYS = (
+    "digest_set_cardinality",
+    "digest_set_algorithm",
+    "signer_version",
+    "signer_identifier",
+    "unsigned_attributes_absent",
+    "signer_digest_algorithm",
+    "signature_algorithm",
+    "signature_size",
+    "digest_set_parameters",
+    "signer_digest_parameters",
+    "signature_parameters",
+    "attribute_cardinality",
+    "attribute_types",
+    "attribute_uniqueness",
+    "attribute_value_cardinality",
+    "content_type_value",
+    "message_digest_value",
+    "signing_time_value",
+    "attribute_required",
+    "certificate_choices",
+    "certificate_size",
+    "certificate_encoding",
+    "certificate_uniqueness",
+    "signer_binding",
+    "canonical_der",
+)
+
+
+def diagnose_predicates(data):
+    """Fixed structural evidence only; never returns a usable CMS object.
+
+    Repeated rules report REJECTED if any evaluated instance failed, PASS if
+    evaluated instances passed, and NOT_CHECKED if none could be evaluated.
+    PASS does not cover children excluded by a failed prerequisite or prove trust.
+    """
+    result = {
+        "stage": "CMS_STRUCTURE_PASS",
+        "predicates": dict.fromkeys(PREDICATE_KEYS, "NOT_CHECKED"),
+    }
+    try:
+        _preflight(data, result)
+    except Rejected as error:
+        if result["stage"] == "CMS_STRUCTURE_PASS":
+            result["stage"] = error.diagnostic_stage
+    return result
+
+
 def preflight(data):
+    """Production fail-fast contract; diagnostics cannot supply native input."""
+    return _preflight(data)
+
+
+def _preflight(data, diagnostic=None):
     """Fully materialize the permitted ASN.1 tree and force canonical DER.
 
     No encrypted/other content reaches CMSDecoder. This deliberately excludes
     CRLs, unsigned attributes, alternative certificate choices and non-RSA/SHA256.
     """
     stage = "CMS_SIZE_REJECTED"
+
+    def rule(key, predicate):
+        # Exactly the same predicates and order in both modes. Only diagnostic
+        # collection continues after false; prerequisite guards below prevent
+        # descent into unavailable elements, without suppressing unrelated rules.
+        try:
+            passed = predicate()
+        except Exception as error:
+            if diagnostic is None:
+                raise
+            if (
+                not isinstance(
+                    error,
+                    (
+                        ValueError,
+                        TypeError,
+                        KeyError,
+                        IndexError,
+                        OverflowError,
+                        RecursionError,
+                    ),
+                )
+                and diagnostic["stage"] == "CMS_STRUCTURE_PASS"
+            ):
+                diagnostic["stage"] = "CMS_UNKNOWN_REJECTED"
+            passed = False
+        if diagnostic is None:
+            if not passed:
+                raise ValueError
+        else:
+            checks = diagnostic["predicates"]
+            if checks[key] != "REJECTED":
+                checks[key] = "PASS" if passed else "REJECTED"
+            if not passed and diagnostic["stage"] == "CMS_STRUCTURE_PASS":
+                diagnostic["stage"] = stage
+        return passed
+
     try:
         if type(data) is not bytes or not 0 < len(data) <= MAX_CMS:
             raise ValueError
@@ -113,82 +203,117 @@ def preflight(data):
         _materialize(document)
         stage = "CMS_ALGORITHM_REJECTED"
         algorithms = signed["digest_algorithms"]
-        if len(algorithms) != 1 or algorithms[0]["algorithm"].native != "sha256":
-            raise ValueError
+        single_digest = rule("digest_set_cardinality", lambda: len(algorithms) == 1)
+        if single_digest:
+            rule(
+                "digest_set_algorithm",
+                lambda: algorithms[0]["algorithm"].native == "sha256",
+            )
         signer = signed["signer_infos"][0]
-        if (
-            signer["version"].native != "v1"
-            or signer["sid"].name != "issuer_and_serial_number"
-            or not isinstance(signer["unsigned_attrs"], core.Void)
-        ):
-            raise ValueError
-        if (
-            signer["digest_algorithm"]["algorithm"].native != "sha256"
-            or signer["signature_algorithm"]["algorithm"].native
-            not in {"rsassa_pkcs1v15", "sha256_rsa"}
-            or not 256 <= len(signer["signature"].native) <= 512
-        ):
-            raise ValueError
-        for algorithm in (
-            algorithms[0],
-            signer["digest_algorithm"],
-            signer["signature_algorithm"],
-        ):
-            if algorithm["parameters"].native is not None:
-                raise ValueError
+        rule("signer_version", lambda: signer["version"].native == "v1")
+        supported_sid = rule(
+            "signer_identifier",
+            lambda: signer["sid"].name == "issuer_and_serial_number",
+        )
+        rule(
+            "unsigned_attributes_absent",
+            lambda: isinstance(signer["unsigned_attrs"], core.Void),
+        )
+        rule(
+            "signer_digest_algorithm",
+            lambda: signer["digest_algorithm"]["algorithm"].native == "sha256",
+        )
+        rule(
+            "signature_algorithm",
+            lambda: signer["signature_algorithm"]["algorithm"].native
+            in {"rsassa_pkcs1v15", "sha256_rsa"},
+        )
+        rule("signature_size", lambda: 256 <= len(signer["signature"].native) <= 512)
+        if single_digest:
+            rule(
+                "digest_set_parameters",
+                lambda: algorithms[0]["parameters"].native is None,
+            )
+        rule(
+            "signer_digest_parameters",
+            lambda: signer["digest_algorithm"]["parameters"].native is None,
+        )
+        rule(
+            "signature_parameters",
+            lambda: signer["signature_algorithm"]["parameters"].native is None,
+        )
         stage = "CMS_ATTRIBUTES_REJECTED"
         attrs = signer["signed_attrs"]
-        if not 2 <= len(attrs) <= 3:
-            raise ValueError
+        rule("attribute_cardinality", lambda: 2 <= len(attrs) <= 3)
         seen = set()
         for attribute in attrs:
             name = attribute["type"].native
-            if (
-                name not in {"content_type", "message_digest", "signing_time"}
-                or name in seen
-                or len(attribute["values"]) != 1
-            ):
-                raise ValueError
+            rule(
+                "attribute_types",
+                lambda: name in {"content_type", "message_digest", "signing_time"},
+            )
+            rule("attribute_uniqueness", lambda: name not in seen)
+            single_value = rule(
+                "attribute_value_cardinality", lambda: len(attribute["values"]) == 1
+            )
             seen.add(name)
+            if not single_value:
+                continue
             value = attribute["values"][0].native
-            if name == "content_type" and value != "data":
-                raise ValueError
-            if name == "message_digest" and (
-                type(value) is not bytes or len(value) != 32
-            ):
-                raise ValueError
-            if name == "signing_time" and not isinstance(value, datetime):
-                raise ValueError
-        if not {"content_type", "message_digest"} <= seen:
-            raise ValueError
+            if name == "content_type":
+                rule("content_type_value", lambda: value == "data")
+            if name == "message_digest":
+                rule(
+                    "message_digest_value",
+                    lambda: type(value) is bytes and len(value) == 32,
+                )
+            if name == "signing_time":
+                rule("signing_time_value", lambda: isinstance(value, datetime))
+        rule("attribute_required", lambda: {"content_type", "message_digest"} <= seen)
         stage = "CMS_CERTIFICATES_REJECTED"
         certificates = []
         matches = []
+        complete_certificates = True
         for choice in signed["certificates"]:
-            if choice.name != "certificate":
-                raise ValueError
+            if not rule("certificate_choices", lambda: choice.name == "certificate"):
+                complete_certificates = False
+                continue
             certificate = choice.chosen
             encoded = certificate.dump(force=True)
-            if len(encoded) > 65536:
-                raise ValueError
-            parsed = x509.load_der_x509_certificate(encoded)
-            if parsed.public_bytes(serialization.Encoding.DER) != encoded:
-                raise ValueError
-            certificates.append(encoded)
-            sid = signer["sid"].chosen
-            if (
-                certificate.issuer.dump() == sid["issuer"].dump()
-                and certificate.serial_number == sid["serial_number"].native
+            if not rule("certificate_size", lambda: len(encoded) <= 65536):
+                complete_certificates = False
+                continue
+            if not rule(
+                "certificate_encoding",
+                lambda: x509.load_der_x509_certificate(encoded).public_bytes(
+                    serialization.Encoding.DER
+                )
+                == encoded,
             ):
-                matches.append(encoded)
-        if len(set(certificates)) != len(certificates) or len(matches) != 1:
-            raise ValueError
+                complete_certificates = False
+                continue
+            certificates.append(encoded)
+            if supported_sid:
+                sid = signer["sid"].chosen
+                if (
+                    certificate.issuer.dump() == sid["issuer"].dump()
+                    and certificate.serial_number == sid["serial_number"].native
+                ):
+                    matches.append(encoded)
+        if complete_certificates:
+            rule(
+                "certificate_uniqueness",
+                lambda: len(set(certificates)) == len(certificates),
+            )
+            if supported_sid:
+                rule("signer_binding", lambda: len(matches) == 1)
         # .native forces every remaining allowed field, including certificate
         # structures, before force=True rebuilds descendants instead of cached BER.
         stage = "CMS_CANONICAL_REJECTED"
         document.native
-        if document.dump(force=True) != data:
-            raise ValueError
+        rule("canonical_der", lambda: document.dump(force=True) == data)
+        if diagnostic is not None:
+            return None
         return {
             "cms": data,
             "payload": payload,

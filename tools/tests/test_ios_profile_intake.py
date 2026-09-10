@@ -173,6 +173,7 @@ class IntakeTests(unittest.TestCase):
             result = intake.diagnose_input(SHA)
         self.assertEqual(result["checks"]["team"], "TEAM_FORMAT_REJECTED")
         self.assertEqual(result["checks"]["cms"], "CMS_STRUCTURE_PASS")
+        self.assertEqual(set(result["cms_predicates"].values()), {"PASS"})
         self.assertEqual(result["checks"]["envelope_size"], "ENVELOPE_SIZE_PASS")
         self.assertNotIn("private-invalid-team", output.getvalue() + repr(result))
         session.lock.assert_not_called()
@@ -201,6 +202,7 @@ class IntakeTests(unittest.TestCase):
             ):
                 result = intake.diagnose_input(SHA)
             self.assertEqual(set(result["checks"].values()), {"NOT_CHECKED"})
+            self.assertEqual(set(result["cms_predicates"].values()), {"NOT_CHECKED"})
             session.lock.assert_not_called()
             if failure == "confirmation":
                 session.read.assert_not_called()
@@ -251,6 +253,51 @@ class IntakeTests(unittest.TestCase):
                 if key.endswith(("_verified", "_authorized"))
             )
         )
+
+    def test_diagnose_helper_output_is_allowlisted_and_called_once(self):
+        from tools import ios_profile_cms_verification as cms
+
+        valid = cms.diagnose_predicates(self.material["cms"])
+        for invalid in (
+            {**valid, "stage": "private-sentinel"},
+            {**valid, "predicates": {"private-sentinel": "PASS"}},
+            {
+                **valid,
+                "predicates": dict.fromkeys(cms.PREDICATE_KEYS, "private-sentinel"),
+            },
+            {**valid, "extra": "private-sentinel"},
+            None,
+        ):
+            session = Mock()
+            session.__enter__ = Mock(return_value=session)
+            session.__exit__ = Mock(return_value=False)
+            session.read.side_effect = [self.material["cms"], self.material["der"]]
+            with (
+                patch.object(intake, "repository"),
+                patch.object(intake, "Inputs", return_value=session),
+                patch.object(
+                    intake.preparation, "local_app_data", return_value=Path("fictional")
+                ),
+                patch.object(
+                    intake.preparation,
+                    "hidden",
+                    side_effect=["DIAGNOSE PROFILE " + SHA, "FICTTEAM01"],
+                ),
+                patch.object(
+                    cms, "diagnose_predicates", return_value=invalid
+                ) as diagnose,
+                patch.object(intake, "GitHub", side_effect=AssertionError("network")),
+                patch.object(
+                    intake, "lifecycle", side_effect=AssertionError("mutation")
+                ),
+                contextlib.redirect_stdout(io.StringIO()) as output,
+            ):
+                result = intake.diagnose_input(SHA)
+            diagnose.assert_called_once_with(self.material["cms"])
+            session.lock.assert_not_called()
+            self.assertEqual(result["checks"]["cms"], "CMS_UNKNOWN_REJECTED")
+            self.assertEqual(set(result["cms_predicates"].values()), {"NOT_CHECKED"})
+            self.assertNotIn("private-sentinel", repr(result) + output.getvalue())
 
     def test_diagnose_cli_mutually_exclusive_and_explicit_routing(self):
         with (

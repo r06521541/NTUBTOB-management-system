@@ -81,3 +81,31 @@ Final independent lease2 ACCEPT and Main focused evidence PASS. Main integrates
 this single delivery, commit/push/one final PR under existing standing Git authority.
 Required full hosted CI must pass before merge. Next gate is Owner release for a
 new exact merged SHA local diagnostic only; no true input read or upload retry here.
+
+## Post-merge Owner result and next gate
+
+PR246 merged at 2a5cd24889b0505a78c95defa7e3729068992611; CI34488581114 SUCCESS.
+Owner explicitly approved this exact local diagnostic, then supplied the sanitized
+DIAGNOSTIC_COMPLETED result recorded in the report. That approval was used for this
+run, not a future changed artifact or upload. Main did not read the private files.
+
+Root cause is still inconclusive: CMS_ALGORITHM_REJECTED groups multiple checks.
+COLLABORATION5 allows only one read-only layer split for the same runtime blocker;
+TASK191 has consumed that split. Another reason-code iteration is NOT authorized
+by general continuation/Git approval. Preserve assets unchanged and stop live intake.
+
+Next Owner decision: a one-time exception permitting one comprehensive local-only
+predicate diagnostic refinement, with fictional coverage and independent review,
+without changing any accepted algorithm/trust/parser rule. Proposed output is only
+fixed per-predicate PASS/REJECTED/NOT_CHECKED categories; no observed algorithms,
+OIDs, subjects, identifiers, values or private bytes. New exact reviewed SHA and
+explicit private-read confirmation would still be required before one Owner run.
+If the resulting evidence is insufficient, stop inconclusive; no third diagnostic
+iteration or automatic upload. Any compatibility/trust-policy change is a separate
+decision requiring primary evidence and targeted security review. This proposal is
+approved by Owner on 2026-09-10; implementation and its one-run boundary are now
+carried by TASK-192. This does not approve changed validation or upload.
+
+Main records this gate on codex/task-191-diagnostic-gate, base above, lease1;
+prior writer/reviewer claims remain completed. Only task/report/state/HANDOFF changed;
+no status-only PR. These records are carried into TASK-192's substantive delivery.

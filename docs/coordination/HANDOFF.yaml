@@ -1,18 +1,20 @@
-active_task: TASK-191
-status: ready_integration
+active_task: TASK-192
+status: in_progress
 next_actor: main-work
-claim_id: task-191-main-20260910
+claim_id: task-192-main-20260910
 lease_version: 1
 actor_id: /root
-base_commit: 76ec2d0d35ee90d3b8033b34f294b2c3de21864c
+base_commit: 2a5cd24889b0505a78c95defa7e3729068992611
 updated_by: main-work
 updated_at: 2026-09-10
 note: >
-  TASK190 merged PR245; live Environment protection metadata confirmed. Owner execution
-  stopped locally at INPUT_REJECTED before dispatch. TASK191 prepares local-only fixed
-  diagnostics; writer lease1 complete, independent lease2 ACCEPT, focused checks PASS.
-  One full CI/merge pending; then exact-SHA local diagnostic Owner gate. No real input read.
+  Owner approved ONE bounded comprehensive diagnostic exception after TASK191's
+  CMS_ALGORITHM_REJECTED result. TASK192 prepares fixed predicate diagnostics;
+  no validation relaxation, upload retry or agent private read. Architecture review
+  lease1 ACCEPT, writer lease1 complete, final independent lease2 ACCEPT and Main
+  affected tests PASS. One full CI/merge pending; exact reviewed local input
+  confirmation remains the next Owner gate for the single approved diagnostic.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-191.md
-report: docs/coordination/reports/TASK-191.md
-review: docs/coordination/reviews/TASK-191.md
+task: docs/coordination/tasks/TASK-192.md
+report: docs/coordination/reports/TASK-192.md
+review: docs/coordination/reviews/TASK-192.md

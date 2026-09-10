@@ -13,12 +13,232 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from asn1crypto import cms, core
+from asn1crypto import x509 as asn1_x509
 
 from tools import ios_profile_cms_rehearsal as rehearsal
 from tools import ios_profile_cms_verification as verify
 
 
 class CMSTests(unittest.TestCase):
+    def predicate_corpus(self):
+        """Fictional rule mutations, also reusable for one-time frozen-base parity."""
+        cases = {}
+        for key in verify.PREDICATE_KEYS:
+            document = self.document()
+            signed = document["content"]
+            signer = signed["signer_infos"][0]
+            attrs = signer["signed_attrs"]
+            if key == "digest_set_cardinality":
+                signed["digest_algorithms"] = []
+            elif key == "digest_set_algorithm":
+                signed["digest_algorithms"][0]["algorithm"] = "sha1"
+            elif key == "signer_version":
+                signer["version"] = "v3"
+            elif key == "signer_identifier":
+                signer["sid"] = cms.SignerIdentifier(
+                    {"subject_key_identifier": b"fictional"}
+                )
+            elif key == "unsigned_attributes_absent":
+                signer["unsigned_attrs"] = []
+            elif key == "signer_digest_algorithm":
+                signer["digest_algorithm"]["algorithm"] = "sha1"
+            elif key == "signature_algorithm":
+                signer["signature_algorithm"]["algorithm"] = "sha1_rsa"
+            elif key == "signature_size":
+                signer["signature"] = b"fictional"
+            elif key.endswith("parameters"):
+                algorithm = (
+                    signed["digest_algorithms"][0]
+                    if key == "digest_set_parameters"
+                    else (
+                        signer["digest_algorithm"]
+                        if key == "signer_digest_parameters"
+                        else signer["signature_algorithm"]
+                    )
+                )
+                # Unknown algorithms use Any parameters; known RSA/SHA types
+                # enforce NULL in the library schema before predicate collection.
+                algorithm["algorithm"] = "1.2.3.4"
+                algorithm["parameters"] = core.Integer(1)
+            elif key == "attribute_cardinality":
+                signer["signed_attrs"] = []
+            elif key == "attribute_types":
+                attrs[0] = cms.CMSAttribute(
+                    {"type": "1.2.3.4", "values": [core.Null()]}
+                )
+            elif key == "attribute_uniqueness":
+                attrs[1] = attrs[0]
+            elif key == "attribute_value_cardinality":
+                attrs[0]["values"] = []
+            elif key in {"content_type_value", "message_digest_value"}:
+                name = (
+                    "content_type" if key == "content_type_value" else "message_digest"
+                )
+                attribute = next(item for item in attrs if item["type"].native == name)
+                attribute["values"] = [
+                    "signed_data" if name == "content_type" else b"fictional"
+                ]
+            elif key == "signing_time_value":
+                # A wrong type is rejected by the ASN.1 schema, not this
+                # post-materialization datetime predicate. Test that separately.
+                continue
+            elif key == "attribute_required":
+                signer["signed_attrs"] = [
+                    item for item in attrs if item["type"].native != "message_digest"
+                ]
+            elif key == "certificate_choices":
+                signed["certificates"][0] = cms.CertificateChoices(
+                    name="other",
+                    value={"other_cert_format": "1.2.3", "other_cert": core.Null()},
+                )
+            elif key == "certificate_size":
+                signed["certificates"][0].chosen["tbs_certificate"]["subject"] = (
+                    asn1_x509.Name.build({"common_name": "f" * 66000})
+                )
+            elif key == "certificate_encoding":
+                signed["certificates"][0].chosen["tbs_certificate"]["version"] = 4
+            elif key == "certificate_uniqueness":
+                signed["certificates"][1] = signed["certificates"][0]
+            elif key == "signer_binding":
+                signer["sid"].chosen["serial_number"] = 123456789
+            elif key == "canonical_der":
+                raw = document.dump(force=True)
+                cases[key] = b"\x30\x83\x00" + raw[2:]
+                continue
+            cases[key] = document.dump(force=True)
+        return cases
+
+    def test_every_reachable_predicate_and_fixed_output(self):
+        valid = verify.diagnose_predicates(self.fixture["cms"])
+        self.assertEqual(valid["stage"], "CMS_STRUCTURE_PASS")
+        self.assertEqual(set(valid["predicates"].values()), {"PASS"})
+        for key, data in self.predicate_corpus().items():
+            with self.subTest(rule=key):
+                result = verify.diagnose_predicates(data)
+                self.assertEqual(result["predicates"][key], "REJECTED")
+                self.assertEqual(set(result), {"stage", "predicates"})
+                self.assertEqual(set(result["predicates"]), set(verify.PREDICATE_KEYS))
+                self.assertLessEqual(
+                    set(result["predicates"].values()),
+                    {"PASS", "REJECTED", "NOT_CHECKED"},
+                )
+                with self.assertRaises(verify.Rejected) as caught:
+                    verify.preflight(data)
+                self.assertEqual(caught.exception.args, ("CMS_STRUCTURE_REJECTED",))
+
+    def test_predicates_zero_io_schema_unknown_and_optional_prerequisites(self):
+        document = self.document()
+        signer = document["content"]["signer_infos"][0]
+        signer["signed_attrs"] = [
+            item
+            for item in signer["signed_attrs"]
+            if item["type"].native != "signing_time"
+        ]
+        optional = document.dump(force=True)
+        with (
+            patch("builtins.open", side_effect=AssertionError("private-sentinel")),
+            patch.object(
+                socket,
+                "create_connection",
+                side_effect=AssertionError("private-sentinel"),
+            ),
+            patch.object(
+                subprocess, "Popen", side_effect=AssertionError("private-sentinel")
+            ),
+            patch.object(
+                verify,
+                "_compile_native",
+                side_effect=AssertionError("private-sentinel"),
+            ),
+            contextlib.redirect_stdout(io.StringIO()) as output,
+        ):
+            result = verify.diagnose_predicates(optional)
+            self.assertEqual(result["stage"], "CMS_STRUCTURE_PASS")
+            self.assertEqual(result["predicates"]["signing_time_value"], "NOT_CHECKED")
+            for data in [
+                b"private-sentinel",
+                self.fixture["cms"] + b"private-sentinel",
+            ]:
+                result = verify.diagnose_predicates(data)
+                self.assertEqual(set(result["predicates"].values()), {"NOT_CHECKED"})
+                self.assertNotIn("private-sentinel", repr(result))
+            with patch.object(
+                verify, "_materialize", side_effect=RuntimeError("private-sentinel")
+            ):
+                result = verify.diagnose_predicates(optional)
+                self.assertEqual(result["stage"], "CMS_UNKNOWN_REJECTED")
+                self.assertEqual(set(result["predicates"].values()), {"NOT_CHECKED"})
+            self.assertEqual(output.getvalue(), "")
+
+    def test_predicates_collect_independent_failures(self):
+        document = self.document()
+        signer = document["content"]["signer_infos"][0]
+        signer["digest_algorithm"]["algorithm"] = "sha1"
+        signer["signed_attrs"] = []
+        signer["sid"].chosen["serial_number"] = 123456789
+        result = verify.diagnose_predicates(document.dump(force=True))
+        self.assertEqual(result["stage"], "CMS_ALGORITHM_REJECTED")
+        for key in (
+            "signer_digest_algorithm",
+            "attribute_cardinality",
+            "signer_binding",
+        ):
+            self.assertEqual(result["predicates"][key], "REJECTED")
+        self.assertEqual(result["predicates"]["canonical_der"], "PASS")
+        raw = document.dump(force=True)
+        result = verify.diagnose_predicates(b"\x30\x83\x00" + raw[2:])
+        self.assertEqual(result["predicates"]["canonical_der"], "REJECTED")
+        self.assertEqual(result["stage"], "CMS_ALGORITHM_REJECTED")
+        _, x509, _ = verify._dependencies()
+        with patch.object(
+            x509,
+            "load_der_x509_certificate",
+            side_effect=RuntimeError("private-sentinel"),
+        ):
+            result = verify.diagnose_predicates(raw)
+        self.assertEqual(result["stage"], "CMS_ALGORITHM_REJECTED")
+        self.assertEqual(result["predicates"]["certificate_encoding"], "REJECTED")
+        self.assertEqual(result["predicates"]["signer_binding"], "NOT_CHECKED")
+        self.assertEqual(result["predicates"]["canonical_der"], "PASS")
+        self.assertNotIn("private-sentinel", repr(result))
+
+    def test_attribute_value_prerequisites_and_wrong_time_schema(self):
+        document = self.document()
+        attrs = document["content"]["signer_infos"][0]["signed_attrs"]
+        content = next(item for item in attrs if item["type"].native == "content_type")
+        content["values"] = []
+        result = verify.diagnose_predicates(document.dump(force=True))["predicates"]
+        self.assertEqual(result["attribute_value_cardinality"], "REJECTED")
+        self.assertEqual(result["content_type_value"], "NOT_CHECKED")
+        for key in ("message_digest_value", "signing_time_value", "canonical_der"):
+            self.assertEqual(result[key], "PASS")
+        document = self.document()
+        attrs = document["content"]["signer_infos"][0]["signed_attrs"]
+        time_attribute = next(
+            item for item in attrs if item["type"].native == "signing_time"
+        )
+        raw_attribute = time_attribute.dump()
+        raw_time = time_attribute["values"][0].dump()
+        malformed = document.dump().replace(
+            raw_attribute, raw_attribute.replace(raw_time, b"\x04" + raw_time[1:]), 1
+        )
+        result = verify.diagnose_predicates(malformed)
+        self.assertEqual(result["stage"], "CMS_SCHEMA_REJECTED")
+        self.assertEqual(set(result["predicates"].values()), {"NOT_CHECKED"})
+
+    def test_predicate_prerequisites_do_not_mask_unrelated_rules(self):
+        document = self.document()
+        document["content"]["digest_algorithms"] = []
+        signer = document["content"]["signer_infos"][0]
+        signer["sid"] = cms.SignerIdentifier({"subject_key_identifier": b"fictional"})
+        result = verify.diagnose_predicates(document.dump(force=True))["predicates"]
+        for key in ("digest_set_algorithm", "digest_set_parameters", "signer_binding"):
+            self.assertEqual(result[key], "NOT_CHECKED")
+        for key in ("digest_set_cardinality", "signer_identifier"):
+            self.assertEqual(result[key], "REJECTED")
+        for key in ("attribute_required", "certificate_encoding", "canonical_der"):
+            self.assertEqual(result[key], "PASS")
+
     def test_diagnostic_stage_preserves_original_exception_args(self):
         for data, stage in [
             (b"", "CMS_SIZE_REJECTED"),
