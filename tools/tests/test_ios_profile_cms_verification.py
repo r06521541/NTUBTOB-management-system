@@ -19,6 +19,47 @@ from tools import ios_profile_cms_verification as verify
 
 
 class CMSTests(unittest.TestCase):
+    def test_diagnostic_stage_preserves_original_exception_args(self):
+        for data, stage in [
+            (b"", "CMS_SIZE_REJECTED"),
+            (b"private-string", "CMS_DECODE_REJECTED"),
+            (
+                cms.ContentInfo(
+                    {"content_type": "data", "content": b"private-string"}
+                ).dump(),
+                "CMS_CONTAINER_REJECTED",
+            ),
+        ]:
+            with self.assertRaises(verify.Rejected) as caught:
+                verify.preflight(data)
+            self.assertEqual(caught.exception.args, ("CMS_STRUCTURE_REJECTED",))
+            self.assertEqual(caught.exception.diagnostic_stage, stage)
+
+    def test_diagnostic_attribute_algorithm_and_unknown_remain_rejections(self):
+        for mutation, stage in [
+            ("attributes", "CMS_ATTRIBUTES_REJECTED"),
+            ("algorithm", "CMS_ALGORITHM_REJECTED"),
+        ]:
+            document = self.document()
+            signer = document["content"]["signer_infos"][0]
+            if mutation == "attributes":
+                signer["signed_attrs"] = []
+            else:
+                signer["digest_algorithm"]["algorithm"] = "sha1"
+            with self.assertRaises(verify.Rejected) as caught:
+                verify.preflight(document.dump(force=True))
+            self.assertEqual(caught.exception.args, ("CMS_STRUCTURE_REJECTED",))
+            self.assertEqual(caught.exception.diagnostic_stage, stage)
+        with (
+            patch.object(
+                verify, "_materialize", side_effect=RuntimeError("private-error")
+            ),
+            self.assertRaises(verify.Rejected) as caught,
+        ):
+            verify.preflight(self.fixture["cms"])
+        self.assertEqual(caught.exception.args, ("CMS_STRUCTURE_REJECTED",))
+        self.assertEqual(caught.exception.diagnostic_stage, "CMS_UNKNOWN_REJECTED")
+
     @classmethod
     def setUpClass(cls):
         cls.fixture = rehearsal.fixture()

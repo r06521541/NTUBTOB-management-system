@@ -687,21 +687,134 @@ def operate(sha, *, execute=False):
         return result(reason)
 
 
+def diagnose_input(sha):
+    """Local-only independent fixed diagnostics; never call remote/native/lock."""
+    from tools import ios_profile_cms_verification as cms
+
+    checks = {
+        name: "NOT_CHECKED"
+        for name in (
+            "team",
+            "cms",
+            "certificate_der",
+            "certificate_basic_constraints",
+            "envelope_size",
+        )
+    }
+    reason = "DIAGNOSTIC_NOT_COMPLETED"
+    try:
+        repository(sha)
+        with Inputs(preparation.local_app_data() / preparation.DIRECTORY) as session:
+            print(
+                "ACTION diagnose_local_profile_inputs_only no_network no_upload no_lock_write"
+            )
+            print("TARGET inputs=distribution.cer,distribution.mobileprovision")
+            print("commit=" + sha)
+            if (
+                preparation.hidden(
+                    "Type DIAGNOSE PROFILE followed by space and exact commit (hidden): "
+                )
+                != "DIAGNOSE PROFILE " + sha
+            ):
+                raise Rejected("CONFIRMATION_REJECTED")
+            repository(sha)
+            team = preparation.hidden("Expected Team identifier (hidden): ")
+            # No matrix claims until BOTH same-handle reads succeed.
+            profile, certificate = session.read(INPUTS[1]), session.read(INPUTS[0])
+            _, x509, serialization = cms._dependencies()
+            checks["team"] = (
+                "TEAM_FORMAT_PASS"
+                if type(team) is str and re.fullmatch(r"[A-Z0-9]{10}", team)
+                else "TEAM_FORMAT_REJECTED"
+            )
+            try:
+                cms.preflight(profile)
+                checks["cms"] = "CMS_STRUCTURE_PASS"
+            except cms.Rejected as error:
+                detail = getattr(error, "diagnostic_stage", "CMS_UNKNOWN_REJECTED")
+                checks["cms"] = (
+                    detail
+                    if type(detail) is str and detail in cms.DIAGNOSTIC_STAGES
+                    else "CMS_UNKNOWN_REJECTED"
+                )
+            except Exception:
+                checks["cms"] = "CMS_UNKNOWN_REJECTED"
+            try:
+                parsed = x509.load_der_x509_certificate(certificate)
+                if parsed.public_bytes(serialization.Encoding.DER) != certificate:
+                    raise ValueError
+                checks["certificate_der"] = "CERTIFICATE_DER_PASS"
+                try:
+                    ca = parsed.extensions.get_extension_for_class(
+                        x509.BasicConstraints
+                    ).value.ca
+                    checks["certificate_basic_constraints"] = (
+                        "BASIC_CONSTRAINTS_REJECTED" if ca else "BASIC_CONSTRAINTS_PASS"
+                    )
+                except Exception:
+                    checks["certificate_basic_constraints"] = (
+                        "BASIC_CONSTRAINTS_REJECTED"
+                    )
+            except Exception:
+                checks["certificate_der"] = "CERTIFICATE_DER_REJECTED"
+            try:
+                # Same existing pre-dispatch size predicate; a fixed valid Team
+                # keeps an invalid user's format from masking the size result.
+                envelope(
+                    profile,
+                    certificate,
+                    "A" * 10,
+                    sha,
+                    1,
+                    "a" * 64,
+                    datetime.now(timezone.utc),
+                )
+                checks["envelope_size"] = "ENVELOPE_SIZE_PASS"
+            except Exception:
+                checks["envelope_size"] = "ENVELOPE_SIZE_REJECTED"
+            reason = "DIAGNOSTIC_COMPLETED"
+    except (Exception, KeyboardInterrupt) as error:
+        reason = (
+            error.args[0]
+            if isinstance(error, (Rejected, custody.CustodyError))
+            and error.args
+            and error.args[0] in REASONS
+            else "DIAGNOSTIC_NOT_COMPLETED"
+        )
+    return {
+        "classification": reason,
+        "checks": checks,
+        "real_profile_verified": False,
+        "cms_signature_verified": False,
+        "certificate_trust_verified": False,
+        "signing_authorized": False,
+        "upload_authorized": False,
+        "release_authorized": False,
+    }
+
+
 def main(argv=None):
     parser = preparation.SafeParser(add_help=False, exit_on_error=False)
     parser.add_argument("--expected-commit", required=True)
-    parser.add_argument("--execute", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--execute", action="store_true")
+    mode.add_argument("--diagnose-input", action="store_true")
     try:
         args, unknown = parser.parse_known_args(argv)
         if unknown:
             raise ValueError
-        response = operate(args.expected_commit, execute=args.execute)
+        response = (
+            diagnose_input(args.expected_commit)
+            if args.diagnose_input
+            else operate(args.expected_commit, execute=args.execute)
+        )
     except (Exception, KeyboardInterrupt, SystemExit):
         response = result("INTAKE_REJECTED")
     print(json.dumps(response, sort_keys=True))
     return (
         0
-        if response["classification"] in {"confirmed_success", "preflight_passed"}
+        if response["classification"]
+        in {"confirmed_success", "preflight_passed", "DIAGNOSTIC_COMPLETED"}
         else 1
     )
 

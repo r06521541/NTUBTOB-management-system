@@ -1,18 +1,18 @@
-active_task: TASK-190
-status: in_progress
+active_task: TASK-191
+status: ready_integration
 next_actor: main-work
-claim_id: task-190-main-20260910
+claim_id: task-191-main-20260910
 lease_version: 1
 actor_id: /root
-base_commit: 58d90054b52f9c7f5a4788625bd3964ea358c214
+base_commit: 76ec2d0d35ee90d3b8033b34f294b2c3de21864c
 updated_by: main-work
 updated_at: 2026-09-10
 note: >
-  TASK189 merged PR244, full CI and actual native CMS rehearsal PASS. Claims complete.
-  TASK190 writer lease1 completed; advisor lease3 ACCEPT for software and fictional CI.
-  Live protection-field compatibility remains unverified and fail closed.
-  No real input, Secret or cloud mutation; Main retains integration ownership.
+  TASK190 merged PR245; live Environment protection metadata confirmed. Owner execution
+  stopped locally at INPUT_REJECTED before dispatch. TASK191 prepares local-only fixed
+  diagnostics; writer lease1 complete, independent lease2 ACCEPT, focused checks PASS.
+  One full CI/merge pending; then exact-SHA local diagnostic Owner gate. No real input read.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-190.md
-report: docs/coordination/reports/TASK-190.md
-review: docs/coordination/reviews/TASK-190.md
+task: docs/coordination/tasks/TASK-191.md
+report: docs/coordination/reports/TASK-191.md
+review: docs/coordination/reviews/TASK-191.md

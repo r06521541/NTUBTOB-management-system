@@ -148,6 +148,139 @@ class GitHubFixture:
 
 
 class IntakeTests(unittest.TestCase):
+    def test_diagnose_independent_matrix_and_no_external_actions(self):
+        session = Mock()
+        session.__enter__ = Mock(return_value=session)
+        session.__exit__ = Mock(return_value=False)
+        session.read.side_effect = [self.material["cms"], self.material["der"]]
+        with (
+            patch.object(intake, "repository"),
+            patch.object(intake, "Inputs", return_value=session),
+            patch.object(
+                intake.preparation, "local_app_data", return_value=Path("fictional")
+            ),
+            patch.object(
+                intake.preparation,
+                "hidden",
+                side_effect=["DIAGNOSE PROFILE " + SHA, "private-invalid-team"],
+            ),
+            patch.object(
+                intake, "GitHub", side_effect=AssertionError("network")
+            ) as github,
+            patch.object(intake, "lifecycle", side_effect=AssertionError("mutation")),
+            contextlib.redirect_stdout(io.StringIO()) as output,
+        ):
+            result = intake.diagnose_input(SHA)
+        self.assertEqual(result["checks"]["team"], "TEAM_FORMAT_REJECTED")
+        self.assertEqual(result["checks"]["cms"], "CMS_STRUCTURE_PASS")
+        self.assertEqual(result["checks"]["envelope_size"], "ENVELOPE_SIZE_PASS")
+        self.assertNotIn("private-invalid-team", output.getvalue() + repr(result))
+        session.lock.assert_not_called()
+        github.assert_not_called()
+
+    def test_diagnose_rejection_before_reads_leaves_not_checked(self):
+        for failure in ["confirmation", "read"]:
+            session = Mock()
+            session.__enter__ = Mock(return_value=session)
+            session.__exit__ = Mock(return_value=False)
+            session.read.side_effect = intake.custody.CustodyError("READ_REJECTED")
+            answers = (
+                ["cancel"]
+                if failure == "confirmation"
+                else ["DIAGNOSE PROFILE " + SHA, "FICTTEAM01"]
+            )
+            with (
+                patch.object(intake, "repository"),
+                patch.object(intake, "Inputs", return_value=session),
+                patch.object(
+                    intake.preparation, "local_app_data", return_value=Path("fictional")
+                ),
+                patch.object(intake.preparation, "hidden", side_effect=answers),
+                patch.object(intake, "GitHub", side_effect=AssertionError("network")),
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                result = intake.diagnose_input(SHA)
+            self.assertEqual(set(result["checks"].values()), {"NOT_CHECKED"})
+            session.lock.assert_not_called()
+            if failure == "confirmation":
+                session.read.assert_not_called()
+
+    def test_diagnose_malformed_independent_checks_and_no_io(self):
+        from tools import ios_profile_cms_verification as cms
+
+        session = Mock()
+        session.__enter__ = Mock(return_value=session)
+        session.__exit__ = Mock(return_value=False)
+        session.read.side_effect = [b"private-profile", b"private-certificate"]
+        with (
+            patch.object(intake, "repository"),
+            patch.object(intake, "Inputs", return_value=session),
+            patch.object(
+                intake.preparation, "local_app_data", return_value=Path("fictional")
+            ),
+            patch.object(
+                intake.preparation,
+                "hidden",
+                side_effect=["DIAGNOSE PROFILE " + SHA, "FICTTEAM01"],
+            ),
+            patch.object(
+                intake, "remote_preflight", side_effect=AssertionError("network")
+            ),
+            patch.object(intake, "lifecycle", side_effect=AssertionError("mutation")),
+            patch.object(cms, "_compile_native", side_effect=AssertionError("native")),
+            patch("builtins.open", side_effect=AssertionError("file")),
+            contextlib.redirect_stdout(io.StringIO()) as output,
+        ):
+            result = intake.diagnose_input(SHA)
+        self.assertEqual(
+            result["checks"],
+            {
+                "team": "TEAM_FORMAT_PASS",
+                "cms": "CMS_DECODE_REJECTED",
+                "certificate_der": "CERTIFICATE_DER_REJECTED",
+                "certificate_basic_constraints": "NOT_CHECKED",
+                "envelope_size": "ENVELOPE_SIZE_PASS",
+            },
+        )
+        self.assertNotIn("private-profile", repr(result) + output.getvalue())
+        self.assertNotIn("private-certificate", repr(result) + output.getvalue())
+        self.assertTrue(
+            all(
+                value is False
+                for key, value in result.items()
+                if key.endswith(("_verified", "_authorized"))
+            )
+        )
+
+    def test_diagnose_cli_mutually_exclusive_and_explicit_routing(self):
+        with (
+            patch.object(
+                intake,
+                "diagnose_input",
+                return_value={"classification": "DIAGNOSTIC_COMPLETED"},
+            ) as diagnose,
+            patch.object(intake, "operate") as operate,
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(
+                intake.main(["--expected-commit", SHA, "--diagnose-input"]), 0
+            )
+            diagnose.assert_called_once_with(SHA)
+            operate.assert_not_called()
+        with (
+            patch.object(intake, "diagnose_input") as diagnose,
+            patch.object(intake, "operate") as operate,
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(
+                intake.main(
+                    ["--expected-commit", SHA, "--diagnose-input", "--execute"]
+                ),
+                1,
+            )
+            diagnose.assert_not_called()
+            operate.assert_not_called()
+
     @classmethod
     def setUpClass(cls):
         from tools import ios_profile_cms_rehearsal
