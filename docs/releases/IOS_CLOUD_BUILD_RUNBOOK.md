@@ -438,16 +438,48 @@ run; no Secret is uploaded without the documented exact run ID and waiting appro
 Another run or rerun cannot validate that run-bound input. Secrets are not literally
 read-once; this tool does not claim cryptographic consumption or automatic expiry.
 
-Live API compatibility remains unverified. In particular, the current official
-OpenAPI Environment schema does not document `can_admins_bypass`; the controller
-requires an explicit false value and must STOP if it is missing. Fictional fixtures
-do not establish that the live API exposes this protection. Do not weaken the check
-or repeatedly execute after a metadata preflight rejection; resolve that boundary
-read-only before any private upload.
+After Owner configured the Environment, a 2026-09-10 GET-only check confirmed the
+exact Owner/repository, required reviewer, self-review allowance, main-only branch
+policy and explicit `can_admins_bypass=false`. The live field was present despite
+being absent from the public OpenAPI schema. This resolves that observation limit,
+not future drift: the controller still requires an explicit false value every time.
+Subsequent remote preflight confirmed the exact merged main/workflow and absent
+target Secret. No private workflow was dispatched by those checks.
 
 Even a real successful result proves only the constrained profile/Team/App/certificate
 verification. Private-key possession, live signing, upload, revocation and App Store
 release remain separate gates. No installable app is produced by this workflow.
+
+### TASK-191 local input rejection diagnosis
+
+Owner reported `STOP / INPUT_REJECTED / stage=input / run_id=null` after both hidden
+prompts at TASK190's exact merged SHA. This is before dispatch/PUT, not a failed cloud
+verification. Length55 means the confirmation reached its comparison; length10 alone
+does not prove Team characters. Never infer the private failure from lengths or ask
+for the Team, certificate or profile contents in chat.
+
+The reviewed diagnostic entry is:
+`py -3.10 -m tools.ios_profile_intake --expected-commit <full-SHA> --diagnose-input`.
+It is mutually exclusive with `--execute` and local-only: no GitHub request, native
+compiler, signing, Secret, dispatch, local lock-file or artifact writes. Exact clean
+source/dependencies and existing two-file same-handle metadata checks precede a
+visible action and hidden `DIAGNOSE PROFILE <full-SHA>` confirmation, then hidden Team
+input and memory-only reads. Real input requires a new exact reviewed diagnostic
+release; previous upload approval does not authorize a changed artifact.
+
+Only fixed categories are returned for Team format, first CMS structural failure,
+public certificate DER/BasicConstraints and envelope size. No actual values, subject,
+OID, serial, digest, path or private content is emitted. Independent checks report
+together; custody/read rejection leaves unavailable checks unperformed. Existing
+metadata size guards may stop before payload reads; diagnosis does not bypass them.
+The exact production parser predicates are reused, not a permissive second parser.
+Structural agreement is not CMS signature/trust, Team matching, profile validity or
+permission to execute. All real verification and release authority remain false.
+
+Run from Owner's visible terminal. A terminal opened by the app may not be the same
+process as an agent-owned PTY: do not start a duplicate. On failure, return only the
+sanitized result and stop; no repeated cloud attempts or automatic recovery. No real
+diagnostic was executed during software preparation.
 
 Official references checked 2026-09-10:
 [GitHub dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event),

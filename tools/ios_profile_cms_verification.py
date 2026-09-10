@@ -47,6 +47,22 @@ class Rejected(Exception):
     pass
 
 
+DIAGNOSTIC_STAGES = frozenset(
+    {
+        "CMS_SIZE_REJECTED",
+        "CMS_DEPENDENCY_REJECTED",
+        "CMS_DECODE_REJECTED",
+        "CMS_CONTAINER_REJECTED",
+        "CMS_SCHEMA_REJECTED",
+        "CMS_ALGORITHM_REJECTED",
+        "CMS_ATTRIBUTES_REJECTED",
+        "CMS_CERTIFICATES_REJECTED",
+        "CMS_CANONICAL_REJECTED",
+        "CMS_UNKNOWN_REJECTED",
+    }
+)
+
+
 def _dependencies():
     import asn1crypto
     import cryptography
@@ -65,13 +81,17 @@ def preflight(data):
     No encrypted/other content reaches CMSDecoder. This deliberately excludes
     CRLs, unsigned attributes, alternative certificate choices and non-RSA/SHA256.
     """
+    stage = "CMS_SIZE_REJECTED"
     try:
         if type(data) is not bytes or not 0 < len(data) <= MAX_CMS:
             raise ValueError
+        stage = "CMS_DEPENDENCY_REJECTED"
         cms, x509, serialization = _dependencies()
         from asn1crypto import core
 
+        stage = "CMS_DECODE_REJECTED"
         document = cms.ContentInfo.load(data, strict=True)
+        stage = "CMS_CONTAINER_REJECTED"
         if document["content_type"].native != "signed_data":
             raise ValueError
         signed = document["content"]
@@ -83,6 +103,7 @@ def preflight(data):
         payload = signed["encap_content_info"]["content"].native
         if type(payload) is not bytes or not 0 < len(payload) <= 262144:
             raise ValueError
+        stage = "CMS_SCHEMA_REJECTED"
         if (
             not isinstance(signed["crls"], core.Void)
             or len(signed["signer_infos"]) != 1
@@ -90,6 +111,7 @@ def preflight(data):
         ):
             raise ValueError
         _materialize(document)
+        stage = "CMS_ALGORITHM_REJECTED"
         algorithms = signed["digest_algorithms"]
         if len(algorithms) != 1 or algorithms[0]["algorithm"].native != "sha256":
             raise ValueError
@@ -114,6 +136,7 @@ def preflight(data):
         ):
             if algorithm["parameters"].native is not None:
                 raise ValueError
+        stage = "CMS_ATTRIBUTES_REJECTED"
         attrs = signer["signed_attrs"]
         if not 2 <= len(attrs) <= 3:
             raise ValueError
@@ -138,6 +161,7 @@ def preflight(data):
                 raise ValueError
         if not {"content_type", "message_digest"} <= seen:
             raise ValueError
+        stage = "CMS_CERTIFICATES_REJECTED"
         certificates = []
         matches = []
         for choice in signed["certificates"]:
@@ -161,6 +185,7 @@ def preflight(data):
             raise ValueError
         # .native forces every remaining allowed field, including certificate
         # structures, before force=True rebuilds descendants instead of cached BER.
+        stage = "CMS_CANONICAL_REJECTED"
         document.native
         if document.dump(force=True) != data:
             raise ValueError
@@ -170,10 +195,27 @@ def preflight(data):
             "certificates": certificates,
             "signer": matches[0],
         }
-    except Rejected:
+    except Rejected as error:
+        error.diagnostic_stage = stage
         raise
-    except Exception:
-        raise Rejected("CMS_STRUCTURE_REJECTED") from None
+    except Exception as error:
+        rejected = Rejected("CMS_STRUCTURE_REJECTED")
+        rejected.diagnostic_stage = (
+            stage
+            if isinstance(
+                error,
+                (
+                    ValueError,
+                    TypeError,
+                    KeyError,
+                    IndexError,
+                    OverflowError,
+                    RecursionError,
+                ),
+            )
+            else "CMS_UNKNOWN_REJECTED"
+        )
+        raise rejected from None
 
 
 def _materialize(document):
