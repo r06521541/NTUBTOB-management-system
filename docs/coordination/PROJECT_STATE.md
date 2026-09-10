@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`76ec2d0d35ee90d3b8033b34f294b2c3de21864c`（TASK-190）。
+本次工作起點／已合併證據：`2a5cd24889b0505a78c95defa7e3729068992611`（TASK-191）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -70,7 +70,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - TASK-190已由PR245合併，完整CI與macOS虛構演練PASS。Owner完成Environment設定後，唯讀查驗確認保護規則
   及目標Secret不存在；API有回傳禁止管理員略過欄位，不再是未解相容性疑慮。
 - Owner於exact批准後執行profile intake，回報本機input階段INPUT_REJECTED、run_id=null；未到dispatch。
-  TASK-191改善local-only固定分類診斷，不放寬parser／trust，不推定真實檔案原因；新版本真實診斷仍需Owner gate。
+  TASK-191已合併且full CI通過；Owner批准並執行local-only診斷，回報CMS_ALGORITHM_REJECTED，其他四項PASS。
+  真實profile信任仍未驗證；不推定具體演算法或檔案有誤。Owner已批准TASK-192一次完整predicate診斷例外，
+  軟體需獨立審查／CI，之後只做一次exact-SHA本機診斷；仍不明即停止，不放寬parser／trust、不上傳、不重建憑證。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

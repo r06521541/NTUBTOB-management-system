@@ -691,6 +691,7 @@ def diagnose_input(sha):
     """Local-only independent fixed diagnostics; never call remote/native/lock."""
     from tools import ios_profile_cms_verification as cms
 
+    cms_predicates = dict.fromkeys(cms.PREDICATE_KEYS, "NOT_CHECKED")
     checks = {
         name: "NOT_CHECKED"
         for name in (
@@ -728,15 +729,26 @@ def diagnose_input(sha):
                 else "TEAM_FORMAT_REJECTED"
             )
             try:
-                cms.preflight(profile)
-                checks["cms"] = "CMS_STRUCTURE_PASS"
-            except cms.Rejected as error:
-                detail = getattr(error, "diagnostic_stage", "CMS_UNKNOWN_REJECTED")
-                checks["cms"] = (
-                    detail
-                    if type(detail) is str and detail in cms.DIAGNOSTIC_STAGES
-                    else "CMS_UNKNOWN_REJECTED"
-                )
+                diagnostic = cms.diagnose_predicates(profile)
+                if (
+                    type(diagnostic) is not dict
+                    or set(diagnostic) != {"stage", "predicates"}
+                    or type(diagnostic["stage"]) is not str
+                    or diagnostic["stage"]
+                    not in cms.DIAGNOSTIC_STAGES | {"CMS_STRUCTURE_PASS"}
+                    or type(diagnostic["predicates"]) is not dict
+                    or set(diagnostic["predicates"]) != set(cms.PREDICATE_KEYS)
+                    or any(
+                        type(value) is not str
+                        or value not in {"PASS", "REJECTED", "NOT_CHECKED"}
+                        for value in diagnostic["predicates"].values()
+                    )
+                ):
+                    raise ValueError
+                checks["cms"] = diagnostic["stage"]
+                cms_predicates = {
+                    key: diagnostic["predicates"][key] for key in cms.PREDICATE_KEYS
+                }
             except Exception:
                 checks["cms"] = "CMS_UNKNOWN_REJECTED"
             try:
@@ -784,6 +796,7 @@ def diagnose_input(sha):
     return {
         "classification": reason,
         "checks": checks,
+        "cms_predicates": cms_predicates,
         "real_profile_verified": False,
         "cms_signature_verified": False,
         "certificate_trust_verified": False,

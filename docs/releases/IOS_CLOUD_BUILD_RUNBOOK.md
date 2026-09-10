@@ -481,6 +481,34 @@ process as an agent-owned PTY: do not start a duplicate. On failure, return only
 sanitized result and stop; no repeated cloud attempts or automatic recovery. No real
 diagnostic was executed during software preparation.
 
+### TASK-192 single comprehensive refinement
+
+After the TASK191 merge and exact approval, Owner reported DIAGNOSTIC_COMPLETED:
+CMS_ALGORITHM_REJECTED with Team format, certificate DER/BasicConstraints and
+envelope size passing. This is not proof of Team binding, signature or trust.
+The diagnosis is local-only: slow network during execution cannot generate this
+CMS predicate rejection. This observation does not establish download integrity.
+
+Owner approved a one-time exception to the normal layer-split cap: one comprehensive
+fixed predicate matrix, then one newly reviewed exact-SHA local diagnostic run.
+The refinement must not change the accepted algorithms, parser bounds or trust.
+Report independent algorithm and downstream structural constraints where safe;
+unavailable prerequisites remain NOT_CHECKED, not PASS. No observed values/OIDs,
+subjects, identifiers or hashes are emitted. No network, native verification,
+signing, lock/artifact writes or upload is part of the diagnostic entry.
+If the one result is still insufficient, stop inconclusive; no third refinement or
+automatic retry. Compatibility changes require separate evidence/review/decision.
+The command remains --diagnose-input with a new exact merged SHA and hidden
+DIAGNOSE PROFILE confirmation; never use --execute as a diagnostic workaround.
+
+The result adds `cms_predicates` with 25 fixed rule keys and only PASS, REJECTED or
+NOT_CHECKED values; `checks.cms` retains the first rejection stage. Repeated rules
+aggregate evaluated instances (any rejection wins). PASS is not a claim about
+children excluded by a failed prerequisite; read alongside prerequisite results.
+No evaluable/applicable instance is NOT_CHECKED, including absent optional signing
+time. A malformed bounded parse prevents all deeper checks. There is no automatic
+remediation, and an all-PASS structural matrix still grants no signature or trust.
+
 Official references checked 2026-09-10:
 [GitHub dispatch API](https://docs.github.com/en/rest/actions/workflows#create-a-workflow-dispatch-event),
 [Environment protections](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments),

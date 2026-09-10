@@ -45,3 +45,22 @@
   diagnostic gate are required; prior upload approval is not reused.
 - External mutations: none. No dependency/native/runner/workflow changes, real assets,
   private output files, API calls, signing/upload, commits or pushes.
+
+## Main post-merge evidence
+
+PR246 source e5e9392684fc552b45000de5d2ef6f14e5cdf7cd merged as
+2a5cd24889b0505a78c95defa7e3729068992611. Full CI34488581114 SUCCESS,
+including macOS job102909145086 FICTIONAL_RUNNER_REHEARSAL_VERIFIED.
+Owner approved the merged local-only diagnostic and returned:
+
+```json
+{"classification":"DIAGNOSTIC_COMPLETED","checks":{"team":"TEAM_FORMAT_PASS","cms":"CMS_ALGORITHM_REJECTED","certificate_der":"CERTIFICATE_DER_PASS","certificate_basic_constraints":"BASIC_CONSTRAINTS_PASS","envelope_size":"ENVELOPE_SIZE_PASS"},"certificate_trust_verified":false,"cms_signature_verified":false,"real_profile_verified":false,"release_authorized":false,"signing_authorized":false,"upload_authorized":false}
+```
+
+This is Owner-reported evidence, not an independent private-file inspection. Team
+format is not Team matching, DER/BasicConstraints is not certificate trust. Source
+inspection confirms the rejected stage groups digest set/algorithm, signer version,
+identifier form, unsigned attributes, signature algorithm/size and parameters.
+It does not reveal which predicate failed or establish an invalid Apple profile.
+No agent private read, upload retry, changed validation or external operation followed.
+Further diagnostic refinement is paused at the COLLABORATION5 bounded-exception gate.
