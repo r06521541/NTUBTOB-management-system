@@ -87,3 +87,30 @@ tools.tests.test_ios_profile_intake tools.tests.test_ios_profile_verification_ru
 =37 run,36 PASS/1 skip; five owned Python quality PASS. No source changed after review.
 Main now integrates one PR under standing Git authority. Full/native hosted success
 is mandatory before merge; no live/private verification release follows the merge.
+
+## Post-merge real attempt and next Owner gate
+
+Software delivered via PR248: source40e0d0628279ecd23e45393bbb16e01383077da2,
+merge5848831772017a039bbcccfa68e75ac849f89236, full CI34563043900 SUCCESS;
+macOS job103149546320 CMS408-case/runner rehearsal and no-codesign compile PASS.
+Owner separately approved one real verification at that exact merged SHA, including
+existing TASK190 custody/one-dispatch/one-Secret/cleanup and visible Owner inputs.
+Default metadata preflight passed; the subsequent Owner-run attempt stopped at input.
+Sanitized result is recorded only in the existing report. No retry permission follows.
+
+Source check confirms INPUT_REJECTED at stage=input precedes every dispatch/PUT;
+the combined reason does not identify Team format, CMS, certificate or envelope
+subfailure. Do not infer an algorithm, damaged download, bad Team or network cause.
+Read-only child-process check of the exact launched terminal44256 returned zero.
+No wrapper or native verifier remains running under that terminal.
+
+Main records this stop on codex/task-194-verification-stop; no implementation,
+new diagnostic, private read, mutation retry or standalone status PR. Prior writer
+and reviewer claims remain complete. Real verification is NOT complete.
+
+Owner gate: choose whether to authorize a new architecture/design work package
+to reassess custom preflight versus maintained verification responsibilities using
+public source/standards and fictional tests only, or keep this path paused.
+A design approval would not authorize implementation, changing cryptographic/trust
+policy, another private diagnostic/verification, signing, upload or regenerating assets.
+The consumed TASK192 diagnostic exception and this stopped exact attempt do not renew.

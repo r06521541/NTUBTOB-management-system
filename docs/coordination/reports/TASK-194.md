@@ -81,3 +81,24 @@ the existing fictional/public-code fixtures. No external service mutation occurr
 Owner's actual profile may remain unsupported. This software preparation does not
 authorize real input or infer its algorithms/OIDs; any later real verification needs
 the separate reviewed exact-SHA Owner gate. Writer becomes read-only after handoff.
+
+## Main post-merge operation evidence
+
+PR248 merged as5848831772017a039bbcccfa68e75ac849f89236; full run34563043900
+SUCCESS, native job103149546320 fictional CMS and runner markers PASS. Later Owner
+approved exactly one real verification at that merged SHA. Reviewed wrapper default
+metadata preflight passed before launching the visible Owner terminal (PID44256).
+Owner returned this single sanitized operation result:
+
+```json
+{"cancel_unresolved":false,"classification":"STOP","reason":"INPUT_REJECTED","release_authorized":false,"run_id":null,"secret_absence_confirmed":false,"signing_authorized":false,"stage":"input","upload_authorized":false}
+```
+
+Public source inspection maps this stage/reason to pre-dispatch local checks, not
+an exact failed predicate. No dispatch or Secret PUT occurs on this path; false
+secret_absence_confirmed is not positive evidence of a retained Secret (it denotes
+no confirmed post-upload cleanup). No new remote state or private payload inspected.
+Exact terminal child-process query returned0; initial sandbox metadata query was
+access-denied and only that read-only query was escalated. No process was killed.
+No retry/new diagnostic. Main leaves the next architecture decision at Owner gate;
+software delivery succeeded but real profile compatibility/trust remain unproven.

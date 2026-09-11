@@ -200,6 +200,32 @@ jobs:
           --expected-staging-provider-config-sha256 47c660e43fc0a90f4c02fdf48584f10cb97137413c42e92ec926c652690c6ced
           --expected-signer-sha256 "$CONTRACT_SIGNER_SHA256"
 
+  ios_xcode_feasibility:
+    name: Xcode 26.3 / fictional archive and temporary Keychain
+    runs-on: macos-15
+    timeout-minutes: 15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - name: Check out repository without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python for fictional rehearsal
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+
+      - name: Install locked fictional fixture dependencies
+        run: python -m pip install --no-cache-dir -r tools/requirements-ios-profile-intake.txt
+
+      - name: Test orchestration and safe failure boundaries
+        run: python -m unittest tools.tests.test_ios_xcode_feasibility -v
+
+      - name: Rehearse unsigned archive and manual export rejection without Apple assets
+        run: python -m tools.ios_xcode_feasibility --rehearsal
+
   ios_compile_contract:
     name: Flutter 3.47.0 / iOS Release compile gate
     runs-on: macos-latest

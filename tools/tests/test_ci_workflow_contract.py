@@ -213,9 +213,38 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn('test -z "$(git status --short)"', ios)
         self.assertNotIn("upload-artifact", ios)
         uses = re.findall(r"(?m)^\s*-?\s*uses:\s*([^\s#]+)", self.flutter_source)
-        self.assertEqual(len(uses), 5)
+        self.assertEqual(len(uses), 7)
         self.assertTrue(
             all(re.fullmatch(r"[^@\s]+@[0-9a-f]{40}", action) for action in uses)
+        )
+
+    def test_xcode_feasibility_is_isolated_fictional_and_pinned(self):
+        block = job_block(self.flutter_source, "ios_xcode_feasibility")
+        for required in (
+            "runs-on: macos-15",
+            "timeout-minutes: 15",
+            "DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer",
+            "persist-credentials: false",
+            "--no-cache-dir -r tools/requirements-ios-profile-intake.txt",
+            "python -m unittest tools.tests.test_ios_xcode_feasibility -v",
+            "python -m tools.ios_xcode_feasibility --rehearsal",
+        ):
+            self.assertIn(required, block)
+        for forbidden in (
+            "secrets.",
+            "environment:",
+            "upload-artifact",
+            "actions/cache",
+            "allowProvisioningUpdates",
+            "continue-on-error",
+            "security import",
+            "secrets: inherit",
+        ):
+            self.assertNotIn(forbidden, block)
+        self.assertEqual(block.count("--rehearsal"), 1)
+        self.assertIn(
+            "tools.tests.test_ios_xcode_feasibility",
+            job_block(self.source, "deployment_tools"),
         )
 
     def test_ios_project_and_runner_target_require_ios_15(self):

@@ -395,9 +395,21 @@
 - Non-goals：本決策不授權provider帳號／SDK、cloud／Secret、store表單、production、真實上傳、device evidence、部署或
   public release。
 
+## DEC-108：iOS交付改採Xcode-led候選證據與分層發布關卡
+
+- 狀態：`active`；日期：2026-09-11；來源：Owner批准TASK195設計與TASK196虛構可行性實作。
+- 決策：以固定工具鏈的manual archive/export作為候選App交付路徑；既有有限CMS/XML工具保持不變、退為輔助，
+  其成功不等於Apple完整profile有效性。架構調整不是對INPUT_REJECTED根因的診斷或修復保證。
+- Invariants：repository控制、Xcode匯出、artifact integrity、Apple validation/processing與device/release分開取證。
+  不自動provision、不建立替代憑證、不修改既有crypto/trust或readiness以求通過；真實私鑰/Keychain/profile/IPA的
+  custody與簽署、Apple帳號驗證/上傳需各自exact gate。虛構匯出被拒不是positive signing成功。
+- 下一包僅驗證無真憑證的工具鏈/封存/暫存Keychain與失敗清理；若需要在key import後執行專案程式或新增暴露面，
+  先停止審查，不能要求Owner反覆試跑真資產。既有private診斷次數不更新。
+- Non-goals：不更改provider/runtime/store，不授權真實簽署、上傳、公開發布或憑證重建。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-107`，下一個新決策從 `DEC-108` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-108`，下一個新決策從 `DEC-109` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。
