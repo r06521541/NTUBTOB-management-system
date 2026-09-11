@@ -1,0 +1,538 @@
+"""Fictional cross-process signing contract; no real assets."""
+
+import contextlib
+import io
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from tools import ios_fictional_signing as target
+from tools.tests.test_ios_xcode_feasibility import FakeRunner as ToolchainRunner
+
+
+class Runner(ToolchainRunner):
+    def __call__(self, args, **kwargs):
+        if "swiftc" in args:
+            Path(args[-1]).write_bytes(b"fictional-native")
+        if "clang" in args:
+            Path(args[-1]).write_bytes(b"fictional-mach-o")
+        if Path(args[0]).name == "native":
+            self.calls.append(args)
+            if self.failure == "timeout":
+                raise target.bounded.Rejected("PROCESS_TIMEOUT")
+            if self.failure == "cancel":
+                raise KeyboardInterrupt
+            if self.failure == "raw":
+                return 0, b"private-sentinel"
+            payload = kwargs["payload"]
+            reason = (
+                "AUTH_REJECTED"
+                if payload[0]
+                else (
+                    "CERTIFICATE_MISMATCH"
+                    if payload.endswith(b"wrong")
+                    else "SIGNING_VERIFIED"
+                )
+            )
+            phase = (
+                "import"
+                if payload[0]
+                else (
+                    "certificate_match"
+                    if reason == "CERTIFICATE_MISMATCH"
+                    else "tamper_rejected"
+                )
+            )
+            if self.failure == "signing":
+                reason, phase = "CUSTODY_REJECTED", "codesign_exit"
+            value = {
+                **target.empty_observation(),
+                "reason": reason,
+                "phase": phase,
+                "error_class": "OS_SUCCESS",
+                "cleanup": "VERIFIED",
+                "cleanup_phase": "completed",
+                "cleanup_error_class": "OS_SUCCESS",
+            }
+            if reason == "SIGNING_VERIFIED":
+                value.update(codesign_exit="ZERO", codesign_output="BOUNDED")
+            if "--diagnose-identity" in args:
+                value.update(target.empty_observation())
+                value.update(
+                    reason="IDENTITY_OBSERVED",
+                    phase="identity_observation",
+                    certificate_query="NOT_FOUND",
+                    identity_query="NOT_FOUND",
+                )
+                if self.failure == "query_error":
+                    value["identity_query"] = "ERROR"
+            if "--diagnose-selection" in args:
+                value.update(target.empty_observation())
+                value.update(
+                    reason="SELECTION_OBSERVED",
+                    phase="selection_observation",
+                    certificate_query="NOT_FOUND",
+                    identity_query="NOT_FOUND",
+                )
+                scope = {
+                    **target.empty_identity_observation(),
+                    "certificate_query": "NOT_FOUND",
+                    "identity_query": "NOT_FOUND",
+                    "key_status": "NOT_CHECKED",
+                    "key_can_sign_typed": False,
+                    "key_can_sign": False,
+                    "key_target": False,
+                }
+                value["selection"] = {
+                    "native_policy_qualification": "NOT_EVALUATED",
+                    "parent": scope,
+                    "child_status": "COMPLETE",
+                    "child": scope.copy(),
+                }
+                if self.failure in {"child_timeout", "child_failed"}:
+                    value["selection"].update(
+                        child_status=(
+                            "TIMEOUT" if self.failure == "child_timeout" else "FAILED"
+                        ),
+                        child={},
+                    )
+            if self.failure == "cleanup":
+                value.update(
+                    reason="CLEANUP_UNRESOLVED",
+                    cleanup="DELETE_REJECTED",
+                    cleanup_phase="delete",
+                    cleanup_error_class="OS_OTHER",
+                )
+            return 0, json.dumps(value).encode()
+        return super().__call__(args, **kwargs)
+
+
+class SigningTests(unittest.TestCase):
+    def test_offline_missing_extensions_and_unreaped_contradiction(self):
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.serialization import pkcs12
+
+        p12, _, _ = target.fictional_material()
+        key, cert, _ = pkcs12.load_key_and_certificates(p12, b"fictional-new-password")
+        bare = (
+            x509.CertificateBuilder()
+            .subject_name(cert.subject)
+            .issuer_name(cert.issuer)
+            .public_key(key.public_key())
+            .serial_number(1)
+            .not_valid_before(cert.not_valid_before_utc)
+            .not_valid_after(cert.not_valid_after_utc)
+            .sign(key, hashes.SHA256())
+        )
+        observed = target.offline_certificate(
+            bare.public_bytes(serialization.Encoding.DER)
+        )
+        self.assertTrue(observed["parsed"])
+        self.assertFalse(observed["ku_digital_signature"])
+        self.assertFalse(observed["eku_code_signing"])
+        self.assertFalse(target.offline_certificate(b"malformed")["parsed"])
+        result, _ = self.exercise(selection=True)
+        detail = result["native_detail"]
+        detail["reason"] = "CLEANUP_UNRESOLVED"
+        detail["selection"].update(child_status="UNREAPED", child={})
+        with self.assertRaises(target.bounded.Rejected):
+            target.native_detail(json.dumps(detail).encode())
+
+    def test_selection_typed_metadata(self):
+        scope = {
+            "certificate_query": "FOUND",
+            "identity_query": "FOUND",
+            "certificate_type": True,
+            "certificate_der": True,
+            "identity_type": True,
+            "identity_der": True,
+            "key_status": "FOUND",
+            "key_can_sign_typed": True,
+            "key_can_sign": False,
+            "key_target": True,
+        }
+        value = {
+            **target.empty_selection(),
+            "parent": scope,
+            "child": scope.copy(),
+            "child_status": "COMPLETE",
+        }
+        self.assertTrue(target.selection_valid(value))
+        for key, invalid in (
+            ("key_can_sign_typed", 1),
+            ("key_status", "private-sentinel"),
+            ("key_target", False),
+        ):
+            with self.assertRaises(target.bounded.Rejected):
+                target.validate_selection({**value, "child": {**scope, key: invalid}})
+        self.assertFalse(any(target.offline_certificate(b"private-sentinel").values()))
+        with self.assertRaises(target.bounded.Rejected):
+            target.native_detail(b"x" * 8193)
+
+    def test_selection_child_failures_and_no_signing(self):
+        result, runner = self.exercise(selection=True)
+        self.assertEqual(result["classification"], "SELECTION_DIAGNOSTIC_COMPLETE")
+        self.assertEqual(result["native_policy_qualification"], "NOT_EVALUATED")
+        self.assertFalse(result["fictional_codesign_verified"])
+        self.assertTrue(result["cleanup_verified"])
+        calls = [args for args in runner.calls if Path(args[0]).name == "native"]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1:], ["--diagnose-selection"])
+        for failure in ("child_timeout", "child_failed"):
+            result, _ = self.exercise(failure, selection=True)
+            self.assertEqual(
+                result["classification"], "SELECTION_DIAGNOSTIC_INCONCLUSIVE"
+            )
+            self.assertFalse(result["fictional_codesign_verified"])
+            self.assertTrue(result["cleanup_verified"])
+
+    def test_selection_source_readonly_child_boundary(self):
+        source = target.SOURCE.read_text()
+        child = source[
+            source.index(
+                'if selectionChild {\n    guard predicate("frame"',
+                source.index("p12 = Data()"),
+            ) : source.index("var beforeList:")
+        ]
+        for forbidden in (
+            "SecPKCS12Import",
+            "SecKeychainCreate",
+            "SecKeychainDelete",
+            "SecKeychainUnlock",
+            "crossProcessSign",
+        ):
+            self.assertNotIn(forbidden, child)
+        self.assertIn("SecKeychainOpen(path, &opened)", child)
+        self.assertIn("exit(0)", child)
+        for forbidden in (
+            "kSecMatchPolicy",
+            "kSecMatchTrustedOnly",
+            "kSecMatchValidOnDate",
+            "kSecMatchIssuers",
+            "SecTrustEvaluate",
+            "SecPolicyCreate",
+        ):
+            self.assertNotIn(forbidden, source)
+        for required in (
+            "signal(SIGPIPE, SIG_IGN)",
+            "4097 - output.count",
+            "SecKeyCopyAttributes(key)",
+            "CFBooleanGetTypeID()",
+            'child.arguments = ["--selection-child"]',
+            "inputLimit = selectionChild ? 4096 : 131081",
+        ):
+            self.assertIn(required, source)
+
+    def test_selection_schema_and_offline_metadata(self):
+        p12, der, _ = target.fictional_material()
+        self.assertTrue(all(target.offline_certificate(der).values()))
+        value = target.empty_selection()
+        self.assertEqual(value["native_policy_qualification"], "NOT_EVALUATED")
+        self.assertFalse(target.selection_valid(value))
+        with self.assertRaises(target.bounded.Rejected):
+            target.validate_selection(
+                {**value, "native_policy_qualification": "VERIFIED"}
+            )
+
+    def test_identity_observation_is_not_signing(self):
+        for status in ("FOUND", "NOT_FOUND", "ERROR"):
+            value = target.empty_identity_observation()
+            value.update(certificate_query=status, identity_query=status)
+            if status == "FOUND":
+                value.update(
+                    certificate_type=True,
+                    certificate_der=True,
+                    identity_type=True,
+                    identity_der=True,
+                )
+            self.assertEqual(
+                target.identity_observation_valid(value), status != "ERROR"
+            )
+        value = target.empty_identity_observation()
+        value.update(certificate_query="FOUND", identity_query="FOUND")
+        self.assertFalse(target.identity_observation_valid(value))
+        observed = {
+            **target.empty_observation(),
+            "reason": "IDENTITY_OBSERVED",
+            "phase": "identity_observation",
+            "error_class": "OS_SUCCESS",
+            "cleanup": "VERIFIED",
+            "cleanup_phase": "completed",
+            "cleanup_error_class": "OS_SUCCESS",
+            "certificate_query": "NOT_FOUND",
+            "identity_query": "NOT_FOUND",
+        }
+        self.assertEqual(target.native_detail(json.dumps(observed).encode()), observed)
+        for key, value in (
+            ("identity_query", "private-sentinel"),
+            ("certificate_type", 1),
+            ("certificate_der", True),
+            ("codesign_exit", "ZERO"),
+            ("cleanup", "NOT_CREATED"),
+        ):
+            with self.assertRaises(target.bounded.Rejected):
+                target.native_detail(json.dumps({**observed, key: value}).encode())
+
+    def test_codesign_observation_schema(self):
+        value = {
+            "reason": "CUSTODY_REJECTED",
+            "phase": "codesign_exit",
+            "error_class": "PREDICATE_REJECTED",
+            "cleanup": "VERIFIED",
+            "cleanup_phase": "completed",
+            "cleanup_error_class": "OS_SUCCESS",
+            **target.empty_observation(),
+        }
+        value["codesign_exit"] = "NONZERO"
+        value["codesign_output"] = "BOUNDED"
+        self.assertEqual(target.native_detail(json.dumps(value).encode()), value)
+        for key, invalid in (
+            ("codesign_exit", "private-sentinel"),
+            ("codesign_output", "private-sentinel"),
+            ("marker_internal_component", "private-sentinel"),
+        ):
+            with self.assertRaises(target.bounded.Rejected):
+                target.native_detail(json.dumps({**value, key: invalid}).encode())
+        with self.assertRaises(target.bounded.Rejected):
+            target.native_detail(
+                json.dumps(
+                    {
+                        **value,
+                        "reason": "SIGNING_VERIFIED",
+                        "phase": "tamper_rejected",
+                        "error_class": "OS_SUCCESS",
+                        "codesign_output": "OVERFLOW",
+                    }
+                ).encode()
+            )
+
+    def exercise(self, failure=None, diagnose=False, selection=False):
+        runner = Runner(failure)
+        with (
+            patch.object(target.platform, "system", return_value="Darwin"),
+            patch.object(target.platform, "machine", return_value="arm64"),
+            patch.object(
+                target.bounded,
+                "os_temp_root",
+                return_value=Path(tempfile.gettempdir()).resolve(),
+            ),
+            patch.object(
+                target,
+                "fictional_material",
+                return_value=(b"fictional", b"certificate", b"wrong"),
+            ),
+            patch.object(
+                target,
+                "offline_certificate",
+                return_value={
+                    "parsed": True,
+                    "ku_digital_signature": True,
+                    "eku_code_signing": True,
+                    "currently_valid": True,
+                    "rsa": True,
+                },
+            ),
+        ):
+            result = target.rehearse(
+                _run=runner, _diagnose=diagnose, _selection=selection
+            )
+        self.assertFalse(runner.root.exists())
+        self.assertNotIn("private-sentinel", repr(result))
+        return result, runner
+
+    def test_diagnostic_mode_no_signing_and_query_error(self):
+        result, runner = self.exercise(diagnose=True)
+        self.assertEqual(result["classification"], "IDENTITY_DIAGNOSTIC_COMPLETE")
+        self.assertFalse(result["fictional_codesign_verified"])
+        self.assertTrue(result["cleanup_verified"])
+        calls = [args for args in runner.calls if Path(args[0]).name == "native"]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1:], ["--diagnose-identity"])
+        self.assertEqual(result["native_detail"]["codesign_exit"], "NOT_RUN")
+        result, _ = self.exercise("query_error", diagnose=True)
+        self.assertEqual(result["classification"], "IDENTITY_DIAGNOSTIC_INCONCLUSIVE")
+        self.assertFalse(result["fictional_codesign_verified"])
+        self.assertTrue(result["cleanup_verified"])
+
+    def test_order_and_false_authority(self):
+        result, runner = self.exercise()
+        self.assertEqual(result["classification"], "FICTIONAL_SIGNING_VERIFIED")
+        self.assertTrue(result["fictional_codesign_verified"])
+        self.assertTrue(result["cleanup_verified"])
+        first = next(
+            i for i, args in enumerate(runner.calls) if Path(args[0]).name == "native"
+        )
+        self.assertEqual(len(runner.calls[first:]), 3)
+        self.assertTrue(
+            all(Path(args[0]).name == "native" for args in runner.calls[first:])
+        )
+        self.assertFalse(
+            any(Path(args[0]).name == "fictional-mach-o" for args in runner.calls)
+        )
+        for key in (
+            "positive_export_verified",
+            "flutter_nested_signing_verified",
+            "real_assets_verified",
+            "real_signing_authorized",
+            "signing_authorized",
+            "upload_authorized",
+            "release_authorized",
+        ):
+            self.assertFalse(result[key])
+
+    def test_failure_and_cleanup_are_separate(self):
+        result, _ = self.exercise("signing")
+        self.assertEqual(result["classification"], "CUSTODY_REJECTED")
+        self.assertTrue(result["cleanup_verified"])
+        for failure in ("timeout", "cancel", "raw", "cleanup"):
+            result, _ = self.exercise(failure)
+            self.assertEqual(result["classification"], "CLEANUP_UNRESOLVED")
+            self.assertFalse(result["cleanup_verified"])
+            self.assertFalse(result["fictional_codesign_verified"])
+
+    def test_compile_failure_precedes_key_generation(self):
+        runner = Runner()
+
+        def fail_compile(args, **kwargs):
+            if "swiftc" in args:
+                return 1, b"private-sentinel"
+            return runner(args, **kwargs)
+
+        with (
+            patch.object(target.platform, "system", return_value="Darwin"),
+            patch.object(target.platform, "machine", return_value="arm64"),
+            patch.object(
+                target.bounded,
+                "os_temp_root",
+                return_value=Path(tempfile.gettempdir()).resolve(),
+            ),
+            patch.object(target, "fictional_material") as material,
+        ):
+            result = target.rehearse(_run=fail_compile)
+        material.assert_not_called()
+        self.assertTrue(result["cleanup_verified"])
+        self.assertFalse(result["fictional_codesign_verified"])
+        self.assertNotIn("private-sentinel", repr(result))
+        self.assertFalse(runner.root.exists())
+
+    def test_platform_guard_does_not_allocate(self):
+        with (
+            patch.object(target.platform, "system", return_value="Windows"),
+            patch.object(target.tempfile, "mkdtemp") as allocate,
+        ):
+            result = target.rehearse()
+        self.assertEqual(result["classification"], "TOOLCHAIN_UNSUPPORTED")
+        allocate.assert_not_called()
+
+    def test_native_output_rejects_unknown_and_duplicate(self):
+        valid = {
+            **target.empty_observation(),
+            "codesign_exit": "ZERO",
+            "codesign_output": "BOUNDED",
+            "reason": "SIGNING_VERIFIED",
+            "phase": "tamper_rejected",
+            "error_class": "OS_SUCCESS",
+            "cleanup": "VERIFIED",
+            "cleanup_phase": "completed",
+            "cleanup_error_class": "OS_SUCCESS",
+        }
+        self.assertEqual(target.native_detail(json.dumps(valid).encode()), valid)
+        for key, value in (
+            ("phase", "import"),
+            ("error_class", "OS_OTHER"),
+            ("cleanup", "NOT_CREATED"),
+            ("cleanup_phase", "delete"),
+            ("cleanup_error_class", "OS_OTHER"),
+        ):
+            with self.assertRaises(target.bounded.Rejected):
+                target.native_detail(json.dumps({**valid, key: value}).encode())
+        for data in (
+            b"private-sentinel",
+            b'{"reason":"SIGNING_VERIFIED","reason":"SIGNING_VERIFIED"}',
+            b"x" * 2049,
+        ):
+            with self.assertRaises(target.bounded.Rejected) as raised:
+                target.native_detail(data)
+            self.assertEqual(raised.exception.args, ("OUTPUT_REJECTED",))
+
+    def test_fictional_material_encrypted_and_bound(self):
+        from cryptography import x509
+        from cryptography.hazmat.primitives.serialization import pkcs12
+
+        p12, der, wrong = target.fictional_material()
+        key, certificate, chain = pkcs12.load_key_and_certificates(
+            p12, b"fictional-new-password"
+        )
+        self.assertEqual(
+            key.public_key().public_numbers(), certificate.public_key().public_numbers()
+        )
+        self.assertEqual(x509.load_der_x509_certificate(der), certificate)
+        self.assertFalse(chain)
+        self.assertNotEqual(der, wrong)
+        with self.assertRaises(ValueError):
+            pkcs12.load_key_and_certificates(p12, b"fictional-wrong-password")
+
+    def test_cli_has_no_private_entry(self):
+        for args in ([], ["private-sentinel"], ["--rehearsal", "private-sentinel"]):
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(target.main(args), 1)
+            self.assertNotIn("private-sentinel", output.getvalue())
+
+    def test_native_contract(self):
+        source = target.SOURCE.read_text()
+        for required in (
+            'SecTrustedApplicationCreateFromPath("/usr/bin/codesign"',
+            "--timestamp=none",
+            "kSecCSNoNetworkAccess",
+            "errSecCSSignatureFailed",
+            "SecKeychainDelete(target)",
+        ):
+            self.assertIn(required, source)
+        for forbidden in (
+            "SecKeychainSetDefault",
+            "SecKeychainSetSearchList",
+            "set-key-partition-list",
+            "NSTask",
+            "--deep",
+            "SecItemAdd",
+            "SecItemUpdate",
+            "kSecUseDataProtectionKeychain",
+            "kSecMatchLimitAll",
+        ):
+            self.assertNotIn(forbidden, source)
+        self.assertIn("kSecMatchSearchList as String: [target] as CFArray", source)
+        self.assertIn("kSecMatchLimit as String: kSecMatchLimitOne", source)
+        self.assertIn("kSecReturnRef as String: true", source)
+        self.assertIn("CFGetTypeID(item) == SecCertificateGetTypeID()", source)
+        self.assertIn("CFGetTypeID(item) == SecIdentityGetTypeID()", source)
+        self.assertIn(
+            "guard !diagnoseIdentity && !diagnoseSelection && !selectionChild else { return false }",
+            source,
+        )
+        self.assertIn("} else if importOK && diagnoseIdentity {", source)
+        self.assertIn("[trustedApplication, signingApplication] as CFArray", source)
+        self.assertIn(
+            "SecCertificateCopyData(certificates[0]) as Data == expected", source
+        )
+        self.assertIn("child.standardError = stderrPipe", source)
+        self.assertIn("ProcessInfo.processInfo.systemUptime + 20", source)
+        self.assertIn("O_NONBLOCK", source)
+        self.assertIn("8193 - captured.count", source)
+        self.assertIn(
+            'captured.count > 8192 { codesignOutput = "OVERFLOW"; return false }',
+            source,
+        )
+        self.assertIn("if ended.wait(timeout: .now() + 2) == .timedOut", source)
+        self.assertLess(
+            source.index("kill(child.processIdentifier, SIGKILL)"),
+            source.index("if ended.wait(timeout: .now() + 2) == .timedOut"),
+        )
+        self.assertNotIn('result["stderr"]', source)
+        self.assertIn("kill(child.processIdentifier, SIGKILL)", source)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -133,6 +133,10 @@ branch cleanup；前提是 diff 已驗收、CI 成功且無 blocker／scope expa
 此授權不包含 production、production DB、Secret payload、IAM／Scheduler／cloud resource、真實通知、provider／store、
 release signing、付費／公開權限、不可逆刪除或重大產品／架構變更。這些仍需 exact Owner gate。
 
+IOS-TF-01例外僅依DEC-109／TASK-198生效：Owner已授權既有資產簽署、隔離staging與僅本人TestFlight。
+Main保留exact preflight與單次operation證據，但包內SHA／confirmed-zero correction不重複要求Owner批准。
+下列wrapper／review／清理／uncertain reconcile規則仍保留；named stops與USD20上限不因standing approval豁免。
+
 DEC-100 的隔離 fictional staging autonomy只允許 repository verifier與read-only preflight確認 exact target、identity、cost、
 public boundary、rollback後的 task-scoped可復原操作。不得推論 production、真實資料、Secret payload或不可逆操作也獲授權；
 結果不確定時先唯讀 reconcile，不重送 mutation。

@@ -1,5 +1,9 @@
 # TASK-196: rehearse Xcode archive/export without real credentials
 
+Completed fictional control delivery: PR249 merged as
+bf7430023825ddbf0160515a02b1c24b8a653749; full corrected run34603603901 PASS.
+Interim stops below are historical; positive real export/signing remains outside scope.
+
 Type delivery; delivery_group xcode-feasibility; L3. Owner approved TASK195's
 Xcode-led architecture and bounded secret-free/fictional implementation on
 2026-09-11. TASK195 design/security ACCEPT governs; actual INPUT_REJECTED cause
@@ -290,3 +294,9 @@ negative corpus, unchanged side effects/authority; no hosted/private/Git/API act
 Security lease6 ACCEPT received/handled; Main36run33PASS3skips/qualityPASS. Main
 integrates the single correction in PR249, then full required corrected hosted CI.
 Exact raw-line selector match remains unproven until that run; no positive export.
+Corrected source36e4ee58064b4eb8846e11b33b3b069b95610947 passed native job103276662797:
+19testsPASS, CONTROL_VERIFIED_EXPORT_REJECTED, archive/custody/refusal/cleanup true;
+all positive-export/real/signing/upload/release flags false. Full run34603603901 all
+16 jobs PASS, PR249 merged asbf7430023825ddbf0160515a02b1c24b8a653749. Main verified
+merge metadata and synchronized local main/origin main. Claims completed/read-only;
+next real candidate/private custody or signing needs separate exact scope/authority.

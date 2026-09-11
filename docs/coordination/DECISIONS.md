@@ -407,9 +407,25 @@
   先停止審查，不能要求Owner反覆試跑真資產。既有private診斷次數不更新。
 - Non-goals：不更改provider/runtime/store，不授權真實簽署、上傳、公開發布或憑證重建。
 
+## DEC-109：IOS-TF-01 採成果授權與 Owner-only TestFlight 邊界
+
+- 狀態：`active`；日期：2026-09-11；來源：Owner逐字批准IOS-TF-01並要求即刻執行。
+- Supersedes：DEC-108與TASK197的虛構-only／單次觀測限制，僅限IOS-TF-01；不追溯更改既有證據。
+- 決策：採Xcode manual signed archive／export，使用既有資產；允許獨立審查後的真實簽署、隔離staging必要
+  設定／部署／migration、Apple上傳與僅Owner本人internal TestFlight。實際執行範圍、claim與進度見TASK-198。
+  已審查的build phases可在受限key窗口執行；不得假稱真實簽署仍符合舊no-code-after-key演練模型。
+- 包內Main自行核對exact target／action／SHA／artifact與preflight並留證，不逐次請Owner輸入批准句。
+  confirmed-zero可修正；成功不重送；uncertain先唯讀reconcile。兩輪無新證據須內部架構重評，不增加診斷儀式。
+- Invariants：獨立review、安全檢查、受控私密輸入、簽署／upload分離與清理仍必需；device驗收在可安裝候選之後，
+  未驗證不得標PASS。新增成本總上限USD20，不新增付費服務／升級方案，成本未知即停止。
+- Stops：必要私人輸入／登入／MFA／同意／條款／實機；新建撤銷輪替certificate、替代App、超範圍資源或成本；
+  安全事件、清理／外部結果不明；production／真實隊員資料；其他tester、外部Beta Review、正式送審或公開發布。
+- 不改共用Google／LINE正式callback，不允許trust-all／任意程式key access，不自行決定法律或正式保留政策。
+  本授權到IOS-TF-01驗收完成、Owner撤回或named stop為止；不得作為其他task／公開版的永久外部授權。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-108`，下一個新決策從 `DEC-109` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-109`，下一個新決策從 `DEC-110` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

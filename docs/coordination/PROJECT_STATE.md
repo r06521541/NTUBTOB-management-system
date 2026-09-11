@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`5848831772017a039bbcccfa68e75ac849f89236`（TASK-194）。
+最近已合併證據：`bf7430023825ddbf0160515a02b1c24b8a653749`（TASK-196／PR249）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -75,11 +75,16 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   TASK-194已由PR248合併，full CI及macOS408個虛構CMS案例／runner演練通過；原生驗簽及Apple信任鏈保留。
   Owner另批准exact merged SHA真實驗證，仍於input回報INPUT_REJECTED、未到dispatch；子程序已結束。
   真實profile驗證尚未完成。TASK195公開資料架構審查已ACCEPT：建議轉為Xcode-led archive/export與分層Apple驗證；
-  既有outerCMS/XML檢查不代表modern DER profile平台權威。Owner已批准架構；TASK196進行純虛構可行性實作。
+  既有outerCMS/XML檢查不代表modern DER profile平台權威。Owner已批准架構；TASK196純虛構可行性實作已合併。
   現行程式/gate未改；不重試或第三次診斷、不推定演算法、不重建憑證；未授權新private custody/signing。
-  TASK196 PR249尚未合併：修正後原生run34570308734已確認無私鑰archive、虛構Keychain正反向案例及清理；
-  Owner核准的有限錯誤正文run34602920230確認為預期的虛構profile缺失拒絕，原分類漏認Xcode實際措辭；
-  精確whole-line修正正待review/hosted驗證，PR仍未合併。真實資產與簽署未動用，positive export仍未驗證。
+  TASK196已由PR249合併，完整run34603603901共16工作PASS：無私鑰archive、虛構Keychain正反向案例／清理，
+  以及缺虛構profile時的預期匯出拒絕均驗證。原問題是分類漏認Xcode措辭，已以固定selector整行判定修正。
+  真實資產與簽署未動用；positive export、真實profile、候選簽署／TestFlight仍是後續獨立gate。
+  TASK197：run34608233601已驗證實際Flutter未簽署archive；PR250仍Draft未合併。
+  虛構codesign出現identity查找訊息、cleanup成功；根因不足以支持修正，有限診斷已停。
+run34610163522唯讀診斷查得target憑證／identity且DER符合；cleanup成功、codesign未執行。
+run34614766702單次parent/child診斷完成：均找到相符identity/key、typed canSign=true，cleanup成功。
+原生policy NOT_EVALUATED、codesign未執行；根因仍未證明，觀測額度用完，PR250維持Draft。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
@@ -99,6 +104,10 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   Discord是不同能力。
 
 ## Active work and external gates
+
+- IOS-TF-01／TASK-198 active：Owner已批准既有資產真實簽署、必要staging操作與僅本人TestFlight，新增成本上限USD20。
+  DEC-109取代包內逐次批准與TASK197單次診斷限制；不含production／公開版／新憑證。現有P12/profile/cert檔存在，
+  未讀payload或驗證有效性；live staging Ready但四項Apple設定key皆缺，private intake／實機仍待必要Owner參與。
 
 - TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換
   production，外部mutation維持獨立Owner gate。

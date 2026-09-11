@@ -1,28 +1,20 @@
-active_task: TASK-196
+active_task: TASK-198
 status: in_progress
-next_actor: /root
-claim_id: task-196-main-20260911
+next_actor: main-work
+claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 5848831772017a039bbcccfa68e75ac849f89236
+base_commit: bf7430023825ddbf0160515a02b1c24b8a653749
 updated_by: main-work
 updated_at: 2026-09-11
 note: >
-  Owner approved TASK195 architecture and fictional feasibility implementation.
-  Reviewed correction17733b31e724329551aa54ccf3bd2d54de12bbc9 passed fictional
-  unsigned archive and native custody/cleanup, but export is EXPORT_INCONCLUSIVE.
-  Run34570308734 native job103170839880 failed; PR249 remains unmerged.
-  Renewed diagnostic312263b92ad6e6e3d0cf366ded03cfe64972616c remains EXPORT_INCONCLUSIVE.
-  Archive projection and custody/cleanup verified; export70 has only generic failure marker.
-  No evidence-based remedy; Main/reviewer stop. PR249 unmerged, CI confirmed cancelled.
-  Owner approved bounded de-identified fictional Xcode error prose on 2026-09-11.
-  Writer/reviewer lease5 complete ACCEPT; local commit337892c3a02f9759f9dd007bf7d3204be2621b9b.
-  Owner explicitly reconfirmed exact GitHub destination/batch; push succeeded.
-  Main follows the one bounded fictional error-prose observation, no new private authority.
-  Exact Xcode prose confirms missing iOS App Store profile in fictional fixture.
-  Writer/reviewer lease6 complete ACCEPT; Main integrates exact refusal-wording correction.
-  No real assets, private retry, signing/upload or change to existing trust/readiness.
+  Owner approved IOS-TF-01: existing-asset signing, staging and Owner-only TestFlight.
+  USD20 incremental cost cap; per-SHA/manual retry gates superseded only in package.
+  Start3b1be6a607c565fa4184aec3493ef527995fbf19; existing branch and DraftPR250.
+  Main audits cost/access; two read-only advisors audit signing/readiness.
+  No production, new certificate, public distribution or unrestricted key access.
+  Preserve five TASK197 local closeout records; no real credential execution yet.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-196.md
-report: docs/coordination/reports/TASK-196.md
-review: docs/coordination/reviews/TASK-196.md
+task: docs/coordination/tasks/TASK-198.md
+report: docs/coordination/reports/TASK-198.md
+review: pending
