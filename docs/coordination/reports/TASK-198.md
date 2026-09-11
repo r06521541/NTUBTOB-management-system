@@ -113,6 +113,22 @@ https://developer.apple.com/app-store-connect/api/
 https://developer.apple.com/documentation/appstoreconnectapi/build-uploads
 https://developer.apple.com/documentation/appstoreconnectapi/uploading-assets-to-app-store-connect
 
+Signing checkpoint b0f60ac60f8e6fae99fb186931134ec23762f272 pushed; Draft PR251
+created as the continuing delivery. Run34629242446 compiled the actual Swift
+supervisor and failed before material intake; first4096-byte diagnostics retained
+only deprecation warnings, not the compiler error. Main found a separate
+source-directed Darwin nullable spawn-handle correction using Swift Foundation's
+Darwin implementation, and bounded diagnostics now prioritize error lines.
+Independent security lease9 ACCEPT,2 focused tests PASS; Main16 tests15PASS/1skip,
+quality/diff PASS. Actual compiler success/unique root cause remains unproven.
+Other finished jobs passed, including unsigned iOS archive and both PostgreSQL
+versions; Android job still active at this observation. No real material/run
+custody, signing/upload, protected-environment creation or runtime operation.
+Upload writer lease5 works only its two separate new source/test paths.
+First run now completed:14 jobs PASS including Android; only native compile and
+dependent final gate FAIL. Main pushes reviewed source correction, preserving
+the untracked upload work and continuing the same Draft PR without merge.
+
 ## Preparation history
 
 IOS-TF-01 accepted 2026-09-11. Start HEAD

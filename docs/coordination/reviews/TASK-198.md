@@ -107,3 +107,13 @@ Native test unchanged899d460a5b3933fa83333c089e7bc2202b648fac320c4bc4956efaf2925
 No unresolved source findings for code-only hosted compile gate. Mocked POSIX
 metadata/hash-mismatch tests do not prove a real TOCTOU race or native settings;
 idle timeout is not hard destruction. No real/private/native/external mutations.
+
+Darwin source/diagnostic correction lease9 ACCEPT received/handled. Two focused
+tests PASS; nullable spawn handles and per-success-init defer cleanup match
+platform source without command/policy changes. Compiler diagnostics only apply
+to public source before private inputs, not a general secret sanitizer.
+Swift LF1b2c808af4b8803d994886cbbb09c50a5c402d7f613d3a151dd6619cbdfb272e;
+native test e779981ec1c7431e5ee2e05c987282c00610caf0935488e448d4dde25701c416.
+First job failed compile and lost actual error behind warnings; this acceptance
+does not claim the sole root cause or native success. Corrected hosted evidence
+remains required. No native/private/external action by reviewer.

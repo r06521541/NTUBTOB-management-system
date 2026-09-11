@@ -155,9 +155,12 @@ func clean() -> Bool {
 }
 // Each Xcode child has its own process group; no shell, inherited private env or output.
 func run(_ arguments:[String],timeout:Double) -> Bool {
-    var actions=posix_spawn_file_actions_t(), attributes=posix_spawnattr_t()
-    guard posix_spawn_file_actions_init(&actions)==0, posix_spawnattr_init(&attributes)==0 else { return false }
-    defer { posix_spawn_file_actions_destroy(&actions); posix_spawnattr_destroy(&attributes) }
+    var actions: posix_spawn_file_actions_t? = nil
+    var attributes: posix_spawnattr_t? = nil
+    guard posix_spawn_file_actions_init(&actions)==0 else { return false }
+    defer { posix_spawn_file_actions_destroy(&actions) }
+    guard posix_spawnattr_init(&attributes)==0 else { return false }
+    defer { posix_spawnattr_destroy(&attributes) }
     guard posix_spawn_file_actions_addopen(&actions,STDIN_FILENO,"/dev/null",O_RDONLY,0)==0,
           posix_spawn_file_actions_addopen(&actions,STDOUT_FILENO,"/dev/null",O_WRONLY,0)==0,
           posix_spawn_file_actions_addopen(&actions,STDERR_FILENO,"/dev/null",O_WRONLY,0)==0,

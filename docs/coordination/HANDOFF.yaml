@@ -1,6 +1,6 @@
 active_task: TASK-198
 status: in_progress
-next_actor: /root
+next_actor: /root/csr_writer
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
@@ -32,8 +32,11 @@ note: >
   Existing Web/Android clients, callbacks, consent/testing configuration and production remain unchanged.
   Writer lease3 and security leases6/7 completed; source and compile/rejection integration ACCEPT handled.
   Writer lease4/security lease8 completed; correction ACCEPT handled,13 independent PASS; Main39PASS/2skips.
-  Main commits/pushes reviewed ten paths and starts single early Draft platform evidence gate.
-  No real signing/upload controller invocation; both agents now read-only.
+  Reviewed source pushed b0f60ac60f8e6fae99fb186931134ec23762f272; continuing Draft PR251.
+  Code-only run34629242446 completed:14 PASS, native compile and dependent final gate FAIL; no custody.
+  Main two-file Darwin/diagnostic correction ACCEPTED under lease9; commits/pushes only reviewed Main paths.
+  Writer lease5 prepares bounded callable ASC upload/reconcile adapter in two named new files.
+  No live signing/upload controller invocation; security advisor currently completed/read-only.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

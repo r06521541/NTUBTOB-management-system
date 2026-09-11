@@ -430,3 +430,89 @@ standard public hosted CI is authorized/costUSD0; no private inputs, signing or
 upload in that run. Do not merge incomplete delivery or equate compile with
 native custody, full operation cleanup or TestFlight. Copy tests are fictional
 byte/hash checks with mocked POSIX verifier, not demonstrated TOCTOU-race coverage.
+
+Checkpoint pushed b0f60ac60f8e6fae99fb186931134ec23762f272. Continuing Draft PR251,
+code-only run34629242446 on that exact SHA; no merge/live signing/upload. Main
+tracks this run to completion while preparing remaining delivery source.
+
+## Bounded App Store Connect upload adapter
+
+Revoke completed writer lease4; activate /root/csr_writer,
+task-198-writer-20260911 lease5, codex-writer/write=allowed/report_to=/root.
+branch=codex/task-198-owner-testflight; base=5762a89c6e6451ed19f5151da1652312a9f76679;
+head=b0f60ac60f8e6fae99fb186931134ec23762f272. Owned paths exactly
+tools/ios_testflight_upload.py and tools/tests/test_ios_testflight_upload.py.
+Initial dirty is Main task/HANDOFF coordination only. Mandatory packet protocol
+applies; Main stays active monitoring hosted compile and handles completion.
+
+Goal: callable real REST upload/reconcile adapter with no standalone live CLI,
+not another success simulation. Reuse separated AscMaterial/600-second JWT and
+official Build Upload API. Propose interface first; validate app bundle, exact
+internal Owner group/tester and all groups' automatic/all-build access before
+any reservation. Do not create/invite/modify groups or automatically distribute.
+Return private typed operation IDs/receipts plus separately sanitized fixed
+classification; not generic loggable dictionaries of Apple responses.
+
+Fixed API origin/approved paths, HTTPS/no redirect, bounded response/time/request
+counts, no raw URL/header/body/exception output; credential stays in memory and
+never enters argv/files/signing child. Renew JWT within fixed TTL when necessary.
+Source IPA fixed private candidate.ipa with approved hash/size and same-handle
+owner/mode/nlink/anti-symlink/inode checks; caller must independently prove signing
+cleanup, artifact inspection and exact staging scope. Adapter cannot grant those.
+One operation session only; never restart successful/uncertain mutations. Create
+buildUploads then buildUploadFiles once, accept only bounded non-overlapping full
+file ranges and Apple-owned allowlisted storage HTTPS operations, no ASC bearer
+on storage PUT, no sensitive redirect/header propagation. Official schema uses
+sourceFileChecksums plural with file SHA_256; do not copy screenshot MD5 field.
+Unknown destinations or response shapes stop before sending bytes; retain known
+private reservation IDs for read-only reconcile, not a second reservation.
+Uncertain create/PUT/commit returns uncertainty and read-only query only, even
+where generic Apple guidance permits retries. No delete/retry workaround.
+Processing is independently queried, bounded with pending result; COMPLETE upload
+does not imply valid build, distribution, device or public readiness. Owner group
+build assignment remains later controller work with a fresh exact preflight.
+
+Tests use fictional transport/files/keys only: happy response schema, partial
+upload uncertainty, unknown/redirect/unsafe URL or headers, range gaps/overlap,
+oversize/private-file drift, unrelated automatic group, duplicate mutation attempt
+and processing failed/pending; output sentinels absent. No private files, real
+API/network calls, Git/CI/cloud/store mutation or signing source edits by writer.
+Main verified public Apple OpenAPI4.4.1 and upload docs; actual key role, resource
+IDs and storage route remain unverified. Stop on substantive unsafe/infeasible
+contract rather than inventing capabilities. Freeze/proactive handoff for review.
+
+Upload lease5 interface accepted: private UploadSession/Receipt, read-only
+preflight/reconcile and single consumed upload operation. Allow storage hostname
+only exact ASCII pattern store-[0-9]{3}.blobstore.apple.com with HTTPS443, no
+userinfo/redirect, bounded signed URL from authenticated ASC response and safe
+headers; this narrow Apple cluster family is not proof of actual Build Upload
+routing. No arbitrary caller host override, other Apple domains or broad wildcard.
+Unknown route stops without uploading bytes; known reservation is reconciled.
+
+Code-only run34629242446 native test exited at Swift compilation; no keys/custody
+reached. Its diagnostic erroneously kept first4096 bytes of deprecation warnings,
+so actual compiler error was not recorded. Main independently found a Darwin
+opaque-pointer initialization mismatch against Swift Foundation's Darwin path.
+Main integration owns tools/native/ios_testflight_signing.swift and
+tools/tests/test_ios_testflight_native.py ONLY for this bounded source correction:
+initialize nullable Darwin spawn handles with paired successful-init cleanup,
+and prefer bounded compiler error lines rather than truncated leading warnings.
+No signing policy/command/authority changes. Upload writer retains its disjoint
+two files. Tests: source/diagnostic regression, independent delta review, next
+exact source CI; do not resend same failed binary or claim confirmed root cause
+from missing logs. Main continues observing all jobs on the first exact run.
+
+Main correction frozen;16 focused tests15PASS/1platform skip, quality/diff PASS.
+Activate /root/task181_review, task-198-security-20260911 lease9, advisor/read-only,
+owned none/report_to=/root; current branch/base/head as upload lease5. Only review
+two-file Main Darwin handles/public diagnostic delta; verify initialization/defer
+pairing, no native input/policy change, bounded public errors and test honesty.
+No previous suite repetition, native/private/API/source mutation. Proactive
+verdict/digests/limits required. Main tracks CI and upload writer concurrently.
+
+Lease9 ACCEPT handled; first run now completed:14 jobs PASS, native compile and
+dependent final gate FAIL. Main may commit/push only its two accepted source
+corrections plus four Main coordination paths; keep upload writer's two untracked
+paths out of that commit. Same Draft PR251, new source evidence run (not a retry
+of unchanged failure). Upload writer may continue across this known Main-only
+HEAD advance; Main will persist and notify exact new SHA without restarting work.
