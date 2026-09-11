@@ -9,9 +9,14 @@ var errorClass = "NOT_CHECKED"
 var cleanupState = "NOT_CREATED"
 var cleanupError = "NOT_CHECKED"
 var cleanupPhase = "not_started"
+var codesignExit = "NOT_RUN"
+var codesignOutput = "NOT_READ"
+var codesignMarkers: [String: Bool] = ["marker_internal_component": false, "marker_interaction": false, "marker_authentication": false, "marker_identity": false, "marker_chain": false, "marker_format": false, "marker_permission": false, "marker_resource_fork": false]
 func finish(_ value: String) -> Never {
-    let result = ["reason": value, "phase": phase, "error_class": errorClass,
+    var result: [String: Any] = ["reason": value, "phase": phase, "error_class": errorClass,
                   "cleanup": cleanupState, "cleanup_error_class": cleanupError, "cleanup_phase": cleanupPhase]
+    result["codesign_exit"] = codesignExit; result["codesign_output"] = codesignOutput
+    for (key, value) in codesignMarkers { result[key] = value }
     let data = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
     print(String(data: data, encoding: .utf8)!)
     exit(0)
@@ -130,20 +135,63 @@ func crossProcessSign() -> Bool {
     child.environment = ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"]
     child.standardInput = FileHandle.nullDevice
     child.standardOutput = FileHandle.nullDevice
-    child.standardError = FileHandle.nullDevice
+    let stderrPipe = Pipe()
+    child.standardError = stderrPipe
+    defer { try? stderrPipe.fileHandleForReading.close(); try? stderrPipe.fileHandleForWriting.close() }
+    let descriptor = stderrPipe.fileHandleForReading.fileDescriptor
+    guard predicate("codesign_pipe", fcntl(descriptor, F_SETFL, O_NONBLOCK) == 0) else { return false }
+    var captured = Data()
+    var eof = false
+    func drain() -> Bool {
+        var buffer = [UInt8](repeating: 0, count: 1024)
+        while true {
+            let count = read(descriptor, &buffer, min(1024, 8193 - captured.count))
+            if count > 0 {
+                captured.append(contentsOf: buffer.prefix(count))
+                if captured.count > 8192 { codesignOutput = "OVERFLOW"; return false }
+            } else if count == 0 { eof = true; return true }
+            else if errno == EAGAIN || errno == EWOULDBLOCK { return true }
+            else if errno == EINTR { return true }
+            else { codesignOutput = "READ_FAILED"; return false }
+        }
+    }
     let ended = DispatchSemaphore(value: 0)
     child.terminationHandler = { _ in ended.signal() }
     phase = "codesign_launch"; errorClass = "PREDICATE_REJECTED"
     do { try child.run() } catch { return false }
-    if ended.wait(timeout: .now() + 20) == .timedOut {
-        kill(child.processIdentifier, SIGKILL)
+    try? stderrPipe.fileHandleForWriting.close()
+    let deadline = ProcessInfo.processInfo.systemUptime + 20
+    var endedNormally = false
+    var readable = true
+    while ProcessInfo.processInfo.systemUptime < deadline {
+        readable = drain()
+        if !readable { break }
+        if ended.wait(timeout: .now() + 0.01) == .success { endedNormally = true; break }
+    }
+    if !endedNormally {
+        codesignExit = readable ? "TIMEOUT" : "OUTPUT_STOP"
+        if child.isRunning { kill(child.processIdentifier, SIGKILL) }
         if ended.wait(timeout: .now() + 2) == .timedOut {
             cleanupState = "UNRESOLVED"; cleanupPhase = "not_started"
             finish("CLEANUP_UNRESOLVED")
         }
-        phase = "codesign_timeout"; errorClass = "PREDICATE_REJECTED"
+        phase = readable ? "codesign_timeout" : "codesign_output"; errorClass = "PREDICATE_REJECTED"
         return false
     }
+    codesignExit = child.terminationReason == .exit ? (child.terminationStatus == 0 ? "ZERO" : "NONZERO") : "SIGNAL"
+    let drainDeadline = ProcessInfo.processInfo.systemUptime + 2
+    while !eof && ProcessInfo.processInfo.systemUptime < drainDeadline {
+        if !drain() { break }
+        if !eof { usleep(10000) }
+    }
+    guard predicate("codesign_output", eof && codesignOutput == "NOT_READ") else {
+        if codesignOutput == "NOT_READ" { codesignOutput = "READ_FAILED" }
+        return false
+    }
+    codesignOutput = "BOUNDED"
+    let text = String(decoding: captured, as: UTF8.self).lowercased()
+    let markers = ["marker_internal_component": ["errsecinternalcomponent"], "marker_interaction": ["interaction is not allowed", "errsecinteractionnotallowed"], "marker_authentication": ["authentication failed", "errsecauthfailed"], "marker_identity": ["specified item could not be found", "no identity found", "identity not found"], "marker_chain": ["unable to build chain", "not trusted"], "marker_format": ["unrecognized, invalid, or unsuitable", "invalid format"], "marker_permission": ["permission denied", "operation not permitted"], "marker_resource_fork": ["resource fork", "finder information"]]
+    for (key, needles) in markers { codesignMarkers[key] = needles.contains { text.contains($0) } }
     guard predicate("codesign_exit", child.terminationReason == .exit && child.terminationStatus == 0) else { return false }
     var requirement: SecRequirement?
     let expression = "certificate leaf = H\"" + fingerprint + "\""

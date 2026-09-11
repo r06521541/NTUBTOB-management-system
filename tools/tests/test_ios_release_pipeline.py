@@ -145,11 +145,15 @@ class IOSReleasePipelineTests(unittest.TestCase):
         source = (
             Path(__file__).resolve().parents[2] / ".github/workflows/flutter-tests.yml"
         ).read_text(encoding="utf-8")
-        ios = source.split("    runs-on: macos-latest", 1)[1]
+        from tools.tests.test_ci_workflow_contract import job_block
+
+        ios = job_block(source, "ios_compile_contract")
+        self.assertIn("runs-on: macos-15", ios)
         self.assertIn("flutter precache --ios --force", ios)
         self.assertIn("ios-release/Flutter.xcframework/Info.plist", ios)
         self.assertLess(
-            ios.index("flutter precache --ios --force"), ios.index("flutter build ios")
+            ios.index("flutter precache --ios --force"),
+            ios.index("flutter build ipa --release --no-codesign"),
         )
 
 

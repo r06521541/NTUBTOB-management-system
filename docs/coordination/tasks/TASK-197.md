@@ -80,3 +80,32 @@ archive/no-key job separation and remaining real-export limits before hosted gat
 Security lease1 ACCEPT received/handled; reviewer read-only. Main resumes integration.
 The reviewed source may enter one Draft PR for missing macOS evidence; mark ready
 and merge only after native results and required CI acceptance. No private operations.
+
+## First hosted observation and bounded correction
+
+Source e72d908c4ba8031866578bf8969b006254d00dc1, PR250, run34607165386.
+Native job103288354085: old19/new8 tests PASS, old rehearsal PASS, new native
+case0 fails at codesign_exit with cleanup verified. No signature success inferred.
+Linux103288354068 and archive103288354148 fail the same old test selector
+test_ios_release_pipeline.py matching macos-latest, before actual archive build.
+Main owns its direct regression correction and expanded affected suites.
+
+Activate writer task-197-writer-20260911 lease2, same actor/branch/base/four paths;
+head=e72d908c4ba8031866578bf8969b006254d00dc1. Reviewer lease1 completed.
+Scope ONE bounded fictional codesign layer split: collect bounded child stderr in
+memory only and emit fixed known message-marker categories/exit status categories,
+never raw prose/hash/path/log or a guessed cause. Preserve ACL, acceptance, command,
+custody, timeout/reap and no-real invariants. Output overflow remains failure.
+No remedy until observed evidence supports it; one evidenced correction afterward.
+Unknown or required broader ACL/partition/trust change stops. Review before hosted.
+Main concurrently fixes tools/tests/test_ios_release_pipeline.py; no product changes.
+
+Writer lease2 completed/read-only, Main received/handled completion. Activate
+task-197-security-20260911 lease2, actor_id=/root/task181_review, role=advisor,
+write=read-only, owned_paths=none, report_to=/root, same branch/base/current
+HEAD e72d908c4ba8031866578bf8969b006254d00dc1. Scope exact bounded diagnostic
+delta plus Main's direct old workflow-test correction. No Git/API/hosted/private
+operation; mandatory protocol applies. Review before one diagnostic native run.
+
+Security lease2 ACCEPT received/handled; advisor read-only. Main resumes the
+single bounded native diagnostic observation plus actual archive first execution.

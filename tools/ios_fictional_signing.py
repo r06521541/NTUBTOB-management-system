@@ -14,6 +14,26 @@ from tools import ios_pkcs12_compatibility as frames
 from tools import ios_xcode_feasibility as bounded
 
 SOURCE = Path(__file__).resolve().parent / "native/ios_fictional_signing.swift"
+MARKER_KEYS = (
+    "marker_internal_component",
+    "marker_interaction",
+    "marker_authentication",
+    "marker_identity",
+    "marker_chain",
+    "marker_format",
+    "marker_permission",
+    "marker_resource_fork",
+)
+
+
+def empty_observation():
+    return {
+        "codesign_exit": "NOT_RUN",
+        "codesign_output": "NOT_READ",
+        **{key: False for key in MARKER_KEYS},
+    }
+
+
 EXTRA_PHASES = frozenset(
     {
         "signing_application",
@@ -26,6 +46,8 @@ EXTRA_PHASES = frozenset(
         "codesign_launch",
         "codesign_timeout",
         "codesign_exit",
+        "codesign_pipe",
+        "codesign_output",
         "requirement",
         "signature_binding",
         "signed_code",
@@ -94,10 +116,22 @@ def native_detail(output):
         fields = {key: set(values) for key, values in bounded.NATIVE_FIELDS.items()}
         fields["reason"].add("SIGNING_VERIFIED")
         fields["phase"].update(EXTRA_PHASES)
+        fields["codesign_exit"] = {
+            "NOT_RUN",
+            "ZERO",
+            "NONZERO",
+            "SIGNAL",
+            "TIMEOUT",
+            "OUTPUT_STOP",
+        }
+        fields["codesign_output"] = {"NOT_READ", "BOUNDED", "OVERFLOW", "READ_FAILED"}
+        for key in MARKER_KEYS:
+            fields[key] = {False, True}
         if type(value) is not dict or value.keys() != fields.keys():
             raise ValueError
         if any(
-            type(value[key]) is not str or value[key] not in allowed
+            type(value[key]) is not (bool if key in MARKER_KEYS else str)
+            or value[key] not in allowed
             for key, allowed in fields.items()
         ):
             raise ValueError
@@ -106,10 +140,16 @@ def native_detail(output):
             or value["cleanup_error_class"] != "OS_SUCCESS"
         ):
             raise ValueError
+        if value["codesign_output"] != "BOUNDED" and any(
+            value[key] for key in MARKER_KEYS
+        ):
+            raise ValueError
         if value["reason"] == "SIGNING_VERIFIED" and (
             value["phase"] != "tamper_rejected"
             or value["error_class"] != "OS_SUCCESS"
             or value["cleanup"] != "VERIFIED"
+            or value["codesign_exit"] != "ZERO"
+            or value["codesign_output"] != "BOUNDED"
         ):
             raise ValueError
         return {key: value[key] for key in fields}

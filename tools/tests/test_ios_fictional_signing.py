@@ -46,6 +46,7 @@ class Runner(ToolchainRunner):
             if self.failure == "signing":
                 reason, phase = "CUSTODY_REJECTED", "codesign_exit"
             value = {
+                **target.empty_observation(),
                 "reason": reason,
                 "phase": phase,
                 "error_class": "OS_SUCCESS",
@@ -53,6 +54,8 @@ class Runner(ToolchainRunner):
                 "cleanup_phase": "completed",
                 "cleanup_error_class": "OS_SUCCESS",
             }
+            if reason == "SIGNING_VERIFIED":
+                value.update(codesign_exit="ZERO", codesign_output="BOUNDED")
             if self.failure == "cleanup":
                 value.update(
                     reason="CLEANUP_UNRESOLVED",
@@ -65,6 +68,39 @@ class Runner(ToolchainRunner):
 
 
 class SigningTests(unittest.TestCase):
+    def test_codesign_observation_schema(self):
+        value = {
+            "reason": "CUSTODY_REJECTED",
+            "phase": "codesign_exit",
+            "error_class": "PREDICATE_REJECTED",
+            "cleanup": "VERIFIED",
+            "cleanup_phase": "completed",
+            "cleanup_error_class": "OS_SUCCESS",
+            **target.empty_observation(),
+        }
+        value["codesign_exit"] = "NONZERO"
+        value["codesign_output"] = "BOUNDED"
+        self.assertEqual(target.native_detail(json.dumps(value).encode()), value)
+        for key, invalid in (
+            ("codesign_exit", "private-sentinel"),
+            ("codesign_output", "private-sentinel"),
+            ("marker_internal_component", "private-sentinel"),
+        ):
+            with self.assertRaises(target.bounded.Rejected):
+                target.native_detail(json.dumps({**value, key: invalid}).encode())
+        with self.assertRaises(target.bounded.Rejected):
+            target.native_detail(
+                json.dumps(
+                    {
+                        **value,
+                        "reason": "SIGNING_VERIFIED",
+                        "phase": "tamper_rejected",
+                        "error_class": "OS_SUCCESS",
+                        "codesign_output": "OVERFLOW",
+                    }
+                ).encode()
+            )
+
     def exercise(self, failure=None):
         runner = Runner(failure)
         with (
@@ -158,6 +194,9 @@ class SigningTests(unittest.TestCase):
 
     def test_native_output_rejects_unknown_and_duplicate(self):
         valid = {
+            **target.empty_observation(),
+            "codesign_exit": "ZERO",
+            "codesign_output": "BOUNDED",
             "reason": "SIGNING_VERIFIED",
             "phase": "tamper_rejected",
             "error_class": "OS_SUCCESS",
@@ -229,8 +268,20 @@ class SigningTests(unittest.TestCase):
         self.assertIn(
             "SecCertificateCopyData(certificates[0]) as Data == expected", source
         )
-        self.assertIn("child.standardError = FileHandle.nullDevice", source)
-        self.assertIn("ended.wait(timeout: .now() + 20)", source)
+        self.assertIn("child.standardError = stderrPipe", source)
+        self.assertIn("ProcessInfo.processInfo.systemUptime + 20", source)
+        self.assertIn("O_NONBLOCK", source)
+        self.assertIn("8193 - captured.count", source)
+        self.assertIn(
+            'captured.count > 8192 { codesignOutput = "OVERFLOW"; return false }',
+            source,
+        )
+        self.assertIn("if ended.wait(timeout: .now() + 2) == .timedOut", source)
+        self.assertLess(
+            source.index("kill(child.processIdentifier, SIGKILL)"),
+            source.index("if ended.wait(timeout: .now() + 2) == .timedOut"),
+        )
+        self.assertNotIn('result["stderr"]', source)
         self.assertIn("kill(child.processIdentifier, SIGKILL)", source)
 
 

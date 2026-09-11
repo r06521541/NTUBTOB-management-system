@@ -71,3 +71,34 @@ Primary references read:
 External mutations: only local fictional temporary test files created/deleted;
 public documentation read. No real assets, native Keychain execution, Git/API/
 hosted/provider action, deployment or new dependency by writer.
+
+## Writer lease2: one bounded codesign observation
+
+HEAD `e72d908c4ba8031866578bf8969b006254d00dc1`. Main reports native
+run34607165386/job103288354085 compiled/imported successfully but case0 stopped at
+codesign_exit; cleanup VERIFIED. This establishes only child failure, not an ACL
+cause. Main separately owns old workflow-selector test correction and cancellation
+of remaining CI; none of that is writer execution evidence.
+
+Native stderr now uses a synchronous nonblocking pipe, retaining at most8193 bytes
+to detect an8192-byte limit. Overflow remains failure. There is no background reader
+or unbounded communicate buffer. Existing20-second process deadline and kill/reap
+2-second bound remain; final pipe drain is bounded2 seconds. Interrupted reads return
+to the deadline loop. stdout still goes to null; no raw data/path/hash/prose is emitted.
+
+Fixed codesign_exit/codesign_output enums and8 boolean markers describe only known
+text presence: internal-component, interaction, authentication, identity, chain,
+format, permission and resource-fork wording. These observations do not determine
+root cause. Markers can only be asserted for completed bounded capture. Python
+validates exact keys/types/allowlists and SIGNING_VERIFIED additionally requires
+ZERO/BOUNDED, besides existing tamper and cleanup success. ACL/import/command/
+partition/trust and acceptance conditions otherwise unchanged.
+
+Tests-first new schema test failed before implementation. New suite9PASS; combined
+new+TASK196 suite28run26PASS2Windows skips. Output enums, sentinel/types, contradictory
+overflow success, native source cap/nonblocking/kill-before-reap contracts and old
+timeout/cleanup negative tests pass. Native pipe behavior is source-contract evidence
+only on this Windows host, not a claimed actual Swift overflow/reap runtime test;
+reviewed macOS execution remains necessary. Owned format/check and diffcheck PASS.
+No remedy or cause inferred. Four owned paths changed, Main dirty paths preserved;
+only fictional local temp tests, no real assets/native/Git/API/hosted mutations.
