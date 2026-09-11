@@ -82,7 +82,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   真實資產與簽署未動用；positive export、真實profile、候選簽署／TestFlight仍是後續獨立gate。
   TASK197：run34608233601已驗證實際Flutter未簽署archive；PR250仍Draft未合併。
   虛構codesign出現identity查找訊息、cleanup成功；根因不足以支持修正，有限診斷已停。
-  Owner已批准一次target-only憑證／identity唯讀重新查詢；只虛構setup/cleanup，不再codesign、補cert或改ACL。
+run34610163522唯讀診斷查得target憑證／identity且DER符合；cleanup成功、codesign未執行。
+無證據支持補cert；Owner新批准的parent/child唯讀診斷已實作並獨立ACCEPT，待單次hosted觀測。
+原生policy明列NOT_EVALUATED，不執行簽署；PR250維持Draft，不擴大trust/search權限。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

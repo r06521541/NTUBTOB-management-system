@@ -1,6 +1,24 @@
 # TASK-197 review
 
-Status: security lease4 ACCEPT for one target-only diagnostic; signing and merge blocked.
+Current design review (security lease5) corrected to REQUEST_CHANGES for native
+policy filters. Main independently found identity+policy dispatch at SecItem.cpp
+L2951-2958 precedes _FilterWithPolicy; advisor confirmed IdentityCursor's first
+trustLite evaluation is not skipped by trustedOnly=false. Initial leaf-only
+reasoning omitted this call path and must not authorize the implementation.
+No code/native/CI change was made under that withdrawn writer lease4.
+
+Corrected safe design ACCEPT: plain exact-target importing-process/fresh-child
+queries; typed key capability metadata and Python offline certificate attributes.
+No native policy/trust evaluation; native_policy_qualification=NOT_EVALUATED.
+Main chooses this narrower supported method without enlarging search/real-asset
+authority and disclosed that it does not complete the Apple policy dimension.
+Writer lease5 completed; independent security lease6 ACCEPT received and handled.
+Main81 tests78PASS3skips; reviewer44 tests43PASS1skip; quality/diff PASS.
+One hosted observation authorized, native compile/IPC still unverified. Unreaped
+child blocks native SecKeychainDelete, not outer task-root file cleanup; cleanup
+remains UNRESOLVED. No native policy, signing or codesign equivalence claim.
+
+Status: security lease4 scope executed once; signing and merge remain blocked.
 Base bf7430023825ddbf0160515a02b1c24b8a653749.
 
 Main integration evidence: workflow contract tests first failed on the missing
@@ -79,3 +97,11 @@ unchanged. ERROR/type/DER mismatch is inconclusive. Native guard prevents codesi
 workflow exit1 prevents successful diagnosis from becoming a merge/signing gate.
 One hosted observation allowed; no correction/retry/real access. Native API not
 yet exercised for this delta; source assertions are not runtime proof.
+
+Main native evidence: source98ca1fbdacf5e85f2bb379760152e481290925e8,
+run34610163522/job103298388880. Old19/new11 hosted tests PASS; new diagnostic
+FOUND both certificate and identity with exact expected DER/type, verified cleanup.
+Codesign NOT_RUN, all signing/export/private authority false. Job failure is the
+intended DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED exit1 after successful diagnostic,
+not a failed query. No newly justified repair; stop after this approved observation.
+No claim of global uniqueness, child-process visibility or codesign acceptance.

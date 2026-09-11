@@ -8,10 +8,15 @@ base_commit: bf7430023825ddbf0160515a02b1c24b8a653749
 updated_by: main-work
 updated_at: 2026-09-11
 note: >
-  Owner approved one target-only certificate/identity rediscovery observation.
-  Fixture setup/cleanup only; diagnostic must not sign, repair or broaden access.
-  Security lease4 ACCEPT; Main performs one hosted observation, then stops.
-  Deliberate non-release workflow failure remains; no repair, retry or merge.
+  One approved observation completed at98ca1fbdacf5e85f2bb379760152e481290925e8.
+  Run34610163522/job103298388880 found exact certificate and identity; cleanup verified.
+  Codesign NOT_RUN; intentional signing gate failure, PR250 Draft/unmerged.
+  Owner approved one grouped target-only child-visibility/qualification diagnostic.
+  Earlier policy design withdrawn after pre-filter trust path found; no native policy.
+  Writer lease5 completed; security lease6 ACCEPT received and handled.
+  Main81 tests78PASS3skips; reviewer44 tests43PASS1skip; quality/diff PASS.
+  One new hosted observation authorized; native policy explicitly NOT_EVALUATED.
+  No signing, real assets, repair or broad access mutation. Preserve5 Main dirty files.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-197.md
 report: docs/coordination/reports/TASK-197.md

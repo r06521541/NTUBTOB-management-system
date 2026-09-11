@@ -252,13 +252,13 @@ class WorkflowContractTests(unittest.TestCase):
         signing = job_block(self.flutter_source, "ios_xcode_feasibility")
         archive = job_block(self.flutter_source, "ios_compile_contract")
         self.assertIn(
-            "python -m tools.ios_fictional_signing --diagnose-identity", signing
+            "python -m tools.ios_fictional_signing --diagnose-selection", signing
         )
         self.assertNotIn("python -m tools.ios_fictional_signing --rehearsal", signing)
         self.assertIn("DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED", signing)
         self.assertRegex(
             signing,
-            r"(?s)--diagnose-identity\n.*?DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED.*?\n          exit 1",
+            r"(?s)--diagnose-selection\n.*?DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED.*?\n          exit 1",
         )
         self.assertIn("tools.tests.test_ios_fictional_signing", signing)
         self.assertNotIn("flutter build", signing)

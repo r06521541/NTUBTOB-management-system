@@ -1,6 +1,71 @@
 # TASK-197 writer report
 
-Main current scope: Owner approved one target-only rediscovery diagnostic, not a
+## Current delivery: reviewed safe grouped diagnostic
+
+Writer lease5 completed; independent security lease6 ACCEPT received and handled.
+Main81 tests78PASS3skips; reviewer44 tests43PASS1skip; Python quality/diff PASS.
+One hosted observation pending. Parent/fresh-child target-only queries, typed
+key can-sign metadata and offline certificate checks only. Native policy remains
+NOT_EVALUATED; codesign NOT_RUN, all real/signing authority false. PR250 stays Draft.
+
+## Prior Main analysis: source-only identity selection
+
+At98ca1fbdacf5e85f2bb379760152e481290925e8, Main compared the fixture and fixed
+codesign arguments with Apple primary documentation and source. No product/tool
+source changes, native run, hosted CI, private access, import, signing or Git/API
+mutation. Public source/API reads only; five existing coordination files preserved.
+
+- [Apple Code Signing Tasks](https://developer.apple.com/library/archive/documentation/Security/Conceptual/CodeSigningGuide/Procedures/Procedures.html)
+  explicitly permits self-signed identities for internal tests. Lack of an Apple
+  issuer is therefore not itself a diagnosis for this fictional Mach-O test.
+- [Apple cs_utils.cpp](https://github.com/apple-oss-distributions/security_systemkeychain/blob/2b4c65b1074521e9c1dd2c8dc7fbf45dd775ec70/src/cs_utils.cpp#L183)
+  is historical implementation evidence, NOT a version match to the runner binary.
+  It searches with code-signing policy and SIGN key usage, then matches an exact
+  40-hex SHA1 over certificate DER; generic policy is used to classify failures.
+  The local Swift selector uses that same digest/input/hex form. No evidence for
+  switching to CN, shortening the hash or removing the explicit target Keychain.
+- [Apple SecPolicy.c](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/sec/Security/SecPolicy.c#L2621)
+  adds basic X509 checks, DigitalSignature-or-NonRepudiation KU and standard
+  CodeSigning EKU. Our generator supplies DigitalSignature KU, CodeSigning EKU,
+  nonempty subject, RSA2048 and SHA256 with fresh validity. This checks obvious
+  generator settings only, not complete native policy/chain/trust acceptance.
+- [Apple IdentityCursor.cpp](https://github.com/apple-oss-distributions/Security/blob/db15acbe6a7f257a859ad9a3bb86097bfe0679d9/OSX/libsecurity_keychain/lib/IdentityCursor.cpp#L105)
+  distinguishes plain key-usage enumeration from policy-filtered enumeration;
+  even non-valid-only policy searches can perform preliminary certificate checks.
+  Do not treat a generic item query or find-identity valid-only count as an exact
+  substitute for codesign's current internal selection behavior.
+
+Evidence gap: latest observation uses the importing process and no policy filter.
+It proves neither fresh-child visibility nor signing eligibility. Earlier
+marker_identity combines general missing-item and missing-identity strings; raw
+stderr was intentionally not retained, so exact original wording cannot be
+recovered. Other markers being false does not exclude unobserved failure classes.
+No root cause or repair justified by static analysis. No reason to add certs,
+change KU/EKU speculatively, use trust-all, alter search lists or involve real keys.
+
+Next proposed bounded package: collect same-process/child target visibility and
+sign-usage/qualification evidence together with exact safe APIs and no signing.
+API/network/global-search boundaries require review before any native execution.
+This is a proposal, not a performed test or expanded authority. No tests rerun
+because executable source is unchanged; final diffcheck is the document check.
+
+Main current outcome: one target-only rediscovery completed; further work STOP.
+Source/origin98ca1fbdacf5e85f2bb379760152e481290925e8; PR250 OPEN/Draft/unmerged.
+Run34610163522/job103298388880: IDENTITY_DIAGNOSTIC_COMPLETE; both certificate
+and identity FOUND, both exact expected DER and correct CF types, cleanup VERIFIED.
+Codesign NOT_RUN/NOT_READ; every signing/export/real/release flag remains false.
+Old19/new11 hosted tests PASS. Intentional diagnostic-only exit1 keeps the signing
+gate failed. Main requested remaining CI cancellation; no full-suite PASS claim.
+This disproves neither ACL nor tool-policy hypotheses, but provides no basis for
+missing-certificate insertion/reimport. It proves fresh target first-result matches,
+not uniqueness, cross-process visibility, earlier-run identity or root cause.
+No repair, second observation, merge or private action in this renewal. Final5
+coordination records remain local for next substantive work, avoiding status-only CI.
+Final API read: run34610163522 completed/cancelled; watcher closed. HEAD equals
+origin98ca1fbdacf5e85f2bb379760152e481290925e8; main unchanged at
+bf7430023825ddbf0160515a02b1c24b8a653749. Only five coordination records dirty.
+
+Pre-execution scope: Owner approved one target-only rediscovery diagnostic, not a
 signing retry or repair. Writer lease3 and independent security lease4 completed;
 ACCEPT for one hosted observation only. Main expanded76 tests73PASS3platform skips,
 reviewer39 tests38PASS1skip; Python quality and diffcheck PASS. Ten owned dirty paths
@@ -174,3 +239,42 @@ fictional local temporary tests; public Apple documentation read. No real asset,
 native Keychain, Git/API/hosted operation, remedy or new dependency. One reviewed
 hosted observation remains; unsupported/inconclusive query stops, no additional
 diagnostic or correction is authorized by lease3.
+
+## Writer lease5: bounded parent/child selection observation
+
+Base HEAD `98ca1fbdacf5e85f2bb379760152e481290925e8`; lease4 was revoked
+before implementation. Fixed `--diagnose-selection` uses one fictional import,
+plain target-only certificate/identity queries in parent and fresh same-executable
+child, typed CFBoolean can-sign metadata and key target association. No native
+policy query/trust evaluation/signature/codesign is added. Policy qualification
+is always NOT_EVALUATED; all signing/real authority flags remain false. This
+process-boundary observation is not codesign ACL or complete iOS signing proof.
+
+Child opens only the existing fixed Keychain and receives public expected DER
+(4096-byte maximum), never P12/password. It cannot create/import/unlock/delete.
+Nonblocking pipes, ignored SIGPIPE, 4096-byte output cap, 20-second deadline and
+bounded kill/reap protect parent lifetime; unreaped child prevents native
+SecKeychainDelete. Outer controller still attempts task-root file cleanup and
+reports cleanup UNRESOLVED. Nested output has exact keys/types and bounded8192
+bytes. Failed child must have empty child data; UNREAPED cannot claim cleanup
+VERIFIED. Native executable is canonical/current-user/mode0700 checked.
+
+Offline certificate metadata uses existing cryptography only. `parsed` is the
+completion indicator: false on parser/dependency failure, required true for
+completed observation. Missing KU/EKU extensions are valid false metadata, not
+parser success confusion. Apple policy is never inferred from these booleans.
+
+Tests-first and final focused command:
+`py -3.10 -m unittest tools.tests.test_ios_fictional_signing tools.tests.test_ios_xcode_feasibility -q`
+ran35: 33PASS, 2 Windows platform skips (new module16 tests). Covers strict nested
+schema, contradictory cleanup/child status, typed false can-sign, missing extension,
+malformed DER, child failure/timeout, one import/no codesign, bounded/source IPC
+contracts and unchanged old modes. Swift remains source-contract evidence only:
+no native compile/runtime/Keychain execution on this Windows writer host. Main's
+separate integration evidence is28run27PASS1skip, not rerun by writer.
+
+Primary Apple SecItem.h defines target search-list/ReturnRef queries; SecKey.h
+documents SecKeyCopyAttributes/kSecAttrCanSign; SecKeychain.cpp implements the
+path-specific SecKeychainOpen. No policy/global fallback guarantee is inferred.
+Only four owned paths changed; Main records preserved. No real assets, Git/API,
+hosted or native mutation; local tests use fictional temporary material only.

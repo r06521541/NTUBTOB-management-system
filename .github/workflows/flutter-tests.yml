@@ -238,9 +238,9 @@ jobs:
       - name: Test fictional cross-process signing boundaries
         run: python -m unittest tools.tests.test_ios_fictional_signing -v
 
-      - name: Observe target-only identity without signing or releasing the gate
+      - name: Compare target-only parent and child without policy evaluation or signing
         run: |
-          python -m tools.ios_fictional_signing --diagnose-identity
+          python -m tools.ios_fictional_signing --diagnose-selection
           echo 'DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED'
           exit 1
 

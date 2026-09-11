@@ -63,6 +63,137 @@ def identity_observation_valid(value):
     )
 
 
+def empty_selection():
+    return {
+        "native_policy_qualification": "NOT_EVALUATED",
+        "parent": {},
+        "child_status": "NOT_CHECKED",
+        "child": {},
+    }
+
+
+def validate_selection(value):
+    try:
+        if (
+            type(value) is not dict
+            or set(value)
+            != {"native_policy_qualification", "parent", "child_status", "child"}
+            or value["native_policy_qualification"] != "NOT_EVALUATED"
+            or value["child_status"]
+            not in {"NOT_CHECKED", "COMPLETE", "FAILED", "TIMEOUT", "UNREAPED"}
+        ):
+            raise ValueError
+        for scope in ("parent", "child"):
+            data = value[scope]
+            if scope == "child" and value["child_status"] != "COMPLETE" and data != {}:
+                raise ValueError
+            if data == {}:
+                if scope == "parent" or value["child_status"] == "COMPLETE":
+                    raise ValueError
+                continue
+            bools = IDENTITY_BOOLS + (
+                "key_can_sign_typed",
+                "key_can_sign",
+                "key_target",
+            )
+            if type(data) is not dict or set(data) != set(bools) | {
+                "certificate_query",
+                "identity_query",
+                "key_status",
+            }:
+                raise ValueError
+            if any(type(data[key]) is not bool for key in bools):
+                raise ValueError
+            for kind in ("certificate", "identity"):
+                if data[f"{kind}_query"] not in {"FOUND", "NOT_FOUND", "ERROR"}:
+                    raise ValueError
+                if data[f"{kind}_query"] != "FOUND" and (
+                    data[f"{kind}_type"] or data[f"{kind}_der"]
+                ):
+                    raise ValueError
+                if data[f"{kind}_der"] and not data[f"{kind}_type"]:
+                    raise ValueError
+            if data["key_status"] not in {"NOT_CHECKED", "FOUND", "ERROR"} or (
+                data["key_can_sign"] and not data["key_can_sign_typed"]
+            ):
+                raise ValueError
+            if data["key_status"] == "FOUND" and not (
+                data["key_can_sign_typed"]
+                and data["key_target"]
+                and data["identity_type"]
+            ):
+                raise ValueError
+            if data["key_status"] == "NOT_CHECKED" and any(
+                data[key]
+                for key in ("key_can_sign_typed", "key_can_sign", "key_target")
+            ):
+                raise ValueError
+            if not data["identity_type"] and data["key_status"] != "NOT_CHECKED":
+                raise ValueError
+        return value
+    except Exception:
+        raise bounded.Rejected("OUTPUT_REJECTED") from None
+
+
+def selection_valid(value):
+    try:
+        validate_selection(value)
+        return value["child_status"] == "COMPLETE" and all(
+            identity_observation_valid(value[scope])
+            and (
+                value[scope]["key_status"] == "FOUND"
+                or value[scope]["identity_query"] == "NOT_FOUND"
+            )
+            for scope in ("parent", "child")
+        )
+    except bounded.Rejected:
+        return False
+
+
+def offline_certificate(der):
+    result = {
+        "parsed": False,
+        "ku_digital_signature": False,
+        "eku_code_signing": False,
+        "currently_valid": False,
+        "rsa": False,
+    }
+    try:
+        x509, _, serialization, rsa = preparation.dependencies()
+        if type(der) is not bytes or len(der) > 4096:
+            return result
+        certificate = x509.load_der_x509_certificate(der)
+        if certificate.public_bytes(serialization.Encoding.DER) != der:
+            return result
+        try:
+            result["ku_digital_signature"] = (
+                certificate.extensions.get_extension_for_class(
+                    x509.KeyUsage
+                ).value.digital_signature
+            )
+        except x509.ExtensionNotFound:
+            pass
+        try:
+            result["eku_code_signing"] = (
+                x509.ExtendedKeyUsageOID.CODE_SIGNING
+                in certificate.extensions.get_extension_for_class(
+                    x509.ExtendedKeyUsage
+                ).value
+            )
+        except x509.ExtensionNotFound:
+            pass
+        result["currently_valid"] = (
+            certificate.not_valid_before_utc
+            <= datetime.now(timezone.utc)
+            <= certificate.not_valid_after_utc
+        )
+        result["rsa"] = isinstance(certificate.public_key(), rsa.RSAPublicKey)
+        result["parsed"] = True
+    except Exception:
+        pass
+    return result
+
+
 EXTRA_PHASES = frozenset(
     {
         "signing_application",
@@ -88,6 +219,9 @@ EXTRA_PHASES = frozenset(
         "tamper_marker",
         "tamper_rejected",
         "identity_observation",
+        "selection_observation",
+        "child_path",
+        "child_open",
     }
 )
 
@@ -140,12 +274,23 @@ def native_detail(output):
                 raise ValueError
             return value
 
-        if type(output) is not bytes or len(output) > 2048:
+        if type(output) is not bytes or len(output) > 8192:
             raise ValueError
         value = json.loads(output.decode("ascii"), object_pairs_hook=unique)
+        selected = value.pop("selection", None) if type(value) is dict else None
+        if selected is not None:
+            selected = validate_selection(selected)
+            if value.get("reason") not in {"SELECTION_OBSERVED", "CLEANUP_UNRESOLVED"}:
+                raise ValueError
+            if (
+                selected["child_status"] == "UNREAPED"
+                and value.get("cleanup") != "UNRESOLVED"
+            ):
+                raise ValueError
         fields = {key: set(values) for key, values in bounded.NATIVE_FIELDS.items()}
         fields["reason"].add("SIGNING_VERIFIED")
         fields["reason"].add("IDENTITY_OBSERVED")
+        fields["reason"].add("SELECTION_OBSERVED")
         fields["phase"].update(EXTRA_PHASES)
         fields["codesign_exit"] = {
             "NOT_RUN",
@@ -205,7 +350,19 @@ def native_detail(output):
             or value["identity_query"] != "NOT_CHECKED"
         ):
             raise ValueError
-        return {key: value[key] for key in fields}
+        if value["reason"] == "SELECTION_OBSERVED" and (
+            selected is None
+            or value["phase"] != "selection_observation"
+            or value["codesign_exit"] != "NOT_RUN"
+            or value["codesign_output"] != "NOT_READ"
+            or value["error_class"] != "OS_SUCCESS"
+            or value["cleanup"] != "VERIFIED"
+        ):
+            raise ValueError
+        result = {key: value[key] for key in fields}
+        if selected is not None:
+            result["selection"] = selected
+        return result
     except Exception:
         raise bounded.Rejected("OUTPUT_REJECTED") from None
 
@@ -224,7 +381,7 @@ def cleanup(root, identity):
         raise bounded.Rejected("CLEANUP_UNRESOLVED")
 
 
-def rehearse(*, _run=bounded.process, _diagnose=False):
+def rehearse(*, _run=bounded.process, _diagnose=False, _selection=False):
     result = {
         "classification": "REHEARSAL_REJECTED",
         "stage": "preflight",
@@ -240,6 +397,8 @@ def rehearse(*, _run=bounded.process, _diagnose=False):
     }
     root = None
     active = False
+    if _selection:
+        result["native_policy_qualification"] = "NOT_EVALUATED"
     try:
         if platform.system() != "Darwin":
             raise bounded.Rejected("TOOLCHAIN_UNSUPPORTED")
@@ -270,10 +429,14 @@ def rehearse(*, _run=bounded.process, _diagnose=False):
             timeout=90,
         )
         os.chmod(fixture, 0o700)
+        if _selection:
+            os.chmod(native, 0o700)
         custody = bounded.safe_path(root, root / "custody")
         custody.mkdir(mode=0o700)
         # All build/dependency execution has ended before generating/importing keys.
         p12, certificate, wrong = fictional_material()
+        if _selection:
+            result["offline_certificate"] = offline_certificate(certificate)
         cases = (
             (frames.frame(p12, certificate), "SIGNING_VERIFIED"),
             (frames.frame(p12, wrong), "CERTIFICATE_MISMATCH"),
@@ -281,11 +444,15 @@ def rehearse(*, _run=bounded.process, _diagnose=False):
         )
         if _diagnose:
             cases = ((frames.frame(p12, certificate), "IDENTITY_OBSERVED"),)
+        if _selection:
+            cases = ((frames.frame(p12, certificate), "SELECTION_OBSERVED"),)
         for index, (payload, expected) in enumerate(cases):
             result["stage"] = "native"
             result["native_case"] = index
             active = True
             command = [str(native)] + (["--diagnose-identity"] if _diagnose else [])
+            if _selection:
+                command = [str(native), "--diagnose-selection"]
             code, output = _run(command, cwd=custody, payload=payload, timeout=90)
             detail = native_detail(output)
             result["native_detail"] = detail
@@ -302,7 +469,7 @@ def rehearse(*, _run=bounded.process, _diagnose=False):
                 or active
             ):
                 raise bounded.Rejected("CUSTODY_REJECTED")
-        result["fictional_codesign_verified"] = not _diagnose
+        result["fictional_codesign_verified"] = not (_diagnose or _selection)
         result["classification"] = (
             (
                 "IDENTITY_DIAGNOSTIC_COMPLETE"
@@ -313,6 +480,13 @@ def rehearse(*, _run=bounded.process, _diagnose=False):
             else "FICTIONAL_SIGNING_VERIFIED"
         )
         result["stage"] = "completed"
+        if _selection:
+            result["classification"] = (
+                "SELECTION_DIAGNOSTIC_COMPLETE"
+                if selection_valid(detail["selection"])
+                and result["offline_certificate"]["parsed"]
+                else "SELECTION_DIAGNOSTIC_INCONCLUSIVE"
+            )
     except KeyboardInterrupt:
         result["classification"] = "CANCELLED"
     except Exception as error:
@@ -343,14 +517,22 @@ def main(argv=None):
         else (
             rehearse(_diagnose=True)
             if args == ["--diagnose-identity"]
-            else {"classification": "ARGUMENTS_REJECTED"}
+            else (
+                rehearse(_selection=True)
+                if args == ["--diagnose-selection"]
+                else {"classification": "ARGUMENTS_REJECTED"}
+            )
         )
     )
     print(json.dumps(result, sort_keys=True))
     return (
         0
         if result["classification"]
-        in {"FICTIONAL_SIGNING_VERIFIED", "IDENTITY_DIAGNOSTIC_COMPLETE"}
+        in {
+            "FICTIONAL_SIGNING_VERIFIED",
+            "IDENTITY_DIAGNOSTIC_COMPLETE",
+            "SELECTION_DIAGNOSTIC_COMPLETE",
+        }
         else 1
     )
 

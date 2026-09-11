@@ -191,3 +191,150 @@ Acceptance allows the single already-authorized hosted observation, not a remedy
 Security lease4 ACCEPT received/handled; all delegated roles completed/read-only.
 Main resumes one diagnostic observation in PR250. Local76 tests73PASS3skips;
 independent39 tests38PASS1skip; quality/diffcheck PASS. No native evidence yet.
+
+## Single rediscovery observation outcome
+
+Source/origin98ca1fbdacf5e85f2bb379760152e481290925e8, PR250 OPEN/Draft.
+Run34610163522/job103298388880: native old19/new11 tests PASS. Exactly one new
+diagnostic returned IDENTITY_DIAGNOSTIC_COMPLETE, certificate/identity FOUND,
+both CF types and expected DER true, cleanup VERIFIED. Codesign NOT_RUN/NOT_READ;
+all signing/export/private/release flags false. Pinned macOS15.7.9/24G830 arm64,
+Xcode26.3/17C529, SDK26.2. Explicit diagnostic-only gate then exited1 as designed.
+This observes the fresh fixture only: not uniqueness, cross-process visibility,
+codesign eligibility/policy, prior-run reconstruction or root cause. It gives no
+basis for adding/reimporting a missing certificate or broadening ACL/search/trust.
+Current one-observation authorization consumed. No remedy/native retry/merge.
+Main requested cancellation of remaining CI; cancelled/unrun jobs are not PASS.
+Keep final5 evidence records local for the next substantive authorized delta;
+no status-only commit, PR or hosted loop. All agents completed/read-only.
+Final API confirmed run34610163522 completed/cancelled; watcher closed. No active
+hosted observation remains. HEAD/origin match; main unchanged at the stated base.
+
+## Owner-approved source-only selection analysis
+
+Owner approved continuing with codesign identity-selection analysis. Main retains
+task-197-main-20260911 lease1. Scope is local source plus public Apple references;
+no native/hosted execution, signing retry, import repair, ACL/search/trust changes,
+real assets or new Git/PR operation. Main may record the findings in existing
+coordination records. Other roles remain completed/read-only.
+
+Analysis completed: fixture KU/EKU and exact DER SHA1 selector have no demonstrated
+mismatch with the inspected Apple source. Historical codesign searches apply SIGN
+key usage and code-signing policy before matching the selector; current diagnostic
+queries do not. Current aggregated identity marker also includes general missing
+item wording, so cannot identify the failed selection stage. Published sources are
+not attestation of the exact macOS15.7.9 codesign binary. No source remedy proven.
+
+Proposed next package, NOT executed/authorized here: one fictional target-only
+read-only comparison of same-process versus fresh-child visibility, sign-capable
+key attributes and code-signing qualification. Review the precise native API,
+network/trust-search boundaries and finite outputs before implementation/execution;
+do not substitute global security find-identity or unrestricted trust evaluation.
+No code signing, access repair, real input or automatic follow-on retry. The
+package should collect related observations together, not start another one-field
+trial loop. Owner decides whether to proceed with that native diagnostic package.
+
+## Owner-approved grouped read-only native diagnostic
+
+Owner approved the grouped fresh-child visibility and signing-qualification
+diagnostic. One endogenous fixture setup/import, related read-only observations,
+verified cleanup; no codesign, signature operation, cert repair, reimport, ACL,
+partition/default/search/trust-store changes, real assets or general CLI input.
+Independent API boundary assessment before implementation, then source/security
+review before ONE hosted observation. No automatic remedy or native rerun.
+Same Draft PR250; all signing/export/readiness flags false and explicit signing
+gate failure retained. Main keeps the five existing dirty closeout records.
+
+Checkpoint: goal compare importing process vs fresh child plus signing filters;
+core existing TASK197 Python/Swift/tests and fixed workflow mode; invariant exact
+fictional file-Keychain only and no global trust/network fallback; tests strict
+schema, fixed child/path/input, bounded timeout/reap, query error, cleanup and
+no-sign guard; unresolved API scope must be settled before writing native code.
+
+task=TASK-197; branch=codex/task-197-fictional-signing;
+base=bf7430023825ddbf0160515a02b1c24b8a653749;
+head=98ca1fbdacf5e85f2bb379760152e481290925e8;
+actor_id=/root/task181_review; role=advisor;
+claim_id=task-197-security-20260911; lease_version=5;
+scope=API feasibility for target-only child visibility and qualification;
+owned_paths=none; write=read-only; report_to=/root;
+stop_conditions=native execution, private assets, trust-store/search changes,
+uncontrolled network/global lookup, or unsupported native authority.
+Mandatory COLLABORATION2 protocol. Return a concrete acceptable API design or
+specific blocker; do not implement, run native, mutate Git/API or reuse authority
+for a retry. Main concurrently inspects local integration and public source.
+
+Security lease5 design ACCEPT received/handled. Approved implementation uses only
+SecPolicyCreateWithProperties(kSecPolicyAppleCodeSigning,nil) with kSecMatchPolicy;
+each query retains exact [target]/LimitOne/ReturnRef. No BasicX509/revocation,
+trusted-only/issuer filters, direct SecTrust evaluation, anchors or fallback.
+Apple SecItem.cpp routes this policy through in-process SecTrustEvaluateLeafOnly;
+the source analysis is not shipping-binary attestation or a universal OS guarantee.
+Keep existing pinned host; results mean policy-filter matches, never trust/signing.
+Fresh child only opens the fixed existing canonical file-Keychain and receives
+expected public DER, never P12/password; no create/import/delete/unlock. Parent
+retains ownership until bounded child termination, then verifies deletion/metadata.
+Read kSecAttrCanSign only as typed metadata with target association; no signature.
+
+task=TASK-197; branch=codex/task-197-fictional-signing;
+base=bf7430023825ddbf0160515a02b1c24b8a653749;
+head=98ca1fbdacf5e85f2bb379760152e481290925e8;
+actor_id=/root/csr_writer; role=codex-writer;
+claim_id=task-197-writer-20260911; lease_version=4;
+scope=fixed --diagnose-selection grouped parent/child and CodeSigning filter mode;
+owned_paths=tools/ios_fictional_signing.py,tools/native/ios_fictional_signing.swift,
+tools/tests/test_ios_fictional_signing.py,docs/coordination/reports/TASK-197.md;
+write=allowed; report_to=/root;
+stop_conditions=real input, new trust/search/ACL authority, signing, unsafe child
+lifetime or unsupported API. Mandatory COLLABORATION2 protocol.
+Tests-first with found/notfound/error/type/DER/child-timeout/cleanup/no-sign/schema
+coverage; bounded output and no raw stderr. Preserve old modes and acceptance.
+No Git/API/hosted/native execution by writer. Main owns workflow/test integration
+and coordination, reviewer lease6 activates after handoff. One hosted observation
+only after independent source review; prior5 Main dirty paths remain owned by Main.
+
+Main found a substantive API-boundary contradiction before writer changes or CI.
+The design ACCEPT above is WITHDRAWN: SecItem.cpp identity+policy dispatch first
+calls SecIdentitySearchCreateWithPolicy (L2951-2958), not merely the later
+_FilterWithPolicy leaf-only routine. Its IdentityCursor policy path can evaluate
+trust. Even certificate-only leaf evaluation has a cached-result expiry fallback.
+Do not infer zero global/network lookup from the later leaf-only function alone.
+Writer lease4 stopped without edits; no native observation consumed. Main requested
+the same lease5 advisor correct its incomplete callgraph analysis, read-only.
+No policy query implementation may proceed under the current isolation invariant.
+
+Advisor correction received/handled: policy design REQUEST_CHANGES. Main chooses
+the supported narrower implementation to complete the unaffected authorized work,
+without expanding trust/search authority. Native policy dimension remains explicitly
+NOT_EVALUATED; no claim the replacement is Apple policy equivalence or root cause.
+This is an implementation-method correction, not authority to run native policy.
+Safe design accepted by advisor: plain exact-target parent/fresh-child queries,
+typed key canSign metadata; existing cryptography offline reads of the internally
+generated certificate KU/EKU/validity/RSA type only. No native trust evaluation.
+Main disclosed this limitation to Owner before implementation.
+
+Revoke unstarted writer lease4; activate task-197-writer-20260911 lease5, same
+actor/branch/base/head/four owned paths/report_to=/root and mandatory protocol.
+Scope fixed --diagnose-selection implements ONLY safe design above. Forbid
+kSecMatchPolicy, direct SecTrust calls, new anchors/trust/search/ACL mutations.
+Preserve old modes, no-sign gate, bounded child lifetime/cleanup and strictschema.
+Return native_policy_qualification=NOT_EVALUATED in every selection result.
+Independent reviewer lease6 follows handoff. One hosted observation budget remains
+unused; do not spend it unless safe implementation passes source review.
+
+Writer lease5 completed/read-only; Main received/handled full handoff. Independent
+task-197-security-20260911 lease6 now active, actor=/root/task181_review, advisor,
+owned_paths=none/write=read-only/report_to=/root; same branch/base/HEAD plus ten
+dirty paths. Review exact safe delta (no native policy), child executable/cwd/DER
+binding, IPC timeout/SIGPIPE/reap/cleanup, CFBoolean metadata, offline parsed status,
+schema contradiction handling and Main fixed-mode fail gate. No native/Git/API/
+private mutation; mandatory protocol. Main81 tests78PASS3skips, changed Python
+quality PASS; writer35 tests33PASS2skips. Native evidence pending; no equivalence
+claim between same-executable child and codesign ACL/selection behavior.
+
+Security lease6 ACCEPT received/handled:44 tests43PASS1skip, no source blockers.
+Writer/reviewer completed/read-only; Main resumes task-197-main-20260911 lease1.
+Commit/push the ten-path substantive package to existing DraftPR250, then exactly
+one hosted observation. No policy evaluation/signing/repair/retry; cancel unused
+jobs after evidence. Clarify unreaped child blocks native KeychainDelete only;
+outer task-root file cleanup remains attempted and cleanup status UNRESOLVED.
