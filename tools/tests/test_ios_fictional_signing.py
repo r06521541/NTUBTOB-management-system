@@ -56,6 +56,16 @@ class Runner(ToolchainRunner):
             }
             if reason == "SIGNING_VERIFIED":
                 value.update(codesign_exit="ZERO", codesign_output="BOUNDED")
+            if "--diagnose-identity" in args:
+                value.update(target.empty_observation())
+                value.update(
+                    reason="IDENTITY_OBSERVED",
+                    phase="identity_observation",
+                    certificate_query="NOT_FOUND",
+                    identity_query="NOT_FOUND",
+                )
+                if self.failure == "query_error":
+                    value["identity_query"] = "ERROR"
             if self.failure == "cleanup":
                 value.update(
                     reason="CLEANUP_UNRESOLVED",
@@ -68,6 +78,45 @@ class Runner(ToolchainRunner):
 
 
 class SigningTests(unittest.TestCase):
+    def test_identity_observation_is_not_signing(self):
+        for status in ("FOUND", "NOT_FOUND", "ERROR"):
+            value = target.empty_identity_observation()
+            value.update(certificate_query=status, identity_query=status)
+            if status == "FOUND":
+                value.update(
+                    certificate_type=True,
+                    certificate_der=True,
+                    identity_type=True,
+                    identity_der=True,
+                )
+            self.assertEqual(
+                target.identity_observation_valid(value), status != "ERROR"
+            )
+        value = target.empty_identity_observation()
+        value.update(certificate_query="FOUND", identity_query="FOUND")
+        self.assertFalse(target.identity_observation_valid(value))
+        observed = {
+            **target.empty_observation(),
+            "reason": "IDENTITY_OBSERVED",
+            "phase": "identity_observation",
+            "error_class": "OS_SUCCESS",
+            "cleanup": "VERIFIED",
+            "cleanup_phase": "completed",
+            "cleanup_error_class": "OS_SUCCESS",
+            "certificate_query": "NOT_FOUND",
+            "identity_query": "NOT_FOUND",
+        }
+        self.assertEqual(target.native_detail(json.dumps(observed).encode()), observed)
+        for key, value in (
+            ("identity_query", "private-sentinel"),
+            ("certificate_type", 1),
+            ("certificate_der", True),
+            ("codesign_exit", "ZERO"),
+            ("cleanup", "NOT_CREATED"),
+        ):
+            with self.assertRaises(target.bounded.Rejected):
+                target.native_detail(json.dumps({**observed, key: value}).encode())
+
     def test_codesign_observation_schema(self):
         value = {
             "reason": "CUSTODY_REJECTED",
@@ -101,7 +150,7 @@ class SigningTests(unittest.TestCase):
                 ).encode()
             )
 
-    def exercise(self, failure=None):
+    def exercise(self, failure=None, diagnose=False):
         runner = Runner(failure)
         with (
             patch.object(target.platform, "system", return_value="Darwin"),
@@ -117,10 +166,24 @@ class SigningTests(unittest.TestCase):
                 return_value=(b"fictional", b"certificate", b"wrong"),
             ),
         ):
-            result = target.rehearse(_run=runner)
+            result = target.rehearse(_run=runner, _diagnose=diagnose)
         self.assertFalse(runner.root.exists())
         self.assertNotIn("private-sentinel", repr(result))
         return result, runner
+
+    def test_diagnostic_mode_no_signing_and_query_error(self):
+        result, runner = self.exercise(diagnose=True)
+        self.assertEqual(result["classification"], "IDENTITY_DIAGNOSTIC_COMPLETE")
+        self.assertFalse(result["fictional_codesign_verified"])
+        self.assertTrue(result["cleanup_verified"])
+        calls = [args for args in runner.calls if Path(args[0]).name == "native"]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1:], ["--diagnose-identity"])
+        self.assertEqual(result["native_detail"]["codesign_exit"], "NOT_RUN")
+        result, _ = self.exercise("query_error", diagnose=True)
+        self.assertEqual(result["classification"], "IDENTITY_DIAGNOSTIC_INCONCLUSIVE")
+        self.assertFalse(result["fictional_codesign_verified"])
+        self.assertTrue(result["cleanup_verified"])
 
     def test_order_and_false_authority(self):
         result, runner = self.exercise()
@@ -262,8 +325,19 @@ class SigningTests(unittest.TestCase):
             "set-key-partition-list",
             "NSTask",
             "--deep",
+            "SecItemAdd",
+            "SecItemUpdate",
+            "kSecUseDataProtectionKeychain",
+            "kSecMatchLimitAll",
         ):
             self.assertNotIn(forbidden, source)
+        self.assertIn("kSecMatchSearchList as String: [target] as CFArray", source)
+        self.assertIn("kSecMatchLimit as String: kSecMatchLimitOne", source)
+        self.assertIn("kSecReturnRef as String: true", source)
+        self.assertIn("CFGetTypeID(item) == SecCertificateGetTypeID()", source)
+        self.assertIn("CFGetTypeID(item) == SecIdentityGetTypeID()", source)
+        self.assertIn("guard !diagnoseIdentity else { return false }", source)
+        self.assertIn("} else if importOK && diagnoseIdentity {", source)
         self.assertIn("[trustedApplication, signingApplication] as CFArray", source)
         self.assertIn(
             "SecCertificateCopyData(certificates[0]) as Data == expected", source

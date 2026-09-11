@@ -80,8 +80,9 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   TASK196已由PR249合併，完整run34603603901共16工作PASS：無私鑰archive、虛構Keychain正反向案例／清理，
   以及缺虛構profile時的預期匯出拒絕均驗證。原問題是分類漏認Xcode措辭，已以固定selector整行判定修正。
   真實資產與簽署未動用；positive export、真實profile、候選簽署／TestFlight仍是後續獨立gate。
-  TASK197執行中：Owner批准實際Flutter未簽署archive與虛構金鑰跨程序codesign／清理驗證。
-  尚未取得新native證據；不使用真實P12/profile，不變更Apple帳戶，不上傳或發布。
+  TASK197：run34608233601已驗證實際Flutter未簽署archive；PR250仍Draft未合併。
+  虛構codesign出現identity查找訊息、cleanup成功；根因不足以支持修正，有限診斷已停。
+  Owner已批准一次target-only憑證／identity唯讀重新查詢；只虛構setup/cleanup，不再codesign、補cert或改ACL。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

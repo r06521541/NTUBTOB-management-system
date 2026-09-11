@@ -1,9 +1,37 @@
 # TASK-197 writer report
 
+Main current scope: Owner approved one target-only rediscovery diagnostic, not a
+signing retry or repair. Writer lease3 and independent security lease4 completed;
+ACCEPT for one hosted observation only. Main expanded76 tests73PASS3platform skips,
+reviewer39 tests38PASS1skip; Python quality and diffcheck PASS. Ten owned dirty paths
+include the prior five closeout records and this substantive diagnostic delta.
+Fixed --diagnose-identity never calls codesign; the workflow deliberately fails
+the signing gate afterward. No merge, signing or private-operation authority.
+
+Prior completed observation: source/security accepted, but native signing remains STOP.
+PR250 is Draft/unmerged at4e22fa4c779a980dc86cf26a36eed71f27e09f14. Diagnostic
+run34608233601/native103291939930 reports only identity-message match, NONZERO
+exit and verified cleanup; no real assets/signing/upload. Independent evidence
+assessment found no justified source remedy. Product archive job103291939983 PASS:
+actual Runner.xcarchive built, IPA skipped, fixed archive/app identity/version and
+unsigned checks succeeded, fictional configs removed. Archive not retained/uploaded.
+Main requested cancellation of remaining CI after all in-scope new evidence;
+cancelled/unrun jobs are not PASS. No merge or signing/private retry authorized.
+
 Branch `codex/task-197-fictional-signing`; base/current HEAD
 `bf7430023825ddbf0160515a02b1c24b8a653749`. Claim task-197-writer-20260911
 lease1, actor /root/csr_writer, report_to=/root. Four owned files delivered dirty;
 no commit/push. Main coordination/workflow changes preserved.
+
+Main integration: branch/origin HEAD4e22fa4c779a980dc86cf26a36eed71f27e09f14;
+base/main bf7430023825ddbf0160515a02b1c24b8a653749. Independent source reviews
+ACCEPT; evidence review STOP. Main focused command covering fictional signing,
+TASK196, CI contract, release pipeline and candidate inspector:74run71PASS3skips;
+changed Python quality/diff PASS. Corrected hosted Linux/Windows tool jobs PASS.
+At that earlier closeout only final5 records remained local dirty, no status-only
+commit/PR/CI. Next scope must explicitly permit bounded target-only read-only
+certificate association/identity rediscovery; no new raw logs, import/repair,
+search-list/ACL/trust widening or real materials. No assumption of missing cert.
 
 ## Implemented boundary
 
@@ -102,3 +130,47 @@ only on this Windows host, not a claimed actual Swift overflow/reap runtime test
 reviewed macOS execution remains necessary. Owned format/check and diffcheck PASS.
 No remedy or cause inferred. Four owned paths changed, Main dirty paths preserved;
 only fictional local temp tests, no real assets/native/Git/API/hosted mutations.
+
+## Writer lease3: target-only rediscovery, no signing retry
+
+HEAD `4e22fa4c779a980dc86cf26a36eed71f27e09f14`. Owner renewed one read-only
+observation after the prior codesign NONZERO/identity-marker result; no remedy
+or further codesign run is authorized. New fixed CLI `--diagnose-identity` performs
+the same fictional setup/import and verified cleanup, then queries only the target.
+Original `--rehearsal` remains unchanged in purpose/acceptance and retains3 cases.
+Diagnostic mode uses one correct fixture import, no repeat/reimport/cert insertion.
+
+Primary [Apple SecItem.h](https://github.com/apple-oss-distributions/Security/blob/main/keychain/headers/SecItem.h)
+documents `kSecMatchSearchList` as limiting search to its supplied SecKeychainRef
+array. Both certificate and identity queries supply exactly `[target]`,
+`kSecMatchLimitOne` and `kSecReturnRef=true`. No default/global/DP/synchronizable,
+policy/trusted/date filter or fallback query. This is the newly created file
+Keychain reference, not a guessed path or general search list. Each result is
+checked by CF type ID before casting; a certificate's DER and an identity's copied
+certificate DER are compared only in memory with the expected fixture bytes.
+The one-result limit is not an enumeration or uniqueness proof.
+
+Only fixed query statuses NOT_CHECKED/FOUND/NOT_FOUND/ERROR and type/DER booleans
+are emitted. Error, wrong result type or DER mismatch yields diagnostic inconclusive.
+NOT_FOUND can complete observation but does not establish signing readiness.
+Native IDENTITY_OBSERVED requires no codesign execution plus verified cleanup;
+Python also rejects contradictory status/boolean/success combinations. A native
+guard prevents crossProcessSign in diagnostic mode; the import diagnostic branch
+never enters the signing branch. No extra write, ACL/partition/trust repair or
+codesign invocation. All real/export/signing flags, including fictional_codesign,
+remain false for diagnostics. Main explicitly keeps the hosted signing gate failed
+after its diagnostic invocation; green observation cannot merge the delivery.
+
+Tests-first new observation test failed before implementation; new11PASS, combined
+new+TASK196 command30run28PASS2Windows skips. Tests cover found/not-found/error,
+type/DER inconsistency, sentinel/schema, one diagnostic native call/no-sign mode,
+cleanup and unchanged original negatives. Owned format/check and diffcheck PASS.
+Swift query behavior remains unexecuted on this Windows writer host; native source
+assertions are not runtime API evidence. Main reports separate workflow/pipeline
+28run27PASS1skip; attributed to Main, not rerun by writer.
+
+Four owned paths dirty; prior Main records preserved. External mutations only
+fictional local temporary tests; public Apple documentation read. No real asset,
+native Keychain, Git/API/hosted operation, remedy or new dependency. One reviewed
+hosted observation remains; unsupported/inconclusive query stops, no additional
+diagnostic or correction is authorized by lease3.

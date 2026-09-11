@@ -31,7 +31,36 @@ def empty_observation():
         "codesign_exit": "NOT_RUN",
         "codesign_output": "NOT_READ",
         **{key: False for key in MARKER_KEYS},
+        **empty_identity_observation(),
     }
+
+
+IDENTITY_BOOLS = (
+    "certificate_type",
+    "certificate_der",
+    "identity_type",
+    "identity_der",
+)
+
+
+def empty_identity_observation():
+    return {
+        "certificate_query": "NOT_CHECKED",
+        "identity_query": "NOT_CHECKED",
+        **{key: False for key in IDENTITY_BOOLS},
+    }
+
+
+def identity_observation_valid(value):
+    return all(
+        value[f"{kind}_query"] == "NOT_FOUND"
+        or (
+            value[f"{kind}_query"] == "FOUND"
+            and value[f"{kind}_type"]
+            and value[f"{kind}_der"]
+        )
+        for kind in ("certificate", "identity")
+    )
 
 
 EXTRA_PHASES = frozenset(
@@ -58,6 +87,7 @@ EXTRA_PHASES = frozenset(
         "signed_size",
         "tamper_marker",
         "tamper_rejected",
+        "identity_observation",
     }
 )
 
@@ -115,6 +145,7 @@ def native_detail(output):
         value = json.loads(output.decode("ascii"), object_pairs_hook=unique)
         fields = {key: set(values) for key, values in bounded.NATIVE_FIELDS.items()}
         fields["reason"].add("SIGNING_VERIFIED")
+        fields["reason"].add("IDENTITY_OBSERVED")
         fields["phase"].update(EXTRA_PHASES)
         fields["codesign_exit"] = {
             "NOT_RUN",
@@ -125,14 +156,34 @@ def native_detail(output):
             "OUTPUT_STOP",
         }
         fields["codesign_output"] = {"NOT_READ", "BOUNDED", "OVERFLOW", "READ_FAILED"}
-        for key in MARKER_KEYS:
+        for key in MARKER_KEYS + IDENTITY_BOOLS:
             fields[key] = {False, True}
+        for key in ("certificate_query", "identity_query"):
+            fields[key] = {"NOT_CHECKED", "FOUND", "NOT_FOUND", "ERROR"}
         if type(value) is not dict or value.keys() != fields.keys():
             raise ValueError
         if any(
-            type(value[key]) is not (bool if key in MARKER_KEYS else str)
+            type(value[key])
+            is not (bool if key in MARKER_KEYS + IDENTITY_BOOLS else str)
             or value[key] not in allowed
             for key, allowed in fields.items()
+        ):
+            raise ValueError
+        for kind in ("certificate", "identity"):
+            if value[f"{kind}_query"] != "FOUND" and (
+                value[f"{kind}_type"] or value[f"{kind}_der"]
+            ):
+                raise ValueError
+            if value[f"{kind}_der"] and not value[f"{kind}_type"]:
+                raise ValueError
+        if value["reason"] == "IDENTITY_OBSERVED" and (
+            value["phase"] != "identity_observation"
+            or value["codesign_exit"] != "NOT_RUN"
+            or value["codesign_output"] != "NOT_READ"
+            or value["cleanup"] != "VERIFIED"
+            or value["error_class"] != "OS_SUCCESS"
+            or value["certificate_query"] == "NOT_CHECKED"
+            or value["identity_query"] == "NOT_CHECKED"
         ):
             raise ValueError
         if value["cleanup"] == "VERIFIED" and (
@@ -150,6 +201,8 @@ def native_detail(output):
             or value["cleanup"] != "VERIFIED"
             or value["codesign_exit"] != "ZERO"
             or value["codesign_output"] != "BOUNDED"
+            or value["certificate_query"] != "NOT_CHECKED"
+            or value["identity_query"] != "NOT_CHECKED"
         ):
             raise ValueError
         return {key: value[key] for key in fields}
@@ -171,7 +224,7 @@ def cleanup(root, identity):
         raise bounded.Rejected("CLEANUP_UNRESOLVED")
 
 
-def rehearse(*, _run=bounded.process):
+def rehearse(*, _run=bounded.process, _diagnose=False):
     result = {
         "classification": "REHEARSAL_REJECTED",
         "stage": "preflight",
@@ -221,17 +274,19 @@ def rehearse(*, _run=bounded.process):
         custody.mkdir(mode=0o700)
         # All build/dependency execution has ended before generating/importing keys.
         p12, certificate, wrong = fictional_material()
-        for index, (payload, expected) in enumerate(
-            (
-                (frames.frame(p12, certificate), "SIGNING_VERIFIED"),
-                (frames.frame(p12, wrong), "CERTIFICATE_MISMATCH"),
-                (frames.frame(p12, certificate, True), "AUTH_REJECTED"),
-            )
-        ):
+        cases = (
+            (frames.frame(p12, certificate), "SIGNING_VERIFIED"),
+            (frames.frame(p12, wrong), "CERTIFICATE_MISMATCH"),
+            (frames.frame(p12, certificate, True), "AUTH_REJECTED"),
+        )
+        if _diagnose:
+            cases = ((frames.frame(p12, certificate), "IDENTITY_OBSERVED"),)
+        for index, (payload, expected) in enumerate(cases):
             result["stage"] = "native"
             result["native_case"] = index
             active = True
-            code, output = _run([str(native)], cwd=custody, payload=payload, timeout=90)
+            command = [str(native)] + (["--diagnose-identity"] if _diagnose else [])
+            code, output = _run(command, cwd=custody, payload=payload, timeout=90)
             detail = native_detail(output)
             result["native_detail"] = detail
             if (
@@ -247,8 +302,16 @@ def rehearse(*, _run=bounded.process):
                 or active
             ):
                 raise bounded.Rejected("CUSTODY_REJECTED")
-        result["fictional_codesign_verified"] = True
-        result["classification"] = "FICTIONAL_SIGNING_VERIFIED"
+        result["fictional_codesign_verified"] = not _diagnose
+        result["classification"] = (
+            (
+                "IDENTITY_DIAGNOSTIC_COMPLETE"
+                if identity_observation_valid(detail)
+                else "IDENTITY_DIAGNOSTIC_INCONCLUSIVE"
+            )
+            if _diagnose
+            else "FICTIONAL_SIGNING_VERIFIED"
+        )
         result["stage"] = "completed"
     except KeyboardInterrupt:
         result["classification"] = "CANCELLED"
@@ -277,10 +340,19 @@ def main(argv=None):
     result = (
         rehearse()
         if args == ["--rehearsal"]
-        else {"classification": "ARGUMENTS_REJECTED"}
+        else (
+            rehearse(_diagnose=True)
+            if args == ["--diagnose-identity"]
+            else {"classification": "ARGUMENTS_REJECTED"}
+        )
     )
     print(json.dumps(result, sort_keys=True))
-    return 0 if result["classification"] == "FICTIONAL_SIGNING_VERIFIED" else 1
+    return (
+        0
+        if result["classification"]
+        in {"FICTIONAL_SIGNING_VERIFIED", "IDENTITY_DIAGNOSTIC_COMPLETE"}
+        else 1
+    )
 
 
 if __name__ == "__main__":

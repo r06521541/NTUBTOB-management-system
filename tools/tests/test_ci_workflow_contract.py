@@ -242,7 +242,7 @@ class WorkflowContractTests(unittest.TestCase):
             "secrets: inherit",
         ):
             self.assertNotIn(forbidden, block)
-        self.assertEqual(block.count("--rehearsal"), 3)
+        self.assertEqual(block.count("--rehearsal"), 2)
         self.assertIn(
             "tools.tests.test_ios_xcode_feasibility",
             job_block(self.source, "deployment_tools"),
@@ -251,7 +251,15 @@ class WorkflowContractTests(unittest.TestCase):
     def test_fictional_signing_and_unsigned_product_archive_stay_separate(self):
         signing = job_block(self.flutter_source, "ios_xcode_feasibility")
         archive = job_block(self.flutter_source, "ios_compile_contract")
-        self.assertIn("python -m tools.ios_fictional_signing --rehearsal", signing)
+        self.assertIn(
+            "python -m tools.ios_fictional_signing --diagnose-identity", signing
+        )
+        self.assertNotIn("python -m tools.ios_fictional_signing --rehearsal", signing)
+        self.assertIn("DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED", signing)
+        self.assertRegex(
+            signing,
+            r"(?s)--diagnose-identity\n.*?DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED.*?\n          exit 1",
+        )
         self.assertIn("tools.tests.test_ios_fictional_signing", signing)
         self.assertNotIn("flutter build", signing)
         for expected in (

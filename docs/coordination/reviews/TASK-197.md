@@ -1,6 +1,6 @@
 # TASK-197 review
 
-Status: independent source/security ACCEPT; native and merge acceptance pending.
+Status: security lease4 ACCEPT for one target-only diagnostic; signing and merge blocked.
 Base bf7430023825ddbf0160515a02b1c24b8a653749.
 
 Main integration evidence: workflow contract tests first failed on the missing
@@ -47,3 +47,35 @@ expanded74 tests71PASS3skips; changed Python quality/diff PASS. Nonblocking stde
 has8192-byte cap plus overflow detection, deadline/reap bounds and no raw output.
 Markers only denote bounded text matches, not causes. No native remedy or ACL
 change; one diagnostic observation may proceed in the same PR250.
+
+Diagnostic source4e22fa4c779a980dc86cf26a36eed71f27e09f14, run34608233601,
+native103291939930: new9 tests PASS; case0 NONZERO/BOUNDED, marker_identity=true,
+all other markers false; cleanup VERIFIED. No source remedy inferred.
+Security lease3 evidence-only STOP received/handled: explicit file-Keychain import
+and selector calculation agree with Apple API intent. Returned identity/cert and
+private-key target association are proven by helper; certificate persistence and
+target-only identity rediscovery are not observed. Do not assume they failed.
+No justification to change ACL, selector, search scope, trust or reimport. Bounded
+layer-split budget used; no guessed correction. Further observation requires a new
+explicit bounded scope. Reviewer did not rerun native/tests for this evidence review.
+
+Main verified archive job103291939983 PASS on the same source/run: actual Flutter
+Runner.xcarchive built, IPA explicitly skipped, UNSIGNED_FLUTTER_ARCHIVE_VERIFIED;
+archive identity/version/unsigned checks and config cleanup succeeded. Linux and
+Windows tool jobs also PASS. Remaining CI cancellation requested after scoped
+evidence; never count cancelled/unrun jobs as PASS. PR250 OPEN/Draft, unmerged.
+No positive codesign/export, actual signing or TestFlight acceptance.
+
+Final API read confirms run34608233601 completed/cancelled; no pending native work.
+
+Security lease4 ACCEPT received/handled. Independent39 tests38PASS1platform skip;
+Main expanded76 tests73PASS3skips, changed Python quality/diffcheck PASS. No actionable
+finding. Exact target [SecKeychainRef], LimitOne/ReturnRef, type and expected DER
+comparison support only a first-result/not-found observation; not uniqueness,
+codesign policy or complete root cause. Skipping returned-identity/challenge in
+diagnostic mode is acceptable: expected DER comes independently from the internal
+fixture, and no current key-possession assertion is made. Original rehearsal stays
+unchanged. ERROR/type/DER mismatch is inconclusive. Native guard prevents codesign;
+workflow exit1 prevents successful diagnosis from becoming a merge/signing gate.
+One hosted observation allowed; no correction/retry/real access. Native API not
+yet exercised for this delta; source assertions are not runtime proof.

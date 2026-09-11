@@ -109,3 +109,85 @@ operation; mandatory protocol applies. Review before one diagnostic native run.
 
 Security lease2 ACCEPT received/handled; advisor read-only. Main resumes the
 single bounded native diagnostic observation plus actual archive first execution.
+
+Diagnostic source4e22fa4c779a980dc86cf26a36eed71f27e09f14 run34608233601,
+native103291939930: old19/new9 tests PASS; case0 NONZERO/BOUNDED with
+marker_identity=true only, cleanup VERIFIED. No ACL/trust/root cause inferred.
+Activate security advisor task-197-security-20260911 lease3, same actor/read-only
+paths none/report_to=/root, current HEAD above. Scope assess this exact fixed
+evidence and relevant Apple primary code/API for an evidenced in-scope remedy;
+no new native diagnostic, code edits, Git/API mutation or private access. If no
+justified correction, report precise unresolved gap; do not guess or broaden ACL.
+Main concurrently follows actual archive job103291939983 to its outcome.
+
+Security lease3 STOP received/handled; advisor read-only. No evidence-based code
+remedy, so do not spend the correction allowance on guessing. Stop signing work.
+Exact unresolved gap: certificate persistence and target-only identity rediscovery
+were not observed; returned identity/key association does not prove them. A new
+target-only read-only diagnostic scope would need explicit approval; never broaden
+search/ACL/trust or silently add a certificate. Main only finishes observing the
+already-running product archive and closes out existing run/PR state.
+
+Product archive job103291939983 PASS: Runner.xcarchive actually created and fixed
+metadata/unsigned checks succeeded; no IPA/export/upload. Corrected Linux/Windows
+tool jobs PASS. Remaining CI cancellation requested after new scoped evidence.
+Status awaiting_owner_approval, not completed: PR250 remains Draft/unmerged.
+Next proposed approval is only target-Keychain certificate association and identity
+rediscovery with finite result metadata. No private material, broad search, ACL,
+trust changes or certificate repair. Final5 coordination records stay local until
+next substantive correction; no status-only commit/CI loop. All agents read-only.
+
+## Owner-approved target-only rediscovery (2026-09-11)
+
+Owner approved one additional bounded READ-ONLY observation inside an endogenous
+fictional temporary Keychain. This renews diagnosis only, not repair or codesign
+retry. Existing fictional key generation/import/deletion remains fixture setup/
+cleanup; no extra certificate insertion, reimport, ACL/search-list/trust changes,
+real assets, arbitrary input or raw output. The new diagnostic must NOT launch
+codesign after querying, even if identity is found. Original signing acceptance
+and all real/export/readiness flags remain unchanged/false.
+
+Goal: distinguish target-only certificate and identity rediscovery observations.
+Core: existing new TASK197 Python/native/tests, one fixed diagnostic CLI mode;
+Main owns its workflow invocation/contract tests and coordination integration.
+Invariant: queries use the exact freshly created file-Keychain only; no default,
+login, global or data-protection search/fallback and no mutation as a remedy.
+Tests: strict finite enums/booleans, not-found/mismatch/query failure, no codesign
+in diagnostic mode, bounded query/result types, unchanged cleanup/negative cases.
+Unknown: correct native API/target binding must follow Apple primary docs; unsupported
+query or inconclusive evidence stops after this one observation. No correction
+or another diagnostic authorized by this renewal, even if a likely remedy emerges.
+
+task=TASK-197; branch=codex/task-197-fictional-signing;
+base=bf7430023825ddbf0160515a02b1c24b8a653749;
+head=4e22fa4c779a980dc86cf26a36eed71f27e09f14;
+actor_id=/root/csr_writer; role=codex-writer;
+claim_id=task-197-writer-20260911; lease_version=3;
+scope=target-only certificate/identity rediscovery, fixed diagnostic no-sign mode;
+owned_paths=tools/ios_fictional_signing.py,tools/native/ios_fictional_signing.swift,
+tools/tests/test_ios_fictional_signing.py,docs/coordination/reports/TASK-197.md;
+write=allowed; report_to=/root;
+stop_conditions=real inputs, new asset write/repair, global/fallback search, ACL/trust
+change, raw output, unsupported native authority. Mandatory COLLABORATION2 protocol.
+Reviewer lease3 completed; lease4 activates after handoff. Main owns workflow/tests/
+task/HANDOFF/review/PROJECT_STATE. Preserve the preceding5 Main-owned dirty records.
+One reviewed hosted observation in existing Draft PR250; no merge from a diagnostic
+success or missing-record outcome, no status-only commit afterward.
+
+Main workflow temporarily invokes --diagnose-identity instead of --rehearsal,
+then deliberately fails the signing gate with a fixed diagnostic-only marker.
+This prevents green CI/merge from replacing unproven signature acceptance with
+a successful read-only observation. No new codesign retry in this hosted slice.
+
+Writer lease3 completed/read-only; Main received and handled handoff. Activate
+task-197-security-20260911 lease4, actor_id=/root/task181_review, role=advisor,
+write=read-only, owned_paths=none, report_to=/root, same branch/base and HEAD
+4e22fa4c779a980dc86cf26a36eed71f27e09f14 plus the ten current dirty paths.
+Review target-only query authority, strict result/type/DER handling, no-sign mode,
+cleanup and Main workflow's explicit non-release failure. No native execution,
+Git/API mutation or private access. Mandatory ACK/heartbeat/blocker/final protocol.
+Acceptance allows the single already-authorized hosted observation, not a remedy.
+
+Security lease4 ACCEPT received/handled; all delegated roles completed/read-only.
+Main resumes one diagnostic observation in PR250. Local76 tests73PASS3skips;
+independent39 tests38PASS1skip; quality/diffcheck PASS. No native evidence yet.

@@ -8,10 +8,10 @@ base_commit: bf7430023825ddbf0160515a02b1c24b8a653749
 updated_by: main-work
 updated_at: 2026-09-11
 note: >
-  Owner approved fictional cross-process signing and actual Flutter unsigned archive.
-  Native codesign exit failed with verified cleanup; one bounded fixed-category split.
-  Main corrects a stale workflow test selector that prevented actual Flutter archive.
-  Prior five Main-owned closeout files remain preserved for substantive delivery.
+  Owner approved one target-only certificate/identity rediscovery observation.
+  Fixture setup/cleanup only; diagnostic must not sign, repair or broaden access.
+  Security lease4 ACCEPT; Main performs one hosted observation, then stops.
+  Deliberate non-release workflow failure remains; no repair, retry or merge.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-197.md
 report: docs/coordination/reports/TASK-197.md

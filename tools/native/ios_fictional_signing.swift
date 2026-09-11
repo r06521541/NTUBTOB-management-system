@@ -11,11 +11,16 @@ var cleanupError = "NOT_CHECKED"
 var cleanupPhase = "not_started"
 var codesignExit = "NOT_RUN"
 var codesignOutput = "NOT_READ"
+var certificateQuery = "NOT_CHECKED", identityQuery = "NOT_CHECKED"
+var certificateType = false, certificateDER = false, identityType = false, identityDER = false
 var codesignMarkers: [String: Bool] = ["marker_internal_component": false, "marker_interaction": false, "marker_authentication": false, "marker_identity": false, "marker_chain": false, "marker_format": false, "marker_permission": false, "marker_resource_fork": false]
 func finish(_ value: String) -> Never {
     var result: [String: Any] = ["reason": value, "phase": phase, "error_class": errorClass,
                   "cleanup": cleanupState, "cleanup_error_class": cleanupError, "cleanup_phase": cleanupPhase]
     result["codesign_exit"] = codesignExit; result["codesign_output"] = codesignOutput
+    result["certificate_query"] = certificateQuery; result["identity_query"] = identityQuery
+    result["certificate_type"] = certificateType; result["certificate_der"] = certificateDER
+    result["identity_type"] = identityType; result["identity_der"] = identityDER
     for (key, value) in codesignMarkers { result[key] = value }
     let data = try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
     print(String(data: data, encoding: .utf8)!)
@@ -40,7 +45,8 @@ func predicate(_ name: String, _ value: Bool) -> Bool {
     phase = name; errorClass = value ? "OS_SUCCESS" : "PREDICATE_REJECTED"
     return value
 }
-guard predicate("arguments", CommandLine.arguments.count == 1) else { finish("ARGUMENTS_REJECTED") }
+let diagnoseIdentity = Array(CommandLine.arguments.dropFirst()) == ["--diagnose-identity"]
+guard predicate("arguments", CommandLine.arguments.count == 1 || diagnoseIdentity) else { finish("ARGUMENTS_REJECTED") }
 phase = "platform"
 guard #available(macOS 15.0, *) else { errorClass = "PREDICATE_REJECTED"; finish("PLATFORM_UNSUPPORTED") }
 let fm = FileManager.default
@@ -117,7 +123,37 @@ func identityFromItems(_ imported: CFArray?) -> SecIdentity? {
     return value as! SecIdentity
 }
 
+func observeIdentity(_ target: SecKeychain) {
+    func query(_ kind: CFString) -> (String, CFTypeRef?) {
+        let attributes: [String: Any] = [kSecClass as String: kind,
+            kSecMatchSearchList as String: [target] as CFArray,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecReturnRef as String: true]
+        var item: CFTypeRef?
+        let result = SecItemCopyMatching(attributes as CFDictionary, &item)
+        return (result == errSecSuccess ? "FOUND" : result == errSecItemNotFound ? "NOT_FOUND" : "ERROR", item)
+    }
+    var item: CFTypeRef?
+    (certificateQuery, item) = query(kSecClassCertificate)
+    if certificateQuery == "FOUND", let item = item, CFGetTypeID(item) == SecCertificateGetTypeID() {
+        certificateType = true
+        let certificate = item as! SecCertificate
+        certificateDER = SecCertificateCopyData(certificate) as Data == expected
+    }
+    (identityQuery, item) = query(kSecClassIdentity)
+    if identityQuery == "FOUND", let item = item, CFGetTypeID(item) == SecIdentityGetTypeID() {
+        identityType = true
+        let identity = item as! SecIdentity
+        var certificate: SecCertificate?
+        if SecIdentityCopyCertificate(identity, &certificate) == errSecSuccess, let certificate = certificate {
+            identityDER = SecCertificateCopyData(certificate) as Data == expected
+        }
+    }
+    phase = "identity_observation"; errorClass = "OS_SUCCESS"
+}
+
 func crossProcessSign() -> Bool {
+    guard !diagnoseIdentity else { return false }
     let fixture = parent.appendingPathComponent("fictional-mach-o")
     var info = stat()
     guard predicate("fixture_canonical", fixture.resolvingSymlinksInPath().pathComponents == fixture.pathComponents),
@@ -258,6 +294,9 @@ if status("create", created), predicate("created_keychain", keychain != nil), le
         let importOK = status("import", importedStatus)
         if importedStatus == errSecAuthFailed {
             reason = "AUTH_REJECTED"
+        } else if importOK && diagnoseIdentity {
+            observeIdentity(target)
+            reason = "IDENTITY_OBSERVED"
         } else if importOK {
             if let identity = identityFromItems(imported) {
                 var certificate: SecCertificate?
