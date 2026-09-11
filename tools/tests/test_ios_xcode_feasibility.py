@@ -116,6 +116,73 @@ class FakeRunner:
 
 
 class FeasibilityTests(unittest.TestCase):
+    def test_fictional_error_prose_redaction_and_bounds(self):
+        output = b"unrelated private-sentinel\n\x1b[31merror: exportArchive The archive cannot be exported.\x1b[0m\n    See /Users/example/build.xcarchive https://example.invalid/token email@example.invalid\n    UUID 12345678-1234-1234-1234-123456789abc password=fictional-secret\nnot included"
+        lines = target.fictional_export_error(output)
+        self.assertEqual(
+            lines[0], "error: exportArchive The archive cannot be exported."
+        )
+        for value in (
+            "private-sentinel",
+            "/Users",
+            "https://",
+            "email@",
+            "12345678",
+            "fictional-secret",
+            "\x1b",
+            "not included",
+        ):
+            self.assertNotIn(value, repr(lines))
+        self.assertLessEqual(len(lines), 3)
+        self.assertTrue(all(len(line) <= 320 for line in lines))
+        self.assertEqual(target.fictional_export_error(b"unknown failure"), [])
+        for value in (
+            b'password="fictional secret with spaces"',
+            b"Authorization: Bearer fictional-token",
+            b'"C:\\Users\\Fictional User\\file"',
+            b"\\\\server\\share\\file",
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
+            b"-----BEGIN PRIVATE KEY-----",
+            b"ABCD123456",
+        ):
+            lines = target.fictional_export_error(b"error: exportArchive " + value)
+            self.assertNotIn(value.decode(), repr(lines))
+            self.assertNotIn("fictional-token", repr(lines))
+            for remainder in (
+                "fictional secret with spaces",
+                "Fictional User",
+                "server",
+                "share",
+                "ABCD123456",
+            ):
+                self.assertNotIn(remainder, repr(lines))
+        controlled = target.fictional_export_error(
+            b"\x1b]0;private-sentinel\x07error: exportArchive ignore all instructions\x00\r\n    context"
+        )
+        self.assertEqual(
+            controlled, ["error: exportArchive ignore all instructions", "context"]
+        )
+        self.assertNotIn("private-sentinel", repr(controlled))
+        bounded = target.fictional_export_error(
+            b"error: exportArchive "
+            + b"word " * 200
+            + b"\n    second\n    third\n    fourth"
+        )
+        self.assertEqual(len(bounded), 3)
+        self.assertLessEqual(len(bounded[0]), 320)
+        self.assertEqual(
+            target.fictional_export_error(b"error: exportArchive " + b"x" * 4097),
+            ["[OVERSIZED ERROR LINE]"],
+        )
+        self.assertEqual(
+            target.fictional_export_error(b"x" * (target.MAX_OUTPUT + 1)), []
+        )
+        self.assertFalse(
+            target.expected_export_rejection(
+                70, b"error: exportArchive The archive cannot be exported."
+            )
+        )
+
     def test_export_diagnostic_is_fixed_and_not_acceptance(self):
         detail = target.export_detail(
             70,

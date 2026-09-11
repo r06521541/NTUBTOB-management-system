@@ -403,6 +403,57 @@ EXPORT_MARKERS = {
 }
 
 
+def fictional_export_error(output):
+    """Endogenous no-account fixture only; NOT a redactor for real tool output."""
+    if type(output) is not bytes or len(output) > MAX_OUTPUT:
+        return []
+    text = output.decode("ascii", errors="replace")
+    # Remove OSC/CSI terminal sequences before stripping other control characters.
+    text = re.sub(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", "", text)
+    text = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+    text = re.sub(r"[^\x20-\x7e\n\t]", "", text)
+    selected = []
+    for line in text.splitlines():
+        if not selected:
+            if "error: exportArchive" not in line:
+                continue
+            line = line[line.index("error: exportArchive") :]
+        elif not line.strip() or not line[:1].isspace():
+            break
+        if len(line) > 4096:
+            selected.append("[OVERSIZED ERROR LINE]")
+        else:
+            line = re.sub(
+                r"(?i)(?:password|passphrase|token|secret|authorization|api[_-]?key)\s*[:=]\s*(?:bearer\s+|basic\s+)?(?:\"[^\"]*\"|'[^']*'|\S+)",
+                "[REDACTED CREDENTIAL]",
+                line,
+            )
+            line = re.sub(r"(?i)\bbearer\s+\S+", "[REDACTED CREDENTIAL]", line)
+            line = re.sub(r"(?i)\b[a-z][a-z0-9+.-]*://\S+", "[REDACTED URL]", line)
+            line = re.sub(r"\b[^\s<>@]+@[^\s<>@]+\b", "[REDACTED EMAIL]", line)
+            line = re.sub(
+                r"(?i)\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b",
+                "[REDACTED UUID]",
+                line,
+            )
+            line = re.sub(
+                r"[\"'](?:/|[A-Za-z]:[\\/]|\\\\)[^\"']*[\"']", "[REDACTED PATH]", line
+            )
+            line = re.sub(
+                r"(?<!\w)(?:/|~/|[A-Za-z]:[\\/]|\\\\)[^\s,;<>]*",
+                "[REDACTED PATH]",
+                line,
+            )
+            line = re.sub(r"\b[A-Za-z0-9_+/=-]{32,}\b", "[REDACTED TOKEN]", line)
+            line = re.sub(r"\b[A-Z0-9]{10}\b", "[REDACTED IDENTIFIER]", line)
+            if "-----BEGIN" in line or "-----END" in line:
+                line = "[REDACTED ENCODED MATERIAL]"
+            selected.append(line.strip()[:320])
+        if len(selected) == 3:
+            break
+    return selected
+
+
 def export_detail(code, output):
     detail = {
         "exit": "INVALID_RESULT",
@@ -696,6 +747,7 @@ def rehearse(*, _run=process):
             timeout=120,
         )
         result["export_detail"] = export_detail(code, output)
+        result["fictional_export_error"] = fictional_export_error(output)
         if not expected_export_rejection(code, output):
             raise Rejected("EXPORT_INCONCLUSIVE")
         result["manual_export_rejected"] = True

@@ -12,9 +12,11 @@ note: >
   Reviewed correction17733b31e724329551aa54ccf3bd2d54de12bbc9 passed fictional
   unsigned archive and native custody/cleanup, but export is EXPORT_INCONCLUSIVE.
   Run34570308734 native job103170839880 failed; PR249 remains unmerged.
-  Owner renewed bounded export investigation; writer/review lease4 complete ACCEPT.
-  Main integrates one fictional export diagnostic slice; no acceptance change.
-  One fictional diagnostic slice, then at most one evidence-based correction.
+  Renewed diagnostic312263b92ad6e6e3d0cf366ded03cfe64972616c remains EXPORT_INCONCLUSIVE.
+  Archive projection and custody/cleanup verified; export70 has only generic failure marker.
+  No evidence-based remedy; Main/reviewer stop. PR249 unmerged, CI confirmed cancelled.
+  Owner approved bounded de-identified fictional Xcode error prose on 2026-09-11.
+  Writer/reviewer lease5 complete ACCEPT; Main integrates fictional prose observation.
   No real assets, private retry, signing/upload or change to existing trust/readiness.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-196.md

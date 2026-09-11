@@ -239,3 +239,75 @@ local temporary test files were created/removed. Three owned paths changed; Main
 dirty coordination documents and appended report evidence preserved. macOS export
 observation is pending independent review and Main's authorized diagnostic slice;
 this delivery makes no claim about its underlying cause or a remedy.
+
+## Main: renewed diagnostic result, no justified remedy
+
+Exact source312263b92ad6e6e3d0cf366ded03cfe64972616c;
+[run34576904526](https://github.com/r06521541/NTUBTOB-management-system/actions/runs/34576904526),
+native103191375389. Hosted focused17 PASS; unchanged exact macOS15.7.9/24G830 arm64,
+Xcode26.3/17C529 and SDK26.2. Fresh archive root/app metadata parsed; expected bundle,
+ApplicationPath, app package, archive version and single-app Products shape matched.
+SigningIdentity/Team absent as consistent with the unsigned fixture; absence alone
+does not explain export behavior. All three custody cases and cleanup verified.
+
+Export classification EXPORT_INCONCLUSIVE; exit SOFTWARE_ERROR (70), only
+export_failed marker true. No listed specific marker matched. This is not evidence
+excluding those error categories; exact Xcode failure remains unknown. Positive
+export and all real-asset/signing/upload/release flags false. No raw logs/artifacts
+recovered, Owner inputs requested or source remedy attempted. Reviewer independently
+assessed Main's fixed evidence (not a second native execution) and agrees no
+evidence-based correction exists. Do not modify metadata/method/ACL or broaden
+success simply to use remaining correction budget.
+
+Diagnostic design was insufficient to identify the actual export error. Next scope
+should review a bounded fictional-only error-evidence channel before another run;
+do not repeat the same markers or ask Owner to regenerate signing material.
+Apple [TN3110](https://developer.apple.com/documentation/technotes/tn3110-resolving-generic-xcode-archive-issue)
+informed archive-shape hypotheses only, not a claim of this failure's cause or a
+guarantee of unsigned export. This result provides no such guarantee.
+
+Local new+CI contracts34run31PASS3skips, quality and independent lease4 review PASS.
+Before cancellation, hosted Linux/Windows deployment tools, Web/LINE/Notify/Game/
+schedule services, PG16, quick/quality passed; PG15 and Android/iOS jobs were still
+running. Main requested cancellation of the remaining run to avoid further cost
+after conclusive diagnostic stop. Incomplete/cancelled jobs are not PASS. PR249
+remains open/unmerged; five Main closeout records stay local, no status-only
+commit/push/CI rerun. No private assets or product/runtime/provider operations.
+
+Post-cancel readback: Android/iOS jobs cancelled; PG15 finished successfully during
+cancellation. Main closeout-only dirty paths: HANDOFF, PROJECT_STATE, task, report,
+review. Exact HEAD/origin both equal source above, no source/untracked changes;
+PR OPEN/autoMergeRequest=null. `git diff --check` PASS (only CRLF warnings).
+Final run status completed/conclusion cancelled; watcher ended. No background work remains.
+
+## Writer lease5: bounded fictional error prose
+
+Base HEAD `312263b92ad6e6e3d0cf366ded03cfe64972616c`. Owner renewed only error
+evidence from the endogenous no-account fixture export. Added JSON data field
+`fictional_export_error`: first `error: exportArchive` line plus at most two
+immediately following nonempty indented lines, at most320 ASCII characters each.
+Existing bounded process output stays in memory; lines over4096 characters become
+a fixed oversized marker. No full log or artifact is produced.
+
+ANSI CSI/OSC and remaining controls are removed. Paths, URLs, email, UUID,
+credential assignments (including complete Authorization Bearer/Basic values),
+long token-shaped strings, uppercase/alphanumeric10-character identifiers and
+encoded-material boundary lines are replaced. Ordinary English prose is preserved
+without a vocabulary allowlist. This is deliberately NOT a generic secret scrubber:
+arbitrary natural-language sensitive values cannot be guaranteed detectable.
+Use on real outputs is outside authority. Text remains inert JSON data, never
+instructions, commands or acceptance evidence. Export acceptance and native/ACL/
+trust/provisioning behavior are unchanged.
+
+Tests-first new test failed before implementation. Final focused suite18run16PASS
+2Windows platform skips; owned Python format/check and diffcheck PASS. Coverage
+preserves prose, removes control/OSC text, checks standalone password/token/user/
+path fragments (not only whole original inputs), limits count/length, rejects
+oversized process output, handles no marker, and preserves unknown-export failure.
+Main's interim Authorization residual-token finding was corrected before review.
+
+Three owned paths changed; Main's existing report/coordination evidence preserved.
+No real assets, native/hosted/Git/API execution or new dependency; only fictional
+local temporary test fixtures. Actual Xcode prose remains unobserved locally and
+requires independent review before Main's one authorized fictional observation.
+No root cause or source remedy is asserted.

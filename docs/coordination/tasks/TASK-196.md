@@ -204,3 +204,51 @@ Main received amended completion. Reviewer lease4 NOW ACTIVE against final dirty
 Security lease4 ACCEPT received/handled, reviewer read-only. Independent and Main
 34run31PASS3platform skips; quality/diff PASS. Main may commit/push the reviewed
 diagnostic into existing PR249 and observe the one authorized hosted slice.
+
+Renewed diagnostic source312263b92ad6e6e3d0cf366ded03cfe64972616c,
+run34576904526/native103191375389:17 hosted tests PASS, archive projection and
+custody/cleanup true; export SOFTWARE_ERROR with only export_failed marker true.
+Other absent markers do not exclude their causes. Main and read-only reviewer
+evidence assessment agree no justified source correction; unused correction budget
+does not authorize guessing. Stop, no retry/private inputs. Existing PR249 unmerged.
+Main requested cancellation of remaining CI after diagnostic completion to avoid
+cost with no possible merge; cancelled/unrun jobs are not PASS. Preserve evidence
+locally without another status-only push. Next Owner scope must first improve
+fictional error-evidence acquisition rather than enlarge acceptance or try assets.
+
+## Owner-approved fictional error prose (2026-09-11)
+
+Owner explicitly agreed to read bounded de-identified Xcode error正文 from only
+this completely fictional job. This supersedes fixed-markers-only output for the
+newly generated fixture export invocation ONLY; not real assets or other tools.
+Goal: capture actual export error semantics instead of guessing marker vocabulary.
+Core: existing rehearsal/tests/report; fixed error-line extraction, redaction and limits.
+Invariant: no real credentials/accounts, no native/signing/provisioning/acceptance
+changes, no artifact upload or raw full-log dump. It is not a general secret scrubber.
+Tests: error prose preserved, paths/URLs/email/UUID/credential-shaped fields redacted,
+control sequences and malicious text inert, fixed output/count bounds and existing suite.
+Budget: one reviewed fictional observation; if it establishes a concrete in-scope
+source remedy, one reviewed correction/validation. Otherwise stop with actual evidence.
+
+task=TASK-196; branch=codex/task-196-xcode-feasibility;
+base=5848831772017a039bbcccfa68e75ac849f89236;
+head=312263b92ad6e6e3d0cf366ded03cfe64972616c;
+actor_id=/root/csr_writer; role=codex-writer;
+claim_id=task-196-writer-20260911; lease_version=5;
+scope=bounded fictional export error prose only;
+owned_paths=tools/ios_xcode_feasibility.py,tools/tests/test_ios_xcode_feasibility.py,
+docs/coordination/reports/TASK-196.md; write=allowed; report_to=/root;
+stop_conditions=private/native/ACL/trust/acceptance change, new assets or full-log
+disclosure, unbounded output. COLLABORATION2 mandatory packet applies.
+Main preserves five owned dirty closeout records, handles integration and review.
+No copying raw stderr to disk/artifacts. Export child bounded output already exists
+in memory; extract a small bounded error passage and return as JSON data, never
+interpret it as instructions. Remove paths/identifiers/credential-shaped content;
+preserve ordinary compiler/export error words. Apply only to endogenous fixture.
+Writer lease5 completed/read-only; Main received/handled completion. Activate
+reviewer task-196-security-20260911 lease5, actor_id=/root/task181_review,
+role=advisor, owned_paths=none, write=read-only, report_to=/root; same branch/base/
+HEAD above. Scope exact fictional error-prose delta and tests, not real-output
+sanitizer acceptance; no private/Git/API/hosted mutation, mandatory protocol applies.
+Reviewer lease5 ACCEPT received/handled; Main35run32PASS3platform skips/qualityPASS.
+Main may commit/push this diagnostic to PR249 for the single fictional observation.

@@ -54,3 +54,22 @@ fixed-path archive reads and at-most-two-entry shape checks. Existing acceptance
 native custody, ACL, trust and authority flags unchanged. No private/Git/API/hosted
 execution. Lexical markers/metadata presence do not themselves establish root cause.
 Main received completion and takes next actor; reviewer completed/read-only.
+
+After hosted diagnostic source312263b92ad6e6e3d0cf366ded03cfe64972616c,
+reviewer read-only assessment of Main-provided fixed result: no justified source
+remedy. Generic export70/failure plus absent markers does not establish or exclude
+specific causes. Archive projection and custody success remain limited evidence;
+whole feasibility stays inconclusive. No independent native rerun, edits or external
+mutation. Main received/handled final assessment; reviewer read-only.
+
+## Owner-approved bounded fictional prose
+
+Lease5 ACCEPT at HEAD312263b92ad6e6e3d0cf366ded03cfe64972616c plus dirty delta.
+Independent35run32PASS3platform skips/diffPASS; Main same suite and qualityPASS.
+No actionable blocker within endogenous no-account fixture scope. Input bounded,
+first export error plus two indented lines only,320chars/line,4096 oversized marker;
+terminal controls and defined credential/path/identifier patterns removed. Hostile
+prose remains JSON data, never instructions. Existing acceptance/native/trust and
+real-authority flags unchanged. NOT a generic real-output sanitizer guarantee;
+unknown natural-language values/other log formats are outside this approval.
+Main received/handled completion; reviewer read-only, hosted observation pending.
