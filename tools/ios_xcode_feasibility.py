@@ -375,6 +375,136 @@ def project(root):
     )
 
 
+EXPORT_MARKERS = {
+    "options_plist": (b"exportoptionsplist",),
+    "method_or_expected_values_text": (
+        b"expected one of",
+        b"unsupported method",
+        b"invalid method",
+    ),
+    "empty_methods": (
+        b"expected one of {}",
+        b"expected one of ()",
+        b"expected one of []",
+    ),
+    "archive_invalid": (b"not a valid archive", b"invalid archive", b"generic archive"),
+    "not_single_bundle": (
+        b"not a single",
+        b"single top-level",
+        b"multiple applications",
+    ),
+    "team_text": (b"requires a development team", b"no team", b"team id", b"teamid"),
+    "missing_accounts": (b"no accounts", b"no account", b"add a new account"),
+    "missing_profile": (b"requires a provisioning profile", b"no profiles for"),
+    "missing_certificate": (b"no signing certificate",),
+    "permission": (b"permission denied", b"operation not permitted"),
+    "missing_file": (b"no such file", b"does not exist"),
+    "export_failed": (b"export failed", b"error: exportarchive"),
+}
+
+
+def export_detail(code, output):
+    detail = {
+        "exit": "INVALID_RESULT",
+        "markers": {key: False for key in EXPORT_MARKERS},
+    }
+    if type(code) is not int or type(output) is not bytes or len(output) > MAX_OUTPUT:
+        return detail
+    detail["exit"] = (
+        "SIGNAL"
+        if code < 0
+        else {0: "ZERO", 64: "USAGE_ERROR", 65: "DATA_ERROR", 70: "SOFTWARE_ERROR"}.get(
+            code, "OTHER_NONZERO"
+        )
+    )
+    lowered = output.lower()
+    detail["markers"] = {
+        key: any(marker in lowered for marker in markers)
+        for key, markers in EXPORT_MARKERS.items()
+    }
+    return detail
+
+
+def archive_detail(root):
+    # Only fixed, freshly generated fictional archive paths; values never escape.
+    result = {
+        "metadata": "NOT_CHECKED",
+        "app_metadata": "NOT_CHECKED",
+        "products_shape": "NOT_CHECKED",
+    }
+    for key in (
+        "application_properties",
+        "application_path_matches",
+        "archive_bundle_matches",
+        "archive_version_two",
+        "single_expected_application",
+        "products_only_applications",
+        "app_bundle_matches",
+        "app_package_application",
+        "signing_identity_present",
+        "team_present",
+    ):
+        result[key] = False
+
+    def read(relative):
+        try:
+            path = safe_path(root, root / "Fictional.xcarchive" / relative)
+            if not path.exists():
+                return "MISSING", {}
+            if not path.is_file() or path.stat().st_size > 65536:
+                return "REJECTED", {}
+            with path.open("rb") as stream:
+                data = stream.read(65537)
+            if len(data) > 65536:
+                return "REJECTED", {}
+            value = plistlib.loads(data)
+            return ("PARSED", value) if type(value) is dict else ("REJECTED", {})
+        except Exception:
+            return "REJECTED", {}
+
+    result["metadata"], metadata = read("Info.plist")
+    properties = metadata.get("ApplicationProperties")
+    if type(properties) is dict:
+        result["application_properties"] = True
+        result["application_path_matches"] = (
+            properties.get("ApplicationPath") == "Applications/Fictional.app"
+        )
+        result["archive_bundle_matches"] = (
+            properties.get("CFBundleIdentifier") == BUNDLE
+        )
+        result["signing_identity_present"] = type(
+            properties.get("SigningIdentity")
+        ) is str and bool(properties["SigningIdentity"])
+        result["team_present"] = type(properties.get("Team")) is str and bool(
+            properties["Team"]
+        )
+    result["archive_version_two"] = (
+        type(metadata.get("ArchiveVersion")) is int and metadata["ArchiveVersion"] == 2
+    )
+    result["app_metadata"], app = read("Products/Applications/Fictional.app/Info.plist")
+    result["app_bundle_matches"] = app.get("CFBundleIdentifier") == BUNDLE
+    result["app_package_application"] = app.get("CFBundlePackageType") == "APPL"
+    try:
+        for relative, expected, key in (
+            ("Products", "Applications", "products_only_applications"),
+            ("Products/Applications", "Fictional.app", "single_expected_application"),
+        ):
+            directory = safe_path(root, root / "Fictional.xcarchive" / relative)
+            # Only need at most two entries to disprove a single-item shape.
+            with os.scandir(directory) as entries:
+                first, second = next(entries, None), next(entries, None)
+                result[key] = (
+                    first is not None
+                    and second is None
+                    and first.name == expected
+                    and first.is_dir(follow_symlinks=False)
+                )
+        result["products_shape"] = "CHECKED"
+    except Exception:
+        result["products_shape"] = "REJECTED"
+    return result
+
+
 def expected_export_rejection(code, output):
     return (
         code != 0
@@ -531,6 +661,11 @@ def rehearse(*, _run=process):
                 raise Rejected("CUSTODY_REJECTED")
         result["temporary_keychain_verified"] = True
         result["stage"] = "export"
+        result["archive_detail"] = archive_detail(root)
+        result["export_detail"] = {
+            "exit": "NOT_RETURNED",
+            "markers": {key: False for key in EXPORT_MARKERS},
+        }
         options = safe_path(root, root / "ExportOptions.plist")
         options.write_bytes(
             plistlib.dumps(
@@ -560,6 +695,7 @@ def rehearse(*, _run=process):
             cwd=root,
             timeout=120,
         )
+        result["export_detail"] = export_detail(code, output)
         if not expected_export_rejection(code, output):
             raise Rejected("EXPORT_INCONCLUSIVE")
         result["manual_export_rejected"] = True

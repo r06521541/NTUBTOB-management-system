@@ -171,3 +171,71 @@ was read and fictional local temporary test directories created/removed. Native
 compile/import/export remain unverified locally; independent review precedes Main's
 one changed hosted slice. If the same blocker persists, stop inconclusive without
 another diagnostic/correction iteration. Positive export and real authority remain false.
+
+## Main: corrected hosted result and stop
+
+Exact pushed source `17733b31e724329551aa54ccf3bd2d54de12bbc9`,
+[run34570308734](https://github.com/r06521541/NTUBTOB-management-system/actions/runs/34570308734),
+native job103170839880. macOS15.7.9/build24G830 arm64, Xcode26.3/build17C529,
+SDK26.2 observed. Native-host focused tests15 PASS; helper compiled; unsigned
+fictional archive verified. temporary_keychain_verified=true proves all three
+required correct/mismatch/wrong-password cases reached their expected result and
+confirmed cleanup. Final cleanup_verified=true. The retained case2 AUTH_REJECTED /
+OS_AUTH_FAILED / import detail is the expected wrong-password test, not evidence
+of the later export cause.
+
+Final classification=EXPORT_INCONCLUSIVE, stage=export,
+manual_export_rejected=false. Export did not match the bounded expected-refusal
+classifier; its exact underlying reason is unknown. No raw output recovery or
+further native diagnostic was performed. positive_export_verified,
+real_assets_verified, real_signing_authorized, signing_authorized,
+upload_authorized and release_authorized remain false.
+
+The authorized one source correction resolved custody-path admission, but did not
+establish complete archive/export feasibility. The dedicated gate failed; PR249
+is not mergeable under this task's acceptance contract and stays unmerged. Stop
+after this bounded recovery; do not loosen predicates, retry Owner intake or
+introduce real credentials. Further export investigation requires a new bounded
+work scope. This local evidence update does not trigger another status-only CI run.
+
+Full run34570308734 completed FAILURE: only the new fictional native job and its
+CI final aggregate failed. All other selected jobs passed, including Android API36,
+iOS Release no-codesign compile, Linux/Windows deployment tooling, PostgreSQL15/16,
+service suites and quality. Local new+CI-contract tests32run29PASS3platform skips;
+independent lease3 review ACCEPT and owned Python quality/diff checks PASS. Exact
+local HEAD and origin task branch both match the source SHA above. Only four Main
+closeout documents remain dirty (HANDOFF, PROJECT_STATE, task and this report);
+no source changes or unrelated/untracked files. PR249 OPEN, autoMergeRequest=null.
+
+## Writer lease4: Owner-renewed fictional export observation
+
+HEAD `17733b31e724329551aa54ccf3bd2d54de12bbc9`; the preceding Main stop evidence
+is preserved. Renewed authority permits this diagnostic only, not a speculative
+remedy. Added fixed `export_detail` exit enums and independent marker booleans for
+options/method/empty-methods, archive/single-bundle, team/accounts, profile/certificate,
+permission/file and general export failure. Markers are lexical observations, not
+root-cause determinations; overlapping markers are retained. Output remains bounded
+in memory and no code number, stdout fragment, path or arbitrary value is emitted.
+Timeout/process failure retains `NOT_RETURNED`; unknown text remains unclassified.
+
+Fixed `archive_detail` reads only the newly generated archive's root/app Info.plist
+with safe-path validation and65536-byte limits. It reports fixed parse statuses and
+booleans for ApplicationProperties, exact expected ApplicationPath/bundle, archive
+version, signing/team presence, app package type and Products/Applications shape.
+Directory shape checks consume at most two entries per fixed directory; unrelated
+names are never returned. Missing/malformed metadata is observation, not a new
+acceptance rule. Existing `expected_export_rejection` and all native/ACL/trust code
+are unchanged; unknown export still fails and positive export/real authority false.
+
+Tests-first two new tests failed before implementation; final focused command
+`py -3.10 -m unittest tools.tests.test_ios_xcode_feasibility -q`:17run15PASS2Windows
+platform skips. Coverage includes all finite marker mappings, concurrent markers,
+exit categories, invalid/oversized output, sentinel suppression, missing/malformed/
+oversized plist, extra products/apps, and orchestration preserving inconclusive
+acceptance. Owned Python format/check and `git diff --check` PASS.
+
+No native/hosted/Git/API execution, real input or new dependency. Only fictional
+local temporary test files were created/removed. Three owned paths changed; Main's
+dirty coordination documents and appended report evidence preserved. macOS export
+observation is pending independent review and Main's authorized diagnostic slice;
+this delivery makes no claim about its underlying cause or a remedy.

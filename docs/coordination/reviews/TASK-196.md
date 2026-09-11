@@ -43,3 +43,14 @@ Reviewer independently checked Apple Libc constant65537 and SecureCodingGuide;
 old equality failure is not overclaimed as a specific Foundation implementation bug.
 Native success remains pending hosted verification; no private signing authority.
 Reviewer completed/read-only; Main same32test/quality evidence PASS.
+
+## Owner-renewed export diagnostic
+
+Lease4 ACCEPT at HEAD17733b31e724329551aa54ccf3bd2d54de12bbc9 plus exact dirty
+diagnostic delta; not remedy or whole-feasibility acceptance. Independent and Main
+34run31PASS3platform skips/diffcheckPASS, Main two-Python quality PASS. No actionable
+blocker: finite output enums/booleans and neutral generic marker names, bounded
+fixed-path archive reads and at-most-two-entry shape checks. Existing acceptance,
+native custody, ACL, trust and authority flags unchanged. No private/Git/API/hosted
+execution. Lexical markers/metadata presence do not themselves establish root cause.
+Main received completion and takes next actor; reviewer completed/read-only.

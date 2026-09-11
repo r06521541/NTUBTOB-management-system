@@ -143,3 +143,64 @@ binding correction; same read-only scope/packet/report_to=/root. Tests15run13PAS
 Security lease3 ACCEPT received/handled by Main; reviewer read-only. Main now
 integrates this one source correction into existing PR249; no further diagnostic
 or speculative correction loop. Any remaining native blocker is reported honestly.
+
+## Bounded stop after corrected native run
+
+Source17733b31e724329551aa54ccf3bd2d54de12bbc9, run34570308734,
+native job103170839880:15 native-host tests PASS; unsigned archive PASS;
+all three native custody cases and cleanup verified. Final stage export returned
+EXPORT_INCONCLUSIVE; manual_export_rejected=false. No positive export or real
+asset/signing/upload/release authority. The last native AUTH_REJECTED is the expected
+wrong-password case, not the export failure cause. Export cause is not established.
+Recovery budget exhausted; stop without another diagnostic/source iteration.
+PR249 remains open/unmerged; Main records evidence locally without a status-only
+commit/push/CI rerun. Any renewed export investigation needs a newly bounded scope.
+Full run completed FAILURE only in the new native job/final aggregate; all other
+selected jobs PASS, including Android/iOS compilation and PostgreSQL15/16.
+
+## Owner-renewed export investigation (2026-09-11)
+
+Owner requested continuation after the explicit export-only next step. This renews
+only fictional export investigation, not prior private intake or actual signing.
+Same delivery/PR249; base unchanged; current HEAD17733b31e724329551aa54ccf3bd2d54de12bbc9.
+Preserve four Main-owned dirty closeout documents. Main remains task-196-main-20260911
+lease1. Goal: distinguish unsupported archive/export shape, signing refusal and
+unclassified tool failure using bounded non-disclosing evidence.
+Core: existing Python rehearsal/tests/report; no native Keychain or existing trust change.
+Invariant: fixed fictional app and no credentials/accounts/signing/provisioning/upload;
+unknown export remains failure, no broadened success classifier merely to green CI.
+Tests: tests-first finite diagnostic metadata/error categories and no-disclosure,
+existing focused suite, independent review, one diagnostic hosted slice.
+Budget: at most one evidenced correction with review/hosted validation afterward;
+unknown or remaining blocker stops without further loops or private inputs.
+
+Writer packet: task=TASK-196; branch=codex/task-196-xcode-feasibility;
+base=5848831772017a039bbcccfa68e75ac849f89236;
+head=17733b31e724329551aa54ccf3bd2d54de12bbc9;
+actor_id=/root/csr_writer; role=codex-writer;
+claim_id=task-196-writer-20260911; lease_version=4;
+scope=export-only fictional diagnostic, no remedy until observed evidence;
+owned_paths=tools/ios_xcode_feasibility.py,tools/tests/test_ios_xcode_feasibility.py,
+docs/coordination/reports/TASK-196.md;
+write=allowed; report_to=/root;
+stop_conditions=private access, native/ACL/trust change, raw log disclosure,
+new dependency or arbitrary paths, guessing a remedy. Mandatory COLLABORATION2 applies.
+Archive metadata may be inspected only inside fixed freshly generated fictional
+archive, with bounded safe-path/size/shape checks and fixed booleans/enums. Tool
+output stays bounded/in-memory and maps to fixed categories only; no raw fragments,
+paths, arbitrary codes, logs or artifact uploads. Preserve existing acceptance.
+Reviewer lease4 activates only after writer completion; advisor/read-only, owned
+paths none, same head/branch/base, exact delta and evidence scope, report_to=/root.
+Main owns task/HANDOFF/PROJECT_STATE/review and public API research/integration.
+Writer lease4 completed/read-only, Main received/handled packet. Activate
+task-196-security-20260911 lease4 actor_id=/root/task181_review, advisor/read-only,
+owned_paths=none, report_to=/root. Review exact dirty export diagnostic delta and
+unchanged acceptance/custody/output boundaries at the current full HEAD above.
+Before actual reviewer activation, Main requests lease4 marker naming/specificity
+correction and negative tests; generic TeamID/expected-one-of text is not absence
+or method rejection evidence. Reviewer remains read-only pending this handoff.
+Writer narrowed claims via neutral marker names and negative regression coverage;
+Main received amended completion. Reviewer lease4 NOW ACTIVE against final dirty delta.
+Security lease4 ACCEPT received/handled, reviewer read-only. Independent and Main
+34run31PASS3platform skips; quality/diff PASS. Main may commit/push the reviewed
+diagnostic into existing PR249 and observe the one authorized hosted slice.

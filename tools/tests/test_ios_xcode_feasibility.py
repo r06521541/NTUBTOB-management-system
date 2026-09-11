@@ -116,6 +116,90 @@ class FakeRunner:
 
 
 class FeasibilityTests(unittest.TestCase):
+    def test_export_diagnostic_is_fixed_and_not_acceptance(self):
+        detail = target.export_detail(
+            70,
+            b"private-sentinel exportOptionsPlist method No Accounts No signing certificate",
+        )
+        self.assertEqual(detail["exit"], "SOFTWARE_ERROR")
+        self.assertTrue(detail["markers"]["options_plist"])
+        self.assertTrue(detail["markers"]["missing_certificate"])
+        self.assertNotIn("private-sentinel", repr(detail))
+        echoed = target.export_detail(70, b"teamID expected one of")
+        self.assertTrue(echoed["markers"]["team_text"])
+        self.assertTrue(echoed["markers"]["method_or_expected_values_text"])
+        self.assertNotIn("missing_team", echoed["markers"])
+        self.assertNotIn("method_rejected", echoed["markers"])
+        for code, category in (
+            (0, "ZERO"),
+            (-9, "SIGNAL"),
+            (64, "USAGE_ERROR"),
+            (65, "DATA_ERROR"),
+            (999, "OTHER_NONZERO"),
+        ):
+            self.assertEqual(target.export_detail(code, b"unknown")["exit"], category)
+        self.assertFalse(
+            target.expected_export_rejection(
+                70, b"exportOptionsPlist method unsupported"
+            )
+        )
+
+        for key, markers in target.EXPORT_MARKERS.items():
+            for marker in markers:
+                self.assertTrue(target.export_detail(70, marker)["markers"][key])
+        for code, output in (
+            (True, b""),
+            (1, "private-sentinel"),
+            (1, b"x" * (target.MAX_OUTPUT + 1)),
+        ):
+            self.assertEqual(
+                target.export_detail(code, output)["exit"], "INVALID_RESULT"
+            )
+        result, _ = self.exercise("export")
+        self.assertEqual(result["classification"], "EXPORT_INCONCLUSIVE")
+        self.assertEqual(result["export_detail"]["exit"], "SOFTWARE_ERROR")
+        self.assertFalse(any(result["export_detail"]["markers"].values()))
+        self.assertFalse(result["positive_export_verified"])
+
+    def test_archive_diagnostic_fixed_shape(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder).resolve()
+            archive = root / "Fictional.xcarchive"
+            archive.mkdir()
+            self.assertEqual(target.archive_detail(root)["metadata"], "MISSING")
+            (archive / "Info.plist").write_bytes(
+                plistlib.dumps(
+                    {
+                        "ApplicationProperties": {
+                            "ApplicationPath": "Applications/Fictional.app",
+                            "CFBundleIdentifier": target.BUNDLE,
+                        },
+                        "ArchiveVersion": 2,
+                    }
+                )
+            )
+            app = archive / "Products/Applications/Fictional.app"
+            app.mkdir(parents=True)
+            (app / "Info.plist").write_bytes(
+                plistlib.dumps(
+                    {"CFBundleIdentifier": target.BUNDLE, "CFBundlePackageType": "APPL"}
+                )
+            )
+            detail = target.archive_detail(root)
+            self.assertEqual(detail["metadata"], "PARSED")
+            self.assertTrue(detail["application_path_matches"])
+            self.assertTrue(detail["single_expected_application"])
+            (archive / "Products/extra").mkdir()
+            (archive / "Products/Applications/extra.app").mkdir()
+            detail = target.archive_detail(root)
+            self.assertFalse(detail["products_only_applications"])
+            self.assertFalse(detail["single_expected_application"])
+            (archive / "Info.plist").write_bytes(b"x" * 65537)
+            self.assertEqual(target.archive_detail(root)["metadata"], "REJECTED")
+            (archive / "Info.plist").write_bytes(b"private-sentinel")
+            self.assertEqual(target.archive_detail(root)["metadata"], "REJECTED")
+            self.assertNotIn("private-sentinel", repr(target.archive_detail(root)))
+
     def setUp(self):
         # OS API substitute only; production CLI has no root override.
         temporary = patch.object(

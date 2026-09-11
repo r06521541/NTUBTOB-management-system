@@ -9,8 +9,12 @@ updated_by: main-work
 updated_at: 2026-09-11
 note: >
   Owner approved TASK195 architecture and fictional feasibility implementation.
-  Fictional diagnostic identified temp_binding rejection before any Keychain creation.
-  Writer/reviewer lease3 complete ACCEPT; Main verifies the one OS-temp correction.
+  Reviewed correction17733b31e724329551aa54ccf3bd2d54de12bbc9 passed fictional
+  unsigned archive and native custody/cleanup, but export is EXPORT_INCONCLUSIVE.
+  Run34570308734 native job103170839880 failed; PR249 remains unmerged.
+  Owner renewed bounded export investigation; writer/review lease4 complete ACCEPT.
+  Main integrates one fictional export diagnostic slice; no acceptance change.
+  One fictional diagnostic slice, then at most one evidence-based correction.
   No real assets, private retry, signing/upload or change to existing trust/readiness.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-196.md
