@@ -106,14 +106,14 @@ run34614766702單次parent/child診斷完成：均找到相符identity/key、typ
 ## Active work and external gates
 
 - IOS-TF-01／TASK-198 active：Owner已批准既有資產真實簽署、必要staging操作與僅本人TestFlight，新增成本上限USD20。
-  PR251仍為Draft；3484115c64080679bb58e1eedf6d3df8afc98282已完成16/16 hosted jobs，含Swift編譯與無私鑰iOS archive。
-  新增真實簽署／上傳分階段來源尚在整合審查，未merge或執行。新保護環境需Owner可見設定後唯讀驗證；舊環境不變。
+  PR251仍為Draft；2007016fa0bdd18bcfd2c546800e52a7ca477bbc已完成16/16 hosted jobs，含Swift編譯與無私鑰iOS archive。
+  Windows operator／sanitized journal／GET復原與啟用來源尚待最後修正review/CI，未merge或執行。新保護環境已設定並唯讀驗證；舊環境不變。
   DEC-109取代包內逐次批准與TASK197單次診斷限制；不含production／公開版／新憑證。現有P12/profile/cert檔存在，
   未讀payload或驗證有效性；live staging Ready但四項Apple設定key皆缺，private intake／實機仍待必要Owner參與。
   First slice由PR250合併且16項CI全綠；Apple登入完成，App capability／憑證／profile／ASC上傳key皆已唯讀確認存在。
   Owner已建立並下載僅綁現有App、由staging使用的登入key，portal狀態已確認；未讀payload或驗證本機custody。
   私密材料驗證模組離線測試及獨立review通過；Owner已新增一個iOS client，唯讀確認類型/名稱/Bundle相符，既有Android/Web不動；真實簽署adapter準備中。
-  尚無live signing/upload controller或TestFlight版本，測試者0；private intake仍待必要Owner參與。
+  尚無真實簽署或TestFlight版本；最後唯讀觀察內部群組及測試者0，private intake仍待必要Owner參與。
 
 - TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換
   production，外部mutation維持獨立Owner gate。

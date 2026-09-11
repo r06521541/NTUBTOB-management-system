@@ -5,6 +5,179 @@ from tools import ios_testflight_dispatch as dispatch
 
 
 class DispatchTests(unittest.TestCase):
+    def test_expired_session_gets_one_cleanup_only_budget(self):
+        session = self.session()
+        session.deadline = 0
+        session.requests = 512
+        session.signing = session.asc = b"fictional-private"
+        with mock.patch.object(dispatch.time, "monotonic", return_value=100):
+            session.restrict_to_cleanup()
+        self.assertEqual(session.deadline, 400)
+        self.assertEqual(session.requests, 0)
+        self.assertTrue(session.recovery_only)
+        self.assertEqual(session.signing, b"")
+        with mock.patch.object(dispatch.time, "monotonic", return_value=200):
+            session.restrict_to_cleanup()
+        self.assertEqual(session.deadline, 400)
+        for method, path in (
+            ("POST", dispatch.WORKFLOW + "/dispatches"),
+            ("PUT", dispatch.SECRET + dispatch.wire.SECRETS[0]),
+            ("POST", dispatch.API + "/actions/runs/999/pending_deployments"),
+            ("DELETE", dispatch.SECRET + "FOREIGN"),
+        ):
+            with self.subTest(path=path), self.assertRaises(dispatch.Rejected):
+                session.call(method, path)
+        session.begin()
+        session.advance()
+        self.assertFalse(session.api.call.called)
+
+    def test_durable_attempt_precedes_mutation_and_failed_flush_blocks_call(self):
+        session = self.session()
+        sink = mock.Mock()
+        session.journal = sink
+        original = session.api.call.side_effect
+
+        def call(method, path, body=None):
+            if method == "POST":
+                self.assertIn(mock.call("DISPATCH_ATTEMPT"), sink.record.call_args_list)
+            return original(method, path, body)
+
+        session.api.call.side_effect = call
+        session.begin()
+        sink.record.assert_any_call(
+            "DISPATCH_CONFIRMED", run_id=123, workflow_id=7, environment_id=8
+        )
+        fresh = self.session()
+        fresh.journal = mock.Mock()
+        fresh.journal.record.side_effect = OSError("private-sentinel")
+        result = fresh.begin()
+        self.assertTrue(all(c.args[0] == "GET" for c in fresh.api.call.call_args_list))
+        self.assertNotIn("private-sentinel", repr(result))
+
+    def test_restart_never_dispatches_or_reuploads_and_rechecks_absence(self):
+        journal = mock.Mock()
+        journal.intact = True
+        journal.events = [
+            {
+                "event": "START",
+                "data": {
+                    "sha": "a" * 40,
+                    "nonce": "b" * 64,
+                    "issued": 1,
+                    "expires": 7201,
+                    "version": "1.0.0",
+                    "build": 1,
+                    "previous_build": 0,
+                },
+            },
+            {"event": "DISPATCH_ATTEMPT", "data": {}},
+            {
+                "event": "DISPATCH_CONFIRMED",
+                "data": {
+                    "run_id": 123,
+                    "workflow_id": 7,
+                    "environment_id": 8,
+                },
+            },
+            {"event": "SECRET_PUT_ATTEMPT", "data": {"name": dispatch.wire.SECRETS[0]}},
+            {
+                "event": "SECRET_DELETE_ATTEMPT",
+                "data": {"name": dispatch.wire.SECRETS[0]},
+            },
+            {"event": "SECRET_ABSENT", "data": {"name": dispatch.wire.SECRETS[0]}},
+        ]
+        api = self.api()
+        session = dispatch.Session.recover(journal, api=api)
+        self.assertFalse(session.absent)
+        session.begin()
+        session.advance()
+        session.cleanup()
+        self.assertTrue(all(c.args[0] == "GET" for c in api.call.call_args_list))
+        self.assertTrue(session.public()["current_absence_verified"])
+        self.assertFalse(session.public()["retention_resolved"])
+
+    def test_torn_recovery_journal_prohibits_even_cleanup_mutation(self):
+        journal = mock.Mock(intact=False)
+        journal.events = [
+            {
+                "event": "START",
+                "data": {
+                    "sha": "a" * 40,
+                    "nonce": "b" * 64,
+                    "issued": 1,
+                    "expires": 7201,
+                    "version": "1.0.0",
+                    "build": 1,
+                    "previous_build": 0,
+                },
+            },
+            {"event": "SECRET_PUT_ATTEMPT", "data": {"name": dispatch.wire.SECRETS[0]}},
+        ]
+        api = self.api()
+        session = dispatch.Session.recover(journal, api=api)
+        session.cleanup()
+        self.assertTrue(all(c.args[0] == "GET" for c in api.call.call_args_list))
+
+    def test_unknown_run_recovery_requires_unique_exact_nonce_and_get_only(self):
+        session = self.session()
+        session.recovery_only = session.dispatched = True
+        session.nonce = "b" * 64
+        values = [{"id": 123, "display_title": "ios-tf-" + session.nonce}]
+        session.api.call.side_effect = lambda *args: (
+            200,
+            {"total_count": len(values), "workflow_runs": values},
+        )
+        session.recover_run()
+        self.assertEqual(session.run_id, 123)
+        self.assertTrue(
+            all(c.args[0] == "GET" for c in session.api.call.call_args_list)
+        )
+        for changed in ([], values * 2, [{"id": 124, "display_title": "latest"}]):
+            session.run_id = None
+            session.api.call.side_effect = lambda *args: (
+                200,
+                {"total_count": len(changed), "workflow_runs": changed},
+            )
+            session.recover_run()
+            self.assertIsNone(session.run_id)
+
+    def test_artifact_uses_bound_job_and_saves_before_return(self):
+        import json
+
+        session = self.session()
+        session.run_id, session.job_id = 123, 456
+        session.bound.return_value = {"status": "completed"}
+        session.job.return_value = {"status": "completed"}
+        session.journal = mock.Mock(intact=True)
+        session.journal.events = []
+        fingerprint = dict(
+            schema=1,
+            sha=session.sha,
+            nonce=session.nonce,
+            run_id="123",
+            version="1.2.3",
+            build=123,
+            sha256="a" * 64,
+            size=4,
+        )
+        raw = ("IOS_TF_FINGERPRINT " + json.dumps(fingerprint)).encode()
+        with mock.patch.object(
+            dispatch.primitives, "bounded_process", return_value=(0, raw)
+        ) as process:
+            self.assertEqual(session.artifact(version="1.2.3", build=123), fingerprint)
+        self.assertTrue(
+            process.call_args.args[0][-1].endswith("/actions/jobs/456/logs")
+        )
+        session.journal.record.assert_called_once_with(
+            "CANDIDATE", sha256="a" * 64, size=4
+        )
+        session.journal.record.side_effect = OSError()
+        with mock.patch.object(
+            dispatch.primitives, "bounded_process", return_value=(0, raw)
+        ):
+            with self.assertRaises(dispatch.Rejected):
+                session.artifact(version="1.2.3", build=123)
+
     def test_policy_missing_or_wrong_protection_rejects(self):
         session = dispatch.Session(b"{}", b"{}", sha="a" * 40, api=mock.Mock())
         reviewer = {

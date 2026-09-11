@@ -67,7 +67,7 @@ class AppleLoginInput:
 class Materials:
     signing: dict
     asc: AscInput
-    apple_login: AppleLoginInput
+    apple_login: AppleLoginInput | None
 
 
 class IntakeNative(custody.Native):
@@ -213,11 +213,15 @@ def _path(value):
     return path
 
 
-def collect(config, *, prompt=preparation.hidden, custodyfactory=None):
+def collect(
+    config, *, prompt=preparation.hidden, custodyfactory=None, include_login=True
+):
     """Only hidden P12 password / absent private paths are requested once."""
     reader = None
     try:
         _config(config)
+        if type(include_login) is not bool:
+            raise Rejected()
         preparation.dependencies()
         root = preparation.local_app_data() / preparation.DIRECTORY
         reader = (custodyfactory or Reader)()
@@ -234,20 +238,28 @@ def collect(config, *, prompt=preparation.hidden, custodyfactory=None):
             if config.asc_path is not None
             else prompt("ASC p8 absolute path (hidden): ")
         )
-        login_path = _path(
-            config.apple_login_path
-            if config.apple_login_path is not None
-            else prompt("Apple Login p8 absolute path (hidden): ")
+        login_path = (
+            _path(
+                config.apple_login_path
+                if config.apple_login_path is not None
+                else prompt("Apple Login p8 absolute path (hidden): ")
+            )
+            if include_login
+            else None
         )
-        if os.path.normcase(str(asc_path)) == os.path.normcase(str(login_path)):
+        if include_login and os.path.normcase(str(asc_path)) == os.path.normcase(
+            str(login_path)
+        ):
             raise Rejected("KEY_REUSE_REJECTED")
-        for parent in dict.fromkeys((asc_path.parent, login_path.parent)):
+        for parent in dict.fromkeys(
+            (asc_path.parent,) + ((login_path.parent,) if include_login else ())
+        ):
             reader.directory(parent)
         p12 = reader.file(root / "distribution.p12", 65536)
         certificate = reader.file(root / "distribution.cer", 65536)
         raw_profile = reader.file(root / "distribution.mobileprovision", 262144)
         asc_pem = reader.file(asc_path, 4096)
-        login_pem = reader.file(login_path, 4096)
+        login_pem = reader.file(login_path, 4096) if include_login else None
         decoded = plistlib.loads(signing._profile_container(raw_profile))
         if (
             type(decoded) is not dict
@@ -272,16 +284,20 @@ def collect(config, *, prompt=preparation.hidden, custodyfactory=None):
         asc = inputs.load_asc_key(
             asc_pem, key_id=config.asc_key_id, issuer_id=config.asc_issuer_id
         )
-        login = inputs.load_apple_login_key(
-            login_pem,
-            key_id=config.apple_login_key_id,
-            team=config.team,
-            bundle=signing.BUNDLE,
-        )
-        inputs.validate_distinct_keys(asc, login)
+        login = None
+        if include_login:
+            login = inputs.load_apple_login_key(
+                login_pem,
+                key_id=config.apple_login_key_id,
+                team=config.team,
+                bundle=signing.BUNDLE,
+            )
+            inputs.validate_distinct_keys(asc, login)
         reader.verify()
         return Materials(
-            material, AscInput(asc_pem, asc), AppleLoginInput(login_pem, login)
+            material,
+            AscInput(asc_pem, asc),
+            AppleLoginInput(login_pem, login) if include_login else None,
         )
     except (custody.CustodyError, inputs.InputError, Rejected) as error:
         raise Rejected(
@@ -295,3 +311,8 @@ def collect(config, *, prompt=preparation.hidden, custodyfactory=None):
                 reader.close()
             except Exception:
                 raise Rejected("CLOSE_UNRESOLVED") from None
+
+
+def collect_upload(config):
+    """Signing/upload do not require or read the separate Apple Login key."""
+    return collect(config, include_login=False)

@@ -2,6 +2,23 @@
 
 ## Latest source review state
 
+Final hosted acceptance of code-only checkpoint: run34636911592 SUCCESS16/16 at
+2007016fa0bdd18bcfd2c546800e52a7ca477bbc, matched localHEAD/origin/PR251. Ubuntu
+fixture correction now passes both hosted tooling platforms; current native compile
+and unsigned iOS archive passed. No live signing/custody/receipt-handoff/distribution
+claim. PR remains Draft, no merge. That checkpoint was doubly disabled.
+New uncommitted activation/operator/journal/recovery delta is not covered by that CI.
+Security23 ACCEPT recovery architecture, security24 ACCEPT journal/dispatch/recovery
+with28 independent fake tests. Security25 REQUEST_CHANGES: normal failure needs
+exact-run cancel plus bounded fresh observation/cleanup, and staging preflight
+needs retained runtime/Secret/database ownership evidence rather than Ready/name.
+Security26 ACCEPT received/handled: both prior findings resolved,42 independent
+focused PASS/no skips. Six LF hashes matched frozen operator/dispatch/staging and
+tests; accepted alongside prior security25 unchallenged source scope. Main166tests
+162PASS4platformskips,workflow18tests17PASS1skip,quality16Python/diffPASS. No private
+dispatch before fresh CI/merge. Both agents completed/read-only; Main integrates.
+The new environment setup is complete and read-only verified, not an Owner blocker.
+
 Code-only run34630386472 on3484115c64080679bb58e1eedf6d3df8afc98282 completed
 SUCCESS16/16, including native supervisor compile/input rejection. No real custody.
 Source leases12/14/15/16/17/18 ACCEPT: upload exact ASC resource membership,
@@ -33,7 +50,8 @@ Security22 ACCEPT test-only path semantics correction on checkpoint171efa870767f
 Fictional Windows custody now uses PureWindowsPath on every test host; _path
 guards remain exercised with relative/parent/extension/ADS negative cases.
 Independent10testsPASS; LF a77524e9854ab987992775f83de984a797ef514f1319dc8510d6ce0f276d5938.
-No product edits/skips or live/native/API actions. Ubuntu corrected evidence pending.
+No product edits/skips or live/native/API actions. Ubuntu corrected evidence subsequently
+passed in final run34636911592 on2007016fa0bdd18bcfd2c546800e52a7ca477bbc.
 
 Security architecture lease1 ACCEPT received/handled by Main at
 3b1be6a607c565fa4184aec3493ef527995fbf19. Advisor source/public documentation only;

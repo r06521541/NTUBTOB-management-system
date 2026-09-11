@@ -23,6 +23,7 @@ from pathlib import Path
 
 from tools import ios_testflight_inputs as inputs
 from tools import ios_testflight_inspection as inspection
+from tools import ios_testflight_recovery as recovery
 from tools import ios_testflight_runner as runner
 from tools import ios_testflight_signing as signing
 from tools import ios_testflight_wire as wire
@@ -31,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MAX_INPUT = 196608
 MAX_OUTPUT = 65536
 STATE = "ntubtob-owner-testflight"
-LIVE_CONTROLLER_READY = False
+LIVE_CONTROLLER_READY = True
 
 
 class Rejected(Exception):
@@ -536,6 +537,25 @@ def execute_phase():
         ) != (material["version"], material["build"]):
             raise Unresolved()
         print("stage=signing_and_inspection_complete", flush=True)
+        public_fingerprint = recovery.fingerprint(
+            {
+                "schema": 1,
+                **asdict(binding),
+                "version": candidate.version,
+                "build": candidate.build,
+                "sha256": candidate.sha256,
+                "size": candidate.size,
+            },
+            binding=binding,
+            version=candidate.version,
+            build=candidate.build,
+        )
+        # Flush is NOT a local durable acknowledgment. Lost/missing job logs mean
+        # read-only STOP, never a fresh upload. No ASC identifiers are exported.
+        print(
+            recovery.PREFIX + json.dumps(public_fingerprint, separators=(",", ":")),
+            flush=True,
+        )
         result = worker(
             "upload",
             json.dumps(
@@ -550,11 +570,21 @@ def execute_phase():
         )
         if set(result) != {"classification", "cleanup_verified", "receipt"}:
             raise Unresolved()
-        # This private, ephemeral receipt is never a public CI artifact/log.
-        write_state(state_directory(), "result.json", result)
-        return public_result(
+        outcome = public_result(
             result["classification"], cleanup=result["cleanup_verified"] is True
         )
+        # Remote IDs are only in the upload child's memory. Recovery re-discovers
+        # exact resources via GET with the bound fingerprint, not this temp file.
+        write_state(
+            state_directory(),
+            "result.json",
+            {
+                **outcome,
+                "fingerprint": public_fingerprint,
+                "recovery_mode": "READ_ONLY_REDISCOVERY",
+            },
+        )
+        return outcome
     finally:
         reserved.clear()
         for name in tuple(os.environ):
@@ -611,10 +641,19 @@ def cleanup_phase():
             or values["result.json"].get("cleanup_verified") is not True
         ):
             raise Unresolved()
-        # IPA/keychain cleanup does not acknowledge receipt custody. Until
-        # durable private handoff exists, keep every known remote receipt.
+        # Never accept legacy/raw private receipts as a sanitized result.
         if values["result.json"].get("receipt"):
             raise Unresolved()
+        if "fingerprint" in values["result.json"]:
+            result = values["result.json"]
+            if result.get("recovery_mode") != "READ_ONLY_REDISCOVERY":
+                raise Unresolved()
+            recovery.fingerprint(
+                result["fingerprint"],
+                binding=binding,
+                version=result["fingerprint"].get("version"),
+                build=result["fingerprint"].get("build"),
+            )
         # A completed worker already removed the private root; do not blindly
         # delete a remaining/replaced root after a claimed successful cleanup.
         if os.path.lexists(prepared.root):
@@ -668,7 +707,10 @@ def main(argv=None):
             result = cleanup_phase()
         else:
             raise Rejected()
-        print(json.dumps(result, separators=(",", ":"), sort_keys=True))
+        print(
+            ("" if private_worker else recovery.RESULT_PREFIX)
+            + json.dumps(result, separators=(",", ":"), sort_keys=True)
+        )
         return (
             0
             if private_worker
@@ -681,7 +723,10 @@ def main(argv=None):
         for name in tuple(os.environ):
             if name.startswith("IOS_TF_"):
                 os.environ.pop(name, None)
-        print(json.dumps(public_result("UNRESOLVED", cleanup=False)))
+        print(
+            ("" if private_worker else recovery.RESULT_PREFIX)
+            + json.dumps(public_result("UNRESOLVED", cleanup=False))
+        )
         return 2
 
 

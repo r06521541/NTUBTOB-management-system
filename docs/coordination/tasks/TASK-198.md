@@ -768,3 +768,165 @@ Security22 ACCEPT handled, independent10testsPASS and exact LFdigest matched.
 Main105tests102PASS3skips, quality/diffPASS. Push test-only correction with Main
 state/report/review to samebranch/PR; next normal CI supersedes prior failed run.
 No private dispatch, merge or activation; both agents completed/read-only.
+
+## Resume after protected environment verification
+
+Owner completed new environment setup. Main verified exact sole Owner reviewer,
+prevent_self_review=false, can_admins_bypass=false, custom main branch only and
+zero environment secrets. No API mutation or private payload read. This gate is closed.
+Checkpoint: complete interrupted-operation recovery and the real local operator;
+core hosted/upload/dispatch plus local journal; no repeated successful/uncertain
+mutation, no private identifiers in logs, no Owner secret input persistence;
+focused restart/ambiguity/cleanup tests and independent integration review;
+remaining actual input/runtime/device gates are not source-completion claims.
+
+All new packets: branch=codex/task-198-owner-testflight;
+base=5762a89c6e6451ed19f5151da1652312a9f76679;
+head=2007016fa0bdd18bcfd2c546800e52a7ca477bbc; report_to=/root.
+Revoke completed security22; security23, task-198-security-20260911,
+actor=/root/task181_review, role=advisor, write=read-only, owned_paths=none.
+Bounded architecture review: smallest durable non-replay recovery. Evaluate exact
+App/version/build read-only rediscovery with public artifact fingerprint and private
+IDs only in memory versus encrypted private receipt transport. No speculative new
+credential/artifact service, no Owner input persistence or fake remote acknowledgment.
+Identify necessary retained fields and fail-closed ambiguity cases before implementation.
+No private/native/API/Git/CI/file mutation; report contradiction immediately.
+Revoke completed writer12; advisor13, task-198-writer-20260911,
+actor=/root/csr_writer, role=advisor, write=read-only, owned_paths=none.
+Audit minimum Windows durable single-operation journal and local caller integration
+using existing custody/dispatch primitives. Identify exact preflight/input ordering,
+restart state, missing recovery hooks and complete operator sequence; no edits,
+private/native/API/Git/CI mutation. Mandatory ACK/heartbeat/completion applies.
+
+Advisor13 completion handled. Revoke advisor13; activate writer14, same actor,
+claim/base/head/branch/report_to, role=codex-writer, write=allowed. Owned only
+tools/ios_testflight_journal.py and tools/tests/test_ios_testflight_journal.py.
+Implement one bounded append-only sanitized JSONL journal at fixed KnownFolder
+private directory, exclusive same-handle Windows share0 lock, ancestor locks,
+owner-only ACL/no reparse/link/identity checks, flush and same-handle readback
+before returning an event acknowledgment. No Owner input, raw receipt/ASC IDs,
+private path or secret persisted. Existing corrupt/incomplete journal only supplies
+read-only prefix; cannot append or authorize any mutation. No automatic reset,
+delete/archive/second operation. First implementation supports one delivery only.
+Main owns dispatch hooks/recovery, hosted integration and operator. Source tests
+fake Native; writer supplies strict event schema and Journal.record/events/close
+contract, no live input/file custody/API/Git/CI. Single journal is the task's one
+durable sanitized operation record, not a private-input transcript.
+
+Security23 architecture ACCEPT handled: replace private receipt export/ack with
+strict GET-only ASC rediscovery and a non-secret exact-run artifact fingerprint.
+No new encryption key, artifact export or private ID log. Persist local intent
+before dispatch; hosted fingerprint contains run/SHA/nonce/version/build/hash/size
+after inspection and before upload. A remote print/flush is NOT local durable ack.
+Local operator reads only exact bound job logs, validates one fingerprint and
+records it before recovery use. Missing/lost fingerprint or missing checksum is
+STOP, never fresh upload; this trades recovery availability for no new secret store.
+ASC exact App/version/build must have one upload and one related IPA file with
+matching SHA_256/size/type plus exact completed build/app/version linkage; IDs
+stay memory-only. Metadata matching is not a claim Apple independently rehashed.
+Existing unknown cleanup remains STOP; confirmed owned-root cleanup may remove
+ephemeral state with no private IDs because recovery now depends on public binding.
+No recovered VALID result means distribution happened; distribution is separate.
+Main owns tools/ios_testflight_recovery.py, its test, dispatch/hooks, hosted/log
+projection and forthcoming local operator plus tests/workflow. Workflow keeps its
+disabled guard until consolidated source acceptance. No real/private operation yet.
+
+Writer14 completion handled; journal two files frozen8testsPASS. Main dispatch
+before/after durable hooks, nonce-bound run discovery and exact completed-job log
+fingerprint ingestion plus GET-only ASC rediscovery frozen; combined28testsPASS.
+Security24 supersedes23, same claim/actor/branch/base/head/report_to, advisor,
+read-only/ownednone: review journal/dispatch/recovery and their exact three tests.
+Verify crash-before/after side effect, torn-prefix no mutation, no second operation,
+same-handle Windows persistence, pure-GET ASC checksum/linkage and privacy. Fake
+tests only/no private/Native/API/Git/CI/edit. Main concurrently integrates separate
+hosted and local operator files; these six reviewed paths stay frozen.
+
+Security24 ACCEPT handled, independent28testsPASS; no live acceptance. Revoke
+writer14 (completed/read-only), activate writer15 same actor/claim/base/head/branch/
+report_to, codex-writer/writeallowed, owned only tools/ios_testflight_owner.py and
+tools/tests/test_ios_testflight_owner.py. Implement bounded ASC read-only inventory
+and separate single Owner-group build assignment adapter. Inventory exact bundle
+App, supplied Owner email, unique existing internal group/tester and all groups
+auto-distribution disabled; no creating users/testers/groups/invitations. Missing
+group/tester returns fixed preparation-required state. One assignment only after
+exact recovered VALID build and fresh Owner-only/no-other-target evidence, caller
+durable before/after hooks and staging acceptance; existing assignment is read-only
+already-applied. Uncertainty only GET reconcile/no POST repeat; no external review/
+public release/metadata correction. Verify current official endpoint/schema and
+fake success/foreign-scope/uncertainty tests. No real API/private/Git/CI actions.
+
+Writer15 completion handled: Owner inventory/assignment adapter14fake testsPASS,
+source only. Main complete sign/upload CLI now combines strict metadata preflight,
+existing hidden P12/ASC-only custody (does not request/read unused Apple Login p8),
+ASC target/build inventory, journal intent, protected dispatch and one-shot secret
+transport, exact terminal job result/fingerprint, cleanup and GET-only ASC match.
+Staging URL/LINE/Web audience come from exact isolated service metadata in memory;
+metadata presence is NOT Apple configuration/schema/functional acceptance. No
+distribution CLI or fabricated StagingReadiness; actual staging postchecks remain
+required before later Owner-group assignment. --recover never signs/uploads; it
+may only exact-run cancel/attempted-secret cleanup, then fresh ASC-only input/GET.
+Original input TTL remains2h; dispatch request budget512 accommodates minute
+observations without premature exhaustion. Damaged journal prohibits all mutations.
+Source activation proposed in this same delivery; no actual dispatch until commit,
+independent acceptance, normal CI and main integration. Cost stays standard public
+GitHub macos-15 with no artifact/cache export or paid service.
+Main146tests142PASS4platformskips,18workflow tests17PASS1skip,14PythonqualityPASS.
+Security25 supersedes24; same claim/actor/base/head/branch/report_to, advisor,
+read-only/ownednone. Consolidated review entire uncommitted TestFlight implementation
+and test delta, owner adapter and workflow activation. Verify live caller can only
+select isolated staging/Owner App, no private input logs, clean binding/run/TTL,
+durable non-replay/GET recovery, minimal key purpose, secret/worker cleanup and
+honest pending-vs-failure evidence. All source paths frozen; Main only coordination.
+No private/Native/liveAPI/Git/CI/edit; focused fake tests and direct code only.
+
+Security25 REQUEST_CHANGES handled; no activation/commit/dispatch accepted yet.
+Main owns normal failure cancellation correction, fresh bounded cleanup observation
+and its tests. Revoke completed writer15; writer16 same actor/claim/base/head/branch/
+report_to, codex-writer/writeallowed, owned only tools/ios_testflight_staging.py and
+tools/tests/test_ios_testflight_staging.py. Implement metadata-only staging ownership
+comparison using the already accepted TASK-157 immutable revision and image digest
+in the archived Gate B receipt, not a new caller boolean. Verify current service
+template and every reachable traffic revision keep the exact accepted staging
+runtime identity and immutable, staging-project Secret versions, including the DB
+reference; reject unversioned/mixed/unknown bindings, sidecars/volumes or ambiguous
+traffic. Fetch metadata only with injected bounded JSON CLI; never Secret payload,
+DB connection, private receipt or old helper execution. If historical receipt cannot
+prove a binding, return fixed STAGING_OWNERSHIP_UNVERIFIED before private input.
+Source-only tests include valid equivalence and drift/adversarial cases. Investigate
+official Cloud Run immutability semantics if needed; report unsupported inference
+immediately. Main retains operator integration. No real API/private/Native/Git/CI.
+Mandatory received/executing ACK, 10-15 minute heartbeat, blocker and proactive
+completion with SHA/dirty paths/tests/findings/limits/external mutations applies.
+
+Writer16 completion handled; two owned paths frozen13fake testsPASS, no external
+mutation. Main integration uses the exact final service snapshot validated by the
+ownership comparator, never a separate unverified metadata read. Baseline server
+creation timestamp pinned to Main read-only observation2026-08-26T05:35:31.015912Z;
+version createTime must predate it to reject recreated Secret names. This proves
+retained accepted bindings only, not current DB contents/IAM/schema/Apple readiness.
+Current image may differ from baseline if immutable staging-project digest pinned;
+new runtime/deploy still requires independent target and functional postchecks.
+Main normal failure correction permanently switches session to cleanup-only,
+renews bounded GET/cancel/owned-DELETE budget once without extending input TTL,
+cancels known unfinished run at most once, cleans even after cancel error and
+observes actual terminal state. Torn journal cannot mutate; unknown cancel not resent.
+Main42 focused operator/dispatch/staging testsPASS. All source now frozen.
+Security26 supersedes completed25; same claim/actor/base/head/branch/report_to,
+advisor/read-only/ownednone. Review two corrections and operator integration:
+tools/ios_testflight_{operator,dispatch,staging}.py plus their three tests, in context
+of previously reviewed activation/journal/owner/recovery. Accept only if both prior
+findings resolved without weakening D4 or non-replay. Fake tests/source/primary docs
+only; no private/Native/liveAPI/Git/CI/edit. Mandatory packet ACK/heartbeat/completion.
+
+Security26 ACCEPT received/handled42independentPASS; six frozen LF source hashes
+matched. Both security25 findings resolved for retained-binding/source scope only.
+Main166TestFlight tests162PASS4platformskips; workflow18tests17PASS1skip; quality16
+Python/diffPASS. Both agents completed/read-only; Main resumes integration.
+After this reviewed source is committed, normal selected CI passes and PR251 is
+merged, the task-listed Windows entry is py -3.10 -m tools.ios_testflight_operator
+with --preflight, --execute or --recover. Preflight is read-only and precedes all
+private prompts. Execute authorizes one real signing/upload under IOS-TF-01 only,
+not Owner-group distribution; recover never signs or uploads. No old external
+helper, new key creation, provider mutation, Secret payload inspection or DB access.
+Actual staging Apple/schema/deploy and Owner-only assignment/device remain separate
+required transitions within this package, not implied by a source or upload PASS.

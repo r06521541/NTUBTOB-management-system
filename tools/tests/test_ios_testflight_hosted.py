@@ -17,6 +17,111 @@ from tools import ios_testflight_wire as wire
 
 
 class HostedTests(unittest.TestCase):
+    def test_fingerprint_precedes_upload_and_private_ids_not_persisted(self):
+        binding = wire.Binding("a" * 40, "b" * 64, "123")
+        prepared = signing.PreparedSigning(
+            hosted.ROOT, hosted.ROOT / "fictional", "a" * 40, "c" * 64, (1, 2), "d" * 64
+        )
+        candidate = Mock(
+            prepared=prepared, version="1.0.0", build=1, sha256="e" * 64, size=4
+        )
+        calls = []
+        output = io.StringIO()
+
+        def worker(kind, payload, **kwargs):
+            calls.append(kind)
+            if kind == "sign":
+                return {"classification": "CANDIDATE_BOUND", "candidate": {}}
+            self.assertIn(hosted.recovery.PREFIX, output.getvalue())
+            return {
+                "classification": "UPLOAD_PENDING",
+                "cleanup_verified": True,
+                "receipt": {"upload_id": "private-sentinel"},
+            }
+
+        with (
+            patch.object(hosted, "LIVE_CONTROLLER_READY", True),
+            patch.object(hosted.wire, "context", return_value=binding),
+            patch.object(
+                hosted.wire,
+                "consume",
+                return_value=Mock(signing_frame=b"{}", asc_frame=b"{}"),
+            ),
+            patch.object(
+                hosted.wire, "_document", return_value={"expires_at": 9999999999}
+            ),
+            patch.object(hosted, "read_prepared", return_value=prepared),
+            patch.object(
+                hosted, "sign_material", return_value={"version": "1.0.0", "build": 1}
+            ),
+            patch.object(
+                hosted,
+                "asc_fields",
+                return_value={"version": "1.0.0", "build": 1, "previous_build": 0},
+            ),
+            patch.object(hosted, "candidate_from", return_value=candidate),
+            patch.object(hosted, "state_directory", return_value=hosted.ROOT),
+            patch.object(hosted, "write_state") as save,
+            patch.object(hosted, "worker", side_effect=worker),
+            patch("sys.stdout", output),
+        ):
+            result = hosted.execute_phase()
+        self.assertEqual(calls, ["sign", "upload"])
+        self.assertEqual(result["classification"], "UPLOAD_PENDING")
+        self.assertNotIn(
+            "private-sentinel", repr(save.call_args_list) + output.getvalue()
+        )
+        self.assertEqual(
+            save.call_args.args[2]["recovery_mode"], "READ_ONLY_REDISCOVERY"
+        )
+
+    @unittest.skipUnless(os.name == "posix", "POSIX private-file custody")
+    def test_sanitized_receipt_can_cleanup_without_claiming_local_ack(self):
+        binding = wire.Binding("a" * 40, "b" * 64, "123")
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder).resolve()
+            directory.chmod(0o700)
+            prepared = signing.PreparedSigning(
+                hosted.ROOT,
+                directory / "already-removed",
+                "a" * 40,
+                "c" * 64,
+                (1, 2),
+                "d" * 64,
+            )
+            hosted.write_state(
+                directory,
+                "prepared.json",
+                {
+                    "binding": asdict(binding),
+                    "prepared": hosted.prepared_record(prepared),
+                },
+            )
+            hosted.write_state(directory, "consumed", asdict(binding))
+            hosted.write_state(
+                directory,
+                "result.json",
+                {
+                    **hosted.public_result("UPLOAD_PENDING", cleanup=True),
+                    "recovery_mode": "READ_ONLY_REDISCOVERY",
+                    "fingerprint": {
+                        "schema": 1,
+                        **asdict(binding),
+                        "version": "1.0.0",
+                        "build": 1,
+                        "sha256": "e" * 64,
+                        "size": 4,
+                    },
+                },
+            )
+            with (
+                patch.object(hosted.wire, "context", return_value=binding),
+                patch.object(hosted, "state_directory", return_value=directory),
+            ):
+                result = hosted.cleanup_phase()
+            self.assertEqual(result["classification"], "CLEANED")
+            self.assertFalse(directory.exists())
+
     def material(self):
         return dict(
             p12=b"fictional",
@@ -147,16 +252,18 @@ class HostedTests(unittest.TestCase):
             {"IOS_TF_ASC": "private-sentinel", "IOS_TF_UNEXPECTED": "private-sentinel"},
             clear=True,
         ):
-            with self.assertRaises(hosted.Rejected):
+            with self.assertRaises(wire.Rejected):
                 hosted.execute_phase()
             self.assertFalse(any(key.startswith("IOS_TF_") for key in os.environ))
 
-    def test_live_entry_stays_disabled_until_durable_receipt_handoff(self):
-        self.assertIs(hosted.LIVE_CONTROLLER_READY, False)
-        with patch.object(hosted.wire, "context") as context:
+    def test_controller_requires_valid_run_context_before_private_workers(self):
+        self.assertIs(hosted.LIVE_CONTROLLER_READY, True)
+        with patch.object(
+            hosted.wire, "context", side_effect=hosted.Rejected()
+        ) as context:
             with self.assertRaises(hosted.Rejected):
                 hosted.execute_phase()
-            context.assert_not_called()
+            context.assert_called_once()
 
     def test_known_remote_receipt_cannot_be_deleted_before_handoff(self):
         binding = wire.Binding("a" * 40, "b" * 64, "123")
@@ -271,7 +378,8 @@ class HostedTests(unittest.TestCase):
         self.assertIn("environment: ios-owner-testflight", source)
         self.assertIn("name: owner_testflight", source)
         self.assertIn("github.run_attempt == 1", source)
-        self.assertIn("false &&", source)
+        self.assertNotIn("false &&", source)
+        self.assertIn("run-name: ios-tf-${{ inputs.nonce }}", source)
         self.assertIn("github.sha == inputs.approved_sha", source)
         self.assertIn("cancel-in-progress: false", source)
         self.assertIn("persist-credentials: false", source)

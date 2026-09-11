@@ -66,7 +66,7 @@ class IntakeTests(unittest.TestCase):
         ]
         return reader
 
-    def invoke(self, reader, config=None, prompt=None):
+    def invoke(self, reader, config=None, prompt=None, include_login=True):
         with (
             # Fake Windows custody must keep Windows path semantics even when
             # these offline tests run on a POSIX CI host. Never bypass _path.
@@ -89,12 +89,23 @@ class IntakeTests(unittest.TestCase):
                     ]
                 ),
                 custodyfactory=lambda: reader,
+                include_login=include_login,
             )
 
     def test_invalid_config_before_prompt(self):
         with self.assertRaises(intake.Rejected) as error:
             intake.collect(None, prompt=lambda _: self.fail("prompted"))
         self.assertEqual(str(error.exception), "INPUT_REJECTED")
+
+    def test_upload_only_never_requests_or_reads_apple_login_key(self):
+        reader = self.reader()
+        prompt = mock.Mock(side_effect=["fictional-password", "C:/fictional/asc.p8"])
+        with mock.patch.object(intake.inputs, "load_apple_login_key") as login:
+            result = self.invoke(reader, prompt=prompt, include_login=False)
+        self.assertEqual(prompt.call_count, 2)
+        self.assertEqual(reader.file.call_count, 4)
+        self.assertIsNone(result.apple_login)
+        login.assert_not_called()
 
     def test_fake_windows_path_seam_preserves_validation(self):
         with mock.patch.object(intake, "Path", PureWindowsPath):
