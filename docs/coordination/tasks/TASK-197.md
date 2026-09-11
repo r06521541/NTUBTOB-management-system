@@ -338,3 +338,12 @@ Commit/push the ten-path substantive package to existing DraftPR250, then exactl
 one hosted observation. No policy evaluation/signing/repair/retry; cancel unused
 jobs after evidence. Clarify unreaped child blocks native KeychainDelete only;
 outer task-root file cleanup remains attempted and cleanup status UNRESOLVED.
+
+Main committed/pushed3b1be6a607c565fa4184aec3493ef527995fbf19; one authorized
+run34614766702/job103313871418 completed SELECTION_DIAGNOSTIC_COMPLETE.
+Both scopes found exact certificate/identity/key and typed canSign=true; offline
+checks true, cleanup VERIFIED, codesign NOT_RUN and native policy NOT_EVALUATED.
+Old19/new16 tests PASS; explicit signing gate exit1. Remaining CI completed/cancelled
+confirmed; watch process closed. One observation budget exhausted: no retry/repair; root cause
+unproved, PR250 Draft/main unchanged. Writer/reviewer read-only; Main records
+closeout locally (five coordination files), no status-only commit or extra run.

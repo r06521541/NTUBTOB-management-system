@@ -255,11 +255,13 @@ class WorkflowContractTests(unittest.TestCase):
             "python -m tools.ios_fictional_signing --diagnose-selection", signing
         )
         self.assertNotIn("python -m tools.ios_fictional_signing --rehearsal", signing)
-        self.assertIn("DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED", signing)
-        self.assertRegex(
+        self.assertNotIn("DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED", signing)
+        self.assertIn(
+            "run: python -m tools.ios_fictional_signing --diagnose-selection\n",
             signing,
-            r"(?s)--diagnose-selection\n.*?DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED.*?\n          exit 1",
         )
+        self.assertNotIn("continue-on-error", signing)
+        self.assertNotIn("|| true", signing)
         self.assertIn("tools.tests.test_ios_fictional_signing", signing)
         self.assertNotIn("flutter build", signing)
         for expected in (

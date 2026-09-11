@@ -1,5 +1,14 @@
 # TASK-197 review
 
+Main handled security lease6 ACCEPT and one hosted observation at
+3b1be6a607c565fa4184aec3493ef527995fbf19, run34614766702/job103313871418.
+SELECTION_DIAGNOSTIC_COMPLETE: parent/child exact identity and typed canSign=true;
+offline checks true, cleanup VERIFIED; old19/new16 tests PASS. Codesign NOT_RUN,
+native policy NOT_EVALUATED. Explicit gate exit1 prevents signing/merge acceptance.
+No source remedy justified; one observation budget exhausted. PR250 stays Draft.
+Runtime success does not prove timeout/overflow/unreaped branches, codesign ACL,
+Apple policy qualification or actual signing. Reviewer/writer remain read-only.
+
 Current design review (security lease5) corrected to REQUEST_CHANGES for native
 policy filters. Main independently found identity+policy dispatch at SecItem.cpp
 L2951-2958 precedes _FilterWithPolicy; advisor confirmed IdentityCursor's first

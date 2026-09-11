@@ -83,8 +83,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   TASK197：run34608233601已驗證實際Flutter未簽署archive；PR250仍Draft未合併。
   虛構codesign出現identity查找訊息、cleanup成功；根因不足以支持修正，有限診斷已停。
 run34610163522唯讀診斷查得target憑證／identity且DER符合；cleanup成功、codesign未執行。
-無證據支持補cert；Owner新批准的parent/child唯讀診斷已實作並獨立ACCEPT，待單次hosted觀測。
-原生policy明列NOT_EVALUATED，不執行簽署；PR250維持Draft，不擴大trust/search權限。
+run34614766702單次parent/child診斷完成：均找到相符identity/key、typed canSign=true，cleanup成功。
+原生policy NOT_EVALUATED、codesign未執行；根因仍未證明，觀測額度用完，PR250維持Draft。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
@@ -104,6 +104,10 @@ run34610163522唯讀診斷查得target憑證／identity且DER符合；cleanup成
   Discord是不同能力。
 
 ## Active work and external gates
+
+- IOS-TF-01／TASK-198 active：Owner已批准既有資產真實簽署、必要staging操作與僅本人TestFlight，新增成本上限USD20。
+  DEC-109取代包內逐次批准與TASK197單次診斷限制；不含production／公開版／新憑證。現有P12/profile/cert檔存在，
+  未讀payload或驗證有效性；live staging Ready但四項Apple設定key皆缺，private intake／實機仍待必要Owner參與。
 
 - TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換
   production，外部mutation維持獨立Owner gate。

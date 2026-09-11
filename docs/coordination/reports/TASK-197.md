@@ -1,6 +1,26 @@
 # TASK-197 writer report
 
-## Current delivery: reviewed safe grouped diagnostic
+## Current outcome: grouped observation complete, signing unresolved
+
+Committed/pushed SHA `3b1be6a607c565fa4184aec3493ef527995fbf19`, same branch and
+DraftPR250; base/main unchanged `bf7430023825ddbf0160515a02b1c24b8a653749`.
+Single run34614766702/job103313871418: SELECTION_DIAGNOSTIC_COMPLETE. Native
+Swift compiled; old19 and new16 focused tests PASS. Parent and fresh same-executable
+child both returned certificate/identity FOUND with exact type/DER, key FOUND in
+target Keychain and typed canSign=true. Offline parsed/current validity/KU digital
+signature/EKU code signing/RSA=true. Cleanup VERIFIED; no native signing executed.
+Toolchain arm64 macOS15.7.9/24G830, Xcode26.3/17C529, SDK26.2.
+
+Native policy NOT_EVALUATED; codesign NOT_RUN, all real/signing/export/upload flags
+false. Explicit DIAGNOSTIC_ONLY_SIGNING_GATE_NOT_SATISFIED then exit1 is intentional,
+not a failed query. Run completed/cancelled confirmed; watch process closed.
+No full CI PASS claim; remote branch/main SHA verified unchanged from above.
+This supports target-only fresh-process visibility, not codesign ACL/selection or
+Apple qualification. No root cause or repair proven. One observation budget spent;
+no retry, trust/search expansion or real assets authorized. Five closeout records
+remain local to avoid a status-only commit/CI cycle.
+
+## Pre-observation delivery: reviewed safe grouped diagnostic
 
 Writer lease5 completed; independent security lease6 ACCEPT received and handled.
 Main81 tests78PASS3skips; reviewer44 tests43PASS1skip; Python quality/diff PASS.

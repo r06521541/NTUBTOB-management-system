@@ -10,12 +10,16 @@ Team ID、App ID、certificate/profile識別值、private key、provider值、�
 - `APPLE_SIGN_IN_REPOSITORY_STATUS`仍為`not_implemented`，default TestFlight inspection仍BLOCKED；明確
   `--artifact-only`只檢查既存IPA完整性，不授權upload／release，見`IOS_CLOUD_BUILD_RUNBOOK.md`。
 - Apple Developer membership與Account Holder access已由Owner-visible、去識別化分類確認。Owner後續已回報App ID/capability
-  及App Store Connect record建立；本次未獨立查證，不重建。Distribution certificate/profile尚無已接受證據；signed IPA、
+  及App Store Connect record建立，並回報既有加密P12與profile材料已備妥；presence不等於本次候選的有效性、配對、
+  custody或簽署驗證，不讀取材料以更新本清單，也不重建資源。signed IPA、
   TestFlight upload/install及真機登入仍是外部gate。
 - TestFlight文案與App Privacy repository事實已整理於
   [`IOS_APP_STORE_CONNECT_ANSWERS.md`](IOS_APP_STORE_CONNECT_ANSWERS.md)；公開privacy/support URL、App內完整帳號刪除、
   第三方SDK privacy、出口合規與年齡分級仍不可填PASS。
-- 本清單與inspector不會建立、修改或上傳任何Apple資源。
+- TASK-198／IOS-TF-01已授權Main在reviewed工具、隔離staging、既有資產、成本與custody邊界內推進exact candidate及
+  Owner-only internal TestFlight，不需逐SHA再要求Owner phrase；遇task明列stop仍停止。本清單與inspector本身不執行upload。
+- fictional selection diagnostic成功不再被workflow刻意改成失敗；其真正nonzero仍失敗，且不證明real signing或public readiness。
+  本次邊界調整沒有新增live signing/upload controller。
 
 ## A. Mac／Xcode與Apple資源建立前可完成
 
@@ -48,6 +52,7 @@ bounded decision。Owner不得把private key、profile payload、account/email�
 
 ```sh
 python3 -m tools.ios_candidate_inspector inspect \
+  --artifact-only \
   --artifact <private-path-to-signed.ipa> \
   --expected-version <public-semver> \
   --expected-build <public-positive-integer> \
@@ -62,14 +67,20 @@ python3 -m tools.ios_candidate_inspector inspect \
 
 不得把`CONTRACT_TEST`當candidate evidence。default mode在repository marker未ready時必須先停止，且不得為了讓工具PASS而
 手動改marker或跳過codesign/profile/entitlement檢查。
+IOS-TF-01的internal candidate使用明確artifact-only結果搭配下節scope/runtime/custody gate；不是default/public-ready PASS。
 
 ## D. Upload前仍需的外部gate
 
 1. Exact App ID已啟用Sign in with Apple，reviewed entitlement已綁定target；App與profile的embedded entitlement一致。
-2. Staging provider/client與server authorization-code lifecycle、credential state及revocation evidence已由獨立review接受。
+2. Staging provider/client與server authorization-code lifecycle設定、schema及部署契約已由獨立review接受；未驗證的device、
+   credential-state／revocation情境明列限制，不把需先安裝候選的證據倒置為首次internal upload前提。
 3. App Privacy、beta notes、support/privacy/deletion入口與exact candidate行為一致；未完成push、deep link或crash upload須明示。
 4. Candidate只連隔離staging runtime/data；Secret/runtime ownership另有deidentified evidence，不能由IPA inspection推論。
-5. Main接受immutable commit與IPA evidence後，Owner才在App Store Connect執行一次upload／tester release gate。
+5. Main依IOS-TF-01接受immutable commit、exact App/version/build/IPA evidence及獨立signing/upload custody後，由reviewed工具
+   執行單次upload、processing reconciliation及僅Owner的dedicated internal group分發；沒有reviewed live controller時不得執行。
+   不確定結果唯讀核對，不盲目重傳；私密artifact不能用預設公開CI artifact保存，cleanup不明即停止。
+6. 裝機後完成下節核心驗收。Public-ready marker、public release、其他tester分發及production均不是internal upload成功的推論；
+   未完成privacy／deletion或provider情境不得改填PASS，仍依task禁止真實資料刪除等邊界。
 
 ## E. TestFlight後的最小真機matrix
 
