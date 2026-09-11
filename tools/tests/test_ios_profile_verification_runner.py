@@ -207,6 +207,27 @@ class RunnerTests(unittest.TestCase):
             runner.verify()
         self.assertEqual(native.call_count, 1)
 
+    def test_recomputed_digest_rejects_before_native_and_preserves_output_boundary(
+        self,
+    ):
+        with (
+            patch.dict(os.environ, {**ENV, intake.SECRET: self.raw}),
+            patch.object(runner, "prepared", return_value=Path("fictional-code")),
+            patch.object(
+                runner,
+                "decode_envelope",
+                return_value={
+                    "profile": fixtures.tampered(self.fixture["cms"], "content"),
+                    "certificate": self.fixture["der"],
+                    "team": fixtures.TEAM,
+                },
+            ),
+            patch.object(runner.cms, "_native_verified") as native,
+            self.assertRaisesRegex(runner.cms.Rejected, "CMS_STRUCTURE_REJECTED"),
+        ):
+            runner.verify()
+        native.assert_not_called()
+
     def test_safe_fixed_output_no_private_cli_or_exception_echo(self):
         for args in [["private-string"], ["--verify", "private-string"]]:
             with contextlib.redirect_stdout(io.StringIO()) as output:

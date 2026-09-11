@@ -94,3 +94,43 @@ Final lease2 ACCEPT. Main expanded CMS/intake/runner/workflow: 59 run, 57 PASS/2
 platform skips; owned quality/diff PASS. Reviewer independently confirmed 30-case
 base parity (writer52 separately). Main may commit/push/one PR under standing Git
 authority; full hosted/native gate must pass before merge. No true diagnostic yet.
+
+## Post-merge result and policy decision (2026-09-11)
+
+PR247 merged as c2e14164ace77a5691bbe17e8980b4bc97a26cbf; full CI34493756032
+SUCCESS. Owner returned the one approved comprehensive diagnostic result: five
+predicate failures (digest_set_algorithm, signer_digest_algorithm,
+message_digest_value, attribute_cardinality, attribute_types); other 20 predicates
+PASS, external Team-format/DER/BasicConstraints/size checks PASS. All signature,
+trust, real-profile and release authority flags false. This consumes the exception;
+no third diagnostic or private-file inspection is authorized.
+
+These failures establish mismatch with our restricted format, NOT the observed
+algorithm/OIDs, file authenticity, current Apple policy or download corruption.
+RFC5652 sections1.1,5.3,5.6,11.2 define extensible attributes and algorithm-dependent
+digests, not a universal SHA256/32-byte/three-attribute requirement. RFC syntax alone
+does not establish which algorithms are secure or appropriate for this application.
+
+Next Owner gate: approve a bounded compatibility architecture/design work package,
+not a broad validation bypass. Proposed direction: distinguish resource/structural
+guards from explicit algorithm/attribute policy; retain native cryptographic
+signature verification plus pinned Apple chain/purpose and Team/App/profile checks.
+Choose a finite, evidence-backed support policy with negative tests and independent
+security review before implementation. Unknown/weak algorithms (including SHA1 if
+later implicated) must NOT become allowed solely because native parsing succeeds.
+No blanket unknown-attribute acceptance, changed root, network trust fetch, signing,
+private read or upload authorized by design approval. Existing strict intake stays
+frozen; no promise this proposal supports the Owner's still-unidentified exact format.
+
+Alternative is to retain current strict format and pause this profile path; do not
+ask Owner to regenerate assets on speculation. Main records the decision on branch
+codex/task-192-compatibility-decision, exact merged base above. No implementation,
+tests of changed code, new PR or external mutation; carry records into next authorized
+substantive delivery. Previous writer/reviewer claims remain completed.
+
+Primary sources checked 2026-09-11:
+- https://www.rfc-editor.org/rfc/rfc5652.html (sections1.1,5.3,5.6,11.2).
+- https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles
+  (indexed Apple summary: profile is a plist wrapped in CMS; full HTML required JS).
+- https://developer.apple.com/documentation/security/cmsdecodercopysignerstatus(_:_:_:_:_:_:_:)
+  (Apple indexed API documentation distinguishes signer status and trust evaluation).

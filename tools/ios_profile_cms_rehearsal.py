@@ -1,5 +1,7 @@
 """No-argument fictional CMS rehearsal. Never reads real profiles or private files."""
 
+import hashlib
+import itertools
 import json
 import plistlib
 import sys
@@ -21,11 +23,14 @@ STAGES = frozenset(
         "missing_intermediate",
         "test_marker",
         "production_root",
+        "compatibility",
+        "capabilities_signature",
+        "protection_signature",
     }
-)
+) | frozenset("compatibility_%03d" % index for index in range(408))
 
 
-def fixture():
+def fixture(*, compatibility=False):
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
     from cryptography.hazmat.primitives.asymmetric import rsa
@@ -101,7 +106,7 @@ def fixture():
         return builder.sign(serialization.Encoding.DER, options)
 
     cms = signed()
-    return {
+    result = {
         "cms": cms,
         "root": root.public_bytes(serialization.Encoding.DER),
         "der": der,
@@ -112,6 +117,115 @@ def fixture():
         "without_root": signed(include_root=False),
         "without_intermediate": signed(include_intermediate=False),
     }
+    if compatibility:
+        from asn1crypto import algos
+        from asn1crypto import cms as asn1_cms
+        from asn1crypto import core
+        from cryptography.hazmat.primitives.asymmetric import padding
+
+        variants = []
+        protection_variants = []
+        for digest, encoding, parameters, optional in itertools.product(
+            ("sha256", "sha384", "sha512"),
+            ("legacy", "digest_specific"),
+            itertools.product((False, True), repeat=3),
+            itertools.product((False, True), repeat=3),
+        ):
+            document = asn1_cms.ContentInfo.load(cms)
+            signer = document["content"]["signer_infos"][0]
+            signature = "rsassa_pkcs1v15" if encoding == "legacy" else digest + "_rsa"
+            digest_set = algos.DigestAlgorithm({"algorithm": digest})
+            digest_info = algos.DigestAlgorithm({"algorithm": digest})
+            signature_info = algos.SignedDigestAlgorithm({"algorithm": signature})
+            for algorithm, use_null in zip(
+                (digest_set, digest_info, signature_info), parameters
+            ):
+                algorithm["parameters"] = core.Null() if use_null else None
+            document["content"]["digest_algorithms"] = [digest_set]
+            signer["digest_algorithm"] = digest_info
+            signer["signature_algorithm"] = signature_info
+            attrs = [
+                asn1_cms.CMSAttribute({"type": "content_type", "values": ["data"]}),
+                asn1_cms.CMSAttribute(
+                    {
+                        "type": "message_digest",
+                        "values": [hashlib.new(digest, profile).digest()],
+                    }
+                ),
+            ]
+            if optional[0]:
+                attrs.append(
+                    asn1_cms.CMSAttribute(
+                        {
+                            "type": "signing_time",
+                            "values": [asn1_cms.Time({"utc_time": core.UTCTime(NOW)})],
+                        }
+                    )
+                )
+            if optional[1]:
+                # Metadata deliberately names an unsupported actual digest.
+                # This must never negotiate or authorize its cryptographic use.
+                attrs.append(
+                    asn1_cms.CMSAttribute(
+                        {
+                            "type": "smime_capabilities",
+                            "values": [[{"capability_id": "1.3.14.3.2.26"}]],
+                        }
+                    )
+                )
+            if optional[2]:
+                attrs.append(
+                    asn1_cms.CMSAttribute(
+                        {
+                            "type": "cms_algorithm_protection",
+                            "values": [
+                                {
+                                    "digest_algorithm": digest_info,
+                                    "signature_algorithm": signature_info,
+                                }
+                            ],
+                        }
+                    )
+                )
+            signer["signed_attrs"] = attrs
+            signer["signature"] = keys[2].sign(
+                signer["signed_attrs"].untag().dump(force=True),
+                padding.PKCS1v15(),
+                {
+                    "sha256": hashes.SHA256,
+                    "sha384": hashes.SHA384,
+                    "sha512": hashes.SHA512,
+                }[digest](),
+            )
+            variants.append(document.dump(force=True))
+            if optional == (True, True, True) and parameters == (True, True, True):
+                protection = next(
+                    item
+                    for item in signer["signed_attrs"]
+                    if item["type"].native == "cms_algorithm_protection"
+                )["values"][0]
+                for digest_null, signature_null in itertools.product(
+                    (False, True), repeat=2
+                ):
+                    protection["digest_algorithm"]["parameters"] = (
+                        core.Null() if digest_null else None
+                    )
+                    protection["signature_algorithm"]["parameters"] = (
+                        core.Null() if signature_null else None
+                    )
+                    signer["signature"] = keys[2].sign(
+                        signer["signed_attrs"].untag().dump(force=True),
+                        padding.PKCS1v15(),
+                        {
+                            "sha256": hashes.SHA256,
+                            "sha384": hashes.SHA384,
+                            "sha512": hashes.SHA512,
+                        }[digest](),
+                    )
+                    protection_variants.append(document.dump(force=True))
+        result["compatibility"] = variants
+        result["protection_parameters"] = protection_variants
+    return result
 
 
 def tampered(data, field):
@@ -126,18 +240,52 @@ def tampered(data, field):
         document["content"]["encap_content_info"][
             "content"
         ] = b"fictional-tampered-content"
+    elif field in {"capabilities", "protection"}:
+        from asn1crypto import core
+
+        attrs = document["content"]["signer_infos"][0]["signed_attrs"]
+        if field == "capabilities":
+            attribute = next(
+                item for item in attrs if item["type"].native == "smime_capabilities"
+            )
+            attribute["values"][0].append({"capability_id": "1.2.3"})
+        else:
+            attribute = next(
+                item
+                for item in attrs
+                if item["type"].native == "cms_algorithm_protection"
+            )
+            algorithm = attribute["values"][0]["digest_algorithm"]
+            algorithm["parameters"] = (
+                None if isinstance(algorithm["parameters"], core.Null) else core.Null()
+            )
     else:
         raise ValueError
     return document.dump(force=True)
 
 
 def run():
-    values = fixture()
+    values = fixture(compatibility=True)
     parsed = verify.preflight(values["cms"])
     with verify._compile_native(_fictional_root=values["root"]) as binary:
         payload = verify._native_verified(
             parsed, NOW, binary, _test_root=values["root"]
         )
+        for index, data in enumerate(
+            values["compatibility"] + values["protection_parameters"]
+        ):
+            try:
+                if (
+                    verify._native_verified(
+                        verify.preflight(data), NOW, binary, _test_root=values["root"]
+                    )
+                    != payload
+                ):
+                    raise ValueError
+            except Exception:
+                raise verify.Rejected(
+                    "REHEARSAL_CASE_FAILED", "compatibility_%03d" % index
+                ) from None
         if (
             verify._native_verified(
                 verify.preflight(values["without_root"]),
@@ -162,6 +310,18 @@ def run():
         other = fixture()
         for stage, data, instant, expected in [
             (
+                "capabilities_signature",
+                tampered(values["compatibility"][-1], "capabilities"),
+                NOW,
+                {"CMS_SIGNATURE_REJECTED"},
+            ),
+            (
+                "protection_signature",
+                tampered(values["compatibility"][-1], "protection"),
+                NOW,
+                {"CMS_SIGNATURE_REJECTED"},
+            ),
+            (
                 "signature",
                 tampered(values["cms"], "signature"),
                 NOW,
@@ -171,7 +331,7 @@ def run():
                 "content",
                 tampered(values["cms"], "content"),
                 NOW,
-                {"CMS_SIGNATURE_REJECTED"},
+                {"CMS_STRUCTURE_REJECTED"},
             ),
             ("purpose", values["wrong_purpose"], NOW, {"CMS_PURPOSE_REJECTED"}),
             ("root", other["cms"], NOW, {"CMS_TRUST_REJECTED"}),
