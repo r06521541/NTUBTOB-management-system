@@ -241,3 +241,192 @@ one descriptive work-package checkpoint on the current release branch; no new
 PR/hosted CI for this incomplete delivery. Live execution still needs complete
 reviewed controller/native runner. Pause at the named Google-login stop; after
 Owner login recheck exact iOS client and assign next bounded implementation.
+
+2026-09-12 Owner Google login completed. Main read-only exact project client list
+shows one Android and one Web client, no iOS client, with no filter/pagination
+shown. Existing IDs not copied to repository. Google official iOS integration
+requires iOS-type client plus distinct Web server audience; Flutter contract agrees.
+https://developers.google.com/identity/sign-in/ios/start-integrating
+Pause before new persistent Google provider resource; prior login approval is not
+creation authority. PROPOSED, NOT APPROVED: create ONE iOS OAuth client named
+NTUBTOB iOS Staging/TestFlight in ntubtob-schedule-405614, exact existing bundle
+tw.org.ntubtob.portal, used only for IOS-TF-01 staging/Owner TestFlight. Preserve
+existing Web server audience and Android client; zero update/delete of existing
+clients, production callback/origin, consent/testing/tester configuration or IAM.
+Do not create another project, service account, secret-bearing Web client or API
+key. Creation remains stopped pending Owner exact consent and visible form
+preflight; unknown required fields/expanded capabilities stop for clarification.
+No claim that provider creation itself supplies runtime/signing/Apple acceptance.
+
+Owner approved the exact ONE iOS client proposal on2026-09-12. This supersedes
+PROPOSED/NOT APPROVED above only for that client; all zero-change boundaries stay.
+Main rechecked the exact project's unchanged Android/Web-only list. Per
+COLLABORATION8, use a visible manual Console packet, not an unreviewed credential
+operator: operator=owner; owner_gate=manual_google_ios_client_creation;
+standing_authorization=IOS-TF-01 plus2026-09-12 exact iOS client consent;
+report_to=/root; stop_only_on=required-private-input|unexpected-capability-or-terms|
+target-drift|uncertain-result. Main may populate the draft type/name/bundle only;
+Owner submits Create once after visible preflight. Optional store/team/App Check
+fields are not guessed or enabled. Any required additional field stops before
+submission. After Owner confirmation, Main verifies one added iOS client and
+exact bundle, without copying identifiers/payload to repository. Success is not
+resent; ambiguous creation reconciles the client list before any further action.
+
+Visible draft preflight complete: exact primary project; type=iOS, approved
+name/bundle; optional App Store ID and Team ID empty; App Check unchecked/disabled.
+Create button enabled after only the two approved text fields were filled.
+No new required input or unexpected consent. Create not clicked; client-create
+mutation_count=0 by Main. Owner should click the visible Create once, keep the
+result page open and report completion. Do not duplicate the create action if
+the result is slow/uncertain; Main first reconciles the existing-client list.
+
+Owner reported creation complete. Main observed success dialog, one iOS addition
+to unchanged Android/Web rows, then exact new-client type/name/bundle; optional
+App Store/Team fields empty. Exited detail without save. Creation confirmed once,
+no resend/download/clipboard; identifiers not copied into repository. This is
+provider metadata readiness, not token propagation, runtime or device success.
+
+## Real signing adapter and transport integration
+
+New packets supersede completed writer lease2/security lease4 only for new work.
+branch=codex/task-198-owner-testflight; base=5762a89c6e6451ed19f5151da1652312a9f76679;
+head=c50a497aee7860b6de6f12584e0eb4d9bf7883ea; report_to=/root.
+Initial dirty: Main HANDOFF, PROJECT_STATE, TASK198 task/report only.
+COLLABORATION2 mandatory ACK/heartbeat/blocker/proactive completion applies;
+Main remains active until both reports are handled. No private/live calls.
+
+Writer /root/csr_writer; task-198-writer-20260911 lease3; role=codex-writer;
+write=allowed; owned_paths=tools/ios_testflight_signing.py,
+tools/native/ios_testflight_signing.swift, tools/tests/test_ios_testflight_signing.py.
+Implement callable real-signing adapter, not another fictional-only rehearsal:
+code-only preparation compiles helper and checks pinned macOS/Xcode/source;
+bounded signing input via stdin only; native supervisor owns temporary Keychain,
+named helper/codesign ACL, exact user search-list insertion/restoration, unchanged
+default, private create-exclusive profile at Xcode26 UserData path, and fixed
+manual signed archive/export with Runner-only config and Apple entitlement.
+Prepare dependencies BEFORE key access; fixed workspace/scheme/configuration and
+validated version/build/environment. Preserve public readiness marker; staging
+only. No arbitrary command adapter, automatic provisioning or private argv/env.
+Use existing bounded child supervision primitives where suitable; descendants
+must stop before Keychain cleanup. Cleanup uncertainty overrides success and
+forbids upload. Keep signed IPA in private same-job storage; no upload/ASC key,
+new workflow, real CLI invocation, Git/cloud/provider/secret mutation in this slice.
+Fictional tests cover input/path/config, failure/timeout, cleanup dominance and
+fixed commands; platform-only tests must be explicit, not false native PASS.
+Propose concrete interface/frame before implementing; Main handles integration.
+Stop on changed targets/unsafe custody/infeasible guarantees; no scope workaround.
+
+Advisor /root/task181_review; task-198-security-20260911 lease5; role=advisor;
+write=read-only; owned_paths=none. Resolve complete protected GitHub workflow and
+Windows controller transport for signing then separate ASC upload in one private
+macOS job, with signing cleanup before upload subprocess receives credentials.
+Check actual step-secret injection semantics versus generic no-env rule and
+existing profile-only precedent; define honest minimal task exception if needed,
+never silently inherit profile environment permission. Determine viable bounded
+Apple upload/processing/Owner-only distribution API or tool, without public IPA
+artifacts/new paid service. Source/primary docs only; no real input/Git/API mutation.
+Return concrete integration contract, remaining true Owner inputs and precise
+security limits. Main concurrently audits existing source/cost/dependency seams.
+
+Transport architecture lease5 ACCEPT received/handled; Main verified GitHub
+secret-read timing and Apple WWDC25 Build Upload introduction. Within IOS-TF-01,
+allow ONE explicit ingress exception to generic no-env: reviewed first-party
+Python step receives purpose-specific protected-environment secret(s) via that
+step's env mapping, immediately removes them from its environment view, and
+passes only bounded stdin to a minimal-environment child. No run-script secret
+interpolation, job/global env, third-party action, GITHUB_ENV/output/summary or
+raw logging. New named environment only; never profile-verification reuse.
+GitHub service/runner worker may hold all environment secrets when the job starts;
+not end-to-end encryption, same-UID hostile-code isolation or secure erasure.
+Promise only: signing descendants never receive ASC credentials; after verified
+descendant termination/Keychain/profile cleanup, a separate upload child receives
+ASC input. Popping env does not prove OS memory zeroization. Reviewed runner/OS,
+source/build phases and orchestration remain trusted. No private execution yet.
+Sign-in Apple server key never enters signing/upload job. Private IPA stays in
+same job, no public artifact/cache. Before upload, check all App internal groups
+for unintended automatic distribution; do not silently disable others' settings.
+
+Writer lease3 paused with a specific CMSDecoder implicit-decryption concern.
+Main permits a bounded container-only filter before system content decoding:
+outer ContentInfo must be signedData and its encapContentInfo must be id-data;
+reject encrypted/nested containers, malformed lengths and trailing content.
+This prevents invoking recipient-key lookup; it is NOT a CMS algorithm, signer,
+attribute, trust or Apple profile-validity gate. Do not revive old custom CMS
+approval or constrain real Apple digest/attribute choices. Keep raw approved
+profile bytes for Xcode and label decoded data structural/untrusted. Same writer
+lease3/three owned paths; add focused negative tests and deliver frozen snapshot.
+Independent source review must assess this container boundary before native use.
+
+Writer lease3 completed/frozen; Main received the three-file handoff,10 focused
+PASS after container change and34PASS/2platform skips in preceding affected run.
+Revoke security advisor lease5; activate /root/task181_review,
+task-198-security-20260911 lease6, role=advisor, write=read-only, owned_paths=none,
+report_to=/root. Branch/base/head remain the exact values above. Review all three
+frozen signing files plus directly reused input/profile/config helpers; inspect
+container parser/decryption avoidance, certificate/config binding, private paths,
+native child/keychain cleanup and honest success classification. Run offline
+fictional tests only; no native/private/Git/API mutations. Report exact canonical
+digests, one consolidated verdict/findings, tests and native evidence limits.
+Stop on source drift, unsafe scope or need for real input. Mandatory protocol applies.
+Main concurrently prepares code-only macOS compile/rejection evidence in a separate
+test path/workflow; frozen adapter stays untouched. Necessary native evidence may
+use one early Draft PR per COLLABORATION9, retaining that PR for this delivery.
+
+Main integration owns only tools/tests/test_ios_testflight_native.py and
+.github/workflows/flutter-tests.yml for this next evidence addition (plus existing
+coordination paths). Goal: compile the actual new Swift source and execute bounded
+invalid-frame cases in existing ephemeral macOS job before any material import.
+Invariant: fictional bytes only, no certificate/keychain creation, archive/upload,
+private environment or new native mode; source tests do not claim signing success.
+Tests: local test selection/platform skip, workflow contract, independent review,
+then existing hosted macOS compile/input rejection. No additional Owner decision.
+
+Security lease6 ACCEPT handled:10 independent PASS, frozen digests matched;
+native compile/ACL/Xcode/custody remain unverified. New source acceptance does not
+authorize live invocation without complete controller and independent IPA checks.
+Activate same advisor /root/task181_review, claim task-198-security-20260911 lease7;
+other packet fields unchanged, read-only/no owned paths/report_to=/root. Review
+Main's frozen two-path native test/workflow addition and integration assumptions:
+exported IPA basename versus app metadata, and temporary Keychain lock lifetime
+versus bounded archive. No repeated full source review/test unless needed. Return
+one verdict/limits plus exact hashes; no live or native operations. Main tracks it
+and prepares a single substantive checkpoint/early Draft platform evidence run.
+
+Lease7 ACCEPT handled for two-path compile/rejection evidence; two pre-live
+integration corrections adopted within IOS-TF-01, not new Owner gates. Revoke
+completed writer lease3; /root/csr_writer lease4 under same writer claim/branch/
+base/head, report_to=/root, same three owned adapter paths, write=allowed.
+Remove undocumented Runner.ipa filename assumption: native requires successful
+export only; Python selects exactly one top-level regular .ipa under own export
+root, verifies bounded same-handle owner/mode/nlink/inode/stable hash, copies it
+create-exclusive to fixed private candidate.ipa and verifies identical bytes.
+No metadata/ZIP/signature modification, arbitrary output path or recursive search.
+Unknown/zero/multiple/nonregular/alias/changing files STOP; candidate remains
+EXPORTED_UNINSPECTED and all private artifacts await controller-owned cleanup.
+Before P12 import, set and read back finite2400-second idle-lock settings on the
+new nonnil target Keychain only, useLockInterval/lockOnSleep true. Never pass nil,
+disable locking, change default, retry unlock or extend supervisor deadline.
+Idle lock is not hard destruction; process supervision/cleanup remains required.
+Add focused negative/copy tests and source check; no real/native/private/Git/API
+mutation. Proactively freeze/handoff; independent delta review before commit.
+
+Writer lease4 completed/frozen;13 focused PASS, no native/private/external action.
+Security /root/task181_review claim task-198-security-20260911 lease8 supersedes
+completed lease7; same exact branch/base/head, advisor/read-only/owned none,
+report_to=/root. Review only the three adapter correction deltas (fixed private
+candidate copy and new-target finite idle settings) plus added input-suite name
+in existing compile workflow. Main native test is unchanged. Verify no overwrite,
+partial cleanup honesty, identity/hash binding and nonnil target/settings ordering;
+run focused fictional tests, not whole prior review. Proactive complete with
+hashes/verdict/limits; stop on drift/private/native need. Main repeats affected
+tests and prepares exact substantive commit/push/early Draft after ACCEPT.
+
+Security lease8 ACCEPT received/handled;13 independent focused PASS, correction
+digests matched. Main41 tests39PASS/2platform skips; changed-Python quality and
+diff checks PASS. Both agents completed/read-only. Main commits/pushes the ten
+reviewed current paths (four new source/tests, workflow and five coordination)
+and creates one early Draft PR for missing macOS compile evidence. Existing
+standard public hosted CI is authorized/costUSD0; no private inputs, signing or
+upload in that run. Do not merge incomplete delivery or equate compile with
+native custody, full operation cleanup or TestFlight. Copy tests are fictional
+byte/hash checks with mocked POSIX verifier, not demonstrated TOCTOU-race coverage.

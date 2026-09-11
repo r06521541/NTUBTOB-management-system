@@ -110,7 +110,7 @@ run34614766702單次parent/child診斷完成：均找到相符identity/key、typ
   未讀payload或驗證有效性；live staging Ready但四項Apple設定key皆缺，private intake／實機仍待必要Owner參與。
   First slice由PR250合併且16項CI全綠；Apple登入完成，App capability／憑證／profile／ASC上傳key皆已唯讀確認存在。
   Owner已建立並下載僅綁現有App、由staging使用的登入key，portal狀態已確認；未讀payload或驗證本機custody。
-  私密材料驗證模組離線測試及獨立review通過；Google Console帳號無專案權限，iOS client仍UNKNOWN，待Owner登入既有有權帳號。
+  私密材料驗證模組離線測試及獨立review通過；Owner已新增一個iOS client，唯讀確認類型/名稱/Bundle相符，既有Android/Web不動；真實簽署adapter準備中。
   尚無live signing/upload controller或TestFlight版本，測試者0；private intake仍待必要Owner參與。
 
 - TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換

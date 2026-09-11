@@ -1,6 +1,6 @@
 active_task: TASK-198
-status: blocked
-next_actor: owner
+status: in_progress
+next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
@@ -23,9 +23,17 @@ note: >
   Agent did not download/read key payload; local custody/pairing not yet verified.
   Input writer lease2 and independent security lease4 completed; ACCEPT received/handled, agents read-only.
   Work-package source checkpoint only, no new PR/hosted CI or release-readiness claim.
-  Google Console current account lacks primary-project access; iOS client remains unknown, no IAM mutation.
-  Owner account-selection page open: login existing project-authorized account only, no access request or new grant.
-  Real signing/upload controller and batched private intake remain unimplemented.
+  Owner completed Google login; exact primary-project OAuth list accessible and read-only inventory complete.
+  Owner completed the ONE approved iOS client creation; success dialog and list now show exactly iOS/Android/Web.
+  Main verified new iOS type/name/bundle and empty optional App Store/Team fields; exited details without save.
+  No access request, new IAM grant or additional provider change performed by Main.
+  Owner approved ONE new iOS client in primary project, existing App bundle, staging/Owner TestFlight use only.
+  No repeat creation/download; no private payload or identifiers persisted in repository.
+  Existing Web/Android clients, callbacks, consent/testing configuration and production remain unchanged.
+  Writer lease3 and security leases6/7 completed; source and compile/rejection integration ACCEPT handled.
+  Writer lease4/security lease8 completed; correction ACCEPT handled,13 independent PASS; Main39PASS/2skips.
+  Main commits/pushes reviewed ten paths and starts single early Draft platform evidence gate.
+  No real signing/upload controller invocation; both agents now read-only.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

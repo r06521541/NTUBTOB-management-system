@@ -55,6 +55,26 @@ Read-only Google Console inventory could not access the primary project with the
 current signed-in account. iOS Google client remains UNKNOWN; no IAM/OAuth
 mutation. Account selection opened for the Owner's existing authorized account;
 login/MFA is a necessary user step, not a request to grant more permissions.
+Owner subsequently reported login completed. Main verified authenticated access
+to ntubtob-schedule-405614 and its OAuth client list: exactly one Android and one
+Web entry, no iOS entry; no filter or pagination shown. This supersedes UNKNOWN
+for this visible list only. No client detail/secret download, clipboard, form-field,
+IAM or provider mutation. Source contract and official Google documentation
+require a distinct iOS-type client. Main proposes one additive iOS client, pending
+Owner consent; no creation action taken and no new agents/hosted runs dispatched.
+Owner subsequently approved this exact one-client proposal. Main rechecked the
+unchanged two-client list, opened the new-client form and populated only iOS type,
+approved name and bundle. Optional App Store/Team fields remain empty and App
+Check remains unchecked/disabled. Create enabled; Main did not submit. The visible
+manual action is ready for Owner under COLLABORATION8; no additional approval
+phrase, key download, IAM or existing-provider update requested.
+Owner reported completion; Main observed OAuth client created success dialog,
+then exactly one iOS plus previous Android/Web rows. New-client detail matched
+approved name and tw.org.ntubtob.portal; optional App Store/Team fields blank.
+Exited with Cancel without editing/saving. Owner create_count=1, agent create_count=0;
+no duplicate/download/clipboard or raw identifier in durable records. Provider
+propagation and actual sign-in remain untested. Writer lease3 and security advisor
+lease5 now assigned for genuine signing adapter and private transport integration.
 Apple confirms a separate Sign-in-purpose private key signs developer tokens:
 https://developer.apple.com/help/account/capabilities/create-a-sign-in-with-apple-private-key/
 Existing .p12/profile/cert presence was confirmed without contents; P12 password
@@ -65,6 +85,33 @@ inputs. No secrets in chat or generic CLI; no key regeneration based on uncertai
 Cost: standard public runner compute USD0; observed7 caches/4161934312 bytes and
 zero artifacts. No added paid runner/service/cloud resources or private artifact
 upload. USD20 package cap unchanged; cloud/storage cost must be bounded before use.
+
+Actual signing-adapter source plus code-only hosted compile/input rejection added;
+independent source reviews6/7 ACCEPT, Main source digests matched. Local combined
+29 tests27PASS/2platform skips; three changed Python files quality PASS. Windows
+does not compile Swift or prove native cleanup. Pre-live filename/Keychain idle
+locking corrections are being implemented by writer lease4 before final review.
+Those corrections now completed and independently ACCEPTED under security lease8;
+13 focused PASS, Main combined41 tests39PASS/2platform skips, quality/diff PASS.
+Windows byte/hash-copy tests mock POSIX metadata validation; no real race/native
+cleanup coverage claim. Four new source/tests + workflow + five coordination
+paths form the next substantive checkpoint; native test remains platform pending.
+No real credentials, new environment, hosted run, signing, upload or runtime
+mutation for this slice yet. A single early Draft PR is justified only to obtain
+missing macOS evidence; it remains the continuing delivery, not another closeout.
+
+Read-only public Apple OpenAPI4.4.1 inspection confirms Build Upload REST uses
+buildUploads -> buildUploadFiles -> bounded Apple-provided upload operations ->
+file PATCH uploaded=true with sourceFileChecksums (plural), then separate build
+processing verification. Uploaded COMPLETE is not device or distribution success.
+BetaGroup hasAccessToAllBuilds must be checked across all app groups before upload;
+only the exact Owner group/tester may gain access. API/private inputs untested.
+Official asset-upload guidance says storage operations do not use ASC JWT; URLs
+remain private. Build Upload schema, not screenshot-specific checksum fields,
+must govern the future adapter. No signed URL, account ID or payload persisted.
+https://developer.apple.com/app-store-connect/api/
+https://developer.apple.com/documentation/appstoreconnectapi/build-uploads
+https://developer.apple.com/documentation/appstoreconnectapi/uploading-assets-to-app-store-connect
 
 ## Preparation history
 

@@ -68,3 +68,42 @@ CMS/inner DER/Apple chain/revocation, provider/API key metadata and live custody
 native signing/upload remain unverified. Controller must enforce these boundaries,
 including distinct keys; repr suppression does not authorize generic logging.
 No private reads/native/source/Git/cloud mutation by reviewer; now read-only.
+
+Transport architecture security lease5 ACCEPT received/handled; source-only,
+no tests/private/native/external mutation. Accepted first-party step-only ingress
+exception and separated children, not a claim GitHub runner lacks ASC input
+before upload (environment secrets are read at job start). Main verified:
+https://docs.github.com/en/actions/reference/security/secrets
+https://developer.apple.com/videos/play/wwdc2025/324/
+Future controller must bind source/run/nonce/expiry, refuse existing secret names,
+bound each secret below48KiB, clean all attempted names and reconcile uncertainty.
+Native cleanup plus independently bound private IPA must precede upload child.
+Before upload verify no other internal group's automatic distribution exposes
+candidate to another tester. New protected environment and actual wrappers remain
+unimplemented; no live-readiness/Apple processing/Owner availability claim.
+
+Signing-adapter source lease6 ACCEPT received/handled at current HEAD
+c50a497aee7860b6de6f12584e0eb4d9bf7883ea plus three frozen new files. Independent
+10 focused tests PASS; private frame/cert pairing, structural profile container,
+temporary user-keychain search-list and owned cleanup/failure classifications
+accepted as source only. Native compile, ACL/Xcode success and real custody are
+not yet proven; cleanup VERIFIED excludes retained private artifact/DerivedData.
+Code-only compile/rejection test and existing workflow addition lease7 ACCEPT;
+reviewer test correctly skips on Windows. Main29 tests27PASS/2platform skips and
+changed-Python quality PASS. No private/native/external mutation by reviewers.
+Main adopted two bounded pre-live corrections: do not assume export basename,
+and explicitly set/read finite idle locking on only the newly created Keychain.
+Apple API warns nil target selects default; correction must use nonnil own target:
+https://developer.apple.com/documentation/security/seckeychainsetsettings(_:_:)
+No claim that idle-lock interval is hard destruction or actual native evidence.
+Writer lease4 correction is pending and will receive independent delta review.
+
+Correction lease8 ACCEPT received/handled. Independent13 focused PASS, canonical
+hashes matched: signing Python ad0e6e98c1c2159d12a2a63ed73905e8b30f39751bc56310d4fa64fd8c2373e2;
+Swift02b9475ba5d30664194c7a4a89cac8140cfdc154de27678d5076377d6ba8d5e6;
+signing test fd878f5dacf0ceacac22ff7f485526a050b2121d7db1881b82c4fd49e5b30838;
+workflow77c1e02e0fbc05cf85016793addd5f4f658f48ae8260c5e5677f19f3ac8cde55.
+Native test unchanged899d460a5b3933fa83333c089e7bc2202b648fac320c4bc4956efaf292517a8b.
+No unresolved source findings for code-only hosted compile gate. Mocked POSIX
+metadata/hash-mismatch tests do not prove a real TOCTOU race or native settings;
+idle timeout is not hard destruction. No real/private/native/external mutations.
