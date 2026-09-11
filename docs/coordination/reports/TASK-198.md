@@ -45,6 +45,13 @@ certificates, public release or extra testers requested. Incremental cost unchan
 
 ## Historical observations / preparation
 
+Follow-up checkpoint171efa870767f2aac161497a402d23869d24176a pushed to PR251.
+CI34636351770 found a test fixture portability defect: mocked Windows C:/ paths
+were treated as relative POSIX paths in three Ubuntu assertions; Windows passed.
+Main corrected only the fixture's PureWindowsPath seam, not runtime validation,
+and added four invalid-path cases. Local105tests102PASS3skips; fresh hosted evidence
+required, earlier run is not PASS. No private or runtime operation took place.
+
 PR250 merged `5762a89c6e6451ed19f5151da1652312a9f76679`; Git rev-parse verified.
 Reviewed source `8066ea54fbe4fd53bf01b06d46756550271cef57`, run34618189006 completed
 SUCCESS,16/16 jobs PASS including both PostgreSQL versions, Android and iOS archive.

@@ -1,7 +1,7 @@
 import ctypes as c
 import plistlib
 import unittest
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from unittest import mock
 
 from asn1crypto import cms
@@ -68,8 +68,13 @@ class IntakeTests(unittest.TestCase):
 
     def invoke(self, reader, config=None, prompt=None):
         with (
+            # Fake Windows custody must keep Windows path semantics even when
+            # these offline tests run on a POSIX CI host. Never bypass _path.
+            mock.patch.object(intake, "Path", PureWindowsPath),
             mock.patch.object(
-                intake.preparation, "local_app_data", return_value=Path("C:/fictional")
+                intake.preparation,
+                "local_app_data",
+                return_value=PureWindowsPath("C:/fictional"),
             ),
             mock.patch.object(intake.signing, "_certificate_binding"),
         ):
@@ -90,6 +95,21 @@ class IntakeTests(unittest.TestCase):
         with self.assertRaises(intake.Rejected) as error:
             intake.collect(None, prompt=lambda _: self.fail("prompted"))
         self.assertEqual(str(error.exception), "INPUT_REJECTED")
+
+    def test_fake_windows_path_seam_preserves_validation(self):
+        with mock.patch.object(intake, "Path", PureWindowsPath):
+            self.assertEqual(
+                intake._path("C:/fictional/asc.p8"),
+                PureWindowsPath("C:/fictional/asc.p8"),
+            )
+            for value in (
+                "relative.p8",
+                "C:/fictional/../asc.p8",
+                "C:/fictional/asc.txt",
+                "C:/fictional/a:stream.p8",
+            ):
+                with self.assertRaises(intake.Rejected):
+                    intake._path(value)
 
     def test_separated_material_and_hidden_only_three_inputs(self):
         reader = self.reader()

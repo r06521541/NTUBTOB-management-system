@@ -756,3 +756,15 @@ DraftPR251; normal selected code-only CI may run, never dispatch private workflo
 No merge/activation; next Owner action is exact new protected environment setup.
 This is a manual configuration stop, not completion of IOS-TF-01. Resume remaining
 local operator/private receipt handoff, then batch inputs/staging/Owner distribution.
+Checkpoint171efa870767f2aac161497a402d23869d24176a pushed; same DraftPR251.
+Normal CI34636351770 Windows tooling PASS, Ubuntu new suite fails two tests plus
+one assertion: fictional Windows C:/ paths interpreted by POSIX Path are relative.
+Main owns test_ios_testflight_intake.py correction only: explicit PureWindowsPath
+test seam for fake Windows custody, preserving real parser/ACL/no-read guards.
+No product change or skip. Security22 same reviewer/readonly/ownednone/report_to,
+base unchanged/currentHEAD171efa870767f2aac161497a402d23869d24176a; review focused
+fixture correction and tests, no native/private/API/Git/CI/edit. Packet applies.
+Security22 ACCEPT handled, independent10testsPASS and exact LFdigest matched.
+Main105tests102PASS3skips, quality/diffPASS. Push test-only correction with Main
+state/report/review to samebranch/PR; next normal CI supersedes prior failed run.
+No private dispatch, merge or activation; both agents completed/read-only.

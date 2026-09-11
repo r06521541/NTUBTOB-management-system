@@ -29,6 +29,12 @@ environment read-only GET confirms can_admins_bypass=false; it was not changed.
 
 ## Historical review evidence
 
+Security22 ACCEPT test-only path semantics correction on checkpoint171efa870767f2aac161497a402d23869d24176a.
+Fictional Windows custody now uses PureWindowsPath on every test host; _path
+guards remain exercised with relative/parent/extension/ADS negative cases.
+Independent10testsPASS; LF a77524e9854ab987992775f83de984a797ef514f1319dc8510d6ce0f276d5938.
+No product edits/skips or live/native/API actions. Ubuntu corrected evidence pending.
+
 Security architecture lease1 ACCEPT received/handled by Main at
 3b1be6a607c565fa4184aec3493ef527995fbf19. Advisor source/public documentation only;
 no tests/native/private inputs. Real execution remains subject to source review

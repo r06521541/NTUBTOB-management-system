@@ -34,6 +34,9 @@ note: >
   Private receipt/journal handoff is not complete; no remote receipt may be blindly deleted.
   Security21 ACCEPT handled for dormant checkpoint only; both agents completed/read-only.
   Main104tests101PASS3skips and18workflow tests17PASS1skip; no live acceptance.
+  Checkpoint171efa870767f2aac161497a402d23869d24176a pushed; CI34636351770 Ubuntu
+  fixture path semantics failed, Windows passed. PureWindowsPath test-only fix ACCEPT
+  security22; local105tests102PASS3skips. Earlier run not accepted as PASS.
   Writer12 completed read-only without files: official API lacks admin-bypass write contract.
   NEW ios-owner-testflight environment needs exact Owner UI setup, then strict readback.
   Old profile-verification untouched; readback can confirm can_admins_bypass=false.
