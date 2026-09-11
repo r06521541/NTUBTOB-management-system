@@ -1,20 +1,20 @@
-active_task: TASK-192
+active_task: TASK-194
 status: in_progress
 next_actor: main-work
-claim_id: task-192-main-20260910
+claim_id: task-194-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 2a5cd24889b0505a78c95defa7e3729068992611
+base_commit: c2e14164ace77a5691bbe17e8980b4bc97a26cbf
 updated_by: main-work
-updated_at: 2026-09-10
+updated_at: 2026-09-11
 note: >
-  Owner approved ONE bounded comprehensive diagnostic exception after TASK191's
-  CMS_ALGORITHM_REJECTED result. TASK192 prepares fixed predicate diagnostics;
-  no validation relaxation, upload retry or agent private read. Architecture review
-  lease1 ACCEPT, writer lease1 complete, final independent lease2 ACCEPT and Main
-  affected tests PASS. One full CI/merge pending; exact reviewed local input
-  confirmation remains the next Owner gate for the single approved diagnostic.
+  Owner approved TASK193 exact policy implementation. TASK194 sole writer lease1
+  completed finite SHA2/RSA and typed attributes with fictional signed matrix.
+  Writer is read-only; TASK194 security lease1 ACCEPT and Main focused gates PASS.
+  Main integrates one PR, full/native hosted CI, then merge if green.
+  No third diagnostic, private read, trust bypass, signing or upload; independent
+  review and hosted gate precede merge and a separate real-verification Owner gate.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-192.md
-report: docs/coordination/reports/TASK-192.md
-review: docs/coordination/reviews/TASK-192.md
+task: docs/coordination/tasks/TASK-194.md
+report: docs/coordination/reports/TASK-194.md
+review: docs/coordination/reviews/TASK-194.md

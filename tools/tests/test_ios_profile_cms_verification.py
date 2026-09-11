@@ -20,6 +20,263 @@ from tools import ios_profile_cms_verification as verify
 
 
 class CMSTests(unittest.TestCase):
+    def test_compatibility_matrix_genuinely_signed_and_preserves_bytes(self):
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+
+        values = rehearsal.fixture(compatibility=True)
+        self.assertEqual(len(values["compatibility"]), 384)
+        self.assertEqual(len(set(values["compatibility"])), 384)
+        self.assertEqual(len(values["protection_parameters"]), 24)
+        public_key = x509.load_der_x509_certificate(values["der"]).public_key()
+        combinations = set()
+        for data in values["compatibility"] + values["protection_parameters"]:
+            parsed = verify.preflight(data)
+            self.assertEqual(parsed["cms"], data)
+            self.assertEqual(parsed["payload"], values["payload"])
+            signer = cms.ContentInfo.load(data)["content"]["signer_infos"][0]
+            digest = signer["digest_algorithm"]["algorithm"].native
+            if data in values["compatibility"]:
+                outer = cms.ContentInfo.load(data)["content"]
+                algorithms = (
+                    outer["digest_algorithms"][0],
+                    signer["digest_algorithm"],
+                    signer["signature_algorithm"],
+                )
+                self.assertTrue(
+                    all(
+                        isinstance(item["parameters"], (core.Void, core.Null))
+                        for item in algorithms
+                    )
+                )
+                combinations.add(
+                    (
+                        digest,
+                        signer["signature_algorithm"]["algorithm"].native,
+                        tuple(
+                            isinstance(item["parameters"], core.Null)
+                            for item in algorithms
+                        ),
+                        tuple(
+                            sorted(
+                                item["type"].native for item in signer["signed_attrs"]
+                            )
+                        ),
+                    )
+                )
+            public_key.verify(
+                signer["signature"].native,
+                signer["signed_attrs"].untag().dump(),
+                padding.PKCS1v15(),
+                {
+                    "sha256": hashes.SHA256,
+                    "sha384": hashes.SHA384,
+                    "sha512": hashes.SHA512,
+                }[digest](),
+            )
+        self.assertEqual(len(combinations), 384)
+        protection_combinations = set()
+        for data in values["protection_parameters"]:
+            signer = cms.ContentInfo.load(data)["content"]["signer_infos"][0]
+            protected = next(
+                item
+                for item in signer["signed_attrs"]
+                if item["type"].native == "cms_algorithm_protection"
+            )["values"][0]
+            protection_combinations.add(
+                (
+                    signer["digest_algorithm"]["algorithm"].native,
+                    signer["signature_algorithm"]["algorithm"].native,
+                    isinstance(protected["digest_algorithm"]["parameters"], core.Null),
+                    isinstance(
+                        protected["signature_algorithm"]["parameters"], core.Null
+                    ),
+                )
+            )
+        self.assertEqual(len(protection_combinations), 24)
+
+    def test_finite_crypto_and_typed_attribute_negative_deltas(self):
+        for case in (
+            "sha1",
+            "md5",
+            "sha224",
+            "unknown_digest",
+            "cross_digest",
+            "rsa_mismatch",
+            "pss",
+            "ecdsa",
+            "unknown_signature",
+            "digest_value",
+            "digest_length",
+            "protection_oid",
+            "protection_digest",
+            "protection_mac",
+            "protection_missing_signature",
+            "protection_parameters",
+            "protection_duplicate",
+            "protection_multiple",
+            "capabilities_oversize",
+            "capabilities_multiple",
+            "capabilities_depth",
+        ):
+            with self.subTest(case=case):
+                document = self.document()
+                signed = document["content"]
+                signer = signed["signer_infos"][0]
+                attrs = signer["signed_attrs"]
+                protection = cms.CMSAttribute(
+                    {
+                        "type": "cms_algorithm_protection",
+                        "values": [
+                            {
+                                "digest_algorithm": {"algorithm": "sha256"},
+                                "signature_algorithm": {"algorithm": "rsassa_pkcs1v15"},
+                            }
+                        ],
+                    }
+                )
+                if case in {"sha1", "md5", "sha224", "unknown_digest"}:
+                    algorithm = "1.2.3" if case == "unknown_digest" else case
+                    signed["digest_algorithms"][0]["algorithm"] = algorithm
+                    signer["digest_algorithm"]["algorithm"] = algorithm
+                elif case == "cross_digest":
+                    signed["digest_algorithms"][0]["algorithm"] = "sha384"
+                elif case in {"rsa_mismatch", "pss", "ecdsa", "unknown_signature"}:
+                    signer["signature_algorithm"] = {
+                        "algorithm": {
+                            "rsa_mismatch": "sha384_rsa",
+                            "pss": "rsassa_pss",
+                            "ecdsa": "sha256_ecdsa",
+                            "unknown_signature": "1.2.3",
+                        }[case]
+                    }
+                elif case in {"digest_value", "digest_length"}:
+                    next(
+                        item
+                        for item in attrs
+                        if item["type"].native == "message_digest"
+                    )["values"] = [b"x" * (32 if case == "digest_value" else 31)]
+                elif case.startswith("protection"):
+                    value = protection["values"][0]
+                    if case == "protection_oid":
+                        value["signature_algorithm"] = {"algorithm": "sha256_rsa"}
+                    elif case == "protection_digest":
+                        value["digest_algorithm"] = {"algorithm": "sha384"}
+                    elif case == "protection_mac":
+                        value["mac_algorithm"] = {"algorithm": "sha256"}
+                    elif case == "protection_missing_signature":
+                        value["signature_algorithm"] = None
+                    elif case == "protection_parameters":
+                        value["signature_algorithm"] = {
+                            "algorithm": "1.2.3",
+                            "parameters": core.Integer(1),
+                        }
+                    elif case == "protection_multiple":
+                        protection["values"].append(value)
+                    attrs.append(protection)
+                    if case == "protection_duplicate":
+                        attrs.append(protection)
+                else:
+                    capabilities = cms.CMSAttribute(
+                        {
+                            "type": "smime_capabilities",
+                            "values": [
+                                [{"capability_id": "1.2.3"}]
+                                * (33 if case == "capabilities_oversize" else 1)
+                            ],
+                        }
+                    )
+                    if case == "capabilities_multiple":
+                        capabilities["values"].append(capabilities["values"][0])
+                    if case == "capabilities_depth":
+
+                        class Nested(core.SequenceOf):
+                            _child_spec = core.Any
+
+                        encoded = core.Null().dump()
+                        for _ in range(34):
+                            encoded = b"\x30" + bytes([len(encoded)]) + encoded
+                        capabilities["values"][0][0]["parameters"] = Nested.load(
+                            encoded
+                        )
+                    attrs.append(capabilities)
+                with (
+                    patch.object(verify, "_pipe") as native,
+                    self.assertRaisesRegex(verify.Rejected, "CMS_STRUCTURE_REJECTED"),
+                ):
+                    verify._native_verified(
+                        {"cms": document.dump(force=True)}, rehearsal.NOW, "unused"
+                    )
+                native.assert_not_called()
+
+    def test_optional_metadata_tamper_does_not_become_signature_evidence(self):
+        from cryptography import x509
+        from cryptography.exceptions import InvalidSignature
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+
+        # Existing signature is deliberately not recomputed after adding metadata.
+        document = self.document()
+        signer = document["content"]["signer_infos"][0]
+        signer["signed_attrs"].append(
+            cms.CMSAttribute(
+                {
+                    "type": "smime_capabilities",
+                    "values": [[{"capability_id": "1.3.14.3.2.26"}]],
+                }
+            )
+        )
+        data = document.dump(force=True)
+        verify.preflight(data)
+        with self.assertRaises(InvalidSignature):
+            x509.load_der_x509_certificate(self.fixture["der"]).public_key().verify(
+                signer["signature"].native,
+                signer["signed_attrs"].untag().dump(),
+                padding.PKCS1v15(),
+                hashes.SHA256(),
+            )
+        capabilities = next(
+            item
+            for item in signer["signed_attrs"]
+            if item["type"].native == "smime_capabilities"
+        )
+        capabilities["values"] = [[{"capability_id": "1.3.14.3.2.26"}] * 32]
+        with (
+            patch.object(verify, "_pipe") as native,
+            patch("builtins.open", side_effect=AssertionError("private-sentinel")),
+            patch.object(
+                socket,
+                "create_connection",
+                side_effect=AssertionError("private-sentinel"),
+            ),
+        ):
+            verify.preflight(document.dump(force=True))
+        native.assert_not_called()
+
+    def test_fictional_matrix_failure_alias_is_fixed_and_non_private(self):
+        for label, expected in [
+            ("compatibility_407", "compatibility_407"),
+            ("private-sentinel", "preflight"),
+        ]:
+            with (
+                patch.object(
+                    rehearsal,
+                    "run",
+                    side_effect=verify.Rejected("REHEARSAL_CASE_FAILED", label),
+                ),
+                contextlib.redirect_stdout(io.StringIO()) as output,
+            ):
+                self.assertEqual(rehearsal.main([]), 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["stage"], expected)
+            self.assertNotIn("private-sentinel", output.getvalue())
+            self.assertFalse(result["signing_authorized"])
+
+    def test_content_digest_is_checked_before_native(self):
+        with self.assertRaises(verify.Rejected):
+            verify.preflight(rehearsal.tampered(self.fixture["cms"], "content"))
+
     def predicate_corpus(self):
         """Fictional rule mutations, also reusable for one-time frozen-base parity."""
         cases = {}
@@ -101,6 +358,39 @@ class CMSTests(unittest.TestCase):
                 signed["certificates"][1] = signed["certificates"][0]
             elif key == "signer_binding":
                 signer["sid"].chosen["serial_number"] = 123456789
+            elif key == "digest_consistency":
+                signer["digest_algorithm"]["algorithm"] = "sha384"
+            elif key == "signature_digest_consistency":
+                signer["signature_algorithm"]["algorithm"] = "sha384_rsa"
+            elif key == "message_digest_matches":
+                next(item for item in attrs if item["type"].native == "message_digest")[
+                    "values"
+                ] = [b"x" * 32]
+            elif key == "smime_capabilities_value":
+                attrs.append(
+                    cms.CMSAttribute(
+                        {
+                            "type": "smime_capabilities",
+                            "values": [[{"capability_id": "1.2.3"}] * 33],
+                        }
+                    )
+                )
+            elif key == "algorithm_protection_value":
+                attrs.append(
+                    cms.CMSAttribute(
+                        {
+                            "type": "cms_algorithm_protection",
+                            "values": [
+                                {
+                                    "digest_algorithm": {"algorithm": "sha384"},
+                                    "signature_algorithm": {
+                                        "algorithm": "rsassa_pkcs1v15"
+                                    },
+                                }
+                            ],
+                        }
+                    )
+                )
             elif key == "canonical_der":
                 raw = document.dump(force=True)
                 cases[key] = b"\x30\x83\x00" + raw[2:]
@@ -111,7 +401,15 @@ class CMSTests(unittest.TestCase):
     def test_every_reachable_predicate_and_fixed_output(self):
         valid = verify.diagnose_predicates(self.fixture["cms"])
         self.assertEqual(valid["stage"], "CMS_STRUCTURE_PASS")
-        self.assertEqual(set(valid["predicates"].values()), {"PASS"})
+        self.assertEqual(
+            {
+                key
+                for key, value in valid["predicates"].items()
+                if value == "NOT_CHECKED"
+            },
+            {"smime_capabilities_value", "algorithm_protection_value"},
+        )
+        self.assertNotIn("REJECTED", valid["predicates"].values())
         for key, data in self.predicate_corpus().items():
             with self.subTest(rule=key):
                 result = verify.diagnose_predicates(data)
@@ -350,9 +648,11 @@ class CMSTests(unittest.TestCase):
             patch.object(subprocess, "Popen", side_effect=AssertionError("native")),
         ):
             values = rehearsal.fixture()
-            for field in ["signature", "content"]:
+            for field in ["signature"]:
                 parsed = verify.preflight(rehearsal.tampered(values["cms"], field))
                 self.assertIn("payload", parsed)
+            with self.assertRaisesRegex(verify.Rejected, "CMS_STRUCTURE_REJECTED"):
+                verify.preflight(rehearsal.tampered(values["cms"], "content"))
 
     def test_compiled_public_anchor_and_test_marker_are_separate(self):
         with (

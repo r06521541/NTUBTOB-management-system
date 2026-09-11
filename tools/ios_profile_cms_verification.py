@@ -7,6 +7,7 @@ signature/chain evidence; this is not parity with Apple's private profile policy
 import base64
 import contextlib
 import hashlib
+import hmac
 import json
 import platform
 import struct
@@ -23,6 +24,17 @@ MAX_OUTPUT = 700000
 SOURCE = Path(__file__).resolve().parent / "native" / "ios_profile_cms_verify.swift"
 LEAF_CN = "Apple iPhone OS Provisioning Profile Signing"
 INTERMEDIATE_CN = "Apple iPhone Certification Authority"
+DIGESTS = {"sha256": 32, "sha384": 48, "sha512": 64}
+RSA_DIGESTS = {"sha256_rsa": "sha256", "sha384_rsa": "sha384", "sha512_rsa": "sha512"}
+SIGNED_ATTRIBUTES = frozenset(
+    {
+        "content_type",
+        "message_digest",
+        "signing_time",
+        "smime_capabilities",
+        "cms_algorithm_protection",
+    }
+)
 REASONS = frozenset(
     {
         "CMS_STRUCTURE_REJECTED",
@@ -101,7 +113,39 @@ PREDICATE_KEYS = (
     "certificate_uniqueness",
     "signer_binding",
     "canonical_der",
+    "digest_consistency",
+    "signature_digest_consistency",
+    "message_digest_matches",
+    "smime_capabilities_value",
+    "algorithm_protection_value",
 )
+
+
+def _null_or_absent(algorithm):
+    from asn1crypto import core
+
+    return isinstance(algorithm["parameters"], (core.Void, core.Null))
+
+
+def _same_algorithm(protected, outer):
+    # Comparison only. Never rewrite identifiers, parameters or signed bytes.
+    return (
+        protected["algorithm"].dotted == outer["algorithm"].dotted
+        and _null_or_absent(protected)
+        and _null_or_absent(outer)
+    )
+
+
+def _algorithm_protection(value, signer):
+    from asn1crypto import cms, core
+
+    return (
+        isinstance(value, cms.CMSAlgorithmProtection)
+        and not isinstance(value["signature_algorithm"], core.Void)
+        and isinstance(value["mac_algorithm"], core.Void)
+        and _same_algorithm(value["digest_algorithm"], signer["digest_algorithm"])
+        and _same_algorithm(value["signature_algorithm"], signer["signature_algorithm"])
+    )
 
 
 def diagnose_predicates(data):
@@ -132,7 +176,7 @@ def _preflight(data, diagnostic=None):
     """Fully materialize the permitted ASN.1 tree and force canonical DER.
 
     No encrypted/other content reaches CMSDecoder. This deliberately excludes
-    CRLs, unsigned attributes, alternative certificate choices and non-RSA/SHA256.
+    CRLs, unsigned attributes, alternative certificate choices and non-allowlisted crypto.
     """
     stage = "CMS_SIZE_REJECTED"
 
@@ -207,7 +251,7 @@ def _preflight(data, diagnostic=None):
         if single_digest:
             rule(
                 "digest_set_algorithm",
-                lambda: algorithms[0]["algorithm"].native == "sha256",
+                lambda: algorithms[0]["algorithm"].native in DIGESTS,
             )
         signer = signed["signer_infos"][0]
         rule("signer_version", lambda: signer["version"].native == "v1")
@@ -219,38 +263,51 @@ def _preflight(data, diagnostic=None):
             "unsigned_attributes_absent",
             lambda: isinstance(signer["unsigned_attrs"], core.Void),
         )
-        rule(
+        supported_digest = rule(
             "signer_digest_algorithm",
-            lambda: signer["digest_algorithm"]["algorithm"].native == "sha256",
+            lambda: signer["digest_algorithm"]["algorithm"].native in DIGESTS,
         )
         rule(
             "signature_algorithm",
             lambda: signer["signature_algorithm"]["algorithm"].native
-            in {"rsassa_pkcs1v15", "sha256_rsa"},
+            in {"rsassa_pkcs1v15"} | RSA_DIGESTS.keys(),
         )
         rule("signature_size", lambda: 256 <= len(signer["signature"].native) <= 512)
         if single_digest:
             rule(
                 "digest_set_parameters",
-                lambda: algorithms[0]["parameters"].native is None,
+                lambda: _null_or_absent(algorithms[0]),
             )
         rule(
             "signer_digest_parameters",
-            lambda: signer["digest_algorithm"]["parameters"].native is None,
+            lambda: _null_or_absent(signer["digest_algorithm"]),
         )
         rule(
             "signature_parameters",
-            lambda: signer["signature_algorithm"]["parameters"].native is None,
+            lambda: _null_or_absent(signer["signature_algorithm"]),
+        )
+        if single_digest:
+            rule(
+                "digest_consistency",
+                lambda: algorithms[0]["algorithm"].dotted
+                == signer["digest_algorithm"]["algorithm"].dotted,
+            )
+        rule(
+            "signature_digest_consistency",
+            lambda: signer["signature_algorithm"]["algorithm"].native
+            == "rsassa_pkcs1v15"
+            or RSA_DIGESTS.get(signer["signature_algorithm"]["algorithm"].native)
+            == signer["digest_algorithm"]["algorithm"].native,
         )
         stage = "CMS_ATTRIBUTES_REJECTED"
         attrs = signer["signed_attrs"]
-        rule("attribute_cardinality", lambda: 2 <= len(attrs) <= 3)
+        rule("attribute_cardinality", lambda: 2 <= len(attrs) <= 5)
         seen = set()
         for attribute in attrs:
             name = attribute["type"].native
             rule(
                 "attribute_types",
-                lambda: name in {"content_type", "message_digest", "signing_time"},
+                lambda: name in SIGNED_ATTRIBUTES,
             )
             rule("attribute_uniqueness", lambda: name not in seen)
             single_value = rule(
@@ -263,12 +320,36 @@ def _preflight(data, diagnostic=None):
             if name == "content_type":
                 rule("content_type_value", lambda: value == "data")
             if name == "message_digest":
-                rule(
-                    "message_digest_value",
-                    lambda: type(value) is bytes and len(value) == 32,
-                )
+                if supported_digest:
+                    rule(
+                        "message_digest_value",
+                        lambda: type(value) is bytes
+                        and len(value)
+                        == DIGESTS[signer["digest_algorithm"]["algorithm"].native],
+                    )
+                    rule(
+                        "message_digest_matches",
+                        lambda: type(value) is bytes
+                        and hmac.compare_digest(
+                            value,
+                            hashlib.new(
+                                signer["digest_algorithm"]["algorithm"].native, payload
+                            ).digest(),
+                        ),
+                    )
             if name == "signing_time":
                 rule("signing_time_value", lambda: isinstance(value, datetime))
+            if name == "smime_capabilities":
+                rule(
+                    "smime_capabilities_value",
+                    lambda: isinstance(attribute["values"][0], cms.SMIMECapabilites)
+                    and len(attribute["values"][0]) <= 32,
+                )
+            if name == "cms_algorithm_protection":
+                rule(
+                    "algorithm_protection_value",
+                    lambda: _algorithm_protection(attribute["values"][0], signer),
+                )
         rule("attribute_required", lambda: {"content_type", "message_digest"} <= seen)
         stage = "CMS_CERTIFICATES_REJECTED"
         certificates = []

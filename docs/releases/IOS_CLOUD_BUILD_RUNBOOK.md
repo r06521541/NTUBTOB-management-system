@@ -515,6 +515,40 @@ Official references checked 2026-09-10:
 [Secret handling limitations](https://docs.github.com/en/actions/reference/security/secure-use),
 [Standard hosted runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
 
+## TASK-194 finite compatibility policy
+
+The TASK-193 reviewed design authorizes software implementation only. The CMS
+preflight accepts SHA256/SHA384/SHA512 with RSA PKCS1v1.5: either rsaEncryption
+or the matching SHA2-with-RSA identifier. Digest identifiers must agree, and the
+eContent digest must equal the signed messageDigest before native verification.
+SHA2 and RSA algorithm parameters permit absent/NULL only; no arbitrary parameters,
+SHA1/MD5, PSS/ECDSA or unknown actual algorithm fallback is enabled.
+
+The signed attribute set is finite: unique contentType/messageDigest are required;
+signingTime, typed SMIMECapabilities and CMSAlgorithmProtection are optional, each
+single-valued. Capability metadata is bounded to 32 entries and the existing ASN.1
+resource limits; it never negotiates or enables an algorithm. AlgorithmProtection
+must match the exact outer OIDs, with same-OID NULL/absent comparison only. No signed
+bytes are rewritten. Unknown/duplicate attributes and unsigned attributes reject.
+
+The shared fixed predicate schema adds digest consistency, signature/digest
+consistency, recomputed message digest, capabilities and AlgorithmProtection checks
+to the earlier 25 keys (30 total). Optional absent checks remain NOT_CHECKED. This
+schema change does not renew the consumed diagnostic authorization.
+
+Parser acceptance is not signature validity. Native CMS verification, pinned Apple
+trust and purpose, exact payload/Team/App/certificate binding, same-handle custody,
+hidden confirmation, one-shot bounds and no-disclosure requirements remain intact.
+Offline revocation is still unverified. Fictional signed matrix and macOS evidence
+must pass before claiming this finite set is supported; the real Owner profile's
+digest and attribute OIDs remain unknown and may still be unsupported.
+
+The TASK-192 diagnostic exception has been consumed. This software change does not
+authorize a third diagnostic or another private read. After delivery, any real
+verification requires a new exact merged-SHA Owner gate covering the existing
+TASK-190 target, custody, retention, cancellation and cleanup contract above.
+No certificate/profile regeneration, signing, app upload or release is implied.
+
 ## Earlier official references checked 2026-09-08
 
 - [GitHub runner scope/cost](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)

@@ -173,7 +173,15 @@ class IntakeTests(unittest.TestCase):
             result = intake.diagnose_input(SHA)
         self.assertEqual(result["checks"]["team"], "TEAM_FORMAT_REJECTED")
         self.assertEqual(result["checks"]["cms"], "CMS_STRUCTURE_PASS")
-        self.assertEqual(set(result["cms_predicates"].values()), {"PASS"})
+        self.assertEqual(
+            {
+                key
+                for key, value in result["cms_predicates"].items()
+                if value == "NOT_CHECKED"
+            },
+            {"smime_capabilities_value", "algorithm_protection_value"},
+        )
+        self.assertNotIn("REJECTED", result["cms_predicates"].values())
         self.assertEqual(result["checks"]["envelope_size"], "ENVELOPE_SIZE_PASS")
         self.assertNotIn("private-invalid-team", output.getvalue() + repr(result))
         session.lock.assert_not_called()
@@ -381,6 +389,20 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(dispatch["inputs"]["nonce"], api.received["nonce"])
         self.assertFalse(api.present)
         self.assertIs(result["signing_authorized"], False)
+
+    def test_content_digest_rejection_precedes_all_api_calls(self):
+        from tools import ios_profile_cms_rehearsal as rehearsal
+
+        api = GitHubFixture()
+        material = {
+            **self.material,
+            "cms": rehearsal.tampered(self.material["cms"], "content"),
+        }
+        with patch.object(self, "material", material):
+            result = self.execute(api)
+        self.assertEqual(result["reason"], "INPUT_REJECTED")
+        self.assertEqual(api.calls, [])
+        self.assertIsNone(result["run_id"])
 
     def test_dispatch_unknown_never_put_or_delete(self):
         for error in [TimeoutError("private-error"), KeyboardInterrupt()]:
