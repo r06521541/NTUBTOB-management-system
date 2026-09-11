@@ -40,11 +40,22 @@ guard #available(macOS 15.0, *) else { errorClass = "PREDICATE_REJECTED"; finish
 let fm = FileManager.default
 let cwd = URL(fileURLWithPath: fm.currentDirectoryPath).standardizedFileURL
 let parent = cwd.deletingLastPathComponent()
-let temporary = URL(fileURLWithPath: NSTemporaryDirectory()).resolvingSymlinksInPath()
+// OS authority, never child TMPDIR: the private task root is an immediate child.
+var tempBuffer = [CChar](repeating: 0, count: 4096)
+let tempLength = confstr(_CS_DARWIN_USER_TEMP_DIR, &tempBuffer, 4096)
+guard predicate("temp_lookup", tempLength > 1 && tempLength <= tempBuffer.count) else { finish("PATH_REJECTED") }
+let tempPath = String(cString: tempBuffer)
+guard predicate("temp_absolute", tempPath.hasPrefix("/")) else { finish("PATH_REJECTED") }
+let temporary = URL(fileURLWithPath: tempPath).standardizedFileURL.resolvingSymlinksInPath()
 guard predicate("cwd_name", cwd.lastPathComponent == "custody") else { finish("PATH_REJECTED") }
 guard predicate("root_name", parent.lastPathComponent.hasPrefix("task-196-")) else { finish("PATH_REJECTED") }
-guard predicate("cwd_canonical", cwd.resolvingSymlinksInPath().path == cwd.path) else { finish("PATH_REJECTED") }
-guard predicate("temp_binding", temporary.path == cwd.path) else { finish("PATH_REJECTED") }
+guard predicate("cwd_canonical", cwd.resolvingSymlinksInPath().pathComponents == cwd.pathComponents) else { finish("PATH_REJECTED") }
+guard predicate("temp_binding", parent.deletingLastPathComponent().pathComponents == temporary.pathComponents) else { finish("PATH_REJECTED") }
+var rootInfo = stat()
+guard predicate("root_stat", lstat(parent.path, &rootInfo) == 0) else { finish("PATH_REJECTED") }
+guard predicate("root_owner", rootInfo.st_uid == getuid()) else { finish("PATH_REJECTED") }
+guard predicate("root_mode", rootInfo.st_mode & 0o777 == 0o700) else { finish("PATH_REJECTED") }
+guard predicate("root_type", rootInfo.st_mode & S_IFMT == S_IFDIR) else { finish("PATH_REJECTED") }
 var directoryInfo = stat()
 guard predicate("directory_stat", lstat(cwd.path, &directoryInfo) == 0) else { finish("PATH_REJECTED") }
 guard predicate("directory_owner", directoryInfo.st_uid == getuid()) else { finish("PATH_REJECTED") }

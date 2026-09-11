@@ -122,3 +122,24 @@ same scope/owned_paths=none/report_to=/root. Main native diagnostics remain pend
 Security lease2 ACCEPT, received by Main; reviewer read-only. Initial full run
 completed FAILURE only for new native job/aggregate; all other selected jobs PASS.
 Main may push reviewed diagnostic delta to same PR249 for the one fictional split.
+
+Diagnostic source29df9e3527628cd6555379c324d2ef916433cfb4 run34569286534
+native job103167763448:12testsPASS/archivePASS, case0 PATH_REJECTED at temp_binding,
+cleanup NOT_CREATED and controller cleanup_verified=true. No Keychain was created;
+no import/export reached. The assumed Foundation-temp/current-directory equality
+failed. No cause beyond that predicate is inferred from this result.
+Activate writer task-196-writer-20260911 lease3, same four owned paths, HEAD above.
+Scope: one evidenced correction to native temporary-path binding using documented
+canonical temp-root/cwd provenance, tests first. Preserve strict symlink/owner/mode/
+root confinement and no arbitrary paths; no guess-driven relaxation or fallback.
+Review public API semantics rather than another hosted diagnostic. If same native
+blocker persists after this correction, stop inconclusive without further iterations.
+
+Writer lease3 completed/read-only. Activate advisor task-196-security-20260911
+lease3 at HEAD29df9e3527628cd6555379c324d2ef916433cfb4 for this sole OS-temp
+binding correction; same read-only scope/packet/report_to=/root. Tests15run13PASS
+2platform skips; native success not inferred. Main received writer completion.
+
+Security lease3 ACCEPT received/handled by Main; reviewer read-only. Main now
+integrates this one source correction into existing PR249; no further diagnostic
+or speculative correction loop. Any remaining native blocker is reported honestly.

@@ -31,3 +31,15 @@ expected reason plus VERIFIED and empty directory required to continue. Original
 Swift API/ACL/target/order/timeouts/signature predicates unchanged. Windows cannot
 validate native compilation; root cause unknown pending one fictional hosted split.
 Reviewer completed/read-only. Main same29test/quality/diff evidence PASS.
+
+## OS temporary-root correction
+
+Lease3 ACCEPT at HEAD29df9e3527628cd6555379c324d2ef916433cfb4 plus exact dirty
+correction. Independent32run29PASS3skips and diffcheckPASS; no actionable findings.
+Python allocation/cleanup and Swift confinement now share documented OS confstr
+authority; bounded canonical parent.parent comparison and owner0700/type retained
+or strengthened. No OR fallback, caller override, Keychain API/ACL/timeout change.
+Reviewer independently checked Apple Libc constant65537 and SecureCodingGuide;
+old equality failure is not overclaimed as a specific Foundation implementation bug.
+Native success remains pending hosted verification; no private signing authority.
+Reviewer completed/read-only; Main same32test/quality evidence PASS.

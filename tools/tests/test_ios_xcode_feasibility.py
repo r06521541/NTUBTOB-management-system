@@ -116,6 +116,73 @@ class FakeRunner:
 
 
 class FeasibilityTests(unittest.TestCase):
+    def setUp(self):
+        # OS API substitute only; production CLI has no root override.
+        temporary = patch.object(
+            target.os, "confstr", create=True, return_value=tempfile.gettempdir()
+        )
+        temporary.start()
+        self.addCleanup(temporary.stop)
+
+    def test_os_temp_binding_contract(self):
+        source = target.SOURCE.read_text()
+        self.assertIn("confstr(_CS_DARWIN_USER_TEMP_DIR", source)
+        self.assertIn(
+            "parent.deletingLastPathComponent().pathComponents == temporary.pathComponents",
+            source,
+        )
+        self.assertNotIn("temporary.path == cwd.path", source)
+        with patch.object(
+            target.os,
+            "confstr",
+            create=True,
+            return_value=tempfile.gettempdir() + os.sep,
+        ) as call:
+            self.assertEqual(
+                target.os_temp_root(), Path(tempfile.gettempdir()).resolve()
+            )
+            call.assert_called_once_with(65537)
+        for value in (None, "", "relative", "x" * 4097):
+            with patch.object(target.os, "confstr", create=True, return_value=value):
+                with self.assertRaises(target.Rejected):
+                    target.os_temp_root()
+
+    def test_os_root_failure_stops_before_process_or_allocation(self):
+        with (
+            patch.object(target.platform, "system", return_value="Darwin"),
+            patch.object(target.os, "confstr", side_effect=OSError("private-sentinel")),
+            patch.object(target.tempfile, "mkdtemp") as allocate,
+        ):
+            runner = FakeRunner()
+            result = target.rehearse(_run=runner)
+        self.assertEqual(result["classification"], "PATH_REJECTED")
+        self.assertEqual(runner.calls, [])
+        allocate.assert_not_called()
+        self.assertNotIn("private-sentinel", repr(result))
+
+    def test_os_root_allocation_and_cleanup_ignore_environment_root(self):
+        with tempfile.TemporaryDirectory() as folder:
+            temporary = Path(folder).resolve()
+            with (
+                patch.object(
+                    target.os, "confstr", return_value=str(temporary) + os.sep
+                ),
+                patch.dict(os.environ, {"TMPDIR": "private-sentinel"}),
+            ):
+                result, runner = self.exercise()
+                self.assertEqual(runner.root.parent, temporary)
+                self.assertTrue(result["cleanup_verified"])
+                root = temporary / "task-196-fictional"
+                root.mkdir()
+                identity = (root.stat().st_dev, root.stat().st_ino)
+                with patch.object(
+                    target.os, "confstr", return_value=str(temporary.parent)
+                ):
+                    with self.assertRaises(target.Rejected):
+                        target.cleanup(root, identity)
+                self.assertTrue(root.exists())
+                target.cleanup(root, identity)
+
     def test_native_detail_strict_allowlist_and_no_disclosure(self):
         valid = {
             "reason": "CUSTODY_REJECTED",

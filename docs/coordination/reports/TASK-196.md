@@ -133,3 +133,41 @@ job uses locked existing dependencies, read-only token, no persisted checkout to
 no Environment/Secrets/artifact uploads; old product compile job is unchanged.
 One delivery PR includes preceding Main TASK194 stop and TASK195 design records.
 No real credential authority follows software integration.
+
+## Writer lease3: one evidenced OS-temp binding correction
+
+Base HEAD `29df9e3527628cd6555379c324d2ef916433cfb4`. Main-provided hosted
+run34569286534/job103167763448 reached case0 `PATH_REJECTED/temp_binding`, with
+`NOT_CREATED` and controller cleanup verified. This proves the old equality failed,
+not whether Foundation environment handling or path spelling caused it. No Keychain
+creation/import/export was reached.
+
+Apple's [secure temporary-file guidance](https://developer.apple.com/library/archive/documentation/Security/Conceptual/SecureCodingGuide/Articles/RaceConditions.html)
+specifies the user temporary directory and private subdirectories, using
+`confstr(_CS_DARWIN_USER_TEMP_DIR)` at POSIX level. Apple's
+[Libc header](https://github.com/apple-oss-distributions/Libc/blob/main/include/unistd.h)
+defines that constant as65537; [Python3.10 os.confstr](https://docs.python.org/3.10/library/os.html#os.confstr)
+accepts its integer value. No swift-corelibs implementation is treated as proof of
+shipping Darwin Foundation behavior.
+
+Python now allocates only beneath the canonical existing OS-returned directory,
+not environment-selected tempfile defaults; cleanup revalidates the same authority.
+Swift queries that OS API into a fixed4096-byte buffer, rejects failure/truncation,
+and requires canonical path components of `cwd.parent.parent` equal that OS root.
+The immediate hierarchy remains `task-196-*/custody`; canonical/symlink and custody
+owner/mode/type checks remain, with explicit owner/mode/type checks for the task
+root too. There is no caller override, broader-root fallback, or Keychain/API change.
+
+Tests-first regression failed on the old missing OS-root contract, then passed.
+`py -3.10 -m unittest tools.tests.test_ios_xcode_feasibility -q`:15run13PASS2Windows
+platform skips. New coverage includes trailing separator normalization, bounded/
+invalid OS response, lookup failure before allocation/process, environment TMPDIR
+independence and wrong-root cleanup refusal. Native assertions are source contracts,
+not macOS execution evidence. Owned Python format/check and `git diff --check` PASS.
+
+Only four owned paths changed; Main HANDOFF/task dirty changes preserved. No real
+assets, Git/API/hosted mutation or native Keychain execution. Public documentation
+was read and fictional local temporary test directories created/removed. Native
+compile/import/export remain unverified locally; independent review precedes Main's
+one changed hosted slice. If the same blocker persists, stop inconclusive without
+another diagnostic/correction iteration. Positive export and real authority remain false.

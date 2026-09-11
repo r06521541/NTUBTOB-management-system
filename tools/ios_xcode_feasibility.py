@@ -62,6 +62,12 @@ NATIVE_FIELDS = {
             "root_name",
             "cwd_canonical",
             "temp_binding",
+            "temp_lookup",
+            "temp_absolute",
+            "root_stat",
+            "root_owner",
+            "root_mode",
+            "root_type",
             "directory_stat",
             "directory_owner",
             "directory_mode",
@@ -385,12 +391,30 @@ def expected_export_rejection(code, output):
     )
 
 
+def os_temp_root():
+    # Apple Libc unistd.h: _CS_DARWIN_USER_TEMP_DIR = 65537.
+    # Integer os.confstr names do not depend on Python's optional name table.
+    try:
+        value = os.confstr(65537)
+        if not isinstance(value, str) or not 1 <= len(value) <= 4096:
+            raise ValueError
+        path = Path(value)
+        if not path.is_absolute() or ".." in path.parts:
+            raise ValueError
+        path = path.resolve(strict=True)
+        if not path.is_dir():
+            raise ValueError
+        return path
+    except Exception:
+        raise Rejected("PATH_REJECTED") from None
+
+
 def cleanup(root, identity):
     info = root.lstat()
     if (
         root.is_symlink()
         or (info.st_dev, info.st_ino) != identity
-        or root.parent != Path(tempfile.gettempdir()).resolve()
+        or root.parent != os_temp_root()
         or not root.name.startswith("task-196-")
     ):
         raise Rejected("CLEANUP_UNRESOLVED")
@@ -419,7 +443,8 @@ def rehearse(*, _run=process):
     try:
         if platform.system() != "Darwin":
             raise Rejected("TOOLCHAIN_UNSUPPORTED")
-        root = Path(tempfile.mkdtemp(prefix="task-196-")).resolve()
+        temporary = os_temp_root()
+        root = Path(tempfile.mkdtemp(prefix="task-196-", dir=temporary)).resolve()
         os.chmod(root, 0o700)
         identity = (root.stat().st_dev, root.stat().st_ino)
         result["toolchain"] = toolchain(_run, root)
