@@ -1,5 +1,12 @@
 # TASK-196 review
 
+Final Main acceptance: source36e4ee58064b4eb8846e11b33b3b069b95610947, native
+job10327666279719testsPASS and full run34603603901 all16jobsPASS. PR249 merged as
+bf7430023825ddbf0160515a02b1c24b8a653749. Archive/custody/expected refusal/cleanup
+verified; positive export and all real/signing/upload/release flags false.
+This closes fictional control scope only. Prior pending/inconclusive notes below
+are historical; independent source review preceded the corrected hosted gate.
+
 Security ACCEPT for source and admission to fictional hosted gate only.
 Reviewer /root/task181_review, task-196-security-20260911 lease1, completed/read-only.
 Branch codex/task-196-xcode-feasibility; base/HEAD

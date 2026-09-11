@@ -1,5 +1,37 @@
 # TASK-196 writer report
 
+## Main final closeout (2026-09-11)
+
+Fictional control delivery completed; interim stops below are historical.
+Reviewed/pushed source36e4ee58064b4eb8846e11b33b3b069b95610947 passed
+[run34603603901](https://github.com/r06521541/NTUBTOB-management-system/actions/runs/34603603901).
+All16 jobs PASS: native fixture, Android/iOS compile, Windows/Linux tools, PG15/16,
+service suites, quality and final gate. Native job103276662797 ran19 tests PASS and
+returned CONTROL_VERIFIED_EXPORT_REJECTED, archive/custody/manual-refusal/cleanup
+all true; positive_export_verified and all real/signing/upload/release flags false.
+Exact host macOS15.7.9/build24G830 arm64, Xcode26.3/build17C529, SDK26.2.
+
+Root cause of the fixture stop: Xcode inserts the profile type in its absent-profile
+error, so the old substring missed it. Whole-line recognition is bound to the fixed
+fictional Team/zeroUUID and nonzero exit, with wrong-target/partial/generic negatives.
+This verifies an expected refusal, NOT successful IPA export or real profile trust.
+Earlier diagnostic markers were insufficient; only Owner-approved bounded prose
+identified the cause. The prose channel remains prohibited for real tool output.
+
+[PR249](https://github.com/r06521541/NTUBTOB-management-system/pull/249) merged at
+bf7430023825ddbf0160515a02b1c24b8a653749 after independent ACCEPT and full green CI.
+Local main/origin main synchronized to that merge. Current task branch HEAD/origin
+remain the reviewed source SHA above; no source changes. Five Main closeout files
+(HANDOFF/PROJECT_STATE/task/report/review) remain local for the next substantive
+commit; no status-only PR or CI run. Initial dirty records were Main-owned and
+preserved/integrated, with no unrelated user changes. Final diffcheck PASS.
+
+No real assets, private retry, provider/runtime/DB mutation, signing or upload.
+Remaining separately scoped work: positive signed candidate/export, exact private
+custody, Apple validation/processing, provider and device/TestFlight gates. TASK196
+completion neither fixes the old private INPUT_REJECTED nor authorizes those steps.
+Writer/reviewer completions were received/handled; no pending delegated work.
+
 Writer `/root/csr_writer`, `task-196-writer-20260911` lease1.
 Branch `codex/task-196-xcode-feasibility`; base/HEAD
 `5848831772017a039bbcccfa68e75ac849f89236`. Dirty handoff, no commit/push.

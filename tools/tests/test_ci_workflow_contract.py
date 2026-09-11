@@ -179,14 +179,15 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("--dart-define=APP_FLAVOR=development", self.flutter_source)
         self.assertIn("--dart-define=CLIENT_MODE=fake", self.flutter_source)
         ios = job_block(self.flutter_source, "ios_compile_contract")
-        self.assertIn("runs-on: macos-latest", ios)
-        self.assertIn("python -m tools.ios_pkcs12_compatibility", ios)
-        self.assertIn("python -m tools.ios_profile_cms_rehearsal", ios)
+        self.assertIn("runs-on: macos-15", ios)
+        native = job_block(self.flutter_source, "ios_xcode_feasibility")
+        self.assertIn("python -m tools.ios_pkcs12_compatibility", native)
+        self.assertIn("python -m tools.ios_profile_cms_rehearsal", native)
         self.assertIn(
-            "python -m tools.ios_profile_verification_runner --rehearsal", ios
+            "python -m tools.ios_profile_verification_runner --rehearsal", native
         )
-        self.assertIn("tools/requirements-ios-profile-intake.txt", ios)
-        self.assertIn("flutter build ios --release --no-codesign", ios)
+        self.assertIn("tools/requirements-ios-profile-intake.txt", native)
+        self.assertIn("flutter build ipa --release --no-codesign", ios)
         self.assertIn("IOS_TESTFLIGHT_CONTRACT_TEST=YES", ios)
         self.assertIn("IOS_EXTERNAL_SIGNING_READY=NO", ios)
         self.assertIn("APPLE_PROVIDER_CONFIGURED_EXTERNALLY=NO", ios)
@@ -241,9 +242,46 @@ class WorkflowContractTests(unittest.TestCase):
             "secrets: inherit",
         ):
             self.assertNotIn(forbidden, block)
-        self.assertEqual(block.count("--rehearsal"), 1)
+        self.assertEqual(block.count("--rehearsal"), 3)
         self.assertIn(
             "tools.tests.test_ios_xcode_feasibility",
+            job_block(self.source, "deployment_tools"),
+        )
+
+    def test_fictional_signing_and_unsigned_product_archive_stay_separate(self):
+        signing = job_block(self.flutter_source, "ios_xcode_feasibility")
+        archive = job_block(self.flutter_source, "ios_compile_contract")
+        self.assertIn("python -m tools.ios_fictional_signing --rehearsal", signing)
+        self.assertIn("tools.tests.test_ios_fictional_signing", signing)
+        self.assertNotIn("flutter build", signing)
+        for expected in (
+            "runs-on: macos-15",
+            "DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer",
+            "persist-credentials: false",
+            "flutter build ipa --release --no-codesign --no-pub",
+            "build/ios/archive/Runner.xcarchive",
+            "Products/Applications/Runner.app",
+            "Print :ApplicationProperties:ApplicationPath",
+            "Print :CFBundleShortVersionString",
+            "Print :CFBundleVersion",
+            "test ! -e build/ios/ipa",
+            "UNSIGNED_FLUTTER_ARCHIVE_VERIFIED",
+            "if: always()",
+        ):
+            self.assertIn(expected, archive)
+        for forbidden in (
+            "ios_fictional_signing",
+            "ios_pkcs12_compatibility",
+            "ios_profile_verification_runner",
+            "security import",
+            "secrets.",
+            "environment:",
+            "upload-artifact",
+            "allowProvisioningUpdates",
+        ):
+            self.assertNotIn(forbidden, archive)
+        self.assertIn(
+            "tools.tests.test_ios_fictional_signing",
             job_block(self.source, "deployment_tools"),
         )
 

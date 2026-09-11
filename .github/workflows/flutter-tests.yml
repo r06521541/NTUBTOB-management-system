@@ -220,41 +220,46 @@ jobs:
       - name: Install locked fictional fixture dependencies
         run: python -m pip install --no-cache-dir -r tools/requirements-ios-profile-intake.txt
 
+      - name: Verify fictional PKCS12 memory-only native import
+        run: python -m tools.ios_pkcs12_compatibility
+
+      - name: Verify fictional CMS signature and constrained profile trust
+        run: python -m tools.ios_profile_cms_rehearsal
+
+      - name: Rehearse profile intake verification and cleanup without private input
+        run: python -m tools.ios_profile_verification_runner --rehearsal
+
       - name: Test orchestration and safe failure boundaries
         run: python -m unittest tools.tests.test_ios_xcode_feasibility -v
 
       - name: Rehearse unsigned archive and manual export rejection without Apple assets
         run: python -m tools.ios_xcode_feasibility --rehearsal
 
+      - name: Test fictional cross-process signing boundaries
+        run: python -m unittest tools.tests.test_ios_fictional_signing -v
+
+      - name: Sign only an endogenous fixture using an isolated temporary Keychain
+        run: python -m tools.ios_fictional_signing --rehearsal
+
   ios_compile_contract:
-    name: Flutter 3.47.0 / iOS Release compile gate
-    runs-on: macos-latest
+    name: Flutter 3.47.0 / iOS unsigned Release archive gate
+    runs-on: macos-15
     timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     defaults:
       run:
         working-directory: clients/flutter_app
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Python for fictional native compatibility
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.10"
-
-      - name: Verify fictional PKCS12 memory-only native import
-        working-directory: .
-        run: |
-          python -m pip install -r tools/requirements-ios-profile-intake.txt
-          python -m tools.ios_pkcs12_compatibility
-
-      - name: Verify fictional CMS signature and constrained profile trust
-        working-directory: .
-        run: python -m tools.ios_profile_cms_rehearsal
-
-      - name: Rehearse profile intake verification and cleanup without private input
-        working-directory: .
-        run: python -m tools.ios_profile_verification_runner --rehearsal
 
       - name: Set up Flutter 3.47.0
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
@@ -274,6 +279,8 @@ jobs:
 
       - name: Record hosted Apple toolchain
         run: |
+          test "$(xcodebuild -version)" = $'Xcode 26.3\nBuild version 17C529'
+          test "$(xcrun --sdk iphoneos --show-sdk-version)" = '26.2'
           xcodebuild -version
           flutter --version
 
@@ -301,9 +308,9 @@ jobs:
             'APPLE_PROVIDER_CONFIGURED_EXTERNALLY=NO' \
             > ios/Flutter/StoreReleaseConfig.xcconfig
 
-      - name: Compile staging TestFlight source without signing
+      - name: Archive staging TestFlight source without signing or IPA export
         run: >-
-          flutter build ios --release --no-codesign --no-pub
+          flutter build ipa --release --no-codesign --no-pub
           --build-name=0.1.0
           --build-number=1
           --dart-define=APP_FLAVOR=staging
@@ -313,16 +320,34 @@ jobs:
           --dart-define=GOOGLE_CLIENT_ID=123-ios.apps.googleusercontent.com
           --dart-define=GOOGLE_SERVER_CLIENT_ID=456-web.apps.googleusercontent.com
 
-      - name: Verify compile-only output and remove private-shaped config
+      - name: Verify actual Flutter unsigned archive without publishing artifacts
         shell: bash
         run: |
           set -euo pipefail
-          test -d build/ios/iphoneos/Runner.app
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/ios/iphoneos/Runner.app/Info.plist)" = "tw.org.ntubtob.portal"
-          if codesign --verify build/ios/iphoneos/Runner.app >/dev/null 2>&1; then
-            echo "compile-only iOS output unexpectedly contains a valid signature" >&2
+          archive='build/ios/archive/Runner.xcarchive'
+          app="$archive/Products/Applications/Runner.app"
+          test -d "$app"
+          test -f "$app/Runner"
+          test ! -e "$app/_CodeSignature"
+          test ! -e "$app/embedded.mobileprovision"
+          test ! -e build/ios/ipa
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ArchiveVersion' "$archive/Info.plist")" = '2'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:ApplicationPath' "$archive/Info.plist")" = 'Applications/Runner.app'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleIdentifier' "$archive/Info.plist")" = 'tw.org.ntubtob.portal'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Info.plist")" = 'tw.org.ntubtob.portal'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")" = '0.1.0'
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")" = '1'
+          if codesign --verify "$app" >/dev/null 2>&1; then
+            echo "unsigned archive unexpectedly contains a valid signature" >&2
             exit 1
           fi
+          printf '%s\n' 'UNSIGNED_FLUTTER_ARCHIVE_VERIFIED; signing_authorized=false; upload_authorized=false'
+
+      - name: Remove fictional configuration even after archive failure
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           rm -f ios/Flutter/AuthConfig.xcconfig ios/Flutter/StoreReleaseConfig.xcconfig
           test ! -e ios/Flutter/AuthConfig.xcconfig
           test ! -e ios/Flutter/StoreReleaseConfig.xcconfig
