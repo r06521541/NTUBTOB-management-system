@@ -252,3 +252,41 @@ HEAD above. Scope exact fictional error-prose delta and tests, not real-output
 sanitizer acceptance; no private/Git/API/hosted mutation, mandatory protocol applies.
 Reviewer lease5 ACCEPT received/handled; Main35run32PASS3platform skips/qualityPASS.
 Main may commit/push this diagnostic to PR249 for the single fictional observation.
+Local source337892c3a02f9759f9dd007bf7d3204be2621b9b committed; attempted push
+rejected before execution by tool auto-review. Main verified exact origin
+https://github.com/r06521541/NTUBTOB-management-system.git and absent pushurl override;
+retry with recorded exact standing authority was also rejected. No bypass/alternate
+transport or hosted run. Stop for explicit Owner reconfirmation of this reviewed
+diagnostic batch to that destination, as tool gate requires. Existing native/export
+uncertainty is unchanged; no assets or runtime/provider operation occurred.
+Owner explicitly reconfirmed this reviewed batch/exact destination; direct push
+succeeded at source337892c3a02f9759f9dd007bf7d3204be2621b9b. Main resumes the
+one reviewed fictional hosted observation; prior tool rejection is resolved.
+
+Observed source337892c3a02f9759f9dd007bf7d3204be2621b9b run34602920230,
+native103274382747:18testsPASS/archive/custody/cleanup true. De-identified prose:
+error: exportArchive No "iOS App Store" profiles for team '[REDACTED IDENTIFIER]'
+matching '[REDACTED UUID]' are installed. This is the intended absent-profile
+fixture refusal; previous byte substring "No profiles for" did not match the
+observed intervening profile-type words. No real profile validity is inferred.
+
+Activate sole writer task-196-writer-20260911 lease6 actor_id=/root/csr_writer,
+role=codex-writer; head=337892c3a02f9759f9dd007bf7d3204be2621b9b;
+same branch/base; owned_paths=tools/ios_xcode_feasibility.py,
+tools/tests/test_ios_xcode_feasibility.py,docs/coordination/reports/TASK-196.md;
+write=allowed; report_to=/root. Scope one evidence-based recognition of this exact
+fixed fictional missing-profile refusal, tests first. Bind new recognition to
+expected fixture Team/profile selector; require nonzero exit. No arbitrary error
+acceptance, export/options/native/signing changes or real-asset/gate relaxation.
+Tests reject wrong Team/profile, zero exit, unrelated generic failures, partial
+or suffix content; retain positive-export/all-real-authority false. Review before
+one corrected hosted validation. Persistent failure stops; no more diagnostics.
+Mandatory protocol applies; no writer Git/API/hosted mutation.
+Writer lease6 completed/read-only and Main received/handled completion. Activate
+reviewer task-196-security-20260911 lease6, actor_id=/root/task181_review,
+role=advisor, owned_paths=none, write=read-only, report_to=/root, same branch/base/
+current HEAD above. Scope exact evidence-based whole-line refusal recognition and
+negative corpus, unchanged side effects/authority; no hosted/private/Git/API action.
+Security lease6 ACCEPT received/handled; Main36run33PASS3skips/qualityPASS. Main
+integrates the single correction in PR249, then full required corrected hosted CI.
+Exact raw-line selector match remains unproven until that run; no positive export.

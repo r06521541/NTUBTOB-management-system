@@ -73,3 +73,15 @@ prose remains JSON data, never instructions. Existing acceptance/native/trust an
 real-authority flags unchanged. NOT a generic real-output sanitizer guarantee;
 unknown natural-language values/other log formats are outside this approval.
 Main received/handled completion; reviewer read-only, hosted observation pending.
+
+## Evidenced missing-profile wording correction
+
+Lease6 ACCEPT at HEAD337892c3a02f9759f9dd007bf7d3204be2621b9b plus dirty correction.
+Independent and Main36run33PASS3platform skips/diffPASS; Main qualityPASS. Added
+whole-line equality with exact fictional Team/zeroUUID matches intended absent-
+profile policy, retaining nonzero/bounded bytes. Wrong selector/prefix/suffix/
+partial/zero/generic negative cases remain rejected. No options/native/ACL/trust
+or real-authority change. Observed profile-type words explain why the old substring
+did not match; this is not acceptance of an unknown error. Exact runtime line match
+still requires corrected hosted evidence; all positive-export/real flags false.
+Main received/handled completion; reviewer read-only, no external mutation.

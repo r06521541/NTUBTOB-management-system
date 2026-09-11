@@ -116,6 +116,53 @@ class FakeRunner:
 
 
 class FeasibilityTests(unittest.TestCase):
+    def test_exact_observed_fictional_profile_refusal(self):
+        line = b"error: exportArchive No \"iOS App Store\" profiles for team 'FICTTEAM01' matching '00000000-0000-0000-0000-000000000000' are installed."
+        self.assertTrue(target.expected_export_rejection(70, line))
+        self.assertTrue(
+            target.expected_export_rejection(
+                70, b"export progress\n" + line + b"\r\n** EXPORT FAILED **\n"
+            )
+        )
+        for output in (
+            line.replace(b"FICTTEAM01", b"OTHERTEAM1"),
+            line.replace(b"000000000000", b"000000000001"),
+            b"prefix " + line,
+            line + b" suffix",
+            line[:-1],
+            b"error: exportArchive profiles unavailable",
+        ):
+            self.assertFalse(target.expected_export_rejection(70, output))
+        self.assertFalse(target.expected_export_rejection(0, line))
+        runner = FakeRunner()
+
+        def observed(args, **kwargs):
+            code, output = runner(args, **kwargs)
+            return (70, line) if "-exportArchive" in args else (code, output)
+
+        with (
+            patch.object(target.platform, "system", return_value="Darwin"),
+            patch.object(target.platform, "machine", return_value="arm64"),
+            patch.object(
+                target.fixtures,
+                "fictional_material",
+                return_value=(b"fictional", b"certificate", b"wrong"),
+            ),
+        ):
+            result = target.rehearse(_run=observed)
+        self.assertEqual(result["classification"], "CONTROL_VERIFIED_EXPORT_REJECTED")
+        self.assertTrue(result["manual_export_rejected"])
+        self.assertTrue(result["cleanup_verified"])
+        for key in (
+            "positive_export_verified",
+            "real_assets_verified",
+            "real_signing_authorized",
+            "signing_authorized",
+            "upload_authorized",
+            "release_authorized",
+        ):
+            self.assertFalse(result[key])
+
     def test_fictional_error_prose_redaction_and_bounds(self):
         output = b"unrelated private-sentinel\n\x1b[31merror: exportArchive The archive cannot be exported.\x1b[0m\n    See /Users/example/build.xcarchive https://example.invalid/token email@example.invalid\n    UUID 12345678-1234-1234-1234-123456789abc password=fictional-secret\nnot included"
         lines = target.fictional_export_error(output)

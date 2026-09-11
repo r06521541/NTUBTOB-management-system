@@ -78,8 +78,8 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   既有outerCMS/XML檢查不代表modern DER profile平台權威。Owner已批准架構；TASK196進行純虛構可行性實作。
   現行程式/gate未改；不重試或第三次診斷、不推定演算法、不重建憑證；未授權新private custody/signing。
   TASK196 PR249尚未合併：修正後原生run34570308734已確認無私鑰archive、虛構Keychain正反向案例及清理；
-  重新授權的export-only診斷run34576904526確認archive形狀符合預期，但仍只有generic export失敗證據；
-  整體維持EXPORT_INCONCLUSIVE，沒有依據可修正，停止並取消剩餘CI。真實資產與簽署未動用。
+  Owner核准的有限錯誤正文run34602920230確認為預期的虛構profile缺失拒絕，原分類漏認Xcode實際措辭；
+  精確whole-line修正正待review/hosted驗證，PR仍未合併。真實資產與簽署未動用，positive export仍未驗證。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

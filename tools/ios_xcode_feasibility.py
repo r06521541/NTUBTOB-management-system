@@ -561,13 +561,18 @@ def expected_export_rejection(code, output):
         code != 0
         and type(output) is bytes
         and len(output) <= MAX_OUTPUT
-        and any(
-            text in output
-            for text in (
-                b"requires a provisioning profile",
-                b"No profiles for",
-                b"No signing certificate",
+        and (
+            any(
+                text in output
+                for text in (
+                    b"requires a provisioning profile",
+                    b"No profiles for",
+                    b"No signing certificate",
+                )
             )
+            # Observed fixture refusal, bound to the exact ExportOptions selectors.
+            or b"error: exportArchive No \"iOS App Store\" profiles for team 'FICTTEAM01' matching '00000000-0000-0000-0000-000000000000' are installed."
+            in output.splitlines()
         )
     )
 

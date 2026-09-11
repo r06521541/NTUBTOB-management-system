@@ -311,3 +311,45 @@ No real assets, native/hosted/Git/API execution or new dependency; only fictiona
 local temporary test fixtures. Actual Xcode prose remains unobserved locally and
 requires independent review before Main's one authorized fictional observation.
 No root cause or source remedy is asserted.
+
+## Main: reviewed prose diagnostic awaits tool push gate
+
+Local committed SHA337892c3a02f9759f9dd007bf7d3204be2621b9b; independent lease5
+ACCEPT and Main35run32PASS3platform skips, two-Python quality/diff PASS. Branch
+codex/task-196-xcode-feasibility; local origin tracking remains
+312263b92ad6e6e3d0cf366ded03cfe64972616c. Push was rejected before execution by
+auto-review. Read-only origin verification confirmed the exact previously approved
+GitHub destination and no pushurl override; same direct retry with this evidence
+also rejected. No workaround, no new hosted run and no actual error prose obtained.
+Tool requires explicit renewed Owner confirmation of this reviewed batch/destination.
+Stop with three Main status records dirty (HANDOFF/task/report), no source edits.
+No real assets, signing, deployment, upload or repository visibility change.
+
+## Writer lease6: exact observed fictional profile refusal
+
+HEAD `337892c3a02f9759f9dd007bf7d3204be2621b9b`. Main-provided observation from
+run34602920230/job103274382747:18 hosted tests PASS, archive/custody/cleanup true;
+error prose reported no "iOS App Store" profiles for the redacted fixture team
+matching the redacted fixture selector were installed. The old substring
+`No profiles for` misses the intervening quoted profile type. This is evidence of
+the intended fictional missing-profile refusal, not real profile validity or
+positive unsigned-archive export capability. Main cancelled remaining diagnostic
+jobs; cancelled/unrun work is not PASS.
+
+Added one exact whole-line alternative bound to existing ExportOptions Team
+`FICTTEAM01` and zero UUID selector, requiring the existing nonzero exit/output
+bounds. No stripping, prefix/suffix acceptance or arbitrary "profiles" matching.
+Existing three recognition alternatives are unchanged; options, signing, native,
+trust and all external behavior are unchanged.
+
+Tests-first regression reproduced false on the observed line. Final
+`py -3.10 -m unittest tools.tests.test_ios_xcode_feasibility -q`:19run17PASS2Windows
+platform skips. New positive full-line/log-context tests and negative wrong Team,
+selector, prefix/suffix, partial line, generic failure and zero exit tests PASS.
+Mocked orchestration verifies expected refusal plus cleanup, while positive export
+and every real/signing/upload/release flag remain false. Owned Python format/check
+and diffcheck PASS. No writer hosted/native/Git/API or real-asset operation; only
+fictional local temporary test files. Three owned paths dirty, Main report/status
+records preserved. This is the single authorized evidence-based correction; native
+validation remains for independent review/Main. Persistent failure stops without
+further diagnostic iterations.
