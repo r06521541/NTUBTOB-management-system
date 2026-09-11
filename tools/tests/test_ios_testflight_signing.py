@@ -12,6 +12,102 @@ from tools import ios_testflight_signing as signing
 
 
 class SigningTests(unittest.TestCase):
+    def test_spm_receipt_and_conditional_pods(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = Path(folder).resolve() / "app"
+            root = Path(folder).resolve() / "root"
+            for path, data in (
+                (app / signing.MANIFEST, b"// fictional Package"),
+                (app / "ios/Flutter/Generated.xcconfig", b"fictional"),
+                (root / "SourcePackages/workspace-state.json", b"{}"),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            original = signing._dependency_digest(app, root)
+            self.assertEqual(len(original), 64)
+            resolved = app / signing.RESOLVED[0]
+            resolved.parent.mkdir(parents=True)
+            resolved.write_bytes(b'{"pins":[]}')
+            self.assertNotEqual(original, signing._dependency_digest(app, root))
+            (app / "ios/Podfile").write_bytes(b"fictional")
+            with self.assertRaises(Exception):
+                signing._dependencies_ready(app)
+            (app / "ios/Pods").mkdir()
+            (app / "ios/Podfile.lock").write_bytes(b"one")
+            (app / "ios/Pods/Manifest.lock").write_bytes(b"two")
+            with self.assertRaises(Exception):
+                signing._dependencies_ready(app)
+            (app / "ios/Pods/Manifest.lock").write_bytes(b"one")
+            signing._dependencies_ready(app)
+
+    def test_resolver_fixed_paths_and_stop_proof(self):
+        child = Mock()
+        child.wait.return_value = 0
+        root = Path("fictional/root")
+        with (
+            patch.object(signing.subprocess, "Popen", return_value=child) as launch,
+            patch.object(
+                signing.os,
+                "killpg",
+                side_effect=[None, ProcessLookupError()],
+                create=True,
+            ),
+            patch.object(signing.signal, "SIGKILL", 9, create=True),
+        ):
+            signing._resolve(Path("fictional/app"), root)
+        args = launch.call_args.args[0]
+        self.assertEqual(
+            args[args.index("-clonedSourcePackagesDirPath") + 1],
+            str(root / "SourcePackages"),
+        )
+        self.assertEqual(
+            args[args.index("-derivedDataPath") + 1], str(root / "DerivedData")
+        )
+        self.assertNotIn("-skipPackageSignatureValidation", args)
+        self.assertEqual(launch.call_args.kwargs["stdin"], signing.subprocess.DEVNULL)
+        with (
+            patch.object(signing.subprocess, "Popen", return_value=child),
+            patch.object(
+                signing.os, "killpg", side_effect=PermissionError(), create=True
+            ),
+            patch.object(signing.signal, "SIGKILL", 9, create=True),
+        ):
+            with self.assertRaisesRegex(signing.Rejected, "CLEANUP_UNRESOLVED"):
+                signing._resolve(Path("fictional/app"), root)
+
+    def test_native_uses_same_cache_and_requires_receipt(self):
+        source = (
+            Path(__file__).parents[1] / "native/ios_testflight_signing.swift"
+        ).read_text()
+        self.assertIn(
+            '"-clonedSourcePackagesDirPath",root.appendingPathComponent("SourcePackages").path',
+            source,
+        )
+        self.assertIn('"-onlyUsePackageVersionsFromResolvedFile"', source)
+        python = Path(signing.__file__).read_text()
+        self.assertIn("not prepared.dependency_digest", python)
+
+    def test_checkout_only_exact_untracked_resolved(self):
+        for line, allowed in (
+            (
+                "?? clients/flutter_app/ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+                True,
+            ),
+            (
+                " M clients/flutter_app/ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+                False,
+            ),
+            ("?? unrelated", False),
+        ):
+            with patch.object(
+                signing, "_public", side_effect=[b"a" * 40, line.encode()]
+            ):
+                if allowed:
+                    signing._checkout(Path("fictional"), "a" * 40)
+                else:
+                    with self.assertRaises(signing.Rejected):
+                        signing._checkout(Path("fictional"), "a" * 40)
+
     def test_export_copy_exact_single_and_no_overwrite(self):
         import hashlib
 

@@ -106,6 +106,8 @@ run34614766702單次parent/child診斷完成：均找到相符identity/key、typ
 ## Active work and external gates
 
 - IOS-TF-01／TASK-198 active：Owner已批准既有資產真實簽署、必要staging操作與僅本人TestFlight，新增成本上限USD20。
+  PR251仍為Draft；3484115c64080679bb58e1eedf6d3df8afc98282已完成16/16 hosted jobs，含Swift編譯與無私鑰iOS archive。
+  新增真實簽署／上傳分階段來源尚在整合審查，未merge或執行。新保護環境需Owner可見設定後唯讀驗證；舊環境不變。
   DEC-109取代包內逐次批准與TASK197單次診斷限制；不含production／公開版／新憑證。現有P12/profile/cert檔存在，
   未讀payload或驗證有效性；live staging Ready但四項Apple設定key皆缺，private intake／實機仍待必要Owner參與。
   First slice由PR250合併且16項CI全綠；Apple登入完成，App capability／憑證／profile／ASC上傳key皆已唯讀確認存在。

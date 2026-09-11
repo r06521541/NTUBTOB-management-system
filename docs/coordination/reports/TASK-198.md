@@ -1,6 +1,49 @@
 # TASK-198 report
 
-## Current result / required Owner input
+## Current result (supersedes historical observations below)
+
+Continuing Draft PR251, branch codex/task-198-owner-testflight; main/base remains
+5762a89c6e6451ed19f5151da1652312a9f76679. Exact pushed source
+3484115c64080679bb58e1eedf6d3df8afc98282 passed run34630386472,16/16 jobs SUCCESS,
+including actual Swift compile/invalid-input rejection and unsigned iOS archive.
+This proves code-only platform compatibility, not real Keychain/import/signing.
+The earlier run34629242446 completed with14 PASS and two dependent failures.
+
+Further source now includes Windows custody/intake, bounded wire/dispatch,
+SPM-aware preparation, manual signing, independent IPA inspection, separate ASC
+upload/processing and hosted phase orchestration. Main focused discovery:
+py -3.10 -m unittest discover -s tools/tests -p "test_ios_testflight_*.py" -q:
+102 run,99 PASS,3 POSIX/native skips. Working-tree quality16 Python PASS; diff PASS.
+These new sources are not yet hosted-validated, merged or live-executed. Review20
+accepted the retention correction but found missing private upload-receipt handoff.
+Main made both the workflow and hosted live entry explicitly disabled, and refuses
+cleanup of any known remote receipt. Review21 ACCEPT covers dormant-source safety only.
+Final Main discovery104tests101PASS3skips and18workflow-contract tests17PASS1skip.
+Real execution stays prohibited until durable private receipt/journal handoff exists;
+no claim that retaining a file on an ephemeral runner alone solves the handoff.
+
+Independent accepted slices: upload12, inspection14, intake15, wire16, runner17,
+SPM correction18. Security19 required separate current absence from retention
+resolution after uncertain secret writes/deletes; Main corrected the output and
+added PUT/DELETE timeout cases, now11 dispatch tests PASS. HTTP uncertainty remains
+sticky and prohibits a successful retention/overall result even after current404.
+
+Named next Owner gate: create/configure NEW GitHub ios-owner-testflight environment
+through visible settings with Owner required reviewer, self-review allowed, no
+admin bypass, exactly main branch and no tags. Do not alter profile-verification.
+Official REST write schema does not document admin-bypass control; no undocumented
+PUT or weaker bootstrap was implemented. A fresh GET of the existing old environment
+does return can_admins_bypass=false, so strict readback is available after UI setup.
+No environment, secret, signing/upload, staging/runtime/DB or production mutation.
+
+Still incomplete beyond this source checkpoint: complete Windows session/journal
+operator; actual private custody/password/key input; exact ASC Owner group/tester
+setup and sole-group distribution; staging Apple configuration/migration/deploy;
+real signing/upload/Apple processing and Owner device acceptance. Do not dispatch
+the new workflow or merge this partial delivery as release-ready. No new credentials,
+certificates, public release or extra testers requested. Incremental cost unchanged.
+
+## Historical observations / preparation
 
 PR250 merged `5762a89c6e6451ed19f5151da1652312a9f76679`; Git rev-parse verified.
 Reviewed source `8066ea54fbe4fd53bf01b06d46756550271cef57`, run34618189006 completed

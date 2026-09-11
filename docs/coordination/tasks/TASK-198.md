@@ -516,3 +516,243 @@ corrections plus four Main coordination paths; keep upload writer's two untracke
 paths out of that commit. Same Draft PR251, new source evidence run (not a retry
 of unchanged failure). Upload writer may continue across this known Main-only
 HEAD advance; Main will persist and notify exact new SHA without restarting work.
+
+Known Main-only advance completed: HEAD/origin branch now
+3484115c64080679bb58e1eedf6d3df8afc98282. This replaces upload lease5 packet HEAD
+only; actor/claim/lease/base/branch/owned two files and no-live scope unchanged.
+Both upload files remain untracked/uncommitted, excluded from correction. Main
+continues same Draft PR251 and observes new exact-source CI without merge.
+
+Security integration advisor /root/task181_review lease10 (same claim) supersedes
+completed lease9; advisor/read-only/owned none/report_to=/root. Current packet
+HEAD3484115c64080679bb58e1eedf6d3df8afc98282, same branch/base. Bounded question:
+can existing artifact-only ios_candidate_inspector be safely used after keychain
+cleanup without security cms implicitly consulting/mutating default keychains,
+and with expected approved certificate/team/profile bound rather than internal
+self-consistency only? Assess smallest code-only integration (system/structural
+decode is not trust; Xcode/Apple own platform authority) and private temp cleanup
+for the forthcoming controller. No new CMS algorithm/trust gate, live inputs,
+native/Git/cloud/API mutations or repeated broad suite. Source/primary docs only;
+return concrete minimal changes and honest verification limits. Main continues
+intake/workflow integration planning while upload writer and exact CI progress.
+
+Upload writer lease5 completed/frozen:12 new tests PASS,21 with inputs PASS,
+quality/diff PASS; no real network/private/native mutation. Security lease10
+inspection architecture ACCEPT received/handled. Revised native compile step in
+run34630386472 on3484115c64080679bb58e1eedf6d3df8afc98282 PASS; full run pending.
+
+Revoke security advisor lease10 for new source review. /root/task181_review,
+task-198-security-20260911 lease11, advisor/read-only/owned none/report_to=/root;
+same branch/base/current HEAD. Review only frozen tools/ios_testflight_upload.py
+and tools/tests/test_ios_testflight_upload.py plus direct input helper; focus on
+Owner-only scope, exact response/resource binding, bounded private file/transport,
+credential separation, operation uncertainty/reconcile and honest evidence.
+No native/private/network/Git mutation, fictional tests only; packet protocol
+and proactive verdict/digests/limits apply. Main coordinates disjoint work.
+
+Revoke writer lease5; /root/csr_writer, task-198-writer-20260911 lease6,
+codex-writer/write=allowed/report_to=/root, same exact branch/base/HEAD. Owned
+only tools/ios_testflight_inspection.py, tools/tests/test_ios_testflight_inspection.py,
+and tools/ios_testflight_signing.py only to return bounded embedded content from
+the existing container parse, without policy change. Build callable private bound
+IPA inspection per architecture lease10: preserve ZIP limits/single-app, fixed
+codesign integrity/entitlements and version/build, then exact approved candidate
+hash/team/original profile bytes/certificate DER, not self-derived expectations.
+No security cms; reuse the SAME structural signedData/id-data parse/content bytes,
+never new signer/algorithm/trust gate. Exact original embedded profile mismatch
+stops; do not silently update expected material or claim modern DER authority.
+Fixed codesign certificate extraction in fresh private empty cwd; codesign0 leaf
+must match approved P12 certificate, bounded fixed certificate output set. Decode
+profile DeveloperCertificates/team must also match. Codesign integrity is not
+Apple distribution/revocation/processing acceptance; authority flags stay false.
+
+Inspection must remain within exact owned subroot of prepared signing root;
+same-handle no-follow candidate snapshot/hash/identity check; private0700 dirs,
+0600 files/executable0700, safe extraction, bounded output/time, minimal env/no
+key/ASC stdin. All owned processes stop before bounded no-follow cleanup; cleanup
+uncertainty overrides result and prohibits upload. Preserve original candidate;
+other signing archive/DerivedData/export cleanup belongs to full controller.
+No actual codesign/private/native/API/CLI invocation by writer. Fictional tests
+cover wrong expected hash/team/cert/profile, no security call, encrypted/nested
+containers, malicious ZIP/cert outputs, temp confinement and cleanup failure.
+Self-review/tests then freeze/proactive handoff; independent source review before
+live use. No new readiness marker or another fictional signing success gate.
+
+Run34630386472 completed16/16 PASS on3484115c64080679bb58e1eedf6d3df8afc98282.
+Lease11 REQUEST_CHANGES: upload response resource/app/parent binding incomplete;
+Main owns the two frozen upload files for correction, writer lease6 remains
+disjoint. Goal exact reservation/file/build ownership before bytes/VALID; core
+upload adapter/tests; invariant no foreign or missing unproven association;
+tests adversarial create/file/reconcile plus existing focused suite; no Owner
+ambiguity. Apple OpenAPI4.4.1 lacks upload.app and file.parent linkage, so prove
+membership with documented app/buildUploads and upload/buildUploadFiles related
+collections, plus build included app/preReleaseVersion/buildUpload. Never invent
+a required response field; missing collection proof stops. Source-only correction
+and independent rereview before live use; no real Apple request yet.
+Main correction now15 upload tests PASS,24 combined input/upload PASS after
+three new adversarial tests first reproduced18 failing subcases. Revoke completed
+security lease11; task-198-security-20260911 lease12 /root/task181_review,
+advisor/read-only, owned none/report_to=/root, same branch/base/HEAD. Rereview the
+frozen two-file correction only, documented related collection proof and explicit
+contradiction handling; no live API/native/private/Git mutation. No full prior
+suite repetition. Proactive verdict/digests/tests/limits; Main proceeds integration.
+Security lease12 ACCEPT handled; upload correction frozen. Writer lease6 frozen,
+23 tests PASS. Revoke security12 for lease13 (same actor/claim/role/base/HEAD),
+read-only independent review of writer6 inspection three files only; fictional
+focused tests, no private/native/API/Git mutation. Mandatory protocol unchanged.
+Revoke writer6 for lease7 (same actor/claim/branch/base/HEAD/report_to), owned only
+tools/ios_testflight_intake.py and tools/tests/test_ios_testflight_intake.py.
+Build callable Windows private material intake reusing reviewed handle/ACL custody,
+fixed existing signing root and explicit private paths for two distinct downloaded
+p8 keys. No network/Git/native signing, copies, saved payloads, or repair/ACL edits.
+One hidden input collection with length-only ASCII output, bounded P12/password/
+certificate/profile and two distinct key validation in memory. Keep Apple Login
+material separate from signing/ASC transfer, no payload repr/log/argv. Existing
+exact identifiers/config supplied as typed arguments, not re-requested or derived
+from artifact; immutable raw profile structural decode only. Main owns callable
+runner/controller and workflow integration; intake has no dispatch or standalone
+mutation authority. Tests fake Native/readers/prompts only, then freeze/review.
+Writer7 may implement owned-file Native metadata subclass retaining every existing
+handle/path/type/link/reparse invariant, fixed limits262144 profile/65536 cert-P12/
+4096 p8; original globalLIMIT/Native/ACL policy unchanged. No Downloads ACL repair.
+Security13 REQUEST_CHANGES handled: Main owns frozen inspection two files for
+bounded correction restoring existing metadata/distribution validators and checking
+process-group disappearance before cleanup. Writer7 intake stays disjoint. Main
+also owns tools/ios_testflight_runner.py and its focused test for end-to-end private
+phase orchestration; original expected material and no-live evidence remain binding.
+Main inspection correction25 focused PASS (12 inspection/13 signing), includes
+full synthetic ZIP positive/negative path (POSIX metadata/cleanup and codesign
+mocked explicitly), restored old validators and ESRCH-only group stop proof.
+Existing test __new__ mock polluted later Tree construction; changed to module
+class mock, not product workaround. Revoke security13; lease14 same actor/claim/
+role/branch/base/HEAD, readonly correction rereview of inspection/test and unchanged
+four-line parser return only. No native/private/realAPI/Git/edit; packet protocol
+unchanged; reviewer completion triggers Main intake review, not automatic live run.
+Security14 ACCEPT handled. Writer7 intake frozen9 PASS; security15 same claim/
+actor/readonly/branch/base/HEAD reviews only intake two files and direct custody/
+validation helpers, focused fake tests/no live private/native/API/Git/edit.
+Writer8 supersedes completed7, same actor/claim/branch/base/HEAD/report_to;
+owned tools/ios_testflight_runner.py and tools/tests/test_ios_testflight_runner.py
+(Main releases these two integration paths). Callable phase orchestration only:
+sign then exact-bound inspect, confirmed process/custody cleanup before upload,
+owned-root cleanup excluding candidate before ASC phase and final cleanup afterward.
+Prepared root identity and OS private temp boundary required, no-follow deletion,
+never cleanup while process/custody unresolved. Upload once plus read-only reconcile,
+no group/distribution or new transfer authority yet. Tests fake all phases/transport.
+Main owns tools/ios_testflight_wire.py, its test and forthcoming exact workflow/
+operator integration. Wire uses fixed purpose-separated finite chunks with overall
+private step environment <=144KiB (signing frame<=128KiB, ASC<=8KiB), to remain
+below Darwin exec environment budget; larger input rejects locally before dispatch.
+No secret inspection to choose a larger limit; no raw key in argv/log/artifact.
+Security15 intake ACCEPT handled. Main wire5 tests PASS/quality PASS; freeze
+tools/ios_testflight_wire.py and its test for security16 (same actor/claim/readonly/
+owned none/base/branch/HEAD/report_to). Review finite secret set, main/workflow/run1
+binding, TTL/hash/chunk/index/size and consume-all-on-error, purpose separation and
+honest inherited-environment limitation; fake tests only/no private/native/API/Git.
+No operator/workflow deployed yet. Main continues their implementation while
+writer8 completes phase runner; mandatory ACK/heartbeat/proactive completion apply.
+Security16 wire ACCEPT handled; writer8 runner frozen8PASS/1POSIXskip. Security17
+(same claim/actor/readonly/base/branch/HEAD/report_to) independently reviews runner
+two files plus called accepted adapters, mocks only/no native/private/API/Git/edit.
+Writer9 changes same actor to advisor/read-only/owned none (revoke writer8); bounded
+preparation audit: current iOS project is SwiftPM, but signing.prepare incorrectly
+requires CocoaPods files. Identify exact supported code-only dependency preparation
+and package-resolution path used by native fresh DerivedData, plus other guaranteed
+pre-sign failures; no private/native/network/Git/file mutation, local source only.
+Main fixes confirmed integration contradictions; no Owner gate for ordinary source
+correction and no private input until complete reviewed operator is ready.
+Security17 runner ACCEPT and advisor9 preparation audit handled. Public completed
+CI job103365523222 confirms actual SwiftPM fetches GoogleSignIn/LINE and generated
+Package.resolved paths, no Pods installation. Writer10 supersedes advisor9,
+codex-writer same actor/claim/base/branch/HEAD/report_to; owned only existing
+tools/ios_testflight_signing.py, tools/native/ios_testflight_signing.swift and
+tools/tests/test_ios_testflight_signing.py. Fix SPM preparation/coherent cache:
+require generated local SPM manifest, conditional Pods locks only when Podfile
+exists; pre-key resolve into owned root SourcePackages/DerivedData, same fixed
+archive clone path. Preserve signature/plugin validation and manual signing;
+bind generated resolved files and dependency receipt before keys. Only exact two
+generated Package.resolved untracked paths may be allowed, with digest checked
+again before native; tracked/unrelated dirty paths remain forbidden. Fake tests
+only/no actual resolve/build/private/API/Git mutation, freeze and independent review.
+Main code-only workflow preparation uses pinned flutter build ios --release
+--no-codesign --config-only --no-pub after pub get/precache, not dummy Pods.
+Main integration owns tools/ios_testflight_hosted.py, its tests and
+.github/workflows/ios-owner-testflight.yml. First-party only private ingress,
+separate minimal-environment sign/upload stdin workers, exact prepared receipt,
+single exclusive consumed marker/run1, bounded IPC/output/children and fixed safe
+public result. No artifact/cache exports. Signing STOP with confirmed-stopped
+workers still requires owned-root cleanup; unknown worker/custody never blind-delete.
+Workflow remains manual/protected/main-only, not dispatched by source tests.
+Writer10 frozen17PASS; security18 supersedes completed17, same claim/actor/readonly/
+base/branch/HEAD/report_to, ownednone. Review only signing Python/Swift/test SPM
+correction and direct cleanuphelper interactions, no native/private/API/Git/edit.
+Actual source prepared receipts require nonempty dependency_digest; Main hosted
+serialization must retain it. Newresolve process proves ESRCH before cleanup;
+unknown compiler/resolve states retainroot. Minimaltargeted tests/packet protocol.
+Security18 ACCEPT handled. Writer11 supersedes10, same actor/claim/codex-writer/
+base/branch/HEAD/report_to; owned tools/ios_testflight_dispatch.py and its test.
+Callable one-session GitHub dispatch/finite private-secret transport only, fixed
+new ios-owner-testflight environment/workflow (never profile-verification).
+Read-only exactOwner/main/source/workflow/reviewer/main-only protection preflight;
+refuse any existing transfer secret, pack-size check before dispatch. One dispatch,
+run-id/attempt1/nonce binding, wait for exact protected pending deployment, encrypt
+and PUT six fixed purpose-separated names once, then one exact environment approval
+under IOS-TF-01 standing approval (not remove/bypass protection). Partial/unknown
+PUT stops approval and records attempted names for bounded deletion/absence checks;
+no blind retry. Return compact progress, bounded same-run observe and once-only
+cancel/cleanup methods, no owner prompts/secret reads/CLI/environment creation here.
+Source tests fake GitHub only. Main later composes reviewed caller; no live calls.
+Writer11 completed/frozen10tests PASS; fixed protected job id/name owner_testflight.
+Security19 supersedes completed18, /root/task181_review same claim/base/branch/HEAD,
+advisor/read-only/ownednone/report_to=/root. Review only dispatch module/test and
+wire/primitives direct boundaries: exact run/job/pending policy, no resend,
+partial/uncertain PUT/approval/cancel and absence vs HTTP uncertainty. Frozen LF
+digests c5502f0966eafdbef029dc7d3e089fecb892286bac6b49431ac03f5ed6765613 and
+2df23c4cfc12651c96554efc7cf12e55d02831825e891a9afec183fe201b3362.
+No private/native/API/Git/CI/edit; fictional tests only, mandatory ACK/completion.
+Main concurrently finishes separate hosted controller/workflow, not accepted yet.
+Writer12 supersedes completed11, same actor/claim/role/base/branch/HEAD/report_to.
+Owned tools/ios_testflight_environment.py and its test. One-shot new dedicated
+ios-owner-testflight environment bootstrap, no private input/CLI/live API: first
+verify authenticated Owner/repo and absence; create exact Owner required reviewer,
+prevent_self_review=false, can_admins_bypass=false, custom main-only policy, then
+one branch rule and readback. Never modify/delete/reuse an existing environment,
+overwrite secrets, remove protection or auto-retry uncertain/partial operations.
+Read-only inspect existing correct policy allowed. Verify public official API
+contract; fake tests first. No native/private/Git/CI mutation. Standard packet applies.
+Security19 REQUEST_CHANGES handled: Main owns narrow dispatch public-evidence
+correction separating current absence from unresolved retention after HTTP ambiguity.
+Writer12 stopped without edits: official REST write contract omits admin bypass;
+actual read-only existing profile environment returns can_admins_bypass=false.
+Use exact Owner UI setup of NEW environment followed by strict readback; no
+undocumented write, no weak environment bootstrap. That manual setup is a named
+Owner gate, not another per-SHA signing approval. Existing environment untouched.
+Main integration additionally owns .github/workflows/python-tests.yml to run the
+new testflight focused tests in the existing selected tooling job; no extra job,
+new PR, or private input. Hosted workflow source only until full local operator.
+Security20 supersedes completed19, same claim/actor/read-only/ownednone/base/branch/
+HEAD/report_to. Frozen Main hosted controller/test and ios-owner-testflight workflow,
+existing python-tests focused suite addition, plus dispatch retention correction.
+Main102 tests99PASS3POSIXskips, quality16Python PASS/diffcheckPASS; no real custody.
+Review known-stop vs uncertainty cleanup, same-handle state/run1/TTL, sign/ASC child
+separation, pinned no-cache/private-artifact workflow and safe public evidence.
+No private/native/realAPI/Git/CI/edit; Main coordinates report while files frozen.
+Digests supplied in mandatory assignment packet; ACK/heartbeat/completion required.
+Security20 REQUEST_CHANGES handled: a pending upload's only private receipt must
+not disappear during automatic cleanup. Main has NOT invented a public-log or IPA
+artifact transport. Workflow is explicitly disabled (false job guard), hosted live
+entry also rejects before context/material; cleanup refuses any known remote receipt.
+This checkpoint is dormant source, not a complete runnable controller. Before
+activation implement durable private receipt handoff/ack and local journal, then
+independent integration review. Main14hosted tests13PASS1skip include four remote
+states refusing receipt deletion. Security21 same reviewer/readonly/ownednone/HEAD
+reviews only these three-path changes for dormant-checkpoint acceptance, not live
+acceptance. Standard packet protocol; no real/private/native/API/Git/CI/edit.
+Security21 ACCEPT handled for dormant checkpoint only, independent25tests24PASS1skip.
+Both reused agents completed/read-only. Main104TestFlight tests101PASS3skips plus
+18workflow-contract tests17PASS1skip; working-tree quality16Python and diffPASS.
+Commit/push reviewed source plus Main coordination to current shared branch/same
+DraftPR251; normal selected code-only CI may run, never dispatch private workflow.
+No merge/activation; next Owner action is exact new protected environment setup.
+This is a manual configuration stop, not completion of IOS-TF-01. Resume remaining
+local operator/private receipt handoff, then batch inputs/staging/Owner distribution.

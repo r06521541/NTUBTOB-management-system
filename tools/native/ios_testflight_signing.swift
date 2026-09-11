@@ -243,7 +243,7 @@ func execute() -> Bool {
           exclusive(installedProfile,profile), exclusive(authConfig,Data("GOOGLE_REVERSED_CLIENT_ID=\(reversed)\n".utf8)), exclusive(storeConfig,Data(config.utf8)), exclusive(entitlement,entitlementData), exclusive(exportOptions,optionsData) else { return false }
     let xcode="/Applications/Xcode_26.3.app/Contents/Developer/usr/bin/xcodebuild"
     stage="archive"
-    guard run([xcode,"-workspace",ios.appendingPathComponent("Runner.xcworkspace").path,"-scheme","Runner","-configuration","Release","-sdk","iphoneos","-destination","generic/platform=iOS","-disableAutomaticPackageResolution","-onlyUsePackageVersionsFromResolvedFile","-derivedDataPath",root.appendingPathComponent("DerivedData").path,"-archivePath",archive.path,"archive"],timeout:1500) else { return false }
+    guard run([xcode,"-workspace",ios.appendingPathComponent("Runner.xcworkspace").path,"-scheme","Runner","-configuration","Release","-sdk","iphoneos","-destination","generic/platform=iOS","-disableAutomaticPackageResolution","-onlyUsePackageVersionsFromResolvedFile","-derivedDataPath",root.appendingPathComponent("DerivedData").path,"-clonedSourcePackagesDirPath",root.appendingPathComponent("SourcePackages").path,"-archivePath",archive.path,"archive"],timeout:1500) else { return false }
     stage="export"
     guard run([xcode,"-exportArchive","-archivePath",archive.path,"-exportPath",exported.path,"-exportOptionsPlist",exportOptions.path,"-disableAutomaticPackageResolution"],timeout:600) else { return false }
     return true

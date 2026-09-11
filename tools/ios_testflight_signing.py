@@ -16,6 +16,7 @@ import stat
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +27,13 @@ MAX_FRAME = 524288
 MAX_OUTPUT = 2048
 DEVELOPER = "/Applications/Xcode_26.3.app/Contents/Developer"
 BUNDLE = "tw.org.ntubtob.portal"
+RESOLVED = (
+    "ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+    "ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+)
+MANIFEST = (
+    "ios/Flutter/ephemeral/Packages/FlutterGeneratedPluginSwiftPackage/Package.swift"
+)
 STAGES = {
     "input",
     "paths",
@@ -66,6 +74,7 @@ class PreparedSigning:
     helper_digest: str
     root_identity: tuple
     source_digest: str
+    dependency_digest: str = ""
 
 
 def _safe(path):
@@ -93,19 +102,136 @@ def _public(args, cwd, timeout=30):
 def _checkout(repo, commit):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise Rejected("BINDING_REJECTED")
-    if (
-        _public(["/usr/bin/git", "rev-parse", "HEAD"], repo).decode().strip() != commit
-        or _public(
-            ["/usr/bin/git", "status", "--porcelain", "--untracked-files=normal"], repo
-        ).strip()
+    if _public(
+        ["/usr/bin/git", "rev-parse", "HEAD"], repo
+    ).decode().strip() != commit or any(
+        line not in {"?? clients/flutter_app/" + path for path in RESOLVED}
+        for line in _public(
+            ["/usr/bin/git", "status", "--porcelain", "--untracked-files=all"], repo
+        )
+        .decode()
+        .splitlines()
     ):
         raise Rejected("BINDING_REJECTED")
+
+
+def _dependencies_ready(app):
+    _safe(app / MANIFEST)
+    if any(
+        (app / name).exists() or (app / name).is_symlink()
+        for name in (
+            "ios/Flutter/AuthConfig.xcconfig",
+            "ios/Flutter/StoreReleaseConfig.xcconfig",
+            "ios/Runner/Runner.entitlements",
+        )
+    ):
+        raise Rejected("PREPARE_REJECTED")
+    if (app / "ios/Podfile").exists():
+        for name in ("ios/Podfile", "ios/Podfile.lock", "ios/Pods/Manifest.lock"):
+            _safe(app / name)
+        if (app / "ios/Podfile.lock").read_bytes() != (
+            app / "ios/Pods/Manifest.lock"
+        ).read_bytes():
+            raise Rejected("PREPARE_REJECTED")
+
+
+def _dependency_digest(app, root):
+    _dependencies_ready(app)
+    paths = [
+        (MANIFEST, app / MANIFEST),
+        ("Generated.xcconfig", app / "ios/Flutter/Generated.xcconfig"),
+        ("workspace-state.json", root / "SourcePackages/workspace-state.json"),
+    ]
+    paths += [(name, app / name) for name in RESOLVED if (app / name).exists()]
+    if (app / "ios/Podfile").exists():
+        paths += [
+            (name, app / name)
+            for name in ("ios/Podfile", "ios/Podfile.lock", "ios/Pods/Manifest.lock")
+        ]
+    digest = hashlib.sha256()
+    for label, path in paths:
+        _safe(path)
+        if not path.is_file() or not 0 < path.stat().st_size <= 1048576:
+            raise Rejected("BINDING_REJECTED")
+        before = path.stat()
+        with path.open("rb") as source:
+            data = source.read(1048577)
+        after = path.stat()
+        if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise Rejected("BINDING_REJECTED")
+        if len(data) > 1048576:
+            raise Rejected("BINDING_REJECTED")
+        if label == "workspace-state.json":
+            if type(json.loads(data)) is not dict:
+                raise Rejected("BINDING_REJECTED")
+        if label in RESOLVED and type(json.loads(data)) is not dict:
+            raise Rejected("BINDING_REJECTED")
+        digest.update(label.encode() + b"\0" + hashlib.sha256(data).digest())
+    return digest.hexdigest()
+
+
+def _resolve(app, root):
+    child = None
+    successful = False
+    try:
+        child = subprocess.Popen(
+            [
+                DEVELOPER + "/usr/bin/xcodebuild",
+                "-workspace",
+                str(app / "ios/Runner.xcworkspace"),
+                "-scheme",
+                "Runner",
+                "-configuration",
+                "Release",
+                "-sdk",
+                "iphoneos",
+                "-derivedDataPath",
+                str(root / "DerivedData"),
+                "-clonedSourcePackagesDirPath",
+                str(root / "SourcePackages"),
+                "-resolvePackageDependencies",
+            ],
+            cwd=app,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env={"PATH": "/usr/bin:/bin", "DEVELOPER_DIR": DEVELOPER},
+            start_new_session=True,
+        )
+        successful = child.wait(timeout=300) == 0
+    finally:
+        if child is not None:
+            try:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                child.wait(timeout=5)
+                deadline = time.monotonic() + 5
+                while True:
+                    try:
+                        os.killpg(child.pid, 0)
+                    except ProcessLookupError:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise ValueError()
+                    time.sleep(0.05)
+            except Exception:
+                raise Rejected("CLEANUP_UNRESOLVED") from None
+    if not successful:
+        raise Rejected("PREPARE_REJECTED")
 
 
 def prepare(repo, *, expected_commit):
     """Code-only; returns a private root retained for controller-owned cleanup."""
     root = None
     root_identity = None
+    compilation_uncertain = False
     try:
         if platform.system() != "Darwin" or platform.mac_ver()[0].split(".")[0] != "15":
             raise ValueError()
@@ -115,15 +241,11 @@ def prepare(repo, *, expected_commit):
         app = repo / "clients/flutter_app"
         for relative in (
             "ios/Runner.xcworkspace/contents.xcworkspacedata",
-            "ios/Pods/Manifest.lock",
             "ios/Flutter/Generated.xcconfig",
             ".dart_tool/package_config.json",
         ):
             _safe(app / relative)
-        if (app / "ios/Podfile.lock").read_bytes() != (
-            app / "ios/Pods/Manifest.lock"
-        ).read_bytes():
-            raise ValueError()
+        _dependencies_ready(app)
         generated = (app / "ios/Flutter/Generated.xcconfig").read_text()
         roots = re.findall(r"^FLUTTER_ROOT=(.+)$", generated, re.MULTILINE)
         if len(roots) != 1:
@@ -160,13 +282,18 @@ def prepare(repo, *, expected_commit):
         root.chmod(0o700)
         root_info = root.stat()
         root_identity = (root_info.st_dev, root_info.st_ino)
+        _resolve(app, root)
+        dependency_digest = _dependency_digest(app, root)
+        _checkout(repo, expected_commit)
         source = repo / "tools/native/ios_testflight_signing.swift"
         _safe(source)
+        compilation_uncertain = True
         _public(
             ["/usr/bin/xcrun", "swiftc", str(source), "-o", str(root / "native")],
             root,
             120,
         )
+        compilation_uncertain = False
         (root / "native").chmod(0o700)
         info = root.stat()
         return PreparedSigning(
@@ -176,10 +303,15 @@ def prepare(repo, *, expected_commit):
             hashlib.sha256((root / "native").read_bytes()).hexdigest(),
             (info.st_dev, info.st_ino),
             hashlib.sha256(source.read_bytes()).hexdigest(),
+            dependency_digest,
         )
-    except Exception:
+    except Exception as error:
         # No keys yet. Delete only our exact code-only files, never a recursive tree.
         if root is not None:
+            if compilation_uncertain or (
+                isinstance(error, Rejected) and error.args == ("CLEANUP_UNRESOLVED",)
+            ):
+                raise Rejected("CLEANUP_UNRESOLVED") from None
             try:
                 _safe(root)
                 info = root.stat()
@@ -188,11 +320,12 @@ def prepare(repo, *, expected_commit):
                     info.st_ino,
                 ) != root_identity or root.parent != feasibility.os_temp_root():
                     raise ValueError()
-                for item in root.iterdir():
-                    if item.name != "native" or not item.is_file() or item.is_symlink():
-                        raise ValueError()
-                    item.unlink()
-                root.rmdir()
+                from tools import ios_testflight_runner as runner
+
+                runner._cleanup(
+                    PreparedSigning(repo, root, expected_commit, "", root_identity, ""),
+                    keep_candidate=False,
+                )
             except Exception:
                 raise Rejected("CLEANUP_UNRESOLVED") from None
         raise Rejected("PREPARE_REJECTED") from None
@@ -481,6 +614,10 @@ def _profile_container(data):
         signed.native
         if document.dump(force=True) != data:
             raise ValueError()
+        payload = content["content"].native
+        if type(payload) is not bytes or not 0 < len(payload) <= 262144:
+            raise ValueError()
+        return payload
     except Exception:
         raise Rejected("INPUT_REJECTED") from None
 
@@ -629,6 +766,12 @@ def _sign(prepared, **material):
     ):
         raise Rejected("BINDING_REJECTED")
     _checkout(prepared.repo, prepared.commit)
+    if (
+        not prepared.dependency_digest
+        or _dependency_digest(prepared.repo / "clients/flutter_app", prepared.root)
+        != prepared.dependency_digest
+    ):
+        raise Rejected("BINDING_REJECTED")
     payload = frame(**material)
     _profile_container(material["profile"])
     _certificate_binding(material)

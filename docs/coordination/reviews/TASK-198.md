@@ -1,5 +1,34 @@
 # TASK-198 review
 
+## Latest source review state
+
+Code-only run34630386472 on3484115c64080679bb58e1eedf6d3df8afc98282 completed
+SUCCESS16/16, including native supervisor compile/input rejection. No real custody.
+Source leases12/14/15/16/17/18 ACCEPT: upload exact ASC resource membership,
+private IPA/leaf/profile binding, existing Windows ACL/handle intake, finite wire,
+phase custody/owned cleanup, and current SPM dependency preparation respectively.
+All synthetic/offline; actual Apple storage operations, Keychain/Xcode discovery,
+POSIX cleanup and new SPM resolver output remain live/platform evidence limits.
+Security19 REQUEST_CHANGES on ambiguous retention_resolved semantics; Main changed
+to distinct current_absence_verified plus retention_resolved requiring no HTTP
+uncertainty. Both PUT and DELETE timeout tests preserve unresolved retention even
+after absence proof. No mutation or protection weakened.
+Security20 accepted the retention correction but REQUEST_CHANGES: pending/valid
+remote receipt had no durable handoff before automatic deletion. Main disabled
+both workflow and hosted live entry and refuses deletion of nonempty receipts.
+Security21 ACCEPT for dormant-checkpoint safety, not completion of the missing handoff.
+Independent25tests24PASS1POSIXskip; three frozen source digests match. Both agents
+completed/read-only and Main received/handled completion. Main final104TestFlight
+tests101PASS3skips and18workflow tests17PASS1skip; diff/quality PASS.
+New source is not an executable release controller; live acceptance remains open. Current
+Main aggregate102 tests99PASS3skips/quality16Python PASS/diffPASS. No live or final
+delivery acceptance; complete local operator and Owner distribution remain absent.
+Environment bootstrap writer12 stopped without code after official API control
+gap; Owner visible setup is required, then existing strict readback. Old profile
+environment read-only GET confirms can_admins_bypass=false; it was not changed.
+
+## Historical review evidence
+
 Security architecture lease1 ACCEPT received/handled by Main at
 3b1be6a607c565fa4184aec3493ef527995fbf19. Advisor source/public documentation only;
 no tests/native/private inputs. Real execution remains subject to source review

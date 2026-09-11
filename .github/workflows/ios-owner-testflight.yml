@@ -1,0 +1,77 @@
+name: Owner-only staging TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_sha:
+        description: Exact reviewed main commit (public)
+        required: true
+        type: string
+      nonce:
+        description: One-run binding nonce (public)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-owner-testflight
+  cancel-in-progress: false
+
+jobs:
+  owner_testflight:
+    name: owner_testflight
+    if: >-
+      false &&
+      github.repository == 'r06521541/NTUBTOB-management-system' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 && github.sha == inputs.approved_sha
+    runs-on: macos-15
+    # Disabled until the local durable journal and private receipt handoff
+    # are implemented and independently accepted. No private input yet.
+    timeout-minutes: 110
+    environment: ios-owner-testflight
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      INPUT_APPROVED_SHA: ${{ inputs.approved_sha }}
+      INPUT_NONCE: ${{ inputs.nonce }}
+    steps:
+      - name: Check out exact reviewed source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Python 3.10
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.10'
+      - name: Set up pinned Flutter without cache export
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: '3.47.0'
+          cache: false
+          pub-cache: false
+      - name: Install hash-locked controller dependencies before private ingress
+        run: python -m pip install --no-cache-dir -r tools/requirements-ios-profile-intake.txt
+      - name: Prepare generated Swift Package Manager configuration without signing
+        working-directory: clients/flutter_app
+        run: |
+          flutter pub get
+          flutter precache --ios --force
+          flutter build ios --release --no-codesign --config-only --no-pub
+      - name: Compile supervisor and resolve private-root build dependencies
+        run: python -m tools.ios_testflight_hosted --prepare
+      - name: Sign inspect and upload with separate stdin workers
+        env:
+          IOS_TF_SIGN_0: ${{ secrets.IOS_TF_SIGN_0 }}
+          IOS_TF_SIGN_1: ${{ secrets.IOS_TF_SIGN_1 }}
+          IOS_TF_SIGN_2: ${{ secrets.IOS_TF_SIGN_2 }}
+          IOS_TF_SIGN_3: ${{ secrets.IOS_TF_SIGN_3 }}
+          IOS_TF_ASC: ${{ secrets.IOS_TF_ASC }}
+          IOS_TF_BINDING: ${{ secrets.IOS_TF_BINDING }}
+        run: python -m tools.ios_testflight_hosted --execute
+      - name: Verify owned private root absence and remove exact ephemeral receipt
+        if: always()
+        run: python -m tools.ios_testflight_hosted --cleanup
