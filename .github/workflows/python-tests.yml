@@ -273,7 +273,7 @@ jobs:
       - name: Install isolated certificate-tool dependency
         run: python -m pip install -r tools/requirements-ios-profile-intake.txt
       - name: Test certificate preparation with fictional temporary assets
-        run: python -m unittest tools.tests.test_ios_certificate_preparation tools.tests.test_ios_certificate_pair tools.tests.test_ios_certificate_packaging tools.tests.test_ios_certificate_custody tools.tests.test_ios_profile_validation tools.tests.test_ios_pkcs12_compatibility tools.tests.test_ios_profile_cms_verification tools.tests.test_ios_profile_intake tools.tests.test_ios_profile_verification_runner -v
+        run: python -m unittest tools.tests.test_ios_certificate_preparation tools.tests.test_ios_certificate_pair tools.tests.test_ios_certificate_packaging tools.tests.test_ios_certificate_custody tools.tests.test_ios_profile_validation tools.tests.test_ios_pkcs12_compatibility tools.tests.test_ios_profile_cms_verification tools.tests.test_ios_profile_intake tools.tests.test_ios_profile_verification_runner tools.tests.test_ios_xcode_feasibility -v
       - name: Run deployment and release inspector tests
         if: runner.os == 'Linux'
         run: |

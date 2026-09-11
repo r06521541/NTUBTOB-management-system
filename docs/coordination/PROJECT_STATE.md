@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-本次工作起點／已合併證據：`c2e14164ace77a5691bbe17e8980b4bc97a26cbf`（TASK-192）。
+本次工作起點／已合併證據：`5848831772017a039bbcccfa68e75ac849f89236`（TASK-194）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -72,8 +72,11 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
 - Owner於exact批准後執行profile intake，回報本機input階段INPUT_REJECTED、run_id=null；未到dispatch。
   TASK-191已合併且full CI通過；Owner批准並執行local-only診斷，回報CMS_ALGORITHM_REJECTED，其他四項PASS。
   TASK-192已合併，Owner用完一次完整診斷：五項digest／attribute限制不符，其餘predicate通過；仍未證實真實信任。
-  TASK-193相容性設計已獲獨立ACCEPT；Owner批准TASK-194實作有限SHA2／RSA與具型別屬性，正在進行軟體交付。
-  保留原生驗簽、Apple信任鏈及Team/App配對；不推定真實演算法，不放行SHA1、未知格式、第三次診斷或上傳。
+  TASK-194已由PR248合併，full CI及macOS408個虛構CMS案例／runner演練通過；原生驗簽及Apple信任鏈保留。
+  Owner另批准exact merged SHA真實驗證，仍於input回報INPUT_REJECTED、未到dispatch；子程序已結束。
+  真實profile驗證尚未完成。TASK195公開資料架構審查已ACCEPT：建議轉為Xcode-led archive/export與分層Apple驗證；
+  既有outerCMS/XML檢查不代表modern DER profile平台權威。Owner已批准架構；TASK196進行純虛構可行性實作。
+  現行程式/gate未改；不重試或第三次診斷、不推定演算法、不重建憑證；未授權新private custody/signing。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；

@@ -1,20 +1,17 @@
-active_task: TASK-194
+active_task: TASK-196
 status: in_progress
-next_actor: main-work
-claim_id: task-194-main-20260911
+next_actor: /root
+claim_id: task-196-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: c2e14164ace77a5691bbe17e8980b4bc97a26cbf
+base_commit: 5848831772017a039bbcccfa68e75ac849f89236
 updated_by: main-work
 updated_at: 2026-09-11
 note: >
-  Owner approved TASK193 exact policy implementation. TASK194 sole writer lease1
-  completed finite SHA2/RSA and typed attributes with fictional signed matrix.
-  Writer is read-only; TASK194 security lease1 ACCEPT and Main focused gates PASS.
-  Main integrates one PR, full/native hosted CI, then merge if green.
-  No third diagnostic, private read, trust bypass, signing or upload; independent
-  review and hosted gate precede merge and a separate real-verification Owner gate.
+  Owner approved TASK195 architecture and fictional feasibility implementation.
+  Writer completed/read-only; security ACCEPT; Main integrates one hosted delivery.
+  No real assets, private retry, signing/upload or change to existing trust/readiness.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-194.md
-report: docs/coordination/reports/TASK-194.md
-review: docs/coordination/reviews/TASK-194.md
+task: docs/coordination/tasks/TASK-196.md
+report: docs/coordination/reports/TASK-196.md
+review: docs/coordination/reviews/TASK-196.md
