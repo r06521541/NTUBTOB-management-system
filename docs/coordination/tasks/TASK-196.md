@@ -98,3 +98,27 @@ Security lease1 ACCEPT; Main received/handled final packet, reviewer read-only.
 Main48test/quality evidence and reviewer27test evidence recorded in review.
 One ready delivery PR now permitted under standing Git authority; hosted native
 and full required gate must succeed before merge. No real signing/private entry.
+
+## Bounded fictional native recovery
+
+Initial source67d4c348762b04e255f6e954b849dce9b9a4d9f3, PR249,
+run34568143647 native job103164413215: unit10PASS; exact Xcode26.3/17C529,
+SDK26.2/macOS15.7.9/24G830 arm64 verified; unsigned fixture archive succeeded.
+Custody returned CLEANUP_UNRESOLVED; raw internal result was suppressed, so exact
+cause remains unknown and export was not reached. No private asset used.
+Activate writer task-196-writer-20260911 lease2, same four owned paths, new
+HEAD67d4c348762b04e255f6e954b849dce9b9a4d9f3; reviewer lease1 completed.
+Scope: one bounded fictional layer-split using fixed allowlisted native phase/result
+categories and tests, followed by at most one source correction when evidenced.
+No raw stdout/OS payload, weaker guards, private access, or old intake diagnostic.
+Unknown native behavior stays unresolved. Further same blocker after correction
+returns inconclusive; no repeated guessing. Review before each changed hosted slice.
+
+Writer lease2 completed/read-only; fixed native six-field taxonomy and case index
+implemented without relaxing native target/API/ACL/timeouts/predicates. Activate
+advisor task-196-security-20260911 lease2 against this dirty delta at HEAD67d4c348762b04e255f6e954b849dce9b9a4d9f3;
+same scope/owned_paths=none/report_to=/root. Main native diagnostics remain pending.
+
+Security lease2 ACCEPT, received by Main; reviewer read-only. Initial full run
+completed FAILURE only for new native job/aggregate; all other selected jobs PASS.
+Main may push reviewed diagnostic delta to same PR249 for the one fictional split.

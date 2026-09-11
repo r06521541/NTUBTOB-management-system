@@ -20,3 +20,14 @@ Hosted macOS still required: Swift/native ACL/API/search-list behavior, actual
 unsigned archive and manual export refusal. No positive export, product build with
 key present, hard-kill cleanup or OS-cache secure-erasure evidence. This ACCEPT
 does not authorize any real asset, signing, upload, provider or runtime operation.
+
+## Bounded fictional diagnostic delta
+
+Lease2 ACCEPT at HEAD67d4c348762b04e255f6e954b849dce9b9a4d9f3 plus dirty
+diagnostic delta. Independent29run26PASS3skips/diffcheckPASS; no actionable blocker.
+Six fixed ASCII fields, exact schema/enum/duplicate/size and cleanup coherence;
+no raw OSStatus/exception/path output. Operation and cleanup independently reported;
+expected reason plus VERIFIED and empty directory required to continue. Original
+Swift API/ACL/target/order/timeouts/signature predicates unchanged. Windows cannot
+validate native compilation; root cause unknown pending one fictional hosted split.
+Reviewer completed/read-only. Main same29test/quality/diff evidence PASS.

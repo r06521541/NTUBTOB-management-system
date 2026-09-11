@@ -2,9 +2,11 @@
 
 import contextlib
 import io
+import json
 import os
 import platform
 import plistlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -62,19 +64,42 @@ class FakeRunner:
         if Path(args[0]).name == "native":
             if self.failure == "cancel_custody":
                 raise KeyboardInterrupt
-            if self.failure == "native_cleanup":
-                return 0, b"CLEANUP_UNRESOLVED\n"
             if self.failure == "native_sentinel":
                 return 0, b"private-sentinel"
-            return 0, (
-                b"AUTH_REJECTED\n"
-                if payload[0]
-                else (
-                    b"CERTIFICATE_MISMATCH\n"
-                    if payload.endswith(b"wrong")
-                    else b"CUSTODY_VERIFIED\n"
+            detail = {
+                "reason": (
+                    "AUTH_REJECTED"
+                    if payload[0]
+                    else (
+                        "CERTIFICATE_MISMATCH"
+                        if payload.endswith(b"wrong")
+                        else "CUSTODY_VERIFIED"
+                    )
+                ),
+                "phase": (
+                    "import"
+                    if payload[0]
+                    else "certificate_match" if payload.endswith(b"wrong") else "verify"
+                ),
+                "error_class": "OS_AUTH_FAILED" if payload[0] else "OS_SUCCESS",
+                "cleanup": "VERIFIED",
+                "cleanup_error_class": "OS_SUCCESS",
+                "cleanup_phase": "completed",
+            }
+            if self.failure == "native_cleanup":
+                detail.update(
+                    reason="CLEANUP_UNRESOLVED",
+                    cleanup="DELETE_REJECTED",
+                    cleanup_error_class="OS_OTHER",
+                    cleanup_phase="delete",
                 )
-            )
+            elif self.failure == "import_cleaned":
+                detail.update(
+                    reason="CUSTODY_REJECTED", phase="import", error_class="OS_OTHER"
+                )
+            elif self.failure == "residual":
+                (Path(cwd) / "fictional-residual").write_text("fictional")
+            return 0, json.dumps(detail).encode()
         if "-exportArchive" in args:
             options = plistlib.loads(Path(args[-1]).read_bytes())
             if (
@@ -91,6 +116,41 @@ class FakeRunner:
 
 
 class FeasibilityTests(unittest.TestCase):
+    def test_native_detail_strict_allowlist_and_no_disclosure(self):
+        valid = {
+            "reason": "CUSTODY_REJECTED",
+            "phase": "import",
+            "error_class": "OS_OTHER",
+            "cleanup": "VERIFIED",
+            "cleanup_error_class": "OS_SUCCESS",
+            "cleanup_phase": "completed",
+        }
+        self.assertEqual(target.native_detail(json.dumps(valid).encode()), valid)
+        for data in (
+            b"private-sentinel",
+            json.dumps({**valid, "phase": "private-sentinel"}).encode(),
+            json.dumps({**valid, "extra": "private-sentinel"}).encode(),
+            json.dumps({**valid, "cleanup_phase": "delete"}).encode(),
+            json.dumps({**valid, "reason": "CLEANUP_UNRESOLVED"}).encode(),
+            b'{"reason":"CUSTODY_REJECTED","reason":"CUSTODY_VERIFIED"}',
+        ):
+            with self.assertRaises(target.Rejected) as caught:
+                target.native_detail(data)
+            self.assertNotIn("private-sentinel", repr(caught.exception))
+
+    def test_import_failure_preserves_confirmed_cleanup_and_case(self):
+        result, runner = self.exercise("import_cleaned")
+        self.assertEqual(result["classification"], "CUSTODY_REJECTED")
+        self.assertTrue(result["cleanup_verified"])
+        self.assertEqual(result["native_case"], 0)
+        self.assertEqual(result["native_detail"]["phase"], "import")
+        self.assertEqual(result["native_detail"]["error_class"], "OS_OTHER")
+        self.assertEqual(result["native_detail"]["cleanup"], "VERIFIED")
+        self.assertFalse(any("-exportArchive" in args for args in runner.calls))
+        result, _ = self.exercise("residual")
+        self.assertEqual(result["classification"], "CLEANUP_UNRESOLVED")
+        self.assertFalse(result["cleanup_verified"])
+
     def exercise(self, failure=None):
         runner = FakeRunner(failure)
         with (
@@ -226,6 +286,26 @@ class FeasibilityTests(unittest.TestCase):
 
     def test_native_source_confines_import_and_cleanup(self):
         source = target.SOURCE.read_text()
+        phases = set(
+            re.findall(
+                r'(?:predicate\(|status\(|phase\s*=|metadataPhase\s*=)\s*"([a-z_]+)"',
+                source,
+            )
+        )
+        self.assertLessEqual(phases, target.NATIVE_FIELDS["phase"])
+        self.assertLessEqual(
+            {
+                "cwd_name",
+                "root_name",
+                "cwd_canonical",
+                "temp_binding",
+                "key_association",
+                "key_target",
+                "sign",
+                "verify",
+            },
+            phases,
+        )
         for required in (
             "kSecImportExportKeychain",
             "SecKeychainDelete(target)",

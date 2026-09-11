@@ -90,6 +90,40 @@ later export successfully without project code after key introduction. Positive
 real signing/export and every private custody expansion require a separate exact
 Owner decision; the unknown prior INPUT_REJECTED cause is not diagnosed or fixed.
 
+## Lease2: bounded fictional native layer split
+
+HEAD `67d4c348762b04e255f6e954b849dce9b9a4d9f3`, same branch/four owned files.
+Main reports run34568143647/job103164413215: actual pinned toolchain and unsigned
+fictional archive passed; custody returned CLEANUP_UNRESOLVED, no export occurred.
+The previous native result was not observable, so this does not establish a cause.
+
+Native output is now one fixed six-field JSON object: reason, phase, error_class,
+cleanup, cleanup_phase, cleanup_error_class. Path basename/prefix/canonical/temp
+binding and directory stat/owner/mode/type are distinct phases, as are identity,
+certificate, key association/target, algorithm, sign and verify checks. Cleanup has
+independent delete/search/default/file/directory phases so it cannot erase the
+operation's failure evidence. OSStatus values map only to finite categories, never
+raw numeric codes, descriptions, paths or material. This is instrumentation of the
+same predicates/API order, not a source remedy or relaxed target/ACL/trust check.
+
+Controller records fixed case index0(correct),1(certificate mismatch),2(wrong password),
+checks the exact schema/enum/duplicate/size/cleanup consistency and still requires
+the expected result and verified cleanup to continue. An operation rejection with
+independently confirmed cleanup now remains CUSTODY_REJECTED plus cleanup=true;
+unknown output/process failure, residual files or unconfirmed cleanup remain
+CLEANUP_UNRESOLVED. Early NOT_CREATED cannot qualify as a successful native case.
+No raw/partial native output is exposed. Timeout without a final valid protocol
+result remains unknown; no diagnosis is invented from missing evidence.
+
+Tests-first missing protocol API failed as expected. Final focused suite12 run:
+10 PASS,2 existing platform skips. Coverage includes strict/sentinel/duplicate and
+contradictory cleanup rejection, preserved import-failure cleanup, residual files,
+and native-source phase allowlist. Two owned Python quality checks and diffcheck
+PASS. No native/hosted/private/Git/API execution occurred in writer lease2.
+Main's dirty HANDOFF/task files preserved. Independent review precedes one changed
+hosted slice; only then may one evidenced source correction be considered. Persistent
+blocker after that correction is inconclusive, not another diagnostic iteration.
+
 ## Main integration
 
 Security review ACCEPT for source/fictional-hosted admission, no actionable findings.

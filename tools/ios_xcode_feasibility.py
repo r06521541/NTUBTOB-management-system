@@ -40,6 +40,158 @@ REASONS = frozenset(
         "CONTROL_VERIFIED_EXPORT_REJECTED",
     }
 )
+NATIVE_FIELDS = {
+    "reason": frozenset(
+        {
+            "ARGUMENTS_REJECTED",
+            "PLATFORM_UNSUPPORTED",
+            "PATH_REJECTED",
+            "FRAME_REJECTED",
+            "CUSTODY_REJECTED",
+            "AUTH_REJECTED",
+            "CERTIFICATE_MISMATCH",
+            "CUSTODY_VERIFIED",
+            "CLEANUP_UNRESOLVED",
+        }
+    ),
+    "phase": frozenset(
+        {
+            "arguments",
+            "platform",
+            "cwd_name",
+            "root_name",
+            "cwd_canonical",
+            "temp_binding",
+            "directory_stat",
+            "directory_owner",
+            "directory_mode",
+            "directory_type",
+            "path_empty",
+            "frame",
+            "search_snapshot",
+            "default_snapshot",
+            "disable_interaction",
+            "trusted_application",
+            "access",
+            "create",
+            "created_keychain",
+            "search_read",
+            "default_status",
+            "search_shape",
+            "search_match",
+            "default_match",
+            "import",
+            "identity_array",
+            "identity_count",
+            "identity_value",
+            "identity_type",
+            "certificate",
+            "certificate_value",
+            "certificate_match",
+            "private_key",
+            "private_key_value",
+            "public_key",
+            "key_association",
+            "key_value",
+            "key_target",
+            "algorithm",
+            "sign",
+            "verify",
+        }
+    ),
+    "error_class": frozenset(
+        {
+            "NOT_CHECKED",
+            "OS_SUCCESS",
+            "OS_AUTH_FAILED",
+            "OS_DECODE",
+            "OS_INTERACTION_NOT_ALLOWED",
+            "OS_ITEM_NOT_FOUND",
+            "OS_PARAM",
+            "OS_OTHER",
+            "PREDICATE_REJECTED",
+        }
+    ),
+    "cleanup": frozenset(
+        {
+            "NOT_CREATED",
+            "UNRESOLVED",
+            "DELETE_REJECTED",
+            "METADATA_CHANGED",
+            "RESIDUAL_FILES",
+            "VERIFIED",
+        }
+    ),
+    "cleanup_error_class": frozenset(
+        {
+            "NOT_CHECKED",
+            "OS_SUCCESS",
+            "OS_AUTH_FAILED",
+            "OS_DECODE",
+            "OS_INTERACTION_NOT_ALLOWED",
+            "OS_ITEM_NOT_FOUND",
+            "OS_PARAM",
+            "OS_OTHER",
+            "PREDICATE_REJECTED",
+        }
+    ),
+    "cleanup_phase": frozenset(
+        {
+            "not_started",
+            "delete",
+            "search_read",
+            "default_status",
+            "search_shape",
+            "search_match",
+            "default_match",
+            "file_absence",
+            "directory_empty",
+            "completed",
+        }
+    ),
+}
+
+
+def native_detail(output):
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError
+            result[key] = value
+        return result
+
+    try:
+        if type(output) is not bytes or len(output) > 2048:
+            raise ValueError
+        result = json.loads(output.decode("ascii"), object_pairs_hook=unique)
+        if (
+            type(result) is not dict
+            or set(result) != set(NATIVE_FIELDS)
+            or any(
+                type(result[key]) is not str or result[key] not in allowed
+                for key, allowed in NATIVE_FIELDS.items()
+            )
+        ):
+            raise ValueError
+        if result["cleanup"] == "VERIFIED" and (
+            result["cleanup_phase"] != "completed"
+            or result["cleanup_error_class"] != "OS_SUCCESS"
+        ):
+            raise ValueError
+        if result["cleanup"] == "NOT_CREATED" and (
+            result["cleanup_phase"] != "not_started"
+            or result["cleanup_error_class"] != "NOT_CHECKED"
+        ):
+            raise ValueError
+        if result["reason"] == "CLEANUP_UNRESOLVED" and result["cleanup"] in {
+            "VERIFIED",
+            "NOT_CREATED",
+        }:
+            raise ValueError
+        return {key: result[key] for key in NATIVE_FIELDS}
+    except Exception:
+        raise Rejected("OUTPUT_REJECTED") from None
 
 
 class Rejected(Exception):
@@ -326,16 +478,32 @@ def rehearse(*, _run=process):
         custody = safe_path(root, root / "custody")
         custody.mkdir(mode=0o700)
         p12, certificate, wrong = fixtures.fictional_material()
-        for payload, expected in (
-            (fixtures.frame(p12, certificate), b"CUSTODY_VERIFIED\n"),
-            (fixtures.frame(p12, wrong), b"CERTIFICATE_MISMATCH\n"),
-            (fixtures.frame(p12, certificate, True), b"AUTH_REJECTED\n"),
+        for index, (payload, expected) in enumerate(
+            (
+                (fixtures.frame(p12, certificate), "CUSTODY_VERIFIED"),
+                (fixtures.frame(p12, wrong), "CERTIFICATE_MISMATCH"),
+                (fixtures.frame(p12, certificate, True), "AUTH_REJECTED"),
+            )
         ):
+            result["native_case"] = index
+            result.pop("native_detail", None)
             custody_active = True
             code, output = _run([str(binary)], cwd=custody, payload=payload, timeout=30)
-            if code != 0 or output != expected or list(custody.iterdir()):
+            detail = native_detail(output)
+            result["native_detail"] = detail
+            if (
+                code == 0
+                and detail["cleanup"] in {"VERIFIED", "NOT_CREATED"}
+                and not list(custody.iterdir())
+            ):
+                custody_active = False
+            if (
+                code != 0
+                or detail["reason"] != expected
+                or detail["cleanup"] != "VERIFIED"
+                or custody_active
+            ):
                 raise Rejected("CUSTODY_REJECTED")
-            custody_active = False
         result["temporary_keychain_verified"] = True
         result["stage"] = "export"
         options = safe_path(root, root / "ExportOptions.plist")
