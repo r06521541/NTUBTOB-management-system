@@ -125,3 +125,119 @@ green/no unresolved code findings; do not equate merge with real signing/TF.
 Apple account tab reached login, Owner login/MFA required and requested. Keep real
 operations paused pending authenticated target inventory and reviewed live custody;
 source integration may finish independently. No secret payload or Apple key read.
+
+First slice merged via PR250 at5762a89c6e6451ed19f5151da1652312a9f76679 after
+run34618189006 on8066ea54fbe4fd53bf01b06d46756550271cef57 passed16/16 jobs.
+Old branch's delivery complete; no new PR yet. Remaining IOS-TF-01 moves to
+codex/task-198-owner-testflight from merged SHA, Main lease1 retained; new writer
+claim must use that branch/base/HEAD. No live controller implemented or released.
+Owner completed Apple login on2026-09-12; Main verified authenticated Apple/ASC
+read-only inventory. Existing App/capability, certificate/profile and ASC upload
+key retained. Developer Sign-in-purpose Keys list empty; no key created/downloaded.
+Owner explicitly approved on2026-09-12 creation of ONE key named
+NTUBTOB Staging Apple Login, Sign in with Apple ONLY, primary App ID
+tw.org.ntubtob.portal, used only by isolated staging in IOS-TF-01. No certificate
+replacement, other capabilities, production use or existing-key revocation.
+This is action-time approval for that ONE persistent-access key, not other keys.
+Private download/custody remains required; never paste a secret into chat.
+Manual Console packet per COLLABORATION8: operator=owner; owner_gate=manual_key_creation;
+standing_authorization=IOS-TF-01 plus2026-09-12 exact one-key consent;
+report_to=/root; stop_only_on=target-or-scope-drift|unexpected-terms|uncertain-result.
+Main may prepare the visible new-key draft with only the approved name/service and
+existing primary App selection; final Register and private download belong to Owner,
+not an unreviewed scripted operator. No new signing/upload wrapper claimed.
+Owner clicks Register once, downloads the resulting p8 privately outside repository
+and cloud-synced folders, and reports only downloaded. No payload/key identifier
+needed in chat. If interrupted/uncertain, inspect existing Keys before another
+Register; never create a duplicate or revoke to repair a download uncertainty.
+Then finalize reviewed live custody/controller and batch remaining private input.
+Existing files/portal metadata do not prove payload validity or signing readiness.
+
+## Live input and runner preparation
+
+Owner reported downloaded2026-09-12; Main observed Download Your Key with disabled
+Downloaded control and only Sign in with Apple. No repeat registration/download;
+actual local key custody remains unverified. Source preparation resumes without
+requesting secret input before the complete reviewed operator is ready.
+
+Revoke completed writer lease1 and security lease2 for new work. All packets use
+branch=codex/task-198-owner-testflight;
+base=head=5762a89c6e6451ed19f5151da1652312a9f76679; report_to=/root;
+COLLABORATION2 ACK/heartbeat/blocker/proactive full-SHA completion applies.
+Initial dirty paths are the five existing Main TASK198 coordination records only.
+
+Writer /root/csr_writer; task-198-writer-20260911 lease2; role=codex-writer;
+write=allowed; owned_paths=tools/ios_testflight_inputs.py,
+tools/tests/test_ios_testflight_inputs.py. Bounded work package: implement reusable
+local private-input validation and separated in-memory signing/upload/Apple-login
+material types for the forthcoming real operator, plus offline fictional tests.
+Reuse reviewed Windows handle/ACL/path primitives and pinned cryptography rather
+than another custom CMS gate. Validate P12 private-key/certificate association,
+certificate distribution purpose/validity/team, exact bundle/profile structural
+binding without asserting Apple trust, distinct P256 API/provider keys and signed
+short-lived ASC/Apple JWT construction. Private paths/password through hidden input
+only when invoked by the future controller; no generic standalone live CLI, export,
+secret persistence, network, Git/cloud/store/native mutation or true ready claims.
+Public constants/signatures and bounded fixed error categories; no repr/traceback
+of private inputs. Main handles integration; writer self-review/tests before handoff.
+Stop on out-of-scope input need, unsafe custody primitive or substantive mismatch.
+
+Advisor /root/task181_review; task-198-security-20260911 lease3; role=advisor;
+write=read-only; owned_paths=none. Resolve one concrete real-runner architecture:
+manual signed archive/export on ephemeral standard macos-15 runner, memory P12
+import with named-tools ACL, Xcode identity/profile discovery, key cleanup before
+separate ASC upload, no public artifact/logs. Examine whether exact export can work
+without search-list changes; if not, assess narrowly scoped ephemeral-user change
+plus verified restoration (never a global login-keychain or trust-all workaround).
+Return supported commands, minimal helper changes and precise boundary decision,
+not another fictional-signing round. No private material or external mutation.
+Main concurrently audits workflow/staging input/dependency/cost contracts.
+
+Security advisor lease3 ACCEPT received/handled. IOS-TF-01 supported-runner decision:
+replace the prior absolute no-search-list-change constraint ONLY for a single-use
+standard GitHub-hosted macos-15 VM. Native supervisor snapshots user search-list
+and default, inserts exactly its own temporary Keychain preserving prior order,
+checks readback/default unchanged, supervises all signing descendants, then restores
+the exact list and verifies before deleting its own Keychain. Not Owner Mac,
+self-hosted/shared runner, system domain, login/default replacement, trust-all or
+partition-list workaround. Unreaped processes or cleanup ambiguity forbid upload.
+Native import receives P12/password via bounded stdin, named-tools ACL only; no
+private password in argv/environment. Keychain-only discovery is not proof of
+real signing; actual existing-asset run remains independently reviewed/verified.
+Xcode26 profile is create-exclusive under OS-resolved runner home at
+Library/Developer/Xcode/UserData/Provisioning Profiles; no legacy-path fallback or
+overwrite. Only owned file/directory cleanup. Manual archive/export, pinned source,
+private logs/IPA within one job; prepare dependencies before signing key arrives,
+retrieve separate ASC credential only after verified signing cleanup.
+Main verified GitHub official signing guide and Apple DTS thread812538. The GitHub
+example's trust-all/password-argv/legacy-profile-path commands are NOT adopted.
+
+Writer lease2 completed and frozen; Main received the two new owned files and
+29 focused passing tests. Revoke completed security lease3 and activate
+/root/task181_review, task-198-security-20260911 lease4, role=advisor,
+write=read-only, owned_paths=none, report_to=/root. Same branch/base/head above;
+review frozen tools/ios_testflight_inputs.py and its test, their directly reused
+certificate/profile helpers and this scope only. Verify bounded non-disclosing
+errors, structural-vs-trust distinction, key separation, ES256/expiry semantics,
+negative cases and no native/private/network mutation; run fictional tests only.
+Main keeps the two source files frozen and handles read-only integration planning.
+Review must identify exact content digests with verdict; stop on source drift,
+private input need or expanded authority. Standard ACK/completion protocol applies.
+
+Next visible Owner action, independent of source review: Google Console currently
+has no project access with its signed-in account; iOS Google client availability
+is UNKNOWN, not absent. Main opened account selection for Owner login to the
+existing account that can access ntubtob-schedule-405614. operator=owner;
+owner_gate=google_account_login; standing_authorization=IOS-TF-01;
+report_to=/root; stop_only_on=login-or-MFA|unexpected-consent|target-drift.
+Only login/account selection; no Request access, IAM grant, new project, OAuth
+client creation or provider/callback mutation. Once signed in, Main resumes
+read-only exact-client inventory. No credentials in chat or agent entry.
+
+Security lease4 ACCEPT received/handled; independent9 tests PASS, canonical
+digests match Main's source snapshot. Writer/reviewer now completed/read-only.
+Main may commit/push these two source files and five Main coordination files as
+one descriptive work-package checkpoint on the current release branch; no new
+PR/hosted CI for this incomplete delivery. Live execution still needs complete
+reviewed controller/native runner. Pause at the named Google-login stop; after
+Owner login recheck exact iOS client and assign next bounded implementation.

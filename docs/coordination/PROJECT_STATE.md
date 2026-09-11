@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-09-11（repository 核對；未重新查詢 runtime）
+更新時間：2026-09-12（repository核對；僅TASK198 staging具名key/Ready唯讀查證，未查production runtime）
 
 維護角色：Main Work
 
-最近已合併證據：`bf7430023825ddbf0160515a02b1c24b8a653749`（TASK-196／PR249）。
+最近已合併證據：`5762a89c6e6451ed19f5151da1652312a9f76679`（TASK-197／TASK-198 first slice／PR250）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -80,11 +80,11 @@ Lane 是長期責任邊界，不永久綁定厚重 session；輪替須先 revoke
   TASK196已由PR249合併，完整run34603603901共16工作PASS：無私鑰archive、虛構Keychain正反向案例／清理，
   以及缺虛構profile時的預期匯出拒絕均驗證。原問題是分類漏認Xcode措辭，已以固定selector整行判定修正。
   真實資產與簽署未動用；positive export、真實profile、候選簽署／TestFlight仍是後續獨立gate。
-  TASK197：run34608233601已驗證實際Flutter未簽署archive；PR250仍Draft未合併。
+  TASK197：run34608233601已驗證實際Flutter未簽署archive；PR250後由TASK198收斂並合併。
   虛構codesign出現identity查找訊息、cleanup成功；根因不足以支持修正，有限診斷已停。
 run34610163522唯讀診斷查得target憑證／identity且DER符合；cleanup成功、codesign未執行。
 run34614766702單次parent/child診斷完成：均找到相符identity/key、typed canSign=true，cleanup成功。
-原生policy NOT_EVALUATED、codesign未執行；根因仍未證明，觀測額度用完，PR250維持Draft。
+原生policy NOT_EVALUATED、codesign未執行；不再把虛構codesign成功當真實發布前提，根因不冒稱解決。
 - TASK-177 repository delivery已通過獨立Privacy／Security review與hosted CI：Flutter匿名crash foundation固定
   default-off、local-only、provider-neutral與嚴格去識別化；尚無provider／endpoint、真實上傳或receipt evidence。
 - CI對changed Python使用bounded pinned quality runner；text digest canonicalize LF，binary digest維持raw bytes；
@@ -108,6 +108,10 @@ run34614766702單次parent/child診斷完成：均找到相符identity/key、typ
 - IOS-TF-01／TASK-198 active：Owner已批准既有資產真實簽署、必要staging操作與僅本人TestFlight，新增成本上限USD20。
   DEC-109取代包內逐次批准與TASK197單次診斷限制；不含production／公開版／新憑證。現有P12/profile/cert檔存在，
   未讀payload或驗證有效性；live staging Ready但四項Apple設定key皆缺，private intake／實機仍待必要Owner參與。
+  First slice由PR250合併且16項CI全綠；Apple登入完成，App capability／憑證／profile／ASC上傳key皆已唯讀確認存在。
+  Owner已建立並下載僅綁現有App、由staging使用的登入key，portal狀態已確認；未讀payload或驗證本機custody。
+  私密材料驗證模組離線測試及獨立review通過；Google Console帳號無專案權限，iOS client仍UNKNOWN，待Owner登入既有有權帳號。
+  尚無live signing/upload controller或TestFlight版本，測試者0；private intake仍待必要Owner參與。
 
 - TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換
   production，外部mutation維持獨立Owner gate。

@@ -1,20 +1,32 @@
 active_task: TASK-198
-status: in_progress
-next_actor: main-work
+status: blocked
+next_actor: owner
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: bf7430023825ddbf0160515a02b1c24b8a653749
+base_commit: 5762a89c6e6451ed19f5151da1652312a9f76679
 updated_by: main-work
-updated_at: 2026-09-11
+updated_at: 2026-09-12
 note: >
   Owner approved IOS-TF-01: existing-asset signing, staging and Owner-only TestFlight.
   USD20 incremental cost cap; per-SHA/manual retry gates superseded only in package.
-  Start3b1be6a607c565fa4184aec3493ef527995fbf19; existing branch and DraftPR250.
-  Main audits cost/access; two read-only advisors audit signing/readiness.
+  PR250 merged5762a89c6e6451ed19f5151da1652312a9f76679; prior CI16/16 PASS.
+  New branch codex/task-198-owner-testflight for remaining live delivery.
+  Owner completed Apple Developer login; authenticated account page verified.
+  Existing P12/profile/cert present; Apple runtime four keys absent; no new cert.
   No production, new certificate, public distribution or unrestricted key access.
-  Preserve five TASK197 local closeout records; no real credential execution yet.
+  First-slice writer/review completed; private-input writer lease2 completed/frozen.
+  Duplicate main CI completed/cancelled confirmed; no active run or watcher remains.
+  Read-only Apple/ASC inventory complete: App/capability and upload key exist.
+  Owner approved ONE App-bound Sign-in-purpose key on2026-09-12; staging use only.
+  Owner reported downloaded; portal confirms created/downloaded, Sign in with Apple ONLY.
+  Agent did not download/read key payload; local custody/pairing not yet verified.
+  Input writer lease2 and independent security lease4 completed; ACCEPT received/handled, agents read-only.
+  Work-package source checkpoint only, no new PR/hosted CI or release-readiness claim.
+  Google Console current account lacks primary-project access; iOS client remains unknown, no IAM mutation.
+  Owner account-selection page open: login existing project-authorized account only, no access request or new grant.
+  Real signing/upload controller and batched private intake remain unimplemented.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md
-review: pending
+review: docs/coordination/reviews/TASK-198.md
