@@ -48,6 +48,17 @@ STAGES = {
     "cleanup",
     "complete",
 }
+BINDING_REASONS = frozenset(
+    {
+        "SIGNING_DEPENDENCY_REJECTED",
+        "P12_DECODE_REJECTED",
+        "SIGNING_KEY_REJECTED",
+        "SIGNING_CERTIFICATE_MISMATCH",
+        "SIGNING_TEAM_MISMATCH",
+        "SIGNING_CERTIFICATE_TIME_REJECTED",
+        "SIGNING_CERTIFICATE_PURPOSE_REJECTED",
+    }
+)
 
 
 class Rejected(Exception):
@@ -55,7 +66,8 @@ class Rejected(Exception):
         super().__init__(
             reason
             if reason
-            in {
+            in BINDING_REASONS
+            | {
                 "INPUT_REJECTED",
                 "PREPARE_REJECTED",
                 "BINDING_REJECTED",
@@ -529,6 +541,9 @@ def _native(prepared, payload):
 def _certificate_binding(material):
     # Actual CMS structural binding is performed by the system decoder in native.
     # This entry independently checks the P12/expected certificate before key IPC.
+    # Fixed stage labels only. A P12 decode failure is not proof of a wrong
+    # password: malformed/unsupported P12 data can produce the same failure.
+    reason = "SIGNING_DEPENDENCY_REJECTED"
     try:
         from cryptography import x509
         from cryptography.hazmat.primitives.serialization import pkcs12
@@ -536,15 +551,18 @@ def _certificate_binding(material):
         from tools import ios_certificate_preparation as preparation
 
         _, _, serialization, rsa = preparation.dependencies()
+        reason = "P12_DECODE_REJECTED"
         key, cert, _ = pkcs12.load_key_and_certificates(
             material["p12"], material["password"]
         )
+        reason = "SIGNING_KEY_REJECTED"
         if (
             not isinstance(key, rsa.RSAPrivateKey)
             or key.key_size < 2048
             or cert is None
         ):
             raise ValueError()
+        reason = "SIGNING_CERTIFICATE_MISMATCH"
         public = cert.public_key()
         if (
             not isinstance(public, rsa.RSAPublicKey)
@@ -553,15 +571,22 @@ def _certificate_binding(material):
             != material["certificate_der"]
         ):
             raise ValueError()
+        reason = "SIGNING_TEAM_MISMATCH"
         if [
             v.value
             for v in cert.subject.get_attributes_for_oid(
                 x509.NameOID.ORGANIZATIONAL_UNIT_NAME
             )
-        ] != [material["team"]] or not cert.not_valid_before_utc <= datetime.now(
-            timezone.utc
-        ) <= cert.not_valid_after_utc:
+        ] != [material["team"]]:
             raise ValueError()
+        reason = "SIGNING_CERTIFICATE_TIME_REJECTED"
+        if (
+            not cert.not_valid_before_utc
+            <= datetime.now(timezone.utc)
+            <= cert.not_valid_after_utc
+        ):
+            raise ValueError()
+        reason = "SIGNING_CERTIFICATE_PURPOSE_REJECTED"
         bc = cert.extensions.get_extension_for_class(x509.BasicConstraints)
         ku = cert.extensions.get_extension_for_class(x509.KeyUsage)
         eku = cert.extensions.get_extension_for_class(x509.ExtendedKeyUsage)
@@ -585,7 +610,7 @@ def _certificate_binding(material):
         if any(ext.critical and ext.oid not in known for ext in cert.extensions):
             raise ValueError()
     except Exception:
-        raise Rejected("INPUT_REJECTED") from None
+        raise Rejected(reason) from None
 
 
 def _profile_container(data):

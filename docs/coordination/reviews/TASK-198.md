@@ -1,5 +1,28 @@
 # TASK-198 review
 
+## Current signing-input classification: Security34 ACCEPT
+
+Main received and handled proactive completion from /root/task181_review,
+claim task-198-security-20260911 lease34; completed/read-only. Branch
+codex/task-198-signing-input-reasons; base2ae97b339e542eeea766489dffdcd21aa45cfef6.
+All binding acceptance predicates preserved; Team/date split retains original
+order and short-circuit rejection. Fixed stages contain no values or raw causes.
+Intake propagates allowlisted reasons only; generic errors remain sanitized.
+Actual fictional encrypted P12 positive and wrong-password/malformed/key-kind/
+certificate/Team/time/purpose negatives pass; operator rejection creates no
+journal/session/inventory or repeat collection. Independent73focusedPASS/0skip,
+diff clean. Main225tests221PASS4platformskips; quality/compile/diff PASS.
+No findings. This repairs classification, not the Owner's material or password;
+P12_DECODE_REJECTED alone cannot distinguish wrong password from invalid P12.
+No private/native/network/Git/source mutation by reviewer, no real signing proof.
+
+Accepted LF-SHA256:
+- tools/ios_testflight_signing.py ec4218aab75def455461962dcd5ebf64d2c5cee20073833f586d2a4617989026
+- tools/ios_testflight_intake.py 7f20d52c611f6e7d0f31c5ca1d05297296bfc5b60dfe08a3efd9c883e08c8c00
+- tools/tests/test_ios_testflight_signing.py 6dc71c70913b9b2bdd94b86e53ac71ff612ceabea65643fefed0d017a5c48c49
+- tools/tests/test_ios_testflight_intake.py 274f4ad5ca96518e0cff167b7af9b2ca1f4f76ad0c2ad94de62c40a9a432fe6c
+- tools/tests/test_ios_testflight_operator.py c9f2ba46fd68f5aa75a8af8cd786a5c08f77869ff11506bb8b895da5ce11ad00
+
 ## Current PKCS8 compatibility repair: Security33 ACCEPT
 
 Main received/handled /root/task181_review completion, claim/actor unchanged,

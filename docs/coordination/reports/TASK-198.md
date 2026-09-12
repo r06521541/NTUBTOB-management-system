@@ -1,6 +1,28 @@
 # TASK-198 report
 
-## Current PKCS8 compatibility repair
+## Current signing-input classification correction
+
+PR254 merged2ae97b339e542eeea766489dffdcd21aa45cfef6 after CI34698156008
+SUCCESS16/16 on9103ba85583eaee20b0f1da0643d3c40369a3411. Accepted tree matched.
+Actual ASC_IMPORT_COMPLETE and SETTINGS_READY prove the approved single local copy
+and path update completed; originals/other fields retained, no repeated import.
+Owner later ran --execute --settings and reported SIGNING_MATERIAL_REJECTED,
+run_id=null. Independent metadata checks: zero execution processes, no journal,
+no signing workflow runs. Owner uncertain whether CSR/P12 passwords coincide.
+
+Existing intake merged frame and P12/certificate/Team/time/purpose failures into
+one reason. Fictional actual P12 probe accepts matching material and rejects
+wrong password/certificate/Team; this does not diagnose the Owner's private input.
+Main now separates fixed frame/dependency/P12 decode/key/certificate/Team/time/
+purpose rejection labels in the same path, with all acceptance conditions intact.
+P12_DECODE_REJECTED means parser/decryption failed, not proof of a wrong password.
+Unknown errors remain sanitized; no additional CLI, output values, retry, private
+cache, signing or upload. 73 focused tests and five-file quality/compile/diff PASS;
+full affected suite225tests221PASS4platformskips. Security34 ACCEPT received and
+handled with73independentPASS, exact five fingerprints match. Normal hosted CI
+and merge remain required; only then a fresh hidden P12 input, no six-field reentry.
+
+## Previous PKCS8 compatibility repair (PR254 merged)
 
 PR253 merged d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc with CI34696846257
 SUCCESS16/16; exact accepted tree verified on clean main. Actual preview returned

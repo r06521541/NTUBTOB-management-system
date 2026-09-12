@@ -11,6 +11,127 @@ from unittest.mock import Mock, patch
 from tools import ios_testflight_signing as signing
 
 
+class SigningBindingTests(unittest.TestCase):
+    """Actual fictional P12 parsing, not a mocked binding success."""
+
+    @classmethod
+    def setUpClass(cls):
+        from datetime import datetime, timezone
+
+        from cryptography.hazmat.primitives.asymmetric import rsa
+
+        cls.key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        cls.now = datetime.now(timezone.utc)
+        cls.password = b"fictional-p12-password"
+        cls.valid = cls.material()
+
+    @classmethod
+    def material(
+        cls, *, team="FICTTEAM01", time_offset=0, ca=False, eku=True, key=None
+    ):
+        from datetime import timedelta
+
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.serialization import pkcs12
+
+        key = key or cls.key
+        name = x509.Name(
+            [x509.NameAttribute(x509.NameOID.ORGANIZATIONAL_UNIT_NAME, team)]
+        )
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(name)
+            .issuer_name(name)
+            .public_key(key.public_key())
+            .serial_number(123)
+            .not_valid_before(cls.now + timedelta(days=time_offset - 1))
+            .not_valid_after(cls.now + timedelta(days=time_offset + 1))
+            .add_extension(x509.BasicConstraints(ca, None), True)
+            .add_extension(
+                x509.KeyUsage(
+                    True, False, False, False, False, False, False, False, False
+                ),
+                True,
+            )
+        )
+        if eku:
+            builder = builder.add_extension(
+                x509.ExtendedKeyUsage([x509.ExtendedKeyUsageOID.CODE_SIGNING]), True
+            )
+        for oid in ("1.2.840.113635.100.6.1.4", "1.2.840.113635.100.6.1.7"):
+            builder = builder.add_extension(
+                x509.UnrecognizedExtension(x509.ObjectIdentifier(oid), b"\x05\x00"),
+                True,
+            )
+        cert = builder.sign(key, hashes.SHA256())
+        return dict(
+            p12=pkcs12.serialize_key_and_certificates(
+                b"fictional",
+                key,
+                cert,
+                None,
+                serialization.BestAvailableEncryption(cls.password),
+            ),
+            password=cls.password,
+            certificate_der=cert.public_bytes(serialization.Encoding.DER),
+            team="FICTTEAM01",
+        )
+
+    def test_real_fictional_matching_material_passes(self):
+        self.assertIsNone(signing._certificate_binding(self.valid))
+
+    def test_binding_failures_report_stage_not_private_values(self):
+        for material, expected in (
+            (self.valid | {"password": b"private-sentinel"}, "P12_DECODE_REJECTED"),
+            (self.valid | {"p12": b"private-sentinel"}, "P12_DECODE_REJECTED"),
+            (
+                self.valid | {"certificate_der": b"private-sentinel"},
+                "SIGNING_CERTIFICATE_MISMATCH",
+            ),
+            (self.valid | {"team": "WRONGTEAM1"}, "SIGNING_TEAM_MISMATCH"),
+            (self.material(time_offset=-3), "SIGNING_CERTIFICATE_TIME_REJECTED"),
+            (self.material(time_offset=3), "SIGNING_CERTIFICATE_TIME_REJECTED"),
+            (self.material(ca=True), "SIGNING_CERTIFICATE_PURPOSE_REJECTED"),
+            (self.material(eku=False), "SIGNING_CERTIFICATE_PURPOSE_REJECTED"),
+        ):
+            with (
+                self.subTest(expected=expected),
+                self.assertRaises(signing.Rejected) as error,
+            ):
+                signing._certificate_binding(material)
+            self.assertEqual(str(error.exception), expected)
+            self.assertTrue(error.exception.__suppress_context__)
+
+    def test_dependency_and_key_kind_failures_remain_closed(self):
+        with (
+            patch(
+                "tools.ios_certificate_preparation.dependencies",
+                side_effect=RuntimeError("private-sentinel"),
+            ),
+            self.assertRaisesRegex(signing.Rejected, "^SIGNING_DEPENDENCY_REJECTED$"),
+        ):
+            signing._certificate_binding(self.valid)
+
+    def test_actual_ec_and_weak_rsa_p12_are_rejected(self):
+        from cryptography.hazmat.primitives.asymmetric import ec, rsa
+        from cryptography.hazmat.primitives.serialization import pkcs12
+
+        for key in (
+            ec.generate_private_key(ec.SECP256R1()),
+            rsa.generate_private_key(public_exponent=65537, key_size=1024),
+        ):
+            with self.assertRaisesRegex(signing.Rejected, "^SIGNING_KEY_REJECTED$"):
+                signing._certificate_binding(self.material(key=key))
+        with (
+            patch.object(
+                pkcs12, "load_key_and_certificates", return_value=(None, None, [])
+            ),
+            self.assertRaisesRegex(signing.Rejected, "^SIGNING_KEY_REJECTED$"),
+        ):
+            signing._certificate_binding(self.valid)
+
+
 class SigningTests(unittest.TestCase):
     def test_spm_receipt_and_conditional_pods(self):
         with tempfile.TemporaryDirectory() as folder:
