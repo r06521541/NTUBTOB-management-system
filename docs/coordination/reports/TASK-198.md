@@ -33,6 +33,13 @@ environment Secret, staging runtime/DB or production mutation in this repair yet
 Subsequent --check-inputs will prove metadata/custody, not crypto/password/ASC scope.
 Only the P12 password remains hidden input after saved metadata/custody pass.
 
+PR253 opened at717c603752b56e562ed9d368a89f20e0fa00128d. CI34696504831
+Windows native source fixtures failed ACL_REJECTED (3tests); Ubuntu tools and
+quality passed. Remaining old jobs cancelled, not a passing run. Main changed
+only temporary fixture source/file Owner establishment, preserving inherited DACL
+and production code. Security32 ACCEPT, independent4nativePASS; Main full215tests
+211PASS4skips. Same PR receives test correction and fresh normalCI, no live import.
+
 ## Previous input-recovery repair (PR252 subsequently merged)
 
 PR251 merged48232c548d486c8175ac990dd91d2f68d218544b with normal CI34688813903

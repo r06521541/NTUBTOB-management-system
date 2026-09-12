@@ -20,6 +20,9 @@ note: >
   completion-validity issue, Main corrected; Security31 ACCEPT received/handled.
   Reviewer completed/read-only. Main full215tests211PASS4platformskips, six-file
   quality/compile/diff PASS; six source/test fingerprints independently accepted.
+  PR253 firstCI34696504831 Windows fixture ACL failed; old run cancelled.
+  Test-only deterministic fixture Owner fix accepted by Security32, native4PASS;
+  runtime checks unchanged. Push same PR and require fresh normalCI before merge.
   Locked atomic rename failed in fictional native probe; approved implementation
   uses protected CREATE_NEW metadata backup plus one exclusive settings handle.
   No atomic-update claim; interrupted update preserves six fields in the backup.

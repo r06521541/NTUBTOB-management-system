@@ -1151,3 +1151,22 @@ accepted scope. Immediate received/executing ACK, heartbeat10-15min, blocker
 immediate, proactive final verdict/fullHEAD/paths/tests/findings/limits/mutations
 and LF fingerprints required. No private/native/cloud/Git mutation. Main remains
 active, frozen source pending rereview; old final status does not authorize import.
+
+PR253 source717c603752b56e562ed9d368a89f20e0fa00128d: first CI34696504831
+Windows job failed three native source-fixture tests at ACL_REJECTED; Ubuntu and
+quality passed. Remaining run cancellation requested, not PASS. Fixture assumed
+the Windows token's default object owner equals current user. Main makes only
+fictional source directory/file ownership explicit via OWNER_SECURITY_INFORMATION,
+retaining inherited DACL and all runtime guards. Local four native tests PASS;
+fresh hosted CI remains required to verify the host difference is resolved.
+Microsoft reference: https://learn.microsoft.com/en-us/windows/win32/secauthz/owner-of-a-new-object
+and https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setnamedsecurityinfow
+
+Security32 packet: TASK198, same branch, base/head717c603752b56e562ed9d368a89f20e0fa00128d;
+actor/claim unchanged advisor, lease32, ownednone, write=read-only, report_to=/root.
+Only delta tools/tests/test_ios_testflight_key_custody.py temporary native fixture;
+production sources unchanged. Check exact local fixture-only Owner operation and
+preserved DACL/runtime rejection. No private/Git/network mutations; fake tests
+only. Immediate received/executing ACK, heartbeat10-15min, blocker immediately,
+proactive final verdict/HEAD/hash/tests/findings/limits/mutations. Main active until
+completion handled, frozen file during review, same PR/normal CI after acceptance.

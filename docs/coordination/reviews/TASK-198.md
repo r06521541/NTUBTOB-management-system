@@ -34,6 +34,16 @@ Corresponding three direct tests:
 - f3b34ded38a4f338291815faf0a3c8d55fe3c7a8488b200c463f8d1ed44bda8a
 - ee903dd74f573222e0702d13567571bd41953074294439340e21d08a9c829f7f
 
+Security32 test-only ACCEPT received/handled after PR253 Windows job rejected
+three source fixtures with ACL_REJECTED. Source remains unchanged. Fixture now
+sets only Owner (SE_FILE_OBJECT/OWNER_SECURITY_INFORMATION, DACL/SACL flags absent)
+on its two fresh temporary source paths; keeps wrong-owner/hardlink rejection.
+Independent4 native fictional tests PASS, Main215tests211PASS4skips. The new test
+LF37347d98fdb707f2b6df65abed12a786511077d358b7ad03e13354fd23d12f09 supersedes
+the test_key_custody fingerprint above; other five unchanged. Prior failed CI
+34696504831 cancelled/superseded, not PASS. Fresh hosted CI still required;
+fixture correction does not prove a unique host root cause without that evidence.
+
 ## Previous input-recovery repair: Security29 ACCEPT
 
 Main received/handled /root/task181_review completion, report_to=/root, lease29.

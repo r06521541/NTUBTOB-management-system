@@ -272,6 +272,22 @@ class NativeTests(unittest.TestCase):
             )
             raw = json.dumps(values(selected)).encode()
             native = key.Native()
+            # New objects use the process token's default owner, which is not
+            # necessarily its user SID on a hosted Windows runner. Establish
+            # this fictional source fixture's required owner explicitly without
+            # changing its inherited DACL or the production custody checks.
+            set_owner = native.bind(
+                native.security,
+                "SetNamedSecurityInfoW",
+                key.custody.w.DWORD,
+                [key.custody.w.LPWSTR, key.custody.w.DWORD, key.custody.w.DWORD]
+                + [c.c_void_p] * 4,
+            )
+            for fixture_path in (source, selected):
+                self.assertEqual(
+                    set_owner(str(fixture_path), 1, 1, native.sid, None, None, None),
+                    0,
+                )
             h = native.open_handle(private / key.settings.FILENAME, create=True)
             try:
                 native.write_checked(h, private / key.settings.FILENAME, raw)
