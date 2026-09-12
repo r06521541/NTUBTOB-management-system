@@ -23,6 +23,29 @@ from tools import ios_testflight_recovery as recovery
 from tools import ios_testflight_upload as upload
 
 GROUP = "NTUBTOB Owner Internal"
+REQUEST_REASONS = frozenset(
+    {
+        "ASC_AUTHENTICATION_REJECTED",
+        "ASC_PERMISSION_REJECTED",
+        "ASC_REQUEST_REJECTED",
+        "ASC_SERVICE_UNAVAILABLE",
+        "ASC_CONNECTION_FAILED",
+    }
+)
+INVENTORY_STAGES = frozenset(
+    {
+        "asc_input",
+        "asc_apps",
+        "asc_groups",
+        "asc_group_auto_distribution",
+        "asc_group_public_link",
+        "asc_owner_group",
+        "asc_testers",
+        "asc_builds",
+        "asc_build_uploads",
+        "asc_complete",
+    }
+)
 STATES = {
     "OWNER_GROUP_REQUIRED",
     "OWNER_SCOPE_REJECTED",
@@ -30,7 +53,7 @@ STATES = {
     "ASSIGNMENT_UNCERTAIN",
     "OWNER_DISTRIBUTION_VERIFIED",
     "ALREADY_ASSIGNED",
-}
+} | REQUEST_REASONS
 
 
 class Rejected(Exception):
@@ -108,6 +131,7 @@ class OwnerSession:
         self.uncertain = False
         self.assigned_build = None
         self.lock = threading.Lock()
+        self.stage = "asc_input"
 
     def __repr__(self):
         return "<OwnerAssignmentSession>"
@@ -144,20 +168,23 @@ class OwnerSession:
             raise Rejected()
         self.requests += 1
         token = inputs.asc_jwt(self.asc, now=datetime.now(timezone.utc))
-        response = self.transport(
-            method,
-            upload.API + path,
-            {
-                "Authorization": "Bearer " + token.value,
-                "Content-Type": "application/json",
-            },
-            (
-                json.dumps(body, separators=(",", ":")).encode()
-                if body is not None
-                else None
-            ),
-            min(30, self.deadline - time.monotonic()),
-        )
+        try:
+            response = self.transport(
+                method,
+                upload.API + path,
+                {
+                    "Authorization": "Bearer " + token.value,
+                    "Content-Type": "application/json",
+                },
+                (
+                    json.dumps(body, separators=(",", ":")).encode()
+                    if body is not None
+                    else None
+                ),
+                min(30, self.deadline - time.monotonic()),
+            )
+        except Exception:
+            raise Rejected("ASC_CONNECTION_FAILED") from None
         if (
             type(response) is not upload.Response
             or type(response.body) is not bytes
@@ -165,7 +192,23 @@ class OwnerSession:
         ):
             raise Rejected()
         if response.status != (204 if method == "POST" else 200):
-            raise Rejected()
+            raise Rejected(
+                "ASC_AUTHENTICATION_REJECTED"
+                if response.status == 401
+                else (
+                    "ASC_PERMISSION_REJECTED"
+                    if response.status == 403
+                    else (
+                        "ASC_SERVICE_UNAVAILABLE"
+                        if response.status == 429
+                        or (
+                            type(response.status) is int
+                            and 500 <= response.status <= 599
+                        )
+                        else "ASC_REQUEST_REJECTED"
+                    )
+                )
+            )
         return None if method == "POST" else upload.document(response.body)
 
     def _list(self, path):
@@ -196,6 +239,7 @@ class OwnerSession:
         raise Rejected()
 
     def _scope(self, expected=None):
+        self.stage = "asc_apps"
         apps = self._list("/v1/apps?filter[bundleId]=" + upload.BUNDLE)
         if len(apps) != 1:
             raise Rejected()
@@ -205,14 +249,17 @@ class OwnerSession:
         app_id = app["id"]
         path = "/v1/apps/" + app_id + "/betaGroups"
         self.allowed.add(path)
+        self.stage = "asc_groups"
         groups = [upload.resource(item, "betaGroups") for item in self._list(path)]
         for group in groups:
             attrs = group.get("attributes", {})
-            if (
-                attrs.get("hasAccessToAllBuilds") is not False
-                or attrs.get("publicLinkEnabled") is not False
-            ):
+            self.stage = "asc_group_auto_distribution"
+            if attrs.get("hasAccessToAllBuilds") is not False:
                 raise Rejected()
+            self.stage = "asc_group_public_link"
+            if attrs.get("publicLinkEnabled") is not False:
+                raise Rejected()
+        self.stage = "asc_owner_group"
         owners = [g for g in groups if g.get("attributes", {}).get("name") == GROUP]
         if not owners:
             raise Rejected("OWNER_GROUP_REQUIRED")
@@ -224,6 +271,7 @@ class OwnerSession:
         group_id = owners[0]["id"]
         path = "/v1/betaGroups/" + group_id + "/betaTesters"
         self.allowed.add(path)
+        self.stage = "asc_testers"
         testers = self._list(path)
         if not testers:
             raise Rejected("OWNER_GROUP_REQUIRED")
@@ -255,6 +303,7 @@ class OwnerSession:
             ):
                 path = "/v1/apps/" + app + "/" + kind
                 self.allowed.add(path)
+                self.stage = "asc_builds" if kind == "builds" else "asc_build_uploads"
                 for item in self._list(path):
                     value = upload.resource(item, kind).get("attributes", {}).get(field)
                     if type(value) is not str or not re.fullmatch(
@@ -264,6 +313,7 @@ class OwnerSession:
                     previous = max(previous, int(value))
             if previous >= 2147483647:
                 raise Rejected()
+            self.stage = "asc_complete"
             return Target(app, group, tester, version, previous, previous + 1)
         except Rejected:
             raise

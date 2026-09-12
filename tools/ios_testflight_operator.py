@@ -22,6 +22,7 @@ from tools import ios_testflight_hosted as hosted
 from tools import ios_testflight_intake as intake
 from tools import ios_testflight_journal as journal_module
 from tools import ios_testflight_key_custody as key_custody
+from tools import ios_testflight_owner as owner
 from tools import ios_testflight_recovery as recovery
 from tools import ios_testflight_settings as settings
 from tools import ios_testflight_signing as signing
@@ -43,6 +44,7 @@ REASONS = (
             "INPUT_REJECTED",
             "OWNER_GROUP_REQUIRED",
             "ASC_SCOPE_REJECTED",
+            "ASC_PREFLIGHT_PASSED",
             "JOURNAL_REJECTED",
             "OPERATION_UNRESOLVED",
             "BUILD_VALID_UNDISTRIBUTED",
@@ -56,12 +58,16 @@ REASONS = (
     )
     | settings.REASONS
     | key_custody.REASONS
+    | owner.REQUEST_REASONS
 )
 
 
 class Rejected(Exception):
-    def __init__(self, reason="OPERATION_UNRESOLVED"):
+    def __init__(self, reason="OPERATION_UNRESOLVED", *, stage=None):
         super().__init__(reason if reason in REASONS else "OPERATION_UNRESOLVED")
+        self.stage = (
+            stage if type(stage) is str and stage in owner.INVENTORY_STAGES else None
+        )
 
 
 @dataclass(frozen=True, repr=False)
@@ -72,7 +78,7 @@ class Staging:
     apple_configured: bool
 
 
-def emit(reason, *, run_id=None, cleanup=False, secret_absence=False):
+def emit(reason, *, run_id=None, cleanup=False, secret_absence=False, stage=None):
     result = {
         "classification": reason if reason in REASONS else "OPERATION_UNRESOLVED",
         "target": "owner_testflight_staging",
@@ -84,6 +90,8 @@ def emit(reason, *, run_id=None, cleanup=False, secret_absence=False):
         "device_verified": False,
         "release_authorized": False,
     }
+    if type(stage) is str and stage in owner.INVENTORY_STAGES:
+        result["stage"] = stage
     print(json.dumps(result, sort_keys=True, separators=(",", ":")), flush=True)
     return result
 
@@ -354,8 +362,6 @@ def execute(
     owner_factory=None,
     sleep=time.sleep,
 ):
-    from tools import ios_testflight_owner as owner
-
     session = journal = materials = None
     cleanup = absent = False
     reason = "OPERATION_UNRESOLVED"
@@ -418,10 +424,10 @@ def execute(
         )
         reason = outcome.classification
     except (KeyboardInterrupt, Exception) as error:
-        if type(error) in {Rejected, intake.Rejected} or (
-            type(error).__module__ == owner.__name__
-        ):
+        if type(error) in {Rejected, intake.Rejected, owner.Rejected}:
             code = error.args[0] if len(error.args) == 1 else "OPERATION_UNRESOLVED"
+            if type(error) is owner.Rejected and code == "OWNER_SCOPE_REJECTED":
+                code = "ASC_SCOPE_REJECTED"
             reason = code if code in REASONS else "OPERATION_UNRESOLVED"
     finally:
         if session is not None:
@@ -443,6 +449,47 @@ def execute(
         cleanup=cleanup,
         secret_absence=absent,
     )
+
+
+def asc_preflight(config, email, *, reader_factory=intake.Reader, owner_factory=None):
+    """GET-only inventory using saved ASC custody; no P12 or mutation calls.
+
+    This ephemeral check is not dispatch authority. Execution recollects materials
+    and rechecks remote scope, so an earlier PASS cannot skip either check.
+    """
+    reader = lookup = None
+    try:
+        intake._config(config)
+        path = intake.validate_field("ASC_PATH", config.asc_path)
+        reader = reader_factory()
+        reader.directory(path.parent)
+        pem = reader.file(path, 4096)
+        asc = intake.inputs.load_asc_key(
+            pem, key_id=config.asc_key_id, issuer_id=config.asc_issuer_id
+        )
+        reader.verify()
+        lookup = (owner_factory or owner.OwnerSession)(asc, owner_email=email)
+        lookup.inventory(version=config.version)
+    except (Exception, KeyboardInterrupt) as error:
+        reason = "ASC_SCOPE_REJECTED"
+        if type(error) in {
+            intake.Rejected,
+            intake.inputs.InputError,
+            intake.custody.CustodyError,
+            owner.Rejected,
+        }:
+            code = error.args[0] if len(error.args) == 1 else None
+            if type(code) is str and code in REASONS:
+                reason = code
+        raise Rejected(
+            reason, stage=lookup.stage if lookup is not None else "asc_input"
+        ) from None
+    finally:
+        if reader is not None:
+            try:
+                reader.close()
+            except (Exception, KeyboardInterrupt):
+                raise Rejected("CLOSE_UNRESOLVED", stage="asc_input") from None
 
 
 def asc_recovery_input(*, prompt=preparation.hidden, reader_factory=intake.Reader):
@@ -528,6 +575,7 @@ def main(argv=None):
             ["--recover"],
             ["--prepare-inputs"],
             ["--check-inputs"],
+            ["--check-asc"],
             ["--check-key-import"],
             ["--import-asc-key"],
             ["--execute", "--settings"],
@@ -545,6 +593,11 @@ def main(argv=None):
             settings_metadata(staging)
             # Syntax and file custody only, not key validity or execution approval.
             emit("SETTINGS_READY")
+            return 0
+        if args == ["--check-asc"]:
+            config, email = settings_metadata(staging)
+            asc_preflight(config, email)
+            emit("ASC_PREFLIGHT_PASSED", stage="asc_complete")
             return 0
         if args in (["--check-key-import"], ["--import-asc-key"]):
             action = (
@@ -571,6 +624,9 @@ def main(argv=None):
             if args == ["--execute", "--settings"]
             else metadata(staging)
         )
+        if config.asc_path is None:
+            config = replace(config, asc_path=str(intake.read_field("ASC_PATH")))
+        asc_preflight(config, email)
         result = execute(sha, staging, config, email)
         return 0 if result["classification"] == "BUILD_VALID_UNDISTRIBUTED" else 2
     except BaseException as error:
@@ -587,7 +643,7 @@ def main(argv=None):
             and len(error.args) == 1
             else "OPERATION_UNRESOLVED"
         )
-        emit(reason)
+        emit(reason, stage=error.stage if type(error) is Rejected else None)
         return 2
 
 

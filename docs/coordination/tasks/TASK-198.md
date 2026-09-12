@@ -1,4 +1,50 @@
-## Current signing-input classification correction
+## Current ASC preflight correction
+
+PR255 merged9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7 after CI34702831760
+SUCCESS16/16. Owner then reported OPERATION_UNRESOLVED after the P12 prompt.
+Read-only checks found no journal, signing run or six temporary transfer Secrets.
+Fictional reproduction proves OWNER_SCOPE_REJECTED is masked by the operator;
+actual failing stage remains unknown. Browser corroborates the existing internal
+Owner-only group/manual distribution and active Developer upload key; browser
+observations do not authorize dispatch or replace API preflight evidence.
+
+Goal: check ASC before requesting P12; one bounded GET-only layer split.
+Core: tools/ios_testflight_operator.py, tools/ios_testflight_owner.py, direct tests.
+Invariant: no relaxed group/trust/ACL checks, password cache, raw errors or retry;
+normal execution still freshly collects materials/rechecks scope before dispatch.
+Tests: fictional GET success/auth/permission/transport/scope failures, fixed stage
+output, no P12/profile/Login-key reads or prompt/mutation in --check-asc mode.
+Unknown: actual API response; one reviewed --check-asc using saved six-field JSON
+and its protected ASC key is authorized by IOS-TF-01. No live execute this slice.
+
+Main task-198-main-20260911 lease1 owns four Python paths and existing records;
+branch codex/task-198-asc-preflight, base=head
+9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7. Security35 review follows frozen source.
+Runtime: operator=agent; owner_gate=none for GET-only check; authorization=IOS-TF-01;
+report_to=/root; stop on private input/new key/access expansion, unclear mutation
+or inconclusive repeated diagnosis. Do not rerun signing or request another P12
+password to obtain diagnostics. Store only fixed sanitized final classification
+and stage, never key/identifier/contact/response values.
+
+Security35 packet: task=TASK-198; branch=codex/task-198-asc-preflight;
+base=head=9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7;
+actor_id=/root/task181_review; role=advisor; claim_id=task-198-security-20260911;
+lease_version=35; write=read-only; owned_paths=none; report_to=/root.
+Scope: four frozen Python paths named above and this bounded GET-only entry;
+check no signing/P12 read/prompt/dispatch in --check-asc, unchanged trust/group
+predicates and fresh rechecks in normal execution, no raw errors/values or retries.
+Stop on drift, private input need or scope conflict. COLLABORATION2 mandatory
+ACK/heartbeat/blocker/proactive final applies. Main stays active running full
+affected tests; no real ASC key use until accepted commit/CI/merge.
+
+Security35 REQUEST_CHANGES handled: fix three fake custody tests' Windows path
+semantics on POSIX CI, not production path validation. Main applies PureWindowsPath
+seam like existing intake fixtures; no source changes. Revoke lease35; activate
+Security36, same actor/role/branch/base/head/report_to and mandatory protocol;
+scope only this test delta plus unchanged previously reviewed source fingerprints.
+Main reruns affected tests while reviewer independently checks portability.
+
+## Previous signing-input classification correction
 
 PR254 merged2ae97b339e542eeea766489dffdcd21aa45cfef6 after source
 9103ba85583eaee20b0f1da0643d3c40369a3411 passed CI34698156008,16/16.

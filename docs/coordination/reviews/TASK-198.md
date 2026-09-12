@@ -1,5 +1,25 @@
 # TASK-198 review
 
+## ASC preflight: Security36 ACCEPT
+
+Main received and handled Security35 REQUEST_CHANGES and Security36 ACCEPT from
+/root/task181_review, completed/read-only. The single finding was fake Windows
+path portability on POSIX; three tests now fix PureWindowsPath while preserving
+the actual production validator. Independent simulated POSIX seam3PASS and
+47focusedPASS; no production predicate bypass or skip. No remaining findings.
+GET-only ASC entry reads only selected protected ASC payload; existing settings
+custody inspects P12/profile/certificate metadata only, no signing payload/prompt.
+Normal execute still freshly collects/rechecks; no persistent preflight authority.
+Original group predicates, cleanup and uncertainty boundaries remain intact.
+Main234affected230PASS4platformskips/quality/compile/diffPASS. Actual ASC result
+unknown; no true key use/mutation during correction. CI/merge precede live check.
+
+Accepted LF-SHA256:
+- operator.py 6b94dea6e3c46660a2596dd50004e740799b0d02d7f1df700fba6f0930470d71
+- owner.py 9c9639ef6a3a6e4c5f56fa8ce397344d1dde20253bd2a039fc6f9c876add0c53
+- test_ios_testflight_operator.py a9c8a3d8add1102da29ba124051f94beb8f3fb496898bcb91ba63352afcecddf
+- test_ios_testflight_owner.py 2b1f4f3651be49ee3881bd47ecefe12eec8daeae6db839041b3424f18d6fcf23
+
 ## Current signing-input classification: Security34 ACCEPT
 
 Main received and handled proactive completion from /root/task181_review,
