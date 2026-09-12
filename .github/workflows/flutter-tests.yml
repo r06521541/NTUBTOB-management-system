@@ -220,6 +220,9 @@ jobs:
       - name: Install locked fictional fixture dependencies
         run: python -m pip install --no-cache-dir -r tools/requirements-ios-profile-intake.txt
 
+      - name: Compile TestFlight supervisor and reject invalid input before custody
+        run: python -m unittest tools.tests.test_ios_testflight_inputs tools.tests.test_ios_testflight_signing tools.tests.test_ios_testflight_native -v
+
       - name: Verify fictional PKCS12 memory-only native import
         run: python -m tools.ios_pkcs12_compatibility
 
