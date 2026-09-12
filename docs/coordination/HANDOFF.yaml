@@ -4,32 +4,26 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: b428ab9d25702c0c7516db11e0c20030f09591d6
+base_commit: d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc
 updated_by: main-work
 updated_at: 2026-09-12
 note: >
-  IOS-TF-01 active; PR252 merged with CI34693162874 SUCCESS16/16.
-  Owner filled protected metadata JSON; syntax/custody of JSON passed.
-  Execute ACL_REJECTED; zero signing runs/secrets/journal. Fixed signing assets
-  pass ACL; selected Apple source directory and both p8 inherit4ACEs.
-  Owner approved one protected copy of JSON-selected ASC key and automatic path
-  update, preserving original6files/other5fields/AppleLogin key. No ACL repair.
-  Branch codex/task-198-asc-private-custody. Main owns intake/operator pre-password
-  metadata checks and their tests plus coordination. Writer17 /root/csr_writer
-  completed key_custody module/test and is read-only. Security30 found one
-  completion-validity issue, Main corrected; Security31 ACCEPT received/handled.
-  Reviewer completed/read-only. Main full215tests211PASS4platformskips, six-file
-  quality/compile/diff PASS; six source/test fingerprints independently accepted.
-  PR253 firstCI34696504831 Windows fixture ACL failed; old run cancelled.
-  Test-only deterministic fixture Owner fix accepted by Security32, native4PASS;
-  runtime checks unchanged. Push same PR and require fresh normalCI before merge.
-  Locked atomic rename failed in fictional native probe; approved implementation
-  uses protected CREATE_NEW metadata backup plus one exclusive settings handle.
-  No atomic-update claim; interrupted update preserves six fields in the backup.
-  Read-only preview before one-shot import; partial/uncertain state stops, no
-  overwrite/delete or repeat copy. Review/test/normalCI/merge before real import.
-  No actual key payload read or copy yet; no signing/upload/cloud/runtime change.
-  Main remains active until writer/reviewer completion received and handled.
+  IOS-TF-01 active. PR253 merged after CI34696846257 SUCCESS16/16, accepted tree
+  verified. Actual preview READY then import KEY_REJECTED before any backup/copy/
+  update; exact metadata checks confirm both destination/backup absent. No secret
+  values surfaced; original JSON/source untouched, no signing/upload/runtime work.
+  Owner's approved one selected-ASC copy/path update remains unperformed.
+  Main fictional probe reproduced valid PKCS8 inner-parameter form rejected by
+  serializer equality; actual input form still unknown, no unchanged-code retry.
+  Branch codex/task-198-pkcs8-compatibility. Main owns inputs source/direct test,
+  custody direct test and coordination. Finite four regenerated exact encodings
+  only, private/public consistency, P256/size/extra-material guards retained; no
+  file rewrite, arbitrary ASN.1 acceptance, wire/authority/keypurpose changes.
+  Security33 ACCEPT received/handled,22 focused PASS; reviewer and writer read-only.
+  Main218tests214PASS4platformskips, three-file quality/compile/diff PASS. Require
+  normal CI/merge then fresh preview before one import; no new Owner input now.
+  Copy success still needs custody postcheck; P12 password remains hidden-only
+  later gate. Partial state never blindly retries/overwrites/deletes/restores.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

@@ -1,6 +1,31 @@
 # TASK-198 report
 
-## Current custody repair (supersedes historical observations below)
+## Current PKCS8 compatibility repair
+
+PR253 merged d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc with CI34696846257
+SUCCESS16/16; exact accepted tree verified on clean main. Actual preview returned
+ASC_IMPORT_READY, import then KEY_REJECTED before any backup/copy/update. Exact
+metadata-only checks independently confirmed backup and destination absent.
+Original metadata/key untouched; no signing/upload/runtime or production change.
+
+Main reproduced a parser compatibility defect using only generated fictional
+keys: valid P256 PKCS8 with an inner named-curve parameter parses to the same key
+but does not reserialize byte-identically. Real input's precise encoding remains
+unknown; no direct private inspection or unchanged-code retry. Current branch
+codex/task-198-pkcs8-compatibility fixes only bounded receiver interoperability:
+four exact encodings regenerated from a crypto-validated key, inner parameter and
+public point present/absent; scalar/public consistency checked. Original strict
+envelope comparison, P256/type/size and extra-material rejection retained. No
+arbitrary ASN.1/BER acceptance or normalization of the copied original key bytes.
+
+Red regression first reproduced refusal; Main218tests214PASS4platformskips and
+three-file quality/compile/diff PASS. Security33 ACCEPT,22 independent focused
+PASS; copied original bytes/no-repeat and shared ASC/AppleLogin boundaries covered.
+Normal CI/merge still required before a fresh preview and one import. No new
+Owner fields are needed for this source repair, and the approved copy is still
+unperformed. Do not infer ASC key purpose/permissions from format success.
+
+## Previous custody repair (PR253 merged)
 
 PR252 merged b428ab9d25702c0c7516db11e0c20030f09591d6; normal CI34693162874
 SUCCESS16/16. Empty protected JSON was created; Owner filled it, SETTINGS_READY

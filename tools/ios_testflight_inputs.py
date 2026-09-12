@@ -208,6 +208,8 @@ def validate_signing(p12, password, decoded_profile, *, team, bundle, now):
 
 def _key(pem):
     _, _, serialization, _ = _dependencies()
+    from asn1crypto import keys
+    from asn1crypto import pem as asn1_pem
     from cryptography.hazmat.primitives.asymmetric import ec
 
     _bytes(pem, MAX_KEY_BYTES)
@@ -217,12 +219,37 @@ def _key(pem):
             key.curve, ec.SECP256R1
         ):
             raise ValueError()
-        canonical = key.private_bytes(
-            serialization.Encoding.PEM,
+        if (
+            ec.derive_private_key(key.private_numbers().private_value, ec.SECP256R1())
+            .public_key()
+            .public_numbers()
+            != key.public_key().public_numbers()
+        ):
+            raise ValueError()
+        canonical_der = key.private_bytes(
+            serialization.Encoding.DER,
             serialization.PrivateFormat.PKCS8,
             serialization.NoEncryption(),
         )
-        if pem.replace(b"\r\n", b"\n") not in (canonical, canonical[:-1]):
+        # RFC5915 inner parameters/public point can be present or absent in
+        # PKCS8. Compare finite exact encodings regenerated from the validated
+        # key; never accept unknown fields or parser-ignored trailing bytes.
+        encodings = set()
+        for parameters in (False, True):
+            for public in (False, True):
+                info = keys.PrivateKeyInfo.load(canonical_der, strict=True)
+                inner = info["private_key"].parsed
+                inner["parameters"] = (
+                    keys.ECDomainParameters(name="named", value="secp256r1")
+                    if parameters
+                    else None
+                )
+                if not public:
+                    inner["public_key"] = None
+                info["private_key"] = inner
+                encoded = asn1_pem.armor("PRIVATE KEY", info.dump())
+                encodings.update((encoded, encoded[:-1]))
+        if pem.replace(b"\r\n", b"\n") not in encodings:
             raise ValueError()
         return key
     except Exception:

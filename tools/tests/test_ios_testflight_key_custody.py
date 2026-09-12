@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+from asn1crypto import keys
+from asn1crypto import pem as asn1_pem
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
@@ -118,6 +120,22 @@ class ImportTests(unittest.TestCase):
         self.assertNotIn(self.source, self.native.reads)
         self.assertEqual(self.native.writes, [])
         self.assertEqual(self.native.handles, {})
+
+    def test_non_serializer_pkcs8_is_copied_byte_exact_without_rewriting(self):
+        _, _, der = asn1_pem.unarmor(self.native.files[self.source])
+        info = keys.PrivateKeyInfo.load(der)
+        inner = info["private_key"].parsed
+        inner["parameters"] = keys.ECDomainParameters(name="named", value="secp256r1")
+        info["private_key"] = inner
+        raw = asn1_pem.armor("PRIVATE KEY", info.dump())
+        self.native.files[self.source] = raw
+        self.assertEqual(key.check_import(google_web=WEB), "ASC_IMPORT_READY")
+        self.assertEqual(key.import_key(google_web=WEB), "ASC_IMPORT_COMPLETE")
+        self.assertEqual(self.native.files[self.source], raw)
+        self.assertEqual(self.native.files[self.private / key.DESTINATION], raw)
+        writes = list(self.native.writes)
+        self.assertEqual(key.import_key(google_web=WEB), "ASC_IMPORT_COMPLETE")
+        self.assertEqual(self.native.writes, writes)
 
     def test_success_preserves_source_backup_and_other_fields_no_repeat(self):
         original_source = self.native.files[self.source]
