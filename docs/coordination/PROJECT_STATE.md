@@ -4,7 +4,7 @@
 
 維護角色：Main Work
 
-最近已合併證據：`48232c548d486c8175ac990dd91d2f68d218544b`（TASK-198／PR251）。
+最近已合併證據：`b428ab9d25702c0c7516db11e0c20030f09591d6`（TASK-198／PR252）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
 ## Active role lanes
@@ -115,7 +115,10 @@ run34614766702單次parent/child診斷完成：均找到相符identity/key、typ
   私密材料驗證模組離線測試及獨立review通過；Owner已新增一個iOS client，唯讀確認類型/名稱/Bundle相符，既有Android/Web不動；真實簽署adapter準備中。
   Owner內部群組已建立：1位本人測試者、0版本、手動分發。輸入拒絕後唯讀確認runs0／secrets0／journal不存在。
   Main修正成對引號與同欄位格式重填；依Owner新要求新增受保護本機JSON保存六欄metadata，密碼與key內容不保存。
-  Security29獨立review已接受；191tests187PASS4skips，待正常CI/merge再建立空JSON交Owner填寫，填錯只改該欄。
+  PR252已合併且CI34693162874全16項成功；Owner已填JSON，語法通過但ASC来源資料夾繼承ACL不合原custody規則。
+  Owner批准只複製JSON指定ASC key到既有受保護目錄、自動改path、原檔/另把key與其他五欄不動。
+  Writer17完成單檔匯入；Main提前檢查四個資產權限，補上完成狀態私鑰格式重驗；Security31已ACCEPT。
+  本機215tests211PASS4skips。保護設定備份先於copy/update，部分失敗停止且保留六欄；尚未讀/複製真實key，待正常CI/merge。
 
 - TASK-175與TASK-176 repository delivery已合併；Event通知／guest-player與persistent admin仍未部署、未遷移或切換
   production，外部mutation維持獨立Owner gate。

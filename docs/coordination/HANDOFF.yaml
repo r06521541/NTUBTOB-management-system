@@ -4,27 +4,32 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 48232c548d486c8175ac990dd91d2f68d218544b
+base_commit: b428ab9d25702c0c7516db11e0c20030f09591d6
 updated_by: main-work
 updated_at: 2026-09-12
 note: >
-  IOS-TF-01 remains active, USD20 cap, isolated staging and Owner-only TestFlight.
-  PR251 merged48232c548d486c8175ac990dd91d2f68d218544b; CI34688813903 SUCCESS16/16.
-  Clean merged-main preflight passed; Owner group exists with one tester, zero builds,
-  manual distribution. Owner input failed before execution: runs0, secrets0, journal absent.
-  Main sole writer on codex/task-198-private-input-recovery fixes quoted paths and
-  bounded same-field syntax correction. Owner additionally requested reusable JSON.
-  Six non-secret metadata fields may persist only in the fixed private local JSON;
-  no password/key payload/approval/session persisted, no target or authority override.
-  Six Python source/test files frozen for security29 review. Main191 tests187PASS4skips,
-  including actual Windows fictional template create/edit/read/no-overwrite/size test.
-  Security29 ACCEPT received/handled,47 distinct focused tests passed (one native
-  fixture test required scoped sandbox escalation); reviewer completed/read-only.
-  Normal CI/accepted merge and fresh preflight before creating the Owner blank template.
-  After Owner fills JSON, check-inputs reports only invalid field names; execute with
-  settings requests only P12 password. Prior terminated input cannot be recovered.
-  No signing/upload/Secret/runtime/DB/production mutation in this correction.
-  Real signing, Apple staging runtime/schema, internal distribution and device tests remain.
+  IOS-TF-01 active; PR252 merged with CI34693162874 SUCCESS16/16.
+  Owner filled protected metadata JSON; syntax/custody of JSON passed.
+  Execute ACL_REJECTED; zero signing runs/secrets/journal. Fixed signing assets
+  pass ACL; selected Apple source directory and both p8 inherit4ACEs.
+  Owner approved one protected copy of JSON-selected ASC key and automatic path
+  update, preserving original6files/other5fields/AppleLogin key. No ACL repair.
+  Branch codex/task-198-asc-private-custody. Main owns intake/operator pre-password
+  metadata checks and their tests plus coordination. Writer17 /root/csr_writer
+  completed key_custody module/test and is read-only. Security30 found one
+  completion-validity issue, Main corrected; Security31 ACCEPT received/handled.
+  Reviewer completed/read-only. Main full215tests211PASS4platformskips, six-file
+  quality/compile/diff PASS; six source/test fingerprints independently accepted.
+  PR253 firstCI34696504831 Windows fixture ACL failed; old run cancelled.
+  Test-only deterministic fixture Owner fix accepted by Security32, native4PASS;
+  runtime checks unchanged. Push same PR and require fresh normalCI before merge.
+  Locked atomic rename failed in fictional native probe; approved implementation
+  uses protected CREATE_NEW metadata backup plus one exclusive settings handle.
+  No atomic-update claim; interrupted update preserves six fields in the backup.
+  Read-only preview before one-shot import; partial/uncertain state stops, no
+  overwrite/delete or repeat copy. Review/test/normalCI/merge before real import.
+  No actual key payload read or copy yet; no signing/upload/cloud/runtime change.
+  Main remains active until writer/reviewer completion received and handled.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

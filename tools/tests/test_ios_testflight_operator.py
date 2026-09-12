@@ -13,6 +13,94 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_key_import_modes_are_separate_from_execution_and_password(self):
+        staging, _, _, _ = self.fixture()
+        for args, classification in (
+            (["--check-key-import"], "ASC_IMPORT_READY"),
+            (["--import-asc-key"], "ASC_IMPORT_COMPLETE"),
+        ):
+            with (
+                patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+                patch.object(
+                    operator.key_custody,
+                    "check_import",
+                    return_value="ASC_IMPORT_READY",
+                ) as preview,
+                patch.object(
+                    operator.key_custody,
+                    "import_key",
+                    return_value="ASC_IMPORT_COMPLETE",
+                ) as apply,
+                patch.object(operator, "settings_metadata") as metadata,
+                patch.object(operator, "execute") as execute,
+                patch.object(operator.intake, "read_field") as prompt,
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                self.assertEqual(operator.main(args), 0)
+            self.assertIn(classification, output.getvalue())
+            self.assertEqual(preview.call_count, args == ["--check-key-import"])
+            self.assertEqual(apply.call_count, args == ["--import-asc-key"])
+            (
+                preview if args == ["--check-key-import"] else apply
+            ).assert_called_once_with(google_web=staging.google_web)
+            metadata.assert_not_called()
+            execute.assert_not_called()
+            prompt.assert_not_called()
+
+    def test_import_preflight_failure_and_unresolved_never_retry(self):
+        staging, _, _, _ = self.fixture()
+        for args in (["--check-key-import"], ["--import-asc-key"]):
+            with (
+                patch.object(
+                    operator,
+                    "preflight",
+                    side_effect=operator.Rejected("SOURCE_REJECTED"),
+                ),
+                patch.object(operator.key_custody, "check_import") as preview,
+                patch.object(operator.key_custody, "import_key") as apply,
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                self.assertEqual(operator.main(args), 2)
+            preview.assert_not_called()
+            apply.assert_not_called()
+        for error, expected in (
+            (
+                operator.key_custody.Rejected("ASC_IMPORT_UNRESOLVED"),
+                "ASC_IMPORT_UNRESOLVED",
+            ),
+            (RuntimeError("private-sentinel"), "OPERATION_UNRESOLVED"),
+        ):
+            with (
+                patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+                patch.object(
+                    operator.key_custody, "import_key", side_effect=error
+                ) as apply,
+                patch.object(operator, "execute") as execute,
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                self.assertEqual(operator.main(["--import-asc-key"]), 2)
+            self.assertIn(expected, output.getvalue())
+            self.assertNotIn("private-sentinel", output.getvalue())
+            apply.assert_called_once()
+            execute.assert_not_called()
+
+    def test_import_preview_present_is_metadata_only_not_complete(self):
+        staging, _, _, _ = self.fixture()
+        with (
+            patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+            patch.object(
+                operator.key_custody, "check_import", return_value="ASC_IMPORT_PRESENT"
+            ),
+            patch.object(operator.key_custody, "import_key") as apply,
+            patch.object(operator, "execute") as execute,
+            patch("sys.stdout", new_callable=io.StringIO) as output,
+        ):
+            self.assertEqual(operator.main(["--check-key-import"]), 2)
+        self.assertIn("ASC_IMPORT_PRESENT", output.getvalue())
+        self.assertNotIn("ASC_IMPORT_COMPLETE", output.getvalue())
+        apply.assert_not_called()
+        execute.assert_not_called()
+
     def test_saved_metadata_populates_six_fields_without_hidden_prompt(self):
         staging, config, _, _ = self.fixture()
         values = {
@@ -26,6 +114,7 @@ class OperatorTests(unittest.TestCase):
         with (
             patch.object(operator.settings, "load", return_value=values) as load,
             patch.object(operator.intake, "read_field") as prompt,
+            patch.object(operator.intake, "check_custody", create=True) as custody,
         ):
             actual, email = operator.settings_metadata(staging)
         self.assertEqual(actual.asc_path, values["asc_p8_path"])
@@ -34,6 +123,37 @@ class OperatorTests(unittest.TestCase):
         self.assertEqual(actual.build, 1)
         load.assert_called_once_with(google_web=staging.google_web)
         prompt.assert_not_called()
+        custody.assert_called_once_with(actual)
+
+    def test_saved_inputs_custody_failure_precedes_password_and_execute(self):
+        staging, config, _, _ = self.fixture()
+        values = {
+            "apple_team_id": config.team,
+            "asc_key_id": config.asc_key_id,
+            "asc_issuer_id": config.asc_issuer_id,
+            "google_ios_client_id": config.google_ios_client_id,
+            "owner_email": "owner@example.invalid",
+            "asc_p8_path": "C:/fictional/asc.p8",
+        }
+        for args in (["--check-inputs"], ["--execute", "--settings"]):
+            with (
+                patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+                patch.object(operator.settings, "load", return_value=values),
+                patch.object(
+                    operator.intake,
+                    "check_custody",
+                    side_effect=operator.intake.Rejected("CUSTODY_CHECK_REJECTED"),
+                ) as custody,
+                patch.object(operator.intake, "read_field") as prompt,
+                patch.object(operator, "execute") as execute,
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                self.assertEqual(operator.main(args), 2)
+            self.assertIn("CUSTODY_CHECK_REJECTED", output.getvalue())
+            self.assertNotIn("SETTINGS_READY", output.getvalue())
+            custody.assert_called_once()
+            prompt.assert_not_called()
+            execute.assert_not_called()
 
     def test_settings_modes_require_preflight_and_never_execute_on_invalid_file(self):
         staging, _, _, _ = self.fixture()

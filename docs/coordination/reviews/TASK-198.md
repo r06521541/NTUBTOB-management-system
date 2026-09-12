@@ -1,6 +1,50 @@
 # TASK-198 review
 
-## Current input-recovery repair: Security29 ACCEPT
+## Current ASC custody repair: Security31 ACCEPT
+
+Main received/handled Security30 REQUEST_CHANGES then Security31 ACCEPT from
+/root/task181_review, claim task-198-security-20260911 leases30/31, read-only.
+Base/full HEAD b428ab9d25702c0c7516db11e0c20030f09591d6, branch
+codex/task-198-asc-private-custody. Only finding: equality in existing-copy completion
+did not establish valid private-key bytes. Main reproduced with a red test, then
+added original ASC parser after one same-handle read of source/copy and equality;
+invalid matching bytes, wrong curve or public-only PEM stop unresolved with zero
+writes. Valid completion reparses, verifies custody, never recopies.
+
+Other Security30 boundaries accepted: exclusive original settings handle,
+CREATE_NEW protected exact metadata backup before copy/update, original source and
+other five values preserved, source-only inherited-ACL exception with current Owner
+and original type/link/size/path guards. Partial state retains files and stops;
+no atomicity claim or automatic restore/delete/retry. Preview is metadata-only
+PRESENT/READY, not cryptographic completion. Four upload assets are metadata/ACL
+checked before password; actual signing/intake guards and authority stay intact.
+
+Independent58 focused fake tests PASS then targeted10 fake tests PASS. Main final
+215tests211PASS4platformskips includes four native Windows temporary fixture tests
+outside sandbox; reviewer did not rerun native. Normal CI/merge still required.
+No real private reads/copies/network/Git mutations by reviewer. Key syntax and
+copy equality do not establish ASC server key purpose/permissions or history.
+
+Accepted canonical LF-SHA256 for source intake/operator/key_custody respectively:
+- 8db088aed24a0afceeb8159d2eddbfbf6e9db55accb1ca78568af4217feb6152
+- 75b10dcf06ae8a5edfed44ac8fe74fd80727660a65e4da4c719feeb7ca2d771c
+- 14b211126b5bce395c531ed95d31c9d04eafebe8543166cbe2aa084ff3c302c3
+Corresponding three direct tests:
+- 559b36598f31395fba0e252b0ffd588cb32ffa862df88018ba6ce393b460a0d2
+- f3b34ded38a4f338291815faf0a3c8d55fe3c7a8488b200c463f8d1ed44bda8a
+- ee903dd74f573222e0702d13567571bd41953074294439340e21d08a9c829f7f
+
+Security32 test-only ACCEPT received/handled after PR253 Windows job rejected
+three source fixtures with ACL_REJECTED. Source remains unchanged. Fixture now
+sets only Owner (SE_FILE_OBJECT/OWNER_SECURITY_INFORMATION, DACL/SACL flags absent)
+on its two fresh temporary source paths; keeps wrong-owner/hardlink rejection.
+Independent4 native fictional tests PASS, Main215tests211PASS4skips. The new test
+LF37347d98fdb707f2b6df65abed12a786511077d358b7ad03e13354fd23d12f09 supersedes
+the test_key_custody fingerprint above; other five unchanged. Prior failed CI
+34696504831 cancelled/superseded, not PASS. Fresh hosted CI still required;
+fixture correction does not prove a unique host root cause without that evidence.
+
+## Previous input-recovery repair: Security29 ACCEPT
 
 Main received/handled /root/task181_review completion, report_to=/root, lease29.
 Base/full HEAD48232c548d486c8175ac990dd91d2f68d218544b; branch
