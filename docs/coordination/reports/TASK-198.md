@@ -1,5 +1,44 @@
 # TASK-198 report
 
+## ASC preflight before password (2026-09-13)
+
+PR255 merged9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7 after CI34702831760
+SUCCESS16/16. Subsequent Owner OPERATION_UNRESOLVED occurred after P12 input;
+read-only checks found no operation journal, signing workflow run or six transfer
+Secrets. Fictional regression confirms OWNER_SCOPE_REJECTED was masked. Current
+browser shows one Owner internal tester, manual distribution, no builds, active
+Developer upload key; that is corroboration, not private-key/API validity proof.
+
+The operator now offers task-listed --check-asc: normal read-only repository/GH/
+staging preflight, saved metadata and custody checks, protected selected ASC key,
+bounded Apple GET inventory only. No P12/profile/Login-key payload or password,
+journal, dispatch, signing, upload, group change or cached authority. Execute also
+performs ASC preflight before asking P12, then retains its original fresh material
+and inventory checks before dispatch. Failures expose fixed codes/stage aliases,
+never Apple body, key, identifier, email or raw exception. Group predicates remain
+identical, including rejection of missing/unknown Boolean fields. No live retry.
+
+Red regression reproduced masking.47focused PASS; full affected234tests230PASS,
+4existing platform skips. Initial sandbox run had five Windows fictional ACL
+fixture setup errors; scoped elevated offline rerun passed without source changes
+or true private reads. Four-file quality/compile/diff PASS. Security35 found one
+fake Windows path portability issue; Main corrected tests only. Security36 ACCEPT
+received/handled, independent47PASS plus3POSIX-semantic probesPASS; hashes match.
+Next: accept/CI/merge then exactly one --check-asc observation; classify actual
+layer before requesting any private input or changing platform settings.
+
+Main's public-only GET of Apple's official Markdown documented internal groups
+with explicit publicLinkEnabled=null (isInternalGroup=true). The same rejection
+existed in owner inventory and upload preflight; both now use one helper allowing
+explicit false or explicit null+internal true. Missing/true/coerced/external-null
+remain rejected; automatic-access and sole Owner limits unchanged. Added positive
+inventory/assignment/upload preflight and strict negative tests. This contract
+repair is not proof of the Owner's actual failed response. Primary source:
+https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-betagroups.md
+Security37 ACCEPT received/handled,65independentPASS; reviewer did not independently
+retrieve the example due to tooling limits. Main237tests233PASS4platformskips,
+six-filequality/compile/diffPASS. Same PR256 receives the final delta before merge.
+
 ## Current signing-input classification correction
 
 PR254 merged2ae97b339e542eeea766489dffdcd21aa45cfef6 after CI34698156008

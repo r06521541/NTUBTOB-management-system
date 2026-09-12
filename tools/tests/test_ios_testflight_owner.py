@@ -116,6 +116,71 @@ class OwnerTests(unittest.TestCase):
         self.assertNotIn("fictional", repr(self.session))
         self.assertNotIn("123", repr(self.target))
 
+    def test_inventory_reports_fixed_http_and_transport_failures(self):
+        for status, reason in (
+            (401, "ASC_AUTHENTICATION_REJECTED"),
+            (403, "ASC_PERMISSION_REJECTED"),
+            (400, "ASC_REQUEST_REJECTED"),
+            (404, "ASC_REQUEST_REJECTED"),
+            (429, "ASC_SERVICE_UNAVAILABLE"),
+            (503, "ASC_SERVICE_UNAVAILABLE"),
+            (302, "ASC_REQUEST_REJECTED"),
+        ):
+            self.session.transport = lambda *args: owner.upload.Response(
+                status, b"private-sentinel"
+            )
+            with (
+                self.subTest(status=status),
+                self.assertRaisesRegex(owner.Rejected, reason),
+            ):
+                self.session.inventory()
+            self.assertEqual(self.session.stage, "asc_apps")
+
+        def failed(*args):
+            raise TimeoutError("private-sentinel")
+
+        self.session.transport = failed
+        with self.assertRaisesRegex(owner.Rejected, "ASC_CONNECTION_FAILED"):
+            self.session.inventory()
+        self.assertEqual(self.session.stage, "asc_apps")
+
+    def test_inventory_stage_distinguishes_policy_and_endpoint_without_values(self):
+        for field, stage in (
+            ("hasAccessToAllBuilds", "asc_group_auto_distribution"),
+            ("publicLinkEnabled", "asc_group_public_link"),
+        ):
+
+            def change(path, document):
+                if path.endswith("/betaGroups"):
+                    document["data"][0]["attributes"].pop(field)
+
+            self.change = change
+            with self.assertRaises(owner.Rejected):
+                self.session.inventory()
+            self.assertEqual(self.session.stage, stage)
+        self.change = lambda *args: None
+        original = self.transport
+
+        def last_request(method, url, *args):
+            if urlsplit(url).path.endswith("/buildUploads"):
+                return owner.upload.Response(403, b"private-sentinel")
+            return original(method, url, *args)
+
+        self.session.transport = last_request
+        with self.assertRaisesRegex(owner.Rejected, "ASC_PERMISSION_REJECTED"):
+            self.session.inventory()
+        self.assertEqual(self.session.stage, "asc_build_uploads")
+        self.assertTrue(all(method == "GET" for method, _ in self.calls))
+
+    def test_documented_internal_null_public_link_inventory_and_assignment(self):
+        def change(path, document):
+            if path.endswith("/betaGroups"):
+                document["data"][0]["attributes"]["publicLinkEnabled"] = None
+
+        self.change = change
+        self.assertEqual(self.session.inventory(version="1.2.3"), self.target)
+        self.assertEqual(self.assign()["classification"], "OWNER_DISTRIBUTION_VERIFIED")
+
     def test_missing_or_unsafe_scope(self):
         for field, value, reason in (
             ("name", "different", "OWNER_GROUP_REQUIRED"),

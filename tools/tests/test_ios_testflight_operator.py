@@ -2,7 +2,8 @@ import io
 import os
 import tempfile
 import unittest
-from pathlib import Path
+from dataclasses import replace
+from pathlib import Path, PureWindowsPath
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -13,6 +14,183 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_asc_input_failures_never_query_and_always_close(self):
+        _, config, _, _ = self.fixture()
+        config = replace(config, asc_path="C:/fictional/asc.p8")
+        for stage in ("directory", "file", "verify", "close"):
+            reader, factory = Mock(), Mock()
+            getattr(reader, stage).side_effect = RuntimeError("private-sentinel")
+            with (
+                patch.object(operator.intake, "Path", PureWindowsPath),
+                patch.object(operator.intake.inputs, "load_asc_key"),
+                self.assertRaises(operator.Rejected) as caught,
+            ):
+                operator.asc_preflight(
+                    config,
+                    "owner@example.invalid",
+                    reader_factory=lambda: reader,
+                    owner_factory=factory,
+                )
+            self.assertEqual(caught.exception.stage, "asc_input")
+            self.assertNotIn("private-sentinel", str(caught.exception))
+            reader.close.assert_called_once()
+            if stage != "close":
+                factory.assert_not_called()
+
+    def test_asc_check_requires_preflight_and_saved_settings(self):
+        for phase in ("preflight", "settings_metadata"):
+            staging, config, _, _ = self.fixture()
+            with (
+                patch.object(
+                    operator, "preflight", return_value=("a" * 40, staging)
+                ) as preflight,
+                patch.object(
+                    operator,
+                    "settings_metadata",
+                    return_value=(config, "owner@example.invalid"),
+                ) as metadata,
+                patch.object(operator, "asc_preflight") as asc,
+                patch.object(operator, "execute") as execute,
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                (preflight if phase == "preflight" else metadata).side_effect = (
+                    RuntimeError("private-sentinel")
+                )
+                self.assertEqual(operator.main(["--check-asc"]), 2)
+            asc.assert_not_called()
+            execute.assert_not_called()
+
+    def test_stage_is_allowlisted_not_arbitrary_exception_data(self):
+        for stage in ("private-sentinel", {"private-sentinel": True}, None):
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                result = operator.emit("ASC_SCOPE_REJECTED", stage=stage)
+            self.assertNotIn("stage", result)
+            self.assertNotIn("private-sentinel", output.getvalue())
+
+    def test_owner_scope_error_is_not_masked_by_operation_unresolved(self):
+        staging, config, materials, _ = self.fixture()
+        lookup = Mock()
+        lookup.inventory.side_effect = owner.Rejected()
+        journal, dispatch = Mock(), Mock()
+        with patch("sys.stdout", new_callable=io.StringIO):
+            result = operator.execute(
+                "a" * 40,
+                staging,
+                config,
+                "owner@example.invalid",
+                collect=Mock(return_value=materials),
+                owner_factory=Mock(return_value=lookup),
+                journal_factory=journal,
+                session_factory=dispatch,
+            )
+        self.assertEqual(result["classification"], "ASC_SCOPE_REJECTED")
+        journal.assert_not_called()
+        dispatch.assert_not_called()
+
+    def test_asc_preflight_reads_only_selected_key_with_same_custody(self):
+        _, config, _, _ = self.fixture()
+        config = replace(config, asc_path="C:/fictional/asc.p8")
+        reader, lookup = Mock(), Mock()
+        reader.file.return_value = b"fictional-key"
+        material = object()
+        with (
+            patch.object(operator.intake, "Path", PureWindowsPath),
+            patch.object(
+                operator.intake.inputs, "load_asc_key", return_value=material
+            ) as load,
+        ):
+            operator.asc_preflight(
+                config,
+                "owner@example.invalid",
+                reader_factory=lambda: reader,
+                owner_factory=Mock(return_value=lookup),
+            )
+        reader.directory.assert_called_once_with(PureWindowsPath("C:/fictional"))
+        reader.file.assert_called_once_with(PureWindowsPath(config.asc_path), 4096)
+        reader.verify.assert_called_once()
+        reader.close.assert_called_once()
+        load.assert_called_once_with(
+            b"fictional-key", key_id=config.asc_key_id, issuer_id=config.asc_issuer_id
+        )
+        lookup.inventory.assert_called_once_with(version=config.version)
+        lookup.assign.assert_not_called()
+
+    def test_asc_preflight_failure_closes_reader_and_suppresses_raw_values(self):
+        _, config, _, _ = self.fixture()
+        config = replace(config, asc_path="C:/fictional/asc.p8")
+        for error, reason in (
+            (owner.Rejected(), "ASC_SCOPE_REJECTED"),
+            (owner.Rejected("ASC_PERMISSION_REJECTED"), "ASC_PERMISSION_REJECTED"),
+            (RuntimeError("private-sentinel"), "ASC_SCOPE_REJECTED"),
+        ):
+            reader, lookup = Mock(), Mock(stage="asc_testers")
+            lookup.inventory.side_effect = error
+            with (
+                patch.object(operator.intake, "Path", PureWindowsPath),
+                patch.object(operator.intake.inputs, "load_asc_key"),
+                self.assertRaises(operator.Rejected) as caught,
+            ):
+                operator.asc_preflight(
+                    config,
+                    "owner@example.invalid",
+                    reader_factory=lambda: reader,
+                    owner_factory=Mock(return_value=lookup),
+                )
+            self.assertEqual(caught.exception.args, (reason,))
+            self.assertEqual(caught.exception.stage, "asc_testers")
+            self.assertNotIn("private-sentinel", str(caught.exception))
+            reader.close.assert_called_once()
+
+    def test_asc_cli_never_prompts_or_executes_and_execution_checks_asc_first(self):
+        staging, config, _, _ = self.fixture()
+        config = replace(config, asc_path="C:/fictional/asc.p8")
+        for args in (["--check-asc"], ["--execute", "--settings"]):
+            for failure in (False, True):
+                order = []
+
+                def check(*args):
+                    order.append("asc")
+                    if failure:
+                        raise operator.Rejected(
+                            "ASC_PERMISSION_REJECTED", stage="asc_testers"
+                        )
+
+                def execute(*args):
+                    order.append("execute")
+                    return {"classification": "BUILD_VALID_UNDISTRIBUTED"}
+
+                with (
+                    patch.object(
+                        operator, "preflight", return_value=("a" * 40, staging)
+                    ),
+                    patch.object(
+                        operator,
+                        "settings_metadata",
+                        return_value=(config, "owner@example.invalid"),
+                    ),
+                    patch.object(operator, "asc_preflight", side_effect=check),
+                    patch.object(operator, "execute", side_effect=execute) as run,
+                    patch.object(operator.intake, "read_field") as prompt,
+                    patch("sys.stdout", new_callable=io.StringIO) as output,
+                ):
+                    self.assertEqual(operator.main(args), 2 if failure else 0)
+                self.assertEqual(
+                    order,
+                    (
+                        ["asc", "execute"]
+                        if args[0] == "--execute" and not failure
+                        else ["asc"]
+                    ),
+                )
+                prompt.assert_not_called()
+                if args == ["--check-asc"] or failure:
+                    run.assert_not_called()
+                if failure:
+                    self.assertIn('"stage":"asc_testers"', output.getvalue())
+                elif args == ["--check-asc"]:
+                    self.assertIn("ASC_PREFLIGHT_PASSED", output.getvalue())
+                self.assertNotIn("owner@example.invalid", output.getvalue())
+
     def test_signing_input_reason_reaches_result_without_dispatch_or_journal(self):
         reasons = operator.intake.signing.BINDING_REASONS | {"SIGNING_FRAME_REJECTED"}
         for reason in reasons:

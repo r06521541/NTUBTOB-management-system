@@ -4,24 +4,25 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 2ae97b339e542eeea766489dffdcd21aa45cfef6
+base_commit: 9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7
 updated_by: main-work
-updated_at: 2026-09-12
+updated_at: 2026-09-13
 note: >
-  IOS-TF-01 active. PR254 merged after CI34698156008 SUCCESS16/16. Actual approved
-  ASC import COMPLETE and SETTINGS_READY; original files and other five settings
-  preserved. Do not repeat import. Owner then ran saved-settings entry and got
-  SIGNING_MATERIAL_REJECTED, run_id=null. Read-only checks: zero execution
-  processes, no journal, zero signing workflow runs. No signing/upload began.
-  Owner unsure whether CSR/P12 passwords coincide; never infer wrong password.
-  Branch codex/task-198-signing-input-reasons, Main owns signing/intake source,
-  their tests and operator propagation test plus existing records. Fixed stage
-  codes only, unchanged validation/custody/authority, no additional CLI or retry.
-  Main225tests221PASS4platformskips/quality/compile/diffPASS. Security34 ACCEPT
-  received and handled,73independentPASS/five hashes matched. Agents read-only.
-  After independent acceptance and normal CI/merge, hidden P12 password remains
-  Owner gate. No actual materials read during correction, no diagnosis inferred
-  from fictional tests; saved six fields stay reusable. Never blind retry.
+  IOS-TF-01 active. PR255 merged after CI34702831760 SUCCESS16/16. ASC import
+  previously COMPLETE; never repeat it or six-field entry. Owner then reported
+  OPERATION_UNRESOLVED after P12 input. No journal/signing run/transfer Secrets
+  found. Fictional regression proves masked OWNER_SCOPE_REJECTED, actual cause
+  unknown. Browser logged in; group Owner-only/manual/no builds, upload key active.
+  Branch codex/task-198-asc-preflight. Main owns operator/owner and direct tests;
+  Security37 ACCEPT received/handled; reviewers completed/read-only.237affected233PASS4skip,
+  quality/compile/diffPASS. Five sandbox ACL fixture errors passed scoped offline
+  elevated rerun. --check-asc performs bounded GET-only with existing saved ASC
+  custody, no P12 input/read or mutation; execution retains fresh material/scope
+  checks. Test portability fixed; official Apple internal/null public-link shape
+  now accepted by shared owner/upload helper, not missing/external-null/true.
+  Main verified public docs, actual account failure still unknown. Same PR256;
+  await latest CI/merge before one live read-only check.
+  No signing retry, password guessing, widened permissions or raw secret output.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

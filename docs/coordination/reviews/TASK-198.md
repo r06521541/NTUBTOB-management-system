@@ -1,5 +1,42 @@
 # TASK-198 review
 
+## Internal group null-shape compatibility: Security37 ACCEPT
+
+Main received and handled /root/task181_review lease37 final; completed/read-only.
+Shared helper accepts explicit false or explicit null+internal true, not missing,
+external-null, true, zero, string or internal=1. Both owner/upload call sites use
+it; automatic-access, exact single Owner and mutation/retry limits unchanged.
+Independent65focusedPASS; Main237affected233PASS4platformskips. No findings.
+Main retrieved the public Apple documentation example; reviewer could not fetch
+Markdown via its tools and explicitly relies on Main's primary-source evidence.
+No actual private-key/API validation or runtime root cause claimed by this review.
+
+Accepted LF-SHA256 (other operator fingerprints inherit Security36):
+- upload.py 59fc0e6e2664b67fcd37d916b8987ad3302be0a55f81763061b3c603d19b294b
+- owner.py 0e72b2fdcfc856fa24afa5e9a0e8f41b708e5655e3e49a129c7e268dc7048fd9
+- test_ios_testflight_upload.py cebd60c05bdf400efe010581118fdb6b8ec16aa9851ef4a961c4b0997f5d874e
+- test_ios_testflight_owner.py 820073d964d3f175b4a2910a2a144e92ac1eceb5b60ff3d7b49053ffdc74cc45
+
+## ASC preflight: Security36 ACCEPT
+
+Main received and handled Security35 REQUEST_CHANGES and Security36 ACCEPT from
+/root/task181_review, completed/read-only. The single finding was fake Windows
+path portability on POSIX; three tests now fix PureWindowsPath while preserving
+the actual production validator. Independent simulated POSIX seam3PASS and
+47focusedPASS; no production predicate bypass or skip. No remaining findings.
+GET-only ASC entry reads only selected protected ASC payload; existing settings
+custody inspects P12/profile/certificate metadata only, no signing payload/prompt.
+Normal execute still freshly collects/rechecks; no persistent preflight authority.
+Original group predicates, cleanup and uncertainty boundaries remain intact.
+Main234affected230PASS4platformskips/quality/compile/diffPASS. Actual ASC result
+unknown; no true key use/mutation during correction. CI/merge precede live check.
+
+Accepted LF-SHA256:
+- operator.py 6b94dea6e3c46660a2596dd50004e740799b0d02d7f1df700fba6f0930470d71
+- owner.py 9c9639ef6a3a6e4c5f56fa8ce397344d1dde20253bd2a039fc6f9c876add0c53
+- test_ios_testflight_operator.py a9c8a3d8add1102da29ba124051f94beb8f3fb496898bcb91ba63352afcecddf
+- test_ios_testflight_owner.py 2b1f4f3651be49ee3881bd47ecefe12eec8daeae6db839041b3424f18d6fcf23
+
 ## Current signing-input classification: Security34 ACCEPT
 
 Main received and handled proactive completion from /root/task181_review,

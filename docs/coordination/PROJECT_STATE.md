@@ -7,9 +7,11 @@
 最近已合併證據：`2ae97b339e542eeea766489dffdcd21aa45cfef6`（TASK-198／PR254）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
-TASK198最新：ASC單檔匯入與六欄設定檢查已成功，原檔保留，不重做。Owner後續輸入P12密碼時收到
-SIGNING_MATERIAL_REJECTED；唯讀確認零簽署workflow、無journal，未簽署或上傳。現正拆分固定失敗階段，
-不放寬驗證、不猜測密碼錯誤、不讀真實材料；Main225tests221PASS4skip，Security34 ACCEPT，待CI／合併。
+TASK198最新：PR255已合併，CI34702831760成功。ASC單檔匯入與六欄設定已完成，不重做。Owner後續
+收到OPERATION_UNRESOLVED；未見journal、簽署run或暫存Secret。虛構測試重現ASC範圍錯誤被遮蔽，
+實際原因未定。現將ASC唯讀前檢移到P12輸入之前，並修正Apple官方內部群組explicit null表示法，
+仍拒絕公開／外部null／缺失欄位；237tests233PASS4skip，Security37 ACCEPT。通過CI／合併後只做
+一次GET-only觀察，不盲目重跑簽署或要求重填。
 
 ## Active role lanes
 
