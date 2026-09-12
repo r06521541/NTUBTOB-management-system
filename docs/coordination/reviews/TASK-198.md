@@ -1,5 +1,38 @@
 # TASK-198 review
 
+## Current input-recovery repair: Security29 ACCEPT
+
+Main received/handled /root/task181_review completion, report_to=/root, lease29.
+Base/full HEAD48232c548d486c8175ac990dd91d2f68d218544b; branch
+codex/task-198-private-input-recovery, six frozen source/test dirty files below.
+No actionable findings. Owner-approved six-field metadata JSON is not a secret
+cache or authority. Fixed private KnownFolder target, protected Owner CREATE_NEW,
+same-handle write/flush/readback, no overwrite/ACL repair; load retains original
+canonical path/reparse/type/linkcount/size/ACL/identity checks. Duplicate/unknown
+fields rejected. Prepare/check do not read keys or dispatch; execute-settings
+preserves fresh preflight, original journal/one-shot and hidden P12 password.
+Balanced outer quotes stripped once; field-only syntax correction bounded3,
+EOF/interrupt/file/crypto failure never retried; fixed output only.
+
+Independent focused suite47tests:46PASS plus one sandbox fixture ACL setup error;
+that exact native fictional template test was rerun with scoped escalation,1PASS.
+47 distinct tests have passing evidence; do not call the sandbox run fully green.
+git diff --check PASS. Main full191tests187PASS4platformskips, six-file qualityPASS.
+Limits: SETTINGS_READY is syntax/custody, not cryptographic/ASC identity validation;
+no actual Owner JSON read, signing/upload, CI or cloud mutation by reviewer. Hard
+termination can leave partial template requiring Owner handling; no auto overwrite.
+Same-user/admin memory access is outside ACL protection; password never persisted.
+
+Accepted LF-SHA256 for tools/ios_testflight_{intake,operator,settings}.py:
+- intake d51b45504a18287f313d334e7f4ede5fc7bc8362559f65b957545db9f016e381
+- operator 29061a57824bf52376db6adc41238ee47fd26357a6ccef456fa1e887d6cfc2ac
+- settings 1bdabffd8c1eab80b0d0a1b65d21fdd3601cde2932678e5303868cb36733fd7e
+Corresponding tools/tests/test_ios_testflight_{intake,operator,settings}.py:
+- intake 7a6580eae0664153c761f988128367adf0452cf44c81e2d75fae24a848a51e45
+- operator b0832e8f5926eff8e0d612597409850cd08fcfab494a5b809231c70931eab79f
+- settings ddf4626f3c44096a92a516b8f57c06adf0cec8697b0f0eadb84593b59cfbd73b
+
+
 ## Latest source review state
 
 Final hosted acceptance of code-only checkpoint: run34636911592 SUCCESS16/16 at
