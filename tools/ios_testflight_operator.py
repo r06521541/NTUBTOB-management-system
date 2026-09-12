@@ -21,6 +21,7 @@ from tools import ios_testflight_dispatch as dispatch
 from tools import ios_testflight_hosted as hosted
 from tools import ios_testflight_intake as intake
 from tools import ios_testflight_journal as journal_module
+from tools import ios_testflight_key_custody as key_custody
 from tools import ios_testflight_recovery as recovery
 from tools import ios_testflight_settings as settings
 from tools import ios_testflight_signing as signing
@@ -54,6 +55,7 @@ REASONS = (
         }
     )
     | settings.REASONS
+    | key_custody.REASONS
 )
 
 
@@ -246,7 +248,7 @@ def settings_metadata(staging):
         1,
         asc_path=values["asc_p8_path"],
     )
-    intake._config(config)
+    intake.check_custody(config)
     return config, values["owner_email"]
 
 
@@ -526,6 +528,8 @@ def main(argv=None):
             ["--recover"],
             ["--prepare-inputs"],
             ["--check-inputs"],
+            ["--check-key-import"],
+            ["--import-asc-key"],
             ["--execute", "--settings"],
         ):
             raise Rejected("SOURCE_REJECTED")
@@ -539,10 +543,22 @@ def main(argv=None):
             return 0
         if args == ["--check-inputs"]:
             settings_metadata(staging)
-            emit(
-                "SETTINGS_READY"
-            )  # Syntax only, not key validity or execution approval.
+            # Syntax and file custody only, not key validity or execution approval.
+            emit("SETTINGS_READY")
             return 0
+        if args in (["--check-key-import"], ["--import-asc-key"]):
+            action = (
+                key_custody.check_import
+                if args == ["--check-key-import"]
+                else key_custody.import_key
+            )
+            classification = action(google_web=staging.google_web)
+            emit(classification)
+            return (
+                0
+                if classification in {"ASC_IMPORT_READY", "ASC_IMPORT_COMPLETE"}
+                else 2
+            )
         if args == ["--recover"]:
             recover_operation()
             return 2  # Cleanup/recovery does not imply delivery acceptance.
@@ -561,7 +577,13 @@ def main(argv=None):
         reason = (
             error.args[0]
             if type(error)
-            in {Rejected, intake.Rejected, intake.inputs.InputError, settings.Rejected}
+            in {
+                Rejected,
+                intake.Rejected,
+                intake.inputs.InputError,
+                settings.Rejected,
+                key_custody.Rejected,
+            }
             and len(error.args) == 1
             else "OPERATION_UNRESOLVED"
         )

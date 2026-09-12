@@ -1054,3 +1054,100 @@ the same file with fresh preflight, then asks only the hidden P12 password.
 Do not send filled JSON to chat or store it in Git/cloud-synced folders. Syntax
 errors: edit indicated field; key/custody/runtime failure: inspect fixed reason,
 never blindly repeat an uncertain execution. `--recover` remains cleanup/GET-only.
+
+## Approved ASC-only private custody import
+
+PR252 merged b428ab9d25702c0c7516db11e0c20030f09591d6; CI34693162874
+SUCCESS16/16, clean-main preflight and empty-template creation succeeded. Owner
+filled metadata; SETTINGS_READY passed, but execute returned ACL_REJECTED. Read-only
+checks found zero signing runs/secrets and no journal. Fixed settings/signing root,
+P12/certificate/profile ACLs pass. Owner identified their local Apple folder;
+metadata-only checks found6files (2p8), no subdirectories/reparse points; folder
+and both p8 have4 inherited ACEs, current Owner matches. This is an ACL contract
+mismatch, not evidence of exfiltration. Do not pick a key by filename length.
+
+Owner explicitly approved on2026-09-12: copy ONLY the ASC p8 selected by the JSON
+into the existing protected private folder and update only asc_p8_path; preserve
+all original files, other five values and the separate Apple Login key. One extra
+protected local key copy is authorized. This narrow import supersedes earlier
+no-copy rule ONLY for that file; no source folder/file ACL repair or broad copying.
+Source regular single-link current-Owner local non-reparse file, bounded4096,
+locked same-handle snapshot; source inherited ACL is accepted ONLY at this import
+boundary. Never weaken normal custody. Destination fixed asc-upload.p8, CREATE_NEW
+with explicit Owner ACL, flush/readback; no overwriting or deleting source/target.
+Settings retain Owner-only ACL and other fields. Native fictional probe rejected
+locked atomic replacement with ERROR_SHARING_VIOLATION, including outside sandbox.
+Do not relax sharing/close the lock or claim atomic replacement. Instead retain a
+fixed metadata-only testflight-inputs.pre-import.json backup, CREATE_NEW with the
+same private ACL and flush/readback, before key copy or settings mutation. Hold the
+original settings write-capable handle denying other write/delete throughout;
+update only the path using that handle after the backup/key are verified. An
+interrupted in-place update may leave the main JSON incomplete, but the six fields
+remain in the protected backup. Partial state stops unresolved, never automatic
+retry/overwrite/restore/deletion. This backup is not another key/password cache.
+Read-only import preflight is separate from one-shot import, and completed import
+is never recopied. No network/key use/sign/upload in the callable importer. Normal
+operator clean-main/GitHub/staging preflight precedes both CLI modes. Key filename
+must bind ASC Key ID where the provider's standard filename is present; do not
+infer API validity from filename/PEM. Actual ASC scope validation remains later.
+
+Main task-198-main-20260911 lease1, /root, owns intake/operator, their direct tests,
+and existing task/HANDOFF/PROJECT_STATE/report/review. Branch
+codex/task-198-asc-private-custody; base=head=b428ab9d25702c0c7516db11e0c20030f09591d6.
+Main adds metadata-only asset checks before hidden password and to --check-inputs.
+
+Writer assignment: task=TASK-198; branch=codex/task-198-asc-private-custody;
+base=head=b428ab9d25702c0c7516db11e0c20030f09591d6; actor_id=/root/csr_writer;
+role=codex-writer; claim_id=task-198-writer-20260911; lease_version=17;
+owned_paths=tools/ios_testflight_key_custody.py,tools/tests/test_ios_testflight_key_custody.py;
+write=allowed; report_to=/root. Implement bounded callable check_import(google_web=)
+and import_key(google_web=), returning only fixed classification strings; export
+REASONS and Rejected. No own CLI, source edits elsewhere, Git/cloud/real-private
+operations. Design source locks and backup-based JSON preservation first; report any
+necessary API change before broadening. Fake fixtures only incl native disposable
+Windows copy/edit/failure tests. No generic vault/new operation journal framework.
+Stop: source ambiguity, overwrite need, private asset/external call need, ownership
+conflict. ACK received/executing immediately with report_to=/root, heartbeat10-15min,
+blocker immediate; proactively send full HEAD/exact dirty paths/tests/findings/limits/
+mutations on completion. Main stays active and handles completion before proceeding.
+
+After acceptance/normalCI/merge only: --check-key-import performs metadata-only
+preview and must return ASC_IMPORT_READY before the approved one-shot
+--import-asc-key. ASC_IMPORT_PRESENT means existing metadata only, not verified key
+content; preview never reads p8. Completed import_key may compare only original
+selected source/copy read-only and never recopy. After ASC_IMPORT_COMPLETE use
+--check-inputs for all required file custody before requesting hidden password.
+No actual import has run during implementation. Backup retains metadata, not P12
+password; unclear/partial states stop with original keys and any backup preserved.
+
+Security30 assignment: task=TASK-198; branch=codex/task-198-asc-private-custody;
+base=head=b428ab9d25702c0c7516db11e0c20030f09591d6. actor_id=/root/task181_review;
+role=advisor; claim_id=task-198-security-20260911; lease_version=30;
+write=read-only; owned_paths=none; report_to=/root. Six frozen source/test files:
+tools/ios_testflight_{intake,operator,key_custody}.py and their three direct tests.
+Review ASC-only import, original/backup/saved-field preservation, inherited-ACL
+exception, locked handles/no-overwrite/partial STOP, metadata-only pre-password
+checks/preview, fixed diagnostics and unchanged sign/upload authority. Writer17
+completed/read-only; Main freezes source through review. Fake/native disposable
+tests only, no actual private reads/Git/network/cloud mutations. Stop immediately
+on fingerprint/source drift, private input need, scope/role conflict. ACK
+received/executing immediately with report_to=/root, heartbeat10-15min, blocker
+immediate; final proactively send verdict/fullHEAD/exact dirty paths/tests/findings/
+limits/external mutations and canonical LF fingerprints. Main remains active until
+completion is received and handled. Review acceptance is not live import evidence.
+
+Security30 REQUEST_CHANGES received/handled: completed import must parse equal
+source/copy bytes as ASC private key before COMPLETE, not equality alone. Other
+boundaries accepted,58 focused fake tests PASS; native not rerun by reviewer.
+Writer17 completed handoff/read-only; Main takes its two paths solely for this
+small correction and regression tests. Other four source/test files stay frozen.
+No real custody operation; independent targeted rereview before commit/CI/import.
+
+Security31 targeted rereview: same TASK/branch/base and advisor actor/claim,
+lease_version=31, write=read-only, owned_paths=none, report_to=/root. Review only
+completed-branch parser correction and invalid/equal-key regression in the two
+key_custody source/test files; the other four retain Security30 fingerprints and
+accepted scope. Immediate received/executing ACK, heartbeat10-15min, blocker
+immediate, proactive final verdict/fullHEAD/paths/tests/findings/limits/mutations
+and LF fingerprints required. No private/native/cloud/Git mutation. Main remains
+active, frozen source pending rereview; old final status does not authorize import.

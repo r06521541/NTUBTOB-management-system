@@ -1,6 +1,39 @@
 # TASK-198 report
 
-## Current result (supersedes historical observations below)
+## Current custody repair (supersedes historical observations below)
+
+PR252 merged b428ab9d25702c0c7516db11e0c20030f09591d6; normal CI34693162874
+SUCCESS16/16. Empty protected JSON was created; Owner filled it, SETTINGS_READY
+passed, then execution stopped ACL_REJECTED before any signing run/Secret/journal.
+Read-only metadata checks isolated the normal inherited-ACL Apple source folder;
+fixed signing assets and JSON custody pass. This is not evidence of exfiltration.
+Owner approved copying only the JSON-selected ASC key to protected asc-upload.p8,
+preserving original files, other five settings and the separate Apple Login key.
+
+Current branch codex/task-198-asc-private-custody, same full base above. Main adds
+metadata-only checks for all four upload assets before password and to --check-inputs;
+49 focused intake/operator tests PASS. Existing eight settings tests PASS outside
+sandbox; sandbox cannot establish the disposable fixture ACL, not a product failure.
+Writer17 completed/frozen the single-key copy and settings update. Native fictional
+locked-rename experiment failed with sharing violation both inside/outside sandbox;
+do not claim atomic replacement or relax sharing. Revised design retains a protected
+CREATE_NEW metadata backup before key copy and in-place path update using a single
+exclusive settings handle. Partial state stops, preserves backup/key, never retries
+or restores automatically. Six fields remain recoverable even if main JSON is torn.
+
+Writer evidence:9 fake and4 Windows native tests PASS (scoped temporary fixtures).
+Security30 found completed-copy equality needed private-key revalidation. Main
+added red regression then existing ASC parser; Security31 accepted the correction,
+10 independent focused PASS, no other findings. Preview still never reads p8.
+Main final TestFlight tool regression:215 tests,211PASS,4 existing platform skips;
+run with scoped escalation for the native ACL fixture. Six-file quality, compile
+and diff check PASS. Six files accepted through Security30/31; normal CI and merge
+still required before actual import. No real key payload read/copy, signing/upload,
+environment Secret, staging runtime/DB or production mutation in this repair yet.
+Subsequent --check-inputs will prove metadata/custody, not crypto/password/ASC scope.
+Only the P12 password remains hidden input after saved metadata/custody pass.
+
+## Previous input-recovery repair (PR252 subsequently merged)
 
 PR251 merged48232c548d486c8175ac990dd91d2f68d218544b with normal CI34688813903
 SUCCESS16/16. Clean merged-main preflight passed. Protected environment and staging

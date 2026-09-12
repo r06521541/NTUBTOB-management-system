@@ -13,6 +13,135 @@ from tools import ios_testflight_intake as intake
 
 
 class IntakeTests(unittest.TestCase):
+    def custody_check(self, reader):
+        with (
+            mock.patch.object(intake, "Path", PureWindowsPath),
+            mock.patch.object(
+                intake.preparation,
+                "local_app_data",
+                return_value=PureWindowsPath("C:/fictional"),
+            ),
+        ):
+            return intake.check_custody(
+                self.config(asc_path="C:/selected/asc.p8"),
+                custodyfactory=lambda: reader,
+            )
+
+    def test_custody_check_is_metadata_only_for_exact_upload_files(self):
+        reader = mock.Mock()
+        self.custody_check(reader)
+        root = PureWindowsPath("C:/fictional") / intake.preparation.DIRECTORY
+        self.assertEqual(
+            reader.directory.call_args_list,
+            [mock.call(root), mock.call(PureWindowsPath("C:/selected"))],
+        )
+        self.assertEqual(
+            reader.inspect.call_args_list,
+            [
+                mock.call(root / "distribution.p12", 65536),
+                mock.call(root / "distribution.cer", 65536),
+                mock.call(root / "distribution.mobileprovision", 262144),
+                mock.call(PureWindowsPath("C:/selected/asc.p8"), 4096),
+            ],
+        )
+        reader.file.assert_not_called()
+        reader.verify.assert_called_once()
+        reader.close.assert_called_once()
+
+    def test_custody_directory_rejection_reports_only_fixed_alias_and_reason(self):
+        reader = mock.Mock()
+        reader.directory.side_effect = [
+            None,
+            intake.custody.CustodyError("ACL_REJECTED"),
+        ]
+        with (
+            mock.patch("sys.stdout", new_callable=io.StringIO) as output,
+            self.assertRaisesRegex(intake.Rejected, "^CUSTODY_CHECK_REJECTED$"),
+        ):
+            self.custody_check(reader)
+        self.assertEqual(
+            output.getvalue(),
+            "custody_rejected target=ASC_DIRECTORY reason=ACL_REJECTED\n",
+        )
+        reader.inspect.assert_not_called()
+        reader.file.assert_not_called()
+        reader.close.assert_called_once()
+
+    def test_custody_file_snapshot_and_close_errors_are_sanitized(self):
+        for stage, target in (("inspect", "P12"), ("verify", "SNAPSHOT")):
+            reader = mock.Mock()
+            getattr(reader, stage).side_effect = RuntimeError("private-sentinel")
+            with (
+                mock.patch("sys.stdout", new_callable=io.StringIO) as output,
+                self.assertRaisesRegex(intake.Rejected, "^CUSTODY_CHECK_REJECTED$"),
+            ):
+                self.custody_check(reader)
+            self.assertEqual(
+                output.getvalue(),
+                f"custody_rejected target={target} reason=INPUT_CHECK_REJECTED\n",
+            )
+            reader.close.assert_called_once()
+        reader = mock.Mock()
+        reader.close.side_effect = RuntimeError("private-sentinel")
+        with self.assertRaisesRegex(intake.Rejected, "^CLOSE_UNRESOLVED$"):
+            self.custody_check(reader)
+
+    def test_custody_reports_each_fixed_file_alias_without_paths(self):
+        for index, target in enumerate(("P12", "CERTIFICATE", "PROFILE", "ASC_KEY")):
+            reader = mock.Mock()
+            reader.inspect.side_effect = [None] * index + [
+                intake.Rejected("METADATA_REJECTED")
+            ]
+            with (
+                mock.patch("sys.stdout", new_callable=io.StringIO) as output,
+                self.assertRaises(intake.Rejected),
+            ):
+                self.custody_check(reader)
+            self.assertEqual(
+                output.getvalue(),
+                f"custody_rejected target={target} reason=METADATA_REJECTED\n",
+            )
+            self.assertEqual(reader.inspect.call_count, index + 1)
+            reader.file.assert_not_called()
+            reader.verify.assert_not_called()
+            reader.close.assert_called_once()
+
+    def test_inspect_retains_size_acl_and_change_guards_without_reads(self):
+        for variant in ("size", "acl", "change"):
+            native = mock.Mock()
+            native.open_handle.return_value = 7
+            native.metadata.return_value = (1, 2, 3, 3, 4, 5)
+            reader = intake.Reader(lambda: native)
+            path = Path("C:/fictional/a.p8")
+            reader.directories.add(path.parent)
+            if variant == "size":
+                native.metadata.return_value = (1, 2, 3, 4097, 4, 5)
+            elif variant == "acl":
+                native.acl.side_effect = intake.custody.CustodyError("ACL_REJECTED")
+            else:
+                reader.inspect(path, 4096)
+                native.metadata.return_value = (1, 2, 3, 3, 4, 6)
+            with self.assertRaises((intake.Rejected, intake.custody.CustodyError)):
+                reader.verify() if variant == "change" else reader.inspect(path, 4096)
+            reader.close()
+            native.read.assert_not_called()
+            native.seek.assert_not_called()
+
+    def test_reader_inspect_never_reads_payload_and_keeps_snapshot(self):
+        native = mock.Mock()
+        native.open_handle.return_value = 7
+        native.metadata.return_value = (1, 2, 3, 3, 4, 5)
+        reader = intake.Reader(lambda: native)
+        path = Path("C:/fictional/a.p8")
+        reader.directories.add(path.parent)
+        self.assertEqual(reader.inspect(path, 4096), (7, (1, 2, 3, 3, 4, 5)))
+        reader.verify()
+        native.read.assert_not_called()
+        native.seek.assert_not_called()
+        native.acl.assert_any_call(7)
+        reader.close()
+        native.close.assert_called_once_with(7)
+
     def test_each_field_exhausts_three_syntax_attempts_without_echo(self):
         for field in intake.PROMPTS:
             prompt = mock.Mock(return_value="\ud800private-sentinel")

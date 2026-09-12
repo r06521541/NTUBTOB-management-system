@@ -32,6 +32,7 @@ REASONS = (
     | inputs.REASONS
     | {
         "CLOSE_UNRESOLVED",
+        "CUSTODY_CHECK_REJECTED",
         "INPUT_READ_REJECTED",
         "INPUT_CHECK_REJECTED",
         "PROFILE_CONTAINER_REJECTED",
@@ -150,7 +151,8 @@ class Reader:
             self.records.append((handle, parent, expected, True, parent == path, 65536))
         self.directories.add(path)
 
-    def file(self, path, limit):
+    def inspect(self, path, limit):
+        """Hold and validate the exact file without reading its payload."""
         if path.parent not in self.directories or limit not in (4096, 65536, 262144):
             raise Rejected()
         handle = self.native.open_handle(path)
@@ -161,6 +163,11 @@ class Reader:
         if type(size) is not int or not 1 <= size <= limit:
             raise Rejected("METADATA_REJECTED")
         self.records.append((handle, path, expected, False, True, limit))
+        return handle, expected
+
+    def file(self, path, limit):
+        handle, expected = self.inspect(path, limit)
+        size = expected[3]
         buffer, count = c.create_string_buffer(size), custody.w.DWORD()
         if (
             not self.native.seek(handle, 0, None, 0)
@@ -294,6 +301,47 @@ def read_field(field, *, prompt=preparation.hidden, google_web=None):
             )
             if not remaining:
                 raise
+
+
+def check_custody(config, *, custodyfactory=None):
+    """Metadata/ACL precheck before a password; not cryptographic verification."""
+    reader = None
+    target = "CONFIG"
+    try:
+        _config(config)
+        asc_path = validate_field("ASC_PATH", config.asc_path)
+        root = preparation.local_app_data() / preparation.DIRECTORY
+        reader = (custodyfactory or Reader)()
+        target = "SIGNING_DIRECTORY"
+        reader.directory(root)
+        target = "ASC_DIRECTORY"
+        reader.directory(asc_path.parent)
+        for target, path, limit in (
+            ("P12", root / "distribution.p12", 65536),
+            ("CERTIFICATE", root / "distribution.cer", 65536),
+            ("PROFILE", root / "distribution.mobileprovision", 262144),
+            ("ASC_KEY", asc_path, 4096),
+        ):
+            reader.inspect(path, limit)
+        target = "SNAPSHOT"
+        reader.verify()
+    except (Exception, KeyboardInterrupt) as error:
+        reason = "INPUT_CHECK_REJECTED"
+        if (
+            type(error) in {Rejected, custody.CustodyError, inputs.InputError}
+            and len(error.args) == 1
+            and type(error.args[0]) is str
+            and error.args[0] in REASONS
+        ):
+            reason = error.args[0]
+        print(f"custody_rejected target={target} reason={reason}", flush=True)
+        raise Rejected("CUSTODY_CHECK_REJECTED") from None
+    finally:
+        if reader is not None:
+            try:
+                reader.close()
+            except (Exception, KeyboardInterrupt):
+                raise Rejected("CLOSE_UNRESOLVED") from None
 
 
 def collect(
