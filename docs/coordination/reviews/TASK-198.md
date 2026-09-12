@@ -1,6 +1,30 @@
 # TASK-198 review
 
-## Current ASC custody repair: Security31 ACCEPT
+## Current PKCS8 compatibility repair: Security33 ACCEPT
+
+Main received/handled /root/task181_review completion, claim/actor unchanged,
+lease33, read-only; base d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc and branch
+codex/task-198-pkcs8-compatibility. Three frozen inputs/source/direct-test/custody
+test files independently accepted;22 focused fake tests PASS, no new findings.
+Four exact candidate PEM encodings regenerated from a validated P256 private key,
+with independently derived public consistency, do not admit unknown fields,
+versions, trailing bytes, extra blocks, BOM, wrong curve or conflicting public.
+Existing newline handling only; copy remains byte-exact. Shared ASC/AppleLogin
+caller type/key-reuse boundary unchanged. Main218tests214PASS4platformskips.
+
+RFC5915 section3 ASN.1 marks fields optional, while producer text says inner
+parameters MUST and public point SHOULD be included. This finite receiver support
+includes the former serializer's no-inner-parameter form; it does not claim all
+four are fully RFC-conformant producer outputs or prove the actual private input
+is one of them. No real private/API/native/Git/source mutations by reviewer;
+only fictional test and Python cache. Hosted CI and live outcome remain unverified.
+
+Accepted LF-SHA256:
+- tools/ios_testflight_inputs.py c498c8a5195cb17e5525287140b4df3a0d1fd92e1db6bdaf73a2a8e3c946fde9
+- tools/tests/test_ios_testflight_inputs.py 12daef970b7fcb59cb2a969ee3e7cc2815ae8d9aee258ed5f1eb3d4fa1ec5b0f
+- tools/tests/test_ios_testflight_key_custody.py 96babd9528b1bb3a8b78f377ff946e847f750510c372d8cd1c293cb1922cb45a
+
+## Previous ASC custody repair: Security31 ACCEPT
 
 Main received/handled Security30 REQUEST_CHANGES then Security31 ACCEPT from
 /root/task181_review, claim task-198-security-20260911 leases30/31, read-only.

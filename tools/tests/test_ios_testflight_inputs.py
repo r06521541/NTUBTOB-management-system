@@ -7,6 +7,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
+from asn1crypto import keys
+from asn1crypto import pem as asn1_pem
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, rsa, utils
@@ -144,6 +146,100 @@ class InputTests(unittest.TestCase):
             with self.assertRaises(inputs.InputError):
                 inputs.load_asc_key(
                     pem,
+                    key_id="FICTKEY001",
+                    issuer_id="11111111-1111-4111-8111-111111111111",
+                )
+
+    def variant(self, *, parameters, public):
+        info = keys.PrivateKeyInfo.load(
+            self.asc_key.private_bytes(
+                serialization.Encoding.DER,
+                serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption(),
+            )
+        )
+        inner = info["private_key"].parsed
+        inner["parameters"] = (
+            keys.ECDomainParameters(name="named", value="secp256r1")
+            if parameters
+            else None
+        )
+        if not public:
+            inner["public_key"] = None
+        info["private_key"] = inner
+        return info
+
+    def test_equivalent_rfc5915_pkcs8_encodings_keep_same_key_and_jwt(self):
+        encodings = set()
+        for parameters in (False, True):
+            for public in (False, True):
+                raw = asn1_pem.armor(
+                    "PRIVATE KEY",
+                    self.variant(parameters=parameters, public=public).dump(),
+                )
+                encodings.add(raw)
+                for encoded in (raw, raw[:-1], raw.replace(b"\n", b"\r\n")):
+                    loaded = inputs.load_asc_key(
+                        encoded,
+                        key_id="FICTKEY001",
+                        issuer_id="11111111-1111-4111-8111-111111111111",
+                    )
+                    self.assertEqual(
+                        loaded.private_key.private_numbers(),
+                        self.asc_key.private_numbers(),
+                    )
+                    self.assertEqual(
+                        inputs.asc_jwt(loaded, now=NOW).expires_at,
+                        NOW + timedelta(seconds=600),
+                    )
+                    login = inputs.load_apple_login_key(
+                        encoded, key_id="FICTKEY002", team=TEAM, bundle=BUNDLE
+                    )
+                    self.assertEqual(
+                        login.private_key.private_numbers(),
+                        self.asc_key.private_numbers(),
+                    )
+                    with self.assertRaisesRegex(
+                        inputs.InputError, "^KEY_REUSE_REJECTED$"
+                    ):
+                        inputs.validate_distinct_keys(loaded, login)
+        self.assertEqual(len(encodings), 4)
+
+    def test_pkcs8_variant_does_not_accept_conflicting_or_extra_material(self):
+        info = self.variant(parameters=True, public=True)
+        valid = asn1_pem.armor("PRIVATE KEY", info.dump())
+        invalid = [
+            valid + b"junk",
+            valid + valid,
+            b"\xef\xbb\xbf" + valid,
+            asn1_pem.armor("PRIVATE KEY", info.dump() + b"\x00"),
+            self.asc_key.private_bytes(
+                serialization.Encoding.PEM,
+                serialization.PrivateFormat.TraditionalOpenSSL,
+                serialization.NoEncryption(),
+            ),
+        ]
+        inner = info["private_key"].parsed
+        inner["parameters"] = keys.ECDomainParameters(name="named", value="secp384r1")
+        info["private_key"] = inner
+        invalid.append(asn1_pem.armor("PRIVATE KEY", info.dump()))
+        info = self.variant(parameters=True, public=True)
+        inner = info["private_key"].parsed
+        inner["public_key"] = self.login_key.public_key().public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint
+        )
+        info["private_key"] = inner
+        invalid.append(asn1_pem.armor("PRIVATE KEY", info.dump()))
+        info = self.variant(parameters=True, public=True)
+        info["attributes"] = []
+        invalid.append(asn1_pem.armor("PRIVATE KEY", info.dump()))
+        info = self.variant(parameters=True, public=True)
+        info["version"] = 1
+        invalid.append(asn1_pem.armor("PRIVATE KEY", info.dump()))
+        for raw in invalid:
+            with self.assertRaisesRegex(inputs.InputError, "^KEY_REJECTED$"):
+                inputs.load_asc_key(
+                    raw,
                     key_id="FICTKEY001",
                     issuer_id="11111111-1111-4111-8111-111111111111",
                 )

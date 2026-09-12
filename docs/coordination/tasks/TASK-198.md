@@ -1170,3 +1170,48 @@ preserved DACL/runtime rejection. No private/Git/network mutations; fake tests
 only. Immediate received/executing ACK, heartbeat10-15min, blocker immediately,
 proactive final verdict/HEAD/hash/tests/findings/limits/mutations. Main active until
 completion handled, frozen file during review, same PR/normal CI after acceptance.
+
+## PKCS8 compatibility correction after zero-mutation key rejection
+
+PR253 merged d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc after CI34696846257
+SUCCESS16/16; local merged tree equals accepted552c623f4fd6f918ff9b2c667cae842f66ab57c5.
+Actual reviewed preview ASC_IMPORT_READY; one import attempt KEY_REJECTED before
+any backup/copy/update. Independent metadata-only checks confirm asc-upload.p8
+and testflight-inputs.pre-import.json absent. Original six-field JSON/source
+untouched. No signing/upload/Secret/runtime mutation. Do not repeat unchanged code.
+
+Code-only fictional probe reproduces a compatibility bug: valid P256 PKCS8 with
+the RFC5915 inner named-curve parameter loads to the same public key, but the
+existing byte-for-byte serializer comparison returns KEY_REJECTED. This is not
+proof of the real input's exact ASN.1 representation. Main may repair this bounded
+parser behavior under IOS-TF-01 before any new attempt; no new Owner input yet.
+Use only explicit encodings regenerated from the cryptographically validated key:
+PKCS8 with inner P256 parameter present/absent and public point present/absent.
+Retain full exact PEM/DER comparison against those finite encodings, size/curve/
+private-key checks, key public/private consistency, no unknown attributes/trailing
+bytes/extra PEM blocks, no key rewrite or normalization on disk. No broad ASN.1
+acceptance, new algorithm, wire fields, authority, credential creation or cloud work.
+Reference: https://www.rfc-editor.org/rfc/rfc5915.html section3; encoding-field
+differences are not a reason to regenerate a user's key.
+
+Checkpoint: goal=bounded PKCS8 interoperability; core=ios_testflight_inputs.py and
+direct tests plus one custody integration regression; invariant=valid P256 private
+key and finite exact envelope shapes only, no private input diagnosis/readouts;
+tests=four fictional encodings plus malformed/extra/conflicting fields and full
+affected tooling; ambiguity=actual real format unknown, no unreviewed retry.
+Main claim/lease unchanged, branch codex/task-198-pkcs8-compatibility,
+base=head=d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc. Main owns inputs/direct test,
+key_custody direct test and existing five coordination records; agents read-only
+unless separately assigned. Independent review and normal CI/merge required before
+fresh metadata preview and one import; the approved copy has not happened yet.
+
+Security33 assignment: same TASK198, branch codex/task-198-pkcs8-compatibility,
+base=head=d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc; advisor actor/claim unchanged,
+lease33, write=read-only, ownednone, report_to=/root. Three frozen files: inputs.py,
+test_ios_testflight_inputs.py and test_ios_testflight_key_custody.py under tools.
+Check finite four regenerated PKCS8 encodings, private/public consistency, curve,
+unknown/trailing/extra-envelope rejection, reused shared Apple/ASC caller boundary,
+byte-exact original copy and no-repeat behavior. No real inputs/network/Git/source
+mutation; fake tests only. ACK received/executing immediately, heartbeat10-15min,
+blocker immediate, proactive final verdict/fullHEAD/paths/tests/findings/limits/
+mutations/LF hashes. Main frozen and active until review handled, then normal CI.
