@@ -989,3 +989,68 @@ Owner2026-09-12 explicitly confirmed the pending exact nine-file commit/push to
 the named existing repository and PR251. Main verified branch/HEAD/remote/dirty
 scope unchanged and reran169tests165PASS4skips,quality4PythonPASS. Resume commit/
 push, normal finalCI and existing authorized merge; private/UI gates unchanged.
+
+## Confirmed pre-execution input repair
+
+PR251 merged48232c548d486c8175ac990dd91d2f68d218544b after CI34688813903 SUCCESS16/16;
+clean merged-main preflight returned PREFLIGHT_PASSED. Owner created the exact
+internal group with only their existing user; UI readback1tester/0builds/manual
+distribution. Owner then reported INPUT_REJECTED after all seven hidden fields.
+Main read-only check: signing-workflow runs0, dedicated environment secrets0,
+operation journal absent. No private values/payloads read; only prompt/length
+progress was retained during diagnosis. Owner answered that path quotes were not
+removed; fictional reproduction confirms quoted paths fail in the released parser.
+This establishes a format defect, not validity of the other private inputs.
+
+Main remains task-198-main-20260911 lease1, sole writer for this bounded repair,
+report_to=/root. Branch codex/task-198-private-input-recovery, base/head
+48232c548d486c8175ac990dd91d2f68d218544b. Owned: tools/ios_testflight_intake.py,
+tools/ios_testflight_operator.py, their two direct tests, and this task's existing
+HANDOFF/PROJECT_STATE/report/review. Prior writer and security28 are completed.
+Accept exactly one balanced double-quote wrapper on a private path, with all
+absolute-path/type/size/ACL/handle guards unchanged. Syntactic input rejection may
+re-prompt only that field, at most3attempts, in the current process before any
+operation intent; already-valid fields stay memory-only. No cryptographic/file/
+network/dispatch retry, persisted inputs, deadline extension or new authority.
+Return fixed field/stage reasons without values, paths, exception text or hashes.
+Test syntax, cancellation, exhaustion, no-repeat fields, custody failures and
+zero execution on input failure; independent security review then normalCI/merge.
+This is a substantive repair after mergedPR251, not a status-only PR. Old process
+inputs are unavailable; a fresh reviewed/preflighted entry still needs Owner input.
+
+Owner subsequently explicitly requested safe reuse through an editable local JSON.
+This repair also owns tools/ios_testflight_settings.py and its direct test. Narrow
+exception to memory-only metadata: six exact fields (Team, ASC key/issuer, iOS
+client, Owner email and ASC path) may persist in one Owner-editable JSON under the
+existing private KnownFolder custody directory, outside Git/cloud-sync paths.
+Never persist passwords, PEM/key bytes, tokens, approval, target overrides or a
+session. Fresh preflight and original operation/journal rules still apply. Create
+only an empty template, never overwrite; strict bounded same-handle/ACL read,
+duplicate/unknown fields rejected, field-only validation before password/key reads.
+Owner edits individual fields; agent never reads their populated JSON directly.
+Passwords remain hidden/in-process only. No encrypted secret cache in this scope.
+
+Security29 assignment: task=TASK-198; branch=codex/task-198-private-input-recovery;
+base=head=48232c548d486c8175ac990dd91d2f68d218544b (six frozen dirty Python files).
+actor_id=/root/task181_review; role=advisor; claim_id=task-198-security-20260911;
+lease_version=29; write=read-only; owned_paths=none; report_to=/root.
+Scope: independent review of intake/operator/settings and their three direct tests;
+safe metadata persistence, quote parsing/bounded correction, native creation/read
+ACL/handle/size/non-overwrite guards, no secret cache, no mutation/authority retry.
+Stop: unexpected source change, private payload need, external mutation, scope drift.
+Immediate received/executing ACK with report_to=/root; heartbeat10-15min; blockers
+immediate; final proactively report verdict/full HEAD/dirty paths/tests/findings/
+limits/external mutations. Main remains active until completion is received/handled.
+
+Reviewed-interface plan (use only after this repair is accepted/merged):
+`py -3.10 -m tools.ios_testflight_operator --prepare-inputs` creates the empty
+template at KnownFolder LocalAppData/NTUBTOB-AppleDistribution-CSR/testflight-inputs.json.
+Do not recreate if it exists. Owner edits only six string values in that file,
+never password/key payload; use forward slashes in asc_p8_path to avoid JSON
+backslash escaping. Keep commas/quotes and save UTF8 (BOM accepted).
+`--check-inputs` checks fresh preflight + metadata syntax only, no password/key read
+or dispatch; all bad field names reported together. `--execute --settings` reads
+the same file with fresh preflight, then asks only the hidden P12 password.
+Do not send filled JSON to chat or store it in Git/cloud-synced folders. Syntax
+errors: edit indicated field; key/custody/runtime failure: inspect fixed reason,
+never blindly repeat an uncertain execution. `--recover` remains cleanup/GET-only.

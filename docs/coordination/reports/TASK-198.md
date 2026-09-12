@@ -2,67 +2,52 @@
 
 ## Current result (supersedes historical observations below)
 
-Continuing Draft PR251, branch codex/task-198-owner-testflight; main/base remains
-5762a89c6e6451ed19f5151da1652312a9f76679. Exact pushed HEAD/origin/PR source
-8a37459d2bcca32bb002605b0816a3d3c1c693dc passed run34644785015,16/16 jobs SUCCESS,
-including actual Swift compile/invalid-input rejection and unsigned iOS archive.
-This proves code-only platform compatibility, not real Keychain/import/signing.
-The earlier run34629242446 completed with14 PASS and two dependent failures.
+PR251 merged48232c548d486c8175ac990dd91d2f68d218544b with normal CI34688813903
+SUCCESS16/16. Clean merged-main preflight passed. Protected environment and staging
+retained bindings remain verified; existing Owner group now1tester/0builds/manual
+distribution. No signed build, upload or device acceptance yet.
 
-Owner completed NEW ios-owner-testflight environment setup; Main read-only
-verification passed sole Owner reviewer, self-review allowed, no administrator
-bypass, exact main branch only and zero secrets. This Owner gate is closed;
-profile-verification remains unchanged. No repeated setup requested.
+Owner reported INPUT_REJECTED after seven hidden inputs. Read-only recovery
+confirmed signing-workflow runs0, dedicated environment secrets0 and no journal.
+No private values read; safe prompt labels/lengths showed metadata reached final
+path input. Owner said quotes were not removed. Fictional tests reproduce quoted
+absolute path rejection; this does not prove other supplied values are valid.
 
-That pushed delivery adds Windows local operator, sanitized durable
-journal, exact nonce/job-bound public artifact fingerprint, GET-only ASC recovery
-and separate Owner-group adapter. No private receipt IDs are exported or retained.
-Lost fingerprint/checksum is unresolved, never an instruction to upload again.
-Private sign/upload intake skips the unused Apple Login key; known staging
-URL/LINE/Web metadata are not requested again. No distribution action or fake
-staging acceptance is exposed by this CLI. Activation is proposed but not accepted.
+Main repairs on codex/task-198-private-input-recovery, base
+48232c548d486c8175ac990dd91d2f68d218544b. Delta: one balanced outer double quote
+pair on paths; maximum3 syntax attempts per hidden field in current process;
+specific allowlisted field/profile/signing-stage errors, never raw values/causes.
+No custody/crypto/network/dispatch retry or operation deadline extension.
 
-Security23 accepted recovery architecture; Security24 accepted journal/dispatch/
-recovery sources with28 focused PASS. Security25 REQUEST_CHANGES identified
-missing normal-failure cancellation and inadequate staging ownership evidence.
-Main corrected cancellation with one irreversible fresh cleanup-only budget,
-once-only exact run cancellation, independent secret cleanup and fresh terminal
-observation; advance failure/interrupt/timeout tests now pass. Writer16 adds the
-historical accepted immutable revision/Secret-reference comparator. Consolidated
-correction acceptance received as Security26 ACCEPT,42 independent PASS. Main166
-TestFlight tests162PASS4platformskips,18workflow tests17PASS1skip,quality16Python
-and diffPASS. Fresh normal hosted CI/main integration are still required before
-private activation; same PR251, no second delivery or status-only PR.
+Owner additionally requested editable JSON to avoid retyping seven inputs.
+Fixed local testflight-inputs.json under existing private KnownFolder custody
+contains only Team/ASC key/issuer/iOS client/Owner email/ASC path. CREATE_NEW
+writes only empty fields with explicit Owner-only ACL; never overwrite.
+Bounded same-handle read rechecks metadata/ACL, rejects duplicates/unknown fields,
+reports all invalid field names before password/key reads. UTF8 BOM supported.
+No password/key bytes/token/approval/target/session field or automatic saving.
+JSON reuse never bypasses fresh preflight, target inventory or durable one-shot
+journal. Only P12 password is prompted when valid saved metadata is selected.
+Former process values cannot be recovered; actual blank template not created yet.
 
-Read-only live projection confirmed accepted TASK157 baseline still exists at
-creationTimestamp2026-08-26T05:35:31.015912Z with its archived exact image digest;
-current sole100% traffic is mobile-api-staging-task157-47ccfb5f. This is not yet
-the full ownership comparison or schema/readiness proof. No payload/DB read.
-The actual metadata comparator subsequently returned STAGING_OWNERSHIP_RETAINED
-after two evidence-backed compatibility corrections: Windows executable resolution
-and single-container generated display-name normalization. Security27/28 ACCEPT;
-independent14/28 testsPASS respectively. Main169tests165PASS4platformskips and
-quality4Python/diffPASS. This is retained ownership, not runtime/schema readiness.
-App Store Connect browser read-only confirms no builds and no internal groups;
-next Owner setup is exact NTUBTOB Owner Internal, auto-distribution off, Owner only,
-followed by reviewed local private input. No signing, upload, environment-secret,
-staging/runtime/DB or production mutation. New corrections need latest hostedCI.
-CI: https://github.com/r06521541/NTUBTOB-management-system/actions/runs/34644785015
+Red tests reproduced original seven failures; source correction then passed:
+- py -3.10 -m unittest discover -s tools/tests -p 'test_ios_testflight_*.py' -q
+  191 tests,187PASS,4 existing platform skips. Run outside sandbox for native
+  temporary fictional ACL test; restricted run could not establish fixture ACL.
+- Native Windows test actually creates/edits/reads an empty fictional JSON,
+  refuses overwrite and rejects oversized edited metadata.
+- py -3.10 -m tools.repository_quality format --paths [six owned Python files]
+  passed; final check six Python files and git diff --check also passed.
 
-Previous stop: execution auto-review twice rejected exact nine-file compatibility
-correction commit/push, despite verified existing remote and standing Owner authority.
-No command/index change occurred. Corrections remain unstaged, accepted and tested;
-latest hosted success does not cover them. Current explicit Owner destination
-confirmation was requested and now explicitly supplied2026-09-12. Main rechecked
-unchanged scope and169tests165PASS4skips/quality4PythonPASS; resumes samePR
-commit/push/finalCI. No workaround/split push, main merge or live execution yet.
-
-Still incomplete beyond this source checkpoint: actual private custody/password/key
-input; exact ASC Owner group/tester
-setup and sole-group distribution; staging Apple configuration/migration/deploy;
-real signing/upload/Apple processing and Owner device acceptance. Do not dispatch
-the new workflow or merge this partial delivery as release-ready. No new credentials,
-certificates, public release or extra testers requested. Incremental cost unchanged.
+Security29 ACCEPT received/handled, report_to=/root;47 distinct focused tests
+passed, native one separately rerun with scoped escalation after sandbox fixture
+setup rejection. Six source/test fingerprints accepted; reviewer completed/read-only.
+NormalCI/accepted merge remain next. No real private payload, signing,
+upload, environment Secret, staging runtime/DB or production mutation in repair.
+Remaining delivery: merged/preflighted JSON + Owner input, actual signing/Apple
+processing, Apple staging configuration/schema/backend post-check, Owner-only
+distribution and iPhone acceptance. Settings readiness proves syntax, not any
+of those outcomes.
 
 ## Historical observations / preparation
 

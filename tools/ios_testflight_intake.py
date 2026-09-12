@@ -8,6 +8,7 @@ protect against another process with the same user/administrator authority.
 import ctypes as c
 import os
 import plistlib
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,14 +17,34 @@ from tools import ios_certificate_preparation as preparation
 from tools import ios_testflight_inputs as inputs
 from tools import ios_testflight_signing as signing
 
+PROMPTS = {
+    "APPLE_TEAM": "Apple Team ID (10 characters, hidden): ",
+    "ASC_KEY_ID": "ASC API key ID (10 characters, hidden): ",
+    "ASC_ISSUER": "ASC API issuer ID (UUID, hidden): ",
+    "GOOGLE_IOS": "Existing Google iOS client ID (hidden): ",
+    "OWNER_EMAIL": "Owner Apple account email (hidden): ",
+    "P12_PASSWORD": "P12 password (hidden): ",
+    "ASC_PATH": "ASC p8 absolute path (hidden): ",
+    "APPLE_LOGIN_PATH": "Apple Login p8 absolute path (hidden): ",
+}
+REASONS = (
+    custody.REASONS
+    | inputs.REASONS
+    | {
+        "CLOSE_UNRESOLVED",
+        "INPUT_READ_REJECTED",
+        "INPUT_CHECK_REJECTED",
+        "PROFILE_CONTAINER_REJECTED",
+        "SIGNING_MATERIAL_REJECTED",
+    }
+    | {field + "_INPUT_REJECTED" for field in PROMPTS}
+)
+
 
 class Rejected(Exception):
     def __init__(self, reason="INPUT_REJECTED"):
         super().__init__(
-            reason
-            if type(reason) is str
-            and reason in custody.REASONS | inputs.REASONS | {"CLOSE_UNRESOLVED"}
-            else "INPUT_REJECTED"
+            reason if type(reason) is str and reason in REASONS else "INPUT_REJECTED"
         )
 
 
@@ -199,8 +220,12 @@ def _path(value):
     if (
         type(value) is not str
         or not 1 <= len(value) <= 32767
-        or any(ord(ch) < 32 for ch in value)
+        or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
     ):
+        raise Rejected()
+    if value.startswith('"') and value.endswith('"'):
+        value = value[1:-1]
+    if '"' in value:
         raise Rejected()
     path = Path(value)
     if (
@@ -213,10 +238,68 @@ def _path(value):
     return path
 
 
+def validate_field(field, value, *, google_web=None):
+    """Syntax only: no file/crypto/network access and no secret normalization."""
+    if field not in PROMPTS:
+        raise Rejected()
+    try:
+        if (
+            type(value) is not str
+            or not value
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in value)
+        ):
+            raise ValueError()
+        value.encode("utf-8")
+        if field in {"APPLE_TEAM", "ASC_KEY_ID"}:
+            inputs._identifier(value)
+        elif field == "ASC_ISSUER":
+            inputs._issuer(value)
+        elif field == "GOOGLE_IOS":
+            if (
+                value == google_web
+                or not re.fullmatch(
+                    r"[A-Za-z0-9-]+\.apps\.googleusercontent\.com", value
+                )
+                or len(value) > 2048
+            ):
+                raise ValueError()
+        elif field == "OWNER_EMAIL":
+            if not re.fullmatch(r"[^\s@]{1,128}@[^\s@]{1,128}\.[^\s@]{1,64}", value):
+                raise ValueError()
+        elif field == "P12_PASSWORD":
+            if len(value.encode("utf-8")) > 1024:
+                raise ValueError()
+        else:
+            return _path(value)
+        return value
+    except (ValueError, UnicodeError, inputs.InputError, Rejected):
+        raise Rejected(field + "_INPUT_REJECTED") from None
+
+
+def read_field(field, *, prompt=preparation.hidden, google_web=None):
+    """At most three syntax attempts for this field, before any operation intent."""
+    if field not in PROMPTS:
+        raise Rejected()
+    for remaining in (2, 1, 0):
+        try:
+            value = prompt(PROMPTS[field])
+        except (Exception, KeyboardInterrupt):
+            raise Rejected("INPUT_READ_REJECTED") from None
+        try:
+            return validate_field(field, value, google_web=google_web)
+        except Rejected:
+            print(
+                f"input_rejected field={field} remaining_attempts={remaining}",
+                flush=True,
+            )
+            if not remaining:
+                raise
+
+
 def collect(
     config, *, prompt=preparation.hidden, custodyfactory=None, include_login=True
 ):
-    """Only hidden P12 password / absent private paths are requested once."""
+    """Field syntax is repairable; custody/cryptographic failures never retry."""
     reader = None
     try:
         _config(config)
@@ -226,23 +309,17 @@ def collect(
         root = preparation.local_app_data() / preparation.DIRECTORY
         reader = (custodyfactory or Reader)()
         reader.directory(root)
-        password = prompt("P12 password (hidden): ")
-        if (
-            type(password) is not str
-            or not 0 < len(password.encode("utf-8")) <= 1024
-            or any(ord(ch) < 32 or ord(ch) == 127 for ch in password)
-        ):
-            raise Rejected()
-        asc_path = _path(
-            config.asc_path
+        password = read_field("P12_PASSWORD", prompt=prompt)
+        asc_path = (
+            validate_field("ASC_PATH", config.asc_path)
             if config.asc_path is not None
-            else prompt("ASC p8 absolute path (hidden): ")
+            else read_field("ASC_PATH", prompt=prompt)
         )
         login_path = (
-            _path(
-                config.apple_login_path
+            (
+                validate_field("APPLE_LOGIN_PATH", config.apple_login_path)
                 if config.apple_login_path is not None
-                else prompt("Apple Login p8 absolute path (hidden): ")
+                else read_field("APPLE_LOGIN_PATH", prompt=prompt)
             )
             if include_login
             else None
@@ -260,7 +337,10 @@ def collect(
         raw_profile = reader.file(root / "distribution.mobileprovision", 262144)
         asc_pem = reader.file(asc_path, 4096)
         login_pem = reader.file(login_path, 4096) if include_login else None
-        decoded = plistlib.loads(signing._profile_container(raw_profile))
+        try:
+            decoded = plistlib.loads(signing._profile_container(raw_profile))
+        except Exception:
+            raise Rejected("PROFILE_CONTAINER_REJECTED") from None
         if (
             type(decoded) is not dict
             or decoded.get("DeveloperCertificates") != [certificate]
@@ -279,8 +359,11 @@ def collect(
             build=config.build,
             build_defines=config.defines(),
         )
-        signing.frame(**material)
-        signing._certificate_binding(material)
+        try:
+            signing.frame(**material)
+            signing._certificate_binding(material)
+        except Exception:
+            raise Rejected("SIGNING_MATERIAL_REJECTED") from None
         asc = inputs.load_asc_key(
             asc_pem, key_id=config.asc_key_id, issuer_id=config.asc_issuer_id
         )
@@ -304,7 +387,7 @@ def collect(
             error.args[0] if len(error.args) == 1 else "INPUT_REJECTED"
         ) from None
     except (Exception, KeyboardInterrupt):
-        raise Rejected() from None
+        raise Rejected("INPUT_CHECK_REJECTED") from None
     finally:
         if reader is not None:
             try:

@@ -2,7 +2,7 @@
 
 Owner-only distribution is deliberately a separate transition requiring actual
 staging runtime/schema postchecks; an accepted IPA does not establish them.
-Private inputs stay in memory. The only durable output is the sanitized journal.
+Secrets stay in memory. Optional Owner-edited JSON persists metadata, not authority.
 """
 
 import base64
@@ -22,6 +22,7 @@ from tools import ios_testflight_hosted as hosted
 from tools import ios_testflight_intake as intake
 from tools import ios_testflight_journal as journal_module
 from tools import ios_testflight_recovery as recovery
+from tools import ios_testflight_settings as settings
 from tools import ios_testflight_signing as signing
 from tools import ios_testflight_staging as staging_contract
 from tools import ios_testflight_wire as wire
@@ -52,8 +53,7 @@ REASONS = (
             "OBSERVATION_TIMEOUT",
         }
     )
-    | intake.custody.REASONS
-    | intake.inputs.REASONS
+    | settings.REASONS
 )
 
 
@@ -203,12 +203,14 @@ def preflight(*, recovery_only=False):
 
 def metadata(staging, *, prompt=preparation.hidden):
     """One visible batch; known staging URL/LINE/Web audience are not re-requested."""
-    team = prompt("Apple Team ID (10 characters, hidden): ")
-    asc_key = prompt("ASC API key ID (10 characters, hidden): ")
-    issuer = prompt("ASC API issuer ID (UUID, hidden): ")
+    team = intake.read_field("APPLE_TEAM", prompt=prompt)
+    asc_key = intake.read_field("ASC_KEY_ID", prompt=prompt)
+    issuer = intake.read_field("ASC_ISSUER", prompt=prompt)
     login_key = "NOTUSED000"  # No Apple Login key requested/read by sign/upload.
-    ios_client = prompt("Existing Google iOS client ID (hidden): ")
-    email = prompt("Owner Apple account email (hidden): ")
+    ios_client = intake.read_field(
+        "GOOGLE_IOS", prompt=prompt, google_web=staging.google_web
+    )
+    email = intake.read_field("OWNER_EMAIL", prompt=prompt)
     config = intake.Config(
         team,
         asc_key,
@@ -227,6 +229,25 @@ def metadata(staging, *, prompt=preparation.hidden):
     ):
         raise Rejected("INPUT_REJECTED")
     return config, email
+
+
+def settings_metadata(staging):
+    values = settings.load(google_web=staging.google_web)
+    config = intake.Config(
+        values["apple_team_id"],
+        values["asc_key_id"],
+        values["asc_issuer_id"],
+        "NOTUSED000",
+        staging.url,
+        values["google_ios_client_id"],
+        staging.google_web,
+        staging.line,
+        VERSION,
+        1,
+        asc_path=values["asc_p8_path"],
+    )
+    intake._config(config)
+    return config, values["owner_email"]
 
 
 def frames(materials, config, target):
@@ -424,10 +445,10 @@ def execute(
 
 def asc_recovery_input(*, prompt=preparation.hidden, reader_factory=intake.Reader):
     """Fresh ASC-only custody: no P12/profile/Apple Login read on recovery."""
-    key_id = prompt("ASC API key ID (10 characters, hidden): ")
-    issuer = prompt("ASC API issuer ID (UUID, hidden): ")
-    email = prompt("Owner Apple account email (hidden): ")
-    path = intake._path(prompt("Existing ASC p8 absolute path (hidden): "))
+    key_id = intake.read_field("ASC_KEY_ID", prompt=prompt)
+    issuer = intake.read_field("ASC_ISSUER", prompt=prompt)
+    email = intake.read_field("OWNER_EMAIL", prompt=prompt)
+    path = intake.read_field("ASC_PATH", prompt=prompt)
     reader = reader_factory()
     try:
         intake.inputs._identifier(key_id)
@@ -499,11 +520,28 @@ def recover_operation(
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     try:
-        if args not in (["--preflight"], ["--execute"], ["--recover"]):
+        if args not in (
+            ["--preflight"],
+            ["--execute"],
+            ["--recover"],
+            ["--prepare-inputs"],
+            ["--check-inputs"],
+            ["--execute", "--settings"],
+        ):
             raise Rejected("SOURCE_REJECTED")
         sha, staging = preflight(recovery_only=args == ["--recover"])
         if args == ["--preflight"]:
             emit("PREFLIGHT_PASSED")
+            return 0
+        if args == ["--prepare-inputs"]:
+            settings.prepare()
+            emit("SETTINGS_TEMPLATE_CREATED")
+            return 0
+        if args == ["--check-inputs"]:
+            settings_metadata(staging)
+            emit(
+                "SETTINGS_READY"
+            )  # Syntax only, not key validity or execution approval.
             return 0
         if args == ["--recover"]:
             recover_operation()
@@ -512,13 +550,19 @@ def main(argv=None):
             "scope=IOS-TF-01 action=sign_inspect_upload target=owner_staging distribution=none",
             flush=True,
         )
-        config, email = metadata(staging)
+        config, email = (
+            settings_metadata(staging)
+            if args == ["--execute", "--settings"]
+            else metadata(staging)
+        )
         result = execute(sha, staging, config, email)
         return 0 if result["classification"] == "BUILD_VALID_UNDISTRIBUTED" else 2
     except BaseException as error:
         reason = (
             error.args[0]
-            if type(error) is Rejected and len(error.args) == 1
+            if type(error)
+            in {Rejected, intake.Rejected, intake.inputs.InputError, settings.Rejected}
+            and len(error.args) == 1
             else "OPERATION_UNRESOLVED"
         )
         emit(reason)

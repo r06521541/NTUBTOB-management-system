@@ -1,4 +1,5 @@
 import ctypes as c
+import io
 import plistlib
 import unittest
 from pathlib import Path, PureWindowsPath
@@ -12,6 +13,41 @@ from tools import ios_testflight_intake as intake
 
 
 class IntakeTests(unittest.TestCase):
+    def test_each_field_exhausts_three_syntax_attempts_without_echo(self):
+        for field in intake.PROMPTS:
+            prompt = mock.Mock(return_value="\ud800private-sentinel")
+            with (
+                mock.patch("sys.stdout", new_callable=io.StringIO) as output,
+                self.assertRaisesRegex(
+                    intake.Rejected, "^" + field + "_INPUT_REJECTED$"
+                ),
+            ):
+                intake.read_field(field, prompt=prompt)
+            self.assertEqual(prompt.call_count, 3)
+            self.assertNotIn("private-sentinel", output.getvalue())
+
+    def test_prompt_failures_and_unknown_fields_are_not_retryable(self):
+        for error in (
+            EOFError(),
+            KeyboardInterrupt(),
+            intake.preparation.Rejected(),
+            RuntimeError("private-sentinel"),
+        ):
+            prompt = mock.Mock(side_effect=error)
+            with self.assertRaisesRegex(intake.Rejected, "^INPUT_READ_REJECTED$"):
+                intake.read_field("P12_PASSWORD", prompt=prompt)
+            prompt.assert_called_once()
+        prompt = mock.Mock()
+        with self.assertRaisesRegex(intake.Rejected, "^INPUT_REJECTED$"):
+            intake.read_field("private-sentinel", prompt=prompt)
+        prompt.assert_not_called()
+
+    def test_password_whitespace_and_case_are_not_normalized(self):
+        value = "  Fictional PaSSphrase  "
+        self.assertEqual(
+            intake.read_field("P12_PASSWORD", prompt=lambda _: value), value
+        )
+
     def config(self, **changes):
         values = dict(
             team="FICTTEAM01",
@@ -66,7 +102,9 @@ class IntakeTests(unittest.TestCase):
         ]
         return reader
 
-    def invoke(self, reader, config=None, prompt=None, include_login=True):
+    def invoke(
+        self, reader, config=None, prompt=None, include_login=True, binding_error=None
+    ):
         with (
             # Fake Windows custody must keep Windows path semantics even when
             # these offline tests run on a POSIX CI host. Never bypass _path.
@@ -76,7 +114,9 @@ class IntakeTests(unittest.TestCase):
                 "local_app_data",
                 return_value=PureWindowsPath("C:/fictional"),
             ),
-            mock.patch.object(intake.signing, "_certificate_binding"),
+            mock.patch.object(
+                intake.signing, "_certificate_binding", side_effect=binding_error
+            ),
         ):
             return intake.collect(
                 config or self.config(),
@@ -121,6 +161,96 @@ class IntakeTests(unittest.TestCase):
             ):
                 with self.assertRaises(intake.Rejected):
                     intake._path(value)
+
+    def test_copy_as_path_quotes_preserve_strict_path_checks(self):
+        with mock.patch.object(intake, "Path", PureWindowsPath):
+            self.assertEqual(
+                intake._path('"C:/fictional/private folder/asc.p8"'),
+                PureWindowsPath("C:/fictional/private folder/asc.p8"),
+            )
+            for value in (
+                '"relative.p8"',
+                '"C:/fictional/../asc.p8"',
+                '"C:/fictional/asc.txt"',
+                '"C:/fictional/a:stream.p8"',
+                '"C:/fictional/asc.p8',
+                'C:/fictional/asc.p8"',
+                '""C:/fictional/asc.p8""',
+                '"C:/fictional/a"b.p8"',
+                '"C:/fictional/asc.p8" extra',
+                '"C:/fictional/asc.p8\n"',
+            ):
+                with self.subTest(value=value), self.assertRaises(intake.Rejected):
+                    intake._path(value)
+
+    def test_path_correction_keeps_password_and_never_echoes_input(self):
+        reader = self.reader()
+        prompt = mock.Mock(
+            side_effect=[
+                "fictional-password",
+                "C:/fictional/private-sentinel.txt",
+                '"C:/fictional/asc.p8"',
+            ]
+        )
+        with mock.patch("sys.stdout", new_callable=io.StringIO) as output:
+            self.invoke(reader, prompt=prompt, include_login=False)
+        self.assertEqual(prompt.call_count, 3)
+        self.assertEqual(prompt.call_args_list[1], prompt.call_args_list[2])
+        self.assertNotEqual(prompt.call_args_list[0], prompt.call_args_list[1])
+        self.assertIn("field=ASC_PATH", output.getvalue())
+        self.assertNotIn("private-sentinel", output.getvalue())
+        self.assertNotIn("fictional-password", output.getvalue())
+        self.assertEqual(reader.file.call_count, 4)
+
+    def test_path_attempts_bounded_and_never_read_private_files_on_exhaustion(self):
+        reader = self.reader()
+        prompt = mock.Mock(side_effect=["fictional-password"] + ["bad.txt"] * 3)
+        with (
+            mock.patch("sys.stdout", new_callable=io.StringIO),
+            self.assertRaisesRegex(intake.Rejected, "^ASC_PATH_INPUT_REJECTED$"),
+        ):
+            self.invoke(reader, prompt=prompt, include_login=False)
+        self.assertEqual(prompt.call_count, 4)
+        reader.file.assert_not_called()
+        reader.close.assert_called_once()
+
+    def test_input_interrupt_never_reprompts(self):
+        reader = self.reader()
+        prompt = mock.Mock(side_effect=["fictional-password", KeyboardInterrupt()])
+        with self.assertRaisesRegex(intake.Rejected, "^INPUT_READ_REJECTED$"):
+            self.invoke(reader, prompt=prompt, include_login=False)
+        self.assertEqual(prompt.call_count, 2)
+        reader.file.assert_not_called()
+        reader.close.assert_called_once()
+
+    def test_profile_failure_is_distinct_and_never_reprompts(self):
+        reader = self.reader()
+        prompt = mock.Mock(side_effect=["fictional-password", "C:/fictional/asc.p8"])
+        with (
+            mock.patch.object(
+                intake.signing,
+                "_profile_container",
+                side_effect=ValueError("private-sentinel"),
+            ),
+            self.assertRaisesRegex(intake.Rejected, "^PROFILE_CONTAINER_REJECTED$"),
+        ):
+            self.invoke(reader, prompt=prompt, include_login=False)
+        self.assertEqual(prompt.call_count, 2)
+        reader.close.assert_called_once()
+
+    def test_signing_material_failure_never_reprompts_and_hides_exception(self):
+        reader = self.reader()
+        prompt = mock.Mock(side_effect=["fictional-password", "C:/fictional/asc.p8"])
+        with self.assertRaisesRegex(intake.Rejected, "^SIGNING_MATERIAL_REJECTED$"):
+            self.invoke(
+                reader,
+                prompt=prompt,
+                include_login=False,
+                binding_error=ValueError("private-sentinel"),
+            )
+        self.assertEqual(prompt.call_count, 2)
+        self.assertEqual(reader.file.call_count, 4)
+        reader.close.assert_called_once()
 
     def test_separated_material_and_hidden_only_three_inputs(self):
         reader = self.reader()

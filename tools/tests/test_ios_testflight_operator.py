@@ -13,6 +13,128 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_saved_metadata_populates_six_fields_without_hidden_prompt(self):
+        staging, config, _, _ = self.fixture()
+        values = {
+            "apple_team_id": config.team,
+            "asc_key_id": config.asc_key_id,
+            "asc_issuer_id": config.asc_issuer_id,
+            "google_ios_client_id": config.google_ios_client_id,
+            "owner_email": "owner@example.invalid",
+            "asc_p8_path": "C:/fictional/asc.p8",
+        }
+        with (
+            patch.object(operator.settings, "load", return_value=values) as load,
+            patch.object(operator.intake, "read_field") as prompt,
+        ):
+            actual, email = operator.settings_metadata(staging)
+        self.assertEqual(actual.asc_path, values["asc_p8_path"])
+        self.assertEqual(actual.api_base_url, staging.url)
+        self.assertEqual(email, values["owner_email"])
+        self.assertEqual(actual.build, 1)
+        load.assert_called_once_with(google_web=staging.google_web)
+        prompt.assert_not_called()
+
+    def test_settings_modes_require_preflight_and_never_execute_on_invalid_file(self):
+        staging, _, _, _ = self.fixture()
+        for args in (
+            ["--prepare-inputs"],
+            ["--check-inputs"],
+            ["--execute", "--settings"],
+        ):
+            with (
+                patch.object(
+                    operator,
+                    "preflight",
+                    side_effect=operator.Rejected("SOURCE_REJECTED"),
+                ),
+                patch.object(operator.settings, "prepare") as prepare,
+                patch.object(operator.settings, "load") as load,
+                patch.object(operator, "execute") as execute,
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                self.assertEqual(operator.main(args), 2)
+            prepare.assert_not_called()
+            load.assert_not_called()
+            execute.assert_not_called()
+        with (
+            patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+            patch.object(
+                operator.settings,
+                "load",
+                side_effect=operator.settings.Rejected("SETTINGS_FIELDS_REJECTED"),
+            ),
+            patch.object(operator, "execute") as execute,
+            patch("sys.stdout", new_callable=io.StringIO) as output,
+        ):
+            self.assertEqual(operator.main(["--execute", "--settings"]), 2)
+        self.assertIn("SETTINGS_FIELDS_REJECTED", output.getvalue())
+        execute.assert_not_called()
+
+    def test_prepare_and_check_never_read_signing_assets_or_execute(self):
+        staging, config, _, _ = self.fixture()
+        for args, classification in (
+            (["--prepare-inputs"], "SETTINGS_TEMPLATE_CREATED"),
+            (["--check-inputs"], "SETTINGS_READY"),
+        ):
+            with (
+                patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+                patch.object(operator.settings, "prepare") as prepare,
+                patch.object(
+                    operator,
+                    "settings_metadata",
+                    return_value=(config, "owner@example.invalid"),
+                ) as metadata,
+                patch.object(operator, "execute") as execute,
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                self.assertEqual(operator.main(args), 0)
+            self.assertIn(classification, output.getvalue())
+            self.assertEqual(prepare.call_count, args == ["--prepare-inputs"])
+            self.assertEqual(metadata.call_count, args == ["--check-inputs"])
+            execute.assert_not_called()
+
+    def test_metadata_reprompts_only_invalid_field_and_rejects_web_client(self):
+        staging, config, _, _ = self.fixture()
+        prompt = Mock(
+            side_effect=[
+                config.team,
+                "bad-key",
+                config.asc_key_id,
+                config.asc_issuer_id,
+                staging.google_web,
+                config.google_ios_client_id,
+                "owner@example.invalid",
+            ]
+        )
+        with patch("sys.stdout", new_callable=io.StringIO) as output:
+            actual, email = operator.metadata(staging, prompt=prompt)
+        self.assertEqual(actual.google_ios_client_id, config.google_ios_client_id)
+        self.assertEqual(email, "owner@example.invalid")
+        self.assertEqual(prompt.call_count, 7)
+        self.assertEqual(prompt.call_args_list[1], prompt.call_args_list[2])
+        self.assertEqual(prompt.call_args_list[4], prompt.call_args_list[5])
+        self.assertIn("field=ASC_KEY_ID", output.getvalue())
+        self.assertIn("field=GOOGLE_IOS", output.getvalue())
+        self.assertNotIn("bad-key", output.getvalue())
+        self.assertNotIn(staging.google_web, output.getvalue())
+
+    def test_exhausted_metadata_never_reaches_private_intake_or_execute(self):
+        staging, _, _, _ = self.fixture()
+        with (
+            patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+            patch.object(
+                operator,
+                "metadata",
+                side_effect=operator.intake.Rejected("ASC_KEY_ID_INPUT_REJECTED"),
+            ),
+            patch.object(operator, "execute") as execute,
+            patch("sys.stdout", new_callable=io.StringIO) as output,
+        ):
+            self.assertEqual(operator.main(["--execute"]), 2)
+        self.assertIn("ASC_KEY_ID_INPUT_REJECTED", output.getvalue())
+        execute.assert_not_called()
+
     def test_cli_resolves_tool_and_rejects_missing_executable(self):
         with (
             patch.object(

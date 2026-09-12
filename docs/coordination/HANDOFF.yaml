@@ -4,79 +4,27 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 5762a89c6e6451ed19f5151da1652312a9f76679
+base_commit: 48232c548d486c8175ac990dd91d2f68d218544b
 updated_by: main-work
 updated_at: 2026-09-12
 note: >
-  Owner approved IOS-TF-01: existing-asset signing, staging and Owner-only TestFlight.
-  USD20 incremental cost cap; per-SHA/manual retry gates superseded only in package.
-  PR250 merged5762a89c6e6451ed19f5151da1652312a9f76679; prior CI16/16 PASS.
-  New branch codex/task-198-owner-testflight for remaining live delivery.
-  Owner completed Apple Developer login; authenticated account page verified.
-  Existing P12/profile/cert present; Apple runtime four keys absent; no new cert.
-  No production, new certificate, public distribution or unrestricted key access.
-  Read-only Apple/ASC inventory complete: App/capability and upload key exist.
-  Owner approved ONE App-bound Sign-in-purpose key on2026-09-12; staging use only.
-  Owner reported downloaded; portal confirms created/downloaded, Sign in with Apple ONLY.
-  Agent did not download/read key payload; local custody/pairing not yet verified.
-  Owner completed Google login; exact primary-project OAuth list accessible and read-only inventory complete.
-  Owner completed the ONE approved iOS client creation; success dialog and list now show exactly iOS/Android/Web.
-  Main verified new iOS type/name/bundle and empty optional App Store/Team fields; exited details without save.
-  No access request, new IAM grant or additional provider change performed by Main.
-  Owner approved ONE new iOS client in primary project, existing App bundle, staging/Owner TestFlight use only.
-  No repeat creation/download; no private payload or identifiers persisted in repository.
-  Existing Web/Android clients, callbacks, consent/testing configuration and production remain unchanged.
-  Continuing Draft PR251; pushed3484115c64080679bb58e1eedf6d3df8afc98282 passed run34630386472 all16 jobs.
-  Native compile/input rejection and unsigned archive only; no real custody/signing.
-  Source slices upload12/inspection14/intake15/wire16/runner17/SPM18 accepted.
-  Dispatch retention correction distinguishes current absence from unresolved uncertainty.
-  Hosted source activation is proposed in uncommitted delta only; do not dispatch yet.
-  Sanitized journal and read-only ASC recovery replace private receipt export.
-  Security21 ACCEPT handled for dormant checkpoint only; both agents completed/read-only.
-  Main104tests101PASS3skips and18workflow tests17PASS1skip; no live acceptance.
-  Checkpoint171efa870767f2aac161497a402d23869d24176a pushed; CI34636351770 Ubuntu
-  fixture path semantics failed, Windows passed. PureWindowsPath test-only fix ACCEPT
-  security22; local105tests102PASS3skips. Earlier run not accepted as PASS.
-  Writer12 completed read-only without files: official API lacks admin-bypass write contract.
-  NEW ios-owner-testflight environment Owner setup and strict readback completed.
-  Old profile-verification untouched; readback can confirm can_admins_bypass=false.
-  Complete local operator/journal, private input, Owner group/distribution and staging Apple
-  runtime/schema/deploy remain; real signing/processing/device acceptance not yet performed.
-  Do not dispatch the new workflow or merge partial delivery as release-ready.
-  No Secret/runtime/DB/production mutation, no extra testers or paid resources.
-  Latest pushed HEAD/origin2007016fa0bdd18bcfd2c546800e52a7ca477bbc; normal CI
-  34636911592 completed SUCCESS16/16; prior34636351770 cancelled/superseded, not PASS.
-  New environment Owner UI setup completed and read-only verified: sole Owner reviewer,
-  self-review permitted, administrator bypass false, exact main branch only, zero secrets.
-  Main resumes complete local operator and non-replay recovery; no secrets requested yet.
-  Security25 requested failure cancellation and staging ownership proof corrections.
-  Writer16 completed/frozen13testsPASS. Main cancellation/integration42testsPASS.
-  Security26 ACCEPT handled42independentPASS, both prior findings resolved. Both agents
-  completed/read-only. Main166tests162PASS4platformskips; workflow18tests17PASS1skip;
-  quality16Python and diffPASS. Commit/push samePR251, normalCI then main integration.
-  Before private inputs run actual metadata-only preflight; no signing/upload yet.
-  Pushed8a37459d2bcca32bb002605b0816a3d3c1c693dc; CI34644785015 started.
-  Preflight exposed bare gcloud Windows spawn failure, not proven ownership drift.
-  Security27 ACCEPT14independentPASS, executable resolution correction frozen.
-  Live account/env/Secret/spec/network equality confirmed; only single-container
-  generated name is different. Main narrow name normalization28combinedPASS;
-  Security28 ACCEPT28independentPASS; both corrections frozen. Actual metadata
-  verifier now STAGING_OWNERSHIP_RETAINED, all acceptance flags beyond ownership false.
-  Main169tests165PASS4platformskips,quality4Python/diffPASS. Both agents completed/read-only.
-  Browser read-only NTUBTOB TestFlight confirms no builds and no internal groups;
-  keep page for Owner. Still needs exact Owner group setup and private input afterCI/merge.
-  Latest HEAD/origin8a37459d2bcca32bb002605b0816a3d3c1c693dc has CI34644785015
-  SUCCESS16/16; no watcher remains. Later Windows/name corrections are NOT in that CI.
-  Commit/push of nine exact remaining files rejected twice by execution auto-review,
-  including after origin fetch/push URL matched Owner's standing-authorized
-  https://github.com/r06521541/NTUBTOB-management-system.git. No command ran or index
-  changed. Do not bypass/split/indirectly push; request current explicit destination
-  confirmation from Owner. Both agents complete; source and local tests accepted.
-  No main merge, real signing/upload, Secret mutation or production change.
-  Owner now explicitly confirmed this exact nine-file commit/push to existing
-  repository/PR251. Main rechecked unchanged branch/HEAD/remote/dirty scope and
-  reran169tests165PASS4skips plus quality4PythonPASS. Resume samePR finalCI/merge;
-  no repeated environment setup or private input before preflight.
+  IOS-TF-01 remains active, USD20 cap, isolated staging and Owner-only TestFlight.
+  PR251 merged48232c548d486c8175ac990dd91d2f68d218544b; CI34688813903 SUCCESS16/16.
+  Clean merged-main preflight passed; Owner group exists with one tester, zero builds,
+  manual distribution. Owner input failed before execution: runs0, secrets0, journal absent.
+  Main sole writer on codex/task-198-private-input-recovery fixes quoted paths and
+  bounded same-field syntax correction. Owner additionally requested reusable JSON.
+  Six non-secret metadata fields may persist only in the fixed private local JSON;
+  no password/key payload/approval/session persisted, no target or authority override.
+  Six Python source/test files frozen for security29 review. Main191 tests187PASS4skips,
+  including actual Windows fictional template create/edit/read/no-overwrite/size test.
+  Security29 ACCEPT received/handled,47 distinct focused tests passed (one native
+  fixture test required scoped sandbox escalation); reviewer completed/read-only.
+  Normal CI/accepted merge and fresh preflight before creating the Owner blank template.
+  After Owner fills JSON, check-inputs reports only invalid field names; execute with
+  settings requests only P12 password. Prior terminated input cannot be recovered.
+  No signing/upload/Secret/runtime/DB/production mutation in this correction.
+  Real signing, Apple staging runtime/schema, internal distribution and device tests remain.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md
