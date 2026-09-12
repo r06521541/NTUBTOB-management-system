@@ -89,6 +89,17 @@ class StagingTests(unittest.TestCase):
         ][0]["image"].replace(staging.DIGEST, "sha256:" + "b" * 64)
         self.assertTrue(self.verify()["ownership_verified"])
 
+    def test_single_container_generated_name_is_not_ownership(self):
+        self.spec["containers"][0]["name"] = "fictional-baseline-1"
+        current = self.service["spec"]["template"]["spec"]["containers"][0]
+        current["name"] = "fictional-current-1"
+        self.assertTrue(self.verify()["ownership_verified"])
+        current["command"] = ["fictional-command"]
+        self.assertFalse(self.verify()["ownership_verified"])
+        del current["command"]
+        current["name"] = "invalid/name"
+        self.assertFalse(self.verify()["ownership_verified"])
+
     def test_qualified_digest_and_bounded_metadata(self):
         self.revision["status"]["imageDigest"] = self.spec["containers"][0]["image"]
         self.assertTrue(self.verify()["ownership_verified"])

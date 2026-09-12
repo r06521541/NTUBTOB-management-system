@@ -55,6 +55,28 @@ note: >
   completed/read-only. Main166tests162PASS4platformskips; workflow18tests17PASS1skip;
   quality16Python and diffPASS. Commit/push samePR251, normalCI then main integration.
   Before private inputs run actual metadata-only preflight; no signing/upload yet.
+  Pushed8a37459d2bcca32bb002605b0816a3d3c1c693dc; CI34644785015 started.
+  Preflight exposed bare gcloud Windows spawn failure, not proven ownership drift.
+  Security27 ACCEPT14independentPASS, executable resolution correction frozen.
+  Live account/env/Secret/spec/network equality confirmed; only single-container
+  generated name is different. Main narrow name normalization28combinedPASS;
+  Security28 ACCEPT28independentPASS; both corrections frozen. Actual metadata
+  verifier now STAGING_OWNERSHIP_RETAINED, all acceptance flags beyond ownership false.
+  Main169tests165PASS4platformskips,quality4Python/diffPASS. Both agents completed/read-only.
+  Browser read-only NTUBTOB TestFlight confirms no builds and no internal groups;
+  keep page for Owner. Still needs exact Owner group setup and private input afterCI/merge.
+  Latest HEAD/origin8a37459d2bcca32bb002605b0816a3d3c1c693dc has CI34644785015
+  SUCCESS16/16; no watcher remains. Later Windows/name corrections are NOT in that CI.
+  Commit/push of nine exact remaining files rejected twice by execution auto-review,
+  including after origin fetch/push URL matched Owner's standing-authorized
+  https://github.com/r06521541/NTUBTOB-management-system.git. No command ran or index
+  changed. Do not bypass/split/indirectly push; request current explicit destination
+  confirmation from Owner. Both agents complete; source and local tests accepted.
+  No main merge, real signing/upload, Secret mutation or production change.
+  Owner now explicitly confirmed this exact nine-file commit/push to existing
+  repository/PR251. Main rechecked unchanged branch/HEAD/remote/dirty scope and
+  reran169tests165PASS4skips plus quality4PythonPASS. Resume samePR finalCI/merge;
+  no repeated environment setup or private input before preflight.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

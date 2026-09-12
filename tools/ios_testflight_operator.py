@@ -9,6 +9,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from dataclasses import dataclass, replace
@@ -86,7 +87,10 @@ def emit(reason, *, run_id=None, cleanup=False, secret_absence=False):
 
 
 def cli_json(command):
-    code, raw = primitives.bounded_process(command)
+    executable = shutil.which(command[0])
+    if not executable:
+        raise Rejected("STAGING_TARGET_REJECTED")
+    code, raw = primitives.bounded_process([executable, *command[1:]])
     if code:
         raise Rejected("STAGING_TARGET_REJECTED")
     try:

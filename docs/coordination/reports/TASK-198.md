@@ -4,7 +4,7 @@
 
 Continuing Draft PR251, branch codex/task-198-owner-testflight; main/base remains
 5762a89c6e6451ed19f5151da1652312a9f76679. Exact pushed HEAD/origin/PR source
-2007016fa0bdd18bcfd2c546800e52a7ca477bbc passed run34636911592,16/16 jobs SUCCESS,
+8a37459d2bcca32bb002605b0816a3d3c1c693dc passed run34644785015,16/16 jobs SUCCESS,
 including actual Swift compile/invalid-input rejection and unsigned iOS archive.
 This proves code-only platform compatibility, not real Keychain/import/signing.
 The earlier run34629242446 completed with14 PASS and two dependent failures.
@@ -14,7 +14,7 @@ verification passed sole Owner reviewer, self-review allowed, no administrator
 bypass, exact main branch only and zero secrets. This Owner gate is closed;
 profile-verification remains unchanged. No repeated setup requested.
 
-The current uncommitted delivery adds Windows local operator, sanitized durable
+That pushed delivery adds Windows local operator, sanitized durable
 journal, exact nonce/job-bound public artifact fingerprint, GET-only ASC recovery
 and separate Owner-group adapter. No private receipt IDs are exported or retained.
 Lost fingerprint/checksum is unresolved, never an instruction to upload again.
@@ -38,8 +38,24 @@ Read-only live projection confirmed accepted TASK157 baseline still exists at
 creationTimestamp2026-08-26T05:35:31.015912Z with its archived exact image digest;
 current sole100% traffic is mobile-api-staging-task157-47ccfb5f. This is not yet
 the full ownership comparison or schema/readiness proof. No payload/DB read.
-No signing, upload, environment-secret, staging/runtime/DB or production mutation.
-CI: https://github.com/r06521541/NTUBTOB-management-system/actions/runs/34636911592
+The actual metadata comparator subsequently returned STAGING_OWNERSHIP_RETAINED
+after two evidence-backed compatibility corrections: Windows executable resolution
+and single-container generated display-name normalization. Security27/28 ACCEPT;
+independent14/28 testsPASS respectively. Main169tests165PASS4platformskips and
+quality4Python/diffPASS. This is retained ownership, not runtime/schema readiness.
+App Store Connect browser read-only confirms no builds and no internal groups;
+next Owner setup is exact NTUBTOB Owner Internal, auto-distribution off, Owner only,
+followed by reviewed local private input. No signing, upload, environment-secret,
+staging/runtime/DB or production mutation. New corrections need latest hostedCI.
+CI: https://github.com/r06521541/NTUBTOB-management-system/actions/runs/34644785015
+
+Previous stop: execution auto-review twice rejected exact nine-file compatibility
+correction commit/push, despite verified existing remote and standing Owner authority.
+No command/index change occurred. Corrections remain unstaged, accepted and tested;
+latest hosted success does not cover them. Current explicit Owner destination
+confirmation was requested and now explicitly supplied2026-09-12. Main rechecked
+unchanged scope and169tests165PASS4skips/quality4PythonPASS; resumes samePR
+commit/push/finalCI. No workaround/split push, main merge or live execution yet.
 
 Still incomplete beyond this source checkpoint: actual private custody/password/key
 input; exact ASC Owner group/tester

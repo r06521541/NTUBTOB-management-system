@@ -19,6 +19,16 @@ tests; accepted alongside prior security25 unchallenged source scope. Main166tes
 dispatch before fresh CI/merge. Both agents completed/read-only; Main integrates.
 The new environment setup is complete and read-only verified, not an Owner blocker.
 
+Security27 ACCEPT Windows executable-resolution delta14 independentPASS, including
+real fictional .cmd spawn (no shell=True; batch interpreter semantics remain).
+Security28 ACCEPT single-container name normalization28 independentPASS; executable
+fields and ownership guards remain bound. Main actual read-only metadata verifier
+returned STAGING_OWNERSHIP_RETAINED, not a reviewer live/schema/function claim.
+Main169tests165PASS4skips,quality4Python/diffPASS; final normalCI still needed.
+Pushed8a37459d2bcca32bb002605b0816a3d3c1c693dc CI34644785015 SUCCESS16/16.
+Later correction push blocked by execution auto-review before any command ran;
+these accepted dirty corrections still need hosted validation, not another code review.
+
 Code-only run34630386472 on3484115c64080679bb58e1eedf6d3df8afc98282 completed
 SUCCESS16/16, including native supervisor compile/input rejection. No real custody.
 Source leases12/14/15/16/17/18 ACCEPT: upload exact ASC resource membership,

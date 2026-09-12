@@ -71,6 +71,11 @@ def _binding(template, number):
         type(containers) is list and len(containers) == 1 and not spec.get("volumes")
     )
     container = containers[0]
+    if "name" in container:
+        _require(
+            type(container["name"]) is str
+            and re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", container["name"])
+        )
     _require(not container.get("volumeMounts") and not container.get("envFrom"))
     image = container["image"]
     _require(
@@ -130,8 +135,11 @@ def _binding(template, number):
             secrets[name] = (secret, version)
             env[name] = ("secret", secret, version)
     _require(used == set(aliases) and DB in secrets and len(secrets) <= 32)
-    # Preserve non-image container/spec configuration as well as all env names.
-    other_container = {k: v for k, v in container.items() if k not in {"image", "env"}}
+    # A single container's generated display name follows the image name, not
+    # its runtime/data ownership. All executable/configuration fields still bind.
+    other_container = {
+        k: v for k, v in container.items() if k not in {"image", "env", "name"}
+    }
     other_spec = {k: v for k, v in spec.items() if k != "containers"}
     network = {
         k: v

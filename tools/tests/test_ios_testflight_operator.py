@@ -1,5 +1,8 @@
 import io
+import os
+import tempfile
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -10,6 +13,31 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_cli_resolves_tool_and_rejects_missing_executable(self):
+        with (
+            patch.object(
+                operator.shutil, "which", return_value="C:/fixture/gcloud.CMD"
+            ),
+            patch.object(
+                operator.primitives, "bounded_process", return_value=(0, b"{}")
+            ) as run,
+        ):
+            self.assertEqual(operator.cli_json(["gcloud", "version"]), {})
+        run.assert_called_once_with(["C:/fixture/gcloud.CMD", "version"])
+        with (
+            patch.object(operator.shutil, "which", return_value=None),
+            self.assertRaises(operator.Rejected),
+        ):
+            operator.cli_json(["gcloud", "version"])
+
+    @unittest.skipUnless(os.name == "nt", "Windows batch launch contract")
+    def test_cli_launches_fictional_windows_batch_without_shell(self):
+        with tempfile.TemporaryDirectory() as directory:
+            batch = Path(directory) / "fictional gcloud.cmd"
+            batch.write_text('@echo {"fixture":true}\n', encoding="ascii")
+            with patch.object(operator.shutil, "which", return_value=str(batch)):
+                self.assertEqual(operator.cli_json(["gcloud"]), {"fixture": True})
+
     def fixture(self):
         staging = operator.Staging(
             "https://fictional-staging.run.app",
