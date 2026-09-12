@@ -27,6 +27,18 @@ received/handled, independent47PASS plus3POSIX-semantic probesPASS; hashes match
 Next: accept/CI/merge then exactly one --check-asc observation; classify actual
 layer before requesting any private input or changing platform settings.
 
+Main's public-only GET of Apple's official Markdown documented internal groups
+with explicit publicLinkEnabled=null (isInternalGroup=true). The same rejection
+existed in owner inventory and upload preflight; both now use one helper allowing
+explicit false or explicit null+internal true. Missing/true/coerced/external-null
+remain rejected; automatic-access and sole Owner limits unchanged. Added positive
+inventory/assignment/upload preflight and strict negative tests. This contract
+repair is not proof of the Owner's actual failed response. Primary source:
+https://developer.apple.com/documentation/appstoreconnectapi/get-v1-apps-_id_-betagroups.md
+Security37 ACCEPT received/handled,65independentPASS; reviewer did not independently
+retrieve the example due to tooling limits. Main237tests233PASS4platformskips,
+six-filequality/compile/diffPASS. Same PR256 receives the final delta before merge.
+
 ## Current signing-input classification correction
 
 PR254 merged2ae97b339e542eeea766489dffdcd21aa45cfef6 after CI34698156008

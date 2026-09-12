@@ -17,6 +17,21 @@ from tools import ios_testflight_upload as upload
 
 
 class UploadTests(unittest.TestCase):
+    def test_documented_internal_null_does_not_block_upload_preflight(self):
+        original, calls = self.transport()
+
+        def transport(method, url, *args):
+            response = original(method, url, *args)
+            if "/betaGroups?" in url and "/apps/" in url:
+                body = json.loads(response.body)
+                body["data"][0]["attributes"]["publicLinkEnabled"] = None
+                return upload.Response(response.status, json.dumps(body).encode())
+            return response
+
+        self.session(transport)._preflight()
+        self.assertTrue(calls)
+        self.assertTrue(all(call[0] == "GET" for call in calls))
+
     def session(self, transport):
         key = inputs.AscMaterial(
             ec.generate_private_key(ec.SECP256R1()),
@@ -517,6 +532,26 @@ class UploadTests(unittest.TestCase):
                     session.reconcile().classification, "RECONCILIATION_UNRESOLVED"
                 )
                 self.assertTrue(all(c[0] == "GET" for c in calls))
+
+
+class GroupLinkContractTests(unittest.TestCase):
+    def test_explicit_internal_null_matches_apple_documented_shape(self):
+        for attrs in (
+            {"publicLinkEnabled": False},
+            {"publicLinkEnabled": None, "isInternalGroup": True},
+        ):
+            self.assertTrue(upload.group_has_no_public_link(attrs))
+        for attrs in (
+            {},
+            {"isInternalGroup": True},
+            {"publicLinkEnabled": None},
+            {"publicLinkEnabled": None, "isInternalGroup": False},
+            {"publicLinkEnabled": None, "isInternalGroup": 1},
+            {"publicLinkEnabled": True, "isInternalGroup": True},
+            {"publicLinkEnabled": 0, "isInternalGroup": True},
+            {"publicLinkEnabled": "false", "isInternalGroup": True},
+        ):
+            self.assertFalse(upload.group_has_no_public_link(attrs))
 
 
 if __name__ == "__main__":

@@ -44,6 +44,28 @@ Security36, same actor/role/branch/base/head/report_to and mandatory protocol;
 scope only this test delta plus unchanged previously reviewed source fingerprints.
 Main reruns affected tests while reviewer independently checks portability.
 
+Security36 ACCEPT handled, source1b01352f7c2835f98125ce8651cca9b5e50d3001 pushed
+as PR256. While CI runs, Apple official GET apps/{id}/betaGroups documentation
+example independently confirms isInternalGroup=true with publicLinkEnabled=null.
+Existing owner and upload checks both reject that legitimate non-public shape.
+Add the bounded semantic correction to this same PR: explicit null allowed only
+for explicitly internal groups; true/missing/non-Boolean/external-null still fail.
+Manual distribution and exact sole Owner checks remain unchanged. Main additionally
+owns tools/ios_testflight_upload.py and tools/tests/test_ios_testflight_upload.py.
+Actual failing API stage still unobserved; do not equate docs fixture with runtime.
+
+Security37 packet: task=TASK-198; branch=codex/task-198-asc-preflight;
+base=9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7;
+head=1b01352f7c2835f98125ce8651cca9b5e50d3001;
+actor_id=/root/task181_review; role=advisor; claim_id=task-198-security-20260911;
+lease_version=37; write=read-only; owned_paths=none; report_to=/root.
+Scope: owner/upload + direct tests dirty null-shape delta; inherited Security36
+operator evidence unchanged. Verify Apple's explicit internal/null representation,
+reject missing/external-null/true/coercion; retain automatic/Owner-only limits,
+assignment and upload call sites. Stop on drift/private need/broader semantics.
+COLLABORATION2 packet protocol applies. Main runs full affected tests and stays
+active; live check remains deferred until exact latest accepted tree/CI/merge.
+
 ## Previous signing-input classification correction
 
 PR254 merged2ae97b339e542eeea766489dffdcd21aa45cfef6 after source

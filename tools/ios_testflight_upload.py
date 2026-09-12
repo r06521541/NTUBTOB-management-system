@@ -100,6 +100,25 @@ class Outcome:
         }
 
 
+def group_has_no_public_link(attributes):
+    """Apple's internal groups may explicitly return null for this external feature.
+
+    See GET /v1/apps/{id}/betaGroups example in Apple's API documentation.
+    Missing fields, external null and truthy/coerced values are not disabled.
+    """
+    return (
+        type(attributes) is dict
+        and "publicLinkEnabled" in attributes
+        and (
+            attributes["publicLinkEnabled"] is False
+            or (
+                attributes.get("isInternalGroup") is True
+                and attributes["publicLinkEnabled"] is None
+            )
+        )
+    )
+
+
 def identifier(value):
     if type(value) is not str or not re.fullmatch(r"[A-Za-z0-9-]{1,128}", value):
         raise Rejected()
@@ -494,10 +513,9 @@ class UploadSession:
             if attributes.get("hasAccessToAllBuilds") is not False:
                 raise Rejected()
             if ident == self.group:
-                if (
-                    attributes.get("isInternalGroup") is not True
-                    or attributes.get("publicLinkEnabled") is not False
-                ):
+                if attributes.get(
+                    "isInternalGroup"
+                ) is not True or not group_has_no_public_link(attributes):
                     raise Rejected()
                 found = True
         if not found:

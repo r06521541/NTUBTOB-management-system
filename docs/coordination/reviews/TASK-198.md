@@ -1,5 +1,22 @@
 # TASK-198 review
 
+## Internal group null-shape compatibility: Security37 ACCEPT
+
+Main received and handled /root/task181_review lease37 final; completed/read-only.
+Shared helper accepts explicit false or explicit null+internal true, not missing,
+external-null, true, zero, string or internal=1. Both owner/upload call sites use
+it; automatic-access, exact single Owner and mutation/retry limits unchanged.
+Independent65focusedPASS; Main237affected233PASS4platformskips. No findings.
+Main retrieved the public Apple documentation example; reviewer could not fetch
+Markdown via its tools and explicitly relies on Main's primary-source evidence.
+No actual private-key/API validation or runtime root cause claimed by this review.
+
+Accepted LF-SHA256 (other operator fingerprints inherit Security36):
+- upload.py 59fc0e6e2664b67fcd37d916b8987ad3302be0a55f81763061b3c603d19b294b
+- owner.py 0e72b2fdcfc856fa24afa5e9a0e8f41b708e5655e3e49a129c7e268dc7048fd9
+- test_ios_testflight_upload.py cebd60c05bdf400efe010581118fdb6b8ec16aa9851ef4a961c4b0997f5d874e
+- test_ios_testflight_owner.py 820073d964d3f175b4a2910a2a144e92ac1eceb5b60ff3d7b49053ffdc74cc45
+
 ## ASC preflight: Security36 ACCEPT
 
 Main received and handled Security35 REQUEST_CHANGES and Security36 ACCEPT from

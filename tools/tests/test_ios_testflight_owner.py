@@ -172,6 +172,15 @@ class OwnerTests(unittest.TestCase):
         self.assertEqual(self.session.stage, "asc_build_uploads")
         self.assertTrue(all(method == "GET" for method, _ in self.calls))
 
+    def test_documented_internal_null_public_link_inventory_and_assignment(self):
+        def change(path, document):
+            if path.endswith("/betaGroups"):
+                document["data"][0]["attributes"]["publicLinkEnabled"] = None
+
+        self.change = change
+        self.assertEqual(self.session.inventory(version="1.2.3"), self.target)
+        self.assertEqual(self.assign()["classification"], "OWNER_DISTRIBUTION_VERIFIED")
+
     def test_missing_or_unsafe_scope(self):
         for field, value, reason in (
             ("name", "different", "OWNER_GROUP_REQUIRED"),

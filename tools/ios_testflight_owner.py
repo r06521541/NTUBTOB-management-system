@@ -257,7 +257,7 @@ class OwnerSession:
             if attrs.get("hasAccessToAllBuilds") is not False:
                 raise Rejected()
             self.stage = "asc_group_public_link"
-            if attrs.get("publicLinkEnabled") is not False:
+            if not upload.group_has_no_public_link(attrs):
                 raise Rejected()
         self.stage = "asc_owner_group"
         owners = [g for g in groups if g.get("attributes", {}).get("name") == GROUP]

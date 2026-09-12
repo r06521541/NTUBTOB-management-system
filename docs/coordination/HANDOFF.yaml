@@ -14,12 +14,14 @@ note: >
   found. Fictional regression proves masked OWNER_SCOPE_REJECTED, actual cause
   unknown. Browser logged in; group Owner-only/manual/no builds, upload key active.
   Branch codex/task-198-asc-preflight. Main owns operator/owner and direct tests;
-  Security36 ACCEPT received/handled; reviewers completed/read-only.47focused/234affected230PASS4skip,
+  Security37 ACCEPT received/handled; reviewers completed/read-only.237affected233PASS4skip,
   quality/compile/diffPASS. Five sandbox ACL fixture errors passed scoped offline
   elevated rerun. --check-asc performs bounded GET-only with existing saved ASC
   custody, no P12 input/read or mutation; execution retains fresh material/scope
-  checks. Test-only Windows-path portability finding fixed. Await CI/merge before
-  one live read-only check.
+  checks. Test portability fixed; official Apple internal/null public-link shape
+  now accepted by shared owner/upload helper, not missing/external-null/true.
+  Main verified public docs, actual account failure still unknown. Same PR256;
+  await latest CI/merge before one live read-only check.
   No signing retry, password guessing, widened permissions or raw secret output.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md

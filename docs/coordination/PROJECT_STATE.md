@@ -9,8 +9,9 @@
 
 TASK198最新：PR255已合併，CI34702831760成功。ASC單檔匯入與六欄設定已完成，不重做。Owner後續
 收到OPERATION_UNRESOLVED；未見journal、簽署run或暫存Secret。虛構測試重現ASC範圍錯誤被遮蔽，
-實際原因未定。現將ASC唯讀前檢移到P12輸入之前，保留全部群組／材料檢查；234tests230PASS4skip，
-Security36 ACCEPT，通過CI／合併後只做一次GET-only觀察，不盲目重跑簽署或要求重填。
+實際原因未定。現將ASC唯讀前檢移到P12輸入之前，並修正Apple官方內部群組explicit null表示法，
+仍拒絕公開／外部null／缺失欄位；237tests233PASS4skip，Security37 ACCEPT。通過CI／合併後只做
+一次GET-only觀察，不盲目重跑簽署或要求重填。
 
 ## Active role lanes
 
