@@ -4,8 +4,12 @@
 
 維護角色：Main Work
 
-最近已合併證據：`d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc`（TASK-198／PR253）。
+最近已合併證據：`2ae97b339e542eeea766489dffdcd21aa45cfef6`（TASK-198／PR254）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
+
+TASK198最新：ASC單檔匯入與六欄設定檢查已成功，原檔保留，不重做。Owner後續輸入P12密碼時收到
+SIGNING_MATERIAL_REJECTED；唯讀確認零簽署workflow、無journal，未簽署或上傳。現正拆分固定失敗階段，
+不放寬驗證、不猜測密碼錯誤、不讀真實材料；Main225tests221PASS4skip，Security34 ACCEPT，待CI／合併。
 
 ## Active role lanes
 

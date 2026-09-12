@@ -4,26 +4,24 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: d9d2a4f5f4342891df6d30fea5aaf72ee34d5dfc
+base_commit: 2ae97b339e542eeea766489dffdcd21aa45cfef6
 updated_by: main-work
 updated_at: 2026-09-12
 note: >
-  IOS-TF-01 active. PR253 merged after CI34696846257 SUCCESS16/16, accepted tree
-  verified. Actual preview READY then import KEY_REJECTED before any backup/copy/
-  update; exact metadata checks confirm both destination/backup absent. No secret
-  values surfaced; original JSON/source untouched, no signing/upload/runtime work.
-  Owner's approved one selected-ASC copy/path update remains unperformed.
-  Main fictional probe reproduced valid PKCS8 inner-parameter form rejected by
-  serializer equality; actual input form still unknown, no unchanged-code retry.
-  Branch codex/task-198-pkcs8-compatibility. Main owns inputs source/direct test,
-  custody direct test and coordination. Finite four regenerated exact encodings
-  only, private/public consistency, P256/size/extra-material guards retained; no
-  file rewrite, arbitrary ASN.1 acceptance, wire/authority/keypurpose changes.
-  Security33 ACCEPT received/handled,22 focused PASS; reviewer and writer read-only.
-  Main218tests214PASS4platformskips, three-file quality/compile/diff PASS. Require
-  normal CI/merge then fresh preview before one import; no new Owner input now.
-  Copy success still needs custody postcheck; P12 password remains hidden-only
-  later gate. Partial state never blindly retries/overwrites/deletes/restores.
+  IOS-TF-01 active. PR254 merged after CI34698156008 SUCCESS16/16. Actual approved
+  ASC import COMPLETE and SETTINGS_READY; original files and other five settings
+  preserved. Do not repeat import. Owner then ran saved-settings entry and got
+  SIGNING_MATERIAL_REJECTED, run_id=null. Read-only checks: zero execution
+  processes, no journal, zero signing workflow runs. No signing/upload began.
+  Owner unsure whether CSR/P12 passwords coincide; never infer wrong password.
+  Branch codex/task-198-signing-input-reasons, Main owns signing/intake source,
+  their tests and operator propagation test plus existing records. Fixed stage
+  codes only, unchanged validation/custody/authority, no additional CLI or retry.
+  Main225tests221PASS4platformskips/quality/compile/diffPASS. Security34 ACCEPT
+  received and handled,73independentPASS/five hashes matched. Agents read-only.
+  After independent acceptance and normal CI/merge, hidden P12 password remains
+  Owner gate. No actual materials read during correction, no diagnosis inferred
+  from fictional tests; saved six fields stay reusable. Never blind retry.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

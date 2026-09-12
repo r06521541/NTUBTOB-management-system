@@ -1,3 +1,42 @@
+## Current signing-input classification correction
+
+PR254 merged2ae97b339e542eeea766489dffdcd21aa45cfef6 after source
+9103ba85583eaee20b0f1da0643d3c40369a3411 passed CI34698156008,16/16.
+Actual reviewed import returned ASC_IMPORT_COMPLETE, then SETTINGS_READY;
+the approved single ASC copy/path update is complete and must not be repeated.
+Owner subsequently entered the hidden P12 password; local execution returned
+SIGNING_MATERIAL_REJECTED, run_id=null. Independent read-only checks found zero
+matching execution processes, no operation journal and zero signing workflow runs.
+Owner is unsure whether CSR/P12 passwords were the same. No password is available
+to Main and no actual private input will be reread during this correction.
+
+Goal: identify the rejecting stage in the existing intake, not create another
+diagnostic CLI or guess that the password is wrong.
+Core: tools/ios_testflight_signing.py, tools/ios_testflight_intake.py, their direct
+tests and operator propagation tests, plus existing coordination records.
+Invariant: all existing key/certificate/Team/date/purpose checks, custody, one-shot
+and no-retry behavior unchanged; only fixed reason codes, never values/exceptions.
+Tests: real fictional encrypted P12 positive/negative bindings, frame separation,
+private-sentinel suppression, no repeated prompt and zero dispatch on rejection.
+Unknown: actual frame versus decryption/key/certificate failure; no claim of a
+material repair. Fresh hidden password still required after reviewed CI/merge.
+
+Main claim task-198-main-20260911 lease1 owns those five Python paths and records.
+Branch codex/task-198-signing-input-reasons; base=head
+2ae97b339e542eeea766489dffdcd21aa45cfef6. Prior writer/reviewer completed/read-only;
+independent Security34 review will follow frozen source before commit/CI.
+
+Security34 packet: task=TASK-198; branch=codex/task-198-signing-input-reasons;
+base=head=2ae97b339e542eeea766489dffdcd21aa45cfef6;
+actor_id=/root/task181_review; role=advisor; claim_id=task-198-security-20260911;
+lease_version=34; write=read-only; owned_paths=none; report_to=/root.
+Scope: five frozen Python paths above, fixed local signing rejection stages only;
+verify identical acceptance predicates, no raw/private exception propagation,
+no repeated prompt/dispatch, actual fictional encrypted P12 coverage. Stop on
+source drift, private input need or scope conflict. COLLABORATION2 mandatory
+packet protocol applies: immediate ACK, heartbeat, blocker and proactive final.
+Main remains active, concurrently runs full local affected tools; no live retry.
+
 # TASK-198: deliver Owner-only iOS TestFlight candidate
 
 Type delivery; delivery_group ios-tf-01; L3. Owner approved IOS-TF-01 on

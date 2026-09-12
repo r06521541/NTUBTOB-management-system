@@ -13,6 +13,33 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_signing_input_reason_reaches_result_without_dispatch_or_journal(self):
+        reasons = operator.intake.signing.BINDING_REASONS | {"SIGNING_FRAME_REJECTED"}
+        for reason in reasons:
+            staging, config, _, _ = self.fixture()
+            collect = Mock(side_effect=operator.intake.Rejected(reason))
+            journal, session, inventory = Mock(), Mock(), Mock()
+            with patch("sys.stdout", new_callable=io.StringIO) as output:
+                result = operator.execute(
+                    "a" * 40,
+                    staging,
+                    config,
+                    "owner@example.invalid",
+                    collect=collect,
+                    journal_factory=journal,
+                    session_factory=session,
+                    owner_factory=inventory,
+                )
+            self.assertEqual(result["classification"], reason)
+            self.assertIsNone(result["run_id"])
+            self.assertFalse(result["release_authorized"])
+            self.assertIn(reason, output.getvalue())
+            self.assertNotIn("owner@example.invalid", output.getvalue())
+            collect.assert_called_once_with(config)
+            journal.assert_not_called()
+            session.assert_not_called()
+            inventory.assert_not_called()
+
     def test_key_import_modes_are_separate_from_execution_and_password(self):
         staging, _, _, _ = self.fixture()
         for args, classification in (

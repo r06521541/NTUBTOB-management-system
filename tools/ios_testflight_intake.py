@@ -30,6 +30,7 @@ PROMPTS = {
 REASONS = (
     custody.REASONS
     | inputs.REASONS
+    | signing.BINDING_REASONS
     | {
         "CLOSE_UNRESOLVED",
         "CUSTODY_CHECK_REJECTED",
@@ -37,6 +38,7 @@ REASONS = (
         "INPUT_CHECK_REJECTED",
         "PROFILE_CONTAINER_REJECTED",
         "SIGNING_MATERIAL_REJECTED",
+        "SIGNING_FRAME_REJECTED",
     }
     | {field + "_INPUT_REJECTED" for field in PROMPTS}
 )
@@ -409,7 +411,17 @@ def collect(
         )
         try:
             signing.frame(**material)
+        except Exception:
+            raise Rejected("SIGNING_FRAME_REJECTED") from None
+        try:
             signing._certificate_binding(material)
+        except signing.Rejected as error:
+            reason = error.args[0] if len(error.args) == 1 else None
+            raise Rejected(
+                reason
+                if type(reason) is str and reason in signing.BINDING_REASONS
+                else "SIGNING_MATERIAL_REJECTED"
+            ) from None
         except Exception:
             raise Rejected("SIGNING_MATERIAL_REJECTED") from None
         asc = inputs.load_asc_key(

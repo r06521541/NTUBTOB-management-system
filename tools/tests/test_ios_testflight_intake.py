@@ -381,6 +381,41 @@ class IntakeTests(unittest.TestCase):
         self.assertEqual(reader.file.call_count, 4)
         reader.close.assert_called_once()
 
+    def test_binding_stage_propagates_without_another_password_or_asc_parse(self):
+        for reason in intake.signing.BINDING_REASONS:
+            reader = self.reader()
+            prompt = mock.Mock(
+                side_effect=["fictional-password", "C:/fictional/asc.p8"]
+            )
+            with (
+                mock.patch.object(intake.inputs, "load_asc_key") as asc,
+                self.assertRaisesRegex(intake.Rejected, "^" + reason + "$"),
+            ):
+                self.invoke(
+                    reader,
+                    prompt=prompt,
+                    include_login=False,
+                    binding_error=intake.signing.Rejected(reason),
+                )
+            self.assertEqual(prompt.call_count, 2)
+            reader.close.assert_called_once()
+            asc.assert_not_called()
+
+    def test_payload_frame_rejection_is_distinct_from_certificate_binding(self):
+        reader = self.reader()
+        prompt = mock.Mock(side_effect=["fictional-password", "C:/fictional/asc.p8"])
+        with (
+            mock.patch.object(
+                intake.signing,
+                "frame",
+                side_effect=[b"fictional", RuntimeError("private-sentinel")],
+            ),
+            self.assertRaisesRegex(intake.Rejected, "^SIGNING_FRAME_REJECTED$"),
+        ):
+            self.invoke(reader, prompt=prompt, include_login=False)
+        self.assertEqual(prompt.call_count, 2)
+        reader.close.assert_called_once()
+
     def test_separated_material_and_hidden_only_three_inputs(self):
         reader = self.reader()
         prompt = mock.Mock(
