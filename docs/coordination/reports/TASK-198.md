@@ -1,5 +1,31 @@
 # TASK-198 report
 
+## Operation diagnostics repair (2026-09-13, current)
+
+Owner explicitly requested source repair after a repeated generic result. The
+latest intact real journal contains START/RESULT only at a605fb4c6961e3536a7c5bf9d12a104b14316a41;
+read-only reconciliation observed no dispatch/PUT, signing runs or transfer Secrets.
+Unlike earlier attempts below, a journal now exists. Do not reset/move/delete it,
+re-prompt P12 or retry execute/recover. Original precise cause was not recorded.
+
+Implementation: finite compatible stage/check/reason, preserve first failure and
+separate cleanup failure; append first FAILURE before cleanup without modifying
+old rows. Zero PUT no longer claims observed secret absence. Existing-journal
+guard is metadata-only and precedes private input, without replacing CREATE_NEW.
+New --status opens read-only native handles and blocks record; no settings, key,
+network, cleanup, cancel or retry. Old reasons stay LEGACY_REASON_UNAVAILABLE;
+missing/damaged/uncertain evidence never establishes zero external attempts.
+
+Main tests: `py -3.10 -B -m unittest discover -s tools/tests -p 'test_ios_testflight_*.py' -q`
+256 tests, 252 passed and 4 existing platform skips. Journal suite12 (including
+new-temp Windows native lifecycle/read-only guard) and operator36 passed;
+quality check8owned Python paths passed. Writer18's proactive27focusedPASS report
+received/handled; writer now read-only. Security40 formal ACCEPT received/handled,
+independent74fake tests/diffPASS. Main verified all8reviewed LF hashes unchanged.
+Single repository PR/hosted CI remains before integrated source acceptance.
+No real assets read, live journal mutation, cloud/store/sign/upload action in this
+repair. No claim that legacy cause or TestFlight delivery is now resolved.
+
 ## Journal root mismatch (2026-09-13)
 
 Owner's independently opened Windows terminal returned logical_journal

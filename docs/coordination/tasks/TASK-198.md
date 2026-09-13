@@ -1,4 +1,50 @@
-## Current journal native investigation
+## Active operation diagnostics repair (Owner explicitly requested)
+
+Latest Owner execution on independent terminal created a real intact journal:
+START, RESULT only, source matches a605fb4c6961e3536a7c5bf9d12a104b14316a41.
+Main read-only Journal.open(create=False) confirmed no DISPATCH_ATTEMPT or PUT;
+GitHub runs0/Secrets0 and no active operator. Never delete/reset/replay this journal.
+Its precise original failure is lost; represent legacy reason as unavailable.
+Owner now asks to fix coarse diagnostics and preflight ordering, not another retry.
+
+Goal: fixed safe failure stage/check/reason, truthful external-write/transfer state,
+no-password local journal check before fresh execute, and read-only operation status.
+Core: diagnostics/dispatch/operator/journal plus direct tests and existing records.
+Invariant: preserve all scope/trust/ACL/nonce/one-shot constraints; retain original
+failure through cleanup; no raw exception/body/identifier/secret output or retries.
+Tests: fault injection per stage, sentinel suppression, no extra request/prompt,
+legacy journal compatibility, read-only status, early existing-journal rejection.
+Limits: no actual signing/private input/remote mutation this slice; old operation
+remains quarantined. No claim that unknown legacy cause is repaired retroactively.
+
+Branch codex/task-198-operation-diagnostics; base=head
+d54354d4cd5398684751a050a1b1da333fc457dc (runtime base a605fb4c6961e3536a7c5bf9d12a104b14316a41).
+Main /root task-198-main-20260911 lease1 owns operator/journal, their tests and
+existing coordination. Writer18 /root/csr_writer claim task-198-writer-20260911
+lease18 role codex-writer write allowed owns tools/ios_testflight_diagnostics.py,
+tools/ios_testflight_dispatch.py, tools/tests/test_ios_testflight_diagnostics.py,
+tools/tests/test_ios_testflight_dispatch.py. report_to=/root; no other writes.
+Outcome: typed allowlisted diagnostics, Session first-failure preservation and
+accurate NOT_ATTEMPTED vs ABSENCE_VERIFIED without breaking retention cleanup.
+No network/private files, no commits; stop on contract conflict/source drift.
+Security40 /root/task181_review claim task-198-security-20260911 lease40 role
+advisor read-only owned_paths none, report_to=/root. Same task/branch/base/head.
+Scope: early architecture review of this bounded repair and later frozen diff;
+read source/public docs/fake tests only; stop on broadened custody/retry authority.
+COLLABORATION2 mandatory ACK/heartbeat/blocker/proactive final for both packets.
+Main remains active implementing independent operator/journal work and testing.
+The single read-only --status mode replaces ad-hoc log probing; it never loads
+settings/private assets, creates journals, contacts Apple or records/cleans/cancels.
+
+Writer18 frozen delivery received/handled, now read-only. Main256offline tests:
+252PASS4existingplatformSKIP, journal12includingnativePASS, operator36PASS,
+quality8owned Python filesPASS. Security40 formal ACCEPT received/handled;
+independent74fakePASS/diffPASS; Main verified all8reviewed LF hashes unchanged.
+Both advisors completed/read-only. Eight runtime/test paths frozen. Repository
+delivery follows existing IOS-TF-01 authorization and normal acceptance/CI;
+no live signing/store/cloud mutation or new execution is authorized by this repair.
+
+## Historical journal native investigation (superseded, not current instructions)
 
 Owner independently opened Windows PowerShell; read-only metadata at exact
 a605fb4c6961e3536a7c5bf9d12a104b14316a41 returned logical_journal=DIRECTORY_ABSENT,

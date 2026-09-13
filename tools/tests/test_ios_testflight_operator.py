@@ -14,6 +14,225 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def setUp(self):
+        # Every test uses fictional custody; never inspect the Owner journal.
+        guard = patch.object(
+            operator.journal_module,
+            "new_operation_preflight",
+            return_value="READY_NO_JOURNAL",
+        )
+        self.journal_guard = guard.start()
+        self.addCleanup(guard.stop)
+
+    def test_existing_operation_blocks_direct_and_cli_before_private_input(self):
+        staging, config, _, _ = self.fixture()
+        self.journal_guard.return_value = "EXISTING_OPERATION"
+        with (
+            patch.object(operator, "preflight", return_value=("a" * 40, staging)),
+            patch.object(operator, "metadata") as metadata,
+            patch.object(operator, "settings_metadata") as saved,
+            patch.object(operator, "asc_preflight") as asc,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            self.assertEqual(operator.main(["--execute", "--settings"]), 2)
+            collect, journal, session = Mock(), Mock(), Mock()
+            result = operator.execute(
+                "a" * 40,
+                staging,
+                config,
+                "owner@example.invalid",
+                collect=collect,
+                journal_factory=journal,
+                session_factory=session,
+            )
+        for blocked in (metadata, saved, asc, collect, journal, session):
+            blocked.assert_not_called()
+        self.assertEqual(result["classification"], "EXISTING_OPERATION")
+        self.assertEqual(result["failure"]["check"], "existing_journal")
+        self.assertEqual(result["external_write_state"], "UNKNOWN")
+
+    def test_status_is_source_and_readonly_journal_only(self):
+        from tools.tests.test_ios_testflight_journal import JournalTests
+
+        raw = operator.journal_module.encode_event([], "START", JournalTests().start())
+        events, _ = operator.journal_module.parse(raw)
+        value = Mock(intact=True, events=events)
+        with (
+            patch.object(
+                operator, "preflight", return_value=("c" * 40, None)
+            ) as preflight,
+            patch.object(
+                operator.journal_module.Journal, "open", return_value=value
+            ) as opening,
+            patch.object(operator, "settings_metadata") as settings,
+            patch.object(operator, "asc_preflight") as asc,
+            patch.object(operator, "recover_operation") as recovery,
+            patch.object(operator.intake, "collect_upload") as collect,
+            patch("sys.stdout", new_callable=io.StringIO) as output,
+        ):
+            self.assertEqual(operator.main(["--status"]), 0)
+        preflight.assert_called_once_with(recovery_only=True)
+        opening.assert_called_once_with(create=False, readonly=True)
+        value.record.assert_not_called()
+        value.close.assert_called_once()
+        for blocked in (settings, asc, recovery, collect, self.journal_guard):
+            blocked.assert_not_called()
+        self.assertIn("LEGACY_REASON_UNAVAILABLE", output.getvalue())
+        self.assertNotIn("nonce", output.getvalue())
+        self.assertNotIn("c" * 40, output.getvalue())
+
+    def test_first_dispatch_failure_survives_cleanup_and_journal_faults(self):
+        staging, config, materials, target = self.fixture()
+        first = dict(
+            stage="dispatch_preflight", check="unexpected", reason="CHECK_REJECTED"
+        )
+        for fault in ("cleanup", "journal", "interrupt"):
+            session = Mock(
+                nonce="b" * 64, issued=100, run_id=None, job_status="UNKNOWN"
+            )
+            session.begin.return_value = {"status": "STOP", "failure": first}
+            session.public.return_value = {
+                "failure": first,
+                "current_absence_verified": False,
+                "retention_resolved": True,
+                "external_write_state": "NOT_ATTEMPTED",
+                "secret_transfer_state": "NOT_ATTEMPTED",
+            }
+            journal = Mock(intact=True, events=[])
+            lookup = Mock()
+            lookup.inventory.return_value = target
+            final = Mock(return_value=session.public.return_value)
+            if fault == "cleanup":
+                final.side_effect = RuntimeError("private-sentinel")
+            elif fault == "interrupt":
+                session.begin.side_effect = KeyboardInterrupt()
+            else:
+
+                def record(event, **data):
+                    if event == "FAILURE":
+                        raise RuntimeError("private-sentinel")
+
+                journal.record.side_effect = record
+            with (
+                patch.object(operator, "finalize_session", final),
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                result = operator.execute(
+                    "a" * 40,
+                    staging,
+                    config,
+                    "owner@example.invalid",
+                    collect=Mock(return_value=materials),
+                    journal_factory=Mock(return_value=journal),
+                    session_factory=Mock(return_value=session),
+                    owner_factory=Mock(return_value=lookup),
+                )
+            self.assertEqual(result["failure"], first)
+            self.assertNotIn("private-sentinel", output.getvalue())
+            self.assertFalse(result["secret_absence_verified"])
+            if fault != "interrupt":
+                self.assertIsNotNone(result["cleanup_failure"])
+            final.assert_called_once()
+            journal.close.assert_called_once()
+
+    def test_each_execution_boundary_has_safe_failure_location(self):
+        staging, config, materials, target = self.fixture()
+        cases = (
+            ("collect", "signing_input", "signing_material"),
+            ("inventory", "asc_preflight", "asc_scope"),
+            ("frames", "frame_validation", "frames"),
+            ("open", "journal_open", "journal_path"),
+            ("start", "journal_start", "journal_write"),
+            ("begin", "dispatch_preflight", "dispatch_result"),
+            ("advance", "awaiting_job", "job_status"),
+            ("settle", "observe_run", "job_status"),
+            ("artifact", "artifact_verification", "artifact"),
+            ("apple", "apple_reconcile", "apple_result"),
+        )
+        for point, stage, check in cases:
+            with self.subTest(point=point):
+                fault = RuntimeError("private-sentinel password token")
+                journal = Mock(intact=True, events=[])
+                state = {
+                    "current_absence_verified": False,
+                    "retention_resolved": True,
+                    "cancel_unresolved": False,
+                    "failure": None,
+                    "external_write_state": "NOT_ATTEMPTED",
+                    "secret_transfer_state": "NOT_ATTEMPTED",
+                }
+                session = Mock(
+                    nonce="b" * 64, issued=100, run_id=None, job_status="COMPLETED"
+                )
+                session.begin.return_value = {"status": "WAITING"}
+                session.advance.return_value = {"status": "APPROVED"}
+                session.public.return_value = state
+                lookup = Mock()
+                lookup.inventory.return_value = target
+                callables = {
+                    "collect": Mock(return_value=materials),
+                    "inventory": lookup.inventory,
+                    "frames": Mock(wraps=operator.frames),
+                    "open": Mock(return_value=journal),
+                    "begin": session.begin,
+                    "advance": session.advance,
+                    "settle": Mock(),
+                    "artifact": session.artifact,
+                    "apple": Mock(),
+                }
+                if point == "start":
+
+                    def record(event, **data):
+                        if event == "START":
+                            raise fault
+
+                    journal.record.side_effect = record
+                else:
+                    callables[point].side_effect = fault
+                with (
+                    patch.object(operator, "frames", callables["frames"]),
+                    patch.object(operator, "settle", callables["settle"]),
+                    patch.object(operator, "finalize_session", return_value=state),
+                    patch.object(
+                        operator.recovery,
+                        "result_from_logs",
+                        return_value={"cleanup_verified": False},
+                    ),
+                    patch.object(operator.recovery, "rediscover", callables["apple"]),
+                    patch("sys.stdout", new_callable=io.StringIO) as output,
+                ):
+                    result = operator.execute(
+                        "a" * 40,
+                        staging,
+                        config,
+                        "owner@example.invalid",
+                        collect=callables["collect"],
+                        journal_factory=callables["open"],
+                        session_factory=Mock(return_value=session),
+                        owner_factory=Mock(return_value=lookup),
+                    )
+                self.assertEqual(
+                    result["failure"],
+                    dict(stage=stage, check=check, reason="UNEXPECTED_INTERNAL_ERROR"),
+                )
+                self.assertFalse(result["retry_authorized"])
+                self.assertNotIn("private-sentinel", output.getvalue())
+
+    def test_unreadable_status_never_claims_no_external_attempt(self):
+        with (
+            patch.object(operator, "preflight", return_value=("a" * 40, None)),
+            patch.object(
+                operator.journal_module.Journal,
+                "open",
+                side_effect=operator.journal_module.Rejected(),
+            ),
+            patch("sys.stdout", new_callable=io.StringIO) as output,
+        ):
+            self.assertEqual(operator.main(["--status"]), 2)
+        self.assertIn('"external_write_state":"UNKNOWN"', output.getvalue())
+        self.assertIn('"check":"journal_integrity"', output.getvalue())
+        self.assertNotIn("NOT_ATTEMPTED", output.getvalue())
+
     def test_asc_input_failures_never_query_and_always_close(self):
         _, config, _, _ = self.fixture()
         config = replace(config, asc_path="C:/fictional/asc.p8")
@@ -619,7 +838,7 @@ class OperatorTests(unittest.TestCase):
             journal_failed=False,
             cancel_attempted=False,
             deadline=float("inf"),
-            journal=Mock(intact=True),
+            journal=Mock(intact=True, events=[]),
         )
         session.attempted = list(operator.wire.SECRETS)
         session.public.return_value = {

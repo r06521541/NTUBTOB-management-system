@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 
 from tools import ios_certificate_preparation as preparation
 from tools import ios_profile_intake as primitives
+from tools import ios_testflight_diagnostics as diagnostics
 from tools import ios_testflight_dispatch as dispatch
 from tools import ios_testflight_hosted as hosted
 from tools import ios_testflight_intake as intake
@@ -46,6 +47,8 @@ REASONS = (
             "ASC_SCOPE_REJECTED",
             "ASC_PREFLIGHT_PASSED",
             "JOURNAL_REJECTED",
+            "EXISTING_OPERATION",
+            "READ_ONLY_STATUS",
             "OPERATION_UNRESOLVED",
             "BUILD_VALID_UNDISTRIBUTED",
             "BUILD_PENDING",
@@ -63,11 +66,16 @@ REASONS = (
 
 
 class Rejected(Exception):
-    def __init__(self, reason="OPERATION_UNRESOLVED", *, stage=None):
-        super().__init__(reason if reason in REASONS else "OPERATION_UNRESOLVED")
+    def __init__(self, reason="OPERATION_UNRESOLVED", *, stage=None, failure=None):
+        super().__init__(
+            reason
+            if type(reason) is str and reason in REASONS
+            else "OPERATION_UNRESOLVED"
+        )
         self.stage = (
             stage if type(stage) is str and stage in owner.INVENTORY_STAGES else None
         )
+        self.failure = diagnostics.sanitize(failure)
 
 
 @dataclass(frozen=True, repr=False)
@@ -78,9 +86,25 @@ class Staging:
     apple_configured: bool
 
 
-def emit(reason, *, run_id=None, cleanup=False, secret_absence=False, stage=None):
+def emit(
+    reason,
+    *,
+    run_id=None,
+    cleanup=False,
+    secret_absence=False,
+    stage=None,
+    failure=None,
+    cleanup_failure=None,
+    external_write_state="UNKNOWN",
+    secret_transfer_state="UNRESOLVED",
+    observation=None,
+):
     result = {
-        "classification": reason if reason in REASONS else "OPERATION_UNRESOLVED",
+        "classification": (
+            reason
+            if type(reason) is str and reason in REASONS
+            else "OPERATION_UNRESOLVED"
+        ),
         "target": "owner_testflight_staging",
         "standing_authorization": "IOS-TF-01",
         "run_id": run_id if type(run_id) is int and run_id > 0 else None,
@@ -89,11 +113,97 @@ def emit(reason, *, run_id=None, cleanup=False, secret_absence=False, stage=None
         "owner_distribution_verified": False,
         "device_verified": False,
         "release_authorized": False,
+        "failure": diagnostics.sanitize(failure),
+        "cleanup_failure": diagnostics.sanitize(cleanup_failure),
+        "external_write_state": (
+            external_write_state
+            if type(external_write_state) is str
+            and external_write_state in {"NOT_ATTEMPTED", "ATTEMPTED", "UNKNOWN"}
+            else "UNKNOWN"
+        ),
+        "secret_transfer_state": (
+            secret_transfer_state
+            if type(secret_transfer_state) is str
+            and secret_transfer_state
+            in {"NOT_ATTEMPTED", "ABSENCE_VERIFIED", "UNRESOLVED"}
+            else "UNRESOLVED"
+        ),
+        "retry_authorized": False,
+        "next_action": "READ_ONLY_REVIEW" if diagnostics.valid(failure) else "NONE",
     }
+    if type(observation) is dict:
+        state = observation.get("journal_state")
+        if type(state) is str and state in {"INTACT", "DAMAGED"}:
+            result["journal_state"] = state
+        if type(observation.get("source_matches")) is bool:
+            result["source_matches"] = observation["source_matches"]
     if type(stage) is str and stage in owner.INVENTORY_STAGES:
         result["stage"] = stage
     print(json.dumps(result, sort_keys=True, separators=(",", ":")), flush=True)
     return result
+
+
+def failure_for(error, stage, check):
+    """Only known exception types affect fixed codes; never stringify an error."""
+    if type(error) in {Rejected, dispatch.Rejected} and error.failure is not None:
+        return error.failure
+    if isinstance(error, KeyboardInterrupt):
+        reason = "INTERRUPTED"
+    elif type(error) is journal_module.Rejected:
+        reason = "JOURNAL_REJECTED"
+    elif type(error) in {
+        Rejected,
+        intake.Rejected,
+        owner.Rejected,
+        settings.Rejected,
+        key_custody.Rejected,
+        intake.inputs.InputError,
+    }:
+        reason = "CHECK_REJECTED"
+    else:
+        reason = "UNEXPECTED_INTERNAL_ERROR"
+    return diagnostics.failure(stage, check, reason)
+
+
+def ensure_new_operation():
+    try:
+        state = journal_module.new_operation_preflight()
+    except (KeyboardInterrupt, Exception) as error:
+        raise Rejected(
+            "JOURNAL_REJECTED",
+            failure=failure_for(error, "journal_preflight", "journal_path"),
+        ) from None
+    if state == "EXISTING_OPERATION":
+        raise Rejected(
+            "EXISTING_OPERATION",
+            failure=diagnostics.failure(
+                "journal_preflight", "existing_journal", "EXISTING_OPERATION"
+            ),
+        )
+    if state not in {"READY_NO_JOURNAL", "READY_ROOT_NOT_CREATED"}:
+        raise Rejected(
+            "JOURNAL_REJECTED",
+            failure=diagnostics.failure(
+                "journal_preflight", "journal_path", "JOURNAL_REJECTED"
+            ),
+        )
+
+
+def readonly_status(sha):
+    """Observe the original journal without recovery, inputs or external calls."""
+    value = journal_module.Journal.open(create=False, readonly=True)
+    try:
+        observed = journal_module.summary(value, sha)
+    finally:
+        value.close()
+    return emit(
+        "READ_ONLY_STATUS",
+        failure=observed["failure"],
+        external_write_state=observed["external_write_state"],
+        secret_transfer_state=observed["secret_transfer_state"],
+        secret_absence=observed["secret_absence_verified"],
+        observation=observed,
+    )
 
 
 def cli_json(command):
@@ -197,17 +307,28 @@ def preflight(*, recovery_only=False):
         raise Rejected("SOURCE_REJECTED")
     if not recovery_only:
         probe = dispatch.Session(b"{}", b"{}", sha=sha)
-        probe.policy()
-        repository = probe.get(dispatch.API)
-        if repository.get("private") is not False:
-            raise Rejected(
-                "SOURCE_REJECTED"
-            )  # Standard public runners, no paid/storage exports.
-        if set(wire.SECRETS) & probe.listing():
-            raise Rejected("RETENTION_UNRESOLVED")
-        for name in wire.SECRETS:
-            if probe.call("GET", dispatch.SECRET + name)[0] != 404:
+        try:
+            probe.policy()
+            probe.context("dispatch_preflight", "repository")
+            repository = probe.get(dispatch.API)
+            if repository.get("private") is not False:
+                raise Rejected(
+                    "SOURCE_REJECTED"
+                )  # Standard public runners, no paid/storage exports.
+            if set(wire.SECRETS) & probe.listing():
                 raise Rejected("RETENTION_UNRESOLVED")
+            for name in wire.SECRETS:
+                probe.context("dispatch_preflight", "secret_absence")
+                if probe.call("GET", dispatch.SECRET + name)[0] != 404:
+                    raise Rejected("RETENTION_UNRESOLVED")
+        except (KeyboardInterrupt, Exception) as error:
+            detail = diagnostics.sanitize(probe.public().get("failure")) or failure_for(
+                error, probe.stage, probe.check
+            )
+            reason = (
+                error.args[0] if type(error) is Rejected else "OPERATION_UNRESOLVED"
+            )
+            raise Rejected(reason, failure=detail) from None
     return sha, staging_scope() if not recovery_only else None
 
 
@@ -295,8 +416,19 @@ def settle(session, *, sleep=time.sleep):
     raise Rejected("OBSERVATION_TIMEOUT")
 
 
-def result_record(journal, reason, *, cleanup, absent):
+def failure_record(journal, failure):
+    if (
+        journal is not None
+        and journal.intact
+        and diagnostics.valid(failure)
+        and not any(row["event"] == "FAILURE" for row in journal.events)
+    ):
+        journal.record("FAILURE", **failure)
+
+
+def result_record(journal, reason, *, cleanup, absent, failure=None):
     if journal is not None and journal.intact:
+        failure_record(journal, failure)
         journal.record(
             "RESULT",
             classification=(
@@ -365,23 +497,35 @@ def execute(
     session = journal = materials = None
     cleanup = absent = False
     reason = "OPERATION_UNRESOLVED"
+    failure = cleanup_failure = None
+    stage, check = "journal_preflight", "journal_path"
+    state = {}
+    external, transferred = "UNKNOWN", "UNRESOLVED"
     try:
+        ensure_new_operation()
+        external, transferred = "NOT_ATTEMPTED", "NOT_ATTEMPTED"
+        stage, check = "saved_inputs", "settings"
         if (
             config.api_base_url,
             config.google_web_client_id,
             config.line_channel_id,
         ) != (staging.url, staging.google_web, staging.line):
             raise Rejected("STAGING_TARGET_REJECTED")
+        stage, check = "signing_input", "signing_material"
         materials = collect(config)
+        stage, check = "asc_preflight", "asc_scope"
         owner_session = (owner_factory or owner.OwnerSession)(
             materials.asc.material, owner_email=email
         )
         target = owner_session.inventory()
         config = replace(config, build=target.planned_build)
+        stage, check = "frame_validation", "frames"
         sign, asc = frames(materials, config, target)
         session = session_factory(sign, asc, sha=sha)
         # Full wire bound, ASC scope and input checks precede durable intent/mutation.
+        stage, check = "journal_open", "journal_path"
         journal = journal_factory(create=True)
+        stage, check = "journal_start", "journal_write"
         journal.record(
             "START",
             sha=sha,
@@ -393,9 +537,11 @@ def execute(
             expires=session.issued + wire.TTL,
         )
         session.journal = journal
+        stage, check = "dispatch_preflight", "dispatch_result"
         if session.begin()["status"] != "WAITING":
             raise Rejected()
         for _ in range(40):
+            stage, check = "awaiting_job", "job_status"
             status = session.advance()["status"]
             if status == "APPROVED":
                 break
@@ -405,15 +551,18 @@ def execute(
                 sleep(15)
         else:
             raise Rejected("OBSERVATION_TIMEOUT")
+        stage, check = "observe_run", "job_status"
         settle(session, sleep=sleep)
         state = session.public()
         absent = state["current_absence_verified"]
         if not state["retention_resolved"] or state["cancel_unresolved"]:
             raise Rejected("RETENTION_UNRESOLVED")
+        stage, check = "artifact_verification", "artifact"
         artifact = session.artifact(version=config.version, build=config.build)
         # Run success alone is not signing cleanup or Apple processing evidence.
         recovered_result = recovery.result_from_logs(session.logs())
         cleanup = recovered_result["cleanup_verified"]
+        stage, check = "apple_reconcile", "apple_result"
         outcome, _ = recovery.rediscover(
             materials.asc.material,
             target=target.upload_target(),
@@ -424,30 +573,82 @@ def execute(
         )
         reason = outcome.classification
     except (KeyboardInterrupt, Exception) as error:
-        if type(error) in {Rejected, intake.Rejected, owner.Rejected}:
+        if session is not None:
+            try:
+                failure = diagnostics.sanitize(session.public().get("failure"))
+            except (KeyboardInterrupt, Exception):
+                pass
+        failure = failure or failure_for(error, stage, check)
+        if type(error) in {
+            Rejected,
+            intake.Rejected,
+            owner.Rejected,
+            journal_module.Rejected,
+        }:
             code = error.args[0] if len(error.args) == 1 else "OPERATION_UNRESOLVED"
             if type(error) is owner.Rejected and code == "OWNER_SCOPE_REJECTED":
                 code = "ASC_SCOPE_REJECTED"
             reason = code if code in REASONS else "OPERATION_UNRESOLVED"
+        try:
+            failure_record(journal, failure)
+        except (KeyboardInterrupt, Exception):
+            if journal is not None:
+                journal.intact = False
+            cleanup_failure = diagnostics.failure(
+                "cleanup", "journal_write", "JOURNAL_REJECTED"
+            )
     finally:
         if session is not None:
-            state = finalize_session(session, sleep=sleep)
-            absent = state["current_absence_verified"]
-            if not state["retention_resolved"]:
+            try:
+                state = finalize_session(session, sleep=sleep)
+                failure = failure or diagnostics.sanitize(state.get("failure"))
+                cleanup_failure = cleanup_failure or diagnostics.sanitize(
+                    state.get("cleanup_failure")
+                )
+                absent = state["current_absence_verified"] is True
+                external = state.get("external_write_state", "UNKNOWN")
+                transferred = state.get("secret_transfer_state", "UNRESOLVED")
+                if not state["retention_resolved"]:
+                    reason = "RETENTION_UNRESOLVED"
+                if session.run_id and session.job_status != "COMPLETED":
+                    reason = "OPERATION_UNRESOLVED"
+            except (KeyboardInterrupt, Exception) as error:
+                cleanup_failure = failure_for(error, "cleanup", "retention")
+                absent, external, transferred = False, "UNKNOWN", "UNRESOLVED"
                 reason = "RETENTION_UNRESOLVED"
-            if session.run_id and session.job_status != "COMPLETED":
-                reason = "OPERATION_UNRESOLVED"
         materials = None
+        if journal is not None and not journal.intact:
+            reason = "JOURNAL_REJECTED"
+            absent, external, transferred = False, "UNKNOWN", "UNRESOLVED"
         try:
-            result_record(journal, reason, cleanup=cleanup, absent=absent)
+            result_record(
+                journal, reason, cleanup=cleanup, absent=absent, failure=failure
+            )
+        except (KeyboardInterrupt, Exception):
+            cleanup_failure = cleanup_failure or diagnostics.failure(
+                "cleanup", "journal_write", "JOURNAL_REJECTED"
+            )
+            reason = "JOURNAL_REJECTED"
+            absent, external, transferred = False, "UNKNOWN", "UNRESOLVED"
         finally:
             if journal is not None:
-                journal.close()
+                try:
+                    journal.close()
+                except (KeyboardInterrupt, Exception):
+                    cleanup_failure = cleanup_failure or diagnostics.failure(
+                        "cleanup", "journal_write", "JOURNAL_REJECTED"
+                    )
+                    reason = "JOURNAL_REJECTED"
+        failure = failure or cleanup_failure
     return emit(
         reason,
         run_id=session.run_id if session else None,
         cleanup=cleanup,
         secret_absence=absent,
+        failure=failure,
+        cleanup_failure=cleanup_failure,
+        external_write_state=external,
+        secret_transfer_state=transferred,
     )
 
 
@@ -568,11 +769,13 @@ def recover_operation(
 
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
+    stage, check = "source_preflight", "source"
     try:
         if args not in (
             ["--preflight"],
             ["--execute"],
             ["--recover"],
+            ["--status"],
             ["--prepare-inputs"],
             ["--check-inputs"],
             ["--check-asc"],
@@ -581,25 +784,34 @@ def main(argv=None):
             ["--execute", "--settings"],
         ):
             raise Rejected("SOURCE_REJECTED")
-        sha, staging = preflight(recovery_only=args == ["--recover"])
+        sha, staging = preflight(recovery_only=args in (["--recover"], ["--status"]))
+        if args == ["--status"]:
+            stage, check = "recovery", "journal_integrity"
+            readonly_status(sha)
+            return 0
         if args == ["--preflight"]:
             emit("PREFLIGHT_PASSED")
             return 0
         if args == ["--prepare-inputs"]:
+            stage, check = "saved_inputs", "settings"
             settings.prepare()
             emit("SETTINGS_TEMPLATE_CREATED")
             return 0
         if args == ["--check-inputs"]:
+            stage, check = "saved_inputs", "settings"
             settings_metadata(staging)
             # Syntax and file custody only, not key validity or execution approval.
             emit("SETTINGS_READY")
             return 0
         if args == ["--check-asc"]:
+            stage, check = "saved_inputs", "settings"
             config, email = settings_metadata(staging)
+            stage, check = "asc_preflight", "asc_scope"
             asc_preflight(config, email)
             emit("ASC_PREFLIGHT_PASSED", stage="asc_complete")
             return 0
         if args in (["--check-key-import"], ["--import-asc-key"]):
+            stage, check = "saved_inputs", "settings"
             action = (
                 key_custody.check_import
                 if args == ["--check-key-import"]
@@ -613,12 +825,16 @@ def main(argv=None):
                 else 2
             )
         if args == ["--recover"]:
+            stage, check = "recovery", "journal_integrity"
             recover_operation()
             return 2  # Cleanup/recovery does not imply delivery acceptance.
+        stage, check = "journal_preflight", "journal_path"
+        ensure_new_operation()
         print(
             "scope=IOS-TF-01 action=sign_inspect_upload target=owner_staging distribution=none",
             flush=True,
         )
+        stage, check = "saved_inputs", "settings"
         config, email = (
             settings_metadata(staging)
             if args == ["--execute", "--settings"]
@@ -626,6 +842,7 @@ def main(argv=None):
         )
         if config.asc_path is None:
             config = replace(config, asc_path=str(intake.read_field("ASC_PATH")))
+        stage, check = "asc_preflight", "asc_scope"
         asc_preflight(config, email)
         result = execute(sha, staging, config, email)
         return 0 if result["classification"] == "BUILD_VALID_UNDISTRIBUTED" else 2
@@ -639,11 +856,16 @@ def main(argv=None):
                 intake.inputs.InputError,
                 settings.Rejected,
                 key_custody.Rejected,
+                journal_module.Rejected,
             }
             and len(error.args) == 1
             else "OPERATION_UNRESOLVED"
         )
-        emit(reason, stage=error.stage if type(error) is Rejected else None)
+        emit(
+            reason,
+            stage=error.stage if type(error) is Rejected else None,
+            failure=failure_for(error, stage, check),
+        )
         return 2
 
 
