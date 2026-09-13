@@ -1,3 +1,139 @@
+## Active operation diagnostics repair (Owner explicitly requested)
+
+Latest Owner execution on independent terminal created a real intact journal:
+START, RESULT only, source matches a605fb4c6961e3536a7c5bf9d12a104b14316a41.
+Main read-only Journal.open(create=False) confirmed no DISPATCH_ATTEMPT or PUT;
+GitHub runs0/Secrets0 and no active operator. Never delete/reset/replay this journal.
+Its precise original failure is lost; represent legacy reason as unavailable.
+Owner now asks to fix coarse diagnostics and preflight ordering, not another retry.
+
+Goal: fixed safe failure stage/check/reason, truthful external-write/transfer state,
+no-password local journal check before fresh execute, and read-only operation status.
+Core: diagnostics/dispatch/operator/journal plus direct tests and existing records.
+Invariant: preserve all scope/trust/ACL/nonce/one-shot constraints; retain original
+failure through cleanup; no raw exception/body/identifier/secret output or retries.
+Tests: fault injection per stage, sentinel suppression, no extra request/prompt,
+legacy journal compatibility, read-only status, early existing-journal rejection.
+Limits: no actual signing/private input/remote mutation this slice; old operation
+remains quarantined. No claim that unknown legacy cause is repaired retroactively.
+
+Branch codex/task-198-operation-diagnostics; base=head
+d54354d4cd5398684751a050a1b1da333fc457dc (runtime base a605fb4c6961e3536a7c5bf9d12a104b14316a41).
+Main /root task-198-main-20260911 lease1 owns operator/journal, their tests and
+existing coordination. Writer18 /root/csr_writer claim task-198-writer-20260911
+lease18 role codex-writer write allowed owns tools/ios_testflight_diagnostics.py,
+tools/ios_testflight_dispatch.py, tools/tests/test_ios_testflight_diagnostics.py,
+tools/tests/test_ios_testflight_dispatch.py. report_to=/root; no other writes.
+Outcome: typed allowlisted diagnostics, Session first-failure preservation and
+accurate NOT_ATTEMPTED vs ABSENCE_VERIFIED without breaking retention cleanup.
+No network/private files, no commits; stop on contract conflict/source drift.
+Security40 /root/task181_review claim task-198-security-20260911 lease40 role
+advisor read-only owned_paths none, report_to=/root. Same task/branch/base/head.
+Scope: early architecture review of this bounded repair and later frozen diff;
+read source/public docs/fake tests only; stop on broadened custody/retry authority.
+COLLABORATION2 mandatory ACK/heartbeat/blocker/proactive final for both packets.
+Main remains active implementing independent operator/journal work and testing.
+The single read-only --status mode replaces ad-hoc log probing; it never loads
+settings/private assets, creates journals, contacts Apple or records/cleans/cancels.
+
+Writer18 frozen delivery received/handled, now read-only. Main256offline tests:
+252PASS4existingplatformSKIP, journal12includingnativePASS, operator36PASS,
+quality8owned Python filesPASS. Security40 formal ACCEPT received/handled;
+independent74fakePASS/diffPASS; Main verified all8reviewed LF hashes unchanged.
+Both advisors completed/read-only. Eight runtime/test paths frozen. Repository
+delivery follows existing IOS-TF-01 authorization and normal acceptance/CI;
+no live signing/store/cloud mutation or new execution is authorized by this repair.
+
+## Historical journal native investigation (superseded, not current instructions)
+
+Owner independently opened Windows PowerShell; read-only metadata at exact
+a605fb4c6961e3536a7c5bf9d12a104b14316a41 returned logical_journal=DIRECTORY_ABSENT,
+package_journal=VERIFIED_NO_JOURNAL, saved_assets=METADATA_PASS. All five known
+assets were inspected using Reader.inspect (no payload), including handle paths
+and ACL ownership by the current SID. Main fresh GitHub GET: runs0/Secrets0.
+Owner same-terminal fictional native lifecycle is requested, not a live journal
+probe. Main owns the diagnostic-only test and records on the current branch.
+Preserve these as a reviewed branch checkpoint; do not create another diagnostic
+PR or re-run CI. Resume unchanged previously accepted clean main only after
+review and fixture evidence; no operator/custody source changed. Execution and
+recovery stay in that Owner-started terminal/context, never a Codex child. Existing
+package root remains untouched, any journal/missing asset/active operation stops.
+
+Security39 packet: task=TASK-198; branch=codex/task-198-journal-native;
+base=head=a605fb4c6961e3536a7c5bf9d12a104b14316a41;
+actor_id=/root/task181_review; role=advisor; claim_id=task-198-security-20260911;
+lease_version=39; write=read-only; owned_paths=none; report_to=/root.
+Scope: exact added NativeJournalTests and the conditional context/resume plan
+above. Verify no real journal/material/network touches by fixture, existing
+approved source unchanged, evidence sufficiency (mark still-pending native
+Owner result), preservation commit then clean main without diagnostic PR/CI.
+Stop on drift/private need/ambiguous intent or context. COLLABORATION2 mandatory
+ACK/heartbeat/blocker/proactive final applies. Main concurrently verifies the
+offline suite, remote zero state and precise runtime diff; no actual execute.
+
+Security39 ACCEPT received/handled, completed/read-only. Independent8mocktestsPASS;
+Main9includingnativePASS/quality/diffPASS; Owner-reported same-terminal native OK.
+All conditions above now have scoped evidence, except fresh runtime preflight
+after Main returns clean approved main. Preserve six-path diagnostic checkpoint,
+no separate PR/CI. One execution in the existing Owner-started terminal may
+follow fresh preflight under IOS-TF-01; never a Codex child. Keep the canonical
+non-package LocalAppData journal for subsequent recovery and check both known
+locations after interruption. This is confirmed-zero correction, not a new
+journal allowed after ambiguous dispatch. Only P12 password is requested by
+the existing reviewed --execute --settings; saved metadata/import stay complete.
+
+PR256 merged a605fb4c6961e3536a7c5bf9d12a104b14316a41 after full CI success.
+One real --check-asc returned ASC_PREFLIGHT_PASSED. Owner then authorized the
+normal --execute --settings and entered P12; result OPERATION_UNRESOLVED,
+run_id=null, secret_absence_verified=true. Read-only reconciliation: no active
+operator, no signing workflow runs, no six transfer Secrets, journal file absent;
+dedicated journal directory exists with the required protected sole-Owner ACL.
+Session.public reports vacuous absence when no PUT was attempted, not a completed
+cleanup. Do not retry execute, request a password or change real asset custody.
+
+Goal: reproduce the pre-dispatch Windows journal failure with fictional native I/O.
+Core: tools/ios_testflight_journal.py and direct tests; operator only if proven needed.
+Invariant: no real asset reads, no remote mutation, no ACL relaxation or journal reset.
+Tests: native Windows temporary-directory create/append/reopen/failure, then affected suite.
+Unknown: precise native failure; source correction only after an offline reproduction.
+
+Main task-198-main-20260911 lease1; branch codex/task-198-journal-native;
+base=head=a605fb4c6961e3536a7c5bf9d12a104b14316a41. Main owns listed paths and
+existing coordination records. Prior advisors are completed/read-only. Independent
+review required before any live operation. No new diagnostic CLI or private retry.
+
+Read-only native metadata identified the actual directory under the current
+Codex MSIX package LocalCache/Local while KnownFolder returned the unredirected
+LocalAppData path. The original strict final-path comparison rejects this before
+file creation. A canonical temporary-directory native lifecycle fixture passes;
+it does not reproduce AppData redirection. No actual journal payload exists.
+Investigate Windows KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET for journal storage
+only, retaining all handle/ACL/reparse checks, no arbitrary resolve/fallback.
+
+Security38 packet: task=TASK-198; branch=codex/task-198-journal-native;
+base=head=a605fb4c6961e3536a7c5bf9d12a104b14316a41;
+actor_id=/root/task181_review; role=advisor; claim_id=task-198-security-20260911;
+lease_version=38; write=read-only; owned_paths=none; report_to=/root.
+Scope: assess this MSIX journal root design before implementation, especially
+cross-host recovery/duplicate intent, existing evidence preservation and exact
+path security. Read source/tests/public Microsoft docs only; no private reads,
+actual journal mutation, cloud calls or source edits. Stop on scope drift/new
+private need/unsafe fallback. COLLABORATION2 mandatory protocol applies. Main
+concurrently probes only OS folder metadata and develops fictional regression.
+
+Security38 conditional architecture ACCEPT received/handled, completed/read-only.
+The flag probe still returns unredirected LocalAppData; Python package identity
+reports NO_PACKAGE. No OS-derived resolver proven, no source correction authorized
+by this evidence. Use Owner-started independent PowerShell only as a candidate
+context, not permission to rerun. First verify same identity/exact repo/assets
+custody metadata plus both known journal views, then fix one execution/recovery
+context for the delivery. No new empty intent when any existing journal is found;
+do not copy assets, relocate/delete evidence, or use execute as a diagnostic.
+Known locations: KnownFolder LocalAppData / DIRECTORY, and that LocalAppData /
+Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local / DIRECTORY. Both file-existence
+checks were false in Main's current view; independent context still unverified.
+Owner next action is only opening Windows PowerShell from Windows Start.
+
 ## Current ASC preflight correction
 
 PR255 merged9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7 after CI34702831760

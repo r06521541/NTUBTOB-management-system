@@ -1,5 +1,61 @@
 # TASK-198 review
 
+## Operation diagnostics: Security40 ACCEPT
+
+Early architecture feedback received/handled: fixed compatible safe fields;
+first-failure immutable through cleanup; damaged/missing journal never proves
+absence; read-only handles with record blocked; early guard does not replace
+CREATE_NEW; no old journal rewrite or implicit resume. Main implemented eight
+runtime/test paths and froze them for formal independent review. Writer18 final
+received/handled, completed/read-only. Main252PASS4existingSKIP, quality8PASS.
+Security40 ACCEPT received/handled, independent74fake tests/diffPASS (not native).
+No actionable finding. Main verified all eight LF hashes match the reviewed snapshot.
+Review base d54354d4cd5398684751a050a1b1da333fc457dc; branch codex/task-198-operation-diagnostics.
+
+| Reviewed path | LF SHA-256 |
+| --- | --- |
+| tools/ios_testflight_diagnostics.py | dcb4750e7c64c554de0b232a4983296a3c33ccc8e178aed0045aa9c168b3b854 |
+| tools/ios_testflight_dispatch.py | f5b75e0370cd0eaed7e05bf7d908488007f1cf85f1110bc9e09d6bf067685049 |
+| tools/ios_testflight_journal.py | 8b1d01092db39170de40938eab28050bef5ee597438328f8ec3da7810c77c7d3 |
+| tools/ios_testflight_operator.py | 5bcf8f9caf57b00ac56a802ae5c5c00fe98cebb485b0fb2a9457056539bff2df |
+| tools/tests/test_ios_testflight_diagnostics.py | 00341191e1300ab446062d54367f5adbcf2ff6186024e2b1f354a167b4dfbe94 |
+| tools/tests/test_ios_testflight_dispatch.py | 48b2a94d7b17d4437a89a13eb22840894be17bf5033505c9bfeff8b5eb2369a0 |
+| tools/tests/test_ios_testflight_journal.py | af7b6e9b1c936c7f11b921c29effb92b7d62dbde62d36d7633a29769358c372e |
+| tools/tests/test_ios_testflight_operator.py | e98acc4bb3f3f6e9a0b7a3ce2c8006cdb169c5ccc12b9ad5e55d8e1f43c2169b |
+
+No actual Owner context/status/private/runtime verification by reviewer. This
+accepts only source diagnostics/status/guard, not legacy retry/resume or a new
+intent. Prior conditional fresh-execute instructions are superseded. Original
+cause remains unavailable; Main native/full-suite evidence attributed separately.
+
+## Independent terminal readiness: Security39 ACCEPT
+
+Main received/handled lease39 final, reviewer completed/read-only. No actionable
+finding in the six diagnostic-only paths; no production diff. Independent8mock
+journal testsPASS; test LF-SHA256
+be84dbcedc95d4111288cb5badf32d84b791fed652f95f874a6d986ee6d42c2f.
+Main9includingnativePASS/quality/diffPASS. Owner same-terminal native OK and
+metadata results explicitly remain Owner-reported, not reviewer native evidence.
+Preserve branch checkpoint, then verify clean exact accepted main and fresh
+preflight before one existing-wrapper execution in that original Owner terminal.
+No new diagnostic PR/CI. Context/source/asset drift, any journal/active intent or
+unconfirmed dual-view absence stops; no copy/reset/import or arbitrary resolver.
+Positive fixture does not prove AppData virtualization fixed, power-loss durability,
+actual journal creation, signing or upload. No reviewer external mutations.
+
+## Journal context: Security38 conditional architecture ACCEPT
+
+Main received/handled /root/task181_review lease38; completed/read-only. Prefer
+evaluating an Owner-started independent Windows terminal over accepting arbitrary
+observed final paths or a package-local resolver not justified by OS evidence.
+Before execute: same identity/exact source/assets custody metadata, both known
+journal views and remote confirmed-zero; then one fixed execution/recovery context.
+Any existing/unknown journal or missing asset stops, no create/copy/import/reset.
+Do not delete the existing empty root. A new terminal is not retry authorization.
+Reviewer used Main's native evidence and Microsoft public documentation; no real
+metadata/private/cloud calls or tests by reviewer. Main fictional native lifecycle
+PASS; no production implementation or code acceptance claimed by this review.
+
 ## Internal group null-shape compatibility: Security37 ACCEPT
 
 Main received and handled /root/task181_review lease37 final; completed/read-only.

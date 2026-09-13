@@ -13,6 +13,7 @@ from copy import deepcopy
 
 from tools import ios_certificate_custody as custody
 from tools import ios_certificate_preparation as preparation
+from tools import ios_testflight_diagnostics as diagnostics
 from tools import ios_testflight_wire as wire
 
 DIRECTORY = "NTUBTOB-OwnerTestFlight-Journal"
@@ -44,6 +45,7 @@ FIELDS = {
     "UNCERTAIN": set(),
     "TERMINAL": {"conclusion"},
     "CANDIDATE": {"sha256", "size"},
+    "FAILURE": {"stage", "check", "reason"},
     "RESULT": {
         "classification",
         "cleanup_verified",
@@ -151,6 +153,8 @@ def encode_event(events, event, data):
             )
         ):
             raise ValueError()
+        if event == "FAILURE" and not diagnostics.valid(data):
+            raise ValueError()
         unique = {
             "DISPATCH_ATTEMPT",
             "DISPATCH_CONFIRMED",
@@ -160,6 +164,7 @@ def encode_event(events, event, data):
             "CANCEL_CONFIRMED",
             "JOB_BOUND",
             "CANDIDATE",
+            "FAILURE",
         }
         if event in unique and event in prior:
             raise ValueError()
@@ -244,13 +249,101 @@ def parse(raw):
 
 
 class Native(custody.Native):
-    def journal_handle(self, path, *, create):
+    def journal_handle(self, path, *, create, readonly=False):
+        if readonly and create:
+            raise Rejected()
         if create:
             return self.open_handle(path, create=True)
-        handle = self.open(str(path), 0xC0020000, 0, None, 3, 0x00200080, None)
+        access = 0x80020000 if readonly else 0xC0020000
+        handle = self.open(str(path), access, 0, None, 3, 0x00200080, None)
         if handle == c.c_void_p(-1).value:
             raise Rejected()
         return handle
+
+
+def new_operation_preflight(*, nativefactory=Native):
+    """Read-only early guard, not a reservation or proof creation will succeed.
+
+    Any existing pathname blocks new execution, including empty/corrupt/reparse
+    entries. CREATE_NEW and held handles remain mandatory at actual creation.
+    No alternate roots, ACL repairs, key reads or live recovery are performed.
+    """
+    handles = []
+    native = None
+    try:
+        root = preparation.local_app_data() / DIRECTORY
+        try:
+            root.lstat()
+            exists = True
+        except FileNotFoundError:
+            exists = False
+        if exists:
+            try:
+                (root / FILENAME).lstat()
+            except FileNotFoundError:
+                pass
+            else:
+                return "EXISTING_OPERATION"
+        preparation.safe_directory(root, fresh=not exists)
+        native = nativefactory()
+        for path in (*reversed(root.parents), *((root,) if exists else ())):
+            handle = native.open_handle(path, directory=True, ancestor=path != root)
+            handles.append(handle)
+            native.metadata(handle, path, directory=True)
+            if path == root:
+                native.acl(handle, directory=True)
+        return "READY_NO_JOURNAL" if exists else "READY_ROOT_NOT_CREATED"
+    except (KeyboardInterrupt, Exception):
+        raise Rejected() from None
+    finally:
+        failed = False
+        for handle in reversed(handles):
+            try:
+                if not native.close(handle):
+                    failed = True
+            except (KeyboardInterrupt, Exception):
+                failed = True
+        if failed:
+            raise Rejected() from None
+
+
+def summary(journal, sha):
+    """Sanitized observation only. Never converts old evidence into retry authority."""
+    intact = journal.intact is True
+    events = journal.events
+    names = {row["event"] for row in events}
+    complete = intact and bool(events) and "UNCERTAIN" not in names
+    attempted = {
+        row["data"]["name"] for row in events if row["event"] == "SECRET_PUT_ATTEMPT"
+    }
+    absent = {row["data"]["name"] for row in events if row["event"] == "SECRET_ABSENT"}
+    external = any(name.endswith("_ATTEMPT") for name in names)
+    first = next((row["data"] for row in events if row["event"] == "FAILURE"), None)
+    if not intact or not events:
+        first = diagnostics.failure("recovery", "journal_integrity", "JOURNAL_REJECTED")
+    elif first is None:
+        first = diagnostics.failure(
+            "recovery", "existing_journal", "LEGACY_REASON_UNAVAILABLE"
+        )
+    verified = complete and bool(attempted) and attempted <= absent
+    return {
+        "journal_state": "INTACT" if intact and events else "DAMAGED",
+        "source_matches": bool(events) and events[0]["data"]["sha"] == sha,
+        "failure": diagnostics.sanitize(first),
+        "external_write_state": (
+            ("ATTEMPTED" if external else "NOT_ATTEMPTED") if complete else "UNKNOWN"
+        ),
+        "secret_transfer_state": (
+            (
+                "NOT_ATTEMPTED"
+                if not attempted
+                else "ABSENCE_VERIFIED" if verified else "UNRESOLVED"
+            )
+            if complete
+            else "UNRESOLVED"
+        ),
+        "secret_absence_verified": verified,
+    }
 
 
 class Journal:
@@ -261,6 +354,7 @@ class Journal:
         self._handles = []
         self._directories = []
         self._closed = False
+        self._readonly = False
         self._lock = threading.RLock()
 
     @property
@@ -268,11 +362,16 @@ class Journal:
         return deepcopy(self._events)
 
     @classmethod
-    def open(cls, create=False, *, nativefactory=Native):
+    def open(cls, create=False, *, readonly=False, nativefactory=Native):
         value = cls()
         try:
-            if type(create) is not bool:
+            if (
+                type(create) is not bool
+                or type(readonly) is not bool
+                or (create and readonly)
+            ):
                 raise Rejected()
+            value._readonly = readonly
             value.native = nativefactory()
             root = preparation.local_app_data() / DIRECTORY
             if create and not root.exists():
@@ -290,7 +389,9 @@ class Journal:
                     value.native.acl(handle, directory=True)
                 value._directories.append((handle, path, metadata, path == root))
             value.path = root / FILENAME
-            value.handle = value.native.journal_handle(value.path, create=create)
+            value.handle = value.native.journal_handle(
+                value.path, create=create, readonly=readonly
+            )
             value._handles.append(value.handle)
             value.expected = value.native.metadata(
                 value.handle, value.path, allow_empty=True
@@ -336,6 +437,8 @@ class Journal:
 
     def record(self, event, **data):
         with self._lock:
+            if self._readonly:
+                raise Rejected()
             return self._record(event, data)
 
     def _record(self, event, data):

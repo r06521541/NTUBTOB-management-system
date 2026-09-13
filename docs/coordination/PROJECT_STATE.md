@@ -1,17 +1,20 @@
 # 專案狀態
 
-更新時間：2026-09-12（repository核對；僅TASK198 staging具名key/Ready唯讀查證，未查production runtime）
+更新時間：2026-09-13（TASK198 TestFlight唯讀查證；未查production runtime）
 
 維護角色：Main Work
 
-最近已合併證據：`2ae97b339e542eeea766489dffdcd21aa45cfef6`（TASK-198／PR254）。
+最近已合併證據：`a605fb4c6961e3536a7c5bf9d12a104b14316a41`（TASK-198／PR256）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
-TASK198最新：PR255已合併，CI34702831760成功。ASC單檔匯入與六欄設定已完成，不重做。Owner後續
-收到OPERATION_UNRESOLVED；未見journal、簽署run或暫存Secret。虛構測試重現ASC範圍錯誤被遮蔽，
-實際原因未定。現將ASC唯讀前檢移到P12輸入之前，並修正Apple官方內部群組explicit null表示法，
-仍拒絕公開／外部null／缺失欄位；237tests233PASS4skip，Security37 ACCEPT。通過CI／合併後只做
-一次GET-only觀察，不盲目重跑簽署或要求重填。
+TASK198最新：Owner獨立終端後續execute仍回OPERATION_UNRESOLVED；本次真實journal已存在、完整，
+僅START/RESULT且source為a605，唯讀檢查無dispatch/PUT；遠端runs0／Secrets0、無active operator。
+精確舊原因未記錄，不能回推。保留並隔離該操作，不重輸密碼、不重試／清除／搬移日誌；先前無journal
+與conditional execute記錄已被新狀態取代。Owner明確要求修診斷：branch codex/task-198-operation-diagnostics
+完成固定失敗點／第一原因保留、寫入與Secret狀態分離、密碼前日誌guard及純唯讀--status；252測試PASS、
+4既有平台SKIP（含Windows虛構native測試通過）、8檔quality PASS。writer18與Security40主動回報已處理；
+Security40 ACCEPT、獨立74fake測試PASS，Main確認8檔LF hash一致。待單一PR／新CI整合；
+此輪不讀真實資產、不簽署／上傳或變更雲端；尚無TestFlight build。
 
 ## Active role lanes
 

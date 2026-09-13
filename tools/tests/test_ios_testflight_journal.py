@@ -1,4 +1,6 @@
 import ctypes as c
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -49,7 +51,7 @@ class JournalTests(unittest.TestCase):
         native.write.side_effect = write
         return native
 
-    def opening(self, native, create=True):
+    def opening(self, native, create=True, readonly=False):
         with (
             mock.patch.object(
                 journal.preparation, "local_app_data", return_value=Path("C:/fictional")
@@ -57,7 +59,98 @@ class JournalTests(unittest.TestCase):
             mock.patch.object(journal.preparation, "safe_directory"),
             mock.patch.object(Path, "exists", return_value=True),
         ):
-            return journal.Journal.open(create=create, nativefactory=lambda: native)
+            return journal.Journal.open(
+                create=create, readonly=readonly, nativefactory=lambda: native
+            )
+
+    def test_readonly_handle_and_record_refused_without_damage(self):
+        raw = journal.encode_event([], "START", self.start())
+        native = self.fake(raw)
+        value = self.opening(native, create=False, readonly=True)
+        with self.assertRaises(journal.Rejected):
+            value.record("DISPATCH_ATTEMPT")
+        self.assertTrue(value.intact)
+        native.write.assert_not_called()
+        native.flush.assert_not_called()
+        self.assertTrue(native.journal_handle.call_args.kwargs["readonly"])
+        value.close()
+        real = object.__new__(journal.Native)
+        real.open = mock.Mock(return_value=7)
+        real.journal_handle(Path("fictional"), create=False, readonly=True)
+        self.assertEqual(real.open.call_args.args[1], 0x80020000)
+        self.assertEqual(real.open.call_args.args[2], 0)
+        with self.assertRaises(journal.Rejected):
+            journal.Journal.open(
+                create=True, readonly=True, nativefactory=lambda: native
+            )
+
+    def test_failure_exact_schema_once_and_legacy_summary(self):
+        value = self.opening(self.fake())
+        value.record("START", **self.start())
+        value.record(
+            "RESULT",
+            classification="UNRESOLVED",
+            cleanup_verified=False,
+            secret_absence_verified=True,
+            owner_distribution_verified=False,
+        )
+        legacy = journal.summary(value, "a" * 40)
+        self.assertEqual(legacy["failure"]["reason"], "LEGACY_REASON_UNAVAILABLE")
+        self.assertEqual(legacy["external_write_state"], "NOT_ATTEMPTED")
+        self.assertEqual(legacy["secret_transfer_state"], "NOT_ATTEMPTED")
+        self.assertFalse(legacy["secret_absence_verified"])
+        failure = dict(
+            stage="journal_open", check="journal_path", reason="JOURNAL_REJECTED"
+        )
+        value.record("FAILURE", **failure)
+        self.assertEqual(journal.summary(value, "a" * 40)["failure"], failure)
+        self.assertFalse(journal.summary(value, "c" * 40)["source_matches"])
+        with self.assertRaises(journal.Rejected):
+            journal.encode_event(value.events, "FAILURE", failure)
+        for data in (
+            failure | {"private": "private-sentinel"},
+            failure | {"reason": "private-sentinel"},
+        ):
+            with self.assertRaises(journal.Rejected):
+                journal.encode_event(value.events[:1], "FAILURE", data)
+        value.intact = False
+        damaged = journal.summary(value, "a" * 40)
+        self.assertEqual(damaged["external_write_state"], "UNKNOWN")
+        self.assertEqual(damaged["secret_transfer_state"], "UNRESOLVED")
+        self.assertEqual(damaged["failure"]["reason"], "JOURNAL_REJECTED")
+        value.close()
+
+    def test_precheck_is_metadata_only_and_never_creates_or_repairs(self):
+        native = self.fake()
+        with (
+            mock.patch.object(
+                journal.preparation, "local_app_data", return_value=Path("C:/fictional")
+            ),
+            mock.patch.object(journal.preparation, "safe_directory"),
+            mock.patch.object(journal.preparation, "secure_acl") as repair,
+            mock.patch.object(Path, "mkdir") as mkdir,
+            mock.patch.object(Path, "lstat") as stat,
+        ):
+            self.assertEqual(
+                journal.new_operation_preflight(nativefactory=lambda: native),
+                "EXISTING_OPERATION",
+            )
+            native.open_handle.assert_not_called()
+            stat.side_effect = [object(), FileNotFoundError()]
+            self.assertEqual(
+                journal.new_operation_preflight(nativefactory=lambda: native),
+                "READY_NO_JOURNAL",
+            )
+            stat.side_effect = [FileNotFoundError()]
+            self.assertEqual(
+                journal.new_operation_preflight(nativefactory=lambda: native),
+                "READY_ROOT_NOT_CREATED",
+            )
+        mkdir.assert_not_called()
+        repair.assert_not_called()
+        native.journal_handle.assert_not_called()
+        native.read.assert_not_called()
+        native.write.assert_not_called()
 
     def test_private_fields_rejected(self):
         with self.assertRaises(journal.Rejected):
@@ -175,6 +268,53 @@ class JournalTests(unittest.TestCase):
         with self.assertRaises(journal.Rejected):
             value.record("SECRET_DELETE_ATTEMPT", name=journal.wire.SECRETS[0])
         value.close()
+
+
+@unittest.skipUnless(sys.platform == "win32", "Native Windows journal fixture")
+class NativeJournalTests(unittest.TestCase):
+    def test_native_create_append_reopen(self):
+        # Only a newly created fictional temporary directory; no Owner journal,
+        # credentials, network, or mocked native/ACL operations.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(strict=True)
+            (root / "Temp").mkdir()
+            with mock.patch.object(
+                journal.preparation, "local_app_data", return_value=root
+            ):
+                self.assertEqual(
+                    journal.new_operation_preflight(), "READY_ROOT_NOT_CREATED"
+                )
+                self.assertFalse((root / journal.DIRECTORY).exists())
+                value = journal.Journal.open(create=True)
+                try:
+                    value.record("START", **JournalTests().start())
+                    value.record("DISPATCH_ATTEMPT")
+                    self.assertTrue(value.intact)
+                finally:
+                    value.close()
+                self.assertEqual(
+                    journal.new_operation_preflight(), "EXISTING_OPERATION"
+                )
+                reopened = journal.Journal.open(create=False, readonly=True)
+                try:
+                    self.assertTrue(reopened.intact)
+                    self.assertEqual(len(reopened.events), 2)
+                    with self.assertRaises(journal.Rejected):
+                        reopened.record(
+                            "RESULT",
+                            classification="STOP",
+                            cleanup_verified=False,
+                            secret_absence_verified=False,
+                            owner_distribution_verified=False,
+                        )
+                    self.assertTrue(reopened.intact)
+                    self.assertEqual(len(reopened.events), 2)
+                    self.assertEqual(
+                        journal.summary(reopened, "a" * 40)["external_write_state"],
+                        "ATTEMPTED",
+                    )
+                finally:
+                    reopened.close()
 
 
 if __name__ == "__main__":

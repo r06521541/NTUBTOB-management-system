@@ -5,6 +5,134 @@ from tools import ios_testflight_dispatch as dispatch
 
 
 class DispatchTests(unittest.TestCase):
+    def test_zero_put_is_not_observed_absence(self):
+        result = self.session().public()
+        self.assertFalse(result["current_absence_verified"])
+        self.assertTrue(result["retention_resolved"])
+        self.assertEqual(result["secret_transfer_state"], "NOT_ATTEMPTED")
+
+    def test_step_keeps_fixed_failure_without_private_exception(self):
+        session = self.session()
+        session.policy.side_effect = RuntimeError("private-sentinel")
+        result = session.begin()
+        self.assertEqual(
+            result["failure"],
+            {
+                "stage": "dispatch_preflight",
+                "check": "unexpected",
+                "reason": "UNEXPECTED_INTERNAL_ERROR",
+            },
+        )
+        self.assertNotIn("private-sentinel", repr(result))
+
+    def test_http_and_transport_fixed_reasons_and_no_external_write(self):
+        for status, reason in (
+            (401, "HTTP_UNAUTHENTICATED"),
+            (403, "HTTP_FORBIDDEN"),
+            (404, "HTTP_NOT_FOUND"),
+            (429, "HTTP_RATE_LIMITED"),
+            (503, "HTTP_SERVER_ERROR"),
+            (302, "HTTP_STATUS_REJECTED"),
+        ):
+            session = self.session()
+            session.api.call.side_effect = lambda *args: (
+                status,
+                {"private": "sentinel"},
+            )
+            result = session.begin()
+            self.assertEqual(result["failure"]["reason"], reason)
+            self.assertEqual(result["external_write_state"], "NOT_ATTEMPTED")
+            self.assertFalse(result["current_absence_verified"])
+        for error, reason in (
+            (TimeoutError("private-sentinel"), "TRANSPORT_TIMEOUT"),
+            (OSError("private-sentinel"), "TRANSPORT_REJECTED"),
+            (RuntimeError("private-sentinel"), "UNEXPECTED_INTERNAL_ERROR"),
+        ):
+            session = self.session()
+            session.api.call.side_effect = error
+            result = session.begin()
+            self.assertEqual(result["failure"]["reason"], reason)
+            self.assertNotIn("private-sentinel", repr(result))
+
+    def test_budget_deadline_and_journal_failure_are_separate(self):
+        for field, value, reason in (
+            ("requests", 512, "REQUEST_BUDGET_EXHAUSTED"),
+            ("deadline", 0, "DEADLINE_EXCEEDED"),
+        ):
+            session = self.session()
+            setattr(session, field, value)
+            self.assertEqual(session.begin()["failure"]["reason"], reason)
+            self.assertFalse(session.api.call.called)
+        session = self.session()
+        session.journal = mock.Mock(intact=True)
+        session.journal.record.side_effect = OSError("private-sentinel")
+        result = session.begin()
+        self.assertEqual(result["failure"]["reason"], "JOURNAL_REJECTED")
+        self.assertEqual(result["external_write_state"], "UNKNOWN")
+        self.assertTrue(
+            all(c.args[0] == "GET" for c in session.api.call.call_args_list)
+        )
+
+    def test_cleanup_secondary_failure_preserves_primary(self):
+        session = self.session()
+        session.begin()
+        session.bound.side_effect = dispatch.Rejected()
+        first = session.advance()["failure"]
+        session.attempted.append(dispatch.wire.SECRETS[0])
+        session.api.call.side_effect = lambda *args: (503, {})
+        result = session.cleanup()
+        self.assertEqual(result["failure"], first)
+        self.assertEqual(result["cleanup_failure"]["stage"], "cleanup")
+        self.assertEqual(result["cleanup_failure"]["reason"], "HTTP_SERVER_ERROR")
+        self.assertEqual(result["secret_transfer_state"], "UNRESOLVED")
+
+    def test_interrupt_before_and_during_external_write(self):
+        session = self.session()
+        session.policy.side_effect = KeyboardInterrupt()
+        result = session.begin()
+        self.assertEqual(result["failure"]["reason"], "INTERRUPTED")
+        self.assertEqual(result["external_write_state"], "NOT_ATTEMPTED")
+        session = self.session()
+        original = session.api.call.side_effect
+
+        def call(method, path, body=None):
+            if method == "POST":
+                raise KeyboardInterrupt()
+            return original(method, path, body)
+
+        session.api.call.side_effect = call
+        result = session.begin()
+        self.assertEqual(result["failure"]["reason"], "INTERRUPTED")
+        self.assertEqual(result["external_write_state"], "UNKNOWN")
+        self.assertTrue(result["http_uncertain"])
+        session.begin()
+        self.assertEqual(
+            sum(c.args[0] == "POST" for c in session.api.call.call_args_list), 1
+        )
+
+    def test_recovery_failure_legacy_and_attempt_state(self):
+        start = {"event": "START", "data": dict(sha="a" * 40, nonce="b" * 64, issued=1)}
+        journal = mock.Mock(intact=True)
+        journal.events = [start, {"event": "RESULT", "data": {}}]
+        recovered = dispatch.Session.recover(journal, api=self.api())
+        self.assertEqual(recovered.public()["external_write_state"], "NOT_ATTEMPTED")
+        self.assertFalse(recovered.public()["current_absence_verified"])
+        self.assertEqual(
+            recovered.public()["failure"]["reason"], "LEGACY_REASON_UNAVAILABLE"
+        )
+        expected = dispatch.diagnostics.failure(
+            "dispatch_request", "dispatch_result", "HTTP_FORBIDDEN"
+        )
+        journal.events = [
+            start,
+            {"event": "FAILURE", "data": expected},
+            {"event": "DISPATCH_ATTEMPT", "data": {}},
+        ]
+        recovered = dispatch.Session.recover(journal, api=self.api())
+        self.assertEqual(recovered.public()["failure"], expected)
+        self.assertEqual(recovered.public()["external_write_state"], "UNKNOWN")
+        self.assertFalse(recovered.api.call.called)
+
     def test_expired_session_gets_one_cleanup_only_budget(self):
         session = self.session()
         session.deadline = 0
@@ -220,6 +348,31 @@ class DispatchTests(unittest.TestCase):
             env["can_admins_bypass"] = value
             with self.assertRaises(dispatch.Rejected):
                 session.policy()
+        env["can_admins_bypass"] = False
+        branches = values[dispatch.ENV + "/deployment-branch-policies?per_page=100"]
+        for target, field, changed, check in (
+            (values["user"], "login", "private-sentinel", "github_user"),
+            (values[dispatch.API], "full_name", "private-sentinel", "repository"),
+            (values[dispatch.API + "/git/ref/heads/main"], "object", {}, "main_head"),
+            (values[dispatch.WORKFLOW], "state", "disabled", "workflow"),
+            (env, "name", "private-sentinel", "environment"),
+            (env, "deployment_branch_policy", {}, "branch_policy"),
+            (reviewer, "prevent_self_review", True, "reviewers"),
+            (
+                env,
+                "protection_rules",
+                [reviewer, {"type": "unknown"}],
+                "protection_rules",
+            ),
+            (branches, "total_count", 2, "branch_policy"),
+            (values[dispatch.WORKFLOW], "id", 99, "policy_identity"),
+        ):
+            with self.subTest(check=check), mock.patch.dict(target, {field: changed}):
+                with self.assertRaises(dispatch.Rejected) as error:
+                    session.policy()
+                self.assertEqual(error.exception.failure["check"], check)
+                self.assertEqual(error.exception.args, ("DISPATCH_REJECTED",))
+                self.assertNotIn("private-sentinel", repr(error.exception.failure))
 
     def test_approval_timeout_not_repeated(self):
         session = self.session()

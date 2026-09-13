@@ -4,25 +4,31 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7
+base_commit: a605fb4c6961e3536a7c5bf9d12a104b14316a41
 updated_by: main-work
 updated_at: 2026-09-13
 note: >
-  IOS-TF-01 active. PR255 merged after CI34702831760 SUCCESS16/16. ASC import
-  previously COMPLETE; never repeat it or six-field entry. Owner then reported
-  OPERATION_UNRESOLVED after P12 input. No journal/signing run/transfer Secrets
-  found. Fictional regression proves masked OWNER_SCOPE_REJECTED, actual cause
-  unknown. Browser logged in; group Owner-only/manual/no builds, upload key active.
-  Branch codex/task-198-asc-preflight. Main owns operator/owner and direct tests;
-  Security37 ACCEPT received/handled; reviewers completed/read-only.237affected233PASS4skip,
-  quality/compile/diffPASS. Five sandbox ACL fixture errors passed scoped offline
-  elevated rerun. --check-asc performs bounded GET-only with existing saved ASC
-  custody, no P12 input/read or mutation; execution retains fresh material/scope
-  checks. Test portability fixed; official Apple internal/null public-link shape
-  now accepted by shared owner/upload helper, not missing/external-null/true.
-  Main verified public docs, actual account failure still unknown. Same PR256;
-  await latest CI/merge before one live read-only check.
-  No signing retry, password guessing, widened permissions or raw secret output.
+  Owner-requested diagnostics repair on codex/task-198-operation-diagnostics,
+  base d54354d4cd5398684751a050a1b1da333fc457dc. Runtime8paths frozen for Security40;
+  writer18 completed/read-only, proactive delivery received/handled. Main256offline
+  tests252PASS4existingplatformSKIP; journal12includingnativePASS; quality8pathsPASS.
+  Fixed first-failure stage/check/reason plus secondary cleanup failure, truthful
+  mutation/transfer states, early metadata-only existing-journal guard before
+  password, read-only --status and backward-readable FAILURE journal event.
+  Security40 formal ACCEPT received/handled, independent74fakePASS/diffPASS;
+  Main verified all8LF hashes match review. Both advisors completed/read-only.
+  Commit/one PR/hosted CI integration next; no live runtime validation claimed.
+  Latest real original journal EXISTS/intact START,RESULT only, source a605fb4c6961e3536a7c5bf9d12a104b14316a41;
+  read-only evidence no dispatch/PUT, remote runs0/Secrets0, no active operator.
+  Its precise legacy cause is unavailable. Quarantine/preserve original journal;
+  do not request P12, execute/recover, delete/reset/move journal or reload assets.
+  Prior notes about absent journal and conditional one-execute are superseded by
+  this existing operation. This repair cannot retroactively establish its cause.
+  Original execution/recovery context remains Owner-started independent terminal;
+  no Codex-child replacement, arbitrary resolver or cross-context new intent.
+  IOS-TF-01 repository delivery authorization remains; no signing, staging/cloud,
+  Apple/store/Secret mutations in this repair. Last accepted runtime main a605fb4c6961e3536a7c5bf9d12a104b14316a41,
+  PR256 CI34705008235 SUCCESS16/16. New source needs independent acceptance and CI.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md
