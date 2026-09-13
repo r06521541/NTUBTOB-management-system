@@ -1,5 +1,56 @@
 # TASK-198 report
 
+## Journal root mismatch (2026-09-13)
+
+Owner's independently opened Windows terminal returned logical_journal
+DIRECTORY_ABSENT, package_journal VERIFIED_NO_JOURNAL, saved_assets METADATA_PASS,
+source a605fb4c6961e3536a7c5bf9d12a104b14316a41. Reader.inspect checked five assets'
+metadata/ACL without payload. The initial py -c instruction lost string quotes
+in legacy PowerShell argument transport, before filesystem inspection; corrected
+to a here-string piped to py -3.10 -B -, with fictional Windows PowerShell
+transport test PASS. Owner then reported the same-terminal NativeJournalTests OK.
+These two Owner results are reported evidence, not Main direct UI observation.
+Main fresh metadata: active execute0, signing runs0, transfer Secrets0. Main reran
+all9journal tests/quality/diffPASS. Accepted CI head ebc8b65cd86ab04fdd4ba332404e647e938832d6
+and merged main have identical Git trees. No runtime source changed in this slice.
+Security39 ACCEPT received/handled; independent8mocktestsPASS, Main9native-inclusive
+PASS, Owner native OK separately attributed. Preserve the six diagnostic paths as
+a branch checkpoint (no diagnostic PR/CI), then clean accepted main and fresh
+preflight. Subsequent execution/recovery is pinned to the original Owner-started
+terminal and non-package KnownFolder journal, never a Codex child console.
+
+PR256 merged a605fb4c6961e3536a7c5bf9d12a104b14316a41 after final CI34705008235
+SUCCESS16/16. Actual reviewed --check-asc returned ASC_PREFLIGHT_PASSED. Subsequent
+Owner-approved --execute --settings returned OPERATION_UNRESOLVED after password,
+run_id null, secret_absence true. Fresh read-only checks: no active execute, no
+signing workflow run, no six transfer Secrets; no operation.jsonl at either known
+logical LocalAppData or observed Codex package LocalCache journal location.
+
+Native directory metadata rejects only final-path equality: the handle points
+under Packages/OpenAI.Codex_2p2nqsd0c76g0/LocalCache/Local, while the expected root
+uses unredirected KnownFolder LocalAppData. Root ACL, owner, directory type and
+no-reparse checks pass. Strict check correctly prevents journal creation/dispatch.
+Session absence is vacuously true with no PUT attempt; it is not completed cleanup.
+Windows KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET still returned unredirected path;
+GetCurrentPackageFamilyName returned NO_PACKAGE. Do not infer safe context from
+one identity API or loosen arbitrary canonical-path validation.
+
+Added fictional native create/append/reopen fixture: one initial fixture setup
+failure because patched KnownFolder lacked Temp; after providing that fictional
+Temp, real Native/ACL lifecycle PASS (one test). No production source change;
+test itself does not reproduce AppData virtualization. No private payload read,
+real journal mutation/delete, signing retry or cloud/store change this diagnosis.
+Security38 architecture packet received/handled. Next requires Owner to open an
+independent Windows terminal, followed by metadata-only context/dual-view checks;
+not a request for P12 or permission to retry. No automatic asset reimport/copy.
+Full journal suite9PASS. Initial owned-file quality required isort ordering;
+formatted only that test path, then quality/diffPASS. Changes remain uncommitted
+on the diagnostic branch; no hosted CI/PR or production implementation this turn.
+
+Microsoft documents package-private AppData views and their lifecycle:
+https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes
+https://learn.microsoft.com/en-us/windows/win32/api/shlobj_core/ne-shlobj_core-known_folder_flag
+
 ## ASC preflight before password (2026-09-13)
 
 PR255 merged9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7 after CI34702831760

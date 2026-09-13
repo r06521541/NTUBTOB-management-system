@@ -1,17 +1,19 @@
 # 專案狀態
 
-更新時間：2026-09-12（repository核對；僅TASK198 staging具名key/Ready唯讀查證，未查production runtime）
+更新時間：2026-09-13（TASK198 TestFlight唯讀查證；未查production runtime）
 
 維護角色：Main Work
 
-最近已合併證據：`2ae97b339e542eeea766489dffdcd21aa45cfef6`（TASK-198／PR254）。
+最近已合併證據：`a605fb4c6961e3536a7c5bf9d12a104b14316a41`（TASK-198／PR256）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
-TASK198最新：PR255已合併，CI34702831760成功。ASC單檔匯入與六欄設定已完成，不重做。Owner後續
-收到OPERATION_UNRESOLVED；未見journal、簽署run或暫存Secret。虛構測試重現ASC範圍錯誤被遮蔽，
-實際原因未定。現將ASC唯讀前檢移到P12輸入之前，並修正Apple官方內部群組explicit null表示法，
-仍拒絕公開／外部null／缺失欄位；237tests233PASS4skip，Security37 ACCEPT。通過CI／合併後只做
-一次GET-only觀察，不盲目重跑簽署或要求重填。
+TASK198最新：PR256已合併，CI34705008235成功16/16；實際ASC唯讀前檢PASS。六欄設定與ASC匯入
+不重做。Owner後續execute仍STOP；native metadata確認新journal目錄被導向Codex package LocalCache，
+與KnownFolder預期不同，嚴格路徑檢查擋在建立日誌前。兩個已知位置未見journal檔、遠端runs0／Secrets0。
+本輪9項journal測試PASS、單檔quality/diffPASS；六個診斷-only paths保存在branch checkpoint，不改正式程式。
+Owner獨立終端回報logical root不存在、package無journal、assets metadata PASS、虛構native OK。
+Security39條件式ACCEPT已處理；回原已驗收clean main、fresh preflight後，只在原Owner終端執行／復原。
+不另開診斷PR/CI、不搬檔或放寬檢查；唯一剩餘輸入是P12。尚未簽署／上傳，實機驗收未開始。
 
 ## Active role lanes
 

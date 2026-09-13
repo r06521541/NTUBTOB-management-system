@@ -1,5 +1,33 @@
 # TASK-198 review
 
+## Independent terminal readiness: Security39 ACCEPT
+
+Main received/handled lease39 final, reviewer completed/read-only. No actionable
+finding in the six diagnostic-only paths; no production diff. Independent8mock
+journal testsPASS; test LF-SHA256
+be84dbcedc95d4111288cb5badf32d84b791fed652f95f874a6d986ee6d42c2f.
+Main9includingnativePASS/quality/diffPASS. Owner same-terminal native OK and
+metadata results explicitly remain Owner-reported, not reviewer native evidence.
+Preserve branch checkpoint, then verify clean exact accepted main and fresh
+preflight before one existing-wrapper execution in that original Owner terminal.
+No new diagnostic PR/CI. Context/source/asset drift, any journal/active intent or
+unconfirmed dual-view absence stops; no copy/reset/import or arbitrary resolver.
+Positive fixture does not prove AppData virtualization fixed, power-loss durability,
+actual journal creation, signing or upload. No reviewer external mutations.
+
+## Journal context: Security38 conditional architecture ACCEPT
+
+Main received/handled /root/task181_review lease38; completed/read-only. Prefer
+evaluating an Owner-started independent Windows terminal over accepting arbitrary
+observed final paths or a package-local resolver not justified by OS evidence.
+Before execute: same identity/exact source/assets custody metadata, both known
+journal views and remote confirmed-zero; then one fixed execution/recovery context.
+Any existing/unknown journal or missing asset stops, no create/copy/import/reset.
+Do not delete the existing empty root. A new terminal is not retry authorization.
+Reviewer used Main's native evidence and Microsoft public documentation; no real
+metadata/private/cloud calls or tests by reviewer. Main fictional native lifecycle
+PASS; no production implementation or code acceptance claimed by this review.
+
 ## Internal group null-shape compatibility: Security37 ACCEPT
 
 Main received and handled /root/task181_review lease37 final; completed/read-only.

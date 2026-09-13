@@ -1,28 +1,39 @@
 active_task: TASK-198
-status: in_progress
-next_actor: /root
+status: awaiting_owner_input
+next_actor: owner
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 9fb467ea37b7f2e2b4c5f06a48d8570d7a8997b7
+base_commit: a605fb4c6961e3536a7c5bf9d12a104b14316a41
 updated_by: main-work
 updated_at: 2026-09-13
 note: >
-  IOS-TF-01 active. PR255 merged after CI34702831760 SUCCESS16/16. ASC import
-  previously COMPLETE; never repeat it or six-field entry. Owner then reported
-  OPERATION_UNRESOLVED after P12 input. No journal/signing run/transfer Secrets
-  found. Fictional regression proves masked OWNER_SCOPE_REJECTED, actual cause
-  unknown. Browser logged in; group Owner-only/manual/no builds, upload key active.
-  Branch codex/task-198-asc-preflight. Main owns operator/owner and direct tests;
-  Security37 ACCEPT received/handled; reviewers completed/read-only.237affected233PASS4skip,
-  quality/compile/diffPASS. Five sandbox ACL fixture errors passed scoped offline
-  elevated rerun. --check-asc performs bounded GET-only with existing saved ASC
-  custody, no P12 input/read or mutation; execution retains fresh material/scope
-  checks. Test portability fixed; official Apple internal/null public-link shape
-  now accepted by shared owner/upload helper, not missing/external-null/true.
-  Main verified public docs, actual account failure still unknown. Same PR256;
-  await latest CI/merge before one live read-only check.
-  No signing retry, password guessing, widened permissions or raw secret output.
+  Owner independently opened Windows PowerShell and returned metadata at exact
+  a605fb4c6961e3536a7c5bf9d12a104b14316a41: logical journal DIRECTORY_ABSENT,
+  package journal VERIFIED_NO_JOURNAL, saved_assets METADATA_PASS. No copying or
+  private input. Main fresh remote GET still zero runs/transfer Secrets.
+  Owner-reported same-terminal fictional native fixture OK. Security39 ACCEPT
+  received/handled; independent8mocktestsPASS, Main9includingnativePASS. Preserve
+  six diagnostic-only paths on this branch, then return clean accepted main.
+  No separate diagnostic PR/CI; no runtime source changed. Fresh existing wrapper
+  preflight must PASS before one Owner-terminal --execute --settings. Only P12
+  input remains; never reenter metadata. Main does not launch a child console.
+  IOS-TF-01 active. PR256 merged after CI34705008235 SUCCESS16/16; actual
+  --check-asc PASS. Subsequent Owner password execution OPERATION_UNRESOLVED,
+  run_id null, absence true. Fresh GET: zero signing runs/transfer Secrets;
+  no active execute; no journal file in either known logical/package location.
+  Native metadata proves journal root final path is Codex package LocalCache,
+  not expected KnownFolder path; strict check stops before file creation.
+  ACL/type pass. Absence true is vacuous with zero PUTs, not cleanup evidence.
+  No new password request or execute/recover retry. Existing empty directory kept.
+  Branch codex/task-198-journal-native is the diagnostic preservation checkpoint;
+  no production source change. Native fictional lifecycle PASS. Security38/39
+  conditional context-recovery ACCEPT received/handled; all advisors completed.
+  Owner terminal
+  stays open. Missing assets never trigger reimport/copy. This run/recovery context
+  must remain Owner-started independent PowerShell; no Codex-child replacement.
+  KF_FLAG_RETURN_FILTER_REDIRECTION_TARGET still returned logical LocalAppData;
+  Python reports NO_PACKAGE despite observed path. No resolver/fallback approved.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

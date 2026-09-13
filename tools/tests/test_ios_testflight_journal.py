@@ -1,4 +1,6 @@
 import ctypes as c
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -175,6 +177,32 @@ class JournalTests(unittest.TestCase):
         with self.assertRaises(journal.Rejected):
             value.record("SECRET_DELETE_ATTEMPT", name=journal.wire.SECRETS[0])
         value.close()
+
+
+@unittest.skipUnless(sys.platform == "win32", "Native Windows journal fixture")
+class NativeJournalTests(unittest.TestCase):
+    def test_native_create_append_reopen(self):
+        # Only a newly created fictional temporary directory; no Owner journal,
+        # credentials, network, or mocked native/ACL operations.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(strict=True)
+            (root / "Temp").mkdir()
+            with mock.patch.object(
+                journal.preparation, "local_app_data", return_value=root
+            ):
+                value = journal.Journal.open(create=True)
+                try:
+                    value.record("START", **JournalTests().start())
+                    value.record("DISPATCH_ATTEMPT")
+                    self.assertTrue(value.intact)
+                finally:
+                    value.close()
+                reopened = journal.Journal.open(create=False)
+                try:
+                    self.assertTrue(reopened.intact)
+                    self.assertEqual(len(reopened.events), 2)
+                finally:
+                    reopened.close()
 
 
 if __name__ == "__main__":
