@@ -11,6 +11,7 @@ import time
 
 from tools import ios_profile_intake as primitives
 from tools import ios_testflight_diagnostics as diagnostics
+from tools import ios_testflight_journal as journal_module
 from tools import ios_testflight_wire as wire
 
 API = "repos/" + wire.REPO
@@ -148,7 +149,7 @@ class Session:
     @classmethod
     def recover(cls, journal, *, api=None):
         """Never reload payloads or grant sign/approve/reupload authority."""
-        events = journal.events
+        events = journal_module.active_events(journal.events)
         if not events or events[0]["event"] != "START":
             raise Rejected()
         start = events[0]["data"]
@@ -754,11 +755,12 @@ class Session:
         self.context("artifact_verification", "artifact")
         if self.journal is None or self.journal_failed:
             raise Rejected()
-        prior = [e["data"] for e in self.journal.events if e["event"] == "CANDIDATE"]
+        events = journal_module.active_events(self.journal.events)
+        prior = [e["data"] for e in events if e["event"] == "CANDIDATE"]
         if prior:
             if len(prior) != 1:
                 raise Rejected()
-            start = self.journal.events[0]["data"]
+            start = events[0]["data"]
             self.bound()
             self.job()
             return recovery.fingerprint(

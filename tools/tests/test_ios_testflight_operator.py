@@ -14,6 +14,282 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_unsent_cli_modes_are_explicit_and_preserve_source_gate(self):
+        staging, _, _, _ = self.fixture()
+        for args in (["--check-unsent"], ["--execute-unsent", "--settings"]):
+            with (
+                patch.object(
+                    operator, "preflight", return_value=("c" * 40, staging)
+                ) as preflight,
+                patch.object(operator, "check_unsent") as check,
+                patch.object(
+                    operator,
+                    "execute_unsent",
+                    return_value={"classification": "BUILD_PENDING"},
+                ) as run,
+                patch.object(operator, "metadata") as metadata,
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                operator.main(args)
+            preflight.assert_called_once_with(recovery_only=False)
+            metadata.assert_not_called()
+            if args == ["--check-unsent"]:
+                check.assert_called_once_with("c" * 40)
+                run.assert_not_called()
+            else:
+                check.assert_not_called()
+                run.assert_called_once_with("c" * 40, staging)
+        with (
+            patch.object(operator, "preflight") as preflight,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            self.assertEqual(operator.main(["--execute-unsent"]), 2)
+        preflight.assert_not_called()
+
+    def test_successor_unacknowledged_append_never_begins_or_finalizes(self):
+        from tools.tests.test_ios_testflight_journal import JournalTests
+
+        staging, config, materials, target = self.fixture()
+        helper = JournalTests()
+        value, native = helper.stopped()
+        before = native.data
+        proof = Mock()
+        proof.consume.return_value = value.unsent_snapshot()["digest"]
+        native.flush.return_value = False
+        session = Mock(nonce="d" * 64, issued=200, run_id=None)
+        session.public.return_value = {"failure": None}
+        lookup = Mock()
+        lookup.inventory.return_value = target
+        with (
+            patch.object(operator, "finalize_session") as finalize,
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            result = operator.execute(
+                "c" * 40,
+                staging,
+                config,
+                "owner@example.invalid",
+                collect=Mock(return_value=materials),
+                owner_factory=Mock(return_value=lookup),
+                session_factory=Mock(return_value=session),
+                successor_journal=value,
+                unsent_verify=Mock(return_value=proof),
+            )
+        self.assertEqual(result["classification"], "JOURNAL_REJECTED")
+        self.assertEqual(result["failure"]["stage"], "journal_start")
+        self.assertEqual(result["external_write_state"], "UNKNOWN")
+        self.assertTrue(native.data.startswith(before))
+        self.assertEqual(
+            [r["event"] for r in operator.journal_module.parse(native.data)[0]],
+            ["START", "RESULT", "UNSENT_SUCCESSOR"],
+        )
+        session.begin.assert_not_called()
+        finalize.assert_not_called()
+        self.assertEqual(session.signing, b"")
+        reopened = helper.opening(helper.fake(native.data), create=False)
+        with self.assertRaises(operator.journal_module.Rejected):
+            reopened.unsent_snapshot()
+        reopened.close()
+
+    def test_successor_pretransition_faults_never_append_or_cleanup(self):
+        from tools.tests.test_ios_testflight_journal import JournalTests
+
+        staging, config, materials, target = self.fixture()
+        for point in (
+            "initial_proof",
+            "collect",
+            "inventory",
+            "frames",
+            "final_proof",
+            "consume",
+        ):
+            with self.subTest(point=point):
+                journal, native = JournalTests().stopped()
+                before = native.data
+                session = Mock(nonce="d" * 64, issued=200, run_id=None)
+                session.public.return_value = {"failure": None}
+                proof = Mock()
+                proof.consume.return_value = journal.unsent_snapshot()["digest"]
+                verifier = Mock(return_value=proof)
+                collect = Mock(return_value=materials)
+                lookup = Mock()
+                lookup.inventory.return_value = target
+                frames = Mock(return_value=(b"fictional-sign", b"fictional-asc"))
+                error = operator.unsent.Rejected("UNSENT_PROOF_EXPIRED")
+                if point == "final_proof":
+                    verifier.side_effect = [proof, error]
+                else:
+                    {
+                        "initial_proof": verifier,
+                        "collect": collect,
+                        "inventory": lookup.inventory,
+                        "frames": frames,
+                        "consume": proof.consume,
+                    }[point].side_effect = error
+                with (
+                    patch.object(operator, "frames", frames),
+                    patch.object(operator, "finalize_session") as finalize,
+                    patch("sys.stdout", new_callable=io.StringIO),
+                ):
+                    result = operator.execute(
+                        "c" * 40,
+                        staging,
+                        config,
+                        "owner@example.invalid",
+                        collect=collect,
+                        owner_factory=Mock(return_value=lookup),
+                        session_factory=Mock(return_value=session),
+                        successor_journal=journal,
+                        unsent_verify=verifier,
+                    )
+                self.assertEqual(result["classification"], "UNSENT_PROOF_EXPIRED")
+                self.assertEqual(native.data, before)
+                session.begin.assert_not_called()
+                finalize.assert_not_called()
+                if point in {"final_proof", "consume"}:
+                    self.assertEqual(session.signing, b"")
+                    self.assertEqual(session.asc, b"")
+
+    def test_successor_execution_keeps_old_prefix_and_new_failure(self):
+        from tools.tests.test_ios_testflight_journal import JournalTests
+
+        staging, config, materials, target = self.fixture()
+        helper = JournalTests()
+        native = helper.fake()
+        journal = helper.opening(native)
+        journal.record("START", **helper.start())
+        old = operator.diagnostics.failure(
+            "journal_start", "journal_write", "JOURNAL_REJECTED"
+        )
+        journal.record("FAILURE", **old)
+        journal.record(
+            "RESULT",
+            classification="UNRESOLVED",
+            cleanup_verified=False,
+            secret_absence_verified=True,
+            owner_distribution_verified=False,
+        )
+        before = native.data
+        proof = Mock()
+        proof.consume.return_value = journal.unsent_snapshot()["digest"]
+        verifier = Mock(return_value=proof)
+        session = Mock(nonce="d" * 64, issued=200, run_id=None)
+        new = operator.diagnostics.failure(
+            "dispatch_preflight", "main_head", "CHECK_REJECTED"
+        )
+        state = dict(
+            failure=new,
+            current_absence_verified=False,
+            retention_resolved=True,
+            external_write_state="NOT_ATTEMPTED",
+            secret_transfer_state="NOT_ATTEMPTED",
+        )
+        session.public.return_value = state
+
+        def begin():
+            self.assertEqual(journal.events[-1]["event"], "UNSENT_SUCCESSOR")
+            self.assertEqual(verifier.call_count, 2)
+            proof.consume.assert_called_once_with(journal, "c" * 40)
+            return {"status": "STOP"}
+
+        session.begin.side_effect = begin
+        lookup = Mock()
+        lookup.inventory.return_value = target
+        with (
+            patch.object(operator, "finalize_session", return_value=state),
+            patch("sys.stdout", new_callable=io.StringIO),
+        ):
+            result = operator.execute(
+                "c" * 40,
+                staging,
+                config,
+                "owner@example.invalid",
+                collect=Mock(return_value=materials),
+                owner_factory=Mock(return_value=lookup),
+                session_factory=Mock(return_value=session),
+                successor_journal=journal,
+                unsent_verify=verifier,
+            )
+        self.assertEqual(result["failure"], new)
+        self.assertTrue(native.data.startswith(before))
+        physical, intact = operator.journal_module.parse(native.data)
+        self.assertTrue(intact)
+        self.assertEqual(
+            [r["event"] for r in physical],
+            ["START", "FAILURE", "RESULT", "UNSENT_SUCCESSOR", "FAILURE", "RESULT"],
+        )
+        self.assertEqual(physical[1]["data"], old)
+        self.assertEqual(physical[4]["data"], new)
+
+    def test_unsent_check_has_no_private_input_or_writes(self):
+        value = Mock(intact=True)
+        verify = Mock()
+        with (
+            patch.object(
+                operator.journal_module.Journal, "open", return_value=value
+            ) as opening,
+            patch.object(operator.unsent, "verify", verify),
+            patch.object(operator, "settings_metadata") as saved,
+            patch.object(operator, "asc_preflight") as asc,
+            patch.object(operator, "execute") as execute,
+            patch("sys.stdout", new_callable=io.StringIO) as output,
+        ):
+            result = operator.check_unsent("c" * 40)
+        opening.assert_called_once_with(create=False, readonly=True)
+        verify.assert_called_once_with(value, "c" * 40)
+        self.assertEqual(result["classification"], "UNSENT_READY")
+        self.assertFalse(result["retry_authorized"])
+        for blocked in (saved, asc, execute, value.record):
+            blocked.assert_not_called()
+        value.close.assert_called_once()
+        self.assertNotIn("c" * 40, output.getvalue())
+
+    def test_unsent_exclusive_preparation_stops_before_private_input(self):
+        staging, config, _, _ = self.fixture()
+        for point in ("proof", "settings", "asc", "complete"):
+            with self.subTest(point=point):
+                value = Mock(intact=True)
+                verify = Mock()
+                saved = Mock(return_value=(config, "owner@example.invalid"))
+                asc = Mock()
+                execute = Mock(return_value={"classification": "BUILD_PENDING"})
+                if point != "complete":
+                    {"proof": verify, "settings": saved, "asc": asc}[
+                        point
+                    ].side_effect = operator.unsent.Rejected("UNSENT_REMOTE_REJECTED")
+                with (
+                    patch.object(
+                        operator.journal_module.Journal, "open", return_value=value
+                    ) as opening,
+                    patch.object(operator.unsent, "verify", verify),
+                    patch.object(operator, "settings_metadata", saved),
+                    patch.object(operator, "asc_preflight", asc),
+                    patch.object(operator, "execute", execute),
+                    patch("sys.stdout", new_callable=io.StringIO),
+                ):
+                    if point == "complete":
+                        operator.execute_unsent("c" * 40, staging)
+                    else:
+                        with self.assertRaises(operator.Rejected):
+                            operator.execute_unsent("c" * 40, staging)
+                opening.assert_called_once_with(create=False)
+                value.record.assert_not_called()
+                if point == "proof":
+                    saved.assert_not_called()
+                    asc.assert_not_called()
+                if point != "complete":
+                    execute.assert_not_called()
+                    value.close.assert_called_once()
+                else:
+                    execute.assert_called_once_with(
+                        "c" * 40,
+                        staging,
+                        config,
+                        "owner@example.invalid",
+                        successor_journal=value,
+                    )
+                    value.close.assert_not_called()  # delegated execute owns close
+
     def setUp(self):
         # Every test uses fictional custody; never inspect the Owner journal.
         guard = patch.object(

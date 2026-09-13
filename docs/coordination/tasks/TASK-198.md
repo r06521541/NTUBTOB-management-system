@@ -1,4 +1,72 @@
-## Active operation diagnostics repair (Owner explicitly requested)
+## Active confirmed-unsent recovery implementation (2026-09-14)
+
+Current publication authority: Owner explicitly replied "我授權" after Main
+verified this 13-file delivery contains no real credentials and explained the
+previous host authorization rejection. Publish this source/test/task-record
+delivery to r06521541/NTUBTOB-management-system, then normal PR/CI/merge under
+standing delivery authority. This does not authorize actual successor/sign/upload.
+
+Owner approved implementing and offline-validating controlled recovery, explicitly
+not another live upload. Main verified PR257 merged1a385e1948f82288ec0a52628cf3fca29ef1de99,
+CI34766832514 SUCCESS16/16. Previous turn's reviewed --preflight PASS and --status:
+INTACT, NOT_ATTEMPTED for external/transfer, LEGACY_REASON_UNAVAILABLE. Source mismatch
+is expected (old attempt a605, current source1a385); it never grants continuation.
+
+Goal: preserve all original journal bytes and support one explicitly chosen,
+confirmed-unsent successor; ordinary --execute continues rejecting any journal.
+Core: journal/dispatch/operator plus new unsent helper and direct offline tests.
+Invariant: no reset/delete/move, no replay of nonce/payload, no continuation after
+any mutation/uncertainty/corruption; fresh exclusive custody and GET-only remote
+zero checks before new intent; bounded to one successor, not an automatic loop.
+Tests: old-byte prefix preserved, crash/flush/concurrency/digest drift, attempted/
+uncertain/torn/success terminal rejection, remote errors/partial listings/staleness,
+no private prompt before eligibility, legacy readers fail closed, active-attempt
+recovery/status and successful fake successor through existing dispatch gates.
+Limits: this turn does not access real journal/assets or run live preflight,
+recovery, signing, upload, staging/provider/Secret mutations. Future activation
+must be a separately explicit runtime action after accepted source/CI.
+
+Architecture reviewed: one append-only UNSENT_SUCCESSOR logical transition
+binds exact previous bytes' digest to fresh START metadata. No physical atomicity
+claim: partial write/flush/readback failure stops without repair. Old
+events stay untouched; active-attempt projection isolates nonce/source/failure
+for dispatch/recovery. Only complete original START/[FAILURE]/RESULT with stopped
+classification and no effects may transition. Hold original exclusive handle,
+recheck identity/bytes, policy/current main, exact signing-workflow runs0 for old
+source, six Secret names absent plus GET404; reject ambiguous/partial evidence.
+No second file/root/alias resolver. Dedicated --check-unsent (GET-only, no password)
+and explicit --execute-unsent --settings; normal --execute never auto-continues.
+
+Type=delivery; delivery_group=task198-confirmed-unsent-recovery; risk=L3 control
+boundary. One ready PR after independent acceptance; one normal final CI, no paid
+resource or live signing dispatch. Existing repository delivery authority applies.
+Branch codex/task-198-unsent-recovery; base=head
+1a385e1948f82288ec0a52628cf3fca29ef1de99. Main /root claim task-198-main-20260911
+lease1 owns tools/ios_testflight_{journal,dispatch,operator,diagnostics}.py,
+their exact test files and existing coordination five files. No unrelated writes.
+Writer19 /root/csr_writer claim task-198-writer-20260911 lease19 role codex-writer,
+write allowed owns only tools/ios_testflight_unsent.py and
+tools/tests/test_ios_testflight_unsent.py; report_to=/root; same branch/base/head.
+Scope: GET-only zero-proof helper with fresh, digest/source-bound single-use Proof;
+fixed sanitized failure codes and complete fake tests. No private/native/network,
+Git mutation or other source edits. Stop on shared-contract mismatch/source drift.
+Security41 /root/task181_review claim task-198-security-20260911 lease41 role
+advisor, read-only, owned_paths=none, report_to=/root; same branch/base/head.
+Scope: architecture first, frozen source review later; source/fake tests only.
+Stop: need real assets, broadened live authority, ambiguous replay or source drift.
+COLLABORATION2 packet ACK/heartbeat/immediate blocker/proactive final applies.
+Security41 early architecture conditions received/handled: exact old sequence,
+one successor, raw-byte prefix binding, no physical atomicity claim, fresh last
+GET proof after private prompts, all active-view callers, old readers fail closed.
+Security41 formal ACCEPT received/handled; independent94fakePASS/diffPASS and
+all8frozen LF hashes match. Main remains active for repository integration;
+both advisors now completed/read-only. No actual successor/upload this turn.
+Writer19 frozen delivery received/handled, now read-only. Main280offline tests:
+276PASS/4existing platformSKIP, including two new-temp-only Windows native cases;
+8owned Python files quality/diffPASS. Security41 accepted the frozen review;
+exact LF hashes in existing review. No real journal/assets touched this slice.
+
+## Previous diagnostic repair (integrated; historical)
 
 Latest Owner execution on independent terminal created a real intact journal:
 START, RESULT only, source matches a605fb4c6961e3536a7c5bf9d12a104b14316a41.
