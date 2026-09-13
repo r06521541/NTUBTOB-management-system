@@ -9,6 +9,169 @@ from tools import ios_testflight_journal as journal
 
 
 class JournalTests(unittest.TestCase):
+    def stopped(self):
+        native = self.fake()
+        value = self.opening(native)
+        value.record("START", **self.start())
+        value.record(
+            "RESULT",
+            classification="UNRESOLVED",
+            cleanup_verified=False,
+            secret_absence_verified=True,
+            owner_distribution_verified=False,
+        )
+        return value, native
+
+    def successor(self, snapshot):
+        return self.start() | dict(
+            sha="c" * 40,
+            nonce="d" * 64,
+            issued=200,
+            expires=7400,
+            parent_sha256=snapshot["digest"],
+        )
+
+    def test_unsent_successor_preserves_bytes_and_is_one_shot(self):
+        value, native = self.stopped()
+        before = native.data
+        snapshot = value.unsent_snapshot()
+        value.record("UNSENT_SUCCESSOR", **self.successor(snapshot))
+        self.assertTrue(native.data.startswith(before))
+        self.assertEqual(value.events[0]["data"]["sha"], "a" * 40)
+        active = journal.active_events(value.events)
+        self.assertEqual([row["event"] for row in active], ["START"])
+        self.assertEqual(active[0]["data"]["sha"], "c" * 40)
+        self.assertEqual(active[0]["data"]["nonce"], "d" * 64)
+        self.assertEqual(journal.summary(value, "c" * 40)["attempt_number"], 2)
+        self.assertTrue(journal.summary(value, "c" * 40)["source_matches"])
+        with self.assertRaises(journal.Rejected):
+            value.unsent_snapshot()
+        value.record(
+            "FAILURE",
+            stage="dispatch_preflight",
+            check="workflow",
+            reason="CHECK_REJECTED",
+        )
+        value.record(
+            "RESULT",
+            classification="STOP",
+            cleanup_verified=False,
+            secret_absence_verified=False,
+            owner_distribution_verified=False,
+        )
+        with self.assertRaises(journal.Rejected):
+            value.record("UNSENT_SUCCESSOR", **self.successor(snapshot))
+        value.close()
+
+    def test_unsent_exact_predecessor_and_no_positive_cleanup(self):
+        first = journal.encode_event([], "START", self.start())
+        for event, data in (
+            ("UNCERTAIN", {}),
+            ("DISPATCH_ATTEMPT", {}),
+            (
+                "RESULT",
+                dict(
+                    classification="CLEANED",
+                    cleanup_verified=True,
+                    secret_absence_verified=True,
+                    owner_distribution_verified=False,
+                ),
+            ),
+            (
+                "RESULT",
+                dict(
+                    classification="STOP",
+                    cleanup_verified=False,
+                    secret_absence_verified=False,
+                    owner_distribution_verified=True,
+                ),
+            ),
+        ):
+            events, _ = journal.parse(first)
+            raw = first + journal.encode_event(events, event, data)
+            value = self.opening(self.fake(raw), create=False)
+            with self.assertRaises(journal.Rejected):
+                value.unsent_snapshot()
+            value.close()
+        value, native = self.stopped()
+        value.record(
+            "RESULT",
+            classification="STOP",
+            cleanup_verified=False,
+            secret_absence_verified=False,
+            owner_distribution_verified=False,
+        )
+        with self.assertRaises(journal.Rejected):
+            value.unsent_snapshot()
+        value.close()
+
+    def test_successor_digest_nonce_schema_and_torn_append_fail_closed(self):
+        for change in (
+            {"parent_sha256": "e" * 64},
+            {"nonce": "b" * 64},
+            {"version": "9.9.9"},
+            {"issued": 99},
+            {"sha": "private-sentinel"},
+        ):
+            value, native = self.stopped()
+            before = native.data
+            with self.assertRaises(journal.Rejected):
+                value.record(
+                    "UNSENT_SUCCESSOR",
+                    **(self.successor(value.unsent_snapshot()) | change),
+                )
+            self.assertEqual(native.data, before)
+            value.close()
+        value, native = self.stopped()
+        before = native.data
+        successor = self.successor(value.unsent_snapshot())
+        native.flush.return_value = False
+        with self.assertRaises(journal.Rejected):
+            value.record("UNSENT_SUCCESSOR", **successor)
+        self.assertFalse(value.intact)
+        self.assertTrue(native.data.startswith(before))
+        calls = native.write.call_count
+        with self.assertRaises(journal.Rejected):
+            value.record("UNSENT_SUCCESSOR", **successor)
+        self.assertEqual(native.write.call_count, calls)
+        value.close()
+        # A complete readback after a lost acknowledgement still consumes the
+        # only successor. A torn prefix stays damaged and cannot authorize one.
+        for raw in (native.data, native.data[:-1]):
+            reopened = self.opening(self.fake(raw), create=False)
+            with self.assertRaises(journal.Rejected):
+                reopened.unsent_snapshot()
+            if raw != native.data:
+                self.assertFalse(reopened.intact)
+                self.assertEqual(
+                    journal.summary(reopened, "c" * 40)["external_write_state"],
+                    "UNKNOWN",
+                )
+            reopened.close()
+
+    def test_successor_parser_checks_exact_prefix_and_old_reader_stops(self):
+        value, native = self.stopped()
+        value.record("UNSENT_SUCCESSOR", **self.successor(value.unsent_snapshot()))
+        raw = native.data
+        self.assertTrue(journal.parse(raw)[1])
+        changed = raw.replace(
+            b'"cleanup_verified":false', b'"cleanup_verified":true', 1
+        )
+        self.assertFalse(journal.parse(changed)[1])
+        with mock.patch.dict(
+            journal.FIELDS,
+            {
+                key: data
+                for key, data in journal.FIELDS.items()
+                if key != "UNSENT_SUCCESSOR"
+            },
+            clear=True,
+        ):
+            events, intact = journal.parse(raw)
+        self.assertFalse(intact)
+        self.assertEqual(len(events), 2)
+        value.close()
+
     def start(self):
         return dict(
             sha="a" * 40,
@@ -272,6 +435,48 @@ class JournalTests(unittest.TestCase):
 
 @unittest.skipUnless(sys.platform == "win32", "Native Windows journal fixture")
 class NativeJournalTests(unittest.TestCase):
+    def test_native_exclusive_successor_blocks_second_writer_and_reuse(self):
+        # All native handles refer ONLY to this new fictional temp fixture.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(strict=True)
+            (root / "Temp").mkdir()
+            with mock.patch.object(
+                journal.preparation, "local_app_data", return_value=root
+            ):
+                value = journal.Journal.open(create=True)
+                try:
+                    value.record("START", **JournalTests().start())
+                    value.record(
+                        "RESULT",
+                        classification="UNRESOLVED",
+                        cleanup_verified=False,
+                        secret_absence_verified=True,
+                        owner_distribution_verified=False,
+                    )
+                finally:
+                    value.close()
+                value = journal.Journal.open(create=False)
+                try:
+                    snapshot = value.unsent_snapshot()
+                    with self.assertRaises(journal.Rejected):
+                        journal.Journal.open(create=False)
+                    value.record(
+                        "UNSENT_SUCCESSOR", **JournalTests().successor(snapshot)
+                    )
+                finally:
+                    value.close()
+                reopened = journal.Journal.open(create=False, readonly=True)
+                try:
+                    self.assertTrue(reopened.intact)
+                    self.assertEqual(
+                        [r["event"] for r in reopened.events],
+                        ["START", "RESULT", "UNSENT_SUCCESSOR"],
+                    )
+                    with self.assertRaises(journal.Rejected):
+                        reopened.unsent_snapshot()
+                finally:
+                    reopened.close()
+
     def test_native_create_append_reopen(self):
         # Only a newly created fictional temporary directory; no Owner journal,
         # credentials, network, or mocked native/ACL operations.

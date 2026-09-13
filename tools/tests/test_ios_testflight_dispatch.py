@@ -5,6 +5,45 @@ from tools import ios_testflight_dispatch as dispatch
 
 
 class DispatchTests(unittest.TestCase):
+    def test_recovery_and_candidate_use_successor_not_physical_start(self):
+        from tools.tests.test_ios_testflight_journal import JournalTests
+
+        helper = JournalTests()
+        value, native = helper.stopped()
+        successor = helper.successor(value.unsent_snapshot()) | {
+            "build": 2,
+            "previous_build": 1,
+        }
+        value.record("UNSENT_SUCCESSOR", **successor)
+        api = mock.Mock()
+        session = dispatch.Session.recover(value, api=api)
+        self.assertEqual(
+            (session.sha, session.nonce, session.issued), ("c" * 40, "d" * 64, 200)
+        )
+        self.assertIsNone(session.failure)  # legacy RESULT not this attempt
+        self.assertFalse(session.attempted)
+        self.assertFalse(session.public()["current_absence_verified"])
+        self.assertTrue(session.recovery_only)
+        self.assertEqual(session.signing, b"")
+        api.call.assert_not_called()
+        detail = dispatch.diagnostics.failure(
+            "dispatch_preflight", "repository", "CHECK_REJECTED"
+        )
+        value.record("FAILURE", **detail)
+        value.record("DISPATCH_ATTEMPT")
+        value.record(
+            "DISPATCH_CONFIRMED", run_id=123, workflow_id=12, environment_id=34
+        )
+        value.record("CANDIDATE", sha256="e" * 64, size=1234)
+        session = dispatch.Session.recover(value, api=api)
+        self.assertEqual(session.failure, detail)
+        with mock.patch.object(session, "bound"), mock.patch.object(session, "job"):
+            candidate = session.artifact(version="1.0.0", build=2)
+        self.assertEqual(candidate["build"], 2)
+        self.assertEqual(candidate["nonce"], "d" * 64)
+        self.assertEqual(value.events[0]["data"]["build"], 1)
+        value.close()
+
     def test_zero_put_is_not_observed_absence(self):
         result = self.session().public()
         self.assertFalse(result["current_absence_verified"])

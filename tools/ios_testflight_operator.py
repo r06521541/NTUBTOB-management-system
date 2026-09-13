@@ -28,6 +28,7 @@ from tools import ios_testflight_recovery as recovery
 from tools import ios_testflight_settings as settings
 from tools import ios_testflight_signing as signing
 from tools import ios_testflight_staging as staging_contract
+from tools import ios_testflight_unsent as unsent
 from tools import ios_testflight_wire as wire
 
 PROJECT = "ntubtob-mobile-staging"
@@ -49,6 +50,7 @@ REASONS = (
             "JOURNAL_REJECTED",
             "EXISTING_OPERATION",
             "READ_ONLY_STATUS",
+            "UNSENT_READY",
             "OPERATION_UNRESOLVED",
             "BUILD_VALID_UNDISTRIBUTED",
             "BUILD_PENDING",
@@ -62,11 +64,19 @@ REASONS = (
     | settings.REASONS
     | key_custody.REASONS
     | owner.REQUEST_REASONS
+    | unsent.REASONS
 )
 
 
 class Rejected(Exception):
-    def __init__(self, reason="OPERATION_UNRESOLVED", *, stage=None, failure=None):
+    def __init__(
+        self,
+        reason="OPERATION_UNRESOLVED",
+        *,
+        stage=None,
+        failure=None,
+        cleanup_failure=None,
+    ):
         super().__init__(
             reason
             if type(reason) is str and reason in REASONS
@@ -76,6 +86,7 @@ class Rejected(Exception):
             stage if type(stage) is str and stage in owner.INVENTORY_STAGES else None
         )
         self.failure = diagnostics.sanitize(failure)
+        self.cleanup_failure = diagnostics.sanitize(cleanup_failure)
 
 
 @dataclass(frozen=True, repr=False)
@@ -137,6 +148,9 @@ def emit(
             result["journal_state"] = state
         if type(observation.get("source_matches")) is bool:
             result["source_matches"] = observation["source_matches"]
+        attempt = observation.get("attempt_number")
+        if type(attempt) is int and attempt in {1, 2}:
+            result["attempt_number"] = attempt
     if type(stage) is str and stage in owner.INVENTORY_STAGES:
         result["stage"] = stage
     print(json.dumps(result, sort_keys=True, separators=(",", ":")), flush=True)
@@ -145,7 +159,10 @@ def emit(
 
 def failure_for(error, stage, check):
     """Only known exception types affect fixed codes; never stringify an error."""
-    if type(error) in {Rejected, dispatch.Rejected} and error.failure is not None:
+    if (
+        type(error) in {Rejected, dispatch.Rejected, unsent.Rejected}
+        and error.failure is not None
+    ):
         return error.failure
     if isinstance(error, KeyboardInterrupt):
         reason = "INTERRUPTED"
@@ -157,6 +174,7 @@ def failure_for(error, stage, check):
         owner.Rejected,
         settings.Rejected,
         key_custody.Rejected,
+        unsent.Rejected,
         intake.inputs.InputError,
     }:
         reason = "CHECK_REJECTED"
@@ -421,7 +439,10 @@ def failure_record(journal, failure):
         journal is not None
         and journal.intact
         and diagnostics.valid(failure)
-        and not any(row["event"] == "FAILURE" for row in journal.events)
+        and not any(
+            row["event"] == "FAILURE"
+            for row in journal_module.active_events(journal.events)
+        )
     ):
         journal.record("FAILURE", **failure)
 
@@ -493,8 +514,13 @@ def execute(
     session_factory=dispatch.Session,
     owner_factory=None,
     sleep=time.sleep,
+    successor_journal=None,
+    unsent_verify=None,
 ):
-    session = journal = materials = None
+    session = materials = None
+    journal = successor_journal
+    successor_started = False
+    verifier = unsent_verify or unsent.verify
     cleanup = absent = False
     reason = "OPERATION_UNRESOLVED"
     failure = cleanup_failure = None
@@ -502,7 +528,11 @@ def execute(
     state = {}
     external, transferred = "UNKNOWN", "UNRESOLVED"
     try:
-        ensure_new_operation()
+        if successor_journal is None:
+            ensure_new_operation()
+        else:
+            stage, check = "recovery", "journal_integrity"
+            verifier(journal, sha)
         external, transferred = "NOT_ATTEMPTED", "NOT_ATTEMPTED"
         stage, check = "saved_inputs", "settings"
         if (
@@ -524,10 +554,18 @@ def execute(
         session = session_factory(sign, asc, sha=sha)
         # Full wire bound, ASC scope and input checks precede durable intent/mutation.
         stage, check = "journal_open", "journal_path"
-        journal = journal_factory(create=True)
+        parent = {}
+        if successor_journal is None:
+            journal = journal_factory(create=True)
+        else:
+            # Fresh GET proof after every private prompt, with the same exclusive
+            # handle held. A prior check-mode or pre-input proof is never reused.
+            stage, check = "recovery", "journal_integrity"
+            proof = verifier(journal, sha)
+            parent = {"parent_sha256": proof.consume(journal, sha)}
         stage, check = "journal_start", "journal_write"
         journal.record(
-            "START",
+            "START" if successor_journal is None else "UNSENT_SUCCESSOR",
             sha=sha,
             nonce=session.nonce,
             version=config.version,
@@ -535,7 +573,9 @@ def execute(
             previous_build=target.previous_build,
             issued=session.issued,
             expires=session.issued + wire.TTL,
+            **parent,
         )
+        successor_started = successor_journal is not None
         session.journal = journal
         stage, check = "dispatch_preflight", "dispatch_result"
         if session.begin()["status"] != "WAITING":
@@ -584,13 +624,15 @@ def execute(
             intake.Rejected,
             owner.Rejected,
             journal_module.Rejected,
+            unsent.Rejected,
         }:
             code = error.args[0] if len(error.args) == 1 else "OPERATION_UNRESOLVED"
             if type(error) is owner.Rejected and code == "OWNER_SCOPE_REJECTED":
                 code = "ASC_SCOPE_REJECTED"
             reason = code if code in REASONS else "OPERATION_UNRESOLVED"
         try:
-            failure_record(journal, failure)
+            if successor_journal is None or successor_started:
+                failure_record(journal, failure)
         except (KeyboardInterrupt, Exception):
             if journal is not None:
                 journal.intact = False
@@ -598,7 +640,7 @@ def execute(
                 "cleanup", "journal_write", "JOURNAL_REJECTED"
             )
     finally:
-        if session is not None:
+        if session is not None and (successor_journal is None or successor_started):
             try:
                 state = finalize_session(session, sleep=sleep)
                 failure = failure or diagnostics.sanitize(state.get("failure"))
@@ -616,14 +658,19 @@ def execute(
                 cleanup_failure = failure_for(error, "cleanup", "retention")
                 absent, external, transferred = False, "UNKNOWN", "UNRESOLVED"
                 reason = "RETENTION_UNRESOLVED"
+        elif session is not None:
+            # No successor was acknowledged: do not finalize against the old
+            # attempt or perform remote cleanup. Drop the new private frames.
+            session.signing = session.asc = b""
         materials = None
         if journal is not None and not journal.intact:
             reason = "JOURNAL_REJECTED"
             absent, external, transferred = False, "UNKNOWN", "UNRESOLVED"
         try:
-            result_record(
-                journal, reason, cleanup=cleanup, absent=absent, failure=failure
-            )
+            if successor_journal is None or successor_started:
+                result_record(
+                    journal, reason, cleanup=cleanup, absent=absent, failure=failure
+                )
         except (KeyboardInterrupt, Exception):
             cleanup_failure = cleanup_failure or diagnostics.failure(
                 "cleanup", "journal_write", "JOURNAL_REJECTED"
@@ -733,7 +780,7 @@ def recover_operation(
             and session.job_status == "COMPLETED"
             and state["current_absence_verified"]
         ):
-            start = journal.events[0]["data"]
+            start = journal_module.active_events(journal.events)[0]["data"]
             artifact = session.artifact(version=start["version"], build=start["build"])
             public = recovery.result_from_logs(session.logs())
             cleanup = public["cleanup_verified"]
@@ -767,6 +814,80 @@ def recover_operation(
         journal.close()
 
 
+def _unsent_preparation(sha, staging, *, execute_requested):
+    """Own one exclusive handle through preparation and transfer it to execute."""
+    journal = None
+    rejected = None
+    result = None
+    stage, check = "recovery", "journal_integrity"
+    try:
+        journal = journal_module.Journal.open(
+            **(
+                {"create": False}
+                if execute_requested
+                else {"create": False, "readonly": True}
+            )
+        )
+        unsent.verify(journal, sha)
+        if execute_requested:
+            print(
+                "scope=IOS-TF-01 action=confirmed_unsent_successor target=owner_staging distribution=none",
+                flush=True,
+            )
+            stage, check = "saved_inputs", "settings"
+            config, email = settings_metadata(staging)
+            stage, check = "asc_preflight", "asc_scope"
+            asc_preflight(config, email)
+            result = execute(sha, staging, config, email, successor_journal=journal)
+            journal = None  # execute owns close, including failure paths
+    except (KeyboardInterrupt, Exception) as error:
+        reason = (
+            error.args[0]
+            if type(error)
+            in {
+                Rejected,
+                unsent.Rejected,
+                journal_module.Rejected,
+                settings.Rejected,
+                intake.Rejected,
+            }
+            and len(error.args) == 1
+            else "OPERATION_UNRESOLVED"
+        )
+        rejected = Rejected(reason, failure=failure_for(error, stage, check))
+    finally:
+        if journal is not None:
+            try:
+                journal.close()
+            except (KeyboardInterrupt, Exception) as error:
+                detail = failure_for(error, "cleanup", "journal_write")
+                if rejected is None:
+                    rejected = Rejected("JOURNAL_REJECTED", failure=detail)
+                else:
+                    rejected.cleanup_failure = detail
+    if rejected is not None:
+        raise rejected from None
+    return (
+        result
+        if execute_requested
+        else emit(
+            "UNSENT_READY",
+            external_write_state="NOT_ATTEMPTED",
+            secret_transfer_state="NOT_ATTEMPTED",
+        )
+    )
+
+
+def check_unsent(sha):
+    """Fresh GET-only readiness; no settings, private inputs or durable proof."""
+    return _unsent_preparation(sha, None, execute_requested=False)
+
+
+def execute_unsent(sha, staging):
+    """Explicit one-successor path; never called by ordinary execute or status."""
+    return _unsent_preparation(sha, staging, execute_requested=True)
+
+
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     stage, check = "source_preflight", "source"
@@ -776,6 +897,8 @@ def main(argv=None):
             ["--execute"],
             ["--recover"],
             ["--status"],
+            ["--check-unsent"],
+            ["--execute-unsent", "--settings"],
             ["--prepare-inputs"],
             ["--check-inputs"],
             ["--check-asc"],
@@ -785,6 +908,12 @@ def main(argv=None):
         ):
             raise Rejected("SOURCE_REJECTED")
         sha, staging = preflight(recovery_only=args in (["--recover"], ["--status"]))
+        if args == ["--check-unsent"]:
+            check_unsent(sha)
+            return 0
+        if args == ["--execute-unsent", "--settings"]:
+            result = execute_unsent(sha, staging)
+            return 0 if result["classification"] == "BUILD_VALID_UNDISTRIBUTED" else 2
         if args == ["--status"]:
             stage, check = "recovery", "journal_integrity"
             readonly_status(sha)
@@ -857,6 +986,7 @@ def main(argv=None):
                 settings.Rejected,
                 key_custody.Rejected,
                 journal_module.Rejected,
+                unsent.Rejected,
             }
             and len(error.args) == 1
             else "OPERATION_UNRESOLVED"
@@ -865,6 +995,7 @@ def main(argv=None):
             reason,
             stage=error.stage if type(error) is Rejected else None,
             failure=failure_for(error, stage, check),
+            cleanup_failure=error.cleanup_failure if type(error) is Rejected else None,
         )
         return 2
 

@@ -1,20 +1,20 @@
 # 專案狀態
 
-更新時間：2026-09-13（TASK198 TestFlight唯讀查證；未查production runtime）
+更新時間：2026-09-14（TASK198受控未送出復原之source/offline驗證；未查production runtime）
 
 維護角色：Main Work
 
-最近已合併證據：`a605fb4c6961e3536a7c5bf9d12a104b14316a41`（TASK-198／PR256）。
+最近已合併證據：`1a385e1948f82288ec0a52628cf3fca29ef1de99`（TASK-198／PR257）。
 這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
 
-TASK198最新：Owner獨立終端後續execute仍回OPERATION_UNRESOLVED；本次真實journal已存在、完整，
-僅START/RESULT且source為a605，唯讀檢查無dispatch/PUT；遠端runs0／Secrets0、無active operator。
-精確舊原因未記錄，不能回推。保留並隔離該操作，不重輸密碼、不重試／清除／搬移日誌；先前無journal
-與conditional execute記錄已被新狀態取代。Owner明確要求修診斷：branch codex/task-198-operation-diagnostics
-完成固定失敗點／第一原因保留、寫入與Secret狀態分離、密碼前日誌guard及純唯讀--status；252測試PASS、
-4既有平台SKIP（含Windows虛構native測試通過）、8檔quality PASS。writer18與Security40主動回報已處理；
-Security40 ACCEPT、獨立74fake測試PASS，Main確認8檔LF hash一致。待單一PR／新CI整合；
-此輪不讀真實資產、不簽署／上傳或變更雲端；尚無TestFlight build。
+TASK198最新：PR257診斷修復已合併，CI34766832514全16項成功。前輪已review wrapper的preflight PASS；
+status INTACT／NOT_ATTEMPTED、LEGACY_REASON_UNAVAILABLE；舊source a605與新source不同不構成重試許可。
+Owner本輪批准source/offline受控復原，branch codex/task-198-unsent-recovery：原日誌byte不改，僅完整
+START/[FAILURE]/RESULT且確認未送出時，可透過獨立入口追加一次UNSENT_SUCCESSOR；fresh nonce／SHA、
+exclusive handle與private input後重新取得的GET-only零操作proof。一般execute仍阻擋既有日誌。
+Main276測試PASS、4既有平台SKIP，包含2項Windows新暫存目錄native測試；8檔quality PASS。
+writer19已主動交付並轉唯讀；Security41 ACCEPT、獨立94fakePASS／8檔hash一致。單一PR／CI後仍需明確runtime activation；
+本輪未讀寫真實日誌／資產，不簽署／上傳／改雲端。原失敗精確原因已遺失，尚無TestFlight build交付證據。
 
 ## Active role lanes
 

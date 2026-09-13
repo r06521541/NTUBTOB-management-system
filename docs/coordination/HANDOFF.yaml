@@ -4,10 +4,31 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: a605fb4c6961e3536a7c5bf9d12a104b14316a41
+base_commit: 1a385e1948f82288ec0a52628cf3fca29ef1de99
 updated_by: main-work
-updated_at: 2026-09-13
+updated_at: 2026-09-14
 note: >
+  Publication confirmation received: after Main verified no real credentials in
+  this 13-file delivery and explained the host authorization rejection, Owner
+  explicitly replied "我授權". Publish to the existing public repository
+  r06521541/NTUBTOB-management-system and finish normal PR/CI/merge under standing
+  delivery authority. No actual successor/sign/upload is authorized by this reply.
+  Current: Owner approved source/offline implementation of confirmed-unsent
+  recovery, not live execution. Branch codex/task-198-unsent-recovery at
+  1a385e1948f82288ec0a52628cf3fca29ef1de99. Main owns bounded source/tests/records;
+  Security41 read-only architecture then frozen review. Task front is authority.
+  Writer19 frozen delivery received/handled, read-only; eight source/test paths
+  formally accepted by Security41, independent94fakePASS and all8LF hashes match.
+  Main276PASS4existingSKIP including two new-temp-only native cases; 8path
+  quality/diffPASS. Both advisors completed/read-only; Main owns integration.
+  Proposal preserves original bytes in one append-only journal, one explicit
+  UNSENT_SUCCESSOR with old-prefix digest/fresh nonce/current SHA and fresh
+  exclusive custody/GET-only zero proof. No normal execute auto-retry or resolver.
+  No real journal/assets/network runtime operations this implementation slice.
+  PR257 is now MERGED, CI34766832514 SUCCESS16/16; merged tree equals reviewed head.
+  Previous-turn reviewed preflight PASS/status INTACT NOT_ATTEMPTED; legacy cause
+  unavailable. Old operation stays preserved. Following older integration notes
+  are historical, not authority to execute or re-run CI257.
   Owner-requested diagnostics repair on codex/task-198-operation-diagnostics,
   base d54354d4cd5398684751a050a1b1da333fc457dc. Runtime8paths frozen for Security40;
   writer18 completed/read-only, proactive delivery received/handled. Main256offline

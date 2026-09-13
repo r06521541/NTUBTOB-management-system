@@ -1,6 +1,42 @@
 # TASK-198 report
 
-## Operation diagnostics repair (2026-09-13, current)
+## Confirmed-unsent recovery (2026-09-14, current)
+
+Publication stop resolved by explicit Owner reply "我授權", following Main's
+credential/destination check and explanation. Earlier host auto-review rejected
+push twice; Main did not bypass it. This authorizes publishing the 13-file
+delivery and normal repository integration, not a live successor/sign/upload.
+
+Scope is source/offline only, not a live retry. PR257 diagnostics is integrated
+at1a385e1948f82288ec0a52628cf3fca29ef1de99, CI34766832514 SUCCESS16/16.
+Previous-turn reviewed wrapper status: INTACT, NOT_ATTEMPTED, legacy cause
+unavailable. No real journal/assets were accessed in this implementation slice.
+
+One original exact START/[FAILURE]/RESULT stopped attempt can acquire a fresh
+GET-only proof and append one UNSENT_SUCCESSOR. Exact raw parent bytes are hashed;
+no deletion/reset/move, no physical atomicity claim, no stale nonce/payload replay.
+Interrupted append stops; a complete marker consumes the only successor even if
+acknowledgment was lost. Current-attempt views isolate failure/nonce/build while
+physical journal history stays intact. Ordinary execute still refuses any journal.
+Check mode has no private inputs; explicit execution holds one exclusive handle
+across saved settings/ASC/P12 and repeats zero checks after input before intent.
+Pre-marker errors never append/finalize against the original. Remote proof is
+bounded GET observation, not a cross-system CAS or protection from other admins.
+
+Main: py -3.10 -B -m unittest discover -s tools/tests -p test_ios_testflight*.py -q
+ran280, 276PASS/4existing platformSKIP. Includes two native new-temp-only lifecycle/
+exclusive-handle tests. Eight owned Python paths quality and git diff --check PASS.
+Writer19 proactive frozen delivery received/handled; no other writes, now read-only.
+Security41 formal ACCEPT received/handled; independent94fakePASS/diffPASS and all
+eight frozen LF hashes match. Delivery one PR/normal CI remains; actual
+activation in Owner independent terminal is a later explicit runtime action.
+No live preflight, journal mutation, private read, sign/upload, provider/Secret/
+staging/store mutation; no device or owner-distribution acceptance claimed.
+Reviewer did not run native tests; old-reader rejection test removes marker
+schema rather than running a historical binary. Logical transition does not
+guarantee physical atomicity/power-loss durability; remote proof not a transaction.
+
+## Operation diagnostics repair (2026-09-13, historical; integrated PR257)
 
 Owner explicitly requested source repair after a repeated generic result. The
 latest intact real journal contains START/RESULT only at a605fb4c6961e3536a7c5bf9d12a104b14316a41;

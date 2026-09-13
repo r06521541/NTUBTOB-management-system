@@ -15,6 +15,7 @@ from tools import ios_certificate_custody as custody
 from tools import ios_certificate_preparation as preparation
 from tools import ios_testflight_diagnostics as diagnostics
 from tools import ios_testflight_wire as wire
+from tools.artifact_digest import digest_bytes
 
 DIRECTORY = "NTUBTOB-OwnerTestFlight-Journal"
 FILENAME = "operation.jsonl"
@@ -53,6 +54,7 @@ FIELDS = {
         "owner_distribution_verified",
     },
 }
+FIELDS["UNSENT_SUCCESSOR"] = FIELDS["START"] | {"parent_sha256"}
 CLASSIFICATIONS = frozenset(
     {
         "STOP",
@@ -86,7 +88,36 @@ def _integer(value, low, high):
     return type(value) is int and low <= value <= high
 
 
-def encode_event(events, event, data):
+def active_events(events):
+    """Current logical attempt, never a replacement for physical audit records."""
+    for index, row in enumerate(events):
+        if row["event"] == "UNSENT_SUCCESSOR":
+            start = {key: row["data"][key] for key in FIELDS["START"]}
+            return [{"seq": row["seq"], "event": "START", "data": start}] + deepcopy(
+                events[index + 1 :]
+            )
+    return deepcopy(events)
+
+
+def _unsent_start(events):
+    if [row["event"] for row in events] not in (
+        ["START", "RESULT"],
+        ["START", "FAILURE", "RESULT"],
+    ):
+        raise Rejected()
+    result = events[-1]["data"]
+    if (
+        result["classification"] not in {"STOP", "UNRESOLVED"}
+        or result["cleanup_verified"] is not False
+        or result["owner_distribution_verified"] is not False
+    ):
+        raise Rejected()
+    # Legacy secret_absence=True was vacuous with zero PUTs; never use it as
+    # positive evidence. The exact no-attempt event sequence is the local proof.
+    return events[0]["data"]
+
+
+def encode_event(events, event, data, *, prefix=None):
     try:
         if (
             type(event) is not str
@@ -95,9 +126,30 @@ def encode_event(events, event, data):
             or set(data) != FIELDS[event]
         ):
             raise ValueError()
-        prior = [row["event"] for row in events]
+        active = active_events(events)
+        prior = [row["event"] for row in active]
         if (not events and event != "START") or (events and event == "START"):
             raise ValueError()
+        if event == "UNSENT_SUCCESSOR":
+            original = _unsent_start(events)
+            if (
+                type(prefix) is not bytes
+                or not 0 < len(prefix) <= LIMIT
+                or type(data["parent_sha256"]) is not str
+                or data["parent_sha256"] != digest_bytes(prefix, text=False)
+            ):
+                raise ValueError()
+            # Reuse the full START contract and additionally prohibit replay or
+            # changing the release version across this bounded recovery.
+            encode_event([], "START", {key: data[key] for key in FIELDS["START"]})
+            if (
+                data["nonce"] == original["nonce"]
+                or data["issued"] < original["issued"]
+                or data["version"] != original["version"]
+                or data["build"] < original["build"]
+                or data["previous_build"] < original["previous_build"]
+            ):
+                raise ValueError()
         if event == "START":
             for key, pattern in (
                 ("sha", r"[0-9a-f]{40}"),
@@ -171,7 +223,7 @@ def encode_event(events, event, data):
         if (
             event.startswith("SECRET_")
             and event != "SECRET_ABSENT"
-            and any(row["event"] == event and row["data"] == data for row in events)
+            and any(row["event"] == event and row["data"] == data for row in active)
         ):
             raise ValueError()
         required = {
@@ -192,12 +244,12 @@ def encode_event(events, event, data):
         }
         if event in secret_required and not any(
             row["event"] == secret_required[event] and row["data"] == data
-            for row in events
+            for row in active
         ):
             raise ValueError()
         if event == "APPROVAL_ATTEMPT" and {
             row["data"]["name"]
-            for row in events
+            for row in active
             if row["event"] == "SECRET_PUT_CONFIRMED"
         } != set(wire.SECRETS):
             raise ValueError()
@@ -220,6 +272,7 @@ def parse(raw):
     events = []
     if type(raw) is not bytes or len(raw) > LIMIT:
         return events, False
+    offset = 0
     for line in raw.splitlines(keepends=True):
         try:
             if len(line) > ROW_LIMIT or not line.endswith(b"\n"):
@@ -239,10 +292,12 @@ def parse(raw):
                 or set(row) != {"seq", "event", "data"}
                 or type(row["seq"]) is not int
                 or row["seq"] != len(events)
-                or encode_event(events, row["event"], row["data"]) != line
+                or encode_event(events, row["event"], row["data"], prefix=raw[:offset])
+                != line
             ):
                 raise ValueError()
             events.append(row)
+            offset += len(line)
         except Exception:
             return events, False
     return events, True
@@ -310,7 +365,8 @@ def new_operation_preflight(*, nativefactory=Native):
 def summary(journal, sha):
     """Sanitized observation only. Never converts old evidence into retry authority."""
     intact = journal.intact is True
-    events = journal.events
+    physical = journal.events
+    events = active_events(physical)
     names = {row["event"] for row in events}
     complete = intact and bool(events) and "UNCERTAIN" not in names
     attempted = {
@@ -327,6 +383,9 @@ def summary(journal, sha):
         )
     verified = complete and bool(attempted) and attempted <= absent
     return {
+        "attempt_number": (
+            2 if any(row["event"] == "UNSENT_SUCCESSOR" for row in physical) else 1
+        ),
         "journal_state": "INTACT" if intact and events else "DAMAGED",
         "source_matches": bool(events) and events[0]["data"]["sha"] == sha,
         "failure": diagnostics.sanitize(first),
@@ -360,6 +419,34 @@ class Journal:
     @property
     def events(self):
         return deepcopy(self._events)
+
+    @property
+    def writable(self):
+        return self.intact is True and not self._readonly and not self._closed
+
+    def unsent_snapshot(self):
+        """Eligibility of the exact held original bytes, never remote approval."""
+        with self._lock:
+            try:
+                if not self.intact:
+                    raise Rejected()
+                self._verify()
+                if self._read(len(self._raw)) != self._raw:
+                    raise Rejected()
+                start = _unsent_start(self._events)
+                return {
+                    key: start[key]
+                    for key in (
+                        "sha",
+                        "nonce",
+                        "issued",
+                        "version",
+                        "build",
+                        "previous_build",
+                    )
+                } | {"digest": digest_bytes(self._raw, text=False)}
+            except (KeyboardInterrupt, Exception):
+                raise Rejected() from None
 
     @classmethod
     def open(cls, create=False, *, readonly=False, nativefactory=Native):
@@ -445,7 +532,7 @@ class Journal:
         try:
             if not self.intact:
                 raise Rejected()
-            row = encode_event(self._events, event, data)
+            row = encode_event(self._events, event, data, prefix=self._raw)
             intended = self._raw + row
             if len(intended) > LIMIT:
                 raise Rejected()
