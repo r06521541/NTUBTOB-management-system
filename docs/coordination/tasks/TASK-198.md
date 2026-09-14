@@ -1,4 +1,42 @@
-## Active confirmed-unsent recovery implementation (2026-09-14)
+## Active infrastructure reliability correction (2026-09-14)
+
+Owner requests durable lessons and effective behavior for important non-production
+infrastructure. This supersedes the older active slice below, not its evidence.
+Type=delivery; delivery_group=task198-infrastructure-reliability; risk=L3 control
+tooling; one substantive delivery, no separate governance/closeout PR.
+Branch codex/task-198-infrastructure-lessons;
+base=head b6ccb2233f695f43828e1e462ad65bbb65af7490.
+Main /root claim task-198-main-20260911 lease1 owns AGENTS.md,
+docs/coordination/{COLLABORATION.md,HANDOFF.yaml,PROJECT_STATE.md}, this task and
+its existing report/review, docs/README.md,
+docs/development/INFRASTRUCTURE_RELIABILITY.md,
+tools/ios_testflight_{dispatch,operator}.py and their two direct test modules.
+
+Goal: make safety AND diagnosability mandatory for release/control infrastructure.
+Invariant: no private payload/raw logs, no new transfer/approval/retry authority,
+no journal schema/reset/new successor, no provider/certificate changes.
+Tests: raw fictional API responses through real binding/state code; existing
+fictional journal through real recovery/summary; preserve primary/cleanup causes
+and known effect state, reject malformed/unknown state without mutation.
+Non-goals: this does not deliver or execute a manual signing baseline, migrate to
+Codemagic, claim original failure cause, or prove real signing/upload/device use.
+No real journal/asset access, live preflight or remote runtime mutations this slice.
+Existing repository delivery authority applies; no public runtime payload added.
+
+Revoke completed Security41 lease41; Security42 /root/task181_review now holds
+claim task-198-security-20260911 lease42, role=advisor, write=read-only,
+owned_paths=none, report_to=/root; same task/branch/base/head. Review the proposed
+governance and bounded two-module diagnostic correction, then frozen diff/tests;
+check actual behavior/evidence rather than document compliance alone. Stop on
+live/private need, retry/permission expansion or source ownership conflict.
+Mandatory packet/ACK/proactive final follows COLLABORATION2. Writer19 remains
+completed/read-only. Main owns implementation and continuously tracks Security42.
+Source checkpoint: Security42 first REQUEST_CHANGES (cancel503 secondary cause)
+was reproduced RED, corrected, then independently ACCEPTED; completion received
+and handled, advisor read-only. Main280PASS4existingSKIP, reviewer71fakePASS;
+four LF Python hashes match. Normal repository integration is the next step.
+
+## Previous confirmed-unsent recovery implementation (historical)
 
 Current publication authority: Owner explicitly replied "我授權" after Main
 verified this 13-file delivery contains no real credentials and explained the

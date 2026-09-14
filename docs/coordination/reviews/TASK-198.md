@@ -1,5 +1,30 @@
 # TASK-198 review
 
+## Infrastructure reliability: Security42 correction ACCEPT
+
+Source/offline only, branch codex/task-198-infrastructure-lessons;
+base b6ccb2233f695f43828e1e462ad65bbb65af7490. Main received/handled Security42
+architecture feedback before source correction. First frozen verdict was
+REQUEST_CHANGES: cancel HTTP503 secondary cause was lost, and a test wrongly
+accepted its absence. Main strengthened the assertion (RED), narrowly retained
+cancel diagnostics in cleanup_failure, and reran direct71PASS. Independent
+correction ACCEPT received/handled; sole finding closed, no other actionable
+findings. Reviewer71fakePASS/diffPASS; Main280PASS4existingSKIP includes fresh
+fictional native temp tests. Review verified bound-first read-only waits, unchanged
+deadline, cause/effect retention and conservative uncertainty; no retry/custody or
+permission expansion. Governance remains one authority with reusable exact evidence.
+
+| Frozen Python path | LF SHA-256 |
+| --- | --- |
+| tools/ios_testflight_dispatch.py | ffc687b3d04445ddb687c0fc6ed70ab1f0decf1c1f9ee64b4a2cce6a51f0f23e |
+| tools/ios_testflight_operator.py | 2ce1c5f99a77a0bd360959abbbfb7eb1666311c7d222162fded1be5fa197bcce |
+| tools/tests/test_ios_testflight_dispatch.py | 766a7b406f5bb763e73154ed232a6349b847b26ad846b510ee7375f0497b73ce |
+| tools/tests/test_ios_testflight_operator.py | e177f1214ac35b987632313cfed6639205f07bf165463e0f3a4ce704bd3ecdf6 |
+
+Main matched all four hashes. Reviewer performed no file/Git, native/private,
+network or external mutations. This acceptance does not prove original incident
+cause, complete transport/Apple recovery, or an actual signing/upload baseline.
+
 ## Confirmed-unsent recovery: Security41 ACCEPT
 
 Branch codex/task-198-unsent-recovery; base1a385e1948f82288ec0a52628cf3fca29ef1de99.

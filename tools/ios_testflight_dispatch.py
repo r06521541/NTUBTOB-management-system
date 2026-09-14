@@ -99,7 +99,7 @@ class Session:
         )
         if self.failure is None:
             self.failure = detail
-        if detail["stage"] == "cleanup" and self.cleanup_failure is None:
+        if detail["stage"] in {"cancel", "cleanup"} and self.cleanup_failure is None:
             self.cleanup_failure = detail
 
     def reject(self, reason="CHECK_REJECTED"):
@@ -557,8 +557,17 @@ class Session:
         ):
             raise Rejected()
         run = self.bound()
-        if run.get("status") not in {"queued", "waiting", "in_progress"}:
-            raise Rejected()
+        self.check = "job_status"
+        status = run.get("status")
+        if type(status) is not str:
+            self.reject()
+        if status in {"requested", "pending"}:
+            # A bound transitional run is not a protected job ready for secrets.
+            # Preserve the original deadline and wait without advancing custody.
+            self.state = "WAITING"
+            return
+        if status not in {"queued", "waiting", "in_progress"}:
+            self.reject()
         if not self.pending():
             if self.attempted:
                 raise Rejected()

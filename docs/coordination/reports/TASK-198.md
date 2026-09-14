@@ -1,6 +1,48 @@
 # TASK-198 report
 
-## Confirmed-unsent recovery (2026-09-14, current)
+## Infrastructure reliability lessons (2026-09-14, current)
+
+Owner explicitly requests durable non-production infrastructure standards and
+observable behavioral correction. Main owns source/offline scope; no real assets,
+real journal, provider, signing/upload or remote runtime writes in this slice.
+Branch codex/task-198-infrastructure-lessons;
+base b6ccb2233f695f43828e1e462ad65bbb65af7490.
+
+AGENTS now routes critical control-tool work to COLLABORATION8.1. That section is
+the sole norm: risk by capability/impact, minimum platform baseline before custom
+automation, safe diagnosis across boundaries, original/cleanup/effect separation,
+protocol-shaped negative tests and non-resettable trial budget. New development
+guide maps lessons to actual regressions and explicitly lists remaining gaps.
+HANDOFF no longer carries stacked historical overrides; old slice evidence stays
+in the same task/report/review. No independent docs-only PR or new gate service.
+
+Four new test methods (multiple fault/state subcases) reproduced RED on old code:
+11 assertion failures and two propagated fictional I/O errors. Real binding code
+now waits read-only for requested/pending without extending deadline, and labels
+unknown state as job_status, not a stale run_binding. Real recovery projects the
+original failure/effect state through final output; result/close faults retain
+primary cause and conservative unknowns. Unresolved output no longer says NONE.
+Security42 then rejected one insufficient assertion: cancel HTTP503 still lost
+its secondary cause when a primary failure existed. A strengthened real-chain
+assertion reproduced RED (one failure); cancel now retains the original
+cancel/cancel_result/HTTP_SERVER_ERROR alongside the unchanged primary cause.
+No nonce/journal schema, transfer ACL, retry or approval changes.
+
+Validation: direct dispatch/operator71PASS; all test_ios_testflight* ran284,
+280PASS/4existing platformSKIP. First sandbox run had7native ACL/handle errors;
+same suite passed under approved native test permissions, using fresh temporary
+fictional data only. Four-path quality and git diff --check PASS.
+Existing python-tests workflow already discovers these regressions in its direct
+tooling suite; no new CI job or extra paid/live signing run added.
+Security42 first frozen verdict REQUEST_CHANGES handled; correction ACCEPT
+received/handled. Independent71fakePASS/diffPASS and four Python LF hashes match.
+Reviewer is completed/read-only. Main proceeds with normal repository integration;
+hosted CI is not yet claimed in this source record.
+No claim of real signing/upload success, original incident cause, full transport
+taxonomy coverage or all-module diagnostics completion. Baseline next design still
+needs explicit custody/scope before Owner execution; no live command provided.
+
+## Confirmed-unsent recovery (historical)
 
 Publication stop resolved by explicit Owner reply "我授權", following Main's
 credential/destination check and explanation. Earlier host auto-review rejected

@@ -5,6 +5,81 @@ from tools import ios_testflight_dispatch as dispatch
 
 
 class DispatchTests(unittest.TestCase):
+    def test_raw_run_states_keep_binding_and_wait_without_mutation(self):
+        for status in ("requested", "pending", "queued", "waiting"):
+            with self.subTest(status=status):
+                api = mock.Mock()
+                session = dispatch.Session(b"{}", b"{}", sha="a" * 40, api=api)
+                session.run_id, session.workflow_id = 123, 7
+                session.state = "WAITING"
+                before = session.deadline
+                run = {
+                    "id": 123,
+                    "workflow_id": 7,
+                    "path": ".github/workflows/" + dispatch.wire.WORKFLOW,
+                    "event": "workflow_dispatch",
+                    "head_branch": "main",
+                    "head_sha": session.sha,
+                    "run_attempt": 1,
+                    "display_title": "ios-tf-" + session.nonce,
+                    "repository": {"full_name": dispatch.wire.REPO},
+                    "status": status,
+                }
+                api.call.side_effect = [(200, run), (200, [])]
+                result = session.advance()
+                self.assertEqual(result["status"], "WAITING")
+                self.assertIsNone(result["failure"])
+                self.assertEqual(session.deadline, before)
+                self.assertEqual(
+                    api.call.call_count, 1 if status in {"requested", "pending"} else 2
+                )
+                self.assertTrue(
+                    all(c.args[0] == "GET" for c in api.call.call_args_list)
+                )
+                self.assertEqual(result["secret_transfer_state"], "NOT_ATTEMPTED")
+
+    def test_raw_run_rejection_reports_the_check_that_actually_failed(self):
+        for status, wrong_binding in (
+            (None, False),
+            ([], False),
+            ("private-sentinel", False),
+            ("completed", False),
+            ("pending", True),
+        ):
+            with self.subTest(status=status, wrong_binding=wrong_binding):
+                api = mock.Mock()
+                session = dispatch.Session(b"{}", b"{}", sha="a" * 40, api=api)
+                session.run_id, session.workflow_id = 123, 7
+                session.state = "WAITING"
+                api.call.return_value = (
+                    200,
+                    {
+                        "id": 123,
+                        "workflow_id": 7,
+                        "path": ".github/workflows/" + dispatch.wire.WORKFLOW,
+                        "event": "workflow_dispatch",
+                        "head_branch": "main",
+                        "head_sha": "c" * 40 if wrong_binding else session.sha,
+                        "run_attempt": 1,
+                        "display_title": "ios-tf-" + session.nonce,
+                        "repository": {"full_name": dispatch.wire.REPO},
+                        "status": status,
+                    },
+                )
+                result = session.advance()
+                self.assertEqual(result["status"], "STOP")
+                self.assertEqual(
+                    result["failure"],
+                    {
+                        "stage": "awaiting_job",
+                        "check": "run_binding" if wrong_binding else "job_status",
+                        "reason": "CHECK_REJECTED",
+                    },
+                )
+                self.assertNotIn("private-sentinel", repr(result))
+                self.assertEqual(api.call.call_count, 1)
+                self.assertEqual(api.call.call_args.args[0], "GET")
+
     def test_recovery_and_candidate_use_successor_not_physical_start(self):
         from tools.tests.test_ios_testflight_journal import JournalTests
 

@@ -49,6 +49,9 @@ TASK-088～122 位於 `coordination/archive/mobile-foundation-2026-08/`，TASK-1
 
 ## 本機開發
 
+- `development/INFRASTRUCTURE_RELIABILITY.md`：重要非production基礎建設的實作指引、診斷回歸與教訓索引；
+  規範權威仍為`COLLABORATION.md`第8.1節，不額外授權外部操作。
+
 - `development/ENGINEERING_FRICTION_PROPOSAL.md`：TASK-181 的流程／CI成本盤點；提案尚未生效，不授權放寬gate。
 
 - `development/AGENT_ENVIRONMENT.md`：Windows／Codex runtime、Git、Black、gcloud、Docker、psql、checksum 與

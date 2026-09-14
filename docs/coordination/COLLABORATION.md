@@ -2,7 +2,7 @@
 
 版本：3.0
 
-適用於本 repository 的規劃、實作、驗收、Git 整合與 production 操作。本文件是唯一協作規範；背景改善文件不構成
+適用於本 repository 的規劃、實作、驗收、Git 整合與各環境基礎建設／production 操作。本文件是唯一協作規範；背景改善文件不構成
 第二套規則。
 
 ## 1. 核心宗旨
@@ -165,6 +165,33 @@ Wrapper contract：
 每個 runtime packet另列 `operator=agent|owner`、`owner_gate`、`standing_authorization`、`stop_only_on`、`report_to`。
 Agent處理一般唯讀與已核准可復原 sandbox操作；Owner只處理登入／MFA／consent、Secret payload、signing／store、production、
 真實通知、付費／公開權限與不可逆刪除。
+
+### 8.1 重要基礎建設的可靠性與診斷驗收
+
+按控制能力與失敗影響分級：持有credential、控制簽署／發布／CI/CD、可寫外部狀態／付費資源、執行migration／
+recovery，或故障會阻斷交付的工具，即使只跑local／staging／internal testing，仍屬重要基礎建設。
+涉及權限／Secret／發布等控制邊界採L3；一般無副作用工具依實際風險分級，不一律要求production批准。
+
+- 首次建立或更換交付鏈，先取得最小、平台原生／官方支援路徑的成功基準與清理證據，再擴充自動控制層。
+  記錄來源、工具／環境、目標與實際完成層級；沒有真實簽署／上傳基準時不能以mock或未簽署build替代。
+  手動觸發同一壞掉wrapper不算獨立基準。可重用未變更的exact evidence，不要求每次小修再跑完整live流程。
+- 新增自訂gate先說明它防止的具體失敗、為何平台機制不足、如何正反向測試、退出／替代方式與維護者。
+  Baseline準備前先完成必要安全檢查；不是為省流程而繞過review、公開secret或放寬key access。
+- 新建／修改重要操作入口，必須把診斷列為acceptance：區分本機驗證、transport、provider拒絕及程式錯誤；
+  保留原始原因與獨立cleanup結果、當時stage/check、已知副作用／未知範圍、固定next action。
+  已知cause／effect不得被上層default覆寫；未解決不能回NONE。未知原因需明示缺證據處與唯讀處置，不暗示重試。
+- 保存的是白名單結構化診斷，不是raw exception／完整response／secret／雜湊secret。每個邊界在丟棄原文前分類；
+  可用固定check名稱或match布林保留差異，不必公開實際敏感值。寫入／close失敗也須保留可安全回報的原始原因。
+- 至少一組protocol-shaped假回應／假日誌穿越真實adapter→state→recovery→final output；只mock最外部I/O。
+  驗證等待／未知狀態、HTTP／transport失敗、部分mutation、主失敗＋cleanup失敗、legacy／損壞證據與不洩密。
+  正向與失敗語意都須assert；一味assert STOP或沒有secret不足。新增回歸須先在舊實作失敗，再在修正後通過。
+- Main與獨立reviewer檢查完整失敗鏈及實際未驗證層，不以測試數量／文件齊備替代；CI應執行直接回歸套件。
+  同blocker的試誤上限依第5節／active authority，換task、SHA、操作者或reason code不重置次數；兩輪無新證據
+  即停止live試誤、比較標準路徑／縮小流程，不能用Owner再次輸入代替實驗設計。
+- 每次Owner操作前在原task五行checkpoint補上假說、可觀察成功／失敗、回復／清理與剩餘Owner動作。
+  Standing authorization內的普通修正不新增批准儀式；新credential custody／服務商／成本等實質變更才升級。
+
+實作指引與教訓索引見 `../development/INFRASTRUCTURE_RELIABILITY.md`；不建立另一套授權規範。
 
 ## 9. CI 與證據成本
 
