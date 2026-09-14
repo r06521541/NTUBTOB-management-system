@@ -1,5 +1,35 @@
 # TASK-198 report
 
+## One-time native Secret setup (2026-09-14)
+
+PR260 merged e2e8572830840e4b81ea35276893c1e1381d0e10, CI34851563433 SUCCESS16/16;
+new native bad-P12 cleanup actually ran in the iOS unsigned archive job. Local
+main synchronized clean, tree equals reviewed a78388622b9587bb157340ab2b4a2e338b746da7.
+Owner created Environment; metadata read confirms Owner reviewer, self-review
+allowed, admin bypassfalse, exactmain only, zeroSecret names; no payload read/write.
+
+New one-field setup uses official gh2.97.0 with fixed-host/repo/env stdin, existing
+private Windows read/verify/close and hidden input; no new cryptography/controller/
+journal. No deliberate overwrite/retry/dispatch. Absence is rechecked after input,
+but not atomic against another writer; documented single Owner/no-parallel rule.
+Persistent fields need not be reentered. CLI0/namepresence is storage evidence
+only, not value or signing proof. Unknown write stops all setup; no retry inferred
+from later metadata. Correcting a rejected selected field does not repeat others.
+
+Initial new suite RED because module absent. Timeout+cleanup and success+close
+regressions then RED (onefailure/oneerror), corrected to retain primary plus
+cleanup and confirmed effects. Direct17testsPASS, including real fictional Python
+stdin/exit boundary locally; no gh Secret mutation or real filesystem custody used.
+Architecture lease1 ACCEPT received/handled; frozen implementation review lease2.
+Affected new/native-signing/key-custody51tests=50PASS1macOS-onlySKIP, quality2paths
+and diffPASS. Initial sandbox run had4known native ACL/handle fixture setup errors;
+same tests with scoped fictional-temp native permission passed, no source relaxation.
+Review lease2 REQUEST_CHANGES received/handled. Four malformed-schema stage cases
+and entry cleanup/field retention reproduced5RED assertions; narrow correction
+passes19direct tests. Correction lease3 ACCEPT received/handled; baseline/custody
+unchanged. Main final53tests52PASS1SKIP, classifier39tests38PASS1SKIP, quality/diffPASS.
+No-input hosted/real preflight still pending source integration; no payload action.
+
 ## Native signing baseline (2026-09-14, current source slice)
 
 Base88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae contains merged PR259 with hosted

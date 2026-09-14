@@ -1,5 +1,29 @@
 # TASK-198 review
 
+## One-time native Secret setup: correction ACCEPT (2026-09-14)
+
+Branch codex/task-198-native-secret-setup, base/head
+e2e8572830840e4b81ea35276893c1e1381d0e10. Advisor native_setup_review claim
+task-198-native-setup-review lease1 architecture ACCEPT was adopted. Lease2 frozen
+review REQUEST_CHANGES found malformed schema losing actual stage and entry losing
+cleanup/selected field. Two regressions reproduced5RED assertions; narrow correction
+retains these safe facts, without changing custody or retry rules. Lease3 independent
+ACCEPT received/handled,19testsPASS, no actionable remaining findings. Main affected
+53tests52PASS1macOS-onlySKIP, classifier39=38PASS1SKIP, quality2paths/diffPASS.
+
+| Frozen path | LF SHA256 |
+| --- | --- |
+| tools/ios_native_secret_setup.py | 0e9a599f15e677073e575ae457cb73d68cdc1c055e941922faf46e4380b6d204 |
+| tools/tests/test_ios_native_secret_setup.py | e8aafb4823445a14993ba531799c31431abdb5ff73c19517aa21926dc8746d61 |
+| .github/workflows/python-tests.yml | 5f4361a754e97b5a4118563bd8cb8fadffbf56a41d76bb54c430488eaeba817c |
+| docs/releases/IOS_NATIVE_SIGNING.md | be294c569ab0c67d7f61e9046b1ee6f82291a911383824ee85db211883b57253 |
+
+Reviewer did not mutate files/Git/external state or use real inputs/native ACL.
+Source/fake acceptance does not prove real secret storage/signing. No atomic
+create-if-absent or cross-invocation journal guarantee; single Owner and stop after
+unknown are explicit operating constraints. Main owns CI/integration and read-only
+preflight; Owner alone executes private mode after exact accepted source handoff.
+
 ## Native signing baseline: Security45 correction ACCEPT
 
 Base/head88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae, branch
