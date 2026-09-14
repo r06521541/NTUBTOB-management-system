@@ -378,7 +378,9 @@ class HostedTests(unittest.TestCase):
         self.assertIn("environment: ios-owner-testflight", source)
         self.assertIn("name: owner_testflight", source)
         self.assertIn("github.run_attempt == 1", source)
-        self.assertNotIn("false &&", source)
+        # Retired controller stays as historical source, never an executable
+        # alternative to the native baseline. Old operation journals are kept.
+        self.assertIn("if: >-\n      false &&", source)
         self.assertIn("run-name: ios-tf-${{ inputs.nonce }}", source)
         self.assertIn("github.sha == inputs.approved_sha", source)
         self.assertIn("cancel-in-progress: false", source)

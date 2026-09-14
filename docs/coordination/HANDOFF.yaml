@@ -4,23 +4,19 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: b6ccb2233f695f43828e1e462ad65bbb65af7490
+base_commit: 88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae
 updated_by: main-work
 updated_at: 2026-09-14
 note: >
-  Owner requests durable infrastructure lessons with enforceable behavior.
-  Branch codex/task-198-infrastructure-lessons; Main owns the bounded
-  source/offline reliability correction defined at task front.
-  Red regressions reproduced wait-state misclassification, lost recovery
-  cause/effects, and close/result-write faults. Source correction and review passed;
-  no real assets/journal, live preflight, signing/upload or provider mutations.
-  Security42 lease42 correction ACCEPT received/handled; first cancel503 finding
-  reproduced red and fixed. Main280PASS4existingSKIP; independent71fakePASS;
-  four Python LF hashes matched. Main now owns normal repository integration.
-  Writer19 remains completed/read-only. Repository delivery authority remains.
-  Manual GitHub macOS baseline is a next design, not a ready Owner command.
-  Preserve prior operation/journal; no execute/retry/new successor authorized here.
-  Earlier slice history belongs to task/report/review, not this singleton.
+  Owner accepted standard GitHub native signing and disclosed persistent Secrets
+  custody. Main implements signing-only baseline on codex/task-198-native-signing-baseline;
+  Security45 correction ACCEPT received/handled; source frozen and advisor read-only.
+  Old local controller/journal are not executed or reset; old workflow retired.
+  This slice stops at one-time protected Environment setup after source gates.
+  No real credentials, live signing/upload/provider mutations this slice.
+  Previous reliability delivery merged PR259, CI34845851725 succeeded16/16.
+  Writer19 completed/read-only; existing repository delivery authority applies.
+  Main now completes one substantive PR and required CI, then stops at Owner setup.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

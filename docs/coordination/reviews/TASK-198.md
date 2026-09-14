@@ -1,5 +1,39 @@
 # TASK-198 review
 
+## Native signing baseline: Security45 correction ACCEPT
+
+Base/head88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae, branch
+codex/task-198-native-signing-baseline. Security43 early architecture feedback
+was adopted. Security44 frozen review requested one correction: interruption
+during process-group stop proof could permit early cleanup, while interruption
+in cleanup could mask the primary failure/final output. Main added two RED
+regressions (uncaught KeyboardInterrupt) and corrected the new adapter/test only.
+
+Security45 independent correction ACCEPT received/handled. ESRCH is now the
+explicit group-absence proof; teardown interruption before it means unresolved
+process, not permission to clean up. Cleanup interruption retains fixed secondary
+failure and original cause/final result. No live retry or custody expansion.
+Reviewer37 tests=36PASS/1Darwin-hostedSKIP; Main focused53=50PASS3platformSKIP,
+old affected284=280PASS4existingSKIP, classifier39=38PASS1SKIP, quality/diffPASS.
+
+Frozen runtime/workflow/test LF SHA256:
+
+| Path | SHA256 |
+| --- | --- |
+| tools/ios_native_signing.py | 7f266d91542bc9d7577eaa31ed5322eae2cc149a7bc9584f8adecc2153d3dcfe |
+| tools/tests/test_ios_native_signing.py | 30abaf0758f6c93a0c2fc7ede689ec621123cbcfea36c049b35a72ecfc6ce466 |
+| .github/workflows/ios-native-signing.yml | 4aa0672341a0ad3d233f5dbd3dbbf7b97b17e94038d872b3e8a2b989f4adda9e |
+| .github/workflows/ios-owner-testflight.yml | b8caa0ec5f6dd117eb2db946fa980facca46ff664f7a0d37d62ac1a4f2724968 |
+| .github/workflows/flutter-tests.yml | 6cd7622963b046d5fc2bb2fd1311a34379fcb4d6b72685382d8e09968e1970c3 |
+| .github/workflows/python-tests.yml | ec9fdad741d8309baa26ebba2ceac4ba855a514f05f0ab8a47375713d9e760d4 |
+| tools/tests/test_ios_testflight_hosted.py | d231dcd3c93e5e8180afb15ae75ea8bb38d46c9b09c8d95acbc5e0d0423371e4 |
+
+Advisor completed/read-only; no source/Git/private/native/network mutations.
+Acceptance is source/fake only. Actual flags/Xcode/SPM/export and existing private
+P12/profile have not been verified by review. Output categories retain stage/exit,
+not complete raw causes; native negative smoke and real baseline remain distinct.
+Protected Environment setup/private onboarding/live preflight remain necessary.
+
 ## Infrastructure reliability: Security42 correction ACCEPT
 
 Source/offline only, branch codex/task-198-infrastructure-lessons;

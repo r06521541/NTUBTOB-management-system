@@ -1,5 +1,41 @@
 # TASK-198 report
 
+## Native signing baseline (2026-09-14, current source slice)
+
+Base88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae contains merged PR259 with hosted
+CI34845851725 SUCCESS16/16. Owner now accepted standard native delivery and
+persistent protected GitHub signing Secrets; DEC-110 records the scoped exception.
+
+New manual signing-only workflow uses existing pinned Flutter/Xcode, standard
+security CLI and Xcode archive/export, then the unchanged artifact-only inspector.
+No old framed transport/controller/custom CMS parser/ASC input/upload participates.
+Old workflow is execution-disabled; old source/journals/assets are preserved.
+Private setup is not executed or supplied via ad-hoc conversion. Source delivery
+stops at protected Environment configuration; exact private-input onboarding must
+be reviewed before any Owner payload action. No live source claim or key access.
+
+Tests first failed on absent new module; subsequent command-shaped regressions
+identified missing search-list restoration after a native create/import failure.
+The explicit assertion failed RED, then passed after restoration was broadened
+to every attempted Keychain creation. No permissive source change for Windows:
+the fake command tests simulate Darwin SIGKILL only at their outer platform seam.
+The actual adapter is Darwin/GitHub-hosted/main/first-attempt restricted.
+
+Focused native/inspector/hosted51 tests:48PASS,3platformSKIP. New baseline17tests:
+16fakePASS,1GitHub-macOS-only native smoke SKIP locally. Old affected full284tests:
+280PASS,4existingSKIP using approved fictional-temp native test permissions;
+first sandbox run failed7native fixture ACL setups, not hidden as source failures.
+Quality3Pythonpaths and diff check PASS. Native bad-P12 smoke is wired to the
+existing macOS CI job; no hosted native/real signing success claimed yet.
+
+Security43 architecture acceptance received/handled and all constraints adopted;
+Security44 identified interruption/stop-proof/cleanup output gap. Two explicit
+RED tests reproduced uncaught KeyboardInterrupt, then Main retained stop proof
+and primary/cleanup final diagnostics. Focused53=50PASS3SKIP; Security45 independent
+37=36PASS1SKIP, correction ACCEPT received/handled. Main owns normal repository
+delivery after independent acceptance/required CI; no real signing/provider/store
+operation this slice. No reusable live command/approval derives from mock success.
+
 ## Infrastructure reliability lessons (2026-09-14, current)
 
 Owner explicitly requests durable non-production infrastructure standards and

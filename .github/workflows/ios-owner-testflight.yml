@@ -1,4 +1,4 @@
-name: Owner-only staging TestFlight
+name: Retired local-controller TestFlight (disabled)
 run-name: ios-tf-${{ inputs.nonce }}
 
 on:
@@ -24,6 +24,7 @@ jobs:
   owner_testflight:
     name: owner_testflight
     if: >-
+      false &&
       github.repository == 'r06521541/NTUBTOB-management-system' &&
       github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
       github.run_attempt == 1 && github.sha == inputs.approved_sha
