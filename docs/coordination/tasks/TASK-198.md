@@ -1,4 +1,90 @@
-## Active infrastructure reliability correction (2026-09-14)
+## Active native signing baseline (2026-09-14)
+
+Owner accepted the standard GitHub Actions/macOS route and the explicitly
+disclosed custody change: protected persistent Environment Secrets, temporary
+runner files/Keychain and necessary native command arguments. This supersedes
+the per-run Windows password/transfer controller ONLY for this named path.
+Historical operations/journals are retained, not reset or replayed.
+Type=delivery; delivery_group=task198-native-signing-baseline; risk=L3.
+Branch=codex/task-198-native-signing-baseline;
+base=head=88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae.
+
+Execution checkpoint:
+1. Outcome: standard native signed archive/export/inspection/cleanup baseline,
+   not upload or TestFlight/device success. Prove this layer before adding upload.
+2. Core: new manual signing-only workflow, small native-command adapter/tests,
+   existing artifact-only inspector; pinned existing Flutter/Xcode; no new CMS,
+   private transport, local controller, automatic provisioning or journal engine.
+3. Invariants: reviewed exact main SHA, protected Environment, existing P12/profile,
+   staging:real Basic, no trust-all ACL, no private logs/artifacts/cache; preserve
+   first failure and separate cleanup. Old workflow is retired from execution.
+4. Tests: native CLI-shaped fake success/rejection/timeout/cleanup failures,
+   stage/reason fidelity and no secret output; hosted source/fake checks remain
+   distinct from later real signature and platform evidence.
+5. Owner stop: one-time setup of three signing Secrets and nonsecret metadata in
+   ios-native-signing, after source acceptance/CI; no private input this slice.
+   Future upload uses separate ASC custody and official Apple CLI, not this job.
+
+Scoped custody exception: GitHub stores encrypted P12/profile/password separately;
+only the approved ephemeral GitHub-hosted macOS job receives them. The reviewed
+adapter may use step environment, owner-only temp files, temporary Keychain and
+necessary /usr/bin/security arguments; never shell expansion/tracing, general
+logs, Git, chat, clipboard, shared/self-hosted runner or public IPA artifacts.
+GitHub masking and same-user process boundaries are NOT isolation guarantees.
+No ASC or Sign in with Apple key in this signing-only job. Persistent Secrets
+are intentional, not temporary-transfer cleanup failures; rotation/removal remains
+explicit. No new certificate, paid plan, production or tester authorization.
+IOS-TF-01 total USD20 cap/named stops remain. A later live execution requires
+verified Environment protection/target/cost and exact reviewed main SHA; merge
+alone does not authorize clicking an unconfigured Environment into existence.
+
+Main /root claim task-198-main-20260911 lease1 owns this task, existing report/review,
+HANDOFF/PROJECT_STATE/COLLABORATION/DECISIONS, docs/releases/IOS_NATIVE_SIGNING.md,
+.github/workflows/ios-native-signing.yml, old ios-owner-testflight.yml retirement,
+tools/ios_native_signing.py, tools/tests/test_ios_native_signing.py, and direct CI
+test selection in python-tests.yml/flutter-tests.yml, plus the retirement assertion
+in tools/tests/test_ios_testflight_hosted.py. No old controller/journal source or
+production/app behavior edits.
+Revoke completed Security42; activate Security43 /root/task181_review,
+claim_id=task-198-security-20260911; lease_version=43; role=advisor;
+write=read-only; owned_paths=none; report_to=/root; same task/branch/base/head.
+Scope: early architecture challenge, then separate frozen implementation review;
+use source/official docs/fictional tests only. Stop on private/live need, unsafe
+custody/retry expansion or ownership drift. COLLABORATION2 mandatory packet applies.
+Writer19 remains completed/read-only. Main stays active while review runs.
+
+Security43 architecture ACCEPT received/handled: dedicated native CMS decode is
+not trust/no-side-effect proof; explicit Apple partition scope; preserve search/
+default and first/cleanup causes; stop/reap process groups; exact single IPA, no
+ASC input and hard-disable old workflow. Advisor completed/read-only pending
+frozen review. Main adopts all six conditions; source/fake work only.
+
+Frozen-source review packet: Security44 replaces completed Security43;
+actor_id=/root/task181_review; claim_id=task-198-security-20260911; lease_version=44;
+role=advisor; write=read-only; owned_paths=none; report_to=/root.
+Same branch/base/head as active packet. Scope: all listed source/workflow/test
+delta and DEC-110/runbook, including native-command cleanup/diagnostics and
+retirement. Source is frozen during review; Main may update records/run tests.
+No private/live/Git mutations; stop on source drift/custody expansion. Complete
+proactive verdict with paths/tests/limits per COLLABORATION2; Main stays active.
+
+Security44 REQUEST_CHANGES received/handled: KeyboardInterrupt during group-stop
+confirmation could allow early cleanup, or interrupt cleanup/final reporting.
+Two tests reproduced RED (uncaught interruptions). Main corrected only the new
+adapter/test: group-absence proof is explicit; unproved stop blocks cleanup;
+cleanup interruption preserves primary and fixed secondary/final. Focused53 ran,
+50PASS3platformSKIP. Security45 now replaces completed Security44: same actor,
+claim, role, branch/base/head, read-only/ownednone/report_to=/root; lease45.
+Scope only two-file correction plus unchanged frozen evidence. No private/native/
+network/Git mutations. Main stays active through correction verdict.
+
+Security45 ACCEPT received/handled; independent37tests36PASS1platformSKIP;
+Main focused53tests50PASS3SKIP, legacy284tests280PASS4SKIP, quality/diffPASS.
+Source remains frozen with LF hashes in existing review; advisor completed/
+read-only. Main now owns normal single-PR repository integration and required CI.
+No live native baseline or private onboarding performed by this source acceptance.
+
+## Previous infrastructure reliability correction (integrated; historical)
 
 Owner requests durable lessons and effective behavior for important non-production
 infrastructure. This supersedes the older active slice below, not its evidence.

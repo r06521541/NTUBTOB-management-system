@@ -423,9 +423,23 @@
 - 不改共用Google／LINE正式callback，不允許trust-all／任意程式key access，不自行決定法律或正式保留政策。
   本授權到IOS-TF-01驗收完成、Owner撤回或named stop為止；不得作為其他task／公開版的永久外部授權。
 
+## DEC-110：iOS native baseline 與一次性 GitHub 憑證保管
+
+- 狀態：`active`；日期：2026-09-14；來源：Owner認可標準GitHub Actions路徑及已解釋的custody風險。
+- Supersedes：僅在TASK-198新native workflow，取代DEC-109／COLLAB8的逐次本機密碼、memory-only傳送及
+  no-argv/temp限制；舊operation／journal及其不重試邊界不重置。不放寬其他工具／production規則。
+- 三個signing材料分別持久保存在受保護GitHub Environment Secrets；允許approved ephemeral macOS runner的
+  step environment、0600暫存、temporary Keychain及必要原生security argv。不得進入chat/Git/raw log/artifact，
+  不宣稱same-user隔離、零落盤或masking絕對安全；不允許trust-all／self-hosted或共用runner。
+- 先取得真實native archive/export/inspection/cleanup基準，再接官方Apple CLI上傳與processing；不再先建
+  自訂transport/controller。舊workflow hard-disable，原始日誌/資產保留；不藉新路徑繞過未解外部狀態。
+- 此slice僅source/fake驗證，停止於一次性protected Environment設定；實際signing仍須source接受、CI與fresh
+  target/protection/cost preflight。ASC／Apple登入p8不進signing-only job；無TestFlight／device成功推定。
+- IOS-TF-01其餘Owner-only staging、USD20總額、named stops、獨立驗收與uncertain先唯讀仍有效。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-109`，下一個新決策從 `DEC-110` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-110`，下一個新決策從 `DEC-111` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

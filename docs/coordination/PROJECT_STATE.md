@@ -1,20 +1,20 @@
 # 專案狀態
 
-更新時間：2026-09-14（TASK198基礎建設可靠性修正；本輪source/offline，未查production runtime）
+更新時間：2026-09-14（TASK198 native signing基準；source/fake驗證，未查production runtime）
 
 維護角色：Main Work
 
-本輪起始程式基準：`b6ccb2233f695f43828e1e462ad65bbb65af7490`。
+本輪起始程式基準：`88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae`。
 目前branch/dirty state由Git核對，next actor以HANDOFF為準。
 
-TASK198最新：Owner要求把重要非production基礎建設的教訓固化為可執行驗收。
-Main在codex/task-198-infrastructure-lessons修改協作規範、實作指南及兩個既有診斷模組；
-新增真實程式鏈／虛構I/O回歸先在舊實作重現，再修正等待狀態誤判、recover原因／effect遺漏與收尾二次錯誤。
-Security42首輪要求修正取消503原因遺漏，補RED再修正後ACCEPT；Main280PASS4既有SKIP、獨立71fakePASS。
-Source驗收完成，repository整合尚待完成。Security42與Writer19保持completed/read-only。
-本輪不讀真實journal／資產、不重跑sign/upload、不改provider；仍無本輪TestFlight交付證據。
-下一步是完成source gates，再設計精簡的GitHub macOS手動成功基準；尚無可交Owner執行的live命令。
-已消耗operation的證據不得刪除或藉新nonce／journal／successor繞過；新credential custody需先明確決策。
+TASK198最新：PR259可靠性修正已合併，CI34845851725成功16/16；不是簽署成功。
+Owner認可GitHub標準native路徑與一次性persistent Secrets custody，DEC-110明列範圍／風險。
+Main在codex/task-198-native-signing-baseline實作signing-only手動基準；舊workflow硬停用，舊日誌／資產保留。
+新job不使用ASC／Apple登入p8，不上傳IPA／raw logs，不改production/provider；先取得真實簽署與清理基準。
+Security44中斷邊界finding已先RED再修；Security45正式ACCEPT已收到，與Writer19保持completed/read-only。
+Focused53tests50PASS3SKIP；舊full284tests280PASS4SKIP；macOS negative smoke與實際簽署尚待hosted證據。
+Source gates後停止於一次性protected Environment設定，Private setup action另須exact review後交Owner。
+尚無本輪TestFlight／device交付證據；下一段官方Apple上傳要在簽署基準證明後接上，不重填已保存的Secrets。
 
 ## Active role lanes
 

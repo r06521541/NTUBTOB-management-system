@@ -1,0 +1,87 @@
+name: iOS native signing baseline (no upload)
+run-name: iOS signing ${{ inputs.version }} (${{ inputs.build_number }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      approved_sha:
+        description: Exact reviewed main commit (public)
+        required: true
+        type: string
+      version:
+        description: Reviewed numeric version; signing-only baseline
+        required: true
+        default: '1.0.0'
+        type: string
+      build_number:
+        description: Reviewed build number; not a claim of ASC availability
+        required: true
+        default: '1'
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-owner-testflight
+  cancel-in-progress: false
+
+jobs:
+  native_signing:
+    if: >-
+      github.repository == 'r06521541/NTUBTOB-management-system' &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      github.run_attempt == 1 && github.sha == inputs.approved_sha
+    runs-on: macos-15
+    timeout-minutes: 75
+    # Create and independently verify protection BEFORE using this workflow.
+    # GitHub auto-creation of an unconfigured Environment is not approval.
+    environment: ios-native-signing
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      INPUT_APPROVED_SHA: ${{ inputs.approved_sha }}
+      IOS_VERSION: ${{ inputs.version }}
+      IOS_BUILD_NUMBER: ${{ inputs.build_number }}
+      IOS_TEAM_ID: ${{ vars.IOS_TEAM_ID }}
+      IOS_API_BASE_URL: ${{ vars.IOS_API_BASE_URL }}
+      IOS_LINE_CHANNEL_ID: ${{ vars.IOS_LINE_CHANNEL_ID }}
+      IOS_GOOGLE_CLIENT_ID: ${{ vars.IOS_GOOGLE_CLIENT_ID }}
+      IOS_GOOGLE_SERVER_CLIENT_ID: ${{ vars.IOS_GOOGLE_SERVER_CLIENT_ID }}
+    steps:
+      - name: Check out reviewed source
+        id: source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.10'
+      - name: Verify nonsecret configuration and Xcode before private input
+        run: python -m tools.ios_native_signing preflight
+      - name: Set up pinned Flutter without exporting caches
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: '3.47.0'
+          cache: false
+          pub-cache: false
+      - name: Prepare dependencies before signing credentials
+        working-directory: clients/flutter_app
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter precache --ios --force
+          flutter build ios --release --no-codesign --config-only --no-pub
+          xcodebuild -resolvePackageDependencies \
+            -workspace ios/Runner.xcworkspace -scheme Runner \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/ntubtob-native-packages"
+      - name: Native import, archive, export, inspect and cleanup (no upload)
+        env:
+          IOS_DISTRIBUTION_P12_BASE64: ${{ secrets.IOS_DISTRIBUTION_P12_BASE64 }}
+          IOS_DISTRIBUTION_P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_P12_PASSWORD }}
+          IOS_DISTRIBUTION_PROFILE_BASE64: ${{ secrets.IOS_DISTRIBUTION_PROFILE_BASE64 }}
+        run: python -m tools.ios_native_signing sign
+      - name: Confirm private output absence even after failure
+        if: always() && steps.source.outcome == 'success'
+        run: python -m tools.ios_native_signing audit
