@@ -278,7 +278,7 @@ jobs:
       - name: Verify isolated TestFlight controller contracts without private input
         run: python -m unittest discover -s tools/tests -p "test_ios_testflight_*.py" -v
       - name: Verify native signing baseline with fictional CLI responses
-        run: python -m unittest tools.tests.test_ios_native_signing -v
+        run: python -m unittest tools.tests.test_ios_native_signing tools.tests.test_ios_native_secret_setup -v
       - name: Run deployment and release inspector tests
         if: runner.os == 'Linux'
         run: |

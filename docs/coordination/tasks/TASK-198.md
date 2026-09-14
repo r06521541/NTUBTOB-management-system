@@ -1,4 +1,75 @@
-## Active native signing baseline (2026-09-14)
+## Active one-time native Secret setup (2026-09-14)
+
+PR260 merged as e2e8572830840e4b81ea35276893c1e1381d0e10; required CI34851563433
+passed16/16, including the new macOS invalid-P12/cleanup smoke. No real signing.
+Owner created ios-native-signing; read-only API confirms Owner reviewer only,
+prevent_self_review=false, can_admins_bypass=false, main branch only, zero Secrets.
+
+Execution checkpoint:
+1. Outcome: reviewed one-time setup for the three existing signing inputs, not
+   signing/upload. One explicit field per execution; never deliberately overwrite
+   observed existing fields. GitHub has no atomic create-if-absent; Owner serializes setup.
+2. Core: tools/ios_native_secret_setup.py and direct tests, existing native file
+   custody read/verify/close only, official gh secret set via stdin. No new crypto,
+   transport protocol, journal/controller, password file, clipboard or asset scan.
+3. Invariants: exact reviewed main, Owner identity/protected Environment read-only
+   preflight before private input, visible target plus one-shot confirmation;
+   at most one Secret write, no delete/overwrite/retry or workflow dispatch.
+4. Tests: real orchestration with command-shaped fake gh results and outer native
+   custody; partial/uncertain write and verification failure preserve stage/field;
+   no raw cause, path, payload, password, hash or secret-bearing argv/environment.
+5. Owner stop: after independent review and CI hand off exact commands; Owner enters
+   existing paths/password once, one field at a time. No payload execution by Main.
+
+Main /root retains claim task-198-main-20260911 lease1; branch
+codex/task-198-native-secret-setup; base=head=e2e8572830840e4b81ea35276893c1e1381d0e10.
+Owned paths: new setup module/test, direct python-tests.yml suite invocation,
+existing IOS_NATIVE_SIGNING.md and TASK198 task/report/review/HANDOFF/PROJECT_STATE.
+No baseline, old controller/journal or general custody policy changes. DEC110
+permits persistent custody; this setup only supplies its three named values.
+Safety limit: Secret list metadata proves presence, not value; official CLI success
+plus metadata observation means stored, not valid signing. Uncertain write requires
+read-only review even if subsequent metadata is absent; no automatic rerun policy.
+
+Advisor /root/native_setup_review; claim_id=task-198-native-setup-review;
+lease_version=1; role=advisor; write=read-only; owned_paths=none; report_to=/root.
+Same branch/base/head; scope early architecture review of official CLI stdin setup,
+then separately leased frozen implementation review. No private files/live mutations,
+no Git writes. Stop on custody/authority expansion or source ownership drift.
+COLLABORATION2 mandatory packet applies; Main stays active until report handled.
+
+Lease1 architecture ACCEPT received/handled with seven conditions adopted:
+post-input policy/source/absence recheck and explicit race limit, reuse hidden and
+strict custody, encoded size/byte preservation, fixed CLI target/stdin, original
+plus cleanup/effect fidelity and conservative uncertain semantics. No live work.
+No new cross-invocation journal: Owner must stop/review after an uncertain result
+or closed window; later absence is not proof of zero mutation/retry permission.
+Two new command regressions reproduced RED on timeout overwritten by cleanup and
+CLI success masked by pipe-close failure; corrected and direct17testsPASS locally.
+
+Frozen implementation review: revoke completed architecture lease1, activate
+/root/native_setup_review claim task-198-native-setup-review lease2 advisor,
+read-only/ownednone/report_to=/root; same branch/base/head. Scope new module/tests,
+direct CI selection and exact runbook/authority, including stop/reap and stdin
+custody. No private inputs or external/Git writes; Main freezes source until verdict.
+Main affected51tests50PASS1macOS-onlySKIP; initial sandbox run had4existing native
+fixture ACL/handle setup errors; scoped temporary-fictional native test permission
+rerun passed, without changing source or Owner files. Quality/diffPASS.
+
+Lease2 REQUEST_CHANGES received/handled: malformed identity/remote_head/environment/
+branches schemas lost their actual stage, and entry lost cleanup/field. New real
+entry/orchestration regressions reproduced5RED assertions, then corrected only
+the new module/test. Direct19PASS. Lease3 now replaces completed lease2 for narrow
+correction review; same actor/claim/role/branch/base/head/read-only/report_to=/root.
+Other frozen source unchanged; no private/live/Git mutations, Main stays active.
+
+Lease3 correction ACCEPT received/handled; reviewer19PASS/fingerprints match,
+Main affected53tests52PASS1SKIP and quality/diffPASS. Advisor completed/read-only.
+Main owns one ready PR, required CI/merge and real no-input preflight. Only after
+these pass, Owner runs the exact merged-sha commands in IOS_NATIVE_SIGNING.md;
+no new approval policy or Main private execution is introduced by this handoff.
+
+## Previous native signing baseline (2026-09-14, integrated)
 
 Owner accepted the standard GitHub Actions/macOS route and the explicitly
 disclosed custody change: protected persistent Environment Secrets, temporary

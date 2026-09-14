@@ -4,19 +4,17 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: 88cde1d7c282e3e4a2988dc81a9d1dc94a5d75ae
+base_commit: e2e8572830840e4b81ea35276893c1e1381d0e10
 updated_by: main-work
 updated_at: 2026-09-14
 note: >
-  Owner accepted standard GitHub native signing and disclosed persistent Secrets
-  custody. Main implements signing-only baseline on codex/task-198-native-signing-baseline;
-  Security45 correction ACCEPT received/handled; source frozen and advisor read-only.
-  Old local controller/journal are not executed or reset; old workflow retired.
-  This slice stops at one-time protected Environment setup after source gates.
-  No real credentials, live signing/upload/provider mutations this slice.
-  Previous reliability delivery merged PR259, CI34845851725 succeeded16/16.
-  Writer19 completed/read-only; existing repository delivery authority applies.
-  Main now completes one substantive PR and required CI, then stops at Owner setup.
+  PR260 merged, CI34851563433 passed16/16 including native bad-P12 cleanup.
+  Owner created ios-native-signing; protection and zero Secret names verified.
+  Main implements one-time per-field official CLI Secret setup on
+  codex/task-198-native-secret-setup; independent review lease3 ACCEPT received/handled.
+  No real private input/write, signing, upload or old-controller replay this slice.
+  Main completes CI/merge and no-input preflight before Owner receives payload commands.
+  Persistent custody per DEC110; no automatic overwrite, retry or new journal.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

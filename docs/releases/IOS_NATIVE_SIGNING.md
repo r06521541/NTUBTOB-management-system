@@ -20,7 +20,7 @@ This will require another build (the baseline IPA is deleted), not retyping or
 re-importing the persistent signing Secrets. Do not publish an IPA as a public
 Actions artifact to avoid that build. Do not reuse a build already uploaded.
 
-## One-time setup checklist — not a command to execute yet
+## One-time setup checklist
 
 After accepted source and successful required CI, Owner configures repository
 Settings → Environments → **ios-native-signing**. Do not click Run workflow first:
@@ -43,10 +43,74 @@ Environment Secrets (three separate values, saved once):
 
 No `.p8` is used in this baseline. Neither the ASC upload key nor the Sign in
 with Apple key belongs in these three fields. Base64 is encoding, not encryption.
-Do not use an online converter. Before Owner provides payloads, Main must hand
-off the reviewed, exact private-input setup action; this document intentionally
-does not introduce an ad-hoc shell/clipboard secret converter. Environment rule
+Do not use an online converter. Use the reviewed one-field setup below after
+source acceptance/CI; Main never runs its private-input mode. Environment rule
 setup can be completed without touching any payload.
+
+### Owner-only one-field setup
+
+`tools.ios_native_secret_setup` is a small adapter for official `gh secret set`,
+not a signing controller. It never copies, repairs or deletes local originals,
+creates a journal, or dispatches a workflow. Requires Windows, existing GitHub CLI
+2.97.0 at its standard Program Files location, Python3.10, existing reviewed
+custody dependencies and the Owner's existing GitHub CLI login (not a new token).
+
+Main supplies the full reviewed merged SHA as `REVIEWED_MAIN_SHA` in the following
+commands; it is public source metadata, not a password. Run from the clean main
+checkout. Do NOT paste the literal placeholder. First run without `--execute`
+to verify source, Owner login, Environment protections and selected-field presence.
+
+```powershell
+py -3.10 -B -m tools.ios_native_secret_setup p12 --expected-commit REVIEWED_MAIN_SHA
+```
+
+Then use the SAME reviewed SHA, only after `READY`, one command at a time:
+
+```powershell
+py -3.10 -B -m tools.ios_native_secret_setup p12 --expected-commit REVIEWED_MAIN_SHA --execute
+py -3.10 -B -m tools.ios_native_secret_setup profile --expected-commit REVIEWED_MAIN_SHA --execute
+py -3.10 -B -m tools.ios_native_secret_setup password --expected-commit REVIEWED_MAIN_SHA --execute
+```
+
+The tool prints exact repo/Environment/field/count, then asks for the displayed
+`SET p12`, `SET profile` or `SET password` confirmation. Private input is hidden
+with length-only feedback. File prompts accept existing absolute paths using
+either slash direction, without quotes. Use the already protected local
+`distribution.p12` and `.mobileprovision`, not CSR/CER/P8. Existing handle-bound
+custody checks remain private: no inherited-source ACL exception or auto-repair.
+An ACL/path rejection is not a password error; send only the sanitized result to Main.
+The password prompt preserves spaces/UTF-8 and rejects control characters; it is
+the P12 password, not the Apple account password. It is never Base64-encoded.
+
+Files are Base64-encoded in memory, at most36KiB raw/48KiB encoded. No clipboard,
+Base64 output, temp file, dotenv, body argument, inherited secret env, raw CLI log
+or traceback. Only a private stdin pipe supplies the selected value to fixed-host
+official gh, which encrypts it before sending. Source/identity/policy/absence are
+checked again after input. Stored inputs stay in GitHub; no need to retype them
+for subsequent builds. Python/gh cannot guarantee memory zeroization.
+
+Run setup in ONE Owner window, with no concurrent manual Secret edits, agents or
+signing run. GitHub provides create-or-update, not atomic create-if-absent. The
+absence recheck narrows but does not eliminate the race; no absolute atomic
+no-overwrite claim is made. Observed existing fields are never deliberately set.
+
+- `READY`: no private input/write; Owner can execute this selected field once.
+- `STORED_METADATA_CONFIRMED`: CLI exit0 plus name presence; proceed to next field.
+  This does not verify the stored value, certificate validity or signing.
+- `ALREADY_PRESENT`: no input/write; preserve it. Presence alone is not value proof.
+- `STOP`: inspect `failure.stage/reason/exit_code`, separate `cleanup_failure` and
+  `write_state`. Correct only a selected input rejected before any write. For an
+  attempted/unknown write, cleanup failure, or postcheck failure, STOP ALL setup
+  and ask Main for read-only review; do not run the next field, repeat the command,
+  overwrite/delete a Secret or treat a later absent name as proof of zero mutation.
+
+One invocation submits at most one Secret set, without automatic retries. There
+is no new local attempt journal, so this stop rule requires the Owner's observed
+result; do not claim a software-enforced cross-invocation retry budget. If the
+window closes without a final result, that is uncertain and also requires review.
+Only sanitized final JSON is evidence; raw native diagnostics are discarded after
+fixed classification. A known CLI success survives a subsequent verification or
+cleanup failure. Setting Secrets is not authorization to start the signing job.
 
 Environment Variables (non-secret metadata; Main should reuse prior approved
 metadata where available, and verify bindings rather than make Owner retype it):
@@ -125,4 +189,6 @@ proves real certificate import, successful signing, upload or phone behavior.
 
 Sources: [GitHub native signing](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications),
 [Apple security command implementation](https://github.com/apple-oss-distributions/Security/blob/main/SecurityTool/macOS/security.c),
-[Flutter iOS release](https://docs.flutter.dev/deployment/ios).
+[Flutter iOS release](https://docs.flutter.dev/deployment/ios),
+[official gh Secret setup](https://cli.github.com/manual/gh_secret_set),
+[pinned CLI stdin behavior](https://github.com/cli/cli/blob/v2.97.0/pkg/cmd/secret/set/set.go).
