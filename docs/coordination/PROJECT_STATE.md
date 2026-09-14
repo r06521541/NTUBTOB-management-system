@@ -1,20 +1,20 @@
 # 專案狀態
 
-更新時間：2026-09-14（TASK198受控未送出復原之source/offline驗證；未查production runtime）
+更新時間：2026-09-14（TASK198基礎建設可靠性修正；本輪source/offline，未查production runtime）
 
 維護角色：Main Work
 
-最近已合併證據：`1a385e1948f82288ec0a52628cf3fca29ef1de99`（TASK-198／PR257）。
-這是固定的核對基準，不宣稱永遠等於最新 HEAD；目前程式版本由 `git rev-parse HEAD` 取得。
+本輪起始程式基準：`b6ccb2233f695f43828e1e462ad65bbb65af7490`。
+目前branch/dirty state由Git核對，next actor以HANDOFF為準。
 
-TASK198最新：PR257診斷修復已合併，CI34766832514全16項成功。前輪已review wrapper的preflight PASS；
-status INTACT／NOT_ATTEMPTED、LEGACY_REASON_UNAVAILABLE；舊source a605與新source不同不構成重試許可。
-Owner本輪批准source/offline受控復原，branch codex/task-198-unsent-recovery：原日誌byte不改，僅完整
-START/[FAILURE]/RESULT且確認未送出時，可透過獨立入口追加一次UNSENT_SUCCESSOR；fresh nonce／SHA、
-exclusive handle與private input後重新取得的GET-only零操作proof。一般execute仍阻擋既有日誌。
-Main276測試PASS、4既有平台SKIP，包含2項Windows新暫存目錄native測試；8檔quality PASS。
-writer19已主動交付並轉唯讀；Security41 ACCEPT、獨立94fakePASS／8檔hash一致。單一PR／CI後仍需明確runtime activation；
-本輪未讀寫真實日誌／資產，不簽署／上傳／改雲端。原失敗精確原因已遺失，尚無TestFlight build交付證據。
+TASK198最新：Owner要求把重要非production基礎建設的教訓固化為可執行驗收。
+Main在codex/task-198-infrastructure-lessons修改協作規範、實作指南及兩個既有診斷模組；
+新增真實程式鏈／虛構I/O回歸先在舊實作重現，再修正等待狀態誤判、recover原因／effect遺漏與收尾二次錯誤。
+Security42首輪要求修正取消503原因遺漏，補RED再修正後ACCEPT；Main280PASS4既有SKIP、獨立71fakePASS。
+Source驗收完成，repository整合尚待完成。Security42與Writer19保持completed/read-only。
+本輪不讀真實journal／資產、不重跑sign/upload、不改provider；仍無本輪TestFlight交付證據。
+下一步是完成source gates，再設計精簡的GitHub macOS手動成功基準；尚無可交Owner執行的live命令。
+已消耗operation的證據不得刪除或藉新nonce／journal／successor繞過；新credential custody需先明確決策。
 
 ## Active role lanes
 

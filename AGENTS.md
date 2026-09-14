@@ -52,6 +52,9 @@
   部署不適用此例外，必須立即恢復 L2／L3 與 Owner gate。
 - 取得 commit 授權時，標題必須描述實際行為或結果，優先使用 `<type>(<scope>): <outcome>`；不得只寫 TASK 編號、handoff、update files 或其他離開上下文就無法理解的流程文字。TASK 編號放在 commit body/footer。
 - 不以「測試通過」推定線上整合正確。無法驗證的部分必須在交付時明說。
+- 基礎建設按控制能力／故障影響分類，不按是否 production 分類。簽署、CI/CD、金鑰傳送、發布、
+  migration／recovery 與阻斷交付的 operator 適用 `COLLABORATION.md` 第 8.1 節；開始此類工作前閱讀
+  `docs/development/INFRASTRUCTURE_RELIABILITY.md`。安全停止但無法診斷，不算完整交付。
 
 ## 開始任務前
 

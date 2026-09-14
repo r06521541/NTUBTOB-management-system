@@ -142,6 +142,12 @@ def emit(
         "retry_authorized": False,
         "next_action": "READ_ONLY_REVIEW" if diagnostics.valid(failure) else "NONE",
     }
+    if result["classification"] in {
+        "OPERATION_UNRESOLVED",
+        "RETENTION_UNRESOLVED",
+        "RECONCILIATION_UNRESOLVED",
+    }:
+        result["next_action"] = "READ_ONLY_REVIEW"
     if type(observation) is dict:
         state = observation.get("journal_state")
         if type(state) is str and state in {"INTACT", "DAMAGED"}:
@@ -766,24 +772,32 @@ def recover_operation(
     from tools import ios_testflight_owner as owner
 
     journal = journal_factory(create=False)
+    session = None
+    state = {}
+    failure = cleanup_failure = None
+    reason = "OPERATION_UNRESOLVED"
+    cleanup = False
+    durability_failed = False
+    stage, check = "recovery", "journal_integrity"
     try:
         session = dispatch.Session.recover(journal)
         session.recover_run()
         if session.run_id:
             session.observe()
+        stage, check = "cleanup", "retention"
         state = finalize_session(session)
-        reason = "OPERATION_UNRESOLVED"
-        cleanup = False
         if (
             journal.intact
             and session.run_id
             and session.job_status == "COMPLETED"
             and state["current_absence_verified"]
         ):
+            stage, check = "artifact_verification", "artifact"
             start = journal_module.active_events(journal.events)[0]["data"]
             artifact = session.artifact(version=start["version"], build=start["build"])
             public = recovery.result_from_logs(session.logs())
             cleanup = public["cleanup_verified"]
+            stage, check = "apple_reconcile", "apple_result"
             asc, email = asc_input()
             target = owner.OwnerSession(asc, owner_email=email).inventory(
                 version=start["version"]
@@ -801,17 +815,61 @@ def recover_operation(
                 if state["retention_resolved"]
                 else "RETENTION_UNRESOLVED"
             )
-        result_record(
-            journal, reason, cleanup=cleanup, absent=state["current_absence_verified"]
-        )
-        return emit(
-            reason,
-            run_id=session.run_id,
-            cleanup=cleanup,
-            secret_absence=state["current_absence_verified"],
-        )
+    except (KeyboardInterrupt, Exception) as error:
+        failure = failure_for(error, stage, check)
+        if stage == "cleanup":
+            cleanup_failure = failure
     finally:
-        journal.close()
+        # Preserve observed facts and the primary cause across output/close faults.
+        # This projection never initiates another cancel, transfer or upload.
+        if session is not None:
+            state = session.public()
+            failure = diagnostics.sanitize(state.get("failure")) or failure
+            cleanup_failure = (
+                diagnostics.sanitize(state.get("cleanup_failure")) or cleanup_failure
+            )
+        try:
+            result_record(
+                journal,
+                reason,
+                cleanup=cleanup,
+                absent=state.get("current_absence_verified") is True,
+                failure=failure,
+            )
+        except (KeyboardInterrupt, Exception) as error:
+            durability_failed = True
+            reason = "JOURNAL_REJECTED"
+            cleanup_failure = cleanup_failure or failure_for(
+                error, "cleanup", "journal_write"
+            )
+        try:
+            journal.close()
+        except (KeyboardInterrupt, Exception) as error:
+            durability_failed = True
+            reason = "JOURNAL_REJECTED"
+            cleanup_failure = cleanup_failure or failure_for(
+                error, "cleanup", "journal_write"
+            )
+    uncertain_journal = durability_failed or not journal.intact
+    return emit(
+        reason,
+        run_id=session.run_id if session is not None else None,
+        cleanup=cleanup and not uncertain_journal,
+        secret_absence=state.get("current_absence_verified") is True
+        and not uncertain_journal,
+        failure=failure or cleanup_failure,
+        cleanup_failure=cleanup_failure,
+        external_write_state=(
+            "UNKNOWN"
+            if uncertain_journal
+            else state.get("external_write_state", "UNKNOWN")
+        ),
+        secret_transfer_state=(
+            "UNRESOLVED"
+            if uncertain_journal
+            else state.get("secret_transfer_state", "UNRESOLVED")
+        ),
+    )
 
 
 def _unsent_preparation(sha, staging, *, execute_requested):

@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import tempfile
 import unittest
@@ -14,6 +15,170 @@ from tools.tests import test_ios_testflight_staging as staging_fixtures
 
 
 class OperatorTests(unittest.TestCase):
+    def test_unresolved_output_always_directs_readonly_review(self):
+        for reason in (
+            "OPERATION_UNRESOLVED",
+            "RETENTION_UNRESOLVED",
+            "private-sentinel",
+        ):
+            with (
+                self.subTest(reason=reason),
+                patch("sys.stdout", new_callable=io.StringIO) as output,
+            ):
+                result = operator.emit(reason)
+                self.assertEqual(result["next_action"], "READ_ONLY_REVIEW")
+                self.assertFalse(result["retry_authorized"])
+                self.assertNotIn("private-sentinel", output.getvalue())
+
+    def test_real_recovery_chain_keeps_failure_and_known_effect_state(self):
+        from tools.tests.test_ios_testflight_journal import JournalTests
+
+        for cancel_code, record_error, close_error, legacy in (
+            (202, False, False, False),
+            (503, False, False, False),
+            (202, True, False, False),
+            (202, False, True, False),
+            (202, False, False, True),
+        ):
+            with self.subTest(
+                cancel_code=cancel_code,
+                record_error=record_error,
+                close_error=close_error,
+                legacy=legacy,
+            ):
+                helper = JournalTests()
+                native = helper.fake()
+                journal = helper.opening(native)
+                start = helper.start()
+                journal.record("START", **start)
+                journal.record("DISPATCH_ATTEMPT")
+                journal.record(
+                    "DISPATCH_CONFIRMED", run_id=123, workflow_id=7, environment_id=8
+                )
+                first = {
+                    "stage": "awaiting_job",
+                    "check": "run_binding",
+                    "reason": "CHECK_REJECTED",
+                }
+                if legacy:
+                    first = {
+                        "stage": "recovery",
+                        "check": "unexpected",
+                        "reason": "LEGACY_REASON_UNAVAILABLE",
+                    }
+                    journal.record(
+                        "RESULT",
+                        classification="UNRESOLVED",
+                        cleanup_verified=False,
+                        secret_absence_verified=False,
+                        owner_distribution_verified=False,
+                    )
+                else:
+                    journal.record("FAILURE", **first)
+                original_bytes = native.data
+                cancelled = False
+                api = Mock()
+
+                def call(method, path, body=None):
+                    nonlocal cancelled
+                    prefix = operator.dispatch.API + "/actions/runs/123"
+                    if method == "POST" and path == prefix + "/cancel":
+                        cancelled = True
+                        return cancel_code, {"message": "private-sentinel"}
+                    self.assertEqual(method, "GET")
+                    status = "completed" if cancelled else "waiting"
+                    if path == prefix:
+                        return 200, {
+                            "id": 123,
+                            "workflow_id": 7,
+                            "path": ".github/workflows/" + operator.wire.WORKFLOW,
+                            "event": "workflow_dispatch",
+                            "head_branch": "main",
+                            "head_sha": start["sha"],
+                            "run_attempt": 1,
+                            "display_title": "ios-tf-" + start["nonce"],
+                            "repository": {"full_name": operator.wire.REPO},
+                            "status": status,
+                            "conclusion": "cancelled" if cancelled else None,
+                        }
+                    self.assertEqual(path, prefix + "/attempts/1/jobs?per_page=100")
+                    return 200, {
+                        "total_count": 1,
+                        "jobs": [
+                            {
+                                "id": 456,
+                                "name": "owner_testflight",
+                                "run_id": 123,
+                                "head_sha": start["sha"],
+                                "status": status,
+                                "conclusion": "cancelled" if cancelled else None,
+                            }
+                        ],
+                    }
+
+                api.call.side_effect = call
+                factory = Mock(return_value=journal)
+                asc = Mock(side_effect=AssertionError("private input forbidden"))
+                record = operator.result_record
+                close = journal.close
+
+                def finish(*args, **kwargs):
+                    if record_error:
+                        raise OSError("private-sentinel")
+                    return record(*args, **kwargs)
+
+                def closing():
+                    close()
+                    if close_error:
+                        raise OSError("private-sentinel")
+
+                with (
+                    patch.object(
+                        operator.dispatch.primitives, "GitHub", return_value=api
+                    ),
+                    patch.object(operator, "result_record", side_effect=finish),
+                    patch.object(journal, "close", side_effect=closing),
+                    patch("sys.stdout", new_callable=io.StringIO) as output,
+                ):
+                    result = operator.recover_operation(
+                        journal_factory=factory, asc_input=asc
+                    )
+                self.assertEqual(json.loads(output.getvalue()), result)
+                self.assertEqual(result["run_id"], 123)
+                self.assertEqual(result["failure"], first)
+                self.assertEqual(result["next_action"], "READ_ONLY_REVIEW")
+                damaged = record_error or close_error
+                self.assertEqual(
+                    result["external_write_state"],
+                    "UNKNOWN" if damaged or cancel_code != 202 else "ATTEMPTED",
+                )
+                self.assertEqual(
+                    result["secret_transfer_state"],
+                    "UNRESOLVED" if damaged else "NOT_ATTEMPTED",
+                )
+                if cancel_code != 202:
+                    self.assertEqual(
+                        result["cleanup_failure"],
+                        {
+                            "stage": "cancel",
+                            "check": "cancel_result",
+                            "reason": "HTTP_SERVER_ERROR",
+                        },
+                    )
+                else:
+                    self.assertEqual(result["cleanup_failure"] is not None, damaged)
+                self.assertFalse(result["retry_authorized"])
+                self.assertFalse(result["secret_absence_verified"])
+                self.assertNotIn("private-sentinel", output.getvalue())
+                self.assertNotIn(start["nonce"], output.getvalue())
+                asc.assert_not_called()
+                factory.assert_called_once_with(create=False)
+                self.assertTrue(native.data.startswith(original_bytes))
+                self.assertEqual(
+                    [c.args[0] for c in api.call.call_args_list if c.args[0] != "GET"],
+                    ["POST"],
+                )
+
     def test_unsent_cli_modes_are_explicit_and_preserve_source_gate(self):
         staging, _, _, _ = self.fixture()
         for args in (["--check-unsent"], ["--execute-unsent", "--settings"]):
