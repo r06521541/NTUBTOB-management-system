@@ -310,6 +310,30 @@ class WorkflowContractTests(unittest.TestCase):
                 runner_configuration.group(1),
             )
 
+    def test_sidefile_diagnostic_only_replaces_secret_free_probe(self):
+        block = job_block(self.flutter_source, "ios_compile_contract")
+        command = "python3 -m tools.ios_native_upload diagnose-sidefiles"
+        self.assertEqual(self.flutter_source.count(command), 1)
+        self.assertIn(command, block)
+        self.assertNotIn("python3 -m tools.ios_native_upload probe", block)
+        for forbidden in (
+            "secrets.",
+            "environment:",
+            "continue-on-error",
+            "ios_native_upload upload",
+            "secrets: inherit",
+        ):
+            self.assertNotIn(forbidden, block)
+        rehearsal = block.split(
+            "- name: Rehearse iOS release lifecycle without credentials", 1
+        )[1].split("- name:", 1)[0]
+        self.assertNotIn("|| true", rehearsal)
+        real = (ROOT / ".github/workflows/ios-native-signing.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("python -m tools.ios_native_upload probe", real)
+        self.assertNotIn("diagnose-sidefiles", real)
+
     def test_private_profile_workflow_is_manual_and_separates_private_input(self):
         source = PROFILE_WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(source, r"(?m)^  workflow_dispatch:$")

@@ -1,5 +1,46 @@
 # TASK-198 review
 
+## Secret-free sidefile diagnostics: frozen source ACCEPT (2026-09-15)
+
+Advisor /root/native_upload_review, task-198-native-upload-review lease11,
+read-only/owned none. Full proactive completion received/handled by Main.
+Reviewed3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b against
+4630f922eb3f5bef2733f812cadfdbebca90bfee; no actionable blocker. Actual pre-capture
+failure blocks native/key-file creation; after failure preserves original exit,
+primary and cleanup evidence. Bounded private equality/public counts, empty-root
+change, partial unknown=null, no-follow/race guards and safe argv rejection hold.
+Diagnostic/runtime separation, no-key entry and unchanged real workflow accepted.
+Independent58=56PASS2WindowsSKIP (symlink privilege/bash); additional bare Python
+(-S, no site-packages) fictional diagnostic4observations PASS without crypto/native.
+Quality three Python paths/diff PASS. No source/Git/Secret/cloud/native Apple edits.
+Main source unchanged after frozen review; coordination-only deltas remain.
+
+| Path | LF SHA256 |
+| --- | --- |
+| tools/ios_native_upload.py | 3ab35cd0da474c88ef2f66a4fdf38b91246ddd9e592d006508c55882340a2a1d |
+| tools/tests/test_ios_native_upload.py | 0bfb35139cc116925b494695ba15b422a49212cc5f6b5b47a64435c02c8f4a3e |
+| tools/tests/test_ci_workflow_contract.py | 09a71135ee176bff6e1ccb5f539f68eafc3cfd1290fe16ac864634d3eb14c84d |
+| .github/workflows/flutter-tests.yml | fa655c7d99837752d6fd12ce8fab79ef1920809b6fe6c2a34792b3975a3ff3f6 |
+| docs/releases/IOS_NATIVE_SIGNING.md | 856652fda509c43608357a7f0d8ec61d3d959613f0b0000d19e172c49c4d2daf |
+
+Main accepts source for one ready PR/full CI, not signing/upload. Native hosted
+observation remains pending; no claim of historical cause or whole-VM absence.
+Build2 still requires named-stop resolution or new exact Owner risk disposition.
+
+## Secret-free sidefile diagnostics: architecture ACCEPT (2026-09-15)
+
+Advisor /root/native_upload_review, task-198-native-upload-review lease10,
+read-only, owned paths none. Full proactive packet received/handled by Main.
+Base4630f922eb3f5bef2733f812cadfdbebca90bfee, branch codex/task-198-sidefile-diagnostics.
+Small private capture/delta/public projection plus fixed existing probe accepted;
+no controller/journal/upload replay. Fixed aliases/counts only, unknown=null,
+bounded2001 enumeration, no-follow metadata and partial roots; pre-capture failure
+blocks native, post-capture failure preserves primary/exit/cleanup evidence.
+No-key diagnostic completion is separate from unchanged runtime audit; CHANGED
+still runtime STOP, capture/CLI failure diagnostic STOP. No old-cause/absence claim
+or new build2 authority. No new tests/native/Git/cloud/Secret actions by reviewer.
+This is architecture only; frozen implementation acceptance and hosted evidence pending.
+
 ## Google503 correction: frozen source ACCEPT (2026-09-15)
 
 Advisor /root/native_upload_review, task-198-native-upload-review lease9;

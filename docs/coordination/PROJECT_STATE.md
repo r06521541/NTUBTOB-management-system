@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-09-15（TASK198 Google503修正196項測試／獨立ACCEPT；Owner已明確同意本次技術紀錄公開推送，續唯一PR／CI）
+更新時間：2026-09-16（Owner已批准本批五份協作文件公開；TASK198無金鑰診斷source驗收通過，Main接續單一PR／full CI／合併；新上傳仍另有關卡）
 
 維護角色：Main Work
 
-目前 main 程式基準：`cefbd6375086241f68ea3906e16cf63dc2f0e6c6`（PR263）。
+目前 main 程式基準：`4630f922eb3f5bef2733f812cadfdbebca90bfee`（PR264）。
 目前branch/dirty state由Git核對，next actor以HANDOFF為準。
 
 TASK198最新：PR261一次性設定已合併，CI34865517474成功16/16；native run34880271702真實簽署與清理通過。
@@ -27,14 +27,14 @@ Owner後續截圖顯示登入頁有Apple／Google與圖示型LINE按鈕；UI顯�
 Owner完成單次Google帳號選擇／授權，App顯示「資料格式異常」；Main核對20:22的Google exchange為503。
 staging仍由mobile-api-staging-task157-47ccfb5f承接100%流量；DB readiness紀錄operational／none／tcp_ok。
 不帶token的單次/me GET同樣503／DB readiness不可用；不是已證明的schema mismatch或Google帳號拒絕。
-Google503誤導文案已在codex/task-198-google-unavailable修正：嚴格契約且明確可重試才顯示恢復入口，不自動重送；196項本機測試通過，尚未裝到手機。
+Google503誤導文案已合併PR264：嚴格契約且明確可重試才顯示恢復入口，不自動重送；196項本機測試、獨立ACCEPT與PR CI34976805878通過，尚未裝到手機。
 Owner已回報Supabase Resume完成；20:44唯讀/me已回預期401／BEARER_REQUIRED，該請求DB guard通過。
 Owner已回報Google登入後進首頁，記為本人實機login-to-home通過，非Main獨立裝置遙測或完整驗收。
 Owner也確認連網且未登出時完全關閉重開，可直接回首頁；記為session恢復通過，不推定無限有效期或token內部狀態。
 Owner確認斷網重開顯示離線唯讀，恢復網路再重開也能正常回首頁免登入；四項入口／連線smoke通過，非完整驗收。
 Owner也確認賽事詳情正常；不推定已驗完整快取、寫入阻擋或不重開時自動復原。
 Owner確認TASK198限定2035-02-01虛構對手甲／球場A的出席變更、重開保留、還原、再重開四步皆正確；回覆值已獲本人還原確認，不推定稽核／時間戳還原。
-六項smoke不用重做；503 source已ACCEPT，Owner已同意本次source／假資料測試及去識別化技術紀錄公開推送。Main續唯一PR／CI；其餘provider／device與sidefile仍未全驗收。
+六項smoke不用重做；PR264／main CI皆成功。新診斷source3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b本機133PASS3SKIP，lease11 ACCEPT；Owner已明確批准本批五份協作／驗收文件公開。下一棒Main完成單一PR與full CI；不解除原runtime STOP。
 不重送build1、不重填Secret；sidefile audit未解除，先前Owner例外僅允許已安裝build1續測。新build2須先取得該停止原因解除證據或新的明確Owner處置，再做fresh preflight。
 Main瀏覽器工具仍不可用；Missing Compliance UI阻礙已解除，但不代表法律審查。staging Apple登入仍缺，暫不測Apple。
 

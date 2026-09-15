@@ -1,4 +1,102 @@
-## Active delivery: Google service-unavailable recovery (2026-09-15)
+## Active delivery: secret-free native sidefile diagnostics (2026-09-15)
+
+Publication approval (2026-09-16): Owner explicitly agreed to this batch's five
+coordination files (HANDOFF, PROJECT_STATE, this task/report/review) being public
+with source/fake tests in r06521541/NTUBTOB-management-system. Includes the disclosed
+agent/task/review/test/technical operation records. Resume same branch commit/push,
+one ready PR/full CI/merge. Resolves the exact rejection below; no bypass/split,
+credential publication, signing/upload or new build2 risk disposition implied.
+Fresh read-only main still4630f922eb3f5bef2733f812cadfdbebca90bfee; no existing PR
+for this branch; accepted five source paths still equal3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b.
+
+Publication stop: auto-review rejected combined coordination commit/push before
+execution. Source3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b stays local ACCEPT;
+five dirty coordination files preserved (HANDOFF, PROJECT_STATE, same task/report/
+review). No push, PR or hosted run. Reason: new public payload includes internal
+task/review/coordination details beyond the previous exact publication consent.
+Owner must explicitly confirm this batch may be public alongside source/tests in
+r06521541/NTUBTOB-management-system. Contains task/agent role and lease records,
+commit/test/review/operation references, failure boundaries and technical status;
+not credential payloads. Main will not bypass by splitting the rejected delivery.
+This is not new signing/upload/Secret or build2 risk-disposition permission.
+
+Owner agreed to the recommended no-real-key/no-upload diagnostic correction.
+Type=delivery; delivery_group=task-198-sidefile-diagnostics;
+branch=codex/task-198-sidefile-diagnostics;
+base/head=4630f922eb3f5bef2733f812cadfdbebca90bfee. Main /root retains
+task-198-main-20260911 lease1 as sole implementer/integrator. Preserve the four
+Main-owned post-merge records from PR264 in this next substantive delivery.
+Five-line execution checkpoint:
+1. Outcome: explain bounded top-level Logs/Caches metadata drift without inspecting
+   contents/names publicly or clearing the old unknown sidefile result.
+2. Scope: tools/ios_native_upload.py and its direct tests; existing secret-free
+   macOS CI probe entry in flutter-tests.yml, its workflow contract test if needed,
+   IOS_NATIVE_SIGNING.md and same task/report/review/HANDOFF/PROJECT_STATE records.
+3. Invariants: existing changed/failed audit remains STOP; no upload, real key read,
+   file-content inspection, raw path/name/hash/mtime output, unrelated deletion,
+   retries or new signing permission. Previous run34953146969 stays unresolved.
+4. Evidence: RED-first filesystem-shaped fixtures -> actual audit/execute final
+   JSON; per-root added/removed/modified summaries, malformed/race/I/O boundaries,
+   primary plus cleanup failures; reviewed no-key native --help observation and
+   required CI. Negative controls never become historical-root-cause proof.
+5. Stops: private credentials, actual upload/Apple API, broad audit relaxation,
+   unsupported metadata/custody or unclear authority. New build2 remains gated.
+
+Architecture lease10 ACCEPT proactively received/handled. Fixed before hosted
+observation: diagnostic completion and runtime audit verdict are separate.
+Complete no-key observations/probe may exit0 even with CHANGED (explicit runtime
+STOP); any capture/native/teardown failure exits1. No historical cause/absence
+claim. No controller, credential transfer, new scanner or upload replay added.
+Main RED: existing real execute lacked sidefile_audit; failed capture fixture
+did not block the mocked native call. Workflow RED confirms new diagnostic absent.
+Implementation/test work ongoing; no hosted observation or frozen acceptance yet.
+
+Frozen-source packet: task=TASK-198; branch=codex/task-198-sidefile-diagnostics;
+base=4630f922eb3f5bef2733f812cadfdbebca90bfee;
+head=3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b; actor=/root/native_upload_review;
+claim=task-198-native-upload-review; lease11 replaces completed10; advisor/read-only;
+owned_paths=none; report_to=/root. Scope=independent frozen acceptance of the five
+source/workflow/runbook files, actual failure/output pipeline, bounded private
+capture and no-key CLI guards. Main owns the five dirty coordination records and
+prepares release evidence concurrently. No Secret/native/Apple/cloud/Git mutation;
+stop/report if immutable source differs, private input needed or scope expands.
+ACK immediately, heartbeat10-15min, blocker immediately, completion proactively
+verdict/full SHA/tests/findings/limits/external mutations to /root. Main's evidence:
+direct136=133PASS/3platform SKIP; quick40=39PASS/1Windows bash SKIP; quality3/diff PASS.
+No new hosted observation yet; old runtime stop remains. Reviewer not sole author.
+
+Lease11 ACCEPT proactively received/handled on the exact frozen source; independent
+58=56PASS2WindowsSKIP plus bare-Python no-crypto fictional diagnostic PASS. Main
+accepted source; no further source edits, no delegated work pending. Next one ready
+PR/full CI (actual classifier full=true), then merge only after required success.
+No extra status-only PR, real signing/upload, key input or historical stop clearing.
+
+Advisor packet (COLLABORATION2 applies once): task=TASK-198;
+branch/base/head as above; actor_id=/root/native_upload_review; role=advisor;
+claim_id=task-198-native-upload-review; lease_version=10 (completed9 revoked);
+scope=bounded architecture/security review of safe diagnostics and no-key macOS
+probe; owned_paths=none; write=read-only; report_to=/root.
+Stop on private inputs, cloud/provider mutation or scope expansion. Main concurrently
+inspects actual failure/output consumers and drafts RED regressions. ACK immediately,
+heartbeat10-15min, blocker immediately; proactively send full verdict/SHA/tests/
+findings/limits/external mutations to /root. Later frozen-source acceptance separate.
+
+## Completed delivery: Google service-unavailable recovery (2026-09-15)
+
+Integration complete: PR264 merged4630f922eb3f5bef2733f812cadfdbebca90bfee after
+PR CI34976805878 SUCCESS (7 selected jobs PASS,7 unrelated jobs SKIP). Frozen PR
+head a1bb525f9fa0d81b3f3a63f6761ccc8669415274 contains the accepted source unchanged.
+Main verified remote base unchanged before merge and whole merged tree equals PR
+head; local main fast-forwarded. Automatic push CI34978041181 also SUCCESS,
+7 selected PASS/7 unrelated SKIP, exact merged SHA, watch exit0 and fresh API bound.
+Both CI runs are terminal; no outstanding reviewer/watch. Google503 source delivery
+is complete, not the full IOS-TF-01 or new-phone-binary acceptance.
+Post-merge coordination deltas remain local until another
+substantive delivery; no standalone state-only PR or work commit on main.
+New native signing/upload remains blocked by the named sidefile gate below.
+Next actor Owner for the new-operation sidefile disposition. Main's recommended
+next scope is no-real-key/no-upload diagnostic improvement first; no L3 source
+work or new native operation has started. Do not ask for passwords or repeat smoke.
 
 Resolved publication stop: Owner explicitly agreed to publishing this exact source,
 fake-data tests and disclosed technical evidence (run/build IDs, staging revision,
