@@ -8,15 +8,25 @@ base_commit: cefbd6375086241f68ea3906e16cf63dc2f0e6c6
 updated_by: main-work
 updated_at: 2026-09-15
 note: >
+  CURRENT: Owner explicitly approved this exact public source/fake-tests and
+  run/build/service-revision/de-identified smoke evidence payload after disclosure
+  of the auto-review rejection. Destination remains public GitHub repository
+  r06521541/NTUBTOB-management-system, codex/task-198-google-unavailable;
+  resume commit/push, one ready PR, required CI and merge. No credential material.
+  Source f3ec67eef9b86c62ed79a79610d3005be477f250 remains ACCEPT with196 local
+  tests/analyze/format PASS; five coordination updates travel in this delivery.
+  This permission resolves publication only, NOT new-build sidefile disposition,
+  real signing/upload or any expanded runtime authority. No new runtime operation.
+  Reviewer lease9 completed and handled; no outstanding delegated work.
   ACTIVE: Owner requested continue to next genuine gate. Main implements bounded
   Google503 service_unavailable recovery on codex/task-198-google-unavailable,
   base cefbd6375086241f68ea3906e16cf63dc2f0e6c6. Preserve4 Main-owned docs.
   Advisor /root/native_upload_review lease8 design report received/handled;
-  lease9 read-only frozen source acceptance next, packet in TASK top, report_to=/root.
-  Main affected suites196PASS (29 new), narrow503 recovery implemented locally.
+  lease9 frozen source ACCEPT received/handled on f3ec67eef9b86c62ed79a79610d3005be477f250,
+  independent29PASS; packet/review recorded. Main affected196PASS, analyze/formatPASS.
   No runtime/sign/upload/Secret
   mutation; prior sidefile exception applies only to existing build1 continuation.
-  Next source review/onePR/requiredCI. Before new build2 require resolved audit or
+  Next one readyPR/requiredCI/merge. Before new build2 require resolved audit or
   new exact Owner sidefile disposition; do not ask Owner to repeat smoke tests.
   CURRENT: Owner reports Google login-to-home and subsequent online close/reopen
   both pass without another Google prompt. Owner-reported session restoration,

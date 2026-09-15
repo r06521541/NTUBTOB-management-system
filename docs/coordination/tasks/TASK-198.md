@@ -1,5 +1,23 @@
 ## Active delivery: Google service-unavailable recovery (2026-09-15)
 
+Resolved publication stop: Owner explicitly agreed to publishing this exact source,
+fake-data tests and disclosed technical evidence (run/build IDs, staging revision,
+de-identified smoke results) to public r06521541/NTUBTOB-management-system.
+Resume same branch commit/push, one ready PR, required CI and merge. No credentials,
+new sidefile disposition, signing/upload or runtime expansion is authorized here.
+The following records the prior auto-review stop, now resolved by current consent.
+Auto-review rejected the combined coordination commit/push before execution because
+the existing public repository would receive internal operation/validation metadata.
+No push/PR/newCI/merge/runtime occurred. Local source commit remains
+f3ec67eef9b86c62ed79a79610d3005be477f250; five coordination deltas are preserved.
+Read-only inspection confirms records include run/build IDs, staging service revision
+and de-identified Owner smoke results. Added-document scan: zero private-key headers
+or email-address lines, not an exhaustive sensitive-data proof. Earlier exact
+PR251 approval is historical, not new permission for this changed public payload.
+Main did not bypass or split the rejected publication; obtained explicit Owner
+permission for the exact source/tests/technical-evidence payload and destination.
+No new sidefile risk acceptance, signing/upload or private-input authority is implied.
+
 Owner requests continued work until the next genuine Owner gate. Type=delivery;
 delivery_group=task-198-google-unavailable; branch=codex/task-198-google-unavailable;
 base/head at start=cefbd6375086241f68ea3906e16cf63dc2f0e6c6. Main remains the sole
@@ -31,13 +49,19 @@ also satisfy the existing Error schema; prior risk disposition is existing-build
 Source now implements those bounds; 196 affected tests pass (29 new), source
 format check passes. Final source acceptance will bind the frozen resulting commit.
 Lease9 supersedes completed8 for the same advisor/claim/branch: read-only source
-acceptance of the next immutable implementation commit, exact SHA supplied by Main
-via git rev-parse. Owned source=integration.dart, basic_app.dart and
+acceptance of immutable implementation commit
+f3ec67eef9b86c62ed79a79610d3005be477f250 (git rev-parse). Owned source=integration.dart, basic_app.dart and
 test/google_login_recovery_test.dart under clients/flutter_app; no writes.
 Review status/code/retryability/schema, no automatic replay/session creation,
 unknown/auth/malformed paths, real UI projection and coverage against OpenAPI.
 Same ACK/heartbeat/blocker/proactive-report obligations above; Main concurrently
 prepares coordination/hosted CI. No provider, credentials, signing/upload or runtime.
+Lease9 completed ACCEPT proactively received and handled by Main. Independently
+reran29 focused tests and three-file format/diff checks; no actionable findings.
+Main affected196/analyze/format PASS; quick contracts38 PASS/1 Windows bash SKIP.
+Scope classifier selects Flutter (Android + macOS), not unrelated backend/schema.
+Source remains at reviewed f3ec67eef9b86c62ed79a79610d3005be477f250; final
+coordination commit may follow, then one readyPR/requiredCI/merge, no runtime.
 
 Next release gate remains unresolved native_sidefiles/EXTERNAL_METADATA_CHANGED
 from run34953146969. New build1.0.0(2) is a plan, NOT checked available or dispatched.

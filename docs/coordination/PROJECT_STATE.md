@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-09-15（TASK198六項iPhone smoke通過；Google503修正本機196項測試通過，待source review／CI）
+更新時間：2026-09-15（TASK198 Google503修正196項測試／獨立ACCEPT；Owner已明確同意本次技術紀錄公開推送，續唯一PR／CI）
 
 維護角色：Main Work
 
@@ -34,7 +34,7 @@ Owner也確認連網且未登出時完全關閉重開，可直接回首頁；記
 Owner確認斷網重開顯示離線唯讀，恢復網路再重開也能正常回首頁免登入；四項入口／連線smoke通過，非完整驗收。
 Owner也確認賽事詳情正常；不推定已驗完整快取、寫入阻擋或不重開時自動復原。
 Owner確認TASK198限定2035-02-01虛構對手甲／球場A的出席變更、重開保留、還原、再重開四步皆正確；回覆值已獲本人還原確認，不推定稽核／時間戳還原。
-六項本輪smoke已完成；不用重做。下一棒Main完成503修正獨立審查／唯一PR／CI；provider／logout／privacy／device與sidefile缺口仍未全驗收。
+六項smoke不用重做；503 source已ACCEPT，Owner已同意本次source／假資料測試及去識別化技術紀錄公開推送。Main續唯一PR／CI；其餘provider／device與sidefile仍未全驗收。
 不重送build1、不重填Secret；sidefile audit未解除，先前Owner例外僅允許已安裝build1續測。新build2須先取得該停止原因解除證據或新的明確Owner處置，再做fresh preflight。
 Main瀏覽器工具仍不可用；Missing Compliance UI阻礙已解除，但不代表法律審查。staging Apple登入仍缺，暫不測Apple。
 

@@ -1,5 +1,33 @@
 # TASK-198 review
 
+## Google503 correction: frozen source ACCEPT (2026-09-15)
+
+Advisor /root/native_upload_review, task-198-native-upload-review lease9;
+Main received/handled proactive ACK, tooling limit and full completion packet.
+Reviewed f3ec67eef9b86c62ed79a79610d3005be477f250 against
+cefbd6375086241f68ea3906e16cf63dc2f0e6c6, codex/task-198-google-unavailable.
+No actionable findings. Only exact structured503 service_unavailable/retryable
+becomes recoverable; unknown/auth/schema/transport uncertainty remain stopped.
+201/202 behavior and other providers unchanged; real Google view mapping calls
+the extracted identical helper. No automatic attempt/session creation/raw display.
+Independent focused29 PASS and format0changes/diff PASS. Initial SDK lock denial
+was pre-test tooling; same reviewed command passed with SDK cache permission.
+Main affected196 PASS, analyze3 paths no issues, quick contracts38 PASS/1 Windows
+bash SKIP. Main source tree still matches the reviewed commit; later docs only.
+
+| Scoped file under clients/flutter_app | LF SHA256 |
+| --- | --- |
+| lib/integration.dart | 682c945872d87e631da5343da6813c16f8f91c53046e1d078622a00750781725 |
+| lib/basic_app.dart | 14a1ece90bfb88a0de8211101e869126fe3037849cb2f1ad026c4323fcb1212c |
+| test/google_login_recovery_test.dart | 72c28643b934e007fb400256faf6fd127d55d3ec3ff5363eeca0581612666074 |
+
+Main accepts this source-only L2 correction for one ready PR/requiredCI, not upload.
+No live provider/cloud/Secret/native signing/device verification by reviewer.
+Previous run34953146969 sidefile metadata drift remains unexplained; existing
+build1 continuation exception cannot authorize build2. Next runtime needs resolution
+evidence or new exact Owner disposition, then fresh preflight/Environment approval.
+No need to repeat saved Secrets or six passed Owner smoke scenarios.
+
 ## Native altool upload: source ACCEPT (2026-09-15)
 
 Branch codex/task-198-native-altool-upload; base/HEAD before commit

@@ -2,6 +2,17 @@
 
 ## Google503 source correction; new upload still gated (2026-09-15)
 
+Publication permission received: Owner explicitly agreed to this exact disclosed
+public source/fake-tests/technical-evidence payload, same repository and branch.
+Main resumes one PR/CI/merge only; new signing/upload sidefile gate unchanged.
+Prior publication stop: auto-review rejected combined final docs commit/push before
+command execution due to public internal-metadata disclosure scope. Source commit
+below exists locally; final five coordination edits remain dirty. No push/PR/CI or
+runtime at that stop. Main obtained current explicit confirmation, without
+splitting/bypassing the rejected publication. Existing public Git authority was cited,
+but no blanket authorization for new sensitive metadata is inferred. Named fields
+are run/build IDs, service revision and de-identified smoke results, not key values.
+
 Branch codex/task-198-google-unavailable from cefbd6375086241f68ea3906e16cf63dc2f0e6c6.
 Main reproduced ios/android valid503 -> LoginState.error: 2 expected RED, 9 negative
 tests passed before implementation. SDK lock failure was tooling, not RED evidence.
@@ -20,7 +31,10 @@ the dependency's Content-Type charset contract (not an unsupported encoding arg)
 `dart format --output=none --set-exit-if-changed` on the three owned Dart paths
 PASS (zero changes); `flutter analyze --no-pub` on those same paths PASS/no issues.
 `git diff --check` PASS. Independent frozen-source acceptance is required before PR.
-Advisor lease8 proactively received/handled; lease9 source review follows.
+Advisor lease8 proactively received/handled; lease9 frozen-source ACCEPT also
+received/handled on f3ec67eef9b86c62ed79a79610d3005be477f250, independent29 PASS.
+Quick CI contracts38 PASS/1 Windows bash SKIP; actual classifier selects Flutter,
+not unrelated services or schema. Main proceeds to one readyPR/requiredCI/merge.
 No new provider/cloud/signing/upload/device operation or private input was performed.
 The installed build1 is unchanged. Prior native_sidefiles metadata drift remains
 unresolved; Owner's one-time existing-build continuation does NOT permit build2.
