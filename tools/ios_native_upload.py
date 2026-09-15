@@ -22,6 +22,8 @@ require = signing.require
 MAX_CREDENTIAL = 48000
 MAX_IPA = 512 * 1024 * 1024
 ROOT = "ntubtob-native-upload"
+SIDEFILE_ROOTS = {"logs": "Library/Logs", "caches": "Library/Caches"}
+MAX_METADATA = 2000
 OPTIONS = {
     "upload_app": "--upload-app",
     "upload_package": "--upload-package",
@@ -293,24 +295,235 @@ def cleanup(temp, bound, *, current_process_stopped=False):
     require(not root.exists(), "upload_cleanup", "OWNED_PATH_REMAINS")
 
 
-def native_metadata(home):
-    # Metadata-only comparison of native log/cache parents outside our private
-    # HOME. Detects change, not causality or whole-VM absence; never deletes them.
-    result = []
-    for relative in ("Library/Logs", "Library/Caches"):
-        path = home / relative
-        if not path.exists():
-            result.append(None)
-            continue
+def _metadata_root(home, relative):
+    """Private, bounded, non-recursive observation; not an atomic/security boundary."""
+    path = home / relative
+    require(
+        home.is_absolute() and ".." not in home.parts,
+        "native_sidefiles",
+        "PATH_REJECTED",
+    )
+    ancestors = {}
+    missing = None
+    for parent in (*reversed(path.parents), path):
+        try:
+            info = parent.lstat()
+        except FileNotFoundError:
+            # Only these optional directories may legitimately be absent.
+            require(
+                parent in (home / "Library", path),
+                "native_sidefiles",
+                "CAPTURE_CHANGED",
+            )
+            missing = parent
+            break
+        require(stat.S_ISDIR(info.st_mode), "native_sidefiles", "PATH_REJECTED")
+        ancestors[parent] = (info.st_dev, info.st_ino, info.st_mode)
+    entries = {}
+    if missing is None:
+        root_before = (info.st_mtime_ns, info.st_size)
+        with os.scandir(path) as children:
+            for index, child in enumerate(children):
+                require(index < MAX_METADATA, "native_sidefiles", "METADATA_LIMIT")
+                item = child.stat(follow_symlinks=False)
+                require(
+                    child.name not in entries, "native_sidefiles", "CAPTURE_CHANGED"
+                )
+                entries[child.name] = (item.st_mtime_ns, item.st_size)
+        after = path.lstat()
         require(
-            not path.is_symlink() and path.is_dir(), "native_sidefiles", "PATH_REJECTED"
+            root_before == (after.st_mtime_ns, after.st_size),
+            "native_sidefiles",
+            "CAPTURE_CHANGED",
         )
-        children = list(path.iterdir())
-        require(len(children) <= 2000, "native_sidefiles", "METADATA_LIMIT")
-        result.append(
-            sorted((p.name, p.lstat().st_mtime_ns, p.lstat().st_size) for p in children)
+    else:
+        try:
+            missing.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            raise Failure("native_sidefiles", "CAPTURE_CHANGED")
+    for parent, identity in ancestors.items():
+        after = parent.lstat()
+        require(
+            identity == (after.st_dev, after.st_ino, after.st_mode),
+            "native_sidefiles",
+            "CAPTURE_CHANGED",
         )
+    return {
+        "state": "ABSENT" if missing else "PRESENT",
+        "entries": entries,
+        "failure": None,
+    }
+
+
+def native_metadata(home):
+    # Private names/metadata never leave sidefile_delta's explicit projection.
+    result = {}
+    for alias, relative in SIDEFILE_ROOTS.items():
+        try:
+            result[alias] = _metadata_root(home, relative)
+        except Failure as error:
+            result[alias] = {
+                "state": "UNAVAILABLE",
+                "entries": None,
+                "failure": error.reason,
+            }
+        except FileNotFoundError:
+            result[alias] = {
+                "state": "UNAVAILABLE",
+                "entries": None,
+                "failure": "CAPTURE_CHANGED",
+            }
+        except (Exception, KeyboardInterrupt):
+            result[alias] = {
+                "state": "UNAVAILABLE",
+                "entries": None,
+                "failure": "CAPTURE_IO_FAILED",
+            }
     return result
+
+
+def sidefile_delta(before, after):
+    """Public fixed aliases/states/counts only; unknown counts are never zero."""
+    roots = {}
+    for alias in SIDEFILE_ROOTS:
+        left = before[alias] if before is not None else None
+        right = after[alias] if after is not None else None
+        comparable = (
+            left is not None
+            and right is not None
+            and left["entries"] is not None
+            and right["entries"] is not None
+        )
+        changed = comparable and (
+            left["state"] != right["state"] or left["entries"] != right["entries"]
+        )
+        roots[alias] = {
+            "status": (
+                ("CHANGED" if changed else "UNCHANGED") if comparable else "INCOMPLETE"
+            ),
+            "before": left["state"] if left is not None else "NOT_OBSERVED",
+            "after": right["state"] if right is not None else "NOT_OBSERVED",
+            "before_failure": left["failure"] if left is not None else None,
+            "after_failure": right["failure"] if right is not None else None,
+            "added": (
+                len(right["entries"].keys() - left["entries"].keys())
+                if comparable
+                else None
+            ),
+            "removed": (
+                len(left["entries"].keys() - right["entries"].keys())
+                if comparable
+                else None
+            ),
+            "modified": (
+                sum(
+                    left["entries"][key] != right["entries"][key]
+                    for key in left["entries"].keys() & right["entries"].keys()
+                )
+                if comparable
+                else None
+            ),
+        }
+    statuses = {item["status"] for item in roots.values()}
+    status = (
+        "INCOMPLETE"
+        if "INCOMPLETE" in statuses
+        else "CHANGED" if "CHANGED" in statuses else "UNCHANGED"
+    )
+    return {
+        "scope": "TOP_LEVEL_METADATA_ONLY",
+        "status": status,
+        "runtime_audit_verdict": "PASS" if status == "UNCHANGED" else "STOP",
+        "roots": roots,
+        "cause_verified": False,
+        "content_inspected": False,
+        "whole_vm_absence_verified": False,
+    }
+
+
+def _require_capture(snapshot):
+    require(
+        all(item["failure"] is None for item in snapshot.values()),
+        "native_sidefiles",
+        "AUDIT_FAILED",
+    )
+
+
+def diagnostic_context(env):
+    require(
+        platform.system() == "Darwin"
+        and env.get("GITHUB_ACTIONS") == "true"
+        and env.get("RUNNER_ENVIRONMENT") == "github-hosted"
+        and env.get("RUNNER_OS") == "macOS",
+        "sidefile_diagnostic",
+        "HOST_REJECTED",
+    )
+    # Check presence only; never retrieve, pop, decode or inspect private inputs.
+    require(
+        not any(
+            name in env for name in (*signing.INPUT_NAMES, "IOS_ASC_UPLOAD_CREDENTIAL")
+        ),
+        "sidefile_diagnostic",
+        "PRIVATE_INPUT_PRESENT",
+    )
+
+
+def diagnose_sidefiles(home, *, run=signing.command):
+    """No-key observer control and fixed probe; NEVER a historical cleanup verdict."""
+    observations, secondary = [], []
+    failure, tool = None, None
+
+    def observe(stage, args=None, cwd=None):
+        before, after = native_metadata(home), None
+        effect = {"started": False, "observed_exit": None, "process_stopped": True}
+        try:
+            _require_capture(before)
+            if args is not None:
+                return run(stage, args, cwd, effect=effect)
+        except Failure as error:
+            if not error.stopped:
+                effect.update(started=True, process_stopped=False)
+            raise
+        finally:
+            if all(item["failure"] is None for item in before.values()):
+                after = native_metadata(home)
+            audit = sidefile_delta(before, after)
+            observations.append({"phase": stage, "audit": audit, **effect})
+            if after is not None and audit["status"] == "INCOMPLETE":
+                secondary.append(Failure("native_sidefiles", "AUDIT_FAILED").public())
+
+    def observed_run(stage, args, cwd):
+        result = observe(stage, args, cwd)
+        require(not secondary, "native_sidefiles", "AUDIT_FAILED")
+        return result
+
+    try:
+        observe("observer_control")
+        require(not secondary, "native_sidefiles", "AUDIT_FAILED")
+        tool = probe(run=observed_run)
+    except Failure as error:
+        failure = error.public()
+        secondary.extend(error.cleanup_failures)
+    except (Exception, KeyboardInterrupt):
+        failure = Failure("sidefile_diagnostic", "LOCAL_OR_OUTPUT_IO_FAILED").public()
+    return {
+        "classification": (
+            "DIAGNOSTIC_COMPLETED" if failure is None and not secondary else "STOP"
+        ),
+        "failure": failure,
+        "secondary_failures": secondary,
+        "observations": observations,
+        "tool_probe": tool,
+        "upload_attempted": False,
+        "upload_authorized": False,
+        "secret_input_read": False,
+        "historical_cause_verified": False,
+        "release_authorized": False,
+        "retry_authorized": False,
+        "next_action": "READ_ONLY_REVIEW",
+    }
 
 
 def execute(temp, home, bound, raw, *, run=signing.command, make_reader=None):
@@ -320,6 +533,7 @@ def execute(temp, home, bound, raw, *, run=signing.command, make_reader=None):
     effect = {"started": False, "observed_exit": None, "process_stopped": True}
     failure, errors, reader = None, [], None
     root, before, owned = None, None, False
+    after = None
     current_attempt = False
     try:
         root = root_path(temp)
@@ -336,11 +550,12 @@ def execute(temp, home, bound, raw, *, run=signing.command, make_reader=None):
         )
         ipa = candidate(temp, bound)
         # No key file or native upload before target/duplicate/auto-access checks.
+        before = native_metadata(home)
+        _require_capture(before)
         private_home = root / "home"
         private_home.mkdir(mode=0o700)
         key_path = root / "upload.p8"
         write_private(key_path, pem)
-        before = native_metadata(home)
         write_private(root / "started", b"one-shot")
         current_attempt = True
         try:
@@ -395,10 +610,14 @@ def execute(temp, home, bound, raw, *, run=signing.command, make_reader=None):
     finally:
         if reader is not None:
             errors.extend(reader.cleanup_failures)
-        if before is not None:
+        if before is not None and all(
+            item["failure"] is None for item in before.values()
+        ):
             try:
+                after = native_metadata(home)
+                _require_capture(after)
                 require(
-                    before == native_metadata(home),
+                    sidefile_delta(before, after)["status"] == "UNCHANGED",
                     "native_sidefiles",
                     "EXTERNAL_METADATA_CHANGED",
                 )
@@ -426,6 +645,7 @@ def execute(temp, home, bound, raw, *, run=signing.command, make_reader=None):
         ),
         "failure": failure,
         "cleanup_failures": errors,
+        "sidefile_audit": sidefile_delta(before, after),
         "upload_attempted": effect["started"],
         "observed_exit": effect["observed_exit"],
         "process_stopped": effect["process_stopped"],
@@ -442,14 +662,25 @@ def execute(temp, home, bound, raw, *, run=signing.command, make_reader=None):
     }
 
 
+class _SafeParser(argparse.ArgumentParser):
+    def error(self, message):
+        # Do not echo an accidentally supplied private path/value in argparse text.
+        raise Failure("arguments", "ARGUMENTS_REJECTED")
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("probe", "upload", "cleanup"))
-    args = parser.parse_args(argv)
+    parser = _SafeParser(description=__doc__)
+    parser.add_argument(
+        "action", choices=("probe", "diagnose-sidefiles", "upload", "cleanup")
+    )
     try:
+        args = parser.parse_args(argv)
         require(platform.system() == "Darwin", "probe", "HOST_REJECTED")
         if args.action == "probe":
             result = probe()
+        elif args.action == "diagnose-sidefiles":
+            diagnostic_context(os.environ)
+            result = diagnose_sidefiles(Path.home())
         else:
             raw = os.environ.pop("IOS_ASC_UPLOAD_CREDENTIAL", "").encode("utf-8")
             _, home, temp = signing.context(os.environ)

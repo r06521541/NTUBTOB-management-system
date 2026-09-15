@@ -251,11 +251,50 @@ the key/IDs, role or App access; no live Apple API is called by setup. A primary
 input failure and a secondary close failure survive together. The STOP/no-retry
 rules above apply unchanged, including serialization by Owner.
 
-`python -m tools.ios_native_upload probe` in the existing secret-free macOS CI job
-checks exact Xcode26.3/17C529, resolves altool with xcrun, then invokes only --help.
-It reports fixed option-presence booleans, not credentials, an IPA, or guessed
+`python -m tools.ios_native_upload diagnose-sidefiles` replaces only the existing
+secret-free macOS CI probe. The real signing workflow retains its original `probe`.
+Both check exact Xcode26.3/17C529, resolve altool with xcrun, then invoke only --help.
+They report fixed option-presence booleans, not credentials, an IPA, or guessed
 Apple response fields. Unknown help is evidence to inspect, not upload readiness.
-The upload action is opt-in and independently reviewed; probe alone cannot authorize it.
+The upload action is opt-in and independently reviewed; neither probe authorizes it.
+
+The diagnostic CLI requires Darwin/GitHub Actions/github-hosted/macOS and rejects
+the presence of any of the four signing/ASC private input fields without reading
+their values. No arbitrary target, key, native arguments, Apple API, cleanup or
+upload mode is accepted. It observes the existing normal HOME, not a private-upload
+HOME. A back-to-back observer control and each of the three fixed commands have
+separate before/after snapshots. Native primary failure, observed exit/process
+state, earlier intervals and secondary capture/teardown failures remain separate.
+
+Public `sidefile_audit`/diagnostic observations contain only fixed `logs`/`caches`
+aliases, before/after presence/capture states, failure codes and added/removed/
+modified counts. Names, paths, contents, hashes and timestamps are never printed.
+Private comparison still uses name + modification time + size, so equal totals
+cannot conceal a rename or modification. An empty root appearing/disappearing is
+CHANGED even with zero counts. Unavailable/unobserved deltas use null, never zero;
+healthy roots may retain partial evidence. Enumeration stops at entry2001 without
+statting it; each earlier entry has one no-follow stat. Roots/ancestors must be
+directories, not symlinks; observed identity/metadata races and I/O failures fail
+capture. Child symlinks are observed as links, never followed or recursed into.
+This is bounded, best-effort, top-level metadata, NOT an atomic snapshot, recursive
+content audit, same-user adversary isolation or whole-VM absence proof.
+
+Exit contract (fixed before the experiment): complete observations plus successful
+native probe mean DIAGNOSTIC_COMPLETED/exit0 even when an interval is CHANGED;
+that interval still explicitly reports runtime_audit_verdict=STOP. Any capture,
+native or teardown failure is STOP/exit1, preserving available evidence. In the
+real upload adapter, changed or incomplete observations still STOP as before;
+failed pre-capture blocks native upload. Diagnostic success is not release-clean.
+No unrelated files are deleted, and no automatic retry is authorized.
+
+Intervals differ in duration/order and are not controlled equal-time experiments.
+Do not subtract the observer control, attribute changes to altool, or extrapolate
+normal-HOME --help behavior to private-HOME --upload-app/Transporter behavior.
+An unchanged result cannot clear historical run34953146969, recover its missing
+snapshots, or prove secret absence. Build1's Owner-only continuation exception does
+not extend to a new build2. New signing/upload still needs credible resolution of
+the named stop or a new explicit Owner disposition for that exact operation,
+followed by fresh target/ASC/protection/cost checks and Environment approval.
 
 `tools.ios_native_receipt` is a GET-only signing-success reader. Supply public
 `--run-id`, `--job-id`, `--expected-commit`; it binds the completed successful
