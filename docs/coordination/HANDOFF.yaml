@@ -4,10 +4,52 @@ next_actor: main-work
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: cefbd6375086241f68ea3906e16cf63dc2f0e6c6
+base_commit: 4630f922eb3f5bef2733f812cadfdbebca90bfee
 updated_by: main-work
-updated_at: 2026-09-15
+updated_at: 2026-09-16
 note: >
+  PUBLICATION APPROVED: Owner explicitly agreed on2026-09-16 to publishing this
+  batch's five coordination files (HANDOFF, PROJECT_STATE, TASK198 task/report/review)
+  alongside accepted source/fake tests to public r06521541/NTUBTOB-management-system.
+  Includes agent/task/review/test and technical operation records as disclosed.
+  Resume same branch commit/push, one ready PR/full CI/merge. No private values,
+  signing/upload or new sidefile risk disposition authorized. Prior rejection below
+  is resolved by this exact consent, not bypassed. Accepted five source paths unchanged.
+  PUBLICATION STOP: auto-review rejected the combined coordination commit/push
+  before execution because this new payload includes task/review/internal
+  collaboration records destined for the public repository. Do not split/bypass.
+  Source remains locally committed3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b with
+  independent ACCEPT; five coordination deltas remain dirty. No push/PR/new CI.
+  Next Owner explicitly confirm public disclosure of this five-file coordination
+  payload with source/tests to r06521541/NTUBTOB-management-system. No credentials,
+  signing/upload permission or new sidefile disposition is requested/implied.
+  This publication gate supersedes the next-PR action below until resolved.
+  ACTIVE: Owner approved no-real-key/no-upload sidefile diagnostic correction;
+  branch codex/task-198-sidefile-diagnostics from base_commit. Main owns source/tests,
+  secret-free macOS probe and existing records; packet/checkpoint in TASK top.
+  Advisor lease10 architecture ACCEPT proactively received/handled; lease11 frozen
+  source ACCEPT on3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b proactively handled.
+  Independent56PASS2WindowsSKIP plus bare-Python diagnosticPASS. Main direct133PASS
+  3platformSKIP, quick39PASS1SKIP, quality3/diffPASS. No delegated work remains.
+  Next one ready PR/full CI (classifier full=true); no hosted result yet.
+  Existing STOP and historical run34953146969 uncertainty remain; no real key,
+  upload/Apple request, raw file data, audit relaxation or new runtime authority.
+  Supersedes the prior awaiting-Owner planning note below, not its signing stop.
+  MERGED: PR264 source correction is integrated as4630f922eb3f5bef2733f812cadfdbebca90bfee.
+  PR run34976805878 SUCCESS:7 selected jobs passed/7 unrelated jobs skipped;
+  exact head a1bb525f9fa0d81b3f3a63f6761ccc8669415274, no main drift at merge.
+  Local main fast-forwarded; merged tree equals CI head in full. No source changes
+  after independent ACCEPT. Automatic main run34978041181 also SUCCESS:7PASS/7SKIP,
+  exact merged SHA; watch exit0 and fresh API confirmed no other job outcomes.
+  Main retains post-merge coordination results locally for the next substantive
+  delivery, not another status-only PR. No new runtime/sign/upload/Secret/device action.
+  Next Owner gate is the still-unresolved native_sidefiles disposition before any
+  new build2, not password input. Current approval covers publication only.
+  Main recommends a separately scoped no-real-key/no-upload diagnostic correction
+  before considering any new runtime risk acceptance. That L3 work is not started.
+  No active reviewer/watch remains. The Google503 source delivery is complete;
+  overall IOS-TF-01/provider/device acceptance is not complete.
+  Earlier publication/merge next-action notes below are historical and superseded.
   CURRENT: Owner explicitly approved this exact public source/fake-tests and
   run/build/service-revision/de-identified smoke evidence payload after disclosure
   of the auto-review rejection. Destination remains public GitHub repository

@@ -1,5 +1,74 @@
 # TASK-198 report
 
+## Secret-free sidefile diagnostics: source frozen (2026-09-15)
+
+2026-09-16: Owner approved this exact five-file public coordination payload after
+disclosure. Publication gate resolved; resume same substantive source/records PR,
+full CI and merge. Source unchanged from accepted commit, remote main unchanged,
+no existing branch PR. No signing/upload/Secret or historical risk exception added.
+
+Publication attempt stopped before command execution: auto-review rejected this
+new coordination payload's public disclosure authority. No coordination commit,
+push, PR or new CI occurred. Local source commit and five dirty coordination files
+remain intact; independent acceptance unchanged. Main requests exact public-file
+scope approval, without splitting/bypassing or expanding runtime authority.
+
+Owner approved this no-real-key/no-upload correction. Main source
+3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b on codex/task-198-sidefile-diagnostics,
+base4630f922eb3f5bef2733f812cadfdbebca90bfee. Five source/workflow/runbook files.
+Actual upload result now projects fixed logs/caches states and added/removed/
+modified counts; private name/mtime/size equality stays, unknown deltas are null,
+root presence changes count as CHANGED even empty. Bounded no-follow capture,
+pre-capture blocks native on failure, post-capture preserves native primary/exit
+and partial healthy-root evidence. Runtime changed/incomplete remains STOP.
+New hosted-only credential-presence-guarded CLI observes back-to-back control and
+fixed xcode-version/xcrun-find/altool-help; no key/ASC/upload/cleanup. Complete
+observation may DIAGNOSTIC_COMPLETED with runtime STOP; any capture/CLI failure STOP.
+Argparse rejection now emits only a fixed code, not accidental private arguments.
+
+RED confirmed missing execute summary, unavailable-capture native-call behavior,
+absent workflow entry and argument echo. Green direct suite136=133PASS/3SKIP:
+ios_native_upload, ios_native_signing, ios_native_asc, ios_native_secret_setup,
+ios_native_receipt, ios_candidate_inspector, ci_workflow_contract. Skips: native
+macOS command on Windows, real symlink privilege on Windows, bash startup denied.
+Quick test_ci_*40=39PASS1bashSKIP. Quality three owned Python paths, compileall
+three, git diff --check PASS. Initial workflow assertion errors (existing unrelated
+grep fallback / python vs python3) corrected in tests without weakening diagnostic
+failure propagation or modifying the real workflow. Initial classifier invocation
+used a nonexistent module; corrected to repository ci_change_classifier, full=true.
+Workflow/tool changes deliberately select full CI; no classifier/allowlist edits.
+Architecture lease10 and frozen-source lease11 ACCEPT proactively handled.
+Independent58=56PASS2WindowsSKIP and bare-Python no-crypto fictional4observations
+PASS. Main accepts unchanged source for one ready PR/full CI. No delegation pending.
+No hosted/real native observation, Secret/provider/cloud/sign/upload/device action.
+Old run34953146969 remains unexplained; no-key observations cannot retroactively
+prove its cause/absence. Build1 continuation exception does not authorize build2.
+
+Public source/test/documentation only; local fictional paths/key material stay in
+test fixtures and are not real assets. Earlier Main post-PR264 closeout records
+are preserved in this same substantive delivery, not a separate status-only PR.
+
+## Google503 correction integrated through PR264 (2026-09-15)
+
+Merged4630f922eb3f5bef2733f812cadfdbebca90bfee; git rev-parse and whole-tree diff
+confirm local main equals reviewed/CI head a1bb525f9fa0d81b3f3a63f6761ccc8669415274.
+PR run34976805878 SUCCESS: classifier, quick, quality, Flutter Android, fictional
+Xcode, actual unsigned iOS archive and final gate all passed (7). Seven unrelated
+backend/database jobs were deliberately skipped by the existing classifier.
+No workflow/classifier changes or admin bypass. Main watch reached exit0; fresh
+run/PR/base API checks passed before exact-head guarded squash merge.
+Automatic main push run34978041181 also SUCCESS on the merged SHA:7PASS/7SKIP,
+no other job outcomes, watch exit0 and fresh API verified. Both CI runs are terminal.
+Git external mutations: same approved branch pushed, one ready PR264 created and
+merged. No new provider/cloud/Secret/signing/upload/device changes. Installed build1
+and its passed smoke evidence remain unchanged. Post-merge state records stay local
+for the next substantive delivery, not an additional coordination-only PR.
+Final git diff --check PASS; only the four Main-owned post-merge coordination files
+are dirty, no untracked/source deltas. Source delivery complete; overall IOS-TF-01
+not complete. Next Owner gate is the unresolved sidefile disposition before a new
+build. Main recommends separately scoped no-real-key/no-upload diagnostics first;
+this next L3 work is not started and no new risk exception is inferred.
+
 ## Google503 source correction; new upload still gated (2026-09-15)
 
 Publication permission received: Owner explicitly agreed to this exact disclosed
