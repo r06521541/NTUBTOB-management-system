@@ -1,10 +1,10 @@
 # 專案狀態
 
-更新時間：2026-09-15（TASK198真實native簽署成功；未上傳／未查production runtime）
+更新時間：2026-09-15（TASK198 Google503修正196項測試／獨立ACCEPT；Owner已明確同意本次技術紀錄公開推送，續唯一PR／CI）
 
 維護角色：Main Work
 
-本輪起始程式基準：`c6034eb633f1ae09d005442f873b48e224cc4d87`。
+目前 main 程式基準：`cefbd6375086241f68ea3906e16cf63dc2f0e6c6`（PR263）。
 目前branch/dirty state由Git核對，next actor以HANDOFF為準。
 
 TASK198最新：PR261一次性設定已合併，CI34865517474成功16/16；native run34880271702真實簽署與清理通過。
@@ -16,9 +16,27 @@ Owner完成ios-native-signing三項Secret與五項Variables；Main核對名稱/�
 Main核對accepted runtime指紋、隔離staging ownership及無競爭run；舊job取消、無runner/steps，舊傳送Secret名稱皆無。
 run34880271702：main/exact SHA、version1.0.0/build1/attempt1吻合；不重跑成功基準，後續建置重用已保存Secrets。
 PR262已合併、CI16/16，真實altool help與新版收據讀取器通過；Owner已保存ASC Secret，Main唯讀確認存在／保護規則，不讀payload。
-Main已實作opt-in native altool upload、簽署後交接、唯讀重複／自動分發檢查；獨立source ACCEPT，尚未上傳。
-本機direct79PASS1macOS SKIP＋inspector18PASS，下一步唯一實質PR與雲端驗證；staging Apple登入仍缺，既有Secret不需重填。
-尚無本輪TestFlight／device交付證據；下一段官方Apple上傳要在簽署基準證明後接上，不重填已保存的Secrets。
+Main已實作opt-in native altool upload、簽署後交接、唯讀重複／自動分發檢查；獨立source ACCEPT。
+本機direct79PASS1macOS SKIP＋inspector18PASS；PR263已合併、CI34935268030成功16/16，post-merge唯讀保護檢查通過。
+Owner已手動啟動並核准run34953146969/job104328690147；本輪SIGNED_COPY_READY，原生上傳attempted=true／exit0。
+Workflow失敗原因為native_sidefiles/EXTERNAL_METADATA_CHANGED；外部Logs/Caches變動內容與原因未知。
+指定上傳暫存audit=OWNED_PATHS_ABSENT、簽署audit=ABSENT、artifacts0；不得推定所有位置皆無殘留。
+Owner提供ASC Build Uploads截圖：1.0.0(1)綠色「完成」，已獲Owner Console接收／處理成功證據；非Main API驗證。
+Owner確認既有內部群組只有本人，版本已加入，並回報從TestFlight安裝後成功進入iPhone歡迎畫面。
+Owner後續截圖顯示登入頁有Apple／Google與圖示型LINE按鈕；UI顯示已確認，不等於登入或重啟測試成功。
+Owner完成單次Google帳號選擇／授權，App顯示「資料格式異常」；Main核對20:22的Google exchange為503。
+staging仍由mobile-api-staging-task157-47ccfb5f承接100%流量；DB readiness紀錄operational／none／tcp_ok。
+不帶token的單次/me GET同樣503／DB readiness不可用；不是已證明的schema mismatch或Google帳號拒絕。
+Google503誤導文案已在codex/task-198-google-unavailable修正：嚴格契約且明確可重試才顯示恢復入口，不自動重送；196項本機測試通過，尚未裝到手機。
+Owner已回報Supabase Resume完成；20:44唯讀/me已回預期401／BEARER_REQUIRED，該請求DB guard通過。
+Owner已回報Google登入後進首頁，記為本人實機login-to-home通過，非Main獨立裝置遙測或完整驗收。
+Owner也確認連網且未登出時完全關閉重開，可直接回首頁；記為session恢復通過，不推定無限有效期或token內部狀態。
+Owner確認斷網重開顯示離線唯讀，恢復網路再重開也能正常回首頁免登入；四項入口／連線smoke通過，非完整驗收。
+Owner也確認賽事詳情正常；不推定已驗完整快取、寫入阻擋或不重開時自動復原。
+Owner確認TASK198限定2035-02-01虛構對手甲／球場A的出席變更、重開保留、還原、再重開四步皆正確；回覆值已獲本人還原確認，不推定稽核／時間戳還原。
+六項smoke不用重做；503 source已ACCEPT，Owner已同意本次source／假資料測試及去識別化技術紀錄公開推送。Main續唯一PR／CI；其餘provider／device與sidefile仍未全驗收。
+不重送build1、不重填Secret；sidefile audit未解除，先前Owner例外僅允許已安裝build1續測。新build2須先取得該停止原因解除證據或新的明確Owner處置，再做fresh preflight。
+Main瀏覽器工具仍不可用；Missing Compliance UI阻礙已解除，但不代表法律審查。staging Apple登入仍缺，暫不測Apple。
 
 ## Active role lanes
 

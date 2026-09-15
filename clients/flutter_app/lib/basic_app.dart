@@ -38,6 +38,23 @@ enum AuthViewState {
 
 enum PrincipalProvenance { freshServer, offlineCache }
 
+AuthViewState googleLoginAuthViewState(
+  LoginState loginState,
+  AuthViewState current,
+) =>
+    switch (loginState) {
+      LoginState.providerActive => AuthViewState.providerActive,
+      LoginState.exchanging => AuthViewState.exchanging,
+      LoginState.cancelled => AuthViewState.cancelled,
+      LoginState.unavailable => AuthViewState.unavailable,
+      LoginState.identityPending => AuthViewState.identityPending,
+      LoginState.accountUnavailable => AuthViewState.accountUnavailable,
+      LoginState.authenticated || LoginState.idle => current,
+      LoginState.recoverableError => AuthViewState.recoverableError,
+      LoginState.offline => AuthViewState.offline,
+      _ => AuthViewState.contractError,
+    };
+
 class AuthOperationContext {
   const AuthOperationContext(this.epoch, this.personId);
   final int epoch;
@@ -485,18 +502,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   void _onGoogleLoginStateChanged() {
     final login = _googleLogin;
     if (!mounted || login == null) return;
-    final next = switch (login.state) {
-      LoginState.providerActive => AuthViewState.providerActive,
-      LoginState.exchanging => AuthViewState.exchanging,
-      LoginState.cancelled => AuthViewState.cancelled,
-      LoginState.unavailable => AuthViewState.unavailable,
-      LoginState.identityPending => AuthViewState.identityPending,
-      LoginState.accountUnavailable => AuthViewState.accountUnavailable,
-      LoginState.authenticated || LoginState.idle => state,
-      LoginState.recoverableError => AuthViewState.recoverableError,
-      LoginState.offline => AuthViewState.offline,
-      _ => AuthViewState.contractError,
-    };
+    final next = googleLoginAuthViewState(login.state, state);
     setState(() => state = next);
     if (next == AuthViewState.identityPending && login.pendingReview != null) {
       _openPendingReview();
