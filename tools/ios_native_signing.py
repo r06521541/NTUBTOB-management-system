@@ -20,6 +20,7 @@ import signal
 import subprocess
 import tempfile
 import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
@@ -49,7 +50,9 @@ INPUT_NAMES = (
 
 
 class Failure(Exception):
-    def __init__(self, stage, reason, exit_code=None, *, stopped=True):
+    def __init__(
+        self, stage, reason, exit_code=None, *, stopped=True, provider_codes=None
+    ):
         super().__init__("native signing step failed")
         self.stage, self.reason, self.exit_code, self.stopped = (
             stage,
@@ -57,9 +60,18 @@ class Failure(Exception):
             exit_code,
             stopped,
         )
+        self.provider_codes = provider_codes
+        self.cleanup_failures = []
 
     def public(self):
-        return {"stage": self.stage, "reason": self.reason, "exit_code": self.exit_code}
+        value = {
+            "stage": self.stage,
+            "reason": self.reason,
+            "exit_code": self.exit_code,
+        }
+        if self.provider_codes is not None:
+            value["provider_codes"] = self.provider_codes
+        return value
 
 
 def require(condition, stage, reason):
@@ -85,7 +97,29 @@ def classify(output):
     return "CLI_FAILED"
 
 
-def command(stage, args, cwd, timeout=60):
+@contextmanager
+def private_output():
+    """Closing the spool must not erase an already-classified native failure."""
+    stream = tempfile.TemporaryFile()
+    primary = None
+    try:
+        yield stream
+    except BaseException as error:
+        primary = error
+        raise
+    finally:
+        try:
+            stream.close()
+        except (Exception, KeyboardInterrupt):
+            error = Failure("output_cleanup", "CLOSE_FAILED")
+            if isinstance(primary, Failure):
+                primary.cleanup_failures.append(error.public())
+            elif primary is None:
+                error.cleanup_failures.append(error.public())
+                raise error from None
+
+
+def command(stage, args, cwd, timeout=60, *, effect=None, private_home=None):
     """No shell/argv echo. Private unlinked spool; reap group before cleanup.
 
     Last 1 MiB is classified; unknown/truncated failures keep stage and exit code,
@@ -99,10 +133,12 @@ def command(stage, args, cwd, timeout=60):
     child_env.update(
         DEVELOPER_DIR=DEVELOPER, LANG="en_US.UTF-8", LC_ALL="en_US.UTF-8", CI="true"
     )
+    if private_home is not None:
+        child_env["HOME"] = child_env["TMPDIR"] = str(private_home)
     child = None
     timed_out = False
     group_absent = False
-    with tempfile.TemporaryFile() as output:
+    with private_output() as output:
         try:
             child = subprocess.Popen(
                 args,
@@ -112,9 +148,17 @@ def command(stage, args, cwd, timeout=60):
                 stdout=output,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
+                **({"umask": 0o077} if os.name == "posix" else {}),
             )
+            if effect is not None:
+                effect["started"] = True
+                effect["process_stopped"] = False
             try:
                 child.wait(timeout=timeout)
+                # Record the natural exit before reaping descendants/reading or
+                # closing output. Later cleanup failures cannot erase this fact.
+                if effect is not None:
+                    effect["observed_exit"] = child.returncode
             except subprocess.TimeoutExpired:
                 timed_out = True
             finally:
@@ -130,6 +174,8 @@ def command(stage, args, cwd, timeout=60):
                         os.killpg(child.pid, 0)
                     except ProcessLookupError:
                         group_absent = True
+                        if effect is not None:
+                            effect["process_stopped"] = True
                         break
                     if time.monotonic() >= deadline:
                         raise Failure(stage, "PROCESS_UNRESOLVED", stopped=False)
@@ -139,7 +185,17 @@ def command(stage, args, cwd, timeout=60):
             output.seek(max(0, size - 1048576))
             data = output.read(1048576)
             if child.returncode:
-                raise Failure(stage, classify(data), child.returncode)
+                codes = None
+                if stage == "altool_upload":
+                    codes = sorted(
+                        {
+                            code.decode("ascii")
+                            for code in re.findall(rb"\bITMS-[0-9]{5}\b", data)
+                        }
+                    )[:10]
+                raise Failure(
+                    stage, classify(data), child.returncode, provider_codes=codes
+                )
             # Metadata commands must never parse a truncated successful response.
             if stage not in {"archive", "export"}:
                 require(size <= 1048576, stage, "OUTPUT_LIMIT")
@@ -597,6 +653,7 @@ class Baseline:
                 action()
             except Failure as error:
                 errors.append(error.public())
+                errors.extend(error.cleanup_failures)
             except KeyboardInterrupt:
                 self.process_stopped = False
                 errors.append(Failure("cleanup", "CLEANUP_INTERRUPTED").public())
@@ -665,14 +722,17 @@ class Baseline:
                 attempt(lambda: shutil.rmtree(self.flutter_output))
         return errors
 
-    def run(self, material):
+    def run(self, material, *, upload_binding=None):
         failure = None
+        command_cleanup_errors = []
         verified = False
+        retained = None
+        ready = False
         try:
             self.preflight()
             artifact = self.sign(material)
             self.stage = "inspect"
-            inspector.inspect_ipa(
+            inspection = inspector.inspect_ipa(
                 artifact,
                 expected_version=self.metadata["IOS_VERSION"],
                 expected_build=int(self.metadata["IOS_BUILD_NUMBER"]),
@@ -681,8 +741,14 @@ class Baseline:
                 runner=self.inspection_command,
             )
             verified = True
+            if upload_binding is not None:
+                from tools import ios_native_upload as upload
+
+                self.stage = "retain_snapshot"
+                retained = upload.snapshot(artifact, inspection)
         except Failure as error:
             failure = error.public()
+            command_cleanup_errors.extend(error.cleanup_failures)
         except KeyboardInterrupt:
             failure = Failure(self.stage, "CANCELLED").public()
         except inspector.CandidateError:
@@ -699,10 +765,22 @@ class Baseline:
                 cleanup_errors = [Failure("cleanup", "CLEANUP_INTERRUPTED").public()]
             except Exception:
                 cleanup_errors = [Failure("cleanup", "CLEANUP_IO_FAILED").public()]
+        cleanup_errors = command_cleanup_errors + cleanup_errors
+        signing_clean = not cleanup_errors
+        if retained is not None and failure is None and signing_clean:
+            try:
+                upload.publish(self.temp, retained, upload_binding)
+                ready = True
+            except Failure as error:
+                failure = error.public()
+                cleanup_errors.extend(getattr(error, "cleanup_failures", []))
+            except Exception:
+                failure = Failure("retain_publish", "LOCAL_IO_FAILED").public()
+        retained = None
         result = {
             "classification": (
                 "SIGNED_BASELINE_VERIFIED"
-                if verified and not cleanup_errors
+                if verified and failure is None and not cleanup_errors
                 else "STOP"
             ),
             "failure": failure,
@@ -718,13 +796,24 @@ class Baseline:
                 else "READ_ONLY_REVIEW"
             ),
         }
+        if upload_binding is not None:
+            result.update(
+                classification="SIGNED_COPY_READY" if ready else "STOP",
+                signing_cleanup_verified=signing_clean,
+                candidate_retained=ready,
+                # This is signing cleanup only; IPA deliberately remains.
+                cleanup_verified=False,
+                next_action="NATIVE_UPLOAD" if ready else "READ_ONLY_REVIEW",
+            )
         print(json.dumps(result, sort_keys=True), flush=True)
         return result
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("preflight", "sign", "audit"))
+    parser.add_argument(
+        "action", choices=("preflight", "sign", "sign-for-upload", "audit")
+    )
     args = parser.parse_args(argv)
     try:
         repo, home, temp = context(os.environ)
@@ -759,9 +848,23 @@ def main(argv=None):
         # Remove secrets from inherited process environment before any native or
         # project command. Python cannot guarantee memory zeroization.
         material = {key: os.environ.pop(key, "") for key in INPUT_NAMES}
+        upload_binding = None
+        if args.action == "sign-for-upload":
+            from tools import ios_native_upload as upload
+
+            require(
+                os.environ.get("IOS_UPLOAD_REQUESTED") == "true",
+                "context",
+                "UPLOAD_NOT_SELECTED",
+            )
+            upload_binding = upload.binding(os.environ)
+            require(
+                not (temp / upload.ROOT).exists(), "retain_publish", "PATH_CONFLICT"
+            )
         return (
             0
-            if baseline.run(material)["classification"] == "SIGNED_BASELINE_VERIFIED"
+            if baseline.run(material, upload_binding=upload_binding)["classification"]
+            in {"SIGNED_BASELINE_VERIFIED", "SIGNED_COPY_READY"}
             else 2
         )
     except Failure as error:

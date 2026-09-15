@@ -1,5 +1,36 @@
 # TASK-198 review
 
+## Native altool upload: source ACCEPT (2026-09-15)
+
+Branch codex/task-198-native-altool-upload; base/HEAD before commit
+c6034eb633f1ae09d005442f873b48e224cc4d87. Advisor /root/native_upload_review,
+claim task-198-native-upload-review: architecture5 ACCEPT, source6 REQUEST_CHANGES,
+correction7 ACCEPT all proactively received/handled. R1 removed accidental crypto
+test import on bare macOS. R2 preserves original native failure/provider codes
+through stopped-marker/spool-close secondary failures. Main RED-first regressions
+and candidate recheck after ASC GETs now pass; default signing-only stays intact.
+
+| Path | Reviewed LF SHA256 |
+| --- | --- |
+| tools/ios_native_signing.py | 5448f4941eac12b5cd4d4af639034c92dba41359d06f0e37c9071a0104af686d |
+| tools/ios_native_upload.py | f1c1c7adff1258652da6f504401610a36def728a2cd5c25720293ef017ef0370 |
+| tools/ios_native_asc.py | 281806f75998380c40a9e86ee63cf02a729db9798250b69c41a222b1988121ac |
+| tools/tests/test_ios_native_signing.py | b1d09565dddaf800c428eeb990d34a663721391be2cb9c48e60307b1b402082d |
+| tools/tests/test_ios_native_upload.py | 0fe8f7b3d6fdafa239be2236ba14bf4a393d7981b751db436b2ff38f461352d4 |
+| tools/tests/test_ios_native_asc.py | d5ed75c5a2beb8df4b05ae8befa023e39bad2fce018c4c0efdf348da17155f97 |
+| .github/workflows/ios-native-signing.yml | fc033a52b0df45e21a2a76cce365ee49c997ca0530e010108cb328d549e971df |
+| .github/workflows/python-tests.yml | e85d1114d92515fddddbd13ef5437451a304a37a59aecf7e032d6521e5fb8efe |
+| docs/releases/IOS_NATIVE_SIGNING.md | 97f91e668773aa15fce06f6840bb88d55b237db7e8d3f5d1b57a1d5e0f746c15 |
+
+Reviewer correction42=41PASS1macOS SKIP, bare-Python baseline22=21PASS1SKIP,
+three extra fictional old-attempt/marker custody vectors PASS, quality4/diff PASS.
+Main direct80=79PASS1SKIP, bare baseline22=21PASS1SKIP, inspector18PASS,
+classifier39=38PASS1SKIP, quality6/diff PASS. No real assets/account API/native
+upload or Git writes by reviewer. Main hosted CI is next, not claimed complete.
+Limits: no whole-VM/same-user isolation, hard wall-clock DNS/TLS/header deadline,
+actual ASC pagination/role/schema, positive native upload, processing/distribution
+or device acceptance. CLI0 alone never establishes any of these layers.
+
 ## Native ASC preparation: independent ACCEPT (2026-09-15)
 
 Branch codex/task-198-native-upload; base/head before commit

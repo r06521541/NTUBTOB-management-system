@@ -21,6 +21,17 @@ SELECTOR = hashlib.sha1(CERT).hexdigest().upper()
 PASSWORD = "fictional-private-password"
 
 
+def binding():
+    # Pure fixture: the no-Secret macOS baseline job installs no crypto package.
+    return {
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_RUN_ID": "123",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "IOS_VERSION": "1.2.3",
+        "IOS_BUILD_NUMBER": "42",
+    }
+
+
 def metadata():
     return {
         "IOS_TEAM_ID": TEAM,
@@ -108,15 +119,51 @@ class BaselineTests(unittest.TestCase):
             ).decode(),
         }
 
-    def execute(self):
+    def execute(self, upload_binding=None):
         output = io.StringIO()
         with redirect_stdout(output):
             result = native.Baseline(
                 self.repo, self.home, self.temp_root, metadata(), self.commands
-            ).run(self.material)
+            ).run(self.material, upload_binding=upload_binding)
         self.assertNotIn(PASSWORD, output.getvalue())
         self.assertNotIn(TEAM, output.getvalue())
         return result
+
+    def test_upload_copy_ready_only_after_signing_cleanup_with_inspected_bytes(self):
+        from tools import ios_native_upload as upload
+
+        original = upload.publish
+
+        def publish(temp, data, bound):
+            self.assertFalse((self.temp_root / native.ROOT_NAME).exists())
+            self.assertFalse(
+                (
+                    self.repo / "clients/flutter_app/ios/Runner/Runner.entitlements"
+                ).exists()
+            )
+            original(temp, data, bound)
+
+        with mock.patch.object(upload, "publish", side_effect=publish):
+            result = self.execute(binding())
+        self.assertEqual(result["classification"], "SIGNED_COPY_READY")
+        self.assertTrue(result["signing_cleanup_verified"])
+        self.assertFalse(result["cleanup_verified"])
+        self.assertEqual(
+            upload.candidate(self.temp_root, binding()).read_bytes(),
+            _ipa_bytes(info=_plist()),
+        )
+
+    def test_signing_cleanup_failure_never_publishes_upload_ready(self):
+        from tools import ios_native_upload as upload
+
+        self.commands.failures["keychain_delete"] = native.Failure(
+            "keychain_delete", "CLI_FAILED", 1
+        )
+        with mock.patch.object(upload, "publish") as publish:
+            result = self.execute(binding())
+        publish.assert_not_called()
+        self.assertEqual(result["classification"], "STOP")
+        self.assertFalse(result["candidate_retained"])
 
     def test_full_native_chain_and_real_inspector_without_upload(self):
         result = self.execute()
@@ -407,13 +454,52 @@ class CommandTests(unittest.TestCase):
         )
         self.assertEqual(
             set(native.re.findall(r"secrets\.([A-Z_0-9]+)", text)),
-            set(native.INPUT_NAMES),
+            set(native.INPUT_NAMES) | {"IOS_ASC_UPLOAD_CREDENTIAL"},
         )
+        self.assertIn("default: false", text)
+        upload_step = text.index("- name: One-shot native Apple upload")
+        self.assertNotIn("IOS_ASC_UPLOAD_CREDENTIAL", text[:upload_step])
+        self.assertNotIn("secrets.IOS_DISTRIBUTION", text[upload_step:])
+        self.assertIn("steps.signing.outcome == 'success'", text[upload_step:])
         self.assertNotIn("uses:", text[text.index("secrets.IOS_") :])
         old = (root / ".github/workflows/ios-owner-testflight.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn("if: >-\n      false &&", old)
+
+    def test_upload_exit_zero_survives_native_output_limit_and_group_reap_failure(self):
+        for group_failure in (False, True):
+            effect = {"started": False, "observed_exit": None, "process_stopped": True}
+            process = mock.Mock(pid=2468, returncode=0)
+
+            def launch(*args, **kwargs):
+                self.assertEqual(kwargs["env"]["HOME"], str(Path.cwd()))
+                self.assertNotIn("IOS_ASC_UPLOAD_CREDENTIAL", kwargs["env"])
+                kwargs["stdout"].write(b"x" * 1048577)
+                return process
+
+            with (
+                mock.patch.object(native.subprocess, "Popen", side_effect=launch),
+                mock.patch.object(
+                    native.os,
+                    "killpg",
+                    create=True,
+                    side_effect=(
+                        PermissionError if group_failure else ProcessLookupError
+                    ),
+                ),
+                self.assertRaises(native.Failure),
+            ):
+                native.command(
+                    "altool_upload",
+                    ["fictional"],
+                    Path.cwd(),
+                    effect=effect,
+                    private_home=Path.cwd(),
+                )
+            self.assertTrue(effect["started"])
+            self.assertEqual(effect["observed_exit"], 0)
+            self.assertEqual(effect["process_stopped"], not group_failure)
 
 
 @unittest.skipUnless(
