@@ -1,6 +1,235 @@
 # TASK-198 report
 
+## Google503 source correction; new upload still gated (2026-09-15)
+
+Branch codex/task-198-google-unavailable from cefbd6375086241f68ea3906e16cf63dc2f0e6c6.
+Main reproduced ios/android valid503 -> LoginState.error: 2 expected RED, 9 negative
+tests passed before implementation. SDK lock failure was tooling, not RED evidence.
+Only503 + service_unavailable + retryable=true + full existing Error schema now
+maps to recoverableError. Google UI uses the unchanged extracted state projection:
+safe temporary-failure copy and a fresh manual login action, never automatic replay.
+No new authenticated state, session, pending-review credential or raw error display.
+Unknown outcome/code, bad status/schema, transport uncertainty and auth failures
+retain their previous stop; Apple/LINE, shared error parsing and backend unchanged.
+
+Local command from clients/flutter_app using repository Flutter wrapper:
+`flutter test --no-pub test/google_login_recovery_test.dart test/integration_test.dart test/basic_app_test.dart test/apple_auth_test.dart`
+196 PASS, including29 new recovery/boundary/session/widget regressions. New Unicode
+boundary initially exposed a fake HTTP response encoding problem; corrected using
+the dependency's Content-Type charset contract (not an unsupported encoding arg).
+`dart format --output=none --set-exit-if-changed` on the three owned Dart paths
+PASS (zero changes); `flutter analyze --no-pub` on those same paths PASS/no issues.
+`git diff --check` PASS. Independent frozen-source acceptance is required before PR.
+Advisor lease8 proactively received/handled; lease9 source review follows.
+No new provider/cloud/signing/upload/device operation or private input was performed.
+The installed build1 is unchanged. Prior native_sidefiles metadata drift remains
+unresolved; Owner's one-time existing-build continuation does NOT permit build2.
+Plan1.0.0(2) needs fresh evidence/disposition and preflight; availability not asserted.
+Six successful Owner smoke scenarios below remain valid; do not repeat them.
+
+## Six Owner iPhone core smoke scenarios passed (2026-09-15)
+
+Following Resume/readiness recovery and the one fresh Google login instruction,
+Owner reports entering home. Record this bounded Owner device result, not full
+acceptance or independently inspected auth payloads. Source _loadBasicOnce sets
+authenticated after /me, games and cache-save; _boot refreshes then loads basic.
+Owner then confirms the online close/reopen scenario returns home without another
+Google prompt. Record persisted session restoration, not token internals or lifetime.
+Owner confirms the disconnected reopen shows offline read-only mode; cached data
+completeness and write denial were not separately demonstrated. Owner now confirms
+restored network plus close/reopen returns normal home without login. Reconnect/
+reopen passes; automatic recovery without reopening is not claimed. Other providers
+and full acceptance remain pending. Owner then confirms game detail
+normal after the requested opponent/time/location check; detail read is Owner-passed.
+Completed bounded Owner UI test binds source fixture game_-112001 /2035-02-01 /
+台大OB vs 虛構對手甲 /虛構球場 A. Match visible target and existing non-null
+own reply first; if absent or unmatched, stop. Change once, leave/reopen/readback,
+restore original once and reopen/readback; maximum2 deliberate submissions, stop
+on error/uncertain without retry. No other data/people or production. Value restoration
+does not erase legitimate update/idempotency history. Source attendance domain
+requires within12hours before game for urgent notification; this2035 fixture is
+outside that window. Owner now reports all4 requested steps correct: changed reply,
+leave/reopen persistence, restore original, leave/reopen restoration. Record bounded
+Owner UI evidence; no raw reply values/DB rows or independent mutation telemetry.
+This completes the six-scenario smoke round, not full IOS-TF-01 or public release.
+Do not repeat the successful mutation packet. Next actor Main for503 error-message
+correction planning and remaining provider/logout/privacy/device/sidefile gaps.
+No new Main network/operator/source actions; only coordination and git diff --check.
+Known503 text remains unfixed; unresolved sidefile disposition is unchanged.
+
+## Google device login blocked by staging readiness (2026-09-15)
+
+Recovery: Owner then reports Resume complete. Single credential-free /api/v1/me
+GET at2026-09-15T12:44:32.251425Z returns401 / BEARER_REQUIRED, valid JSON.
+The deployed before-request DB guard therefore passed for this request. This is
+readiness recovery evidence after Owner Resume, not provider/session acceptance.
+Next Owner closes/reopens existing App and tries Google once with the same account;
+no reinstall/re-upload/new private inputs. Misleading error mapping remains unfixed.
+
+Follow-up: Owner initiated Supabase Resume and clarified it was still running.
+One credential-free /me GET12:41:18.785277Z returned503 / DB readiness unavailable
+during that incomplete operation, not evidence that Resume failed. Await Owner's
+completion report before another readiness check; no repeated Resume/login.
+No Main provider mutation, Secret input or source fix in this follow-up.
+
+Owner confirms selecting/authorizing a Google account before the App displays
+`資料格式異常，已停止處理`. Read-only exact-service/route Logging query found
+one POST `/api/v1/auth/google/exchange`, 2026-09-15T12:22:12.918847Z, HTTP503,
+latency5.717s, revision `mobile-api-staging-task157-47ccfb5f`. Fresh service metadata
+confirms that revision latest-created/latest-ready and sole100% traffic target.
+Source-allowlisted readiness projection at12:22:18.892536Z reports operational /
+none / tcp_ok. One credential-free `/api/v1/me` GET also returns503 and the known
+database-readiness error;12:28:02.947106Z repeats the same readiness classification.
+Only safe metadata/classification is retained; no raw logs, accounts, response
+tokens, DSN or Secret payload are shown. No login/exchange replay by Main.
+
+Inspected deployed47ccfb5f readiness/bootstrap plus current Flutter coordinator:
+the database guard runs before authentication; failed readiness is not a proven
+schema mismatch, Google rejection or native SDK failure. TCP opens, but usable
+DB connection/query fails; the existing operational bucket cannot distinguish
+the underlying provider/pooler/connection condition. Google coordinator also
+turns valid service_unavailable503 into LoginState.error and the UI into
+contractError. This is a verified misleading-message defect, not yet fixed.
+
+Source tests not rerun because no source was changed. Live evidence above is
+read-only and does not establish auth/session acceptance. Next evidence requires
+Owner's existing staging database dashboard status only, not password/key/DSN or
+configuration mutation. Preserve the current installed build and all signing assets.
+No source/provider/cloud/store mutation; coordination-only updates and diff check.
+
+## Owner iPhone login-page observation (2026-09-15)
+
+Owner screenshot shows logged-out screen with Apple/Google labels, icon-only
+LINE button and central LINE prompt. Record rendered UI, not provider success or
+confirmed repeated cold start. Source basic_app.dart binds Google button to native
+Google coordinator. Next manual scenario is one Owner Google login via provider
+UI; no credentials in chat, no repeated auth/link attempts after error. Pending
+review/unavailable is reported as such, not bypassed. Apple backend still pending.
+No source/provider/cloud/store mutation or new test run performed this observation.
+
+## Owner-reported installation and welcome screen (2026-09-15)
+
+Owner confirms build present in the existing Owner-only group, then reports
+successful arrival at the welcome screen following TestFlight installation.
+This establishes Owner-reported first launch, not Main device telemetry, exact
+device/OS inventory, provider success or full IOS-TF-01 acceptance. No new upload,
+assignment or private input needed. Next device steps: close/reopen, finish
+onboarding to login page and report available providers; avoid Apple login while
+staging backend configuration remains incomplete. Core session/API/offline checks
+remain pending. Earlier pending distribution/install notes are historical.
+
+## Owner Console Ready to Submit observation (2026-09-15)
+
+Latest screenshot: Version1.0.0/build1 Ready to Submit, expires in90days, replacing
+Missing Compliance. [Apple build statuses](https://developer.apple.com/help/app-store-connect/reference/app-uploads/app-build-statuses)
+permits internal distribution in this state; no external/public review is needed
+for the authorized Owner-only path. Exact submitted declaration answers and legal
+classification are not inferred from UI. Owner resumes existing group Add Builds
+packet; assignment/invitation/device not yet observed. No Main external mutation,
+new build or reset; one-time unresolved-sidefile disposition remains unchanged.
+
+## Encryption source classification evidence (2026-09-15)
+
+Owner four-choice question distinguishes proprietary, non-OS standard, both,
+and neither. Main recommends option2 based on actual source at current merged
+cefbd6375086241f68ea3906e16cf63dc2f0e6c6: basic_app.dart:306 creates http.Client,
+passed to HttpApiTransport; no custom zone client/HttpOverrides/CupertinoClient
+found. Local resolved http1.6.0 client.dart chooses IOClient on dart.library.io;
+io_client.dart constructs dart:io HttpClient. Workflow pins Flutter3.47.0;
+matching local SDK is Dart3.13.0 and Flutter DEPS pins BoringSSL. The official
+[Dart3.13 TLS source](https://raw.githubusercontent.com/dart-lang/sdk/3.13.0/runtime/bin/secure_socket_filter.cc)
+uses SSL APIs; [Dart's BoringSSL announcement](https://news.dartlang.org/2015/09/dart-adopts-boringssl.html)
+and current upstream runtime build dependency confirm this implementation path.
+Apple native CryptoKit SHA256 for nonce hashing is also present, but does not
+justify OS-only classification of the complete app. No proprietary/nonstandard
+algorithm identified in inspected source; no full archived-binary inventory claim.
+[Apple's classification table](https://developer.apple.com/help/app-store-connect/reference/app-information/export-compliance-documentation-for-encryption)
+distinguishes standard non-OS algorithms from OS-only; documentation/France and
+legal exemption are separate questions. Next Owner may select option2 and show
+follow-up before submission. No declaration, France answer, plist flag, upload,
+assignment or private-material action performed. This is technical advice only.
+
+## Compliance prompt before assignment (2026-09-15)
+
+Owner screenshot: NTUBTOB Owner Internal Add Builds dialog, iOS1.0.0/build1,
+Missing Compliance, Add disabled. No assignment/device success. Source Info.plist
+omits ITSAppUsesNonExemptEncryption; HTTPS, secure storage and auth SDKs require
+accurate classification, not a guessed no-encryption/OS-only answer. Apple's
+[beta-build instructions](https://developer.apple.com/help/app-store-connect/test-a-beta-version/provide-export-compliance-information-for-beta-builds)
+permit answering via existing build Manage/Provide Export Compliance Information.
+Owner next opens questions; no submission, source declaration, re-upload or key
+action performed. Successful upload processing does not complete this gate.
+
+## Owner group scope and outstanding authorization boundary (2026-09-15)
+
+Owner reports existing selected internal group has only Owner and no builds.
+No distribution mutation performed. This is scoped Owner observation, not global
+tester-link absence. Main rechecked DEC109/TASK named stops: unresolved cleanup
+cannot be waived merely because Apple processing succeeded. Ask for an explicit
+one-time continuation to assign existing1.0.0(1) to Owner's group while preserving
+the sidefile finding, without new upload/signing/key action or disabling checks.
+Owner then explicitly answered "好" to this risk-disposition request. Record a
+single-task continuation, not resolved cleanup or a permanent authority change.
+TASK top now contains the exact Owner manual Add Builds packet for existing
+1.0.0(1) to the just-confirmed Owner-only internal group, followed by installation
+and launch. No actual assignment, invitation delivery or device success observed;
+no Main UI/API mutation, signing/upload/key action or diagnostic relaxation.
+
+## Owner Console processing evidence (2026-09-15)
+
+Owner screenshot shows Build Uploads 1.0.0 (1), green Complete, creation displayed
+Sep15 2026 5:42PM (no timezone label). [Apple's status definition](https://developer.apple.com/help/app-store-connect/reference/app-uploads/build-upload-statuses)
+states Complete is successful processing. Record receipt/processing as Owner
+Console evidence, not an independent Main API check. Cropped image does not show
+App ID, group/individual tester links, installation or functional results.
+No re-upload is needed. Native sidefile audit finding remains separate/unresolved.
+Next requested action is read-only inspection of the existing internal group's
+membership/builds, not distribution, another credential prompt or a rerun.
+
+## Native upload observation and audit stop (2026-09-15)
+
+Owner dispatched once and approved Environment. Main watched existing
+run34953146969/job104328690147 to terminal failure, then GET-bound exact repo,
+workflow/main/manual/attempt1/SHA cefbd6375086241f68ea3906e16cf63dc2f0e6c6,
+job identity and artifacts0. Memory-only log projection emitted four known records:
+
+1. SIGNED_COPY_READY: signature_verified and signing_cleanup_verified true;
+   failure null, cleanup_failures empty; IPA intentionally retained for upload.
+2. Upload STOP: upload_attempted true, observed_exit 0, process_stopped true,
+   failure null. cleanup_failures contains native_sidefiles /
+   EXTERNAL_METADATA_CHANGED / exit_code null. owned_cleanup_verified false;
+   all Apple acceptance/processing/distribution/device claims remain false.
+3. upload_cleanup_audit / OWNED_PATHS_ABSENT.
+4. cleanup_audit / ABSENT.
+
+The official native CLI executed and returned zero. Workflow failure is the
+metadata audit, not evidence of a provider rejection; CLI0 is not proof of Apple
+processing. The audit detected change under runner home Logs/Caches without
+recording changed contents or causality. Do not call it proven disclosure or a
+false positive; owned path absence is narrower than whole-runner trace absence.
+No rerun, duplicate upload, build-number workaround, new Secret input, Main
+Environment approval, tester assignment or production operation occurred.
+
+Existing receipt reader intentionally only accepts signing-only success, so Main
+did not misapply it. A bounded read-only in-memory safe projection initially
+rejected known ABSENT/keyword-defined field names; corrected local projection
+read the same finished log. Raw logs/private values were never returned or saved.
+Runtime source/tests unchanged; only existing coordination notes updated.
+
+Next required evidence is ASC exact 1.0.0 (1) receipt/processing and tester links.
+Browser getState failed at kernel-assets initialization; one reset/reconnect had
+the same missing-path error, before live UI inspection. Owner is asked only for
+the existing TestFlight build status/screenshot, not credentials or another run.
+This observation limit is not evidence of expired Apple login or network failure.
+
 ## Native altool upload implementation (2026-09-15; not live)
+
+PR263 merged cefbd6375086241f68ea3906e16cf63dc2f0e6c6, tree identical to reviewed
+7d252318592f628d2c97dff6fce90c5ddc8ddbb0. CI34935268030 completed success16/16;
+native macOS unsigned archive4m24s, Android9m7s, both platform tools and DB matrices
+PASS. Fresh post-merge metadata/protection ALREADY_PRESENT, no private input/write.
+Main stopped at Owner manual once-only workflow/Environment gate documented in
+TASK top, not at another credential prompt; actual upload/processing/device unverified.
 
 ASC setup now stored: Owner STORED_METADATA_CONFIRMED and Main read-only
 ALREADY_PRESENT/protection PASS. No repeated private input, key read or mutation

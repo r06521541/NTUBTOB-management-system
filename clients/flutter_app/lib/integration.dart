@@ -1994,6 +1994,34 @@ class GoogleLoginCoordinator extends ChangeNotifier {
 
   void retirePendingReview() => pendingReview = null;
 
+  bool _recoverableUnavailable(ApiResponse response, ApiError? error) {
+    if (response.status != 503 ||
+        error?.code != ApiErrorCode.serviceUnavailable ||
+        error?.retryable != true) {
+      return false;
+    }
+    // This newly recoverable path must satisfy the Error contract, not merely
+    // contain a retryable flag. Do not relax other providers or error parsing.
+    const fields = {
+      'code',
+      'message',
+      'request_id',
+      'retryable',
+      'retry_after_seconds',
+      'field_errors',
+    };
+    final detail = response.body!['error'] as Map<String, dynamic>;
+    final fieldErrors = detail['field_errors'] as List<dynamic>;
+    return response.body!.length == 1 &&
+        detail.length == fields.length &&
+        detail.keys.every(fields.contains) &&
+        (detail['message'] as String).runes.length <= 300 &&
+        (detail['request_id'] as String).runes.length <= 100 &&
+        (error!.retryAfterSeconds == null || error.retryAfterSeconds! >= 0) &&
+        fieldErrors.length <= 20 &&
+        fieldErrors.every((value) => value is Map<String, dynamic>);
+  }
+
   Future<void> login(String platform) async {
     retirePendingReview();
     if (_active || (platform != 'android' && platform != 'ios')) {
@@ -2025,7 +2053,9 @@ class GoogleLoginCoordinator extends ChangeNotifier {
             response.body == null ? null : ApiError.fromJson(response.body!);
         state = error?.code == ApiErrorCode.accountUnavailable
             ? LoginState.accountUnavailable
-            : LoginState.error;
+            : _recoverableUnavailable(response, error)
+                ? LoginState.recoverableError
+                : LoginState.error;
       }
     } on GoogleSignInException catch (error) {
       state = error.code == GoogleSignInExceptionCode.canceled
