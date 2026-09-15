@@ -4,18 +4,20 @@
 
 維護角色：Main Work
 
-本輪起始程式基準：`a4974b6967c65cecbf0b45063f8a809549c8d07e`。
+本輪起始程式基準：`c6034eb633f1ae09d005442f873b48e224cc4d87`。
 目前branch/dirty state由Git核對，next actor以HANDOFF為準。
 
 TASK198最新：PR261一次性設定已合併，CI34865517474成功16/16；native run34880271702真實簽署與清理通過。
 Owner認可GitHub標準native路徑與一次性persistent Secrets custody，DEC-110明列範圍／風險。
 Sign-only workflow已合併；舊workflow硬停用，舊日誌／資產保留。
-新job不使用ASC／Apple登入p8，不上傳IPA／raw logs，不改production/provider；先取得真實簽署與清理基準。
+已成功的signing-only基準不使用ASC／Apple登入p8，無Apple上傳／raw logs，不改production/provider。
 既有真實憑證完成native archive/export/IPA檢查；固定結果SIGNED_BASELINE_VERIFIED、清理ABSENT、artifacts0。
 Owner完成ios-native-signing三項Secret與五項Variables；Main核對名稱/設定與Owner reviewer/self-review/bypassfalse/main-only。
 Main核對accepted runtime指紋、隔離staging ownership及無競爭run；舊job取消、無runner/steps，舊傳送Secret名稱皆無。
 run34880271702：main/exact SHA、version1.0.0/build1/attempt1吻合；不重跑成功基準，後續建置重用已保存Secrets。
-Owner已批准ASC上傳p8的新增persistent custody（DEC-111）；Main進行準備／review，尚未讀取或保存該key。staging Apple登入設定仍缺。
+PR262已合併、CI16/16，真實altool help與新版收據讀取器通過；Owner已保存ASC Secret，Main唯讀確認存在／保護規則，不讀payload。
+Main已實作opt-in native altool upload、簽署後交接、唯讀重複／自動分發檢查；獨立source ACCEPT，尚未上傳。
+本機direct79PASS1macOS SKIP＋inspector18PASS，下一步唯一實質PR與雲端驗證；staging Apple登入仍缺，既有Secret不需重填。
 尚無本輪TestFlight／device交付證據；下一段官方Apple上傳要在簽署基準證明後接上，不重填已保存的Secrets。
 
 ## Active role lanes

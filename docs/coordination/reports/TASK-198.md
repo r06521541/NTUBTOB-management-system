@@ -1,5 +1,32 @@
 # TASK-198 report
 
+## Native altool upload implementation (2026-09-15; not live)
+
+ASC setup now stored: Owner STORED_METADATA_CONFIRMED and Main read-only
+ALREADY_PRESENT/protection PASS. No repeated private input, key read or mutation
+by Main. Branch codex/task-198-native-altool-upload, base/full HEAD
+c6034eb633f1ae09d005442f873b48e224cc4d87; native signing-only default retained.
+
+Opt-in code binds retained IPA to inspector hash/size, publishes same-runner
+ready only after signing cleanup, then separately obtains ASC. Fixed GET-only
+preflight checks exact App, both duplicate collections and all betaGroup pages.
+One official altool call records attempted/natural exit before output/cleanup;
+CLI0 never implies Apple processing, distribution or device acceptance. Owned
+cleanup runs on ordinary failure/skip; unresolved process is not falsely reaped.
+Native log/cache metadata changes are reported, not deleted or called zero trace.
+No tester/distribution/public release API mutation, raw artifact or cache export.
+
+Architecture lease5 ACCEPT adopted. Lease6 REQUEST_CHANGES confirmed unnecessary
+crypto test cross-import and primary error loss at stopped-marker/spool close.
+Main RED regressions established, then fixed both; candidate hash is also rechecked
+after ASC GETs. Main final direct80=79PASS1macOS SKIP, no-site-packages baseline
+22=21PASS1SKIP, inspector18PASS, classifier39=38PASS1SKIP, quality/diff PASS.
+Frozen correction lease7 ACCEPT received/handled; nine LF fingerprints matched,
+no sole-writer acceptance or real trial. One substantive PR/hosted CI follows.
+No live Apple GET/signing/upload or additional credential setup performed.
+Source acceptance, hosted CI, actual native upload, read-only ASC processing and
+Owner-only distribution/device remain separate gates; no product completion claim.
+
 ## Native upload preparation, not upload (2026-09-15)
 
 Owner accepted existing ASC key persistent custody (DEC111). Main owns branch

@@ -4,10 +4,18 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: a4974b6967c65cecbf0b45063f8a809549c8d07e
+base_commit: c6034eb633f1ae09d005442f873b48e224cc4d87
 updated_by: main-work
 updated_at: 2026-09-15
 note: >
+  PR262 merged c6034eb633f1ae09d005442f873b48e224cc4d87; CI34915983993 success16/16.
+  Real pinned altool probe passed: upload-app/package, API key/issuer, p8 path and
+  output-format supported. Fixed native receipt reader verified prior signing.
+  Owner ASC setup STORED_METADATA_CONFIRMED, failure/cleanup null, write CONFIRMED;
+  fresh metadata-only preflight ALREADY_PRESENT, protections pass. Do not repeat setup.
+  Main implemented opt-in altool upload under IOS-TF-01/DEC111, frozen source review
+  lease7 ACCEPT on codex/task-198-native-altool-upload. Direct79PASS1macOS SKIP,
+  inspector18PASS; primary/secondary error and bare-macOS test corrections accepted.
   PR261 merged, CI34865517474 success16/16; runtime fingerprints match review.
   Owner stored three signing Secrets and five Variables; Main verified metadata,
   protection, exact staging ownership and no competing run, without payload access.
@@ -17,7 +25,7 @@ note: >
   Old run cancelled, one job record with no runner/steps; old transfer names absent.
   Native signing verified; upload/device not verified, staging Apple-login incomplete.
   Owner accepted persistent existing ASC upload key custody, recorded DEC111.
-  Main implements/reviews native upload preparation on codex/task-198-native-upload.
+  One substantive PR/full hosted CI next; no real upload yet. Nine accepted LF hashes in review.
   Reuse saved signing Secrets; no private input, key read or upload by Main.
   Existing four record edits travel with this substantive delivery, not a standalone PR.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system

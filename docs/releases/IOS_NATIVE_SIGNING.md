@@ -1,4 +1,4 @@
-# Native iOS signing baseline (no upload)
+# Native iOS signing and optional one-shot upload
 
 TASK-198 / DEC-110 / DEC-111 is the current route. The old local-controller workflow is
 hard-disabled; its source and original journals remain intact. Do not execute
@@ -10,13 +10,13 @@ The manually triggered `ios-native-signing.yml` uses the existing Flutter 3.47.0
 Xcode 26.3 (17C529), standard GitHub-hosted `macos-15`, native `security`, Xcode
 archive/export and the existing artifact-only IPA inspector. No custom CMS
 envelope parser, Swift credential transport or Windows controller participates.
-There is NO Apple upload/API key, automatic provisioning, tester mutation or
-public release step. A verified baseline is not TestFlight availability.
+Signing-only remains the default. Opt-in native upload uses the separately saved
+ASC key only after signing cleanup. No automatic provisioning, tester mutation or
+public release step exists. A verified baseline is not TestFlight availability.
 
-The first live baseline is deliberately signing-only. Once the native route is
-proved, add an independently reviewed official Apple upload step on the same
-runner, with separate ASC key custody and read-only processing reconciliation.
-This will require another build (the baseline IPA is deleted), not retyping or
+The first live baseline proved signing-only. The optional official Apple upload
+step runs on the same runner with separate ASC custody; processing reconciliation
+remains a distinct read-only gate. This requires another build, not retyping or
 re-importing the persistent signing Secrets. Do not publish an IPA as a public
 Actions artifact to avoid that build. Do not reuse a build already uploaded.
 
@@ -140,7 +140,7 @@ verified, artifacts0. It did not upload. Do not rerun that successful baseline.
 
 1. Main records the reviewed full main SHA and baseline version/build in TASK-198.
    Version/build are public metadata; they do not prove the number is free in ASC.
-2. Owner manually triggers **iOS native signing baseline (no upload)** on main and
+2. Owner manually triggers **iOS native signing (optional owner TestFlight upload)** on main and
    approves use of the configured Environment. No local password prompt or
    continuously running Windows terminal. Never use GitHub Re-run jobs blindly.
 3. Nonsecret checks and dependency setup run before the step receives Secrets.
@@ -149,6 +149,50 @@ verified, artifacts0. It did not upload. Do not rerun that successful baseline.
    signature/profile inspection, search restore, Keychain deletion and cleanup.
 5. Only `SIGNED_BASELINE_VERIFIED` plus successful final absence audit proves this
    signed baseline. It always reports upload/device/public release false.
+
+### Optional upload after the proved signing baseline
+
+Only on reviewed merged source/required CI, Main selects `upload_to_testflight=true`
+under IOS-TF-01/DEC111 and verifies the target/configuration/protection/cost checks
+above. Owner approves the Environment once; the four existing Secrets are reused.
+Do not change App Store Connect group settings concurrently with this execution.
+
+`sign-for-upload` inspects the IPA, binds retained bytes to the inspector's exact
+hash/size, and removes signing inputs, Keychain/configuration/build outputs. Only
+after successful signing cleanup does it publish a private same-runner fixed-path
+IPA/ready manifest bound to run/attempt/SHA/version/build. `SIGNED_COPY_READY` and
+`signing_cleanup_verified` deliberately do not claim the retained IPA is absent.
+This handoff is not a replay journal or authority for another dispatch.
+
+The subsequent step alone receives ASC. A fixed-host GET-only helper resolves the
+exact bundle, checks both matching buildUploads and builds, and fully reads bounded
+betaGroup pagination. Existing/failed/pending builds stop; missing/true/null automatic
+access flags stop. No repair, new build-number choice or tester assignment occurs.
+This snapshot is not an atomic lock against concurrent Console changes.
+
+Native `xcrun altool --upload-app -f <fixed IPA> -t ios --apiKey <ID> --apiIssuer <ID>
+--p8-file-path <private path> --output-format json` runs once, with a private HOME,
+TMPDIR/cwd, restrictive umask and filtered child environment. The pinned no-Secret
+probe proves option presence, not credential acceptance or a response JSON schema.
+The adapter records process start and natural exit before later output/teardown;
+`CLI_COMPLETED` means only observed exit0 with no detected failure. It does NOT mean
+Apple processing, distribution or device verification. `ITMS-` numeric codes may be
+reported without private error text. Every attempted/uncertain result requires
+read-only ASC reconciliation; no automatic retry or repeated password input.
+
+Normal and skipped-step cleanup deletes this run's owned key/IPA/manifest/private
+HOME only. An unreaped process blocks cleanup; an always-run no-Secret cleanup/audit
+does not override that marker. HOME does not isolate every macOS native API: bounded
+metadata checks on existing user Library log/cache parents report external changes,
+without printing contents or deleting unrelated directories. This is not exhaustive
+native sidefile detection or whole-VM trace absence. Ephemeral VM disposal remains
+a backstop, not a successful-cleanup claim. Raw logs/artifacts/caches are not exported.
+
+After CLI completion, use read-only ASC/Owner Console to identify the exact version/
+build and processing result, and confirm its betaGroups and individualTesters are
+unassigned before claiming undistributed. Only a later Owner-only distribution gate
+may assign the existing Owner group; device installation and functional checks are
+still separate. Do not use the signing-only receipt parser on an upload run.
 
 ## Custody and failure handling
 
@@ -184,7 +228,7 @@ cannot become success. No automatic retries, raw dump mode or reset mechanism.
 
 ## Verification
 
-### ASC preparation (no upload action yet)
+### ASC preparation (once only; already stored)
 
 DEC-111 permits one additional Environment Secret, `IOS_ASC_UPLOAD_CREDENTIAL`.
 It contains a compact JSON package of ASC Key ID, Issuer ID and Base64 existing
@@ -211,8 +255,7 @@ rules above apply unchanged, including serialization by Owner.
 checks exact Xcode26.3/17C529, resolves altool with xcrun, then invokes only --help.
 It reports fixed option-presence booleans, not credentials, an IPA, or guessed
 Apple response fields. Unknown help is evidence to inspect, not upload readiness.
-The module currently has NO upload action; actual argv and cleanup require a
-later reviewed native upload slice based on this platform evidence.
+The upload action is opt-in and independently reviewed; probe alone cannot authorize it.
 
 `tools.ios_native_receipt` is a GET-only signing-success reader. Supply public
 `--run-id`, `--job-id`, `--expected-commit`; it binds the completed successful
@@ -232,7 +275,8 @@ or upload; no password entry or baseline rerun is a remedy for this CLI guard.
 
 Direct offline suite:
 `py -3.10 -B -m unittest tools.tests.test_ios_native_secret_setup
-tools.tests.test_ios_native_upload tools.tests.test_ios_native_receipt -q`.
+tools.tests.test_ios_native_upload tools.tests.test_ios_native_asc
+tools.tests.test_ios_native_receipt -q`.
 
 `py -3.10 -B -m unittest tools.tests.test_ios_native_signing
 tools.tests.test_ios_candidate_inspector -v` runs fictional command-shaped

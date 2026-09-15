@@ -1,4 +1,62 @@
-## Active native upload preparation (2026-09-15)
+## Active native Apple upload implementation (2026-09-15)
+
+PR262 merged c6034eb633f1ae09d005442f873b48e224cc4d87, CI34915983993 success16/16
+on25255a058e60ccaba449e68b1e7b6ea42327590b. Pinned Xcode26.3/17C529 help probe
+job104213588142 confirms upload-app/package, apiKey/apiIssuer, p8-file-path,
+output-format and API_PRIVATE_KEYS_DIR; fixed receipt reader also verified the
+real signing run without raw output. Owner ASC setup reported CONFIRMED with
+null failure/cleanup; Main fresh metadata-only ALREADY_PRESENT/protections PASS.
+No repeated signing/ASC setup, private reads by Main or Apple upload performed.
+
+Main /root, claim task-198-main-20260911 lease1; new branch
+codex/task-198-native-altool-upload, base=head
+c6034eb633f1ae09d005442f873b48e224cc4d87, initial clean tree.
+Execution checkpoint:
+1. Outcome: official altool one-shot upload after native signing cleanup, using
+   four saved Secrets, existing staging App only; Apple processing/device separate.
+2. Core/owned: tools/ios_native_signing.py, ios_native_upload.py, new
+   ios_native_asc.py (GET-only target/duplicate/distribution checks), matching direct
+   tests, ios-native-signing.yml and existing CI direct suite, release runbook and
+   task/report/review/HANDOFF/PROJECT_STATE. No old controller or mutation API relay.
+3. Invariants: no-upload default unchanged; private same-runner IPA only, signing
+   cleanup before ASC step; no automatic distribution/public release, no raw logs,
+   preserve attempted/known exit/primary/cleanup facts; uncertain never resubmits.
+4. Tests: real orchestration/fake native+HTTP failure vectors, bounded retained IPA
+   cleanup, no-Secret native CLI help, exact accepted source/CI before live mode.
+5. Stops: original IOS-TF-01/DEC111 gates; no new Secret values or key regeneration.
+   Owner performs protected Environment approval when source is ready; Main first
+   proves target/build and no automatic tester exposure. No new authority required.
+
+Assignment packet: task=TASK-198; branch=codex/task-198-native-altool-upload;
+base=head=c6034eb633f1ae09d005442f873b48e224cc4d87;
+actor_id=/root/native_upload_review; role=advisor;
+claim_id=task-198-native-upload-review; lease_version=5; owned_paths=none;
+write=read-only; report_to=/root; scope=minimum official altool architecture,
+post-sign cleanup IPA handoff, GET-only duplicate/automatic-distribution check,
+CLI effect/cleanup diagnostics. Stop private/live/Git mutation or scope drift.
+Prior lease4 completed/revoked; COLLAB2 ACK/heartbeat/proactive completion applies.
+Lease5 architecture ACCEPT received/handled; conditions adopted: inspector-bound
+copy after signing cleanup, separate ready/CLI/processing/distribution evidence,
+GET-only complete pages, known native effects survive secondary cleanup, no
+whole-VM absence claim. Revoke completed5; lease6 same actor/claim/read-only,
+base/head/branch/ownednone/report_to unchanged. Frozen source review covers six
+Python source/test files (signing/upload/asc), two workflows and release runbook.
+Main focused76 tests75PASS1macOS SKIP, six-file quality format and diff checks PASS.
+No real input/Apple API/signing/upload performed; independent source acceptance
+and hosted CI remain required. Coordination-only records can change during review.
+Lease6 REQUEST_CHANGES received/handled: pure baseline fixture must not import
+crypto tests, and stopped-marker/output-close secondary errors hid native primary.
+Main reproduced no-site-packages2RED and compound regression failures, corrected
+both stations, and rechecks candidate after ASC preflight. Close/marker secondary
+errors retain CLI stage/code/provider codes; observed0 still is not success when
+cleanup fails. Revoke6; lease7 same packet, narrow four signing/upload source/test
+files only; ASC/workflows/runbook unchanged, no live or Git mutations by reviewer.
+Lease7 ACCEPT received/handled; nine LF fingerprints match review. Main final
+80=79PASS1macOS SKIP, bare baseline22=21PASS1SKIP, inspector18PASS, classifier
+39=38PASS1SKIP and quality6/diff PASS. Reviewer completed/read-only. Main proceeds
+one substantive ready PR/full hosted CI, no new private input or live upload.
+
+## Previous native upload preparation (2026-09-15)
 
 Owner accepted existing ASC upload key persistence; DEC-111 extends custody, not
 public release or production authority. Main /root, task-198-main-20260911 lease1,
