@@ -1,4 +1,121 @@
-## Active one-time native Secret setup (2026-09-14)
+## Active native upload preparation (2026-09-15)
+
+Owner accepted existing ASC upload key persistence; DEC-111 extends custody, not
+public release or production authority. Main /root, task-198-main-20260911 lease1,
+branch codex/task-198-native-upload; base=head
+a4974b6967c65cecbf0b45063f8a809549c8d07e. Prior four dirty coordination records are
+Main-owned and travel in this substantive delivery. No private execution yet.
+
+Execution checkpoint:
+1. Outcome/risk: prepare official Apple upload and once-only existing ASC custody;
+   the existing key can exercise ASC API powers, limited by reviewed code/custody.
+2. Core: native signing/secret setup, new native upload helper and focused tests,
+   signing workflow + existing hosted macOS CI probe, release runbook; no controller.
+3. Invariants: baseline no-upload default unchanged; signing cleanup before ASC
+   exposure; no raw log/IPA export, key replacement, old journal retry or public release.
+4. Evidence: secret-free pinned Xcode altool help probe plus fictional failure tests;
+   actual upload accepted, processing and device remain separate unverified layers.
+5. Owner/stops: at most one new Secret onboarding using saved metadata/path after
+   review/CI, no repeated three signing fields. Unknown effects/cleanup stop; USD20
+   and IOS-TF-01 named stops apply. Main does not perform private input/key access.
+
+Owned source: tools/ios_native_secret_setup.py,
+tools/ios_native_upload.py, tools/ios_native_receipt.py, their matching direct tests,
+.github/workflows/flutter-tests.yml (macOS probe only), .github/workflows/python-tests.yml (direct suite only),
+docs/releases/IOS_NATIVE_SIGNING.md, this task/report/review/HANDOFF/PROJECT_STATE,
+DECISIONS/COLLABORATION (new custody only), INFRASTRUCTURE_RELIABILITY (proved lesson).
+Independent architecture/source acceptance required before live onboarding/upload.
+First substantive slice is preparation ONLY: once-only ASC setup, fixed signing
+receipt reader and secret-free altool help probe. Native signing code/workflow
+unchanged; no upload action is implemented. Official Apple upload argv will be
+selected from actual pinned help evidence, not guessed from another manpage.
+
+Assignment packet: task=TASK-198; branch=codex/task-198-native-upload;
+base=head=a4974b6967c65cecbf0b45063f8a809549c8d07e;
+actor_id=/root/native_upload_review; role=advisor;
+claim_id=task-198-native-upload-review; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root; scope=architecture challenge for official CLI,
+single existing ASC Secret via saved metadata, post-signing-cleanup-only upload,
+honest result/cleanup/uncertain handling. Stop on private/live/Git mutation need,
+scope drift or unsupported platform assumption. COLLAB2 mandatory ACK/heartbeat/
+proactive completion applies; review documentation/source only while Main works.
+Architecture lease1 ACCEPT received/handled: one held Reader for settings/key,
+primary/secondary cleanup retained, key syntax is not Apple identity evidence,
+no API effect/retry claims from CLI cleanup. Its three observed RED tests were
+Main's in-progress tests, now implemented. Revoke completed lease1; lease2 same
+actor/claim/branch/base/head/read-only/ownednone/report_to. Scope: frozen six
+Python source/test files above, two CI workflow deltas and runbook/authority for
+this preparation-only slice; run focused offline tests, identify regressions or
+unsupported security claims. No real inputs/key/API/Git mutations. Source frozen
+through verdict; Main edits coordination records only meanwhile.
+Lease2 REQUEST_CHANGES received/handled: Developer-only altool path, contradictory/
+oversized/escaped-duplicate receipt records and numeric bool equality. Main RED
+reproduced all, then fixed same-Xcode Contents component binding and strict JSON/
+numeric checks. Revoke lease2; lease3 same packet, scoped only four changed
+upload/receipt source+test files; setup/CI unchanged. Frozen correction rereview,
+no live/Git/file writes, report exact LF hashes and finite verdict to /root.
+Lease3 found the same receipt-completeness issue for an incomplete SIGNED record
+without signature_verified; Main added RED for that and unknown final classes,
+then required exact SUCCESS for named/sourceless final classification records.
+Lease4 supersedes completed3, same packet; narrow two-file receipt/test rereview,
+all other accepted paths frozen, no broader retest or mutation.
+Lease4 ACCEPT received/handled, all9 canonical fingerprints independently matched
+by Main and recorded in review. Main56 tests55PASS1macOS SKIP, quality/diff PASS;
+affected86 initially84PASS1SKIP1sandbox-only ACL failure, exact native fictional
+fixture rerun PASS. No local PyYAML; hosted parser/CI/probe still pending. Advisor
+completed/read-only. Main proceeds one accepted substantive PR under standing
+Git authority; no private onboarding before merged source and required CI.
+
+### Verified native baseline
+
+Run34880271702/job104097565748 completed SUCCESS on the exact reviewed SHA below,
+version1.0.0/build1, attempt1. Main verified exactly one SIGNED_BASELINE_VERIFIED:
+signature_verified=true, cleanup_verified=true, failure=null, cleanup_failures=[];
+final cleanup_audit=ABSENT, Actions artifacts0, upload/device/release=false.
+Do not rerun this successful baseline. Existing three signing Secrets remain;
+the baseline's IPA was intentionally removed, so the later upload workflow builds
+again using saved Secrets, not repeated Owner password input.
+
+DEC111 now permits the existing ASC upload p8 as a separate protected Secret,
+reusing existing Key ID/Issuer metadata. Independently review upload/private IPA cleanup,
+including fixed JSON receipt parsing/CLI escape-guard regression, before live use.
+
+### Completed native signing execution handoff
+
+Owner dispatched ONCE: run34880271702, main/exact SHA below, version1.0.0/build1,
+workflow_dispatch/attempt1. Main GET confirmed waiting, only ios-native-signing
+pending approval; native_signing has no runner/steps yet. Next Owner action is
+approve THIS run's Environment, not another dispatch or Re-run jobs.
+
+Source accepted through PR261, merged main a4974b6967c65cecbf0b45063f8a809549c8d07e;
+CI34865517474 SUCCESS16/16 on d79d907658a22519e82ae9332b51aa198b4e17fb.
+Runtime/workflow LF fingerprints still match the independent native review below.
+Owner completed all three one-field Secret writes with STORED_METADATA_CONFIRMED;
+Main verified names/protections and exact five nonsecret Variables, not payloads.
+
+Execution checkpoint:
+1. Outcome/hypothesis: existing P12/profile can complete native import, signed
+   archive/export, artifact inspection and cleanup on standard macos-15. No upload.
+2. Target/source: ios-native-signing.yml on main at the exact SHA above, version
+   1.0.0, build_number 1, first attempt; source and protected Environment verified.
+3. Invariants/recovery: no new keys, old-controller replay, public IPA/log export,
+   provider/production changes or automatic retry; retain first and cleanup failures.
+4. Evidence: source/CI/configuration/isolated-staging ownership pass; actual signing
+   still unverified. Require SIGNED_BASELINE_VERIFIED plus successful final audit.
+5. Owner/stop: manually dispatch this workflow ONCE, then approve ios-native-signing
+   when requested. Stop on unexpected inputs/source, uncertain outcome or cleanup;
+   Main reads the resulting run before any next action. Do not use Re-run jobs.
+
+Runtime packet: operator=owner; owner_gate=manual_workflow_dispatch_and_environment;
+standing_authorization=IOS-TF-01/DEC-110; report_to=/root; Main claim/lease unchanged.
+Public standard runner compute costs USD0 under current GitHub terms; no cache,
+artifact storage upload, larger runner or new cloud resource; aggregate USD20 cap
+unchanged. Build 1 is a signing-only identifier, not proof it is free for ASC upload.
+Staging Apple-login configuration is still incomplete: this baseline cannot prove
+login, TestFlight availability or device acceptance. After Owner dispatch, Main
+resumes read-only run tracking; source changes, if needed, require normal review.
+
+## Previous one-time native Secret setup (2026-09-14, integrated)
 
 PR260 merged as e2e8572830840e4b81ea35276893c1e1381d0e10; required CI34851563433
 passed16/16, including the new macOS invalid-P12/cleanup smoke. No real signing.

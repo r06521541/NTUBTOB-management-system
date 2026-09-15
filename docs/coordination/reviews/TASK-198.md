@@ -1,5 +1,37 @@
 # TASK-198 review
 
+## Native ASC preparation: independent ACCEPT (2026-09-15)
+
+Branch codex/task-198-native-upload; base/head before commit
+a4974b6967c65cecbf0b45063f8a809549c8d07e. Advisor /root/native_upload_review,
+claim task-198-native-upload-review: architecture lease1 ACCEPT; lease2 found
+Developer-only altool path and incomplete receipt rejection/numeric typing.
+Main established RED and fixed; lease3 additionally found incomplete named SIGNED
+records could be ignored. That regression and unknown final class were added RED
+then fixed. Lease4 ACCEPT received/handled; Main independently recomputed all
+final LF fingerprints below. No sole-writer formal acceptance.
+
+| Path | LF SHA256 |
+| --- | --- |
+| tools/ios_native_secret_setup.py | 4b7261644e322ea37cb14e7aaaadc132fc96837083a74a6e6c3f3988eea1abb3 |
+| tools/ios_native_upload.py | b4d7924dbed6364c9242dd1ba3be746fdb9f6a2aba86435561cc15bd08f5f52b |
+| tools/ios_native_receipt.py | b92d555196e834f7309f9877566ecdd13fae426e888213374f9003ea1902d9bf |
+| tools/tests/test_ios_native_secret_setup.py | 6be1f55ea263ce7829092391604740a5021a905c615219ac88c5f77ba6a9d310 |
+| tools/tests/test_ios_native_upload.py | d09e5fa1116ec9777772454a5fbbcf3c98098ece0679c80577403c9d5f3b0480 |
+| tools/tests/test_ios_native_receipt.py | 4e4995fac46b2dd37579f35cff9b24a0fb01701157aeab019c408f19bb1e319d |
+| .github/workflows/flutter-tests.yml | e1cb9e6922c722dbfa3ce301c3c97db01851ee5bc0db7b1a52dff6d197cb36dc |
+| .github/workflows/python-tests.yml | 4d78699d8caee19d76a5660eec1570b9d26c8773b5c602ca43e853262eca121d |
+| docs/releases/IOS_NATIVE_SIGNING.md | 05e2f7e5d4b6f3b0205ef0986ba16229eaa74aca908c874e969472b7bff2414a |
+
+Reviewer35 direct tests PASS, then correction13 PASS and final6 PASS. Main final
+56 tests55PASS1macOS SKIP, six-file quality/diff PASS; affected86 initially84PASS,
+1SKIP and1 sandbox ACL restriction, exact disposable Windows fixture rerun PASS.
+No new saved_asc native end-to-end claim. Local PyYAML unavailable; actual hosted
+workflow parse/probe/CI remains Main's integration gate. Reviewer did not edit,
+read real assets, or mutate Git/cloud. Main has not onboarded ASC or uploaded.
+This slice has no upload action; actual Apple acceptance/processing/device remain
+separate. Original signing-only adapter/workflow unchanged, no baseline rerun.
+
 ## One-time native Secret setup: correction ACCEPT (2026-09-14)
 
 Branch codex/task-198-native-secret-setup, base/head

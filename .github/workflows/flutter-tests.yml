@@ -294,6 +294,7 @@ jobs:
         run: |
           python3 -m unittest tools.tests.test_ios_release_pipeline tools.tests.test_ios_candidate_inspector -v
           python3 -m unittest tools.tests.test_ios_native_signing -v
+          python3 -m tools.ios_native_upload probe
           python3 -m tools.ios_release_pipeline rehearse \
             --expected-commit "$EXPECTED_COMMIT" \
             --checkout-commit "$(git rev-parse HEAD)"

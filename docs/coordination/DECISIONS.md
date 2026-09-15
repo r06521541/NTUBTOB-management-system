@@ -437,9 +437,21 @@
   target/protection/cost preflight。ASC／Apple登入p8不進signing-only job；無TestFlight／device成功推定。
 - IOS-TF-01其餘Owner-only staging、USD20總額、named stops、獨立驗收與uncertain先唯讀仍有效。
 
+## DEC-111：既有 ASC 上傳金鑰的受保護保管
+
+- 狀態：`active`；日期：2026-09-15；來源：Owner答覆「好」，接受既有ASC上傳p8於同一受保護Environment持久保存。
+- Extends DEC-110 only for TASK-198：既有App Store Connect key與必要Key ID／Issuer metadata可保存在
+  ios-native-signing的一個獨立Secret；不混入三項signing Secrets，不使用Sign in with Apple key。
+- 僅經review的Owner設定工具讀取原有受保護檔案、以官方gh stdin寫入；Main不讀payload、不重填已保存signing欄位。
+  已存在不覆寫，未知寫入結果先唯讀查證；不建立／輪替／撤銷key或放寬Environment protection。
+- 未來approved ephemeral macOS upload step可用step environment與0600暫存key，須在signing credential清理成功後
+  才注入ASC key；verified IPA只保留到上傳／清理，禁止public artifact、raw log、cache、共用runner。
+- 官方Apple CLI一次上傳；收件、processing與本人安裝分別驗證，未知結果不重送。IOS-TF-01僅本人staging內測、
+  USD20總額及原named stops不變；本次不授權其他tester、production、外部Beta Review或公開發布。
+
 ## 決策維護方式
 
-- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-110`，下一個新決策從 `DEC-111` 開始。Archive 中的編號不重用、
+- DEC 使用單一連續編號；本檔目前現行最高為 `DEC-111`，下一個新決策從 `DEC-112` 開始。Archive 中的編號不重用、
   不重編。
 - 只有跨 task 持續生效的產品、架構、授權或安全決策才新增 DEC。單次 task／PR／部署核准與執行結果不升格為 DEC。
 - 不改語意的澄清更新原 DEC 並記錄修訂日期；語意改變時新增 DEC，以 `supersedes` 指向舊項。

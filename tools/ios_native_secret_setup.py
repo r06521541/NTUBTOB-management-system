@@ -25,6 +25,7 @@ FIELDS = {
     "p12": "IOS_DISTRIBUTION_P12_BASE64",
     "profile": "IOS_DISTRIBUTION_PROFILE_BASE64",
     "password": "IOS_DISTRIBUTION_P12_PASSWORD",
+    "asc": "IOS_ASC_UPLOAD_CREDENTIAL",
 }
 API = f"repos/{REPO}/environments/{ENVIRONMENT}"
 MAX_RAW = 36 * 1024
@@ -70,6 +71,9 @@ REASONS = frozenset(
         "PRESENCE_UNCONFIRMED",
         "UNSUPPORTED_HOST",
         "DEBUG_ENV_REJECTED",
+        "TERMINAL_ESCAPE_GUARD",
+        "ASC_CREDENTIAL_REJECTED",
+        "SAVED_SETTINGS_REJECTED",
     }
 )
 
@@ -107,6 +111,10 @@ def cli_reason(raw):
         if re.search(rb"HTTP " + str(code).encode() + rb"\b", raw):
             return "HTTP_" + str(code)
     for marker, reason in (
+        (
+            b"the response contains terminal escape sequences; pass --allow-escape-sequences",
+            "TERMINAL_ESCAPE_GUARD",
+        ),
         (b"no such host", "DNS_FAILURE"),
         (b"certificate signed by unknown authority", "TLS_FAILURE"),
         (b"connection refused", "CONNECTION_FAILURE"),
@@ -315,7 +323,7 @@ def read_file(value, kind):
     from tools import ios_testflight_key_custody as existing
 
     path = Path(value)
-    suffix = ".p12" if kind == "p12" else ".mobileprovision"
+    suffix = {"p12": ".p12", "profile": ".mobileprovision", "asc": ".p8"}[kind]
     require(
         path.is_absolute() and path.suffix.lower() == suffix and ".." not in path.parts,
         "input",
@@ -346,6 +354,69 @@ def read_file(value, kind):
     if failure is not None:
         raise failure
     return raw
+
+
+def saved_asc(*, reader_factory=None, root=None):
+    """Owner only after SET asc: reuse existing private metadata; never resave it.
+
+    Key syntax cannot establish ASC role or distinguish Apple service keys.
+    The saved ASC selection is Owner-provided; actual Apple auth remains unverified.
+    """
+    from tools import ios_certificate_custody as custody
+    from tools import ios_certificate_preparation as preparation
+    from tools import ios_native_upload as upload
+    from tools import ios_testflight_intake as intake
+    from tools import ios_testflight_settings as settings
+
+    reader = None
+    failure = None
+    payload = None
+    stage = "asc_settings"
+    try:
+        root = root or preparation.local_app_data() / preparation.DIRECTORY
+        reader = (reader_factory or intake.Reader)()
+        reader.directory(root)
+        # One held snapshot spans metadata selection and key read. Do not call
+        # settings.load: its close may replace the primary diagnostic.
+        value = settings.parse(
+            reader.file(root / settings.FILENAME, 65536), google_web=None
+        )
+        stage = "asc_input"
+        path = Path(value["asc_p8_path"])
+        reader.directory(path.parent)
+        raw = reader.file(path, 4096)
+        payload = json.dumps(
+            {
+                "key_id": value["asc_key_id"],
+                "issuer_id": value["asc_issuer_id"],
+                "p8_base64": base64.b64encode(raw).decode("ascii"),
+            },
+            separators=(",", ":"),
+        ).encode("ascii")
+        upload.credential(payload)
+        stage = "asc_verify"
+        reader.verify()
+    except (custody.CustodyError, intake.Rejected) as error:
+        failure = Failure(stage, str(error))
+    except settings.Rejected:
+        failure = Failure(stage, "SAVED_SETTINGS_REJECTED")
+    except upload.Failure:
+        failure = Failure(stage, "ASC_CREDENTIAL_REJECTED")
+    except BaseException as error:
+        failure = Failure(
+            stage,
+            "INTERRUPTED" if isinstance(error, KeyboardInterrupt) else "INPUT_REJECTED",
+        )
+    finally:
+        if reader is not None:
+            try:
+                reader.close()
+            except BaseException:
+                failure = failure or Failure("asc_close", "CUSTODY_CLOSE_UNRESOLVED")
+                failure.cleanup = "CUSTODY_CLOSE_UNRESOLVED"
+    if failure is not None:
+        raise failure
+    return payload
 
 
 def perform(
@@ -380,7 +451,10 @@ def perform(
         stage = "approval"
         require(prompt("approval") == "SET " + kind, stage, "APPROVAL_REJECTED")
         stage = "input"
-        value = prompt(kind)
+        if kind == "asc":
+            payload = saved_asc()
+        else:
+            value = prompt(kind)
         if kind == "password":
             require(
                 type(value) is str
@@ -390,7 +464,7 @@ def perform(
                 "INPUT_REJECTED",
             )
             payload = value.encode("utf-8")
-        else:
+        elif kind != "asc":
             raw = read(value) if read else read_file(value, kind)
             require(
                 type(raw) is bytes and 1 <= len(raw) <= MAX_RAW,

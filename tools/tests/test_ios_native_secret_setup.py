@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from tools import ios_native_secret_setup as setup
 
@@ -82,6 +82,116 @@ class Fake:
 
 
 class SetupTests(unittest.TestCase):
+    def test_saved_asc_holds_only_settings_and_selected_key_until_verify_close(self):
+        import base64
+
+        from tools import ios_testflight_intake as intake
+        from tools.tests.test_ios_native_upload import fixture
+
+        data = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            values = {
+                "apple_team_id": "FAKETEAM01",
+                "asc_key_id": data["key_id"],
+                "asc_issuer_id": data["issuer_id"],
+                "owner_email": "owner@example.invalid",
+                "google_ios_client_id": "fake-ios.apps.googleusercontent.com",
+                "asc_p8_path": str(root / "asc.p8"),
+            }
+            reader = Mock()
+            reader.file.side_effect = [
+                json.dumps(values).encode(),
+                base64.b64decode(data["p8_base64"]),
+            ]
+            payload = setup.saved_asc(reader_factory=lambda: reader, root=root)
+            self.assertEqual(json.loads(payload), data)
+            self.assertEqual(
+                [str(c.args[0].name) for c in reader.file.call_args_list],
+                ["testflight-inputs.json", "asc.p8"],
+            )
+            self.assertEqual(
+                [c[0] for c in reader.mock_calls][-2:], ["verify", "close"]
+            )
+            reader.file.side_effect = intake.Rejected("READ_REJECTED")
+            reader.close.side_effect = RuntimeError("fictional-private")
+            with self.assertRaises(setup.Failure) as caught:
+                setup.saved_asc(reader_factory=lambda: reader, root=root)
+            self.assertEqual(caught.exception.stage, "asc_settings")
+            self.assertEqual(caught.exception.reason, "READ_REJECTED")
+            self.assertEqual(caught.exception.cleanup, "CUSTODY_CLOSE_UNRESOLVED")
+
+    def test_asc_input_primary_and_close_failure_reach_final_without_write(self):
+        fake = Fake()
+        fake.approval = "SET asc"
+        failure = setup.Failure(
+            "asc_input", "ACL_REJECTED", cleanup="CUSTODY_CLOSE_UNRESOLVED"
+        )
+        with patch.object(setup, "saved_asc", side_effect=failure):
+            result = setup.perform(
+                "asc",
+                SHA,
+                execute=True,
+                run=fake.run,
+                prompt=fake.prompt,
+                emit=lambda _: None,
+            )
+        self.assertEqual(result["failure"]["stage"], "asc_input")
+        self.assertEqual(result["failure"]["reason"], "ACL_REJECTED")
+        self.assertEqual(result["cleanup_failure"], "CUSTODY_CLOSE_UNRESOLVED")
+        self.assertFalse(any(c[0] == "store" for c in fake.calls))
+
+    def test_asc_reuses_saved_input_once_without_reasking_fields(self):
+        from tools.tests.test_ios_native_upload import fixture
+
+        fake = Fake()
+        fake.approval = "SET asc"
+        payload = json.dumps(fixture()).encode()
+        with patch.object(setup, "saved_asc", return_value=payload) as load:
+            result = setup.perform(
+                "asc",
+                SHA,
+                execute=True,
+                run=fake.run,
+                prompt=fake.prompt,
+                emit=lambda _: None,
+            )
+        self.assertEqual(result["classification"], "STORED_METADATA_CONFIRMED")
+        self.assertEqual(fake.inputs, ["approval"])
+        load.assert_called_once()
+        writes = [c for c in fake.calls if c[0] == "store"]
+        self.assertEqual(len(writes), 1)
+        self.assertEqual(writes[0][2], payload)
+        self.assertNotIn(payload.decode(), str(writes[0][1]))
+
+    def test_existing_asc_and_preflight_never_load_private_file(self):
+        for present in (False, True):
+            fake = Fake()
+            if present:
+                fake.names.append(setup.FIELDS["asc"])
+            with patch.object(setup, "saved_asc") as load:
+                result = setup.perform(
+                    "asc",
+                    SHA,
+                    execute=present,
+                    run=fake.run,
+                    prompt=fake.prompt,
+                    emit=lambda _: None,
+                )
+            self.assertEqual(
+                result["classification"], "ALREADY_PRESENT" if present else "READY"
+            )
+            load.assert_not_called()
+            self.assertEqual(fake.inputs, [])
+
+    def test_escape_guard_is_not_network_or_generic_failure(self):
+        self.assertEqual(
+            setup.cli_reason(
+                b"the response contains terminal escape sequences; pass --allow-escape-sequences to output it anyway"
+            ),
+            "TERMINAL_ESCAPE_GUARD",
+        )
+
     def test_schema_failure_retains_each_actual_stage(self):
         for missing_stage in ("identity", "remote_head", "environment", "branches"):
             with self.subTest(stage=missing_stage):
