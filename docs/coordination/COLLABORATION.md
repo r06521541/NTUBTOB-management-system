@@ -137,7 +137,7 @@ IOS-TF-01例外僅依DEC-109／TASK-198生效：Owner已授權既有資產簽署
 Main保留exact preflight與單次operation證據，但包內SHA／confirmed-zero correction不重複要求Owner批准。
 下列wrapper／review／清理／uncertain reconcile規則仍保留；named stops與USD20上限不因standing approval豁免。
 
-DEC-110／TASK-198新native signing路徑另採Owner已認可的persistent Environment Secrets／必要native argv與
+DEC-110／DEC-111／TASK-198新native路徑另採Owner已認可的signing／ASC persistent Environment Secrets／必要native argv與
 暫存例外；只限named ephemeral workflow。舊controller停用、舊operation不重試；不擴張其他工具的第8節邊界。
 
 DEC-100 的隔離 fictional staging autonomy只允許 repository verifier與read-only preflight確認 exact target、identity、cost、

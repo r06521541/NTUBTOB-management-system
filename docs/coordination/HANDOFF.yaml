@@ -4,17 +4,22 @@ next_actor: /root
 claim_id: task-198-main-20260911
 lease_version: 1
 actor_id: /root
-base_commit: e2e8572830840e4b81ea35276893c1e1381d0e10
+base_commit: a4974b6967c65cecbf0b45063f8a809549c8d07e
 updated_by: main-work
-updated_at: 2026-09-14
+updated_at: 2026-09-15
 note: >
-  PR260 merged, CI34851563433 passed16/16 including native bad-P12 cleanup.
-  Owner created ios-native-signing; protection and zero Secret names verified.
-  Main implements one-time per-field official CLI Secret setup on
-  codex/task-198-native-secret-setup; independent review lease3 ACCEPT received/handled.
-  No real private input/write, signing, upload or old-controller replay this slice.
-  Main completes CI/merge and no-input preflight before Owner receives payload commands.
-  Persistent custody per DEC110; no automatic overwrite, retry or new journal.
+  PR261 merged, CI34865517474 success16/16; runtime fingerprints match review.
+  Owner stored three signing Secrets and five Variables; Main verified metadata,
+  protection, exact staging ownership and no competing run, without payload access.
+  Owner dispatched run34880271702 ONCE on main at base_commit, version1.0.0/build1.
+  Run34880271702/job104097565748 SUCCESS: exact SIGNED_BASELINE_VERIFIED,
+  signature/cleanup true, final audit ABSENT, artifact_count0. No duplicate rerun.
+  Old run cancelled, one job record with no runner/steps; old transfer names absent.
+  Native signing verified; upload/device not verified, staging Apple-login incomplete.
+  Owner accepted persistent existing ASC upload key custody, recorded DEC111.
+  Main implements/reviews native upload preparation on codex/task-198-native-upload.
+  Reuse saved signing Secrets; no private input, key read or upload by Main.
+  Existing four record edits travel with this substantive delivery, not a standalone PR.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-198.md
 report: docs/coordination/reports/TASK-198.md

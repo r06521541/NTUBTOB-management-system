@@ -1,5 +1,104 @@
 # TASK-198 report
 
+## Native upload preparation, not upload (2026-09-15)
+
+Owner accepted existing ASC key persistent custody (DEC111). Main owns branch
+codex/task-198-native-upload from a4974b6967c65cecbf0b45063f8a809549c8d07e.
+First slice: SET asc reuses the fixed protected metadata and selected p8 via one
+held Reader; writes one separate Secret via official gh stdin only after close
+and source/identity/protection/absence recheck. No signing fields re-entered, no
+Login key read, no local copies/repairs. Primary and secondary cleanup survive.
+Key-format validity is not ASC role/key-ID/App-authentication proof.
+
+The native probe only checks pinned Xcode, xcrun altool location and help option
+presence in existing no-secret hosted CI. It does not implement upload or infer
+Apple acceptance. Existing true signing baseline runtime/workflow stay untouched.
+The GET-only receipt reader binds the completed successful run/job/artifacts0,
+captures ESC-bearing logs in memory and projects exact typed signing/audit JSON.
+No raw echo/dump; missing/duplicate/contradictory records stop. This is explicitly
+not a generic failed-run or Apple-response parser; CLI capture bound is checked
+after capture, not a streaming memory ceiling.
+
+RED established missing asc/probe behavior and generic ESC CLI_FAILED. After
+implementation, direct native/setup/probe/receipt suite54 tests:53 PASS,1 macOS
+SKIP; six-file quality check and git diff --check PASS. Architecture advisor
+/root/native_upload_review lease1 ACCEPT received/handled; frozen source review
+lease2 pending. No private reads, Secret writes, signing rerun or Apple upload.
+Required hosted CI/probe and future upload/processing/device remain unverified.
+Final independent source/correction lease4 ACCEPT received/handled; final56tests
+55PASS1macOS SKIP, six-file quality/diff PASS. Main recomputed all9 source/test/CI/
+runbook fingerprints to match review. Source remains preparation-only. PyYAML is
+not installed locally, so workflow parsing is not claimed before hosted CI.
+Affected classifier/workflow/input/intake/settings suite86:84 PASS,1 platform
+SKIP,1 local sandbox ACL-setup error in the existing disposable Windows fixture.
+That exact fixture rerun outside the sandbox with explicit temporary-only scope
+PASS; no Owner asset access. Not a product or password failure.
+
+## Real native signing success (2026-09-15)
+
+Owner approved run34880271702; Main followed the exact attempt with official
+`gh run watch --interval 30 --exit-status` (exit0), then verified run/job binding
+and the fixed JSON receipt. Job104097565748 completed in4m7s on
+a4974b6967c65cecbf0b45063f8a809549c8d07e, version1.0.0/build1.
+Exactly one SIGNED_BASELINE_VERIFIED: signature_verified=true,
+cleanup_verified=true, failure=null, cleanup_failures=[], upload_attempted=false,
+device_verified=false, release_authorized=false, next_action=REVIEW_UPLOAD_STAGE.
+Exactly one final cleanup_audit=ABSENT; Actions artifacts list count0. Real native
+import/archive/export/IPA verification is now proved, unlike prior fake/negative
+smokes. No App Store Connect upload, processing, installation or login success.
+Runner private outputs were removed by the reviewed job; original local assets
+and intentional persistent signing Secrets were not deleted. No duplicate run.
+
+Read-only receipt lesson: ordinary `gh api` body reads returned CLI exit1; header-only
+HTTP200 did NOT prove body availability or network recovery. Official gh2.97 api.go
+shows non-JSON escape-sequence refusal even for piped output; this job log contains
+ESC bytes. Documented --allow-escape-sequences, ONLY into captured memory with exact
+fixed-JSON projection (never raw terminal/file output), succeeded. No raw log/URL/
+exception or Secret payload was shown or saved; no signing retry or password prompt.
+Reference: https://github.com/cli/cli/blob/v2.97.0/pkg/cmd/api/api.go .
+Source-matched receipt succeeded after the distinct CLI guard was understood;
+earlier network/expiry/binary-output hypotheses were not established causes.
+The next reviewed upload slice should add this explicit diagnostic/receipt regression,
+not add a broad raw-log mode or disable CLI guards globally.
+
+Owner gate: persistent ASC upload-key custody is a proposed expansion beyond the
+three signing Secrets in DEC110. No new ASC Secret, private read or upload is approved
+by this result. Existing signing inputs need not be supplied again.
+
+## Native baseline preflight and Owner handoff (2026-09-15)
+
+Owner subsequently dispatched run34880271702. Main GET confirms native workflow,
+exact merged SHA/main, version1.0.0/build1, workflow_dispatch/attempt1, status waiting.
+Only ios-native-signing awaits approval (Owner can approve, wait_timer0); job
+native_signing has no assigned runner or steps. Main did not dispatch/approve;
+do not duplicate the successful dispatch. Signing/cleanup/upload remain unverified.
+
+PR261 merged a4974b6967c65cecbf0b45063f8a809549c8d07e; CI34865517474 success16/16
+on accepted d79d907658a22519e82ae9332b51aa198b4e17fb was freshly checked. No runtime
+source change; native adapter/current and retired workflows match reviewed LF hashes.
+Owner reported three separate STORED_METADATA_CONFIRMED results, with no failures;
+Main GET-only check confirms all names, exact five Variables and protected main-only
+Environment. No private file/Secret payload read by Main; no repeat of stored fields.
+Earlier selected-P12 PATH_REJECTED was a p8 path, before file read/write; locating the
+existing P12 required only filename/size metadata, not regeneration or a password file.
+
+Fresh native workflow run count0; old workflow count1, terminal/cancelled. Initial
+read-only check wrongly expected zero job records and stopped without mutation;
+inspection established one cancelled job, runner_id0/empty name, steps[]. This is
+not an executed signing step. Old six transfer Secret names remain absent; historical
+journal/zero-transfer evidence retained, no new inference that metadata proves payload.
+Fresh retained-staging ownership/URL/LINE/Web audience match configured Variables;
+saved Owner Team/iOS client metadata reused, with prior approved App binding evidence.
+Apple-login configuration remains incomplete and is outside this signing-only proof.
+
+Current official GitHub billing confirms standard hosted compute free for public
+repositories; live repo public, workflow standard macos-15, no artifact/cache upload.
+Incremental runner reservation USD0; no new paid resource, aggregate USD20 cap retained.
+Read-only final result NATIVE_SIGNING_PREFLIGHT_COMPLETE for version1.0.0/build1,
+exact merged SHA above. No dispatch/signing/upload by Main. Owner next uses the
+named workflow once and approves its Environment; all real signing/cleanup remains
+unverified until the run's fixed result and final audit are observed.
+
 ## One-time native Secret setup (2026-09-14)
 
 PR260 merged e2e8572830840e4b81ea35276893c1e1381d0e10, CI34851563433 SUCCESS16/16;

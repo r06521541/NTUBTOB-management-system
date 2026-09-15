@@ -1,6 +1,6 @@
 # Native iOS signing baseline (no upload)
 
-TASK-198 / DEC-110 is the current route. The old local-controller workflow is
+TASK-198 / DEC-110 / DEC-111 is the current route. The old local-controller workflow is
 hard-disabled; its source and original journals remain intact. Do not execute
 the old operator, create a successor, clear its journal, or regenerate keys.
 
@@ -134,6 +134,10 @@ artifact storage, new service or plan upgrade. IOS-TF-01 aggregate USD20 cap sta
 
 ## Each execution
 
+The first real run34880271702 on main a4974b6967c65cecbf0b45063f8a809549c8d07e
+completed native signing, inspection and cleanup; exact sanitized receipt/audit
+verified, artifacts0. It did not upload. Do not rerun that successful baseline.
+
 1. Main records the reviewed full main SHA and baseline version/build in TASK-198.
    Version/build are public metadata; they do not prove the number is free in ASC.
 2. Owner manually triggers **iOS native signing baseline (no upload)** on main and
@@ -180,6 +184,56 @@ cannot become success. No automatic retries, raw dump mode or reset mechanism.
 
 ## Verification
 
+### ASC preparation (no upload action yet)
+
+DEC-111 permits one additional Environment Secret, `IOS_ASC_UPLOAD_CREDENTIAL`.
+It contains a compact JSON package of ASC Key ID, Issuer ID and Base64 existing
+p8 bytes. It excludes local path, Owner email, signing materials and the separate
+Sign in with Apple key. Its API powers remain those of the existing ASC key;
+encrypted storage and step-level injection are not same-runner isolation.
+
+After source acceptance/CI, Main supplies the exact reviewed merged SHA. On the
+clean main checkout, Owner uses `tools.ios_native_secret_setup asc` with the same
+`--expected-commit` convention above: first without `--execute`, then once with it
+only after READY. The sole hidden prompt is `SET asc`; no password, key path,
+Key ID or Issuer re-entry. Already-present and dry-run paths do not read any
+private file. Never run an execute command supplied with a literal placeholder.
+
+The setup holds the existing protected `testflight-inputs.json` and its selected
+ASC p8 through one Reader/verify/close sequence. No scan, copy, rewrite, ACL repair
+or Login-key read. One official gh stdin write follows a fresh source/identity/
+protection/presence check. A local P256/PKCS8 check does not prove Apple accepts
+the key/IDs, role or App access; no live Apple API is called by setup. A primary
+input failure and a secondary close failure survive together. The STOP/no-retry
+rules above apply unchanged, including serialization by Owner.
+
+`python -m tools.ios_native_upload probe` in the existing secret-free macOS CI job
+checks exact Xcode26.3/17C529, resolves altool with xcrun, then invokes only --help.
+It reports fixed option-presence booleans, not credentials, an IPA, or guessed
+Apple response fields. Unknown help is evidence to inspect, not upload readiness.
+The module currently has NO upload action; actual argv and cleanup require a
+later reviewed native upload slice based on this platform evidence.
+
+`tools.ios_native_receipt` is a GET-only signing-success reader. Supply public
+`--run-id`, `--job-id`, `--expected-commit`; it binds the completed successful
+main/first-attempt native run and job, checks artifacts0, then accepts exactly one
+typed signing-success record and one absence audit. It is not an arbitrary log
+viewer or a failed-run/Apple upload parser. Failed/missing/contradictory evidence
+stops without printing rejected content; underlying CLI failures retain stage,
+safe reason, exit code and secondary cleanup failure.
+
+GitHub CLI2.97 refuses terminal escape sequences in non-JSON responses even with
+piped stdout. The reader's documented `--allow-escape-sequences` is scoped ONLY
+to captured memory pipes, never a terminal/raw file/log dump. Parsing is bounded
+to1MiB and each JSON record4KiB; the existing CLI helper checks its1MiB output
+limit after capture (not a streaming memory ceiling). Unknown or malformed
+records cannot become a signed receipt. This fixes receipt visibility, not signing
+or upload; no password entry or baseline rerun is a remedy for this CLI guard.
+
+Direct offline suite:
+`py -3.10 -B -m unittest tools.tests.test_ios_native_secret_setup
+tools.tests.test_ios_native_upload tools.tests.test_ios_native_receipt -q`.
+
 `py -3.10 -B -m unittest tools.tests.test_ios_native_signing
 tools.tests.test_ios_candidate_inspector -v` runs fictional command-shaped
 responses through the real adapter and inspector. The single native smoke runs
@@ -192,3 +246,5 @@ Sources: [GitHub native signing](https://docs.github.com/en/actions/how-tos/depl
 [Flutter iOS release](https://docs.flutter.dev/deployment/ios),
 [official gh Secret setup](https://cli.github.com/manual/gh_secret_set),
 [pinned CLI stdin behavior](https://github.com/cli/cli/blob/v2.97.0/pkg/cmd/secret/set/set.go).
+Native upload reference: [Apple upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/).
+Receipt guard: [GitHub CLI2.97 API implementation](https://github.com/cli/cli/blob/v2.97.0/pkg/cmd/api/api.go).

@@ -1,21 +1,21 @@
 # 專案狀態
 
-更新時間：2026-09-14（TASK198一次性Secret設定；未讀payload／未查production runtime）
+更新時間：2026-09-15（TASK198真實native簽署成功；未上傳／未查production runtime）
 
 維護角色：Main Work
 
-本輪起始程式基準：`e2e8572830840e4b81ea35276893c1e1381d0e10`。
+本輪起始程式基準：`a4974b6967c65cecbf0b45063f8a809549c8d07e`。
 目前branch/dirty state由Git核對，next actor以HANDOFF為準。
 
-TASK198最新：PR260 native基準已合併，CI34851563433成功16/16；不是簽署成功。
+TASK198最新：PR261一次性設定已合併，CI34865517474成功16/16；native run34880271702真實簽署與清理通過。
 Owner認可GitHub標準native路徑與一次性persistent Secrets custody，DEC-110明列範圍／風險。
 Sign-only workflow已合併；舊workflow硬停用，舊日誌／資產保留。
 新job不使用ASC／Apple登入p8，不上傳IPA／raw logs，不改production/provider；先取得真實簽署與清理基準。
-雲端macOS負向P12匯入與清理已通過；尚未驗證既有真實憑證的簽署。
-Owner已建立ios-native-signing，API確認Owner reviewer/self-review/bypassfalse/main-only與零Secrets。
-Main在codex/task-198-native-secret-setup補官方gh stdin單欄setup；native_setup_review獨立review。
-Review lease3修正ACCEPT已收到；Main負責CI/merge及無輸入preflight，Owner才操作一次性三欄。
-不寫Secret／不碰真實payload；source review／CI後才交Owner執行。metadata presence不代表value正確。
+既有真實憑證完成native archive/export/IPA檢查；固定結果SIGNED_BASELINE_VERIFIED、清理ABSENT、artifacts0。
+Owner完成ios-native-signing三項Secret與五項Variables；Main核對名稱/設定與Owner reviewer/self-review/bypassfalse/main-only。
+Main核對accepted runtime指紋、隔離staging ownership及無競爭run；舊job取消、無runner/steps，舊傳送Secret名稱皆無。
+run34880271702：main/exact SHA、version1.0.0/build1/attempt1吻合；不重跑成功基準，後續建置重用已保存Secrets。
+Owner已批准ASC上傳p8的新增persistent custody（DEC-111）；Main進行準備／review，尚未讀取或保存該key。staging Apple登入設定仍缺。
 尚無本輪TestFlight／device交付證據；下一段官方Apple上傳要在簽署基準證明後接上，不重填已保存的Secrets。
 
 ## Active role lanes

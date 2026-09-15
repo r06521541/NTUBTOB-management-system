@@ -45,6 +45,8 @@ Unexpected exception允許固定unknown分類，但必須指出觀察中斷位�
 | 綁定檢查通過後仍沿用舊check | `test_raw_run_rejection_reports_the_check_that_actually_failed`；未知／錯型別狀態與真正binding mismatch分開 |
 | recover遺漏cause/effect；取消503、result寫入或close遮掉原因 | `test_real_recovery_chain_keeps_failure_and_known_effect_state`；記憶體journal→真Session/recover/emit；保留primary、secondary與保守unknown |
 | 未解決輸出卻指示NONE | `test_unresolved_output_always_directs_readonly_review`；只指示read-only，不賦予retry權限 |
+| successful job讀log仍失敗，被誤判網路 | CLI2.97 non-JSON ESC guard；`test_escape_guard_is_not_network_or_generic_failure`與native receipt suite；僅memory capture override＋exact JSON，不echo raw或重簽 |
+| 私密設定的finally close可能蓋primary | `test_saved_asc_holds_only_settings_and_selected_key_until_verify_close`及`test_asc_input_primary_and_close_failure_reach_final_without_write`；同一reader、primary與secondary分開 |
 
 命令（全虛構；不輸入真實資產，不聯網）：
 
