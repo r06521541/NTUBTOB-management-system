@@ -45,6 +45,14 @@ Repository 公開此文件也不代表政策發布；不得直接貼成 App Priv
 後續 candidate 應保存去識別化的 resolved native dependencies、bundle manifest 清單、required-reason API 檢查與
 Xcode privacy report 結果，綁定同一 artifact；本輪未產生／重建／簽署候選。
 
+TASK-200 補上 [unsigned CI inventory](../../clients/flutter_app/ios/README.md#unsigned-ci-privacy-inventory-task-200)：
+在既有 fictional archive 建好後，唯讀掃描 packaged `.xcprivacy` 與兩個 SPM lock 位置，不再建置或碰已簽署 IPA。
+報告區分未宣告／空陣列／false／型態異常；原生版本保留 missing、unknown 與 conflict，不拿 Dart plugin 版本代替。
+工具與 CI integration 的實際證據見 [TASK-200 report](../coordination/reports/TASK-200.md)。它只檢查已知欄位型態，
+不驗證 Apple enum／API reason 正確性；alias 不是 SDK provenance，resolved 不是 linked，宣告也不是 runtime 行為。
+`inspected_evidence_sha256` 只綁定盤點摘要，不是整份 archive digest；CI 成品不是本人手機的 build2。
+因此即使 scan complete，上述已簽署 candidate、Xcode privacy report、全 SDK coverage 與商店答案仍保持 UNKNOWN。
+
 [Android main manifest](../../clients/flutter_app/android/app/src/main/AndroidManifest.xml)宣告 INTERNET 並關閉 backup；
 [iOS Info.plist](../../clients/flutter_app/ios/Runner/Info.plist)含 LINE／Google callback scheme。
 這兩個 source 檔未宣告相機、麥克風、通訊錄或定位讀取權限；此觀察不涵蓋 merged manifest、SDK 網路 IP 或 OS 行為。

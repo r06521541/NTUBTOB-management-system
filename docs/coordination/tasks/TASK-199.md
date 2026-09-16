@@ -5,6 +5,13 @@ Base: d83bd4b1e64bad119f780344fbde6d57c378f308.
 Branch: codex/task-199-account-foundation.
 Main: /root; claim_id: task-199-main-20260916; lease_version: 1.
 
+Status: completed, source delivery only. PR267 merged as
+a8b10c3e9804dc89eb0459917580c02405d3dec3 after independent ACCEPT and16PASS;
+main CI also16PASS. Exact tree matches approved publication commit. No runtime
+rollout, real deletion or new store build. Main task claim and all delegated
+claims released; remaining product/provider/privacy decisions stay open.
+Five local closeout docs await the next substantive PR, not a status-only PR.
+
 ## Owner authorization and outcome
 
 Owner approved all three boundaries of the four-hour package and explicitly

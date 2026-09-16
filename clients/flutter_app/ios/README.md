@@ -140,6 +140,39 @@ It does not change the repository marker, bind Apple entitlements, inspect a
 signed archive, or satisfy any provider, signing, TestFlight, device, or public
 release gate.
 
+## Unsigned CI privacy inventory (TASK-200)
+
+The existing unsigned archive job runs `python3 -m tools.ios_privacy_inventory`
+after its archive checks, against that job's `Runner.app` and both known
+`Package.resolved` locations. It does not build again, import keys, inspect the
+signed IPA, contact providers, or publish an artifact. The command accepts
+`--app`, `--source-commit` (full public Git SHA) and up to two `--packages` paths;
+use it only with the quiescent fictional CI product, never private candidates.
+
+Its single JSON output preserves absent, empty, false and malformed declarations
+separately. Manifest rows contain ordinal, nearest-container public alias or
+`unknown_component`, location kind, size/hash, plist decoding, known-key type
+shape and bounded counts. Alias names are path hints, not verified SDK provenance.
+Native version rows use schema2/3 resolved pins, not Dart plugin versions or
+proof of linked code. Missing locks, unknown identities/versions and conflicts
+remain explicit. Raw paths, domains, URLs, identifiers, revision pins, plist
+contents and exception text are not emitted.
+
+`INVENTORY_COMPLETE[_WITH_FINDINGS]` exits0: the bounded scan finished, not that
+declarations are correct. `STOP` exits2 with fixed stage/check/reason for unsafe
+paths, changed/unreadable files, or limits (50,000 entries, depth32, 256 manifests,
+1MiB per metadata file, 8MiB total). Lists over512 items are malformed-shape
+findings within those byte limits. Symlink/reparse paths and
+hardlinked metadata are rejected. This is not a hostile-filesystem snapshot or
+whole-binary scan. The CI checkout/run supplies source association; the caller's
+SHA and `inspected_evidence_sha256` are not whole-archive/signature attestations.
+
+Apple API/reason enums, declaration correctness, complete SDK coverage, Xcode's
+aggregated privacy report, runtime behavior and legal compliance remain
+unverified. XML/JSON hashes normalize CRLF to LF; binary plist hashes use bytes.
+Interpret findings with [MOBILE_PRIVACY_DRAFT](../../../docs/releases/MOBILE_PRIVACY_DRAFT.md),
+not as permission to fabricate manifests, fill store answers or release.
+
 ## Local deterministic check
 
 On a POSIX shell, run:

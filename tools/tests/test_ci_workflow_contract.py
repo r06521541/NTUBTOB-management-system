@@ -295,6 +295,38 @@ class WorkflowContractTests(unittest.TestCase):
             job_block(self.source, "deployment_tools"),
         )
 
+    def test_privacy_inventory_reuses_unsigned_build_without_publishing(self):
+        block = job_block(self.flutter_source, "ios_compile_contract")
+        marker = "- name: Inventory packaged privacy declarations without policy claims"
+        self.assertIn(marker, block)
+        self.assertLess(
+            block.index("UNSIGNED_FLUTTER_ARCHIVE_VERIFIED"), block.index(marker)
+        )
+        self.assertLess(
+            block.index(marker), block.index("- name: Remove fictional configuration")
+        )
+        self.assertIn("tools.tests.test_ios_privacy_inventory", block)
+        step = block.split(marker, 1)[1].split("- name:", 1)[0]
+        for required in (
+            "working-directory: .",
+            "python3 -m tools.ios_privacy_inventory",
+            '--source-commit "$(git rev-parse HEAD)"',
+            "clients/flutter_app/build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app",
+            "ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+            "ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        ):
+            self.assertIn(required, step)
+        for forbidden in (
+            "flutter build",
+            "secrets.",
+            "upload-artifact",
+            "continue-on-error",
+            "|| true",
+            "security",
+            "codesign",
+        ):
+            self.assertNotIn(forbidden, step)
+
     def test_ios_project_and_runner_target_require_ios_15(self):
         source = IOS_PROJECT.read_text(encoding="utf-8")
         self.assertEqual(source.count("IPHONEOS_DEPLOYMENT_TARGET = 15.0;"), 6)
