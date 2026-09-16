@@ -21,7 +21,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 SCHEMA = "ntubtob"
@@ -415,6 +415,26 @@ Index(
     IdentityReviewMessageRecord.created_at,
     IdentityReviewMessageRecord.id,
 )
+
+
+class AccountDeletionRequestRecord(PortalDataBase):
+    __tablename__ = "account_deletion_requests"
+    __table_args__ = (
+        UniqueConstraint("person_id", name="uq_account_deletion_person"),
+        CheckConstraint("status = 'requested'", name="ck_account_deletion_status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True)
+    person_id: Mapped[int] = mapped_column(
+        BigInteger,
+        ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
 
 class MobileSessionRecord(PortalDataBase):

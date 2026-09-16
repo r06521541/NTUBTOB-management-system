@@ -69,6 +69,18 @@
       "get": {"responses": {"200": {"description": "Active Person and request-time server-computed capabilities", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Person"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "503": {"$ref": "#/components/responses/Unavailable"}}},
       "patch": {"parameters": [{"$ref": "#/components/parameters/IdempotencyKey"}], "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["display_name"], "properties": {"display_name": {"type": "string", "minLength": 1, "maxLength": 120}}}}}}, "responses": {"200": {"description": "Refreshed self Person with truthful changed and idempotent_replay", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfileMutation"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "409": {"$ref": "#/components/responses/Conflict"}, "422": {"$ref": "#/components/responses/Validation"}}}
     },
+    "/me/account-deletion": {
+      "get": {
+        "description": "Optional, explicitly injected source foundation; absent in normal bootstrap. Read only the current active Person's deletion request after fresh identity, Person and session checks. No query parameters. Cache-Control: no-store. A null request is not proof that an in-flight submission cannot still complete. Pending/unlinked/restricted account access and deletion fulfillment are not implemented.",
+        "responses": {"200": {"description": "Own request or null; requested never means deleted", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountDeletionStatus"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/AccountDeletionUnavailable"}}
+      },
+      "post": {
+        "description": "Record only an explicit deletion request. Accept exactly one bounded 256-byte JSON object with one confirmed:true field; duplicate fields and query parameters are rejected. At most one durable request per Person across sessions and all UUID keys. Keys are not stored because the command is constant and Person uniqueness supplies permanent deduplication. Every first or repeated valid request returns the same stable receipt with requested status. No deletion, revocation, notification, work scheduling, fulfillment deadline or policy acceptance is implied. No automatic POST retry: after any transport/5xx/uncertain outcome reconcile through GET; null does not authorize automatic resubmission. Cache-Control: no-store.",
+        "parameters": [{"$ref": "#/components/parameters/AccountDeletionKey"}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["confirmed"], "properties": {"confirmed": {"type": "boolean", "const": true}}}}}},
+        "responses": {"202": {"description": "Durable request acknowledged; same receipt on duplicate submission", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AccountDeletionAcknowledgement"}}}}, "400": {"$ref": "#/components/responses/Validation"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "403": {"$ref": "#/components/responses/Forbidden"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"$ref": "#/components/responses/AccountDeletionUnavailable"}}
+      }
+    },
     "/auth/line/review": {
       "get": {"description": "Read only the pending identity bound to the review credential", "responses": {"200": {"description": "Own pending review", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PendingReview"}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}}}
     },
@@ -186,9 +198,13 @@
       "EventId": {"name": "event_id", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^event_[1-9][0-9]*$", "maxLength": 25}, "description": "Canonical event_<positive> identifier in range 1..9223372036854775807. Runtime rejects leading zero and overflow."},
       "NotificationId": {"name": "notification_id", "in": "path", "required": true, "schema": {"type": "string", "pattern": "^notification_[1-9][0-9]*$", "maxLength": 32}, "description": "Opaque notification identifier backed by a positive PostgreSQL signed bigint."},
       "RefreshAttemptId": {"name": "Refresh-Attempt-ID", "in": "header", "required": true, "schema": {"type": "string", "minLength": 16, "maxLength": 200}, "description": "One ID per refresh attempt; exact replay grace 300 seconds; persisted only as a hash."},
+      "AccountDeletionKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "format": "uuid", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", "minLength": 36, "maxLength": 36}, "description": "Canonical lowercase UUID. All keys for the constant confirmed command resolve to the same Person-owned request; not retained."},
       "IdempotencyKey": {"name": "Idempotency-Key", "in": "header", "required": true, "schema": {"type": "string", "minLength": 16, "maxLength": 200}, "description": "One key per confirmed logical mutation; terminal result retention 86400 seconds; persisted only as a hash."}
     },
     "schemas": {
+      "AccountDeletionRequest": {"type": "object", "additionalProperties": false, "required": ["id", "status", "requested_at"], "properties": {"id": {"type": "string", "format": "uuid"}, "status": {"type": "string", "const": "requested"}, "requested_at": {"type": "string", "format": "date-time", "pattern": "Z$"}}},
+      "AccountDeletionStatus": {"type": "object", "additionalProperties": false, "required": ["request"], "properties": {"request": {"oneOf": [{"type": "null"}, {"$ref": "#/components/schemas/AccountDeletionRequest"}]}}},
+      "AccountDeletionAcknowledgement": {"type": "object", "additionalProperties": false, "required": ["request"], "properties": {"request": {"$ref": "#/components/schemas/AccountDeletionRequest"}}},
       "AttendanceReply": {"type": "string", "enum": ["attending", "not_attending", "arriving_late", "leaving_early", "undecided"]},
       "EventAttendanceReply": {"type": "string", "enum": ["attending", "not_attending", "maybe"]},
       "EventAttendance": {"type": ["object", "null"], "additionalProperties": false, "required": ["own_reply", "counts"], "properties": {"own_reply": {"anyOf": [{"$ref": "#/components/schemas/EventAttendanceReply"}, {"type": "null"}]}, "counts": {"type": "object", "additionalProperties": false, "required": ["attending", "not_attending", "maybe", "unanswered"], "properties": {"attending": {"type": "integer", "minimum": 0}, "not_attending": {"type": "integer", "minimum": 0}, "maybe": {"type": "integer", "minimum": 0}, "unanswered": {"type": "integer", "minimum": 0}}}}},
@@ -236,6 +252,7 @@
       "Conflict": {"description": "idempotency_conflict or state_conflict", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
       "Validation": {"description": "validation_failed", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
       "RateLimited": {"description": "rate_limited with Retry-After", "headers": {"Retry-After": {"schema": {"type": "integer"}}}, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+      "AccountDeletionUnavailable": {"description": "service_unavailable with retryable=false. Feature absent or persistence unavailable/uncertain. Never automatically retry POST; reconcile through authenticated GET when available.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
       "Unavailable": {"description": "service_unavailable; safe to retry only when retryable=true", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
     }
   }

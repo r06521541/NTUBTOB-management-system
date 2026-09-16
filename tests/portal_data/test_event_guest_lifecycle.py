@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from alembic import command
 from alembic.config import Config
+from shared_module.mobile_api import AccountUnavailable
 from sqlalchemy import create_engine, event, text
 
 from shared_lib.shared_module.portal_data import identity_lifecycle as lifecycle_module
@@ -23,6 +24,7 @@ from shared_lib.shared_module.portal_data.domain import (
 from shared_lib.shared_module.portal_data.identity_lifecycle import (
     IdentityLifecycleRepository,
 )
+from shared_lib.shared_module.portal_data.mobile_repository import MobileRepository
 from shared_lib.shared_module.portal_data.models import (
     GuestQualificationAuditRecord,
     PersonQualificationRecord,
@@ -45,6 +47,119 @@ DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get
 
 
 class EventGuestLifecycleStaticTests(unittest.TestCase):
+    def test_event_revision_gate_accepts_0012_and_0013_but_rejects_multihead(self):
+        for rows, accepted in (
+            (["0011_event_notification_guest_lifecycle"], True),
+            (["0012_persistent_admin_authority"], True),
+            (["0013_account_deletion_requests"], True),
+            (["0014_unknown"], False),
+            (["0013_account_deletion_requests", "branch"], False),
+            ([], False),
+        ):
+            with self.subTest(rows=rows):
+                session = MagicMock()
+                session.scalars.return_value = rows
+                if accepted:
+                    PostgresTeamPortalRepository._require_event_lifecycle_revision(
+                        session
+                    )
+                else:
+                    with self.assertRaises(ConflictError):
+                        PostgresTeamPortalRepository._require_event_lifecycle_revision(
+                            session
+                        )
+
+    def test_notification_projections_preserve_event_fields_on_0012_and_0013(self):
+        for revision in (
+            "0011_event_notification_guest_lifecycle",
+            "0012_persistent_admin_authority",
+            "0013_account_deletion_requests",
+        ):
+            for method in ("notification_page", "notification_detail"):
+                with self.subTest(revision=revision, method=method):
+                    session = MagicMock()
+                    session.__enter__.return_value = session
+                    session.scalar.return_value = revision
+                    session.scalars.return_value.all.return_value = [revision]
+                    session.execute.return_value.all.return_value = []
+                    session.execute.return_value.one_or_none.return_value = None
+                    repository = MobileRepository(MagicMock())
+                    with patch(
+                        "shared_lib.shared_module.portal_data.mobile_repository.Session",
+                        return_value=session,
+                    ):
+                        if method == "notification_page":
+                            repository.notification_page(
+                                7, datetime.now(timezone.utc), None, 10, False
+                            )
+                        else:
+                            repository.notification_detail(
+                                7, 11, datetime.now(timezone.utc)
+                            )
+                    projection = list(
+                        session.execute.call_args.args[0].selected_columns
+                    )[-2:]
+                    self.assertEqual(
+                        [column.key for column in projection],
+                        ["participation_category", "destination_event_id"],
+                    )
+
+    def test_notification_queries_reject_unknown_and_multihead_before_data_read(self):
+        for rows in (
+            [],
+            ["0014_unknown"],
+            ["0012_persistent_admin_authority", "branch"],
+        ):
+            for method in ("notification_page", "notification_detail"):
+                with self.subTest(rows=rows, method=method):
+                    session = MagicMock()
+                    session.__enter__.return_value = session
+                    session.scalar.return_value = rows[0] if rows else None
+                    session.scalars.return_value.all.return_value = rows
+                    session.execute.return_value.all.return_value = []
+                    session.execute.return_value.one_or_none.return_value = None
+                    repository = MobileRepository(MagicMock())
+                    with (
+                        patch(
+                            "shared_lib.shared_module.portal_data.mobile_repository.Session",
+                            return_value=session,
+                        ),
+                        self.assertRaises(AccountUnavailable),
+                    ):
+                        if method == "notification_page":
+                            repository.notification_page(
+                                7, datetime.now(timezone.utc), None, 10, False
+                            )
+                        else:
+                            repository.notification_detail(
+                                7, 11, datetime.now(timezone.utc)
+                            )
+                    session.execute.assert_not_called()
+
+    def test_notification_legacy_revisions_keep_nullable_event_projection(self):
+        for revision in (
+            "0007_mobile_notifications",
+            "0008_mobile_notification_delivery",
+            "0009_event_management_writes",
+            "0010_apple_provider_lifecycle",
+        ):
+            with self.subTest(revision=revision):
+                session = MagicMock()
+                session.__enter__.return_value = session
+                session.scalars.return_value.all.return_value = [revision]
+                session.execute.return_value.all.return_value = []
+                with patch(
+                    "shared_lib.shared_module.portal_data.mobile_repository.Session",
+                    return_value=session,
+                ):
+                    MobileRepository(MagicMock()).notification_page(
+                        7, datetime.now(timezone.utc), None, 10, False
+                    )
+                projection = list(session.execute.call_args.args[0].selected_columns)[
+                    -2:
+                ]
+                self.assertEqual([column.value for column in projection], [None, None])
+
     def test_person_status_uses_canonical_admin_then_event_snapshot_lock_order(self):
         repository = IdentityLifecycleRepository(MagicMock(), {7001})
         session = MagicMock()
@@ -325,6 +440,33 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         self.assertEqual(order, ["0012", "0011"])
         admin_cleanup.assert_called_once_with(engine)
 
+    def test_test_cleanup_routes_0013_through_retained_admin_cleanup_first(self):
+        engine = MagicMock()
+        engine.url = SimpleNamespace(
+            drivername="postgresql",
+            host="localhost",
+            database=cleanup_harness.LOCAL_DATABASE_NAME,
+        )
+        inspector = MagicMock()
+        inspector.has_table.return_value = True
+        engine.connect.return_value.__enter__.return_value.scalars.return_value.all.side_effect = [
+            ("0013_account_deletion_requests",),
+            ("0011_event_notification_guest_lifecycle",),
+        ]
+        order = []
+        context = engine.begin.return_value
+        engine.begin.side_effect = lambda: (order.append("0011") or context)
+        with (
+            patch.object(cleanup_harness, "inspect", return_value=inspector),
+            patch.object(
+                cleanup_harness,
+                "remove_retained_admin_authority_from_isolated_test_database",
+                side_effect=lambda _engine: order.append("0013_then_0012"),
+            ),
+        ):
+            prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(engine)
+        self.assertEqual(order, ["0013_then_0012", "0011"])
+
 
 @unittest.skipUnless(DATABASE_URL, "isolated local PostgreSQL URL not configured")
 class EventGuestLifecyclePostgresTests(unittest.TestCase):
@@ -359,6 +501,51 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
         self.officer = self.repository.create_person(
             "Fictional Officer", access_level="officer"
         )
+
+    def test_0012_and_0013_keep_event_notification_destination_and_category(self):
+        included = self.repository.create_person(
+            "Fictional Compatible Recipient", qualifications=("affiliate",)
+        )
+        event_id = self.repository.create_event(
+            self.officer.id,
+            "Fictional Compatible Event",
+            "other",
+            datetime.now(timezone.utc) + timedelta(days=2),
+            ("affiliate",),
+        )
+        self.repository.publish_event(self.officer.id, event_id, "compatible-publish")
+        for revision in (
+            "0012_persistent_admin_authority",
+            "0013_account_deletion_requests",
+        ):
+            with self.subTest(revision=revision):
+                command.upgrade(self.config, revision)
+                preview = self.repository.preview_event_notification(
+                    self.officer.id, event_id
+                )
+                result = self.repository.confirm_event_notification(
+                    self.officer.id,
+                    event_id,
+                    notification_type=preview["notification_type"],
+                    preview_revision=preview["revision"],
+                    typed_confirmation=preview["confirmation_text"],
+                    request_id=f"compatible-{revision[:4]}",
+                )
+                repository = MobileRepository(self.engine)
+                now = datetime.now(timezone.utc)
+                detail = repository.notification_detail(
+                    included.id, result["notification_id"], now
+                )
+                self.assertEqual(detail["destination_event_id"], event_id)
+                self.assertIsNotNone(detail["participation_category"])
+                page = repository.notification_page(included.id, now, None, 20, False)
+                selected = next(
+                    row for row in page if row["id"] == result["notification_id"]
+                )
+                self.assertEqual(selected["destination_event_id"], event_id)
+                self.assertEqual(
+                    selected["participation_category"], detail["participation_category"]
+                )
 
     def test_event_notification_uses_snapshot_only_and_creates_no_push_work(self):
         included = self.repository.create_person(

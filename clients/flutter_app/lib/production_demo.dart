@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
+import 'account_deletion.dart';
 import 'basic_app.dart';
 import 'foundation.dart';
 import 'integration.dart';
@@ -28,6 +29,9 @@ class ProductionDemoProbe {
   int eventReads = 0;
   int eventReplyMutations = 0;
   int activityReplyMutations = 0;
+  int deletionReads = 0;
+  int deletionRequests = 0;
+  bool deletionOutcomeUncertain = false;
   bool? lastApplyToActivities;
   EventAttendanceReply? lastEventReply;
   EventAttendanceReply? lastActivityReply;
@@ -128,6 +132,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
   late final _ProductionDemoNotificationClient _notificationClient;
   late final LocalPreferences _preferences;
   final _notificationControllers = <String, NotificationCenterController>{};
+  final _deletionReceipts = <String, AccountDeletionReceipt>{};
   ProductionDemoPersona _persona = ProductionDemoPersona.basic;
   ProductionDemoConnectivity _connectivity = ProductionDemoConnectivity.online;
   ProductionDemoDataState _dataState = ProductionDemoDataState.populated;
@@ -169,6 +174,19 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
           principal: person,
           clock: () => _lastSyncedAt,
         ),
+      );
+
+  AccountDeletionPort _deletionClient(Person person) =>
+      _DemoAccountDeletionClient(
+        personId: person.id,
+        receipts: _deletionReceipts,
+        probe: _probe,
+        isOnline: () => _connectivity == ProductionDemoConnectivity.online,
+        isCurrent: () =>
+            person.id ==
+            (_persona == ProductionDemoPersona.basic
+                ? _basicPerson.id
+                : _officerPerson.id),
       );
 
   @override
@@ -282,6 +300,15 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
           ),
           Wrap(children: [
             TextButton(
+              key: const ValueKey('demo-account-deletion'),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) =>
+                    AccountDeletionPage(client: _deletionClient(person)),
+              )),
+              child: const Text('帳號刪除申請情境'),
+            ),
+            TextButton(
               key: const ValueKey('demo-pending-review'),
               onPressed: () =>
                   Navigator.of(context).push(MaterialPageRoute<void>(
@@ -337,11 +364,70 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                     reportCache: _reportCache,
                     notificationController: _notificationController(person),
                     onRefresh: () async => true,
+                    deletionClient: _deletionClient(person),
                   ),
           ),
         ],
       ),
     );
+  }
+}
+
+class _DemoAccountDeletionClient implements AccountDeletionPort {
+  @override
+  Listenable? get changes => null;
+
+  _DemoAccountDeletionClient({
+    required this.personId,
+    required this.receipts,
+    required this.probe,
+    required this.isOnline,
+    required this.isCurrent,
+  });
+
+  final String personId;
+  final Map<String, AccountDeletionReceipt> receipts;
+  final ProductionDemoProbe probe;
+  final bool Function() isOnline;
+  final bool Function() isCurrent;
+
+  @override
+  bool get online => isOnline();
+
+  @override
+  void requireCurrent() {
+    if (!isCurrent()) throw const SessionSupersededException();
+  }
+
+  void _check() {
+    requireCurrent();
+    if (!online) throw const OfflineReadOnlyException();
+  }
+
+  @override
+  Future<AccountDeletionReceipt?> read() async {
+    _check();
+    probe.deletionReads++;
+    return receipts[personId];
+  }
+
+  @override
+  Future<AccountDeletionReceipt> request({required bool confirmed}) async {
+    _check();
+    if (!confirmed) throw ArgumentError('explicit confirmation required');
+    probe.deletionRequests++;
+    final receipt = receipts.putIfAbsent(
+        personId,
+        () => AccountDeletionReceipt(
+              personId == 'fictional-basic'
+                  ? '00000000-0000-4000-8000-000000000001'
+                  : '00000000-0000-4000-8000-000000000002',
+              DateTime.utc(2035, 1, 1),
+            ));
+    if (probe.deletionOutcomeUncertain) {
+      throw const AccountDeletionOutcomeUncertain();
+    }
+    return receipt;
   }
 }
 

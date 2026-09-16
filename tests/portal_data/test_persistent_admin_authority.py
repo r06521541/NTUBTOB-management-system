@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from alembic import command
 from alembic.config import Config
+from shared_module.mobile_api import AccountUnavailable
 from sqlalchemy import create_engine, event, text
 
 from shared_lib.shared_module.portal_data.domain import (
@@ -38,6 +39,7 @@ from shared_lib.shared_module.portal_data.runtime import (
     acquire_admin_event_locks,
     admin_authority_mode,
 )
+from tests.portal_data import _account_deletion_test_harness as deletion_cleanup_harness
 from tests.portal_data import (
     _persistent_admin_authority_test_harness as admin_cleanup_harness,
 )
@@ -164,6 +166,96 @@ class PersistentAdminAuthorityStaticTests(unittest.TestCase):
                         )
                 engine.begin.assert_not_called()
 
+    def test_request_receipt_cleanup_is_scoped_to_exact_local_0013(self):
+        cleanup = (
+            deletion_cleanup_harness.remove_retained_account_deletion_requests_from_isolated_test_database
+        )
+        for driver, host, database in (
+            ("postgresql", "database.example.invalid", "production"),
+            ("postgresql", "localhost", "production"),
+            ("sqlite", "localhost", deletion_cleanup_harness.LOCAL_DATABASE_NAME),
+        ):
+            engine = MagicMock()
+            engine.url = SimpleNamespace(
+                drivername=driver, host=host, database=database
+            )
+            with self.subTest(host=host, database=database, driver=driver):
+                with self.assertRaisesRegex(RuntimeError, "isolated test database"):
+                    cleanup(engine)
+                engine.connect.assert_not_called()
+                engine.begin.assert_not_called()
+        for revisions in (
+            (),
+            ("0014_future",),
+            ("0013_account_deletion_requests", "branch"),
+            ("0013_account_deletion_requests",),
+            ("0012_persistent_admin_authority",),
+        ):
+            with self.subTest(revisions=revisions):
+                engine = MagicMock()
+                engine.url = SimpleNamespace(
+                    drivername="postgresql",
+                    host="localhost",
+                    database=deletion_cleanup_harness.LOCAL_DATABASE_NAME,
+                )
+                engine.connect.return_value.__enter__.return_value.scalars.return_value.all.return_value = (
+                    revisions
+                )
+                inspector = MagicMock()
+                inspector.has_table.return_value = True
+                with patch.object(
+                    deletion_cleanup_harness, "inspect", return_value=inspector
+                ):
+                    if revisions in (
+                        ("0013_account_deletion_requests",),
+                        ("0012_persistent_admin_authority",),
+                    ):
+                        cleanup(engine)
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            cleanup(engine)
+                if revisions == ("0013_account_deletion_requests",):
+                    sql = [
+                        str(call.args[0])
+                        for call in engine.begin.return_value.__enter__.return_value.execute.call_args_list
+                    ]
+                    self.assertEqual(
+                        sql[0], "DROP TABLE ntubtob.account_deletion_requests"
+                    )
+                    self.assertIn(
+                        "SET version_num = '0012_persistent_admin_authority'", sql[1]
+                    )
+                    self.assertNotIn("CASCADE", " ".join(sql))
+                else:
+                    engine.begin.assert_not_called()
+
+    def test_admin_cleanup_rechecks_after_exact_0013_receipt_cleanup(self):
+        engine = MagicMock()
+        engine.url = SimpleNamespace(
+            drivername="postgresql",
+            host="localhost",
+            database=admin_cleanup_harness.LOCAL_DATABASE_NAME,
+        )
+        engine.connect.return_value.__enter__.return_value.scalars.return_value.all.side_effect = [
+            ("0013_account_deletion_requests",),
+            ("0012_persistent_admin_authority",),
+        ]
+        inspector = MagicMock()
+        inspector.has_table.return_value = True
+        order = []
+        context = engine.begin.return_value
+        engine.begin.side_effect = lambda: (order.append("0012") or context)
+        with (
+            patch.object(admin_cleanup_harness, "inspect", return_value=inspector),
+            patch.object(
+                admin_cleanup_harness,
+                "remove_retained_account_deletion_requests_from_isolated_test_database",
+                side_effect=lambda _engine: order.append("0013"),
+            ),
+        ):
+            remove_retained_admin_authority_from_isolated_test_database(engine)
+        self.assertEqual(order, ["0013", "0012"])
+
 
 class PersistentAdminMutationUnitTests(unittest.TestCase):
     @staticmethod
@@ -193,14 +285,165 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _exact_authority_rows(mode):
+    def _exact_authority_rows(mode, revision_value="0012_persistent_admin_authority"):
         revision = MagicMock()
-        revision.all.return_value = ["0012_persistent_admin_authority"]
+        revision.all.return_value = [revision_value]
         presence = MagicMock()
         presence.one_or_none.return_value = "ntubtob.portal_authority_state"
         state = MagicMock()
         state.all.return_value = [SimpleNamespace(singleton_id=1, mode=mode, epoch=3)]
         return [revision, presence, state]
+
+    def test_0012_and_0013_keep_both_authority_modes_and_admin_read_write_checks(self):
+        for revision in (
+            "0012_persistent_admin_authority",
+            "0013_account_deletion_requests",
+        ):
+            for mode in ("legacy_allowlist", "persistent"):
+                with self.subTest(revision=revision, mode=mode):
+                    repository = IdentityLifecycleRepository(
+                        MagicMock(),
+                        (7,) if mode == "legacy_allowlist" else (),
+                        authority_mode=mode,
+                    )
+                    actor = self._person(9, "admin")
+                    session = MagicMock()
+                    session.scalars.side_effect = self._exact_authority_rows(
+                        mode, revision
+                    )
+                    session.scalar.side_effect = (
+                        [actor, MagicMock(id=7), 1]
+                        if mode == "legacy_allowlist"
+                        else [actor, 1]
+                    )
+                    self.assertIs(repository._require_admin(session, 9), actor)
+                    session.scalars.side_effect = self._exact_authority_rows(
+                        mode, revision
+                    )
+                    principal = Principal(
+                        Person(9, "Fictional", "admin", "active", member_id=7),
+                        AuthIdentity(10, "line", "fictional", "linked", 9),
+                        frozenset(),
+                    )
+                    with patch(
+                        "shared_lib.shared_module.portal_data.identity_lifecycle.Session",
+                    ) as factory:
+                        factory.return_value.__enter__.return_value = session
+                        self.assertEqual(
+                            repository.web_role_for_principal(principal), "admin"
+                        )
+
+    def test_apple_last_admin_recovery_audit_is_preserved_on_0012_and_0013(self):
+        for revision in (
+            "0012_persistent_admin_authority",
+            "0013_account_deletion_requests",
+        ):
+            with self.subTest(revision=revision):
+                now = datetime.now(timezone.utc)
+                identity = SimpleNamespace(id=10, person_id=9, status="linked")
+                session = MagicMock()
+                session.__enter__.return_value = session
+                revisions, states, devices = MagicMock(), MagicMock(), MagicMock()
+                revisions.all.return_value = [revision]
+                states.all.return_value = [
+                    SimpleNamespace(singleton_id=1, mode="persistent", epoch=3)
+                ]
+                devices.all.return_value = []
+
+                def scalar_rows(statement):
+                    sql = str(statement)
+                    if "alembic_version" in sql:
+                        return revisions
+                    if "portal_authority_state" in sql:
+                        return states
+                    if "mobile_sessions" in sql:
+                        return devices
+                    raise AssertionError("unexpected scalar-row query")
+
+                def scalar_value(statement):
+                    sql = str(statement)
+                    if "count(distinct" in sql:
+                        return 0
+                    if "FROM ntubtob.auth_identities" in sql:
+                        return identity
+                    if "FROM ntubtob.people" in sql:
+                        return self._person(9, "admin")
+                    if "apple_provider_credentials" in sql:
+                        return None
+                    raise AssertionError("unexpected scalar query")
+
+                session.scalars.side_effect = scalar_rows
+                session.scalar.side_effect = scalar_value
+                repository = MobileRepository(MagicMock())
+                with patch(
+                    "shared_lib.shared_module.portal_data.mobile_repository.Session",
+                    return_value=session,
+                ):
+                    result = repository.apply_apple_notification(
+                        jti_hash="a" * 64,
+                        event_type="consent-revoked",
+                        subject="fictional-last-apple-admin",
+                        event_at=now,
+                        now=now,
+                    )
+                self.assertEqual(result, APPLE_ADMIN_RECOVERY_REQUIRED)
+                self.assertEqual(identity.status, "disabled")
+                audits = [
+                    call.args[0]
+                    for call in session.add.call_args_list
+                    if call.args[0].__class__.__name__ == "AccessAuditRecord"
+                ]
+                self.assertEqual(len(audits), 1)
+                self.assertEqual(audits[0].after_state["admin_recovery"], "required")
+
+    def test_apple_notification_rejects_unknown_and_multihead_before_receipt(self):
+        for revisions in (
+            [],
+            ["0014_unknown"],
+            ["0013_account_deletion_requests", "branch"],
+        ):
+            with self.subTest(revisions=revisions):
+                session = MagicMock()
+                session.__enter__.return_value = session
+                session.scalars.return_value.all.return_value = revisions
+                repository = MobileRepository(MagicMock())
+                now = datetime.now(timezone.utc)
+                with (
+                    patch(
+                        "shared_lib.shared_module.portal_data.mobile_repository.Session",
+                        return_value=session,
+                    ),
+                    self.assertRaisesRegex(AccountUnavailable, "schema is not ready"),
+                ):
+                    repository.apply_apple_notification(
+                        jti_hash="a" * 64,
+                        event_type="email-disabled",
+                        subject="fictional-subject",
+                        event_at=now,
+                        now=now,
+                    )
+                session.add.assert_not_called()
+
+    def test_apple_readiness_requires_exactly_one_compatible_revision(self):
+        for rows, expected in (
+            (["0010_apple_provider_lifecycle"], True),
+            (["0011_event_notification_guest_lifecycle"], True),
+            (["0012_persistent_admin_authority"], True),
+            (["0013_account_deletion_requests"], True),
+            (["0009_event_management_writes"], False),
+            (["0014_unknown"], False),
+            (["0013_account_deletion_requests", "branch"], False),
+            (["0012_persistent_admin_authority", "branch"], False),
+            ([], False),
+        ):
+            with self.subTest(rows=rows):
+                engine = MagicMock()
+                connection = engine.connect.return_value.__enter__.return_value
+                connection.scalar.return_value = rows[0] if rows else None
+                connection.scalars.return_value.all.return_value = rows
+                self.assertIs(
+                    MobileRepository(engine).apple_lifecycle_ready(), expected
+                )
 
     def test_grant_uses_expected_version_and_append_only_audit(self):
         actor = self._person(1, "admin")
@@ -343,6 +586,7 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
             ("0003_legacy_bigint_activity_game",),
             ("0013_future",),
             ("unknown",),
+            ("0013_account_deletion_requests", "branch"),
             (
                 "0009_event_management_writes",
                 "0010_apple_provider_lifecycle",
@@ -451,7 +695,7 @@ class PersistentAdminAuthorityPostgresTests(unittest.TestCase):
             lambda revision: command.upgrade(Config("alembic.ini"), revision),
             target_revision="0010_apple_provider_lifecycle",
         )
-        command.upgrade(Config("alembic.ini"), "head")
+        command.upgrade(Config("alembic.ini"), "0012_persistent_admin_authority")
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -675,6 +919,26 @@ class PersistentAdminAuthorityPostgresTests(unittest.TestCase):
         self.assertEqual(tuple(state), ("disabled", "persistent"))
         self.assertEqual(audit.action, "identity_disabled")
         self.assertEqual(audit.after_state["admin_recovery"], "required")
+
+    def test_0013_preserves_admin_grant_and_last_apple_admin_recovery(self):
+        command.upgrade(Config("alembic.ini"), "0013_account_deletion_requests")
+        granted = self.repository.change_admin_access(
+            self.actor_one,
+            self.target,
+            "admin",
+            1,
+            "Fictional compatible revision grant",
+            "compatible-0013-grant",
+        )
+        self.assertEqual(granted.access_level, "admin")
+        with self.engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE ntubtob.people SET portal_access_level='basic' WHERE id=:id"
+                ),
+                {"id": self.target},
+            )
+        self.test_last_apple_admin_revocation_is_terminal_and_requires_recovery()
 
     def test_provider_disable_and_admin_revoke_share_deadlock_free_order(self):
         subject = "fictional-competing-apple-admin"

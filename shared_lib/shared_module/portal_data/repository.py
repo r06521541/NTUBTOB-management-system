@@ -68,7 +68,11 @@ EVENT_NOTIFICATION_ACTION_TYPES = {
 }
 EVENT_LIFECYCLE_REVISION = "0011_event_notification_guest_lifecycle"
 EVENT_LIFECYCLE_REVISIONS = frozenset(
-    {EVENT_LIFECYCLE_REVISION, "0012_persistent_admin_authority"}
+    {
+        EVENT_LIFECYCLE_REVISION,
+        "0012_persistent_admin_authority",
+        "0013_account_deletion_requests",
+    }
 )
 MAX_EVENT_NOTIFICATION_RECIPIENTS = 500
 

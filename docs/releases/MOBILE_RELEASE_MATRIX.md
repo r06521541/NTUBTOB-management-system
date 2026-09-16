@@ -22,6 +22,9 @@ TASK-170 的永久 Android package identity 已由 Owner 明定；其 exact cand
 
 ## Channel baseline
 
+TASK199只補default-off帳號刪除申請／查詢foundation與[privacy／SDK草稿](MOBILE_PRIVACY_DRAFT.md)，
+不完成真實刪除／policy發布／App Privacy答案、不移除下列公開版gate，也不凍結Owner未定的Flutter UX與首版範圍。
+
 | Channel | 近期產品範圍 | Repository candidate gate | 尚需外部證據／目前結論 |
 | --- | --- | --- | --- |
 | Android Closed Testing | Basic-only；Officer／Admin、push、deep-link delivery、匿名 crash reporting可延至公開版 gate | API 36、release flavor/package/version、HTTPS real-client config、external signing injection與AAB inspection須由同一 TASK 的 Android lane及Main驗證 | Play Console track、tester access、Data Safety問卷與實機安裝仍是Owner-gated；repository通過不等於已上傳或可公開 |

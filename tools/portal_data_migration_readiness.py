@@ -31,6 +31,7 @@ EXPECTED_REVISIONS = (
     "0010_apple_provider_lifecycle",
     "0011_event_notification_guest_lifecycle",
     "0012_persistent_admin_authority",
+    "0013_account_deletion_requests",
 )
 EXPECTED_TABLES = {
     "access_audit",

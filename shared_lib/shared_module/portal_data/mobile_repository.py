@@ -24,7 +24,7 @@ from sqlalchemy import Engine, and_, func, literal, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from .identity_lifecycle import IdentityLifecycleRepository
+from .identity_lifecycle import AUTHORITY_REVISIONS, IdentityLifecycleRepository
 from .models import (
     AccessAuditRecord,
     AppleProviderCodeExchangeRecord,
@@ -48,9 +48,21 @@ from .models import (
     PersonRecord,
     PortalAuthorityStateRecord,
 )
+from .repository import EVENT_LIFECYCLE_REVISIONS
 from .runtime import ADMIN_LOCK_KEY, acquire_admin_event_locks
 
 APPLE_ADMIN_RECOVERY_REQUIRED = "recovery_required"
+APPLE_LIFECYCLE_REVISIONS = frozenset(
+    {"0010_apple_provider_lifecycle", *EVENT_LIFECYCLE_REVISIONS}
+)
+PRE_EVENT_NOTIFICATION_REVISIONS = frozenset(
+    {
+        "0007_mobile_notifications",
+        "0008_mobile_notification_delivery",
+        "0009_event_management_writes",
+        "0010_apple_provider_lifecycle",
+    }
+)
 
 
 class MobileRepository:
@@ -61,15 +73,30 @@ class MobileRepository:
     def apple_lifecycle_ready(self) -> bool:
         try:
             with self.engine.connect() as connection:
-                return connection.scalar(
-                    text("SELECT version_num FROM ntubtob.alembic_version")
-                ) in {
-                    "0010_apple_provider_lifecycle",
-                    "0011_event_notification_guest_lifecycle",
-                    "0012_persistent_admin_authority",
-                }
+                revision = self._single_revision(connection)
+                return revision in APPLE_LIFECYCLE_REVISIONS
         except Exception:
             return False
+
+    @staticmethod
+    def _single_revision(connection) -> str:
+        revisions = tuple(
+            connection.scalars(
+                text("SELECT version_num FROM ntubtob.alembic_version")
+            ).all()
+        )
+        if len(revisions) != 1 or type(revisions[0]) is not str:
+            raise AccountUnavailable("mobile schema is not ready")
+        return revisions[0]
+
+    @classmethod
+    def _event_notification_columns_ready(cls, session: Session) -> bool:
+        revision = cls._single_revision(session)
+        if revision in EVENT_LIFECYCLE_REVISIONS:
+            return True
+        if revision in PRE_EVENT_NOTIFICATION_REVISIONS:
+            return False
+        raise AccountUnavailable("notification schema is not ready")
 
     def reserve_apple_code(self, **values) -> None:
         try:
@@ -155,6 +182,9 @@ class MobileRepository:
         outcome: bool | str = True
         try:
             with Session(self.engine) as session, session.begin():
+                revision = self._single_revision(session)
+                if revision not in APPLE_LIFECYCLE_REVISIONS:
+                    raise AccountUnavailable("Apple lifecycle schema is not ready")
                 receipt = AppleProviderNotificationRecord(
                     jti_hash=values["jti_hash"],
                     event_type=values["event_type"],
@@ -183,12 +213,7 @@ class MobileRepository:
                 receipt.auth_identity_id = None if identity is None else identity.id
                 if receipt.disposition == "revoked" and identity is not None:
                     recovery_required = False
-                    revisions = tuple(
-                        session.scalars(
-                            text("SELECT version_num FROM ntubtob.alembic_version")
-                        ).all()
-                    )
-                    if revisions == ("0012_persistent_admin_authority",):
+                    if revision in AUTHORITY_REVISIONS:
                         states = tuple(
                             session.scalars(
                                 select(PortalAuthorityStateRecord).order_by(
@@ -972,12 +997,7 @@ class MobileRepository:
         unread_only: bool,
     ) -> list[dict]:
         with Session(self.engine) as session:
-            event_lifecycle_ready = session.scalar(
-                text("SELECT version_num FROM ntubtob.alembic_version")
-            ) in {
-                "0011_event_notification_guest_lifecycle",
-                "0012_persistent_admin_authority",
-            }
+            event_lifecycle_ready = self._event_notification_columns_ready(session)
             category = (
                 MobileNotificationRecipientRecord.participation_category
                 if event_lifecycle_ready
@@ -1034,12 +1054,7 @@ class MobileRepository:
         self, person_id: int, notification_id: int, now: datetime
     ) -> dict | None:
         with Session(self.engine) as session:
-            event_lifecycle_ready = session.scalar(
-                text("SELECT version_num FROM ntubtob.alembic_version")
-            ) in {
-                "0011_event_notification_guest_lifecycle",
-                "0012_persistent_admin_authority",
-            }
+            event_lifecycle_ready = self._event_notification_columns_ready(session)
             category = (
                 MobileNotificationRecipientRecord.participation_category
                 if event_lifecycle_ready

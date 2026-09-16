@@ -56,7 +56,10 @@ def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
 
     _require_isolated_test_database(engine)
     current_rows = _revision_rows(engine)
-    if current_rows == ("0012_persistent_admin_authority",):
+    if current_rows in (
+        ("0012_persistent_admin_authority",),
+        ("0013_account_deletion_requests",),
+    ):
         remove_retained_admin_authority_from_isolated_test_database(engine)
         current_rows = _revision_rows(engine)
     if current_rows is None:

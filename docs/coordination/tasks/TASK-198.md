@@ -1,5 +1,13 @@
 ## Current slice: support access and acceptance reconciliation (2026-09-16)
 
+Integrated PR266 as d83bd4b1e64bad119f780344fbde6d57c378f308 after exact
+PR head5b0197ec52aec135569369643bcbb83974ec2b87 CI35065575203 SUCCESS:
+7PASS/7scopeSKIP, watch exit0, fresh matching base/head and source ACCEPT.
+Whole merged tree matches tested PR head; local main fast-forwarded. Automatic
+main CI35066252956 SUCCESS7PASS/7scopeSKIP, watch exit0 and fresh exact merged
+SHA confirmed. No active watch/delegation or new runtime work. This source slice
+complete; remaining provider/logout/privacy acceptance is not declared complete.
+
 PUBLICATION APPROVED: Owner explicitly replied Yes to publishing the disclosed
 eight-document deidentified collaboration/acceptance payload with this source
 to the existing public GitHub repository. The following stop is resolved; resume
