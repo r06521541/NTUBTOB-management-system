@@ -6,12 +6,17 @@ The canonical machine-readable contract is `openapi.json`.
 
 The runtime core accepts only the rollout-compatible revisions
 the explicit revision allowlist in `revision_readiness.py` (currently `0008`
-through `0012`, using their full migration identifiers). This permits deploying
+through `0013`, using their full migration identifiers). This permits deploying
 the compatible runtime before the Apple lifecycle migration; unknown, malformed,
 and unlisted future revisions fail closed. Apple exchange and notifications use
 the independent allowlist in `MobileRepository.apple_lifecycle_ready` (currently
-`0010`, `0011`, `0012`), not an exact-0010-only gate. These are code compatibility
-contracts, not evidence that any environment has been migrated. All signing, refresh-response encryption, and
+`0010`, `0011`, `0012`, `0013`), not an exact-0010-only gate. Both require exactly
+one known revision; an empty or multi-head version table fails closed. The
+additive `0013_account_deletion_requests` receipt table preserves `0012`
+authority checks, Apple admin-recovery handling and event notification fields;
+it does not enable account-deletion requests in the default runtime. These are
+code compatibility contracts, not evidence that any environment has been migrated.
+All signing, refresh-response encryption, and
 existing provider audience configuration must also be present. The
 LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
 plain runtime values. Apple lifecycle configuration is optional as one
@@ -50,6 +55,16 @@ configured or invoked.
 Package the current `shared_lib-0.0.1.tar.gz` under `dist/` before an authorized
 build. This task does not build, deploy, bind Secret Manager, change IAM or
 connect to production.
+
+The source-only `0013_account_deletion_requests` migration is additive and the
+optional request service is not injected in normal bootstrap. A future rollout
+must first establish a compatibility-ready rollback build that accepts 0013;
+the earlier 0012-only build may fail its revision guard after migration. Roll
+back only to that compatible application, never erase acknowledged receipts.
+Its downgrade
+retains the table; a schema downgrade followed by a blind re-upgrade is not a
+supported rollback/retry procedure. Retained-schema reconciliation needs an
+explicit reviewed plan; only guarded local fictional test harnesses remove it.
 
 The staging operator package is documented in
 `docs/operations/mobile/MOBILE_STAGING.md`. It defaults to dry-run, rejects the

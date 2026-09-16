@@ -28,6 +28,7 @@ class OpenApiContractTest(unittest.TestCase):
                 "/auth/refresh",
                 "/auth/logout",
                 "/me",
+                "/me/account-deletion",
                 "/games",
                 "/games/{game_id}",
                 "/events",

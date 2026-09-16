@@ -5,12 +5,13 @@ import socket
 
 from sqlalchemy import text
 
-EXPECTED_REVISION = "0012_persistent_admin_authority"
+EXPECTED_REVISION = "0013_account_deletion_requests"
 ACCEPTED_REVISIONS = (
     "0008_mobile_notification_delivery",
     "0009_event_management_writes",
     "0010_apple_provider_lifecycle",
     "0011_event_notification_guest_lifecycle",
+    "0012_persistent_admin_authority",
     EXPECTED_REVISION,
 )
 APPLE_LIFECYCLE_CONFIGURATION_KEYS = frozenset(
@@ -83,10 +84,16 @@ def _safe_network_probe(engine) -> str:
 def database_revision_is_current(engine, logger) -> bool:
     try:
         with engine.connect() as connection:
-            current = connection.scalar(
-                text("SELECT version_num FROM ntubtob.alembic_version")
+            revisions = tuple(
+                connection.scalars(
+                    text("SELECT version_num FROM ntubtob.alembic_version")
+                ).all()
             )
-            if type(current) is not str or current not in ACCEPTED_REVISIONS:
+            if (
+                len(revisions) != 1
+                or type(revisions[0]) is not str
+                or revisions[0] not in ACCEPTED_REVISIONS
+            ):
                 logger.error("mobile_api_revision_check_mismatch")
                 return False
             return True

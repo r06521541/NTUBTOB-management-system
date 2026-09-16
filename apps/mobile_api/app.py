@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import timezone
 from typing import Callable
 from uuid import uuid4
 
 from flask import Flask, jsonify, request
+from shared_module.account_deletion import (
+    AccountDeletionService,
+    AccountDeletionUnavailable,
+)
 from shared_module.attendance_reply import AttendanceReplyNotification
 from shared_module.event_read import EventReadContractError, parse_event_key
 from shared_module.mobile_api import (
@@ -33,6 +38,7 @@ class Dependencies:
     apple_auth: MobileAuthService | None = None
     apple_lifecycle_ready: Callable[[], bool] | None = None
     apple_notifications: object | None = None
+    account_deletion: AccountDeletionService | None = None
 
 
 def create_app(dependencies: Dependencies) -> Flask:
@@ -46,6 +52,8 @@ def create_app(dependencies: Dependencies) -> Flask:
             except Exception:
                 ready = False
             if not ready:
+                if request.path == "/api/v1/me/account-deletion":
+                    raise AccountDeletionUnavailable()
                 raise MobileApiError("required database revision is unavailable")
 
     @app.errorhandler(MobileApiError)
@@ -57,7 +65,9 @@ def create_app(dependencies: Dependencies) -> Flask:
                         "code": error.code,
                         "message": str(error),
                         "request_id": request_id(),
-                        "retryable": error.status in {429, 503},
+                        "retryable": getattr(
+                            error, "retryable", error.status in {429, 503}
+                        ),
                         "retry_after_seconds": None,
                         "field_errors": [],
                     }
@@ -126,6 +136,45 @@ def create_app(dependencies: Dependencies) -> Flask:
         if not value.startswith("Bearer ") or len(value) > 4103:
             raise AuthenticationError("Bearer token required")
         return dependencies.auth.authenticate(value[7:])
+
+    @app.after_request
+    def account_deletion_no_store(response):
+        if request.path == "/api/v1/me/account-deletion":
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    def account_deletion_service():
+        if dependencies.account_deletion is None:
+            raise AccountDeletionUnavailable()
+        if request.args:
+            raise InvalidArgument("query parameters are not supported")
+        return dependencies.account_deletion
+
+    def deletion_confirmation():
+        # Read at most one small confirmation document, including chunked input.
+        if not request.is_json or (request.content_length or 0) > 256:
+            raise MalformedRequest("bounded JSON confirmation required")
+        data = request.stream.read(257)
+        if len(data) > 256:
+            raise MalformedRequest("bounded JSON confirmation required")
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError
+                result[key] = value
+            return result
+
+        try:
+            body = json.loads(data, object_pairs_hook=unique_object)
+        except (ValueError, UnicodeError):
+            raise MalformedRequest("JSON object with unique fields required") from None
+        if not isinstance(body, dict):
+            raise MalformedRequest("JSON object required")
+        if set(body) != {"confirmed"}:
+            raise InvalidArgument("exact confirmation field required")
+        return body["confirmed"]
 
     def authenticate_review():
         if dependencies.review is None:
@@ -422,6 +471,26 @@ def create_app(dependencies: Dependencies) -> Flask:
             request.headers.get("Idempotency-Key", ""),
         )
         return jsonify({**result, "idempotent_replay": replayed}), status
+
+    @app.get("/api/v1/me/account-deletion")
+    def account_deletion_status():
+        service = account_deletion_service()
+        return jsonify(service.status(authenticate()))
+
+    @app.post("/api/v1/me/account-deletion")
+    def request_account_deletion():
+        service = account_deletion_service()
+        principal = authenticate()
+        return (
+            jsonify(
+                service.request(
+                    principal,
+                    deletion_confirmation(),
+                    request.headers.get("Idempotency-Key", ""),
+                )
+            ),
+            202,
+        )
 
     @app.get("/api/v1/auth/line/review")
     def pending_review():

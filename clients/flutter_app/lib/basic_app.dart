@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
+import 'account_deletion.dart';
 import 'anonymous_crash.dart';
 import 'integration.dart';
 import 'identity_link.dart';
@@ -340,12 +341,22 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       });
       final transport = HttpApiTransport(widget.config.apiBaseUrl!, _http);
       final notificationCache = NotificationCache(_store, installationId);
+      final basicCache = BasicCache(_store, installationId);
+      final reportCache =
+          DurablePrincipalOfficerReportCache(_store, installationId);
+      late final BasicApi basicApi;
       final session = SessionController(
         transport,
         _store,
         installationId,
         _ids,
-        terminalPurge: notificationCache.clear,
+        terminalPurge: () async {
+          await basicCache.clear();
+          await notificationCache.clear();
+          await reportCache.clearInstallation();
+          await basicApi.clearPendingAttendanceIntents();
+          await basicApi.clearPendingProfileIntents();
+        },
       );
       final line = NativeLineLogin(widget.config.lineChannelId!);
       final google = NativeGoogleLogin(
@@ -368,10 +379,11 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         onRecovered: _loadBasic,
         onTerminalSession: () => _showFailure(const SessionExpiredException()),
       );
-      _api = BasicApi(session, _store, installationId, _ids);
-      _cache = BasicCache(_store, installationId);
+      basicApi = BasicApi(session, _store, installationId, _ids);
+      _api = basicApi;
+      _cache = basicCache;
       _notificationCache = notificationCache;
-      _reportCache = DurablePrincipalOfficerReportCache(_store, installationId);
+      _reportCache = reportCache;
       _login = LoginCoordinator(line, transport, session, _ids, installationId);
       _googleLogin = GoogleLoginCoordinator(
         google,
@@ -816,7 +828,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   @override
   Widget build(BuildContext context) => MaterialApp(
         navigatorKey: _navigatorKey,
-        title: '北商乙組籃球隊',
+        title: '臺大校友比賽報你知',
         theme: appTheme(Brightness.light),
         darkTheme: appTheme(Brightness.dark),
         themeMode: _themePreference.themeMode,
@@ -1146,6 +1158,7 @@ class BasicGamesView extends StatefulWidget {
     this.identityLink,
     this.platform,
     this.diagnosticEnabled = true,
+    this.deletionClient,
   });
   final BasicApi api;
   final Person person;
@@ -1162,6 +1175,7 @@ class BasicGamesView extends StatefulWidget {
   final VoidCallback? onOpenSettings;
   final IdentityLinkController? identityLink;
   final String? platform;
+  final AccountDeletionPort? deletionClient;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -1357,7 +1371,9 @@ class _BasicGamesViewState extends State<BasicGamesView> {
               subtitle: const Text('帳號協助、資料使用與版本資訊'),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => const SupportAppInfoPage(),
+                  builder: (_) => SupportAppInfoPage(
+                    deletionClient: widget.deletionClient,
+                  ),
                 ),
               ),
             ),

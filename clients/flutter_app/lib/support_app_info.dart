@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
+import 'account_deletion.dart';
 
 class AppBuildMetadata {
   const AppBuildMetadata({this.version, this.build});
@@ -39,9 +40,11 @@ class SupportAppInfoPage extends StatelessWidget {
   const SupportAppInfoPage({
     super.key,
     this.metadata = AppBuildMetadata.fromEnvironment,
+    this.deletionClient,
   });
 
   final AppBuildMetadata metadata;
+  final AccountDeletionPort? deletionClient;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -55,6 +58,16 @@ class SupportAppInfoPage extends StatelessWidget {
               subtitle: '了解資料來源、通知限制與目前安裝版本。',
             ),
             const SizedBox(height: 24),
+            if (deletionClient != null)
+              ListTile(
+                key: const ValueKey('account-deletion-status-entry'),
+                leading: const Icon(Icons.person_remove_outlined),
+                title: const Text('刪除申請與狀態'),
+                subtitle: const Text('僅申請流程；正式刪除尚未啟用'),
+                onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => AccountDeletionPage(client: deletionClient!),
+                )),
+              ),
             const _InfoSection(
               key: ValueKey('account-deletion-request'),
               title: '帳號與刪除申請',

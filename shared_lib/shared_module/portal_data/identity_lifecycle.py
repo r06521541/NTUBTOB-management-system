@@ -56,6 +56,9 @@ APPLICANT_MESSAGE_INTERVAL = timedelta(hours=24)
 REVIEW_RETENTION = timedelta(days=365)
 BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
 CURRENT_AUTHORITY_REVISION = "0012_persistent_admin_authority"
+AUTHORITY_REVISIONS = frozenset(
+    {CURRENT_AUTHORITY_REVISION, "0013_account_deletion_requests"}
+)
 PRE_AUTHORITY_REVISIONS = frozenset(
     {
         "0004_phase_c_identity_lifecycle",
@@ -231,7 +234,7 @@ class IdentityLifecycleRepository:
         )
         if len(revisions) != 1 or (
             revisions[0] not in PRE_AUTHORITY_REVISIONS
-            and revisions[0] != CURRENT_AUTHORITY_REVISION
+            and revisions[0] not in AUTHORITY_REVISIONS
         ):
             return False
         authority_table = session.scalars(
@@ -242,8 +245,9 @@ class IdentityLifecycleRepository:
                 revisions[0] in PRE_AUTHORITY_REVISIONS
                 and self.authority_mode == "legacy_allowlist"
             )
-        if authority_table != "ntubtob.portal_authority_state" or revisions != (
-            CURRENT_AUTHORITY_REVISION,
+        if (
+            authority_table != "ntubtob.portal_authority_state"
+            or revisions[0] not in AUTHORITY_REVISIONS
         ):
             return False
         states = tuple(

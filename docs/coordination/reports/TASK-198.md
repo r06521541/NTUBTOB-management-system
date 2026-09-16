@@ -2,6 +2,21 @@
 
 ## Support access and remaining acceptance (2026-09-16)
 
+Integration evidence: Owner-approved documentation published with source in
+one ready PR266. PR CI35065575203 SUCCESS (7 selected jobs PASS,7 unrelated
+scopeSKIP), watch exit0; fresh API confirms exact head
+5b0197ec52aec135569369643bcbb83974ec2b87 and unchanged base283c9c9e3de8f395728851d28039a7b2c46a1f24.
+Squash merged as d83bd4b1e64bad119f780344fbde6d57c378f308; local main
+fast-forwarded, whole tree equal to tested PR head. Accepted Dart source unchanged.
+Automatic main CI35066252956 SUCCESS7PASS/7scopeSKIP, watch exit0; fresh metadata
+confirms exact merged SHA, no other job outcomes. Local/remote main match; accepted
+source unchanged. No active watch/delegation, manual dispatch/signing/upload,
+deployment/provider/Secret/device action. Four Main post-merge records carried
+locally, not another status-only PR. Installed Owner build2 remains unchanged.
+Final diff check PASS. This source delivery complete, not full IOS-TF-01 or public
+release. Next remaining preparation is Apple staging readiness plus unverified
+logout/privacy/provider slices; no repeat of already accepted six-step smoke.
+
 Owner now explicitly approved publication after the eight-file content/risk and
 public destination were disclosed. Main resumes the same reviewed branch and
 normal PR/CI integration; no source revision or new runtime permission implied.

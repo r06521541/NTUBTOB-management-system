@@ -7,6 +7,29 @@ configuration is present. The only Android distribution channel is the bounded
 Officer/Admin APIs, push/deep links, deployment, and real service configuration
 remain outside this repository contract.
 
+## Account-request preparation (TASK-199; not a live deletion service)
+
+`account_deletion.dart` supplies an explicitly injected self-service request/status
+client and an in-app confirmation page. Normal real composition does not inject
+it or show an actionable request entry; the network-free production demo does.
+Only `requested` receipts are accepted; a receipt never means data was deleted.
+Offline cannot submit. Unknown POST results offer a manual GET reconciliation,
+not an automatic POST retry. The client is bound to the current session generation.
+Duplicate requests are one constant command per Person on the optional backend.
+
+Enablement still requires policy, fulfillment, retention, supported account
+states, provider revocation and runtime review. Privacy/source facts and unapproved
+copy are in `docs/releases/MOBILE_PRIVACY_DRAFT.md` at the repository root.
+
+Session credential transitions use a generation fence and a local serialized
+publication queue (never a network lock). Old responses/errors cannot replace
+or clear a newer account. Terminal cleanup is an uncancellable barrier before
+new credentials; fixed `session-cleanup-pending:<installation>` debt survives
+failure/restart. Real composition purges personal caches and pending intents,
+not installation preferences or provider/backend data. Failed cleanup cannot
+silently publish the next login. Device/provider storage behavior still needs
+separate acceptance; deterministic tests are not native-device evidence.
+
 ## Flavors and platform generation
 
 Missing, empty, unknown, or mixed configuration fails before the app starts. Development must explicitly select isolated fake mode and must not receive service configuration:

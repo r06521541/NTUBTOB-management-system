@@ -351,7 +351,7 @@ class MobileApiRouteTest(unittest.TestCase):
         self.assertTrue(apple.get_json()["error"]["retryable"])
         self.assertEqual(line.status_code, 201)
 
-    def test_pre_0010_core_keeps_line_and_google_while_apple_is_unavailable(self):
+    def test_compatible_core_keeps_line_and_google_while_apple_is_unavailable(self):
         apple_lifecycle_ready = Mock(return_value=False)
         common = {
             "id_token": "obvious-fake-provider-id-token",
@@ -363,9 +363,11 @@ class MobileApiRouteTest(unittest.TestCase):
         for revision in (
             "0008_mobile_notification_delivery",
             "0009_event_management_writes",
+            "0012_persistent_admin_authority",
+            "0013_account_deletion_requests",
         ):
             engine, logger, connection = Mock(), Mock(), Mock()
-            connection.scalar.return_value = revision
+            connection.scalars.return_value.all.return_value = [revision]
             engine.connect.return_value = nullcontext(connection)
             client = create_app(
                 Dependencies(
@@ -409,7 +411,7 @@ class MobileApiRouteTest(unittest.TestCase):
                 logger.error.assert_not_called()
         self.apple_auth.exchange.assert_not_called()
         self.apple_notifications.receive.assert_not_called()
-        self.assertEqual(apple_lifecycle_ready.call_count, 4)
+        self.assertEqual(apple_lifecycle_ready.call_count, 8)
 
     def test_apple_notification_accepts_one_bounded_form_payload_only(self):
         response = self.client.post(

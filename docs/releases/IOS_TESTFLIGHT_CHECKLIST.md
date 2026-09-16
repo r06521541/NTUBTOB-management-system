@@ -26,6 +26,11 @@ Team ID、App ID、certificate/profile識別值、private key、provider值、�
 
 ## A. Mac／Xcode與Apple資源建立前可完成
 
+TASK199的刪除申請／查詢UI與API為default-off source foundation，僅fake demo啟用；不是已完成刪除或商店合規。
+SDK／資料流／待核准文字見[MOBILE_PRIVACY_DRAFT.md](MOBILE_PRIVACY_DRAFT.md)，未發布、不猜正式URL。
+2026-09-16唯讀staging metadata確認四項Apple lifecycle設定名稱仍缺；未讀值、未查DB或改provider/runtime。
+不在後端未ready時要求Owner重做Apple實機測試。
+
 1. 保持bundle identity、iOS 15 minimum、staging／real／Release／testflight組合及version/build contract不漂移。
 2. 確認beta scope只使用隔離staging backend；不得填production endpoint或把TestFlight成功推論為production ready。
 3. 準備不含帳號資料的beta description、test notes、support/privacy/deletion入口與known limitations。

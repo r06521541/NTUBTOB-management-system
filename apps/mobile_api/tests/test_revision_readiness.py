@@ -22,8 +22,8 @@ class _ConnectionContext:
 
 
 class RevisionReadinessTest(unittest.TestCase):
-    def test_current_revision_is_exact_0012(self):
-        self.assertEqual(EXPECTED_REVISION, "0012_persistent_admin_authority")
+    def test_current_revision_is_exact_0013(self):
+        self.assertEqual(EXPECTED_REVISION, "0013_account_deletion_requests")
 
     def test_apple_provider_credential_key_must_be_distinct_from_refresh_key(self):
         refresh_key = urlsafe_b64encode(b"r" * 32).decode("ascii")
@@ -45,7 +45,7 @@ class RevisionReadinessTest(unittest.TestCase):
     def test_expected_revision_is_ready_without_logging(self):
         engine, logger = Mock(), Mock()
         connection = Mock()
-        connection.scalar.return_value = EXPECTED_REVISION
+        connection.scalars.return_value.all.return_value = [EXPECTED_REVISION]
         engine.connect.return_value = _ConnectionContext(connection)
 
         self.assertTrue(database_revision_is_current(engine, logger))
@@ -60,6 +60,7 @@ class RevisionReadinessTest(unittest.TestCase):
                 "0010_apple_provider_lifecycle",
                 "0011_event_notification_guest_lifecycle",
                 "0012_persistent_admin_authority",
+                "0013_account_deletion_requests",
             ),
         )
 
@@ -67,7 +68,7 @@ class RevisionReadinessTest(unittest.TestCase):
         for revision in ACCEPTED_REVISIONS:
             engine, logger = Mock(), Mock()
             connection = Mock()
-            connection.scalar.return_value = revision
+            connection.scalars.return_value.all.return_value = [revision]
             engine.connect.return_value = _ConnectionContext(connection)
 
             with self.subTest(revision=revision):
@@ -81,7 +82,7 @@ class RevisionReadinessTest(unittest.TestCase):
             with self.subTest(observed_type=type(observed).__name__):
                 engine, logger = Mock(), Mock()
                 connection = Mock()
-                connection.scalar.return_value = observed
+                connection.scalars.return_value.all.return_value = [observed]
                 engine.connect.return_value = _ConnectionContext(connection)
 
                 self.assertFalse(database_revision_is_current(engine, logger))
@@ -93,11 +94,30 @@ class RevisionReadinessTest(unittest.TestCase):
     def test_revision_mismatch_fails_closed_without_value_in_log(self):
         engine, logger = Mock(), Mock()
         connection = Mock()
-        connection.scalar.return_value = "sensitive-unexpected-value"
+        connection.scalars.return_value.all.return_value = [
+            "sensitive-unexpected-value"
+        ]
         engine.connect.return_value = _ConnectionContext(connection)
 
         self.assertFalse(database_revision_is_current(engine, logger))
         logger.error.assert_called_once_with("mobile_api_revision_check_mismatch")
+
+    def test_no_head_or_multiple_heads_fail_closed_even_with_known_first_head(self):
+        for revisions in (
+            [],
+            ["0012_persistent_admin_authority", "0013_account_deletion_requests"],
+            ["0013_account_deletion_requests", "sensitive-unknown-branch"],
+        ):
+            with self.subTest(revisions=revisions):
+                engine, logger, connection = Mock(), Mock(), Mock()
+                connection.scalar.return_value = EXPECTED_REVISION
+                connection.scalars.return_value.all.return_value = revisions
+                engine.connect.return_value = _ConnectionContext(connection)
+                self.assertFalse(database_revision_is_current(engine, logger))
+                logger.error.assert_called_once_with(
+                    "mobile_api_revision_check_mismatch"
+                )
+                self.assertNotIn("sensitive", repr(logger.error.call_args))
 
     def test_driver_error_logs_only_exception_type(self):
         engine, logger = Mock(), Mock()

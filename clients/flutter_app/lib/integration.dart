@@ -218,6 +218,10 @@ class SessionExpiredException implements Exception {
   const SessionExpiredException();
 }
 
+class SessionSupersededException implements Exception {
+  const SessionSupersededException();
+}
+
 T _required<T>(Map<String, dynamic> json, String key) {
   final value = json[key];
   if (value is! T) throw ContractException('invalid required field: $key');
@@ -2245,8 +2249,78 @@ class SessionController {
   String? _access;
   int _generation = 0;
   int get generation => _generation;
+  final ValueNotifier<int> _generationChanges = ValueNotifier(0);
+  ValueListenable<int> get generationChanges => _generationChanges;
   Future<String>? _refreshing;
+  int? _refreshingGeneration;
+  Future<void> _credentialOperations = Future<void>.value();
+  bool _cleanupRequired = false;
+  bool _cleanupFailed = false;
+  Future<void> Function()? _pendingLocalPurge;
+  String get _cleanupKey => 'session-cleanup-pending:$installationId';
   String? get accessToken => _access;
+
+  void _requireGeneration(int expected) {
+    if (_generation != expected) throw const SessionSupersededException();
+  }
+
+  Future<T> _queueCredentials<T>(Future<T> Function() action) {
+    final operation = _credentialOperations.then((_) => action());
+    _credentialOperations =
+        operation.then<void>((_) {}, onError: (Object _) {});
+    return operation;
+  }
+
+  Future<T> _withCredentials<T>(
+    int expected,
+    Future<T> Function() action,
+  ) =>
+      _queueCredentials(() {
+        _requireGeneration(expected);
+        return action();
+      });
+
+  Future<void> _cleanupLocal() async {
+    // This obligation belongs to the old installation data, not a generation.
+    // It runs to completion before the queue may publish any new credentials.
+    _cleanupRequired = true;
+    try {
+      await store.write(_cleanupKey, 'true');
+      await store.delete('refresh:$installationId');
+      await store.delete('refresh-attempt:$installationId');
+      await (_pendingLocalPurge ?? terminalPurge)?.call();
+      await store.delete('logout-pending:$installationId');
+      await store.delete(_cleanupKey);
+      _pendingLocalPurge = null;
+      _cleanupRequired = false;
+      _cleanupFailed = false;
+    } on Object {
+      _cleanupFailed = true;
+      rethrow;
+    }
+  }
+
+  Future<void> _finishCleanupBeforePublication({bool replacing = false}) async {
+    if (_cleanupFailed) throw StateError('local cleanup pending');
+    if (_cleanupRequired ||
+        await store.containsKey(_cleanupKey) ||
+        replacing &&
+            (_pendingLocalPurge != null ||
+                await store.containsKey('refresh:$installationId') ||
+                await store.containsKey('logout-pending:$installationId'))) {
+      await _cleanupLocal();
+    }
+  }
+
+  int _invalidate() {
+    _generation++;
+    _access = null;
+    _refreshing = null;
+    _refreshingGeneration = null;
+    _generationChanges.value = _generation;
+    return _generation;
+  }
+
   Future<bool?> observePresence() async {
     final refreshPresent = await store.containsKey('refresh:$installationId');
     final attemptPresent = await store.containsKey(
@@ -2256,42 +2330,96 @@ class SessionController {
     return refreshPresent;
   }
 
-  Future<void> accept(SessionEnvelope session, {bool newLogin = true}) async {
-    try {
-      await store.write('refresh:$installationId', session.refreshToken);
-      await store.delete('refresh-attempt:$installationId');
-      _access = session.accessToken;
-      if (newLogin) _generation++;
-    } on Object {
-      _access = null;
-      await store.delete('refresh:$installationId');
-      rethrow;
-    }
+  Future<void> accept(
+    SessionEnvelope session, {
+    bool newLogin = true,
+    int? expectedGeneration,
+  }) {
+    if (expectedGeneration != null) _requireGeneration(expectedGeneration);
+    final expected = newLogin ? _generation + 1 : _generation;
+    // Reserve publication before synchronous generation observers may enqueue
+    // their own reads; none may refresh using the previous account's token.
+    final operation = _withCredentials(expected, () async {
+      try {
+        await _finishCleanupBeforePublication(replacing: newLogin);
+        _requireGeneration(expected);
+        await store.write('refresh:$installationId', session.refreshToken);
+        _requireGeneration(expected);
+        await store.delete('refresh-attempt:$installationId');
+        _requireGeneration(expected);
+        if (newLogin) {
+          await store.delete('logout-pending:$installationId');
+          _requireGeneration(expected);
+        }
+        _access = session.accessToken;
+      } on Object {
+        if (_generation == expected) {
+          _access = null;
+          await store.delete('refresh:$installationId');
+        }
+        rethrow;
+      }
+    });
+    if (newLogin) _invalidate();
+    return operation;
   }
 
-  Future<String> refresh() =>
-      _refreshing ??= _refresh().whenComplete(() => _refreshing = null);
-  Future<String> _refresh() async {
-    final refresh = await store.read('refresh:$installationId');
-    if (refresh == null) throw StateError('signed out');
-    final attemptKey = 'refresh-attempt:$installationId';
-    final attempt = await store.read(attemptKey) ?? ids.next();
-    await store.write(attemptKey, attempt);
-    final response = await api.send(
-      'POST',
-      '/auth/refresh',
-      headers: {'Refresh-Attempt-ID': attempt},
-      body: {'refresh_token': refresh, 'installation_id': installationId},
-    );
+  Future<String> refresh() {
+    final expected = _generation;
+    if (_refreshing != null && _refreshingGeneration == expected) {
+      return _refreshing!;
+    }
+    late final Future<String> operation;
+    operation = _refresh(expected).whenComplete(() {
+      if (identical(_refreshing, operation)) {
+        _refreshing = null;
+        _refreshingGeneration = null;
+      }
+    });
+    _refreshing = operation;
+    _refreshingGeneration = expected;
+    return operation;
+  }
+
+  Future<String> _refresh(int expected) async {
+    final (refresh, attempt) = await _withCredentials(expected, () async {
+      await _finishCleanupBeforePublication();
+      _requireGeneration(expected);
+      final refresh = await store.read('refresh:$installationId');
+      _requireGeneration(expected);
+      if (refresh == null) throw StateError('signed out');
+      final attemptKey = 'refresh-attempt:$installationId';
+      final attempt = await store.read(attemptKey) ?? ids.next();
+      _requireGeneration(expected);
+      await store.write(attemptKey, attempt);
+      _requireGeneration(expected);
+      return (refresh, attempt);
+    });
+    _requireGeneration(expected);
+    late final ApiResponse response;
+    try {
+      response = await api.send(
+        'POST',
+        '/auth/refresh',
+        headers: {'Refresh-Attempt-ID': attempt},
+        body: {'refresh_token': refresh, 'installation_id': installationId},
+      );
+    } on Object {
+      _requireGeneration(expected);
+      rethrow;
+    }
+    _requireGeneration(expected);
     if (response.status == 401) {
-      await clear();
+      await clear(expectedGeneration: expected);
+      _requireGeneration(expected + 1);
       throw const SessionExpiredException();
     }
     if (response.status != 200 || response.body == null) {
       throw StateError('refresh uncertain');
     }
     final session = SessionEnvelope.fromJson(response.body!);
-    await accept(session, newLogin: false);
+    await accept(session, newLogin: false, expectedGeneration: expected);
+    _requireGeneration(expected);
     return session.accessToken;
   }
 
@@ -2301,28 +2429,36 @@ class SessionController {
     Map<String, dynamic>? body,
     Map<String, String> headers = const {},
   }) async {
+    final expected = _generation;
     var token = _access ?? await refresh();
+    _requireGeneration(expected);
     final failedToken = token;
     var result = await _sendAuthorizedRequest(
       method,
       path,
       token,
+      expected,
       headers: headers,
       body: body,
     );
+    _requireGeneration(expected);
     if (result.status == 401) {
       token = _access != null && _access != failedToken
           ? _access!
           : await refresh();
+      _requireGeneration(expected);
       result = await _sendAuthorizedRequest(
         method,
         path,
         token,
+        expected,
         headers: headers,
         body: body,
       );
+      _requireGeneration(expected);
       if (result.status == 401) {
-        await clear();
+        await clear(expectedGeneration: expected);
+        _requireGeneration(expected + 1);
         if (result.body != null) {
           final error = ApiError.fromJson(result.body!);
           if (error.code != ApiErrorCode.sessionExpired &&
@@ -2339,7 +2475,8 @@ class SessionController {
   Future<ApiResponse> _sendAuthorizedRequest(
     String method,
     String path,
-    String token, {
+    String token,
+    int expected, {
     Map<String, dynamic>? body,
     Map<String, String> headers = const {},
   }) async {
@@ -2351,26 +2488,40 @@ class SessionController {
         body: body,
       );
     } on NetworkException {
+      _requireGeneration(expected);
       throw const AuthorizedRequestNetworkException();
+    } on Object {
+      _requireGeneration(expected);
+      rethrow;
     }
   }
 
-  Future<void> clear() async {
-    _generation++;
-    _access = null;
-    await store.delete('refresh:$installationId');
-    await store.delete('refresh-attempt:$installationId');
-    await terminalPurge?.call();
+  Future<void> clear({int? expectedGeneration}) {
+    if (expectedGeneration != null) _requireGeneration(expectedGeneration);
+    _cleanupRequired = true;
+    final operation = _queueCredentials(_cleanupLocal);
+    _invalidate();
+    return operation;
   }
 
   Future<void> logout(
     LineLoginPort line, {
     Future<void> Function()? purgeLocal,
   }) async {
-    await store.write('logout-pending:$installationId', 'true');
-    final durableSessionPresent = await store.containsKey(
-      'refresh:$installationId',
-    );
+    _pendingLocalPurge = purgeLocal ?? _pendingLocalPurge;
+    final expected = _generation;
+    var alreadyCleared = false;
+    final durableSessionPresent = await _withCredentials(expected, () async {
+      await store.write('logout-pending:$installationId', 'true');
+      _requireGeneration(expected);
+      // A retained local cleanup marker means the previous terminal boundary
+      // already started. An explicit logout may finish it without another POST.
+      if (_cleanupRequired || await store.containsKey(_cleanupKey)) {
+        return false;
+      }
+      return store.containsKey('refresh:$installationId');
+    });
+    _requireGeneration(expected);
     if (_access != null || durableSessionPresent) {
       ApiResponse response;
       try {
@@ -2378,21 +2529,28 @@ class SessionController {
       } on SessionExpiredException {
         // A terminal refresh 401 already cleared the local session and is an
         // idempotent logout outcome. Transient refresh failures retain state.
+        _requireGeneration(expected + 1);
         if (await store.containsKey('refresh:$installationId')) rethrow;
+        _requireGeneration(expected + 1);
+        alreadyCleared = true;
         response = const ApiResponse(401, null);
       }
       if (response.status != 204 && response.status != 401) {
         throw StateError('logout pending');
       }
     }
-    await clear();
+    if (!alreadyCleared) {
+      _requireGeneration(expected);
+      await clear(expectedGeneration: expected);
+    }
+    final clearedGeneration = expected + 1;
+    _requireGeneration(clearedGeneration);
     try {
       await line.logout();
     } catch (_) {
       /* backend session is already closed */
     }
-    await purgeLocal?.call();
-    await store.delete('logout-pending:$installationId');
+    _requireGeneration(clearedGeneration);
   }
 }
 
