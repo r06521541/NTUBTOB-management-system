@@ -26,6 +26,8 @@ MAX_MANIFESTS = 256
 MAX_ITEMS = 512
 _SHA = re.compile(r"[0-9a-f]{40}")
 _VERSION = re.compile(r"[0-9]{1,5}(?:\.[0-9]{1,5}){1,3}")
+# Exact public naming hints only; upstream references are in MOBILE_PRIVACY_DRAFT.
+# Neither these names nor a matching manifest digest authenticate SDK provenance.
 _PUBLIC_PACKAGES = {
     "googlesignin-ios": "google_sign_in",
     "line-sdk-ios-swift": "line_sdk",
@@ -35,6 +37,8 @@ _PUBLIC_PACKAGES = {
     "googletoolboxformac": "google_toolbox_for_mac",
     "googleutilities": "google_utilities",
     "promises": "promises",
+    "app-check": "app_check",
+    "interop-ios-for-google-sdks": "google_interop",
 }
 _PUBLIC_BUNDLES = {
     "Flutter.framework": "flutter_engine",
@@ -44,8 +48,14 @@ _PUBLIC_BUNDLES = {
     "LineSDK.framework": "line_sdk",
     "LineSDK_LineSDK.bundle": "line_sdk",
     "AppAuth_AppAuth.bundle": "app_auth",
+    "AppAuth_AppAuthCore.bundle": "app_auth",
     "GTMAppAuth_GTMAppAuth.bundle": "gtm_app_auth",
     "GTMSessionFetcher_GTMSessionFetcher.bundle": "gtm_session_fetcher",
+    "GTMSessionFetcher_GTMSessionFetcherCore.bundle": "gtm_session_fetcher",
+    "GoogleUtilities_GoogleUtilities-Environment.bundle": "google_utilities",
+    "GoogleUtilities_GoogleUtilities-Logger.bundle": "google_utilities",
+    "GoogleUtilities_GoogleUtilities-UserDefaults.bundle": "google_utilities",
+    "Promises_FBLPromises.bundle": "promises",
     "google_sign_in_ios_google_sign_in_ios.bundle": "google_sign_in_plugin",
     "flutter_secure_storage_darwin_flutter_secure_storage_darwin.bundle": "secure_storage_plugin",
 }
@@ -247,6 +257,8 @@ def _manifest(source: bytes, relative: Path, ordinal: int) -> dict:
         "fields": {},
         "findings": [],
     }
+    if alias == "unknown_component":
+        row["findings"].append("manifest:UNRECOGNIZED_COMPONENT")
     if relative.name != "PrivacyInfo.xcprivacy":
         row["findings"].append("filename:NOT_STANDARD_NAME")
     try:

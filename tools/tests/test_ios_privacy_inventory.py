@@ -190,6 +190,122 @@ class PrivacyInventoryTests(unittest.TestCase):
         self.assertFalse(result["sdk_coverage_verified"])
         self.assertEqual(result["root_manifest"], "absent")
 
+    def test_upstream_resource_aliases_are_exact_name_hints_only(self):
+        expected = {
+            "AppAuth_AppAuthCore.bundle": "app_auth",
+            "GTMSessionFetcher_GTMSessionFetcherCore.bundle": "gtm_session_fetcher",
+            "GoogleUtilities_GoogleUtilities-Environment.bundle": "google_utilities",
+            "GoogleUtilities_GoogleUtilities-Logger.bundle": "google_utilities",
+            "GoogleUtilities_GoogleUtilities-UserDefaults.bundle": "google_utilities",
+            "Promises_FBLPromises.bundle": "promises",
+        }
+        for bundle, alias in expected.items():
+            with self.subTest(bundle=bundle):
+                row = inventory._manifest(
+                    plistlib.dumps(manifest()),
+                    Path(bundle) / "PrivacyInfo.xcprivacy",
+                    1,
+                )
+                self.assertEqual(row["component"], alias)
+                self.assertEqual(row["location_kind"], "bundle")
+                self.assertFalse(row["values_validated"])
+                for near_miss in (
+                    PRIVATE + bundle,
+                    bundle.replace(".bundle", PRIVATE + ".bundle"),
+                    bundle.lower(),
+                ):
+                    unknown = inventory._manifest(
+                        plistlib.dumps(manifest()),
+                        Path(near_miss) / "PrivacyInfo.xcprivacy",
+                        1,
+                    )
+                    self.assertEqual(unknown["component"], "unknown_component")
+                    self.assertNotIn(PRIVATE, json.dumps(unknown))
+
+    def test_google_transitive_identities_are_resolved_not_linkage(self):
+        for schema in (2, 3):
+            payload = {"version": schema, "pins": []}
+            for identity, alias, version in (
+                ("app-check", "app_check", "11.3.2"),
+                ("interop-ios-for-google-sdks", "google_interop", "101.0.0"),
+            ):
+                payload["pins"].extend(lock(version, identity)["pins"])
+                for near_miss in (
+                    PRIVATE + identity,
+                    identity + PRIVATE,
+                    identity.upper(),
+                ):
+                    payload["pins"].extend(lock(version, near_miss)["pins"])
+            self.packages[0].write_text(json.dumps(payload), encoding="utf-8")
+            self.packages[1].write_text(json.dumps(payload), encoding="utf-8")
+            result = self.run_inventory()
+            self.assertEqual(
+                result["native_dependencies"],
+                [
+                    {
+                        "component": alias,
+                        "state": "resolved_version",
+                        "versions": [version],
+                        "slots": [1, 2],
+                    }
+                    for alias, version in (
+                        ("app_check", "11.3.2"),
+                        ("google_interop", "101.0.0"),
+                    )
+                ],
+            )
+            self.assertEqual(result["package_sources"][0]["unknown_identity_count"], 6)
+            self.assertFalse(result["sdk_coverage_verified"])
+            self.assertFalse(result["runtime_verified"])
+            self.assertFalse(result["compliance_verified"])
+            self.assertNotIn(PRIVATE, json.dumps(result))
+
+    def test_unknown_container_is_a_finding_even_with_root_and_valid_locks(self):
+        self.write_manifest()
+        self.write_manifest(PRIVATE + ".bundle/PrivacyInfo.xcprivacy")
+        for path in self.packages:
+            path.write_text(json.dumps(lock()), encoding="utf-8")
+        result = self.run_inventory()
+        self.assertEqual(result["root_manifest"], "present")
+        self.assertTrue(result["scan_complete"])
+        self.assertEqual(result["classification"], "INVENTORY_COMPLETE_WITH_FINDINGS")
+        unknown = next(
+            row
+            for row in result["manifests"]
+            if row["component"] == "unknown_component"
+        )
+        self.assertIn("manifest:UNRECOGNIZED_COMPONENT", unknown["findings"])
+        self.assertNotIn(PRIVATE, json.dumps(result))
+
+    def test_generic_resource_bundle_never_inherits_line_attribution(self):
+        for relative in (
+            "Resource.bundle/PrivacyInfo.xcprivacy",
+            "LineSDK_LineSDK.bundle/Resource.bundle/PrivacyInfo.xcprivacy",
+            "Frameworks/LineSDK.framework/Resource.bundle/PrivacyInfo.xcprivacy",
+        ):
+            row = inventory._manifest(plistlib.dumps(manifest()), Path(relative), 1)
+            self.assertEqual(row["component"], "unknown_component")
+            self.assertIn("manifest:UNRECOGNIZED_COMPONENT", row["findings"])
+
+    def test_new_identity_keeps_conflict_and_revision_only_evidence(self):
+        self.packages[0].write_text(
+            json.dumps(lock("11.3.1", "app-check")), encoding="utf-8"
+        )
+        self.packages[1].write_text(
+            json.dumps(lock("11.3.2", "app-check")), encoding="utf-8"
+        )
+        self.assertEqual(
+            self.run_inventory()["native_dependencies"][0]["state"], "conflict"
+        )
+        payload = lock(identity="app-check")
+        payload["pins"][0]["state"] = {"revision": PRIVATE}
+        self.packages[1].write_text(json.dumps(payload), encoding="utf-8")
+        result = self.run_inventory()
+        self.assertEqual(
+            result["native_dependencies"][0]["state"], "native_version_unknown"
+        )
+        self.assertNotIn(PRIVATE, json.dumps(result))
+
     def test_lock_conflicts_unknown_versions_schemas_and_identities(self):
         self.packages[0].write_text(json.dumps(lock("9.0.0")), encoding="utf-8")
         self.packages[1].write_text(json.dumps(lock("9.1.0")), encoding="utf-8")

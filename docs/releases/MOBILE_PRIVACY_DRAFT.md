@@ -53,6 +53,43 @@ TASK-200 補上 [unsigned CI inventory](../../clients/flutter_app/ios/README.md#
 `inspected_evidence_sha256` 只綁定盤點摘要，不是整份 archive digest；CI 成品不是本人手機的 build2。
 因此即使 scan complete，上述已簽署 candidate、Xcode privacy report、全 SDK coverage 與商店答案仍保持 UNKNOWN。
 
+2026-09-17 實際 unsigned CI run35126415121/job104896495291 完成盤點：13份manifest（12bundle／1framework），
+已知欄位型態均可解析，但App根目錄manifest缺席、7份元件alias未知。兩個SPM lock相同、各有2個未對照identity；
+已對照原生版本為GoogleSignIn9.2.0、LINE5.17.0、AppAuth2.1.0、GTMAppAuth5.0.0、GTMSessionFetcher3.5.0、
+GoogleUtilities8.1.3、Promises2.4.1，非Dart plugin版本。GoogleSignIn宣告有8筆collected-data entry，
+不代表App runtime必然收集8類，也不能由plugin自身空宣告推論SDK不收集。精確source／digest／表格見TASK200 report。
+結果為 `INVENTORY_COMPLETE_WITH_FINDINGS`，不是合規PASS；不由未知alias推論某SDK沒有manifest。
+合併後main/run35127733708/job104900884114的盤點摘要相同，綁定974ff5ad195057e49c3facd776948990a9c391c2；
+沒有檢查或更新已安裝的signed build2。此unsigned證據不可改填前述candidate UNKNOWN。
+
+### TASK-201：公開來源對照，不是成品來源認證
+
+2026-09-17以TASK200同一公開fictional CI log核對到`app-check`及
+`interop-ios-for-google-sdks`的fetch來源；它們是Google登入相依圖的一部分，不等於App啟用
+Firebase、reCAPTCHA或所有App Check功能。新增兩個exact identity alias；實際resolved版本
+仍以後續同一job的lock盤點為準，不把上游最低版本或本次查閱tag冒充成品版本。
+
+| 公開來源（固定版本） | 可支持的命名對照／限制 |
+| --- | --- |
+| [GoogleSignIn 9.2.0](https://github.com/google/GoogleSignIn-iOS/blob/9.2.0/Package.swift) | production target引用AppCheckCore；`app-check` → `app_check`，不是新增App功能 |
+| [AppCheck 11.3.2](https://github.com/google/app-check/blob/11.3.2/Package.swift)／[Interop 101.0.0](https://github.com/google/interop-ios-for-google-sdks/blob/101.0.0/Package.swift) | `interop-ios-for-google-sdks` → `google_interop`；此處tag用來查來源，不宣稱是CI解析版本 |
+| [AppAuth 2.1.0](https://github.com/openid/AppAuth-iOS/blob/2.1.0/Package.swift) | AppAuth package的AppAuthCore target含manifest，新增`AppAuth_AppAuthCore.bundle` |
+| [GTMSessionFetcher 3.5.0](https://github.com/google/gtm-session-fetcher/blob/v3.5.0/Package.swift) | Core target含manifest，新增`GTMSessionFetcher_GTMSessionFetcherCore.bundle` |
+| [GoogleUtilities 8.1.3](https://github.com/google/GoogleUtilities/blob/8.1.3/Package.swift) | Environment／Logger／UserDefaults resources，新增`GoogleUtilities_GoogleUtilities-Environment.bundle`、`GoogleUtilities_GoogleUtilities-Logger.bundle`、`GoogleUtilities_GoogleUtilities-UserDefaults.bundle` |
+| [Promises 2.4.1](https://github.com/google/promises/blob/2.4.1/Package.swift) | FBLPromises target含manifest，新增`Promises_FBLPromises.bundle` |
+
+六個bundle名稱是由package／resource target推導的exact-name hints，並非本輪已重建觀察；
+未經下一次CI盤點不可宣稱未知數已減少。不得靠prefix、substring、大小寫修正或未知內層bundle的
+已知外層名稱認領元件；同名也不保證來源。未知component新增固定finding，避免root存在／lock完整時
+被總結成沒有finding的`INVENTORY_COMPLETE`。其他private名稱、位置、URL與revision持續不回顯。
+
+[LINE 5.17.0 manifest](https://github.com/line/line-sdk-ios-swift/blob/5.17.0/LineSDK/LineSDK/Resource.bundle/PrivacyInfo.xcprivacy)
+為982bytes，LF摘要`bb1ec69d3627a15a47714e3310aef25af11a27dcf1af4b1b58916823a0e02637`，
+恰與TASK200 unsigned inventory ordinal10相同。這是**內容對應**，不是SDK provenance；通用
+`Resource.bundle`不能全域貼成LINE，工具不做hash-driven attribution，也不改寫TASK200歷史unknown結果。
+上游該檔宣告linked UserID供App functionality、UserDefaults reason `CA92.1`；僅為vendor宣告，
+不可直接複製成第一方app manifest，亦不是runtime驗證。
+
 [Android main manifest](../../clients/flutter_app/android/app/src/main/AndroidManifest.xml)宣告 INTERNET 並關閉 backup；
 [iOS Info.plist](../../clients/flutter_app/ios/Runner/Info.plist)含 LINE／Google callback scheme。
 這兩個 source 檔未宣告相機、麥克風、通訊錄或定位讀取權限；此觀察不涵蓋 merged manifest、SDK 網路 IP 或 OS 行為。
@@ -81,6 +118,37 @@ TASK-200 補上 [unsigned CI inventory](../../clients/flutter_app/ios/README.md#
 目前 real client 未接 APNs／FCM 真實推播或 crash upload provider；後端 fake device-registration foundation 不等於
 candidate 收集真實推播 token。未發現第一方廣告／資料出售程式路徑，不據此保證所有 SDK、營運契約或 tracking 均為否。
 雲端 request logs、IP／User-Agent、資料庫備份、存取人員、region／跨境處理與處理者契約仍為 UNKNOWN；未查正式資料。
+
+### 第一方 manifest 決策紀錄（TASK-201，尚不打包）
+
+Source baseline：`974ff5ad195057e49c3facd776948990a9c391c2`；本task不改App或SDK行為。
+以下是供下一次candidate核對的候選分類，**不是核准問卷或可直接產生plist的規格**。
+分類依[Apple data types](https://developer.apple.com/documentation/bundleresources/app-privacy-configuration/nsprivacycollecteddatatypes/nsprivacycollecteddatatype)
+及[第一方／SDK資料宣告界線](https://developer.apple.com/documentation/bundleresources/describing-data-use-in-privacy-manifests)
+於2026-09-17查閱；下列Apple enum省略共同前綴`NSPrivacyCollectedDataType`。
+
+| Source事實／精確入口 | 候選分類與linked線索 | 尚缺的宣告依據 |
+| --- | --- | --- |
+| S1登入exchange → S2 `AuthIdentityRecord.provider_subject`／Person；S3 `Native*Login`傳ID token | UserID；持久關聯帳號，不能寫unlinked／匿名 | exact candidate provider／token額外claims的保留與營運用途；不能宣稱只傳ID |
+| S1 `update_profile` → S2 `PersonRecord.display_name` | Name或UserID，取決於使用者實際填姓名或暱稱；與Person關聯 | 公開版欄位語意、既有資料來源；不能由允許自由文字斷言只收姓名 |
+| S3 login/refresh的installation ID → S2 `MobileSessionRecord.installation_id_hash`與Person | DeviceID候選（安裝識別不是硬體ID）；hash可關聯，不是匿名化 | Apple裝置層分類與安裝生命週期、實際保留/用途核對 |
+| S1出席／Event回覆與identity review `append` → S2持久紀錄 | OtherUserContent候選；review訊息另需評估CustomerSupport，均可關聯Person／identity | 依公開版功能區分隊務內容與客服內容；不能把所有文字當Email或訊息服務 |
+| S1 notification read／操作稽核 | ProductInteraction或OtherUsageData候選，來源linked | 逐端點用途與保留；業務操作不自動等於分析追蹤 |
+| S4 anonymous crash queue與S3 SecureStore偏好 | 本機診斷／偏好，第一方source無上傳sink | 不因此豁免SDK、OS或雲端另有的收集；新增上傳時重開分類 |
+
+Required-reason API檢查：Runner內`AppDelegate`／`SceneDelegate`／`AppleAuthorizationBridge`
+未找到第一方直接呼叫UserDefaults、file timestamp、disk capacity、system uptime或active keyboard
+API；Dart的`DateTime.now()`不是看到「時間」就能填入SystemBootTime reason的依據。
+`SecureStore`經Darwin plugin呼叫Keychain，不等同第一方直接UserDefaults。
+此為**有限source檢查**，不是對Dart VM、編譯結果、所有轉遞SDK或runtime call graph的證明。
+Flutter及SDK自己的reasons須各自保留，不能把vendor-only理由照抄到App以消除root缺席。
+依[Apple required-reason規則](https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api)，
+真正新增第一方相關API時必須把exact API、用途、有效reason與打包證據一起review。
+
+結論：root manifest缺席是未收斂事項，不是自動拒審證明，也不是「不用manifest」的結論。
+暫不加入空白或`tracking=false`／no-collection占位plist。下一步由Owner確認第6節的責任主體、
+實際用途／無廣告追蹤承諾、公開版功能與資料處理政策；工程端再核對runtime／第三方／雲端事實，
+獨立review後才新增App宣告與Xcode resource membership測試。未知資訊不能靠Owner一個「同意」變成技術證據。
 
 ## 4. 不可直接套用的商店答案
 
@@ -137,4 +205,5 @@ Sign in with Apple 的 token 撤銷是另項履行要求。
 | 發行政策 | 首版能力、適用地區／年齡、資料權利與依據、廣告／出售承諾、政策版本及變更通知；均不由這份技術盤點定案 |
 | 驗收與發布 | Main／獨立 review、exact candidate questionnaire 對照與正式頁可達性；本草稿不授權 store 填寫或網站發布 |
 
-上文所有官方連結查閱日期均為 2026-09-16。平台規則提交前仍須重新核對；本輪只交 source facts 與未發布草稿。
+TASK-199原始官方連結查閱日期為2026-09-16；TASK-201新增來源為2026-09-17，詳見各段。
+平台規則提交前仍須重新核對；本輪只交source facts與未發布草稿。

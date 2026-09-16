@@ -1,24 +1,33 @@
 # 專案狀態
 
-更新時間：2026-09-16（TASK-199 已交付；TASK-200 source ACCEPT，公開推送待確認）
+更新時間：2026-09-17（TASK-201 source已ACCEPT待整合；TASK-200 PR268已交付）
 
 維護角色：Main Work。當前 task／下一 actor 只看 [HANDOFF.yaml](HANDOFF.yaml)。
-Git 基準 main：`a8b10c3e9804dc89eb0459917580c02405d3dec3`（PR267）。
+Git 基準 main：`974ff5ad195057e49c3facd776948990a9c391c2`（PR268）。
 工作 branch／dirty state 必須由 Git 即時核對，不由本文件推定已整合。
 
 ## Current work and authority
 
+- [TASK-201](tasks/TASK-201.md)：Owner要求繼續至需介入；Main核對native privacy resource／package
+  exact-name對照及App第一方宣告依據。保持未知與政策決策邊界；不自行新增不實manifest或商店答案。
+  Main claim `task-201-main-20260917` lease1；advisor `/root/privacy_foundation`
+  claim `task-201-privacy-review` lease2已主動回報source ACCEPT；lease1設計ACCEPT亦已收到。
+  本機95tests為93PASS／2WindowsSKIP；獨立64tests為62PASS／2WindowsSKIP，尚無本task hosted證據。
 - [TASK-200](tasks/TASK-200.md)：Owner要求接著做，Main補上既有unsigned fictional iOS CI成品的
   privacy manifest／native dependency盤點。獨立設計ACCEPT後實作與隔離測試，不另造release controller、
   不再簽署／上傳、不讀private artifact、不猜商店答案。正常source review／CI／單一PR沿用standing authority。
-  Source0832b7110b390dac444b759e6b04b1c631703e02已ACCEPT、fourhashes綁定。公開push在執行前被auto-review
-  攔下，要求Owner明確確認本次15檔可公開；未push／建PR／跑hostedCI，不能宣稱已有native artifact證據。
+  Source0832b7110b390dac444b759e6b04b1c631703e02已ACCEPT、fourhashes綁定。公開push曾在執行前被auto-review
+  攔下；Owner2026-09-17明確確認15檔payload139e4cda32b3203050b7f3891fbb00785694b518可公開，
+  PR268/run35126415121及main/run35127733708各16PASS，local main已同步且tree一致，task交付完成。
+  真實unsigned CI盤點13份manifest、root缺席、7個未知alias，兩個SPM lock一致、各2個未知identity；
+  GoogleSignIn9.2.0／LINE5.17.0等7個原生版本已取得，不等於signed build2、SDK完整coverage或合規。
+  PR／main盤點摘要相同，Mac直接21項inventory測試全通過。六份Main-owned收尾／證據文件留本機待下次實質PR。
 - [TASK-199](tasks/TASK-199.md)：Owner 已批准四小時帳號基礎包，包含刪除**申請**、
   session/logout 競態回歸、隱私／SDK 事實與草稿、錯誤校名修正及狀態文件收斂。
   Source已獨立ACCEPT，本機Flutter395PASS／analyze無問題。Owner明確確認本次45檔公開
   payload後推送成功；PR267/run35103422322全部16PASS（含hosted15/16）後已合併。
   合併tree與PR相同；main/run35104479236也全部16PASS，本包source交付完成且本機main已同步。
-  未部署，不凍結 Flutter UX 或首版範圍。五份Main-owned本機closeout文件併入TASK200實質PR。
+  未部署，不凍結 Flutter UX 或首版範圍。五份Main-owned closeout文件已隨TASK200實質PR合併。
 - 本包不執行 deployment／migration、簽署／上傳／商店操作、真實刪除、provider／Secret／金鑰變動，
   也不碰正式資料。允許 source、離線／隔離假資料測試、唯讀查證與正常獨立 review／CI／PR／merge。
   既有 aggregate USD20 上限不重置；未知成本或私人輸入停止該 lane，不阻塞其他離線工作。
@@ -34,7 +43,7 @@ Git 基準 main：`a8b10c3e9804dc89eb0459917580c02405d3dec3`（PR267）。
 | `domain-work:flutter` | `01a01212-72dc-7132-b2d7-dfaa2f97f184` | `flutter-domain-20260821` | 2 | active |
 
 TASK-199 Main claim `task-199-main-20260916` lease1已完成並釋放；全域Main角色不變。
-TASK-200 Main claim `task-200-main-20260916` lease1 active；review packet見task。
+TASK-200 Main claim `task-200-main-20260916` lease1及advisor lease2完成並釋放；全域Main不變。
 Writer／reviewer 的 task claim、owned paths、完成與撤回看 active task；未派任者 read-only。
 輪替、ACK／heartbeat／主動完工通知依 [COLLABORATION](COLLABORATION.md) 第2節。
 
@@ -113,7 +122,8 @@ Writer／reviewer 的 task claim、owned paths、完成與撤回看 active task�
 ## Remaining release gates and decisions
 
 - iOS：Apple backend/config及真機provider/logout驗收；正式privacy/support URL、資料保留／刪除履行、
-  SDK/archive privacy manifests與商店揭露；公開候選與production backend/provider尚待獨立決策。
+  第一方privacy宣告、SDK未知對照、signed candidate／Xcode privacy report與商店揭露；
+  TASK200只有unsigned CI盤點。公開候選與production backend/provider尚待獨立決策。
 - Android：Play app NTUBTOB／tw.org.ntubtob.portal已建立；尚未有真實Closed Testing AAB上傳、
   signing/store/device完整證據。維持API36、android-closed＋staging:real的source邊界。
 - 不因Owner尚未決定Flutter UX便擅自凍結、重設計或刪減首版；功能與體驗清單另待Owner回來確認。

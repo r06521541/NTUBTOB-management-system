@@ -1,28 +1,17 @@
-active_task: TASK-200
-status: awaiting_owner_approval
-next_actor: owner
-claim_id: task-200-main-20260916
-lease_version: 1
-actor_id: /root
-base_commit: a8b10c3e9804dc89eb0459917580c02405d3dec3
+active_task: TASK-201
+status: in_progress
+next_actor: main-work
+base_commit: 974ff5ad195057e49c3facd776948990a9c391c2
 updated_by: main-work
-updated_at: 2026-09-16
+updated_at: 2026-09-17
 note: >
-  Owner requested immediate next work. Main owns TASK200 on
-  codex/task-200-ios-privacy-inventory: bounded offline evidence from existing
-  unsigned fictional iOS CI artifact, not a new release controller. Read-only
-  design/source advisor packet is in task. Preserve five TASK199 closeout docs.
-  No private assets, signing/upload/store actions, runtime/deployment/migration,
-  provider/Secret changes, policy invention or UX freeze. Source/isolated tests
-  and normal accepted repository integration only. Existing USD20 cap unchanged.
-  Independent source ACCEPT lease2 received; Main88PASS/2WindowsSKIP and reviewer
-  72PASS/2WindowsSKIP. All four frozen LF hashes match Git blobs in source commit
-  0832b7110b390dac444b759e6b04b1c631703e02. Public push was rejected before process
-  execution: auto-review requires Owner confirmation of this new15-file payload.
-  No external write, PR or hosted run occurred; no bypass/retry. Owner next
-  confirms public source/tests/CI/docs payload for the same repository, then
-  Main resumes normal PR/CI and merges only after success. No credential input.
+  Owner requests continuation until intervention. TASK201 attributes public
+  native package/resource names and bounds first-party privacy declarations.
+  Preserve six Main-owned TASK200 closeout files in this substantive delivery.
+  No runtime rollout, private material, signing/upload, store/Secret mutation
+  or policy commitment. Independent source ACCEPT received; two source hashes
+  recorded. Next normal commit/publication/CI, not a runtime release operation.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-200.md
-report: docs/coordination/reports/TASK-200.md
-review: docs/coordination/reviews/TASK-200.md
+task: docs/coordination/tasks/TASK-201.md
+report: docs/coordination/reports/TASK-201.md
+review: docs/coordination/reviews/TASK-201.md

@@ -36,7 +36,7 @@ Accepted LF SHA256 fingerprints, to bind against exact final Git blobs:
   456c1fc37783be77864c68ac54f9ccee010d7349e00286261670ec1bad11a3b3
 
 Main accepts this source delivery for normal final commit/PR/CI. No reviewer
-accepts their own implementation. Actual macOS app/resolved SDK evidence is
+accepts their own implementation. At source review, actual macOS app/resolved SDK evidence was
 pending the hosted unsigned job; private candidates and Apple runtime/compliance
 remain unverified. Quiescent CI input is not a hostile-filesystem snapshot.
 
@@ -44,3 +44,14 @@ Main bound all four accepted fingerprints to exact Git blobs in immutable
 source0832b7110b390dac444b759e6b04b1c631703e02. No source drift. Publication
 subsequently stopped before execution on an auto-review authorization gate;
 it is not a code finding and does not supply missing hosted artifact evidence.
+
+Owner subsequently approved exact public payload. PR268/run35126415121
+completed16PASS, including both isolated PostgreSQL versions and actual unsigned
+iOS archive/inventory. Main accepts the source integration and the report's
+bounded13-manifest/7-known-native-version evidence. Unknown aliases/identities,
+absent app-root manifest and runtime/legal limits remain findings, not hidden
+by successful CI. Merge974ff5ad195057e49c3facd776948990a9c391c2 has the exact
+accepted publication tree; main/run35127733708 also16PASS. Both actual unsigned
+inventory summary digests match, and main Mac inventory direct tests21PASS.
+This closes the bounded source/CI delivery, not signed-candidate/runtime or
+legal/store verification. No remaining actionable implementation finding.
