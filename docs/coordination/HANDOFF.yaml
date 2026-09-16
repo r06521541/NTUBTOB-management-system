@@ -1,28 +1,28 @@
-active_task: TASK-199
-status: in_progress
-next_actor: main-work
-claim_id: task-199-main-20260916
+active_task: TASK-200
+status: awaiting_owner_approval
+next_actor: owner
+claim_id: task-200-main-20260916
 lease_version: 1
 actor_id: /root
-base_commit: d83bd4b1e64bad119f780344fbde6d57c378f308
+base_commit: a8b10c3e9804dc89eb0459917580c02405d3dec3
 updated_by: main-work
 updated_at: 2026-09-16
 note: >
-  Owner approved the four-hour source-only account-foundation package. Main owns
-  codex/task-199-account-foundation and integrates deletion-request foundation,
-  session/logout race fixes, privacy facts/drafts and current-state reconciliation.
-  No deployment/migration/signing/upload/store action, true deletion, real data,
-  provider/key/Secret changes or UI/release-scope freeze. USD20 aggregate cap is
-  not reset. Task records bounded writer/reviewer claims and acceptance evidence.
-  Cleanup/account-switch corrections now pass27 race cases; Main full Flutter
-  395PASS and analyze clean. Independent source ACCEPT bound to
-  fae9f094cca00864ee541e158f0c7d5b6c8745a5. Main next publishes the single ready PR,
-  watches required CI/hosted PostgreSQL15/16 and only merges after success.
-  TASK198 PR266 post-merge records travel with this substantive delivery.
-  Installed build2 and six accepted Owner smoke tests remain valid; no repeated
-  signing/upload/device request. Historical cleanup uncertainty and provider/
-  privacy release gates are preserved in TASK198 report and PROJECT_STATE.
+  Owner requested immediate next work. Main owns TASK200 on
+  codex/task-200-ios-privacy-inventory: bounded offline evidence from existing
+  unsigned fictional iOS CI artifact, not a new release controller. Read-only
+  design/source advisor packet is in task. Preserve five TASK199 closeout docs.
+  No private assets, signing/upload/store actions, runtime/deployment/migration,
+  provider/Secret changes, policy invention or UX freeze. Source/isolated tests
+  and normal accepted repository integration only. Existing USD20 cap unchanged.
+  Independent source ACCEPT lease2 received; Main88PASS/2WindowsSKIP and reviewer
+  72PASS/2WindowsSKIP. All four frozen LF hashes match Git blobs in source commit
+  0832b7110b390dac444b759e6b04b1c631703e02. Public push was rejected before process
+  execution: auto-review requires Owner confirmation of this new15-file payload.
+  No external write, PR or hosted run occurred; no bypass/retry. Owner next
+  confirms public source/tests/CI/docs payload for the same repository, then
+  Main resumes normal PR/CI and merges only after success. No credential input.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
-task: docs/coordination/tasks/TASK-199.md
-report: docs/coordination/reports/TASK-199.md
-review: docs/coordination/reviews/TASK-199.md
+task: docs/coordination/tasks/TASK-200.md
+report: docs/coordination/reports/TASK-200.md
+review: docs/coordination/reviews/TASK-200.md

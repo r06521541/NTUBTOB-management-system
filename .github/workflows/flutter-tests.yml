@@ -292,7 +292,7 @@ jobs:
         env:
           EXPECTED_COMMIT: ${{ github.sha }}
         run: |
-          python3 -m unittest tools.tests.test_ios_release_pipeline tools.tests.test_ios_candidate_inspector -v
+          python3 -m unittest tools.tests.test_ios_release_pipeline tools.tests.test_ios_candidate_inspector tools.tests.test_ios_privacy_inventory -v
           python3 -m unittest tools.tests.test_ios_native_signing -v
           python3 -m tools.ios_native_upload diagnose-sidefiles
           python3 -m tools.ios_release_pipeline rehearse \
@@ -347,6 +347,17 @@ jobs:
             exit 1
           fi
           printf '%s\n' 'UNSIGNED_FLUTTER_ARCHIVE_VERIFIED; signing_authorized=false; upload_authorized=false'
+
+      - name: Inventory packaged privacy declarations without policy claims
+        working-directory: .
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m tools.ios_privacy_inventory \
+            --source-commit "$(git rev-parse HEAD)" \
+            --app clients/flutter_app/build/ios/archive/Runner.xcarchive/Products/Applications/Runner.app \
+            --packages clients/flutter_app/ios/Runner.xcworkspace/xcshareddata/swiftpm/Package.resolved \
+            --packages clients/flutter_app/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
       - name: Remove fictional configuration even after archive failure
         if: always()

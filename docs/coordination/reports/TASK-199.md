@@ -1,8 +1,41 @@
 # TASK-199 account-foundation delivery report
 
-Status: source accepted; normal PR/hosted integration pending. No runtime rollout.
+Status: completed; PR267 merged, PR/main CI each16PASS. No runtime rollout.
 Accepted source: fae9f094cca00864ee541e158f0c7d5b6c8745a5.
 Base: d83bd4b1e64bad119f780344fbde6d57c378f308; branch codex/task-199-account-foundation.
+
+## Publication checkpoint
+
+Local publication HEAD: e590190a848819ce2e07bf0ecc1b453c2ed17ef8. Its delta from
+accepted source is five acceptance/status documents only. All45 changed paths
+are source, fictional tests or repository/release documents, not credentials,
+Secret payloads or real user records. Public destination is exactly
+https://github.com/r06521541/NTUBTOB-management-system.git.
+
+Auto-review rejected push before process execution for insufficient explicit
+authorization of this exact public payload. Main checked the unchanged base's
+DEC100 normal coordination/authority payload grant and the Owner's explicit
+standing all-branches/PR authority, then retried the same guarded push once with
+that evidence. It was rejected again. No alternate tool, destination or payload
+was used to bypass the decision; no external write occurred. Owner must confirm
+this exact public code/test/document payload before the next push attempt.
+
+Owner subsequently answered explicit approval of the exact45-file public
+payload, commit/destination, PR/CI and merge-after-success request. Main rechecked
+branch, HEAD, exact origin and unchanged remote main; guarded push succeeded.
+Single ready PR267/run35103422322 completed16PASS, including PostgreSQL15/16,
+Flutter Android/iOS gates and CI final gate. Fresh PR read confirmed exact head,
+unchanged base,16SUCCESS and CLEAN; guarded squash merge completed once without
+admin bypass. Merge commit a8b10c3e9804dc89eb0459917580c02405d3dec3 has the exact
+publication Git tree. Local main fast-forwarded without force/reset; owned
+status edits remain intact and await the next substantive PR. Post-merge
+main/run35104479236 also completed16PASS on the exact merge commit. Both
+`gh run watch ... --compact --interval 45 --exit-status` commands exited0;
+final structured run read confirmed completed/success,16jobs,no failures.
+No CI rerun or source correction was needed. Do not repeat signing, credentials,
+device smoke or unchanged local test suites. Five local closeout documents
+(HANDOFF,PROJECT_STATE,TASK199 task/report/review) are intentionally uncommitted;
+no direct-main commit or standalone status PR. Prior TASK198 records are merged.
 
 ## Behavior and boundaries
 
@@ -58,7 +91,8 @@ Apple backend or recreate existing signing/upload credentials.
   notify cron11PASS; LINE webhook26PASS; schedule update5PASS. Negative-path
   log lines are expected test fixtures, not live service requests.
 - Portal data370 tests:197PASS/173PostgreSQL SKIP. Docker daemon unavailable;
-  this is not PostgreSQL runtime proof. Hosted15/16 matrix still required.
+  this local run is not PostgreSQL runtime proof. PR hosted15/16 jobs subsequently
+  both passed, supplying the mandatory isolated database matrix evidence.
 - Client account/support/demo42PASS after state corrections. Added real-
   JSON-decoded impossible-date cases RED then GREEN; initial dynamic-map fixtures
   had rejected on map type rather than field value and were corrected.
@@ -68,7 +102,7 @@ Apple backend or recreate existing signing/upload credentials.
 - Main full `flutter test --no-pub --reporter expanded`:395PASS; full
   `flutter analyze --no-pub`:no issues. Independent final source ACCEPT, with
   27race/42client independent tests and backend fingerprints bound to exactSHA.
-  Hosted CI pending. Source documentation33local links valid, no missing targets.
+  PR/main hosted CI each16PASS. Source documentation33local links valid, no missing targets.
 
 ## Remaining product and rollout decisions
 
@@ -82,10 +116,10 @@ A future0013 rollout needs a compatibility-ready rollback build first; the old
 downgrade/re-upgrade is unsupported. Test-only cleanup is constrained to the
 isolated localhost named database. No migration/backfill/production write ran.
 
-External mutations: none so far. Local build/cache artifacts only; no signing,
+External mutations: authorized task branch push, PR267 creation/squash merge and normal CI only; no signing,
 upload, deployment, provider/Secret/store changes or device requests. No additional
 paid service and no reset of the existing USD20 cap. Git/PR/CI integration remains
-pending hosted integration; final source readiness and independent review passed.
+completed through PR integration and post-merge CI. Independent review passed.
 GitHub metadata confirms public repository/default main and unchanged base.
 Existing CI uses standard hosted runners, no signing/release environment or new
 service. [GitHub billing documentation](https://docs.github.com/en/billing/concepts/product-billing/github-actions)

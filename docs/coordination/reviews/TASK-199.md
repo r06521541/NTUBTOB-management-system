@@ -1,6 +1,6 @@
 # TASK-199 review record
 
-Final source verdict: ACCEPT; hosted PostgreSQL and required CI remain merge gates.
+Final delivery verdict: ACCEPT; hosted PostgreSQL15/16 and required CI passed.
 Accepted immutable source: fae9f094cca00864ee541e158f0c7d5b6c8745a5.
 Base: d83bd4b1e64bad119f780344fbde6d57c378f308.
 
@@ -55,7 +55,10 @@ no source/runtime/deletion/compliance conflation found. No new blocking finding.
 
 Main accepts this source delivery for the single normal ready PR after source
 and documentation self-review; source is unchanged by acceptance-record commits.
-PG15/16 migration/locking/RLS evidence remains required before merge. True device,
+PR267/run35103422322 and main/run35104479236 each16PASS, including the required
+PG15/16 migration/locking/RLS tests. Merge a8b10c3e9804dc89eb0459917580c02405d3dec3
+has the exact approved publication tree; Main verified local/remote main sync.
+This closes the source-delivery CI condition, not a runtime rollout gate. True device,
 OS storage failure/process crash behavior and provider SDK remain unverified;
 mocked durable markers are not a guarantee about arbitrary native storage failure.
 

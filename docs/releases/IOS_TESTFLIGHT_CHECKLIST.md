@@ -31,6 +31,10 @@ SDK／資料流／待核准文字見[MOBILE_PRIVACY_DRAFT.md](MOBILE_PRIVACY_DRA
 2026-09-16唯讀staging metadata確認四項Apple lifecycle設定名稱仍缺；未讀值、未查DB或改provider/runtime。
 不在後端未ready時要求Owner重做Apple實機測試。
 
+TASK200在既有unsigned CI archive補上packaged manifest與SPM解析版本盤點；
+[inventory contract](../../clients/flutter_app/ios/README.md#unsigned-ci-privacy-inventory-task-200)區分scan完成與內容finding。
+它不是build2／signed candidate隱私證據、Apple validator、Xcode privacy report或商店合規PASS。
+
 1. 保持bundle identity、iOS 15 minimum、staging／real／Release／testflight組合及version/build contract不漂移。
 2. 確認beta scope只使用隔離staging backend；不得填production endpoint或把TestFlight成功推論為production ready。
 3. 準備不含帳號資料的beta description、test notes、support/privacy/deletion入口與known limitations。
