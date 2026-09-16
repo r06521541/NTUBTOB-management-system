@@ -158,6 +158,14 @@ proof of linked code. Missing locks, unknown identities/versions and conflicts
 remain explicit. Raw paths, domains, URLs, identifiers, revision pins, plist
 contents and exception text are not emitted.
 
+TASK-201 adds exact public resource names and App Check/Google Interop identity
+hints; fixed-version upstream references and first-party declaration decisions
+are in the privacy draft below. Unknown components explicitly add
+`manifest:UNRECOGNIZED_COMPONENT`, even with a root manifest and valid locks.
+Generic `Resource.bundle` stays unknown, including inside a known framework;
+matching vendor manifest contents do not authenticate its origin. No vendor or
+application manifest is created/modified by this inventory tool.
+
 `INVENTORY_COMPLETE[_WITH_FINDINGS]` exits0: the bounded scan finished, not that
 declarations are correct. `STOP` exits2 with fixed stage/check/reason for unsafe
 paths, changed/unreadable files, or limits (50,000 entries, depth32, 256 manifests,

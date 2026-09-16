@@ -5,9 +5,15 @@ Base: a8b10c3e9804dc89eb0459917580c02405d3dec3.
 Branch: codex/task-200-ios-privacy-inventory.
 Main: /root; claim_id: task-200-main-20260916; lease_version: 1.
 
-Status: source accepted; public publication awaiting Owner confirmation after
-pre-execution auto-review rejection. Source commit:
-0832b7110b390dac444b759e6b04b1c631703e02. No push/PR/hosted run yet.
+Status: completed; explicit Owner approval received2026-09-17 for exact
+public15-file payload139e4cda32b3203050b7f3891fbb00785694b518. Guarded push
+succeeded and sole ready PR268 completed16PASS, merged as
+974ff5ad195057e49c3facd776948990a9c391c2; main/run35127733708 also16PASS.
+Accepted source commit:0832b7110b390dac444b759e6b04b1c631703e02.
+Both unsigned inventory summaries match; actual facts/findings are in report.
+Main task/advisor claims released. No runtime rollout or public-release claim.
+Six local closeout/evidence documents await the next substantive PR, not a
+direct-main commit or status-only PR.
 
 ## Outcome and authority
 
@@ -87,7 +93,9 @@ Main may append evidence records while source is frozen. Same report_to and
 stop/heartbeat/proactive completion protocol apply. No external writes by advisor.
 Lease2 completed with proactive ACCEPT, independent72PASS/2WindowsSKIP,
 quality/diffcheck PASS and four LF fingerprints in review. Main accepts the
-bounded source for final commit/normal PR; true packaged facts remain CI-pending.
+bounded source for final commit/normal PR; packaged facts were CI-pending at
+that source checkpoint. PR/main evidence now closes that bounded requirement,
+not the separate signed-candidate/runtime/privacy compliance gates.
 
 One substantive PR including prior closeout records; no status-only PR.
 Use existing classifier and standard hosted unsigned build, no paid/new runner.
