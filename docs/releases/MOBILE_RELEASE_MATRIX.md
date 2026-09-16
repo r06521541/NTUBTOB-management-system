@@ -1,7 +1,7 @@
 # Mobile release readiness matrix
 
-狀態日期：2026-08-31
-範圍：去識別化 repository contract；不包含 store、provider、signing、cloud、production 或真實裝置操作。
+狀態日期：2026-09-16
+範圍：去識別化 repository contract；已完成外部證據只引用TASK-198，不由本矩陣授權新操作。
 
 ## 使用方式與證據語意
 
@@ -26,7 +26,7 @@ TASK-170 的永久 Android package identity 已由 Owner 明定；其 exact cand
 | --- | --- | --- | --- |
 | Android Closed Testing | Basic-only；Officer／Admin、push、deep-link delivery、匿名 crash reporting可延至公開版 gate | API 36、release flavor/package/version、HTTPS real-client config、external signing injection與AAB inspection須由同一 TASK 的 Android lane及Main驗證 | Play Console track、tester access、Data Safety問卷與實機安裝仍是Owner-gated；repository通過不等於已上傳或可公開 |
 | Android public | Basic + 經產品核准的公開版能力 | Closed Testing gate全部重跑於exact public artifact；Officer／Admin若納入，須有server authorization與UI evidence | `blocked`：push、deep link、匿名 crash、production backend、公開metadata/privacy/deletion與公開實機matrix尚未完成 |
-| iOS TestFlight | staging／real client；只作隔離測試，不宣稱production | `staging:real + Release + testflight`、explicit version/build、非debug bundle identity、外部signing metadata及既有auth validator；hosted macOS另以no-codesign contract-test編譯iOS source／native Apple bridge；未來signed IPA可由離線inspector綁定SHA、metadata、codesign/profile/Apple entitlement，但目前repository marker仍先行阻擋actual mode | signed archive尚未產生，App Store Connect、TestFlight install與真機auth/session仍未驗證；provider capability、runtime binding及smoke仍為external gate，不可推論公開版或App Review readiness |
+| iOS TestFlight | staging／real client；只作隔離測試，不宣稱production | `staging:real + Release + testflight`、explicit version/build、非debug bundle identity、外部signing metadata及既有auth validator；native簽署候選與artifact-only evidence見TASK-198，default/public marker不變 | `1.0.0 (1)`本人安裝／Google與核心smoke、`1.0.0 (2)`本人更新進首頁已回報通過；Apple／LINE、logout／privacy及更廣device仍缺。兩次upload sidefile audit失敗與Owner限定剩餘風險接受並存，不推論完整清理或公開版readiness |
 | iOS public | production／real client；公開版必須提供Sign in with Apple | `production:real + Release + app-store`，且Apple runtime、entitlement、provider readiness與完整public gates全部通過 | `blocked/fail-closed`：repository marker仍為`not_implemented`；repository lifecycle foundation不等於provider、signing、deployment或App Review evidence，不得以review例外、private override或TestFlight結果繞過 |
 
 ## Compliance 與 release evidence matrix
@@ -48,7 +48,7 @@ TASK-170 的永久 Android package identity 已由 Owner 明定；其 exact cand
 
 ## 帳號刪除 contract
 
-App 的支援頁目前提供「帳號刪除申請」說明，要求使用既有球隊聯絡管道、先驗證申請人與範圍、不要傳送密碼或
+App 的支援頁目前提供「帳號刪除申請」說明；source已可從歡迎／登入前及離線首頁進入，尚未部署到build2。說明要求使用既有球隊聯絡管道、先驗證申請人與範圍、不要傳送密碼或
 權杖，並明示登出不等於刪除。這是必要 UX，但不是完整 store compliance 證據，也不表示後端資料已刪除。
 
 公開 release 前必須由獨立工作包確認：

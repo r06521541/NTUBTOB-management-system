@@ -823,7 +823,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         home: _onboardingComplete == false
             ? OnboardingPage(onComplete: _completeOnboarding)
             : Scaffold(
-                appBar: AppBar(title: const Text('隊務系統')),
+                appBar: AppBar(
+                  title: const Text('隊務系統'),
+                  actions: const [SupportAppInfoAction()],
+                ),
                 body: DebugCacheSessionComposition(
                   aggregate: cacheSessionAggregate,
                   diagnosticEnabled: widget.diagnosticEnabled,

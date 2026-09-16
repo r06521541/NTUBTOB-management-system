@@ -1,4 +1,198 @@
-## Active delivery: secret-free native sidefile diagnostics (2026-09-15)
+## Current slice: support access and acceptance reconciliation (2026-09-16)
+
+PUBLICATION APPROVED: Owner explicitly replied Yes to publishing the disclosed
+eight-document deidentified collaboration/acceptance payload with this source
+to the existing public GitHub repository. The following stop is resolved; resume
+same branch commit/push, one PR, required CI and merge. No signing/upload/deploy.
+
+PUBLICATION STOP after local integration: auto-review rejected push before any
+command execution because eight new coordination/release document deltas need
+explicit public-content approval. Headcc8e40fb43efcccb741b93a22d84311a116f0876
+retained locally; no push/PR/hosted run. Owner is asked to approve this exact
+deidentified task/collaboration/test/build/run/audit-limit payload to public
+r06521541/NTUBTOB-management-system together with accepted source. This is not
+new secret/signing/provider authority. Do not split or retry around rejection.
+
+Owner requested continue after accepting the build2 update. Main /root retains
+task-198-main-20260911 lease1 on codex/task-198-support-access;
+base/head before edits283c9c9e3de8f395728851d28039a7b2c46a1f24. Preserve four
+Main-owned coordination deltas; no other initial dirty files.
+
+1. Outcome: make existing static help reachable before login and from onboarding;
+   reconcile outdated release checklists with accepted Owner-only build evidence.
+2. Owned source: clients/flutter_app/lib/{basic_app,local_preferences,support_app_info}.dart,
+   test/{support_app_info,basic_app}_test.dart; three iOS/mobile release checklists
+   and this task's existing coordination records. L1 presentation only.
+3. Invariants: no new network, auth/session/cache mutation, provider/config change,
+   invented privacy URL or deletion capability; public readiness stays blocked.
+4. Tests: regressions must fail on missing entry/copy, then focused widget tests,
+   analyze/format, independent read-only acceptance and required hosted gates.
+5. Stops: no build3, signing/upload, new device action or runtime change this slice.
+   Apple backend and remaining device/provider/deletion evidence remain separate.
+
+Read-only acceptance packet (COLLABORATION2 protocol applies):
+task=TASK-198; branch=codex/task-198-support-access;
+base=283c9c9e3de8f395728851d28039a7b2c46a1f24;
+head=dae442aaa0c1909e431eafbfd9b0aa3ee4e66694;
+actor_id=/root/native_upload_review; role=advisor;
+claim_id=task-198-native-upload-review; lease_version=12;
+scope=independent L1 support-entry navigation, static copy and five-file source review;
+owned_paths=none; write=read-only; report_to=/root;
+stop_conditions=source drift, auth/provider/data mutation, private material or external writes.
+Prior lease11 complete; do not repeat infrastructure review. ACK received/executing,
+heartbeat10-15min/blocker immediately, proactively send SHA/tests/findings/limits/
+external mutations to /root. Main concurrently reconciles release documentation,
+then tracks and handles this exact report before integration.
+
+## Owner-authorized next and subsequent internal versions (2026-09-16)
+
+Latest UI verification: after Owner's Done on the prepared Add handoff, Main
+directly observed1.0.0(2) Testing within existing internal group
+7ba7ebc0-3c80-40f3-b0bc-f8364759780e. Exact build detail lists one group only,
+NTUBTOB Owner Internal, one tester, and zero individual testers. Compliance and
+sole-Owner distribution complete; Owner performed Add, Main navigation/read only.
+No new testers, public release, retry or source changes. Browser retained.
+Device packet completed: Owner explicitly answered Yes, entered home to the
+question confirming TestFlight update to1.0.0(2) and normal home entry. Record
+Owner-reported exact-version update-to-home PASS, not independent device telemetry,
+proof of no reauthentication, all-provider behavior or reproduction of the503 fix.
+This bounded build2 distribution/update slice is accepted with the already accepted
+sidefile residual risk. No further Owner action, repeated build1 six-step smoke,
+key input or rebuild for this slice. Full IOS-TF-01 remains distinct: prior provider,
+logout/privacy and broader device coverage gaps still require Main reconciliation;
+do not declare public-release readiness or silently start unrelated rollout.
+
+Owner disposition resolved: explicit Yes accepts this run35048625677's remaining
+Logs/Caches content/cause uncertainty and permits continuing existing1.0.0(2)
+solely for Owner internal testing. Preserve original failed audit and scoped
+cleanup facts; no whole-VM absence or blanket waiver of future errors. Do not
+repeat this same risk question. Owner next reported export-compliance completion;
+Main verifies its visible state and current sole-Owner membership before handing
+off distribution/device installation. No resubmit/build3/new key/tester/public scope.
+
+Current run result: run35048625677/job104643922506 terminal failure, watch exit1.
+Apple reconciliation completed: Main refreshed the existing App TestFlight list
+and directly observed build1.0.0(2) upload status Completed, then followed its
+observed detail link c23f8d44-6de8-494f-aea9-89e8aaa99dd3. Build list states Missing
+Compliance; detail Groups(0), no individual tester listed. No assignment/declaration
+or other external mutation; browser tab retained for Owner. Next exact Owner
+decision accepts or declines this run's newly observed sidefile residual risk;
+Owner also must confirm export compliance before any permitted Owner-only
+distribution/device update. Do not create build3 to retry, rotate or retype keys.
+Exact SHA/run/attempt/job bindings verified before memory-only JSON extraction;
+unique signing/upload/cleanup records, <=8KiB records and <=1MiB captured log,
+only fixed classifications/booleans/error codes/anonymous counts projected.
+SIGNED_COPY_READY, signature and signing cleanup true, no signing failure.
+Upload attempted=true, observed_exit=0, process_stopped=true, primary failure=null;
+secondary native_sidefiles/EXTERNAL_METADATA_CHANGED. Both observed roots PRESENT:
+Logs added1/removed0/modified0; Caches added4/removed0/modified2. Causes/content and
+whole-VM absence remain unverified. Combined owned_cleanup_verified=false remains;
+independent final audits are OWNED_PATHS_ABSENT (upload) and ABSENT (signing),
+artifacts0. No rerun or new private input. This is a new STOP, not a cleared audit.
+Main browser recovered and, after Owner login, exact existing App6809551355 shows
+1.0.0(2) Processing at Sep16 10:45 Taipei. Apple receipt now independently observed;
+processing and no assignment subsequently observed as above; device not verified.
+Read-only reconciliation finished. Exact Owner disposition of this run's
+remaining sidefile uncertainty is required before any distribution/new mutation;
+prior historical-risk consent did not waive newly failed audits.
+
+Owner completed manual dispatch/Environment approval: Main GET confirmed
+run35048625677, job104643922506, exact main SHA below, workflow_dispatch attempt1,
+title iOS signing1.0.0(2), standard macos-15. Configuration and native CLI probe
+steps passed; Main watches this exact active run, without dispatch/retry/private
+input. Signing/upload/cleanup and Apple processing are not yet verified.
+
+Owner: "好 後續的版本我也都同意" in direct response to the proposed1.0.0(2)
+operation and disclosed historical sidefile uncertainty. This accepts that known
+residual uncertainty for build2 and later reviewed versions within the same
+IOS-TF-01 boundary until revoked; do not request the same verbal approval per
+version. It does not assert the old run was clean or waive new failures/unknowns.
+Scope: existing native workflow/assets/App/bundle/staging, Owner-only internal
+TestFlight and original aggregate USD20 cap. No new testers/public/production,
+key rotation/custody expansion or paid resources; no automatic release on every
+commit. Source review/CI, fresh target/config/ASC/protection/cost checks and each
+protected Environment approval remain. Never blind retry/reuse a build number.
+
+Current execution checkpoint:
+1. Outcome: prepare one real1.0.0(2) signing/upload using approved main
+   283c9c9e3de8f395728851d28039a7b2c46a1f24 and persistent four Secrets, no re-entry.
+2. Scope: existing reviewed ios-native-signing.yml/native uploader; no source or
+   workflow change. Main preserves four post-merge coordination deltas.
+3. Invariants: per-run gates/no auto-access/one-shot, changed/failed audit STOP,
+   preserve CLI effects and read-only reconcile; no historical absence claims.
+4. Evidence: existing source ACCEPT and both CI16/16 reused unchanged; fresh
+   repository/Environment/Secret-name/runtime metadata now, exact Apple build and
+   group GET checks before upload in the reviewed workflow. Build2 not yet proved free.
+5. Operator=owner for manual workflow dispatch and Environment approval;
+   Main=read-only preflight/monitor. Standing_authorization=IOS-TF-01 plus this
+   version-continuation consent; report_to=/root. Stop only on missing private
+   platform access/approval, target/source/policy drift, duplicate/uncertain build,
+   budget uncertainty, native failure or new scope. No new controller or workaround.
+
+Fresh Main read-only preflight completed (2026-09-16): local/remote main equals the
+exact SHA above; repository public; Environment bypass disabled, main-only policy,
+one Owner reviewer with self-review allowed; exactly four stored Secret names.
+Five nonsecret Variables pass the existing validate_metadata helper and all
+updated_at values precede the installed build's run start. Exact configured API
+URL matches Cloud Run mobile-api-staging in ntubtob-mobile-staging/asia-east1;
+Ready, latest-created/latest-ready and 100% traffic agree on
+mobile-api-staging-task157-47ccfb5f. One active gcloud identity was observed; no
+global account/project configuration changed. Both native and retired workflow
+inventories are complete with no active runs; retired transfer Secret count is 0.
+No private payload read, no signing/upload/dispatch or cloud mutation attempted.
+Public standard macos-15 compute remains free under current GitHub billing docs;
+no larger runner, artifact/cache export or paid-resource change; aggregate USD20
+cap unchanged. This is not a claim about unrelated account charges.
+
+Next exact manual packet: operator=owner; target=existing ios-native-signing.yml;
+owner_gate=manual dispatch and protected Environment approval; report_to=/root;
+authorization=IOS-TF-01 plus the standing version consent above. Select main,
+approved_sha=283c9c9e3de8f395728851d28039a7b2c46a1f24, version=1.0.0,
+build_number=2, upload_to_testflight=true. Click Run workflow once, then approve
+ios-native-signing. Do not change ASC group settings concurrently or use Re-run.
+No repeated saved input. Main binds and monitors the new run after Owner dispatch.
+ASC availability/group GET guards remain in the reviewed runner before upload;
+no fresh Apple read was obtained here, so build2 availability is not claimed.
+Browser inspection failed at tool initialization (missing kernel asset path),
+before any tab state, login, click or Apple request; not a signing/provider failure.
+Four Main-owned coordination deltas remain local for the next substantive delivery;
+no main commit or status-only PR. Historical recommendations below are superseded
+by the newer consent and packet, not by an assertion of historical cleanup.
+
+## Diagnostic delivery integrated; previous upload gate (2026-09-16)
+
+PR265 merged283c9c9e3de8f395728851d28039a7b2c46a1f24 after full CI34998337467
+SUCCESS16/16, watch exit0 and fresh exact head/base checks. PR head
+8f34a9878772ddf2a1ee2698d643d012759e647e contains the accepted source unchanged.
+Local main fast-forwarded and complete tree equals that tested PR head.
+Automatic main CI34999512813 SUCCESS16/16; watch exit0 and fresh API confirmed exact
+merged SHA. Local/remote main agree; accepted source paths remain unchanged. Both
+CI runs terminal and no reviewer/watch remains. This diagnostic delivery complete,
+not overall IOS-TF-01/new binary acceptance.
+No new sign/upload/provider/Secret/device operation. Four post-merge coordination
+records will travel in the next substantive delivery, not another status-only PR.
+
+Actual no-key macOS job104480235333 completed: observer control Logs/Caches0/0/0;
+xcode_version Caches0/0/1; altool_location Caches0/0/1; altool_help Caches1/0/1
+(added/removed/modified). Logs stayed unchanged, both roots present throughout.
+Unique bounded diagnostic JSON was read in memory and only validated fixed fields
+projected, no raw logs/file names/content. CHANGED windows retain runtime STOP;
+diagnostic completeness is not release-clean. Counts are per interval, not distinct
+files across the run. Changes without explicit signing/upload keys show metadata
+drift is not itself key-remanence evidence; causality and old run contents remain
+unknown. Normal-HOME help is not private-HOME upload; no historical stop is cleared.
+Next Owner gate is the exact new-operation sidefile disposition,
+then fresh source/ASC/build-number/target/protection/cost checks and Environment
+approval. No password/key re-entry or repeat of already passed build1 smoke.
+
+Recommended next packet, awaiting Owner (not authorized by publication consent):
+accept the unresolved historical sidefile cause/contents for one new Owner-only
+1.0.0(2) real signing/upload operation within original IOS-TF-01/staging/USD20 bounds.
+Build2 is a proposed exact target, not checked availability; fresh preflight must
+reject an existing/uncertain number, never silently choose another or reuse build1.
+Reuse stored materials, no rotation/new testers/production/public release. Preserve
+new audit STOP, any failure/uncertainty requires read-only reconcile, not resubmit.
+Existing Environment approval remains. Owner should not retype saved keys/passwords.
 
 Publication approval (2026-09-16): Owner explicitly agreed to this batch's five
 coordination files (HANDOFF, PROJECT_STATE, this task/report/review) being public

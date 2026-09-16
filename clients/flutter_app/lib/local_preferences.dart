@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_theme.dart';
 import 'anonymous_crash.dart';
 import 'integration.dart';
+import 'support_app_info.dart';
 
 enum LocalThemePreference { system, light, dark }
 
@@ -216,6 +217,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(actions: [
+          const SupportAppInfoAction(),
           TextButton(
               key: const ValueKey('skip-onboarding'),
               onPressed: widget.onComplete,

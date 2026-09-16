@@ -1,11 +1,16 @@
 # 專案狀態
 
-更新時間：2026-09-16（Owner已批准本批五份協作文件公開；TASK198無金鑰診斷source驗收通過，Main接續單一PR／full CI／合併；新上傳仍另有關卡）
+更新時間：2026-09-16（支援入口source完成／獨立ACCEPT；Owner已同意新增8份去識別化作業紀錄公開，Main接續同一分支PR／CI整合，不簽署／上傳／部署；build2本人驗收仍有效）
 
 維護角色：Main Work
 
-目前 main 程式基準：`4630f922eb3f5bef2733f812cadfdbebca90bfee`（PR264）。
+目前 main 程式基準：`283c9c9e3de8f395728851d28039a7b2c46a1f24`（PR265）。
 目前branch/dirty state由Git核對，next actor以HANDOFF為準。
+
+Owner明確回覆「是」，接受run35048625677已披露的日誌／快取內容未明風險，允許既有1.0.0(2)僅本人內測；同一處置不再重問，不代表audit轉PASS、全機乾淨或未來新錯誤一律豁免。Owner另回報出口合規已完成，Main接續唯讀確認與本人群組範圍核對。
+Owner完成新增後，Main直接確認1.0.0(2)「正在測試」；精確build detail只有既有Owner Internal群組、成員1、獨立測試者0。Owner再明確回覆「有 進首頁了」，確認TestFlight更新到1.0.0(2)後正常進首頁，記為本人回報實機update-to-home PASS，非Main獨立遙測、免重登入或所有provider／503失敗路徑均已驗證。本輪更新交付通過，無待Owner操作；整體provider／logout／privacy／device剩餘驗收仍由Main盤點。不重做build1六項smoke、無新增人員／重傳／公開發布。
+
+保留run35048625677/job104643922506稽核事實：SIGNED_COPY_READY／signature／signing cleanup通過，native upload attempted=true／exit0／process stopped；primary null，但native_sidefiles/EXTERNAL_METADATA_CHANGED。Logs新增1、Caches新增4／修改2，內容及原因未查證。指定upload／signing清理audit各為OWNED_PATHS_ABSENT／ABSENT，artifacts0，不覆蓋整體cleanup=false或宣稱全機乾淨。後續Owner已接受本輪剩餘風險、完成合規與本人分發／更新如上；不重送build2、不另造build3試過關、不重填金鑰。Watch已結束。
 
 TASK198最新：PR261一次性設定已合併，CI34865517474成功16/16；native run34880271702真實簽署與清理通過。
 Owner認可GitHub標準native路徑與一次性persistent Secrets custody，DEC-110明列範圍／風險。
@@ -27,16 +32,17 @@ Owner後續截圖顯示登入頁有Apple／Google與圖示型LINE按鈕；UI顯�
 Owner完成單次Google帳號選擇／授權，App顯示「資料格式異常」；Main核對20:22的Google exchange為503。
 staging仍由mobile-api-staging-task157-47ccfb5f承接100%流量；DB readiness紀錄operational／none／tcp_ok。
 不帶token的單次/me GET同樣503／DB readiness不可用；不是已證明的schema mismatch或Google帳號拒絕。
-Google503誤導文案已合併PR264：嚴格契約且明確可重試才顯示恢復入口，不自動重送；196項本機測試、獨立ACCEPT與PR CI34976805878通過，尚未裝到手機。
+Google503誤導文案已合併PR264並隨build2更新到手機：嚴格契約且明確可重試才顯示恢復入口，不自動重送；196項本機測試、獨立ACCEPT與PR CI34976805878通過，真機未刻意重現503路徑。
 Owner已回報Supabase Resume完成；20:44唯讀/me已回預期401／BEARER_REQUIRED，該請求DB guard通過。
 Owner已回報Google登入後進首頁，記為本人實機login-to-home通過，非Main獨立裝置遙測或完整驗收。
 Owner也確認連網且未登出時完全關閉重開，可直接回首頁；記為session恢復通過，不推定無限有效期或token內部狀態。
 Owner確認斷網重開顯示離線唯讀，恢復網路再重開也能正常回首頁免登入；四項入口／連線smoke通過，非完整驗收。
 Owner也確認賽事詳情正常；不推定已驗完整快取、寫入阻擋或不重開時自動復原。
 Owner確認TASK198限定2035-02-01虛構對手甲／球場A的出席變更、重開保留、還原、再重開四步皆正確；回覆值已獲本人還原確認，不推定稽核／時間戳還原。
-六項smoke不用重做；PR264／main CI皆成功。新診斷source3b16f28a3c3cdc1471ba3fa6fb1f70e0f8bf617b本機133PASS3SKIP，lease11 ACCEPT；Owner已明確批准本批五份協作／驗收文件公開。下一棒Main完成單一PR與full CI；不解除原runtime STOP。
-不重送build1、不重填Secret；sidefile audit未解除，先前Owner例外僅允許已安裝build1續測。新build2須先取得該停止原因解除證據或新的明確Owner處置，再做fresh preflight。
-Main瀏覽器工具仍不可用；Missing Compliance UI阻礙已解除，但不代表法律審查。staging Apple登入仍缺，暫不測Apple。
+六項smoke不用重做；診斷本機133PASS3SKIP、lease11 ACCEPT，PR265已合併，PR CI34998337467／main CI34999512813皆16PASS。無金鑰version/find/help期間Caches仍變動，Logs未變；不等同金鑰殘留也不證明舊run乾淨。無待完成review/watch；最新剩餘風險處置已獲Owner批准。
+不重送build1、不重填Secret；Owner已同意build2及原IOS-TF-01範圍後續版本的歷史風險處置，不等於宣稱舊run乾淨。每版仍需fresh preflight／既有Environment核准；新失敗或不確定仍停止、不自動重試。
+目前source支援入口已接歡迎／登入前畫面，首頁離線仍可讀；本機111項測試與analyze通過，獨立lease12 ACCEPT／6項focused PASS；本機HEADcc8e40fb43efcccb741b93a22d84311a116f0876，push被拒且未執行，待Owner確認8份新紀錄公開。不需新key／build3／手機操作；正式privacy URL／刪除流程仍缺。
+Main瀏覽器已恢復；build2合規／本人分發／更新完成，不重跑。staging Apple登入後端仍缺四項設定群組與schema readiness的fresh核對；暫不要求Owner測Apple。其後另補logout／provider／privacy真機證據。
 
 ## Active role lanes
 

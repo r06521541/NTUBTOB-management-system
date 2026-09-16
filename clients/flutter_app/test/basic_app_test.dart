@@ -1247,50 +1247,56 @@ void main() {
     }
   });
 
-  testWidgets('support and app information is reachable without transport', (
-    tester,
-  ) async {
-    final api = await apiFor(QueueTransport(), MemoryStore());
-    await tester.pumpWidget(
-      MaterialApp(
-        home: BasicGamesView(
-          api: api,
-          person: const Person('person-id', '名稱', ['games:read']),
-          games: const [],
-          online: true,
-          lastSyncedAt: DateTime.utc(2026, 8, 20),
-          principalProvenance: PrincipalProvenance.freshServer,
+  for (final online in [true, false]) {
+    testWidgets(
+        'support and app information is reachable without transport, online=$online',
+        (
+      tester,
+    ) async {
+      final api = await apiFor(QueueTransport(), MemoryStore());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: BasicGamesView(
+            api: api,
+            person: const Person('person-id', '名稱', ['games:read']),
+            games: const [],
+            online: online,
+            lastSyncedAt: DateTime.utc(2026, 8, 20),
+            principalProvenance: online
+                ? PrincipalProvenance.freshServer
+                : PrincipalProvenance.offlineCache,
+          ),
         ),
-      ),
-    );
+      );
 
-    await tester.tap(find.byKey(const ValueKey('support-app-info-entry')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('support-app-info-entry')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('支援與 App 資訊'), findsOneWidget);
-    final versionRow = find.byKey(const ValueKey('app-version-metadata'));
-    final buildRow = find.byKey(const ValueKey('app-build-metadata'));
-    await tester.scrollUntilVisible(buildRow, 200);
-    expect(versionRow, findsOneWidget);
-    expect(buildRow, findsOneWidget);
-    expect(
-      find.descendant(of: versionRow, matching: find.text('App 版本')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: versionRow, matching: find.text('未提供')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: buildRow, matching: find.text('Build')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: buildRow, matching: find.text('未提供')),
-      findsOneWidget,
-    );
-    expect((api.session.api as QueueTransport).calls, isEmpty);
-  });
+      expect(find.text('支援與 App 資訊'), findsOneWidget);
+      final versionRow = find.byKey(const ValueKey('app-version-metadata'));
+      final buildRow = find.byKey(const ValueKey('app-build-metadata'));
+      await tester.scrollUntilVisible(buildRow, 200);
+      expect(versionRow, findsOneWidget);
+      expect(buildRow, findsOneWidget);
+      expect(
+        find.descendant(of: versionRow, matching: find.text('App 版本')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: versionRow, matching: find.text('未提供')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: buildRow, matching: find.text('Build')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: buildRow, matching: find.text('未提供')),
+        findsOneWidget,
+      );
+      expect((api.session.api as QueueTransport).calls, isEmpty);
+    });
+  }
 
   testWidgets('offline account status is read-only and non-authoritative', (
     tester,
