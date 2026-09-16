@@ -8,6 +8,21 @@ base_commit: 283c9c9e3de8f395728851d28039a7b2c46a1f24
 updated_by: main-work
 updated_at: 2026-09-16
 note: >
+  PUBLICATION APPROVED: Owner explicitly answered Yes after disclosure of this
+  eight-document task/collaboration/test/build/run/audit-limit public payload.
+  Resume existing branch commit/push, one reviewed PR, required CI and merge to
+  r06521541/NTUBTOB-management-system. This resolves the exact gate below; no
+  credentials, new signing/upload, deployment or device request authorized here.
+  PUBLICATION GATE: auto-review rejected push before command execution. Local
+  branch codex/task-198-support-access HEADcc8e40fb43efcccb741b93a22d84311a116f0876
+  retains accepted source and eight documentation deltas. No push/PR/hosted CI.
+  Required Owner decision: public disclosure of this new deidentified task,
+  test/build/run, collaboration and audit-limit record payload to the existing
+  public r06521541/NTUBTOB-management-system repository. No private key/password
+  payload; fixed-pattern scan is not proof of all-sensitive-data absence.
+  Do not bypass by splitting or alternate transport. Preserve local work.
+  On approval, commit these gate records on the same branch, then push/one PR/CI;
+  no new signing/upload/runtime/device action. Source remains lease12 ACCEPT.
   CURRENT SOURCE SLICE: codex/task-198-support-access, frozen source
   dae442aaa0c1909e431eafbfd9b0aa3ee4e66694. Static support now reachable before
   login and on onboarding; offline home preserved, no auth/session/provider change.

@@ -1,5 +1,18 @@
 ## Current slice: support access and acceptance reconciliation (2026-09-16)
 
+PUBLICATION APPROVED: Owner explicitly replied Yes to publishing the disclosed
+eight-document deidentified collaboration/acceptance payload with this source
+to the existing public GitHub repository. The following stop is resolved; resume
+same branch commit/push, one PR, required CI and merge. No signing/upload/deploy.
+
+PUBLICATION STOP after local integration: auto-review rejected push before any
+command execution because eight new coordination/release document deltas need
+explicit public-content approval. Headcc8e40fb43efcccb741b93a22d84311a116f0876
+retained locally; no push/PR/hosted run. Owner is asked to approve this exact
+deidentified task/collaboration/test/build/run/audit-limit payload to public
+r06521541/NTUBTOB-management-system together with accepted source. This is not
+new secret/signing/provider authority. Do not split or retry around rejection.
+
 Owner requested continue after accepting the build2 update. Main /root retains
 task-198-main-20260911 lease1 on codex/task-198-support-access;
 base/head before edits283c9c9e3de8f395728851d28039a7b2c46a1f24. Preserve four

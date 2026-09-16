@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-09-16（1.0.0(2)本人更新進首頁通過；Main接續補登入前支援入口與清單校準，source未部署，不等於全IOS-TF-01或公開上架驗收）
+更新時間：2026-09-16（支援入口source完成／獨立ACCEPT；Owner已同意新增8份去識別化作業紀錄公開，Main接續同一分支PR／CI整合，不簽署／上傳／部署；build2本人驗收仍有效）
 
 維護角色：Main Work
 
@@ -41,7 +41,7 @@ Owner也確認賽事詳情正常；不推定已驗完整快取、寫入阻擋或
 Owner確認TASK198限定2035-02-01虛構對手甲／球場A的出席變更、重開保留、還原、再重開四步皆正確；回覆值已獲本人還原確認，不推定稽核／時間戳還原。
 六項smoke不用重做；診斷本機133PASS3SKIP、lease11 ACCEPT，PR265已合併，PR CI34998337467／main CI34999512813皆16PASS。無金鑰version/find/help期間Caches仍變動，Logs未變；不等同金鑰殘留也不證明舊run乾淨。無待完成review/watch；最新剩餘風險處置已獲Owner批准。
 不重送build1、不重填Secret；Owner已同意build2及原IOS-TF-01範圍後續版本的歷史風險處置，不等於宣稱舊run乾淨。每版仍需fresh preflight／既有Environment核准；新失敗或不確定仍停止、不自動重試。
-目前source支援入口已接歡迎／登入前畫面，首頁離線仍可讀；本機111項測試與analyze通過，獨立lease12 ACCEPT／6項focused PASS，待hosted gate，不需新key／build3／手機操作。正式privacy URL／刪除流程仍缺，不以靜態說明冒充合規。
+目前source支援入口已接歡迎／登入前畫面，首頁離線仍可讀；本機111項測試與analyze通過，獨立lease12 ACCEPT／6項focused PASS；本機HEADcc8e40fb43efcccb741b93a22d84311a116f0876，push被拒且未執行，待Owner確認8份新紀錄公開。不需新key／build3／手機操作；正式privacy URL／刪除流程仍缺。
 Main瀏覽器已恢復；build2合規／本人分發／更新完成，不重跑。staging Apple登入後端仍缺四項設定群組與schema readiness的fresh核對；暫不要求Owner測Apple。其後另補logout／provider／privacy真機證據。
 
 ## Active role lanes

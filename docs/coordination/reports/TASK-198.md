@@ -2,6 +2,23 @@
 
 ## Support access and remaining acceptance (2026-09-16)
 
+Owner now explicitly approved publication after the eight-file content/risk and
+public destination were disclosed. Main resumes the same reviewed branch and
+normal PR/CI integration; no source revision or new runtime permission implied.
+Historical publication stop below is resolved, not bypassed.
+
+Integration stopped at publication approval, not source failure. Local final
+commitcc8e40fb43efcccb741b93a22d84311a116f0876 contains unchanged accepted source
+plus eight documentation deltas. Push command was rejected before execution by
+auto-review; no push/PR/CI and no workaround. Fresh read-only checks: clean tree
+before recording this gate; exact branch/HEAD; source unchanged since ACCEPT;
+git diff --check PASS. Exact-SHA classifier selects flutter only (plus quick/
+quality/final gates), not PostgreSQL or deployment tools. Fixed-pattern scan of
+added docs found no private-key header, obvious GitHub token or DB URL; this is
+not comprehensive secret/privacy proof. Owner decision is public disclosure of
+new internal coordination/technical acceptance details, not credential input.
+These four Main gate records stay local until that decision. All work retained.
+
 Base283c9c9e3de8f395728851d28039a7b2c46a1f24;
 branch codex/task-198-support-access; source
 dae442aaa0c1909e431eafbfd9b0aa3ee4e66694. Existing four Main coordination
