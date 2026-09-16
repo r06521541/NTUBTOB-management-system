@@ -39,3 +39,8 @@ Main accepts this source delivery for normal final commit/PR/CI. No reviewer
 accepts their own implementation. Actual macOS app/resolved SDK evidence is
 pending the hosted unsigned job; private candidates and Apple runtime/compliance
 remain unverified. Quiescent CI input is not a hostile-filesystem snapshot.
+
+Main bound all four accepted fingerprints to exact Git blobs in immutable
+source0832b7110b390dac444b759e6b04b1c631703e02. No source drift. Publication
+subsequently stopped before execution on an auto-review authorization gate;
+it is not a code finding and does not supply missing hosted artifact evidence.

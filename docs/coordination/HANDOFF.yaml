@@ -1,6 +1,6 @@
 active_task: TASK-200
-status: in_progress
-next_actor: main-work
+status: awaiting_owner_approval
+next_actor: owner
 claim_id: task-200-main-20260916
 lease_version: 1
 actor_id: /root
@@ -16,8 +16,12 @@ note: >
   provider/Secret changes, policy invention or UX freeze. Source/isolated tests
   and normal accepted repository integration only. Existing USD20 cap unchanged.
   Independent source ACCEPT lease2 received; Main88PASS/2WindowsSKIP and reviewer
-  72PASS/2WindowsSKIP. Main now binds source fingerprints to commit and proceeds
-  through the single normal PR/CI, then records actual unsigned artifact facts.
+  72PASS/2WindowsSKIP. All four frozen LF hashes match Git blobs in source commit
+  0832b7110b390dac444b759e6b04b1c631703e02. Public push was rejected before process
+  execution: auto-review requires Owner confirmation of this new15-file payload.
+  No external write, PR or hosted run occurred; no bypass/retry. Owner next
+  confirms public source/tests/CI/docs payload for the same repository, then
+  Main resumes normal PR/CI and merges only after success. No credential input.
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-200.md
 report: docs/coordination/reports/TASK-200.md

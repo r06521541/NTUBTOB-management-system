@@ -5,6 +5,10 @@ Base: a8b10c3e9804dc89eb0459917580c02405d3dec3.
 Branch: codex/task-200-ios-privacy-inventory.
 Main: /root; claim_id: task-200-main-20260916; lease_version: 1.
 
+Status: source accepted; public publication awaiting Owner confirmation after
+pre-execution auto-review rejection. Source commit:
+0832b7110b390dac444b759e6b04b1c631703e02. No push/PR/hosted run yet.
+
 ## Outcome and authority
 
 Owner requested the next useful work and immediate continuation. Main selects

@@ -1,6 +1,6 @@
 # 專案狀態
 
-更新時間：2026-09-16（TASK-199 已交付；TASK-200 unsigned iOS privacy inventory 進行中）
+更新時間：2026-09-16（TASK-199 已交付；TASK-200 source ACCEPT，公開推送待確認）
 
 維護角色：Main Work。當前 task／下一 actor 只看 [HANDOFF.yaml](HANDOFF.yaml)。
 Git 基準 main：`a8b10c3e9804dc89eb0459917580c02405d3dec3`（PR267）。
@@ -11,6 +11,8 @@ Git 基準 main：`a8b10c3e9804dc89eb0459917580c02405d3dec3`（PR267）。
 - [TASK-200](tasks/TASK-200.md)：Owner要求接著做，Main補上既有unsigned fictional iOS CI成品的
   privacy manifest／native dependency盤點。獨立設計ACCEPT後實作與隔離測試，不另造release controller、
   不再簽署／上傳、不讀private artifact、不猜商店答案。正常source review／CI／單一PR沿用standing authority。
+  Source0832b7110b390dac444b759e6b04b1c631703e02已ACCEPT、fourhashes綁定。公開push在執行前被auto-review
+  攔下，要求Owner明確確認本次15檔可公開；未push／建PR／跑hostedCI，不能宣稱已有native artifact證據。
 - [TASK-199](tasks/TASK-199.md)：Owner 已批准四小時帳號基礎包，包含刪除**申請**、
   session/logout 競態回歸、隱私／SDK 事實與草稿、錯誤校名修正及狀態文件收斂。
   Source已獨立ACCEPT，本機Flutter395PASS／analyze無問題。Owner明確確認本次45檔公開

@@ -1,6 +1,8 @@
 # TASK-200 report — unsigned iOS privacy evidence
 
-Base: a8b10c3e9804dc89eb0459917580c02405d3dec3; source/CI integration in progress.
+Base: a8b10c3e9804dc89eb0459917580c02405d3dec3.
+Accepted source:0832b7110b390dac444b759e6b04b1c631703e02.
+Status: source ready; public push awaiting Owner confirmation.
 
 ## Delta and interpretation
 
@@ -41,4 +43,25 @@ compliance or store-answer claim. Installed TestFlight1.0.0(2) is unchanged.
 
 Prior five TASK199 Main-owned closeout files are carried in this substantive
 delivery. No unrelated user changes overwritten. No external mutations yet in
-TASK200; only the local task branch exists. Existing aggregateUSD20 cap unchanged.
+TASK200; only the local task branch/commits exist. Existing aggregateUSD20 cap unchanged.
+
+## Publication gate
+
+Main verified all four accepted LF SHA256 fingerprints against exact Git blobs
+in0832b7110b390dac444b759e6b04b1c631703e02, non-main branch and clean tree.
+Read-only GitHub metadata confirms public destination
+https://github.com/r06521541/NTUBTOB-management-system.git and unchanged remote
+main a8b10c3e9804dc89eb0459917580c02405d3dec3.
+
+One guarded push request was rejected by auto-review before process execution:
+the existing standing authorization was not accepted as explicit confirmation
+of this new public payload. No push, PR or hosted run occurred. Main did not
+retry or substitute another tool/destination. No source/test defect was reported.
+
+Owner confirmation now requested for the exact15-file code/fictional-test/CI/
+native-release/coordination payload (including these acceptance/gate records)
+on the same branch/destination, then one normal PR/CI and merge after success.
+No private data, credentials, provider values, signing assets or signed artifacts
+are in this diff. Frozen implementation hashes remain unchanged. The subsequent
+five-file gate-record delta is documentation only; it does not claim CI success,
+new authority or a delivered native inventory result.
