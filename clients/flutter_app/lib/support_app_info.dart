@@ -22,6 +22,19 @@ class AppBuildMetadata {
   }
 }
 
+class SupportAppInfoAction extends StatelessWidget {
+  const SupportAppInfoAction({super.key});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        tooltip: '支援與 App 資訊',
+        icon: const Icon(Icons.help_outline),
+        onPressed: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const SupportAppInfoPage()),
+        ),
+      );
+}
+
 class SupportAppInfoPage extends StatelessWidget {
   const SupportAppInfoPage({
     super.key,
@@ -56,7 +69,7 @@ class SupportAppInfoPage extends StatelessWidget {
             const _InfoSection(
               title: '通知說明',
               body:
-                  '若你在裝置設定中允許通知，通知可用於提醒賽程、出席或隊務資訊；是否允許由你自行決定。本 App 內的通知中心仍可獨立查看通知，本頁不會要求或判斷裝置通知權限。',
+                  '目前版本不提供裝置推播；App 內的通知中心依帳號權限顯示可讀通知。開啟系統通知權限不代表已啟用推播，本頁不會要求或判斷裝置通知權限。目前版本也不會上傳當機報告。',
             ),
             const Divider(),
             ListTile(
