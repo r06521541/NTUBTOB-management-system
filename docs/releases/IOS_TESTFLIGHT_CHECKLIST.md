@@ -6,13 +6,14 @@ Team ID、App ID、certificate/profile識別值、private key、provider值、�
 
 ## 目前結論
 
-- iOS staging／real Release source已由hosted macOS/Xcode以`--no-codesign`編譯；這只證明source可編譯。
+- 截至2026-09-16，隔離staging／real／Basic候選已完成真實簽署、Apple接收及僅Owner內測分發；
+  Owner確認`1.0.0 (1)`安裝與六項核心smoke、`1.0.0 (2)`更新後進首頁。逐build證據與限制見
+  [`TASK-198 report`](../coordination/reports/TASK-198.md)，不以本清單取代exact artifact／run evidence。
 - `APPLE_SIGN_IN_REPOSITORY_STATUS`仍為`not_implemented`，default TestFlight inspection仍BLOCKED；明確
   `--artifact-only`只檢查既存IPA完整性，不授權upload／release，見`IOS_CLOUD_BUILD_RUNBOOK.md`。
-- Apple Developer membership與Account Holder access已由Owner-visible、去識別化分類確認。Owner後續已回報App ID/capability
-  及App Store Connect record建立，並回報既有加密P12與profile材料已備妥；presence不等於本次候選的有效性、配對、
-  custody或簽署驗證，不讀取材料以更新本清單，也不重建資源。signed IPA、
-  TestFlight upload/install及真機登入仍是外部gate。
+- 既有Apple資源與已保存的簽署／上傳Secrets不重建、不要求重填。Apple登入後端仍未備妥；LINE／Apple真機登入、
+  logout及更廣裝置情境仍未驗證。Google成功不替代其他provider證據。已上傳候選的sidefile audit仍失敗且內容未知；
+  Owner只接受各該run的本人內測剩餘風險，不代表完整清理PASS或未來錯誤豁免。
 - TestFlight文案與App Privacy repository事實已整理於
   [`IOS_APP_STORE_CONNECT_ANSWERS.md`](IOS_APP_STORE_CONNECT_ANSWERS.md)；公開privacy/support URL、App內完整帳號刪除、
   第三方SDK privacy、出口合規與年齡分級仍不可填PASS。
@@ -20,6 +21,8 @@ Team ID、App ID、certificate/profile識別值、private key、provider值、�
   Owner-only internal TestFlight，不需逐SHA再要求Owner phrase；遇task明列stop仍停止。本清單與inspector本身不執行upload。
 - fictional selection diagnostic成功不再被workflow刻意改成失敗；其真正nonzero仍失敗，且不證明real signing或public readiness。
   本次邊界調整沒有新增live signing/upload controller。
+- Repository支援入口已接到歡迎頁與登入前畫面，原有首頁入口仍支援離線；這是source/widget evidence，尚未進入已安裝的
+  build2。靜態資料使用與聯絡申請說明不是公開privacy policy、可執行帳號刪除或store compliance PASS。
 
 ## A. Mac／Xcode與Apple資源建立前可完成
 
@@ -83,6 +86,9 @@ IOS-TF-01的internal candidate使用明確artifact-only結果搭配下節scope/r
    未完成privacy／deletion或provider情境不得改填PASS，仍依task禁止真實資料刪除等邊界。
 
 ## E. TestFlight後的最小真機matrix
+
+下列是完整matrix，不是要求每輪全部重做。TASK-198已接受的Google登入、連網重開、離線標示、恢復連線後重開、
+賽事詳情與限定虛構出席修改／還原不重複；build2另有更新進首頁確認。只補未驗證或被新diff影響的slice。
 
 - install、cold start、upgrade與reinstall分類；
 - LINE／Google login、session refresh/logout及identity conflict/recovery；

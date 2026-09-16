@@ -1,8 +1,11 @@
 # iOS App Store Connect preparation
 
-狀態日期：2026-09-05。這是`NTUBTOB`第一個`staging + real + Basic-only` TestFlight candidate的repository
+狀態日期：2026-09-16。這是`NTUBTOB`的`staging + real + Basic-only` TestFlight candidate的repository
 準備契約，不是App Store Connect已填寫、Apple審核、signed archive或發布證據。Apple Console當下若出現不同問題，停止
 並依當下官方說明重新分類，不用舊答案硬填。
+
+已完成的真實簽署、本人TestFlight安裝／更新與Google核心smoke見[TASK-198 report](../coordination/reports/TASK-198.md)。
+下列manifest仍是準備契約，不是live進度表；不把`required`／`blocked`值當作重做已接受步驟的指令。
 
 ## 固定candidate範圍
 
@@ -51,15 +54,16 @@ App Store Connect當下對各資料類別的精確映射。三者未完成前不
 ## 現在必須保持BLOCKED的項目
 
 1. **公開URL與App內入口**：privacy policy與support URL尚未由公開、匿名可達的exact頁面證明；App內目前也沒有可點擊的
-   privacy policy入口。兩者是分開的gate，不得以補上一個公開URL推論App內已可達，也不得猜URL。
+   正式privacy policy入口。source已補歡迎／登入前的靜態支援與資料使用說明，尚未部署到build2；不等於公開policy或其連結，
+   也不猜URL。公開頁與App內正式policy入口仍是分開的gate。
 2. **帳號刪除**：App目前只提供聯絡管理員的文字說明。這不等於一般App可在App內直接啟動完整帳號刪除，故維持
    hard blocker；需要另立跨Flutter／Mobile API／data lifecycle工作包，定義確認、保留、稽核與重試語意。
 3. **年齡分級**：必須依App Store Connect當下questionnaire回答。Repository只證明本candidate沒有廣告、賭博、IAP、
    聊天或一般使用者公開內容；不可直接宣稱最終rating。
 4. **出口合規**：App使用HTTPS、Keychain／secure storage與nonce hashing。是否可宣告exempt及是否寫入
    `ITSAppUsesNonExemptEncryption`仍須依exact archive依賴與Owner法律責任確認，本task不修改`Info.plist`。
-5. **Apple與signing資源**：App ID、Sign in with Apple capability、distribution certificate/profile、App Store Connect
-   record、macOS/Xcode builder、signed IPA與TestFlight實機證據均未由repository建立或通過。
+5. **Apple登入runtime與公開版**：TASK-198已有native簽署、Apple處理及本人TestFlight證據，不重建既有資源；但staging Apple
+   後端設定與真機登入未完成，也未驗證公開版provider lifecycle。候選sidefile audit限制仍見原run紀錄，不改成PASS。
 6. **公開發行選項**：content rights、distribution regions、EU DSA status與商店screenshots仍需Owner依實際權利與發行
    地區確認；TestFlight準備不代替這些公開版決策。
 

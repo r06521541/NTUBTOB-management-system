@@ -1,5 +1,24 @@
 # TASK-198 review
 
+## Support access: frozen source ACCEPT (2026-09-16)
+
+Advisor /root/native_upload_review; task-198-native-upload-review lease12;
+read-only/owned none. Proactive ACK and completion received/handled by Main.
+Reviewed dae442aaa0c1909e431eafbfd9b0aa3ee4e66694 against
+283c9c9e3de8f395728851d28039a7b2c46a1f24 on codex/task-198-support-access.
+No actionable findings: shared static route under the MaterialApp Navigator,
+onboarding/back preserves completion/auth/store; offline homepage entry remains.
+No auth/session/provider/cache API change or invented URL/deletion capability.
+Current push/crash-upload disclaimer matches actual no-provider composition.
+
+Independent6 distinct focused tests PASS (support4 plus online/offline home2;
+one static test executed twice), five-path format zero changes/diff PASS.
+Initial SDK lock denial occurred before testing; same offline wrapper passed
+with SDK-cache permission. Main111 focused PASS plus analyze5 no issues.
+No reviewer edits/Git/runtime/private/remote mutations. This accepts L1 source,
+not new-device/store/privacy compliance, signing or provider readiness. Main
+separately reconciled release documentation; source unchanged after ACCEPT.
+
 ## Secret-free sidefile diagnostics: frozen source ACCEPT (2026-09-15)
 
 Advisor /root/native_upload_review, task-198-native-upload-review lease11,
