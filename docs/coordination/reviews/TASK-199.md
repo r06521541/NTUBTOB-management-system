@@ -1,6 +1,7 @@
 # TASK-199 review record
 
-Final verdict: PENDING immutable source acceptance and hosted PostgreSQL evidence.
+Final source verdict: ACCEPT; hosted PostgreSQL and required CI remain merge gates.
+Accepted immutable source: fae9f094cca00864ee541e158f0c7d5b6c8745a5.
 Base: d83bd4b1e64bad119f780344fbde6d57c378f308.
 
 ## Architecture
@@ -38,9 +39,26 @@ session_race_test.dart3ef1eb6b433ac9ee1031d39f948e524315b9dcefc55906c28a855bf217
   Flutter request client/UI/demo/tests only, not their own privacy/compatibility
   work; lease1 found uncertainty lost after GET failure and missing immediate
   settled receipt invalidation. Main accepted both and reproduced3RED cases;
-  corrected state/listeners now42focusedPASS, lease2 rereview in progress.
+  corrected state/listeners now42focusedPASS, lease2 ACCEPT.
   Main owns privacy draft acceptance as a draft only.
 
-No reviewer author accepts their own implementation. All source snapshots must
-bind to the final immutable commit before final acceptance; no runtime/provider/
+Client lease3 confirmed all four accepted LF hashes equal exact Git blobs in
+fae9f094cca00864ee541e158f0c7d5b6c8745a5, parent
+d83bd4b1e64bad119f780344fbde6d57c378f308, correct branch and clean tree. No new
+findings or repeated tests;42PASS evidence bound to that immutable source.
+Session/backend reviewer lease4 ACCEPT on the same exact commit. R1/R2 closed;
+27 independent race tests PASS. The25 backend LF fingerprints and3 corrected
+session/boot/test fingerprints match Git blobs. Queue reservation precedes
+synchronous generation notification; no network lock. Cold cleanup debt runs
+before HTTP and prevents credential publication on failure. Updated docs read:
+no source/runtime/deletion/compliance conflation found. No new blocking finding.
+
+Main accepts this source delivery for the single normal ready PR after source
+and documentation self-review; source is unchanged by acceptance-record commits.
+PG15/16 migration/locking/RLS evidence remains required before merge. True device,
+OS storage failure/process crash behavior and provider SDK remain unverified;
+mocked durable markers are not a guarantee about arbitrary native storage failure.
+
+No reviewer author accepts their own implementation. All accepted source snapshots
+bind to the immutable commit above; no runtime/provider/
 device/store/data-deletion claim follows from these reviews.

@@ -15,8 +15,9 @@ note: >
   provider/key/Secret changes or UI/release-scope freeze. USD20 aggregate cap is
   not reset. Task records bounded writer/reviewer claims and acceptance evidence.
   Cleanup/account-switch corrections now pass27 race cases; Main full Flutter
-  395PASS and analyze clean. Backend/client frozen source reviews accepted;
-  final immutable session review and hosted PostgreSQL matrix still required.
+  395PASS and analyze clean. Independent source ACCEPT bound to
+  fae9f094cca00864ee541e158f0c7d5b6c8745a5. Main next publishes the single ready PR,
+  watches required CI/hosted PostgreSQL15/16 and only merges after success.
   TASK198 PR266 post-merge records travel with this substantive delivery.
   Installed build2 and six accepted Owner smoke tests remain valid; no repeated
   signing/upload/device request. Historical cleanup uncertainty and provider/

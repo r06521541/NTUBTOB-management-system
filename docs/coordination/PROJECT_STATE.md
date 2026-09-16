@@ -10,7 +10,8 @@ Git 基準 main：`d83bd4b1e64bad119f780344fbde6d57c378f308`（PR266）。
 
 - [TASK-199](tasks/TASK-199.md)：Owner 已批准四小時帳號基礎包，包含刪除**申請**、
   session/logout 競態回歸、隱私／SDK 事實與草稿、錯誤校名修正及狀態文件收斂。
-  目前 source/test 整合中，尚未正式驗收或合併；不凍結 Flutter UX 或首版功能範圍。
+  Source已獨立ACCEPT，本機Flutter395PASS／analyze無問題；待單一PR與hosted15/16／CI整合，
+  尚未合併或部署。不凍結 Flutter UX 或首版功能範圍。
 - 本包不執行 deployment／migration、簽署／上傳／商店操作、真實刪除、provider／Secret／金鑰變動，
   也不碰正式資料。允許 source、離線／隔離假資料測試、唯讀查證與正常獨立 review／CI／PR／merge。
   既有 aggregate USD20 上限不重置；未知成本或私人輸入停止該 lane，不阻塞其他離線工作。

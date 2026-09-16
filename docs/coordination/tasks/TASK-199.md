@@ -258,3 +258,14 @@ the25 prior backend LF hashes to Git blobs. Read updated rollout/privacy/state
 docs for false claims, not as authority to operate. No source/Git/cloud/private
 writes; same ACK/heartbeat/proactive completion. Source ACCEPT remains conditional
 on mandatory hosted PG15/16 and normal CI for final merge, not runtime readiness.
+
+Client reviewer same actor/claim lease3 was a binding-only read-only continuation:
+all four lease2 hashes match immutable fae9f094cca00864ee541e158f0c7d5b6c8745a5;
+ACCEPT returned proactively with correct parent/branch and clean tree, no repeat
+tests. That claim is now complete/released. All current writers are frozen.
+
+Final account reviewer lease4 ACCEPT bound to the same exact source commit,
+R1/R2 closed and27 independent race tests PASS;25 backend hashes match. All
+delegated claims complete/released, no unattended writer. Main accepts source
+and proceeds to one ready PR/CI; merge remains conditional on hosted15/16 and
+required CI. Only evidence/status docs may change without source rereview.

@@ -1,6 +1,7 @@
 # TASK-199 account-foundation delivery report
 
-Status: implementation/integration in progress; no runtime rollout.
+Status: source accepted; normal PR/hosted integration pending. No runtime rollout.
+Accepted source: fae9f094cca00864ee541e158f0c7d5b6c8745a5.
 Base: d83bd4b1e64bad119f780344fbde6d57c378f308; branch codex/task-199-account-foundation.
 
 ## Behavior and boundaries
@@ -65,7 +66,9 @@ Apple backend or recreate existing signing/upload credentials.
 - Python quality24paths PASS. Phase C migration/evidence/readiness artifacts
   verify PASS; original controlled SQL/checksums unchanged.
 - Main full `flutter test --no-pub --reporter expanded`:395PASS; full
-  `flutter analyze --no-pub`:no issues. Final immutable review/hosted CI pending.
+  `flutter analyze --no-pub`:no issues. Independent final source ACCEPT, with
+  27race/42client independent tests and backend fingerprints bound to exactSHA.
+  Hosted CI pending. Source documentation33local links valid, no missing targets.
 
 ## Remaining product and rollout decisions
 
@@ -82,4 +85,9 @@ isolated localhost named database. No migration/backfill/production write ran.
 External mutations: none so far. Local build/cache artifacts only; no signing,
 upload, deployment, provider/Secret/store changes or device requests. No additional
 paid service and no reset of the existing USD20 cap. Git/PR/CI integration remains
-pending final source readiness and independent review.
+pending hosted integration; final source readiness and independent review passed.
+GitHub metadata confirms public repository/default main and unchanged base.
+Existing CI uses standard hosted runners, no signing/release environment or new
+service. [GitHub billing documentation](https://docs.github.com/en/billing/concepts/product-billing/github-actions)
+checked2026-09-16 states standard hosted runner usage in public repositories is
+free; no paid runner/service is selected and aggregateUSD20 is not reset.
