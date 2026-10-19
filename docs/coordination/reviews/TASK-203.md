@@ -2,6 +2,13 @@
 
 ## Publication and CI fixture source — 2026-10-19 ACCEPT
 
+Follow-up source review task203-ci-correction-review lease1 ACCEPT for exact current
+head20 verifier/metadata and explicit transaction mock; original guards unchanged.
+task203-flutter-clock-review lease1 ACCEPT for demo-only clock injection; real
+default now and controller ownership unchanged. Both completions handled/released.
+Main full Flutter527 PASS/analyze clean. PG full remains nongreen solely due to
+observed fixture cleanup timeout; hosted proof still required, not waived by review.
+
 Independent task203-publication-review lease1 ACCEPT received and released. Reviewed
 publication dependency closure, default-off construction, standard runner workflow,
 native empty-only0019/0020 fixture rewind and failure propagation. No runtime bypass,

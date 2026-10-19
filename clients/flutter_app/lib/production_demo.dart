@@ -358,6 +358,7 @@ class _ProductionDemoShellState extends State<ProductionDemoShell> {
                     games: games,
                     online: online,
                     lastSyncedAt: _lastSyncedAt,
+                    memberActionClock: () => _lastSyncedAt,
                     principalProvenance: online
                         ? PrincipalProvenance.freshServer
                         : PrincipalProvenance.offlineCache,

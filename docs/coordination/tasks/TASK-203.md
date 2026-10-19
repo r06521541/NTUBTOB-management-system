@@ -3,6 +3,16 @@
 ## Active integration and hosted CI — 2026-10-19
 
 Main task203-ci-integration lease1, /root; Owner explicitly resumed integration/CI.
+Flutter CI correction checkpoint: full527 tests exposed one deterministic failure
+in existing production-demo action scenario after fictional2026 dates elapsed.
+Main owns BasicGamesView/MemberActionHome optional clock seam, production_demo.dart
+fixed fictional clock and production_demo_test.dart regression only. Real default
+continues DateTime.now; no auth/API/cache policy change. Focused reproduction is RED;
+full Flutter tests/analyze and independent source review required before delivery.
+Advisor packet: task203-flutter-clock-review lease1; actor=/root/erasure_scope_review;
+role=advisor; owned_paths=none; report_to=/root; read-only; base=5d3efd0db9cff5209ff5b0fe4ac49e26c1c7c7fd;
+scope=three Flutter clock-seam source/test diffs; no mutation/DB/network/secrets.
+Immediate ACK, immediate blocker, proactive completion verdict/paths/limits to Main.
 2026-10-20 integration correction: Main owns tools/portal_data_phase_c_migration.py,
 tests/portal_data/test_postgres_constraints.py and test_persistent_admin_authority.py;
 actual head0020 discovery exposed four errors (two share the verifier head literal).

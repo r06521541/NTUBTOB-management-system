@@ -2,6 +2,24 @@
 
 ## Authenticated integration / CI in progress — 2026-10-19
 
+2026-10-20 corrected full PG16 discovery1120/406.324s: original four errors resolved,
+but one FreshErasureDatabases DROP exceeded existing5s statement_timeout, reported
+as test+tearDownClass errors(two); two skips remain. Server log confirms timeout,
+not a product assertion. Exact generated database retained with current owner and
+zero connections; Main one-shot manual cleanup15s succeeded, no FORCE or base drop.
+Do not report this full run green; no fixture timeout/guard policy changed.
+Full Flutter initially526pass/one failure: production-demo future-window read real
+today after fixed2026 fixtures elapsed. Minimal optional clock seam keeps real
+DateTime.now default and injects existing fictional timestamp only in demo.
+Independent task203-flutter-clock-review lease1 ACCEPT received/handled/released;
+19 focused PASS, analyze3files noissues, full527 PASS. Final action-case clock
+assertion placement verified by focused PASS. CI contract suite41 tests OK(one skip),
+183 Python files quality PASS; staged233-file diff/literal checks completed.
+GitHub official status reports Actions degraded since2026-10-19T15:49Z,
+workflow processing delays: https://www.githubstatus.com/ . Corrected hosted run
+39282478886 remains queued; obsolete initial run cancellation requested.
+No bypass/ready/merge or production activation while required hosted proof absent.
+
 Published default-off source commit91420e9bbddb5b70367672081671e68886caed7c;
 single Draft PR270, initial hosted run39281943391 queued, no pending deployment gate.
 Main canonical local PG16 discovery1120 tests/380.900s: four errors, two skips.

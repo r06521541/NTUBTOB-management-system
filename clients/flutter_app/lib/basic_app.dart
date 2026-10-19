@@ -1310,6 +1310,7 @@ class BasicGamesView extends StatefulWidget {
     this.diagnosticEnabled = true,
     this.deletionClient,
     this.erasureEntryBuilder,
+    this.memberActionClock,
   });
   final BasicApi api;
   final Person person;
@@ -1328,6 +1329,7 @@ class BasicGamesView extends StatefulWidget {
   final String? platform;
   final AccountDeletionPort? deletionClient;
   final WidgetBuilder? erasureEntryBuilder;
+  final DateTime Function()? memberActionClock;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -1667,6 +1669,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
             ),
           MemberActionHome(
             api: widget.api,
+            clock: widget.memberActionClock,
             principalScope: widget.person.id,
             games: orderedGames,
             online: widget.online,
@@ -2723,7 +2726,8 @@ class MemberActionHome extends StatefulWidget {
       required this.online,
       required this.onOpenGame,
       required this.onOpenSchedule,
-      this.controller});
+      this.controller,
+      this.clock});
   final BasicApi api;
   final String principalScope;
   final List<Game> games;
@@ -2731,6 +2735,7 @@ class MemberActionHome extends StatefulWidget {
   final Future<void> Function(Game) onOpenGame;
   final VoidCallback onOpenSchedule;
   final MemberActionController? controller;
+  final DateTime Function()? clock;
   @override
   State<MemberActionHome> createState() => _MemberActionHomeState();
 }
@@ -2742,8 +2747,8 @@ class _MemberActionHomeState extends State<MemberActionHome> {
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
-    _controller =
-        widget.controller ?? MemberActionController(widget.api.attendance);
+    _controller = widget.controller ??
+        MemberActionController(widget.api.attendance, clock: widget.clock);
     _controller.load(
       principalScope: widget.principalScope,
       games: widget.games,
