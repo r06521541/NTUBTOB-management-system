@@ -113,6 +113,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("portal_data_phase_c_readiness verify", block)
         self.assertIn("unittest discover -s tests/portal_data -v", block)
 
+    def test_portal_integration_installs_mobile_flask_dependency(self):
+        requirements = (ROOT / "apps/mobile_api/requirements.txt").read_text(
+            encoding="utf-8"
+        )
+        flask_requirement = re.search(r"(?m)^Flask==[^\s]+$", requirements)
+        self.assertIsNotNone(flask_requirement)
+        block = job_block(self.source, "portal_data")
+        install = block.split("- name: Install portal data test dependencies", 1)[1]
+        install = install.split("- name:", 1)[0]
+        self.assertIn(flask_requirement.group(0), install)
+
     def test_identity_link_jobs_install_shared_runtime_dependencies(self):
         web = job_block(self.source, "web_portal")
         portal_data = job_block(self.source, "portal_data")

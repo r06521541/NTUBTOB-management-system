@@ -19,6 +19,9 @@ from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
 from shared_lib.shared_module.portal_data.repository import PostgresTeamPortalRepository
+from tests.portal_data._erasure_ledger_test_harness import (
+    remove_retained_erasure_ledger_from_isolated_test_database,
+)
 from tests.portal_data._event_guest_lifecycle_test_harness import (
     prepare_event_guest_lifecycle_downgrade_for_isolated_test_database,
 )
@@ -33,7 +36,11 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.engine = create_engine(require_local_database_url(DATABASE_URL))
-        command.upgrade(Config("alembic.ini"), "head")
+        remove_retained_erasure_ledger_from_isolated_test_database(cls.engine)
+        with cls.engine.begin() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0013_account_deletion_requests")
 
     @classmethod
     def tearDownClass(cls):
@@ -45,6 +52,7 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
             cls.engine.dispose()
 
     def setUp(self):
+        remove_retained_erasure_ledger_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -125,6 +133,10 @@ class PhaseCCrossServiceRolloutTests(unittest.TestCase):
                     """
                 )
             )
+        with self.engine.begin() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0014_account_erasure_ledger")
         self.repository = IdentityLifecycleRepository(self.engine, {7601})
         self.guest_repository = PostgresTeamPortalRepository(
             self.engine, event_manager_member_ids={7601}

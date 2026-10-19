@@ -42,7 +42,7 @@ class LinkedPlayerActivationPostgresTests(unittest.TestCase):
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         setup_legacy_fixture()
         config = Config("alembic.ini")
-        command.upgrade(config, "head")
+        command.upgrade(config, "0018_erasure_privacy_mutation")
         prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)

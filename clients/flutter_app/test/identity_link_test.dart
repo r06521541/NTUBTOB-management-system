@@ -183,6 +183,115 @@ class FakeClock {
 }
 
 void main() {
+  test('local presentation retirement clears secrets and summaries without I/O',
+      () async {
+    final api = FakeTransport(), credentials = FakeCredentials();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: credentials,
+        installationId: 'fictional-installation',
+        ids: FixedIds(),
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    addTearDown(controller.dispose);
+    await controller.loadLinkedMethods();
+    await controller.begin(LoginProvider.google);
+    await controller.prove(LoginProvider.line);
+    expect(controller.candidateCredential, isNotNull);
+    expect(controller.proofCredential, isNotNull);
+    expect(controller.safeSummary, isNotNull);
+    expect(controller.linkedMethods, isNotEmpty);
+    controller.failure = IdentityLinkFailure.generic;
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+    final before = api.calls.length;
+
+    controller.retireLocalPresentation();
+
+    expect(controller.candidateCredential, isNull);
+    expect(controller.proofCredential, isNull);
+    expect(controller.candidateProvider, isNull);
+    expect(controller.proofProvider, isNull);
+    expect(controller.safeSummary, isNull);
+    expect(controller.linkedMethods, isEmpty);
+    expect(controller.linkedMethodsLoaded, isFalse);
+    expect(controller.failure, isNull);
+    expect(controller.stage, IdentityLinkStage.idle);
+    expect(notifications, 1);
+    expect(credentials.clears, 0);
+    expect(api.calls.length, before);
+  });
+
+  test('local retirement rejects a late identity list without native clear',
+      () async {
+    final api = DelayedIdentityListTransport();
+    final credentials = FakeCredentials();
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: credentials,
+        installationId: 'fictional-installation',
+        ids: FixedIds(),
+        authorizedSend: (method, path, {body}) =>
+            api.send(method, path, body: body));
+    addTearDown(controller.dispose);
+    final loading = controller.loadLinkedMethods();
+    controller.retireLocalPresentation();
+    api.response.complete(const ApiResponse(200, {
+      'items': [
+        {
+          'provider': 'line',
+          'label': 'Fictional Old Owner',
+          'linked_at': '2035-01-01T00:00:00Z'
+        }
+      ]
+    }));
+    await loading;
+    expect(controller.linkedMethods, isEmpty);
+    expect(controller.linkedMethodsLoaded, isFalse);
+    expect(controller.stage, IdentityLinkStage.idle);
+    expect(credentials.clears, 0);
+  });
+
+  test(
+      'local retirement rejects late recovery completion and session acceptance',
+      () async {
+    final api = DelayedConfirmTransport(), credentials = FakeCredentials();
+    final session = SessionController(
+        api, MemoryStore(), 'fictional-installation', FixedIds());
+    var recovered = 0;
+    final controller = IdentityLinkController(
+        transport: api,
+        credentials: credentials,
+        installationId: 'fictional-installation',
+        ids: FixedIds(),
+        session: session,
+        onRecovered: () async => recovered++);
+    addTearDown(controller.dispose);
+    await controller.begin(LoginProvider.google, recovery: true);
+    await controller.prove(LoginProvider.line);
+    final confirming = controller.confirm(recovery: true, platform: 'ios');
+    expect(controller.stage, IdentityLinkStage.confirming);
+    controller.retireLocalPresentation();
+    api.response.complete(const ApiResponse(200, {
+      'status': 'linked',
+      'session': {
+        'access_token': 'fictional-late-access',
+        'refresh_token': 'fictional-late-refresh',
+        'session_id': 'fictional-late-session',
+        'expires_in': 900,
+      }
+    }));
+    await confirming;
+    expect(session.accessToken, isNull);
+    expect(session.generation, 0);
+    expect(recovered, 0);
+    expect(controller.candidateCredential, isNull);
+    expect(controller.proofCredential, isNull);
+    expect(controller.safeSummary, isNull);
+    expect(controller.stage, IdentityLinkStage.idle);
+    expect(credentials.clears, 0);
+  });
+
   testWidgets('provider UI is explicit tap only and cancel retires memory',
       (tester) async {
     final api = FakeTransport(), credentials = FakeCredentials();

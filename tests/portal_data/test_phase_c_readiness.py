@@ -228,7 +228,7 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        command.upgrade(cls.config, "head")
+        command.upgrade(cls.config, "0018_erasure_privacy_mutation")
         cls.engine.dispose()
 
     def setUp(self):
@@ -275,7 +275,7 @@ class PhaseCReadinessPostgresTests(unittest.TestCase):
             )
 
     def test_readiness_reset_accepts_bootstrap_suite_audit_residue(self):
-        command.upgrade(self.config, "head")
+        command.upgrade(self.config, "0018_erasure_privacy_mutation")
         with self.engine.begin() as connection:
             identity_id = connection.scalar(
                 text("SELECT id FROM ntubtob.auth_identities LIMIT 1")

@@ -31,6 +31,16 @@ from .domain import (
     require_reason,
     validate_guest_period,
 )
+from .erasure_guard import (
+    ErasureAccessBlocked,
+    ErasureGuardUnavailable,
+    require_account_not_erasing,
+)
+from .erasure_management_gate import require_management_mutation
+from .erasure_management_guard import (
+    ManagementGuardUnavailable,
+    ManagementWritesSuspended,
+)
 from .models import (
     AccessAuditRecord,
     ActivityAttendanceReplyRecord,
@@ -53,6 +63,7 @@ from .models import (
 )
 from .runtime import ADMIN_LOCK_KEY as CANONICAL_ADMIN_LOCK_KEY
 from .runtime import EVENT_SNAPSHOT_LOCK_KEY as CANONICAL_EVENT_SNAPSHOT_LOCK_KEY
+from .runtime import acquire_admin_event_locks
 
 EVENT_TYPES = frozenset({"game", "meal", "trip", "practice", "social", "other"})
 ACTIVITY_TYPES = frozenset(
@@ -72,6 +83,9 @@ EVENT_LIFECYCLE_REVISIONS = frozenset(
         EVENT_LIFECYCLE_REVISION,
         "0012_persistent_admin_authority",
         "0013_account_deletion_requests",
+        "0014_account_erasure_ledger",
+        "0019_erasure_admin_recovery",
+        "0020_erasure_intake",
     }
 )
 MAX_EVENT_NOTIFICATION_RECIPIENTS = 500
@@ -1424,12 +1438,43 @@ class PostgresTeamPortalRepository:
         event_manager_member_ids: Iterable[int] = (),
         *,
         allow_persisted_event_managers: bool = False,
+        erasure_checks_enabled: bool = False,
     ):
+        if type(erasure_checks_enabled) is not bool:
+            raise ValueError("erasure checks must be boolean")
+        self.erasure_checks_enabled = erasure_checks_enabled
         self.engine = engine
         self.event_manager_member_ids = frozenset(
             int(value) for value in event_manager_member_ids
         )
         self.allow_persisted_event_managers = allow_persisted_event_managers is True
+
+    @staticmethod
+    def _require_management_write(session: Session) -> None:
+        try:
+            require_management_mutation(session)
+        except (ManagementWritesSuspended, ManagementGuardUnavailable):
+            raise AuthorizationError("management writes unavailable") from None
+
+    def _require_account_available(
+        self,
+        session: Session,
+        person_id: int | None = None,
+        *,
+        identity_id: int | None = None,
+    ) -> None:
+        if not self.erasure_checks_enabled:
+            return
+        acquire_admin_event_locks(session)
+        try:
+            target = {}
+            if person_id is not None:
+                target["person_id"] = person_id
+            if identity_id is not None:
+                target["identity_id"] = identity_id
+            require_account_not_erasing(session, **target)
+        except (ErasureAccessBlocked, ErasureGuardUnavailable):
+            raise AuthorizationError("account access unavailable") from None
 
     @staticmethod
     def _person(row: PersonRecord) -> Person:
@@ -1446,6 +1491,7 @@ class PostgresTeamPortalRepository:
     def _require_admin(
         self, session: Session, person_id: int, for_update: bool = False
     ) -> PersonRecord:
+        self._require_account_available(session, person_id)
         statement = select(PersonRecord).where(PersonRecord.id == person_id)
         if for_update:
             statement = statement.with_for_update()
@@ -1466,6 +1512,7 @@ class PostgresTeamPortalRepository:
         return person
 
     def _require_event_manager(self, session: Session, person_id: int) -> PersonRecord:
+        self._require_account_available(session, person_id)
         person = session.scalar(
             select(PersonRecord).where(PersonRecord.id == person_id).with_for_update()
         )
@@ -1489,6 +1536,7 @@ class PostgresTeamPortalRepository:
         return person
 
     def _require_guest_manager(self, session: Session, person_id: int) -> PersonRecord:
+        self._require_account_available(session, person_id)
         person = session.scalar(
             select(PersonRecord).where(PersonRecord.id == person_id).with_for_update()
         )
@@ -1507,6 +1555,20 @@ class PostgresTeamPortalRepository:
         ):
             raise AuthorizationError("active guest manager required")
         return person
+
+    def _erasure_eligible_people(self, session: Session, people: set[int]) -> set[int]:
+        if not self.erasure_checks_enabled:
+            return people
+        eligible = set()
+        for person_id in sorted(people):
+            try:
+                require_account_not_erasing(session, person_id=person_id)
+            except ErasureAccessBlocked:
+                continue
+            except ErasureGuardUnavailable:
+                raise AuthorizationError("account access unavailable") from None
+            eligible.add(person_id)
+        return eligible
 
     def _event_notification_snapshot(
         self, session: Session, actor_id: int, event_id: int
@@ -1548,6 +1610,7 @@ class PostgresTeamPortalRepository:
                 )
             )
         )
+        active_people = self._erasure_eligible_people(session, active_people)
         recipients = tuple(
             (row.person_id, row.participation_category)
             for row in snapshot_rows
@@ -1596,11 +1659,8 @@ class PostgresTeamPortalRepository:
 
     def preview_event_notification(self, actor_id: int, event_id: int) -> dict:
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
             self._require_event_lifecycle_revision(session)
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
             return self._event_notification_projection(
                 self._event_notification_snapshot(session, actor_id, event_id)
             )
@@ -1635,11 +1695,9 @@ class PostgresTeamPortalRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_event_lifecycle_revision(session)
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-                )
                 self._require_event_manager(session, actor_id)
                 existing = session.scalar(
                     select(EventNotificationPublishAuditRecord)
@@ -1884,12 +1942,11 @@ class PostgresTeamPortalRepository:
         )
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_event_lifecycle_revision(session)
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-                )
                 self._require_guest_manager(session, actor_id)
+                self._require_account_available(session, target_person_id)
                 existing_audit = session.scalar(
                     select(GuestQualificationAuditRecord)
                     .where(GuestQualificationAuditRecord.request_id == request_id)
@@ -2080,10 +2137,8 @@ class PostgresTeamPortalRepository:
         require_choice(status, PORTAL_STATUSES, "portal status")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             row = PersonRecord(
                 display_name=display_name,
                 portal_access_level=access_level,
@@ -2136,6 +2191,7 @@ class PostgresTeamPortalRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
                 row = AuthIdentityRecord(
                     provider=provider,
                     provider_subject=subject,
@@ -2191,10 +2247,9 @@ class PostgresTeamPortalRepository:
             validate_guest_period(valid_from, valid_until)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, person_id)
             row = session.scalar(
                 select(PersonQualificationRecord).where(
                     PersonQualificationRecord.person_id == person_id,
@@ -2236,7 +2291,12 @@ class PostgresTeamPortalRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_id, for_update=True)
+                self._require_account_available(session, identity_id=identity_id)
+                if person_id is not None:
+                    self._require_account_available(session, person_id)
                 identity = session.scalar(
                     select(AuthIdentityRecord)
                     .where(AuthIdentityRecord.id == identity_id)
@@ -2253,6 +2313,8 @@ class PostgresTeamPortalRepository:
                     if member is None:
                         raise ConflictError("member not found")
                     person_id = member.person_id
+                    if person_id is not None:
+                        self._require_account_available(session, person_id)
                     if person_id is None:
                         if not display_name:
                             display_name = member.name
@@ -2336,7 +2398,10 @@ class PostgresTeamPortalRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_id, for_update=True)
+                self._require_account_available(session, identity_id=identity_id)
                 identity = session.scalar(
                     select(AuthIdentityRecord)
                     .where(AuthIdentityRecord.id == identity_id)
@@ -2377,15 +2442,10 @@ class PostgresTeamPortalRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": self.ADMIN_LOCK_KEY},
-                )
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-                )
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_id, for_update=True)
+                self._require_account_available(session, target_id)
                 target = session.scalar(
                     select(PersonRecord)
                     .where(PersonRecord.id == target_id)
@@ -2440,15 +2500,10 @@ class PostgresTeamPortalRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": self.ADMIN_LOCK_KEY},
-                )
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-                )
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_id, for_update=True)
+                self._require_account_available(session, target_id)
                 target = session.scalar(
                     select(PersonRecord)
                     .where(PersonRecord.id == target_id)
@@ -2502,10 +2557,9 @@ class PostgresTeamPortalRepository:
     def revoke_qualification(self, person_id: int, qualification: str) -> None:
         require_choice(qualification, QUALIFICATIONS, "qualification")
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, person_id)
             row = session.scalar(
                 select(PersonQualificationRecord)
                 .where(
@@ -2539,10 +2593,8 @@ class PostgresTeamPortalRepository:
             raise ConflictError("event eligibility cannot be empty")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = EventRecord(
                 title=title,
@@ -2778,6 +2830,8 @@ class PostgresTeamPortalRepository:
             target_id=event_id,
         )
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -2849,6 +2903,8 @@ class PostgresTeamPortalRepository:
             },
         )
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -2944,6 +3000,8 @@ class PostgresTeamPortalRepository:
             target_id=activity_id,
         )
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -2986,6 +3044,8 @@ class PostgresTeamPortalRepository:
     ) -> None:
         details = _operation_details("activity_delete", {}, target_id=activity_id)
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -3049,6 +3109,8 @@ class PostgresTeamPortalRepository:
             "activity_move", {"direction": direction}, target_id=activity_id
         )
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -3102,6 +3164,8 @@ class PostgresTeamPortalRepository:
     def cancel_event(self, actor_id: int, event_id: int, request_id: str) -> dict:
         request_id = _request_id(request_id)
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -3181,11 +3245,10 @@ class PostgresTeamPortalRepository:
         )
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
+            self._require_account_available(session, person_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
             )
@@ -3245,10 +3308,8 @@ class PostgresTeamPortalRepository:
         request_id = _request_id(request_id)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"),
-                {"key": self.EVENT_SNAPSHOT_LOCK_KEY},
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_event_manager(session, actor_id)
             event = session.scalar(
                 select(EventRecord).where(EventRecord.id == event_id).with_for_update()
@@ -3323,7 +3384,18 @@ class PostgresTeamPortalRepository:
                 current = candidates.get(person_id)
                 if current is None or preference[qualification] < preference[current]:
                     candidates[person_id] = qualification
+            overrides = session.scalars(
+                select(EventInviteeOverrideRecord).where(
+                    EventInviteeOverrideRecord.event_id == event_id
+                )
+            ).all()
+            # Guard the entire target set before adding any pending ORM changes.
+            eligible = self._erasure_eligible_people(
+                session, set(candidates) | {row.person_id for row in overrides}
+            )
             for person_id, qualification in candidates.items():
+                if person_id not in eligible:
+                    continue
                 session.add(
                     EventInviteeRecord(
                         event_id=event_id,
@@ -3337,13 +3409,10 @@ class PostgresTeamPortalRepository:
                         snapshotted_at=now,
                     )
                 )
-            overrides = session.scalars(
-                select(EventInviteeOverrideRecord).where(
-                    EventInviteeOverrideRecord.event_id == event_id
-                )
-            ).all()
             session.flush()
             for override in overrides:
+                if override.person_id not in eligible:
+                    continue
                 existing = session.scalar(
                     select(EventInviteeRecord).where(
                         EventInviteeRecord.event_id == event_id,
@@ -3585,6 +3654,7 @@ class PostgresTeamPortalRepository:
         self, person_id: int, event_id: int, at: datetime | None = None
     ) -> dict:
         with Session(self.engine) as session:
+            self._require_account_available(session, person_id)
             return self._event_attendance_in_session(
                 session, person_id, event_id, at or utc_now()
             )
@@ -3602,6 +3672,8 @@ class PostgresTeamPortalRepository:
             raise ValidationError("apply_all must be a boolean")
         now = at or utc_now()
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, person_id)
             self._attendance_target(session, person_id, event_id, now, for_update=True)
             current = session.scalar(
                 select(EventAttendanceReplyRecord.reply).where(
@@ -3666,6 +3738,8 @@ class PostgresTeamPortalRepository:
         require_choice(reply, ATTENDANCE_REPLIES, "attendance reply")
         now = at or utc_now()
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, person_id)
             self._attendance_target(session, person_id, event_id, now, for_update=True)
             activity = session.scalar(
                 select(ActivityRecord)
@@ -3733,9 +3807,8 @@ class PostgresTeamPortalRepository:
         created = linked = qualifications = promoted = 0
         now = utc_now()
         with Session(self.engine) as session, session.begin():
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(:key)"), {"key": self.ADMIN_LOCK_KEY}
-            )
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             members = session.scalars(
                 select(LegacyMemberRecord).order_by(LegacyMemberRecord.id)
             ).all()

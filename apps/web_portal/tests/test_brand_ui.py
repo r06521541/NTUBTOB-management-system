@@ -7,6 +7,28 @@ TEMPLATES_DIR = WEB_PORTAL_DIR / "templates"
 
 
 class BrandUiContractTest(unittest.TestCase):
+    def test_free_text_entrypoints_explain_data_minimization_without_false_guarantees(
+        self,
+    ):
+        expected = {
+            "event_management.html": "活動名稱與行程標題請只填隊務資訊",
+            "event_management_edit.html": "活動名稱與行程標題請只填隊務資訊",
+            "identity_admin.html": "原因與備註只填本次管理操作所需資訊",
+            "identity_review.html": "請勿提供密碼、證件號碼或他人的聯絡資料",
+        }
+        from jinja2 import Environment, FileSystemLoader
+
+        environment = Environment(
+            loader=FileSystemLoader(TEMPLATES_DIR), autoescape=True
+        )
+        for name, message in expected.items():
+            with self.subTest(template=name):
+                source = (TEMPLATES_DIR / name).read_text(encoding="utf-8")
+                self.assertIn(message, source)
+                environment.get_template(name)
+        # These hints impose no unreliable name-matching validator or client-side
+        # claim that personal information has been automatically removed.
+
     def test_shared_tokens_define_brand_and_semantic_color_roles(self):
         stylesheet = (STATIC_DIR / "brand.css").read_text(encoding="utf-8")
         expected_tokens = (

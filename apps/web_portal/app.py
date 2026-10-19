@@ -56,6 +56,7 @@ from identity_maintenance import (
     is_identity_maintenance_enabled,
     is_phase_c_enabled,
     is_rollout_freeze_enabled,
+    validate_erasure_checks_configuration,
 )
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from line_login import (
@@ -373,7 +374,9 @@ def register_identity_link_routes():
         LineIdTokenVerifier,
     )
 
-    data = MobileRepository(repository.engine)
+    data = MobileRepository(
+        repository.engine, erasure_checks_enabled=repository.erasure_checks_enabled
+    )
     service = IdentityLinkService(
         data,
         IdentityLinkProofCodec(
@@ -548,6 +551,15 @@ LINE_LOGIN_REJECTION_CATEGORIES = frozenset(
 discord_notify_helper = (
     None if DEMO_MODE_ENABLED or LOCAL_PREVIEW_MODE_ENABLED else DiscordNotifyHelper()
 )
+
+
+@app.before_request
+def validate_erasure_runtime_configuration():
+    try:
+        validate_erasure_checks_configuration(demo_mode=DEMO_MODE_ENABLED)
+    except RuntimeError:
+        app.logger.error("erasure_runtime_configuration_unavailable")
+        return "服務暫時無法使用，請稍後再試。", 503
 
 
 @app.before_request
@@ -1204,6 +1216,7 @@ def _event_management_service():
             repository.engine,
             member_ids,
             allow_persisted_event_managers=True,
+            erasure_checks_enabled=repository.erasure_checks_enabled,
         )
     )
 
@@ -2066,9 +2079,9 @@ def account():
     if lifecycle_principal is not None:
         from shared_module.portal_data.mobile_repository import MobileRepository
 
-        linked_methods = MobileRepository(repository.engine).linked_identity_labels(
-            lifecycle_principal.person.id
-        )
+        linked_methods = MobileRepository(
+            repository.engine, erasure_checks_enabled=repository.erasure_checks_enabled
+        ).linked_identity_labels(lifecycle_principal.person.id)
     linked_providers = {item["provider"] for item in linked_methods}
     return render_template(
         "account.html",
@@ -2657,9 +2670,10 @@ def identity_admin_action():
         and request.form.get("qualification", "") == "guest_player"
     ):
         abort(400)
-    if action == "create_member" and "guest_player" in request.form.getlist(
-        "qualification"
-    ):
+    if action in {
+        "create_member",
+        "approve_non_member",
+    } and "guest_player" in request.form.getlist("qualification"):
         abort(400)
     if action == "create_member":
         request_id = _required_request_id("member-create-")
@@ -2682,8 +2696,6 @@ def identity_admin_action():
     try:
         if action == "approve_non_member" and identity_id is not None:
             qualifications = request.form.getlist("qualification")
-            if "guest_player" in qualifications:
-                abort(400)
             repository.approve_non_member(
                 actor_person_id,
                 identity_id,

@@ -9,6 +9,23 @@ remain outside this repository contract.
 
 ## Account-request preparation (TASK-199; not a live deletion service)
 
+TASK203 additionally provides explicitly injected `account_erasure_client.dart`
+receipt storage and a receipt-only status adapter for `AccountErasureStatusPage`.
+The secure factory uses platform secure storage under a separate receipt prefix;
+the testing constructor is for fictional stores. Composition must hold one vault
+per opaque owner scope, invalidate it before an owner transition, and reopen only
+through explicit receipt recovery (never by guessing a Person ID). The receipt is
+not a session or deletion permission. Storage replacement invalidates old readers
+before I/O; failures remain unconfirmed, with no automatic network retries.
+This is not yet wired into normal composition. Native secure-storage behavior,
+full request/proof/cancel UX and retention/terminal cleanup remain release work.
+The explicit one-attempt receipt action adapter supports verification/cancellation
+with an injected nonce-bound fresh provider. It rejects stale owner/receipt context,
+offline submission and duplicate taps; post-dispatch failures remain outcome-unknown,
+including repeated calls. It preserves the receipt for manual status reconciliation.
+Native provider adapters (including Google nonce initialization), durable attempt
+recovery across process death and actionable UI composition are not enabled here.
+
 `account_deletion.dart` supplies an explicitly injected self-service request/status
 client and an in-app confirmation page. Normal real composition does not inject
 it or show an actionable request entry; the network-free production demo does.
@@ -201,5 +218,22 @@ review, synthetic receipt, real-device evidence, and external disable/rollback
 check before any upload can be claimed.
 
 ## Verification gate
+
+TASK-203 erasure components remain explicit-injection only: `account_erasure_flow.dart`
+provides onsite request/verify/cancel/reopen dialogs; `account_erasure_client.dart`
+provides fresh restricted request and receipt-only actions/status. No normal bootstrap
+or native provider is enabled by these files. Keep exactly one active receipt vault
+per stable opaque owner/flow scope. Durable request and per-job/action markers must
+survive session cleanup, receipt forget and reopening; do not change scope to bypass
+an unknown outcome. Storage-read failure is not absence. Markers are conservative
+submission fences, not proof the server committed and not cross-process CAS.
+If a request response is lost before receipt storage, status-by-receipt cannot recover
+it; a separately verified recovery path is still required, never automatic resubmission.
+MemoryStore tests do not prove device Keychain durability or native nonce behavior.
+
+The root has one injection path: `AccountErasureEntryOptions`, which captures the
+actual session/store/transport at tap time. Direct root flow injection is removed;
+standalone UI tests may use the support page's explicit builder. Do not enable the
+entry before the backend service/custody/policy and native proof paths are ready.
 
 From this directory, run `flutter pub get`, `dart format --output=none --set-exit-if-changed .`, `flutter analyze`, `flutter test`, and the debug build with both fake defines. The fake repository remains fixed/injected and network-free. Real cached data is versioned/installation-partitioned, and offline behavior is read-only; attendance mutations are refused until online.

@@ -23,6 +23,7 @@ def remove_retained_apple_evidence_from_isolated_test_database(engine) -> None:
         engine.url.drivername not in {"postgresql", "postgresql+psycopg2"}
         or (engine.url.host or "").lower() not in LOCAL_HOSTS
         or engine.url.database != LOCAL_DATABASE_NAME
+        or getattr(engine.url, "query", None)
     ):
         raise RuntimeError("Apple evidence cleanup requires the isolated test database")
     if not inspect(engine).has_table("alembic_version", schema="ntubtob"):

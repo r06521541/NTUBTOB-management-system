@@ -8,6 +8,108 @@
   "servers": [{"url": "/api/v1"}],
   "security": [{"bearerAuth": []}],
   "paths": {
+    "/account-erasure/recovery/challenge": {
+      "post": {
+        "security": [],
+        "description": "Default-off dedicated receipt-recovery purpose, not request, verification or cancellation. Provider choice only; no session, target selection or account lookup. Server nonce and original challenge lifetime of at most 300 seconds. No-store on success and failure; exact bounded JSON, no query parameters.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["provider"], "properties": {"provider": {"type": "string", "enum": ["apple", "google", "line"]}}}}}},
+        "responses": {"200": {"description": "Confidential recovery challenge; does not reveal whether a target or job exists", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["challenge_credential", "nonce", "provider", "expires_in"], "properties": {"challenge_credential": {"type": "string", "minLength": 80, "maxLength": 4096}, "nonce": {"type": "string", "minLength": 43, "maxLength": 43}, "provider": {"type": "string", "enum": ["apple", "google", "line"]}, "expires_in": {"type": "integer", "minimum": 0, "maximum": 300}}}}}}, "400": {"description": "Malformed, duplicate-field or oversized JSON; no credentials echoed"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Recovery unavailable; retryable=false"}}
+      }
+    },
+    "/account-erasure/recovery": {
+      "post": {
+        "security": [],
+        "description": "Default-off recovery of an existing receipt using explicit confirmation and fresh dedicated-purpose provider proof. Provider I/O finishes before repository reads. Only current attached pending/Person targets with exact generation and server timestamps predating proof issuance are eligible. Returns original receipt and expiry with actual stored status; never creates jobs/attempts, changes state, verifies, cancels, logs in or extends deadlines. No-store on success and failure; exact bounded JSON up to 24576 bytes, no query parameters or client target selection. Deleted target with all original factors lost is unavailable, not subject-based historical recovery. Errors do not distinguish missing, detached, stale or expired targets. No automatic retry or reset of unknown-outcome markers.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["challenge_credential", "provider_assertion", "confirmed"], "properties": {"challenge_credential": {"type": "string", "minLength": 80, "maxLength": 4096}, "provider_assertion": {"type": "string", "minLength": 1, "maxLength": 16384}, "confirmed": {"const": true}}}}}},
+        "responses": {"200": {"description": "Original confidential receipt and stored live status, not proof of fulfillment or renewed authority", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["id", "status", "receipt_secret", "requested_at", "updated_at", "receipt_expires_at"], "properties": {"id": {"type": "string", "format": "uuid"}, "status": {"type": "string", "enum": ["requested", "verified", "processing", "needs_attention"]}, "receipt_secret": {"type": "string", "pattern": "^[0-9a-f]{64}$"}, "requested_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}, "receipt_expires_at": {"type": "string", "format": "date-time"}}}}}}, "400": {"description": "Malformed, duplicate-field or oversized JSON; no credentials echoed"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Recovery unavailable; retryable=false; never substitute a new request"}}
+      }
+    },
+    "/account-erasure/receipt/challenge": {
+      "post": {
+        "security": [],
+        "description": "Default-off receipt-only fresh verification for requested pending or Person jobs. No business session. Provider choice is not identity authority; exact current subject is resolved only after nonce-bound provider proof. No-store, no query parameters or client target selection.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["job_id", "receipt_secret", "provider"], "properties": {"job_id": {"type": "string", "format": "uuid"}, "receipt_secret": {"type": "string", "minLength": 32, "maxLength": 256}, "provider": {"enum": ["apple", "google", "line"]}}}}}},
+        "responses": {"200": {"description": "Confidential challenge_credential, nonce, provider and expires_in"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable; retryable=false"}}
+      }
+    },
+    "/account-erasure/receipt/verify": {
+      "post": {
+        "security": [],
+        "description": "Default-off separate receipt-verification purpose, not cancellation or intent. Explicit confirmation and fresh provider proof precede DB transaction. Exact current identity mapping and target generation rechecked; no sessions or accounts created. No-store, no query parameters, no automatic retry.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["challenge_credential", "provider_assertion", "confirmed"], "properties": {"challenge_credential": {"type": "string", "maxLength": 4096}, "provider_assertion": {"type": "string", "maxLength": 16384}, "confirmed": {"const": true}}}}}},
+        "responses": {"200": {"description": "id and status=verified, never completed"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable or commit uncertain; retryable=false; reconcile receipt without resending"}}
+      }
+    },
+    "/account-erasure/request/challenge": {
+      "post": {
+        "security": [],
+        "description": "Default-off restricted intent challenge, without an app session. Server-generated attempt and nonce; no client target identifiers. Does not reveal whether an account exists. No-store, bounded exact JSON and no query parameters.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["provider"], "properties": {"provider": {"enum": ["apple", "google", "line"]}}}}}},
+        "responses": {"200": {"description": "Confidential challenge_credential, nonce, provider and expires_in"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable; retryable=false"}}
+      }
+    },
+    "/account-erasure/request": {
+      "post": {
+        "security": [],
+        "description": "Default-off fresh restricted-purpose provider proof and explicit confirmation. Provider I/O precedes transaction; existing exact identity and current generation determine target, including pending or blocked accounts. Does not create an account. Immutable attempt-to-job binding survives cancellation. Creates requested intent only, never verification or deletion. No-store; uncertainty is nonretryable.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["challenge_credential", "provider_assertion", "confirmed"], "properties": {"challenge_credential": {"type": "string", "minLength": 1, "maxLength": 4096}, "provider_assertion": {"type": "string", "minLength": 1, "maxLength": 16384}, "confirmed": {"const": true}}}}}},
+        "responses": {"202": {"description": "Requested intent and confidential receipt_secret; not fulfillment"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable or commit uncertain; retryable=false"}}
+      }
+    },
+    "/account-erasure/cancel/challenge": {
+      "post": {
+        "security": [],
+        "description": "Default-off receipt-authorized cancellation challenge. No ordinary session required. Binds job and target generation, not a preselected identity. One nonce-bound provider interaction; receipt alone cannot cancel. Bounded exact JSON, no query parameters, no-store.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["job_id", "receipt_secret", "provider"], "properties": {"job_id": {"type": "string", "format": "uuid"}, "receipt_secret": {"type": "string", "minLength": 32, "maxLength": 256}, "provider": {"enum": ["apple", "google", "line"]}}}}}},
+        "responses": {"200": {"description": "Confidential challenge_credential, nonce, provider and expires_in; no identity fields"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable; retryable=false"}}
+      }
+    },
+    "/account-erasure/cancel": {
+      "post": {
+        "security": [],
+        "description": "Default-off fresh cancellation-purpose proof and explicit confirmation required. Provider verification outside DB, current subject/target/generation and irreversible fence rechecked under locks. Cancellation detaches target without restoring sessions or permissions. Response only after commit; uncertain outcome requires receipt reconciliation, never blind retry. No-store, no query parameters.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["challenge_credential", "provider_assertion", "confirmed"], "properties": {"challenge_credential": {"type": "string", "minLength": 1, "maxLength": 4096}, "provider_assertion": {"type": "string", "minLength": 1, "maxLength": 16384}, "confirmed": {"const": true}}}}}},
+        "responses": {"200": {"description": "id and status=cancelled; not account reactivation", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["id", "status"], "properties": {"id": {"type": "string", "format": "uuid"}, "status": {"const": "cancelled"}}}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable or commit uncertain; retryable=false"}}
+      }
+    },
+    "/account-erasure/status": {
+      "post": {
+        "security": [],
+        "description": "Default-off receipt-only read, including after app sessions are revoked. Confidential receipt_secret in bounded JSON body only, never URL/query/log. No-store. Returns no target identity, scope or provider data. Does not authorize retry, verification, cancellation or deletion. Unknown, invalid and expired receipt credentials reject uniformly.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["job_id", "receipt_secret"], "properties": {"job_id": {"type": "string", "format": "uuid"}, "receipt_secret": {"type": "string", "minLength": 32, "maxLength": 256}}}}}},
+        "responses": {"200": {"description": "Read-only receipt state", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["id", "status", "requested_at", "updated_at"], "properties": {"id": {"type": "string", "format": "uuid"}, "status": {"enum": ["requested", "verified", "processing", "needs_attention", "online_completed", "completed", "cancelled"]}, "requested_at": {"type": "string", "format": "date-time"}, "updated_at": {"type": "string", "format": "date-time"}}}}}}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Read unavailable; retryable=false, no mutation permitted"}}
+      }
+    },
+    "/me/account-erasure": {
+      "post": {
+        "description": "Default-off candidate requiring explicit server composition; not enabled in normal bootstrap. Active linked account only. Creates/reconciles requested intent, not verified authorization or completed deletion. No-store; receipt_secret is confidential and must not be logged. No query parameters.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["confirmed"], "properties": {"confirmed": {"const": true}}}}}},
+        "responses": {"202": {"description": "Requested intent and confidential receipt_secret; not fulfillment"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable or uncertain; retryable=false, reconcile before retry"}}
+      }
+    },
+    "/me/account-erasure/challenge": {
+      "post": {
+        "description": "Default-off linked-account candidate. Receipt-authorized server challenge binds current target generations and fresh nonce. Requires active session and confidential receipt. Response no-store; no query parameters. Provider participation with nonce does not prove password re-entry.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["job_id", "receipt_secret"], "properties": {"job_id": {"type": "string", "format": "uuid"}, "receipt_secret": {"type": "string", "minLength": 32, "maxLength": 256}}}}}},
+        "responses": {"200": {"description": "Confidential challenge_credential, nonce, provider and expires_in"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable; retryable=false"}}
+      }
+    },
+    "/account-erasure/pending/challenge": {
+      "post": {
+        "security": [],
+        "description": "Default-off pending-identity receipt challenge without an app session. The stored requested job selects the exact identity; no client identity or provider selector is accepted. Receipt, current mapping and generation are checked. Receipt alone cannot verify deletion; use a fresh nonce-bound provider assertion at /account-erasure/verify. Person jobs are not supported by this entry. Bounded exact JSON, no query parameters, no-store.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["job_id", "receipt_secret"], "properties": {"job_id": {"type": "string", "format": "uuid"}, "receipt_secret": {"type": "string", "minLength": 32, "maxLength": 256}}}}}},
+        "responses": {"200": {"description": "Confidential challenge_credential, nonce, provider and expires_in; no public target fields"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable; retryable=false"}}
+      }
+    },
+    "/account-erasure/verify": {
+      "post": {
+        "security": [],
+        "description": "Default-off candidate authorized by server challenge plus nonce-bound provider assertion, not an ordinary access token. Provider verification precedes DB transaction; locked generation recheck and session revocation commit before success. No-store; no query parameters. Replay rejected; uncertain outcome is nonretryable. Verified is not access-blocked across all services or erased.",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false, "required": ["challenge_credential", "provider_assertion"], "properties": {"challenge_credential": {"type": "string", "maxLength": 4096}, "provider_assertion": {"type": "string", "maxLength": 16384}}}}}},
+        "responses": {"200": {"description": "id and status=verified, never completed"}, "401": {"$ref": "#/components/responses/Unauthenticated"}, "422": {"$ref": "#/components/responses/Validation"}, "503": {"description": "Unavailable or commit uncertain; retryable=false, do not automatically repeat provider or mutation"}}
+      }
+    },
     "/auth/line/exchange": {
       "post": {
         "security": [],

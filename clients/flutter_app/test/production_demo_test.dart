@@ -254,6 +254,8 @@ void main() {
       (tester) async {
     final probe = ProductionDemoProbe();
     await pumpDemo(tester, probe: probe);
+    final home = tester.widget<BasicGamesView>(find.byType(BasicGamesView));
+    expect(home.memberActionClock!(), DateTime.utc(2026, 8, 21, 8, 30));
     expect(
         find.byKey(const ValueKey('action-home-actionable')), findsOneWidget);
     expect(find.textContaining('未來最多 5 場'), findsOneWidget);

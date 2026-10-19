@@ -4,6 +4,8 @@ import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
@@ -11,6 +13,9 @@ from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
 from shared_lib.shared_module.portal_data.models import PortalDataBase
+from tests.portal_data._erasure_ledger_test_harness import (
+    remove_retained_erasure_ledger_from_isolated_test_database,
+)
 from tools.seed_portal_data_fake import seed_fake_data
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -30,6 +35,7 @@ class PostgresConstraintTests(unittest.TestCase):
         cls.engine.dispose()
 
     def setUp(self):
+        remove_retained_erasure_ledger_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -51,8 +57,26 @@ class PostgresConstraintTests(unittest.TestCase):
                 )
             )
 
+        with self.engine.begin() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0014_account_erasure_ledger")
+
     def test_migrated_columns_match_opt_in_models(self):
-        inspector = inspect(self.engine)
+        # Compare current metadata on the candidate schema without retaining it;
+        # historical behavior fixtures remain on their supported 0014 schema.
+        with self.engine.connect() as connection:
+            transaction = connection.begin()
+            try:
+                self._assert_current_metadata(connection)
+            finally:
+                transaction.rollback()
+
+    def _assert_current_metadata(self, connection):
+        config = Config("alembic.ini")
+        config.attributes["connection"] = connection
+        command.upgrade(config, "0020_erasure_intake")
+        inspector = inspect(connection)
         for table in PortalDataBase.metadata.tables.values():
             if table.name == "members":
                 expected = {

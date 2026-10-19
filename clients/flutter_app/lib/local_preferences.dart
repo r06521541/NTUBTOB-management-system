@@ -199,7 +199,12 @@ class _LocalPreferencesPageState extends State<LocalPreferencesPage> {
 }
 
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key, required this.onComplete});
+  const OnboardingPage({
+    super.key,
+    required this.onComplete,
+    this.supportAction = const SupportAppInfoAction(),
+  });
+  final Widget supportAction;
   final Future<void> Function() onComplete;
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -217,7 +222,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(actions: [
-          const SupportAppInfoAction(),
+          widget.supportAction,
           TextButton(
               key: const ValueKey('skip-onboarding'),
               onPressed: widget.onComplete,

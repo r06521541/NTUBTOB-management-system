@@ -4,6 +4,10 @@ import 'package:http/http.dart' as http;
 
 import 'app_theme.dart';
 import 'account_deletion.dart';
+import 'account_erasure_client.dart';
+import 'account_erasure_entry.dart';
+import 'account_erasure_flow.dart';
+import 'account_erasure_owner.dart';
 import 'anonymous_crash.dart';
 import 'integration.dart';
 import 'identity_link.dart';
@@ -275,12 +279,20 @@ class BasicBootstrapApp extends StatefulWidget {
     this.store,
     this.crashQueue,
     this.permissionPort = const UnsupportedNotificationPermissionPort(),
+    this.erasureEntry,
+    this.httpClient,
   });
   final AppConfig config;
   final bool diagnosticEnabled;
   final DurableStore? store;
   final AnonymousCrashQueue? crashQueue;
   final NotificationPermissionPort permissionPort;
+  // A separately authorized receipt context survives business-session expiry.
+  // The owner of this port must invalidate it before any owner-context switch.
+  // Null remains the release default until the fulfillment service is enabled.
+  final AccountErasureEntryOptions? erasureEntry;
+  // The root owns and closes even an injected client; never reuse it elsewhere.
+  final http.Client? httpClient;
   @override
   State<BasicBootstrapApp> createState() => _BasicBootstrapAppState();
 }
@@ -294,6 +306,10 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   GoogleLoginCoordinator? _googleLogin;
   AppleLoginCoordinator? _appleLogin;
   SessionController? _session;
+  ApiTransport? _transport;
+  AppleLoginPort? _apple;
+  AccountErasureOwner? _erasureOwner;
+  int _erasureEpoch = 0;
   BasicApi? _api;
   LineLoginPort? _line;
   GoogleLoginPort? _google;
@@ -321,7 +337,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
   void initState() {
     super.initState();
     _store = widget.store ?? SecureStore();
-    _http = http.Client();
+    _http = widget.httpClient ?? http.Client();
     _boot();
   }
 
@@ -345,12 +361,33 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
       final reportCache =
           DurablePrincipalOfficerReportCache(_store, installationId);
       late final BasicApi basicApi;
-      final session = SessionController(
+      late final SessionController session;
+      session = SessionController(
         transport,
         _store,
         installationId,
         _ids,
         terminalPurge: () async {
+          // Expire business projection before awaiting storage. Do not pop the
+          // receipt route or dispose its owner during its intentional clear.
+          if (mounted && identical(_session, session)) {
+            _authEpoch++;
+            _basicLoadOperation = null;
+            _retirePendingReview(popRoutes: false);
+            _identityLink?.retireLocalPresentation();
+            setState(() {
+              _basicLoadInProgress = false;
+              person = null;
+              games = const [];
+              lastSyncedAt = null;
+              principalProvenance = null;
+              cacheSessionAggregate = null;
+              state = AuthViewState.loggedOut;
+            });
+            final notifications = _notificationController;
+            _notificationController = null;
+            await notifications?.invalidate();
+          }
           await basicCache.clear();
           await notificationCache.clear();
           await reportCache.clearInstallation();
@@ -368,6 +405,8 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
           ? const NativeAppleLogin()
           : null;
       _session = session;
+      _transport = transport;
+      _apple = apple;
       _line = line;
       _google = google;
       _identityLink = IdentityLinkController(
@@ -573,13 +612,15 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     ));
   }
 
-  void _retirePendingReview() {
+  void _retirePendingReview({bool popRoutes = true}) {
     _login?.retirePendingReview();
     _googleLogin?.retirePendingReview();
     _appleLogin?.retirePendingReview();
     _pendingReviewClient?.retire();
     _pendingReviewClient = null;
-    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    if (popRoutes) {
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    }
   }
 
   Future<void> _openIdentityRecovery() async {
@@ -813,8 +854,107 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
     );
   }
 
+  WidgetBuilder? get _erasureEntryBuilder {
+    final options = widget.erasureEntry;
+    final session = _session;
+    final transport = _transport;
+    final line = _line;
+    if (options == null ||
+        session == null ||
+        transport == null ||
+        line == null) {
+      return null;
+    }
+    final epoch = _erasureEpoch;
+    final apple = _apple;
+    return (_) {
+      // Called once by the support tile at tap time, not by a route rebuild.
+      final generation = session.generation;
+      final captured = AccountErasureRootContext(
+        store: _store,
+        session: session,
+        transport: transport,
+        line: line,
+        apple: apple,
+        options: options,
+        requireCurrent: () {
+          if (!mounted ||
+              epoch != _erasureEpoch ||
+              !identical(widget.erasureEntry, options) ||
+              !identical(_session, session) ||
+              generation != session.generation) {
+            throw const ErasureReceiptUnavailable();
+          }
+        },
+      );
+      return AccountErasureEntryPage(
+        rootContext: captured,
+        open: ({String? provider, required bool resume}) =>
+            _openErasure(captured, provider: provider, resume: resume),
+      );
+    };
+  }
+
+  Future<AccountErasureFlowPort> _openErasure(
+      AccountErasureRootContext captured,
+      {String? provider,
+      required bool resume}) async {
+    captured.requireCurrent();
+    var owner = _erasureOwner;
+    if (owner != null) {
+      try {
+        owner.requireCurrent();
+      } on Object {
+        owner.dispose();
+        _erasureOwner = null;
+        owner = null;
+      }
+    }
+    if (owner != null && owner.flow != null) {
+      // Reopening this exact live owner does not rebind or reopen its vault.
+      if (!resume) {
+        throw const ErasureReceiptUnavailable();
+      }
+      owner.flow!.requireCurrent();
+      return owner.flow!;
+    }
+    owner ??=
+        captured.options.ownerFactory?.call(captured) ?? captured.createOwner();
+    _erasureOwner = owner;
+    try {
+      captured.requireCurrent();
+      final flow = resume
+          ? await owner.resume(confirmed: true)
+          : await owner.start(provider: provider ?? '', confirmed: true);
+      captured.requireCurrent();
+      if (!identical(_erasureOwner, owner)) {
+        throw const ErasureReceiptUnavailable();
+      }
+      flow.requireCurrent();
+      return flow;
+    } on Object {
+      owner.dispose();
+      if (identical(_erasureOwner, owner)) {
+        _erasureOwner = null;
+      }
+      throw const ErasureReceiptUnavailable();
+    }
+  }
+
+  @override
+  void didUpdateWidget(BasicBootstrapApp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.erasureEntry, widget.erasureEntry)) {
+      _erasureEpoch++;
+      _erasureOwner?.dispose();
+      _erasureOwner = null;
+    }
+  }
+
   @override
   void dispose() {
+    _erasureEpoch++;
+    _erasureOwner?.dispose();
     _login?.removeListener(_onLoginStateChanged);
     _login?.dispose();
     _googleLogin?.removeListener(_onGoogleLoginStateChanged);
@@ -833,11 +973,20 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
         darkTheme: appTheme(Brightness.dark),
         themeMode: _themePreference.themeMode,
         home: _onboardingComplete == false
-            ? OnboardingPage(onComplete: _completeOnboarding)
+            ? OnboardingPage(
+                onComplete: _completeOnboarding,
+                supportAction: SupportAppInfoAction(
+                  erasureEntryBuilder: _erasureEntryBuilder,
+                ),
+              )
             : Scaffold(
                 appBar: AppBar(
                   title: const Text('隊務系統'),
-                  actions: const [SupportAppInfoAction()],
+                  actions: [
+                    SupportAppInfoAction(
+                      erasureEntryBuilder: _erasureEntryBuilder,
+                    )
+                  ],
                 ),
                 body: DebugCacheSessionComposition(
                   aggregate: cacheSessionAggregate,
@@ -845,6 +994,7 @@ class _BasicBootstrapAppState extends State<BasicBootstrapApp> {
                   child: state == AuthViewState.authenticated ||
                           state == AuthViewState.offline
                       ? BasicGamesView(
+                          erasureEntryBuilder: _erasureEntryBuilder,
                           api: _api!,
                           person: person!,
                           games: games,
@@ -1159,6 +1309,8 @@ class BasicGamesView extends StatefulWidget {
     this.platform,
     this.diagnosticEnabled = true,
     this.deletionClient,
+    this.erasureEntryBuilder,
+    this.memberActionClock,
   });
   final BasicApi api;
   final Person person;
@@ -1176,6 +1328,8 @@ class BasicGamesView extends StatefulWidget {
   final IdentityLinkController? identityLink;
   final String? platform;
   final AccountDeletionPort? deletionClient;
+  final WidgetBuilder? erasureEntryBuilder;
+  final DateTime Function()? memberActionClock;
 
   /// Test injection can disable the diagnostic, but cannot enable it in a
   /// release build because rendering is always additionally gated by
@@ -1373,6 +1527,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
                 MaterialPageRoute<void>(
                   builder: (_) => SupportAppInfoPage(
                     deletionClient: widget.deletionClient,
+                    erasureEntryBuilder: widget.erasureEntryBuilder,
                   ),
                 ),
               ),
@@ -1514,6 +1669,7 @@ class _BasicGamesViewState extends State<BasicGamesView> {
             ),
           MemberActionHome(
             api: widget.api,
+            clock: widget.memberActionClock,
             principalScope: widget.person.id,
             games: orderedGames,
             online: widget.online,
@@ -2570,7 +2726,8 @@ class MemberActionHome extends StatefulWidget {
       required this.online,
       required this.onOpenGame,
       required this.onOpenSchedule,
-      this.controller});
+      this.controller,
+      this.clock});
   final BasicApi api;
   final String principalScope;
   final List<Game> games;
@@ -2578,6 +2735,7 @@ class MemberActionHome extends StatefulWidget {
   final Future<void> Function(Game) onOpenGame;
   final VoidCallback onOpenSchedule;
   final MemberActionController? controller;
+  final DateTime Function()? clock;
   @override
   State<MemberActionHome> createState() => _MemberActionHomeState();
 }
@@ -2589,8 +2747,8 @@ class _MemberActionHomeState extends State<MemberActionHome> {
   void initState() {
     super.initState();
     _ownsController = widget.controller == null;
-    _controller =
-        widget.controller ?? MemberActionController(widget.api.attendance);
+    _controller = widget.controller ??
+        MemberActionController(widget.api.attendance, clock: widget.clock);
     _controller.load(
       principalScope: widget.principalScope,
       games: widget.games,

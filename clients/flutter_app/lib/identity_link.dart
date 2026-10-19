@@ -343,11 +343,17 @@ class IdentityLinkController extends ChangeNotifier {
     }
   }
 
-  Future<void> terminal() async {
+  /// Retire only local credentials/projections and fence outstanding callbacks.
+  /// Used by business-session purge without logging out a fresh proof provider.
+  void retireLocalPresentation() {
     _retireLocal(clearLinkedMethods: true);
     failure = null;
     stage = IdentityLinkStage.idle;
     notifyListeners();
+  }
+
+  Future<void> terminal() async {
+    retireLocalPresentation();
     await _clearProviderState();
   }
 

@@ -1,5 +1,18 @@
 """Temporary fail-closed boundary for Phase C identity lifecycle features."""
 
+import os
+
+
+def validate_erasure_checks_configuration(*, demo_mode: bool = False) -> None:
+    """Validate before routes; offline demo must not import the shared package."""
+    if demo_mode:
+        if os.environ.get("PORTAL_DATA_ERASURE_CHECKS_ENABLED", "false") != "false":
+            raise RuntimeError("erasure checks cannot run in demo mode")
+        return
+    from shared_module.portal_data.runtime import phase_c_runtime_state
+
+    phase_c_runtime_state()
+
 
 def is_phase_c_enabled(*, demo_mode: bool = False) -> bool:
     """Keep the offline demo independent from the deployed shared package."""

@@ -1,6 +1,7 @@
 {% extends '_portal_base.html' %}
 {% block title %}編輯 {{ event.title }}｜NTUBTOB{% endblock %}
 {% block content %}
+<p class="portal-muted">活動名稱與行程標題請只填隊務資訊，避免加入姓名、電話、Email 或私人狀況；人工邀請理由只需說明本次調整，不要重複抄寫個人資料。</p>
 <a class="portal-back-link" href="{{ url_for('manage_events') }}">← 返回活動管理</a>
 <section class="portal-title"><p class="portal-eyebrow">{{ event.status }} · EVENT BUILDER</p><h1>{{ event.title }}</h1><p>版本 {{ event.version }}；所有時間以台北時間顯示與輸入。</p></section>
 {% if event.status == 'cancelled' %}<section class="portal-card portal-empty"><h2>活動已取消</h2><p>邀請快照與稽核紀錄已保留，內容不可再修改。</p></section>{% else %}

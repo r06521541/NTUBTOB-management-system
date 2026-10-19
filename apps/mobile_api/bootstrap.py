@@ -28,6 +28,7 @@ from shared_module.mobile_notifications import NotificationPublishingService
 from shared_module.models.db import engine
 from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
 from shared_module.portal_data.mobile_repository import MobileRepository
+from shared_module.portal_data.runtime import erasure_checks_enabled
 from shared_module.provider_verifiers import (
     AppleAuthorizationCodeExchanger,
     AppleServerNotificationVerifier,
@@ -77,7 +78,8 @@ def revision_is_current() -> bool:
     return database_revision_is_current(engine, logger)
 
 
-repository = MobileRepository(engine)
+checks_enabled = erasure_checks_enabled()
+repository = MobileRepository(engine, erasure_checks_enabled=checks_enabled)
 refresh_replay_key = required("MOBILE_REFRESH_REPLAY_KEY")
 cipher = RuntimeCipher(refresh_replay_key)
 token_key = base64.urlsafe_b64decode(required("MOBILE_ACCESS_SIGNING_KEY"))
@@ -143,7 +145,7 @@ def unavailable_notifier(_notification):
     raise RuntimeError("notification port is not configured")
 
 
-data = IdentityLifecycleRepository(engine)
+data = IdentityLifecycleRepository(engine, erasure_checks_enabled=checks_enabled)
 attendance = AttendanceReplyService(data, unavailable_notifier)
 app = create_app(
     Dependencies(

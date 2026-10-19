@@ -24,6 +24,10 @@ from shared_module.mobile_api import (
     NotFound,
     mobile_capabilities,
 )
+from shared_module.portal_data.erasure_service import (
+    AccountErasureService,
+    AccountErasureUnavailable,
+)
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,7 @@ class Dependencies:
     apple_lifecycle_ready: Callable[[], bool] | None = None
     apple_notifications: object | None = None
     account_deletion: AccountDeletionService | None = None
+    account_erasure: AccountErasureService | None = None
 
 
 def create_app(dependencies: Dependencies) -> Flask:
@@ -54,6 +59,8 @@ def create_app(dependencies: Dependencies) -> Flask:
             if not ready:
                 if request.path == "/api/v1/me/account-deletion":
                     raise AccountDeletionUnavailable()
+                if "account-erasure" in request.path:
+                    raise AccountErasureUnavailable()
                 raise MobileApiError("required database revision is unavailable")
 
     @app.errorhandler(MobileApiError)
@@ -139,9 +146,158 @@ def create_app(dependencies: Dependencies) -> Flask:
 
     @app.after_request
     def account_deletion_no_store(response):
-        if request.path == "/api/v1/me/account-deletion":
+        if (
+            request.path == "/api/v1/me/account-deletion"
+            or "account-erasure" in request.path
+        ):
             response.headers["Cache-Control"] = "no-store"
         return response
+
+    def erasure_service():
+        if dependencies.account_erasure is None:
+            raise AccountErasureUnavailable()
+        if request.args:
+            raise InvalidArgument("query parameters are not supported")
+        return dependencies.account_erasure
+
+    def erasure_body(fields, *, confirmation=False):
+        if not request.is_json or (request.content_length or 0) > 24576:
+            raise MalformedRequest("bounded JSON object required")
+        data = request.stream.read(24577)
+        if len(data) > 24576:
+            raise MalformedRequest("bounded JSON object required")
+
+        def unique_object(pairs):
+            result = {}
+            for key, value in pairs:
+                if key in result:
+                    raise ValueError
+                result[key] = value
+            return result
+
+        try:
+            body = json.loads(data, object_pairs_hook=unique_object)
+        except (ValueError, UnicodeError, RecursionError):
+            raise MalformedRequest("JSON object with unique fields required") from None
+        if type(body) is not dict or set(body) != set(fields):
+            raise InvalidArgument("exact credential fields required")
+        if confirmation and body.get("confirmed") is not True:
+            raise InvalidArgument("explicit confirmation required")
+        if any(
+            type(value) is not str or not value
+            for key, value in body.items()
+            if not (confirmation and key == "confirmed")
+        ):
+            raise InvalidArgument("credential strings required")
+        return body
+
+    @app.post("/api/v1/account-erasure/recovery/challenge")
+    def challenge_account_erasure_recovery():
+        service = erasure_service()
+        body = erasure_body({"provider"})
+        return service.recovery_challenge(body["provider"])
+
+    @app.post("/api/v1/account-erasure/recovery")
+    def recover_account_erasure_receipt():
+        service = erasure_service()
+        body = erasure_body(
+            {"challenge_credential", "provider_assertion", "confirmed"},
+            confirmation=True,
+        )
+        return service.recover_receipt(
+            body["challenge_credential"], body["provider_assertion"], body["confirmed"]
+        )
+
+    @app.post("/api/v1/account-erasure/request/challenge")
+    def restricted_account_erasure_challenge():
+        service = erasure_service()
+        body = erasure_body({"provider"})
+        return service.restricted_challenge(body["provider"])
+
+    @app.post("/api/v1/account-erasure/request")
+    def request_restricted_account_erasure():
+        service = erasure_service()
+        body = erasure_body(
+            {"challenge_credential", "provider_assertion", "confirmed"},
+            confirmation=True,
+        )
+        return (
+            service.request_restricted(
+                body["challenge_credential"],
+                body["provider_assertion"],
+                body["confirmed"],
+            ),
+            202,
+        )
+
+    @app.post("/api/v1/me/account-erasure")
+    def request_account_erasure():
+        service = erasure_service()
+        principal = authenticate()
+        return service.request(principal, deletion_confirmation()), 202
+
+    @app.post("/api/v1/me/account-erasure/challenge")
+    def challenge_account_erasure():
+        service = erasure_service()
+        principal = authenticate()
+        body = erasure_body({"job_id", "receipt_secret"})
+        return service.challenge(principal, body["job_id"], body["receipt_secret"])
+
+    @app.post("/api/v1/account-erasure/pending/challenge")
+    def challenge_pending_account_erasure():
+        service = erasure_service()
+        body = erasure_body({"job_id", "receipt_secret"})
+        return service.pending_challenge(body["job_id"], body["receipt_secret"])
+
+    @app.post("/api/v1/account-erasure/receipt/challenge")
+    def challenge_receipt_account_erasure():
+        service = erasure_service()
+        body = erasure_body({"job_id", "receipt_secret", "provider"})
+        return service.receipt_challenge(
+            body["job_id"], body["receipt_secret"], body["provider"]
+        )
+
+    @app.post("/api/v1/account-erasure/receipt/verify")
+    def verify_receipt_account_erasure():
+        service = erasure_service()
+        body = erasure_body(
+            {"challenge_credential", "provider_assertion", "confirmed"},
+            confirmation=True,
+        )
+        return service.verify_receipt(
+            body["challenge_credential"], body["provider_assertion"], body["confirmed"]
+        )
+
+    @app.post("/api/v1/account-erasure/verify")
+    def verify_account_erasure():
+        service = erasure_service()
+        body = erasure_body({"challenge_credential", "provider_assertion"})
+        return service.verify(body["challenge_credential"], body["provider_assertion"])
+
+    @app.post("/api/v1/account-erasure/status")
+    def account_erasure_status():
+        service = erasure_service()
+        body = erasure_body({"job_id", "receipt_secret"})
+        return service.status(body["job_id"], body["receipt_secret"])
+
+    @app.post("/api/v1/account-erasure/cancel/challenge")
+    def challenge_account_erasure_cancellation():
+        service = erasure_service()
+        body = erasure_body({"job_id", "receipt_secret", "provider"})
+        return service.cancellation_challenge(
+            body["job_id"], body["receipt_secret"], body["provider"]
+        )
+
+    @app.post("/api/v1/account-erasure/cancel")
+    def cancel_account_erasure():
+        service = erasure_service()
+        body = erasure_body(
+            {"challenge_credential", "provider_assertion", "confirmed"},
+            confirmation=True,
+        )
+        return service.cancel(
+            body["challenge_credential"], body["provider_assertion"], body["confirmed"]
+        )
 
     def account_deletion_service():
         if dependencies.account_deletion is None:

@@ -32,6 +32,7 @@ def _require_isolated_test_database(engine) -> None:
         engine.url.drivername not in {"postgresql", "postgresql+psycopg2"}
         or (engine.url.host or "").lower() not in LOCAL_HOSTS
         or engine.url.database != LOCAL_DATABASE_NAME
+        or getattr(engine.url, "query", None)
     ):
         raise RuntimeError(
             "Event lifecycle cleanup requires the isolated test database"
@@ -59,6 +60,13 @@ def prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(
     if current_rows in (
         ("0012_persistent_admin_authority",),
         ("0013_account_deletion_requests",),
+        ("0014_account_erasure_ledger",),
+        ("0015_account_generations",),
+        ("0016_erasure_cancellation",),
+        ("0017_erasure_work_items",),
+        ("0018_erasure_privacy_mutation",),
+        ("0019_erasure_admin_recovery",),
+        ("0020_erasure_intake",),
     ):
         remove_retained_admin_authority_from_isolated_test_database(engine)
         current_rows = _revision_rows(engine)

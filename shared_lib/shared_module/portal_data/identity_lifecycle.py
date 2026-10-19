@@ -21,6 +21,16 @@ from .domain import (
     require_reason,
     validate_guest_period,
 )
+from .erasure_guard import (
+    ErasureAccessBlocked,
+    ErasureGuardUnavailable,
+    require_account_not_erasing,
+)
+from .erasure_management_gate import require_management_mutation
+from .erasure_management_guard import (
+    ManagementGuardUnavailable,
+    ManagementWritesSuspended,
+)
 from .models import (
     AccessAuditRecord,
     ActivityRecord,
@@ -57,7 +67,13 @@ REVIEW_RETENTION = timedelta(days=365)
 BOOTSTRAP_REASON_PREFIX = "Zero-admin bootstrap: "
 CURRENT_AUTHORITY_REVISION = "0012_persistent_admin_authority"
 AUTHORITY_REVISIONS = frozenset(
-    {CURRENT_AUTHORITY_REVISION, "0013_account_deletion_requests"}
+    {
+        CURRENT_AUTHORITY_REVISION,
+        "0013_account_deletion_requests",
+        "0014_account_erasure_ledger",
+        "0019_erasure_admin_recovery",
+        "0020_erasure_intake",
+    }
 )
 PRE_AUTHORITY_REVISIONS = frozenset(
     {
@@ -118,7 +134,11 @@ class IdentityLifecycleRepository:
         *,
         authority_mode: str | None = None,
         allow_persisted_admins: bool | None = None,
+        erasure_checks_enabled: bool = False,
     ):
+        if type(erasure_checks_enabled) is not bool:
+            raise ValueError("erasure checks must be boolean")
+        self.erasure_checks_enabled = erasure_checks_enabled
         self.engine = engine
         self.admin_member_ids = frozenset(int(value) for value in admin_member_ids)
         compatibility_preview = (
@@ -139,6 +159,29 @@ class IdentityLifecycleRepository:
         # Preserve the pre-0012 local-preview constructor only. Production Web
         # passes an explicit authority_mode and must prove the singleton state.
         self._requires_authority_state = not compatibility_preview
+
+    @staticmethod
+    def _require_management_write(session: Session) -> None:
+        try:
+            require_management_mutation(session)
+        except (ManagementWritesSuspended, ManagementGuardUnavailable):
+            raise AuthorizationError("management writes unavailable") from None
+
+    def _require_account_available(
+        self,
+        session: Session,
+        *,
+        person_id: int | None = None,
+        identity_id: int | None = None,
+    ) -> None:
+        if not self.erasure_checks_enabled:
+            return
+        try:
+            require_account_not_erasing(
+                session, person_id=person_id, identity_id=identity_id
+            )
+        except (ErasureAccessBlocked, ErasureGuardUnavailable):
+            raise AuthorizationError("account access unavailable") from None
 
     @staticmethod
     def _identity(row: AuthIdentityRecord) -> AuthIdentity:
@@ -193,6 +236,9 @@ class IdentityLifecycleRepository:
         return thread
 
     def _require_admin(self, session: Session, actor_person_id: int) -> PersonRecord:
+        if self.erasure_checks_enabled:
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, person_id=actor_person_id)
         acquire_admin_lock(session)
         if not self._authority_mode_matches_in_session(session):
             raise AuthorizationError("administrator authority mode mismatch")
@@ -295,13 +341,92 @@ class IdentityLifecycleRepository:
             )
         return "admin" if principal.person.access_level == "admin" else "basic"
 
-    @staticmethod
     def _reachable_persistent_admin_count(
+        self,
         session: Session,
         *,
         excluding_person_id: int | None = None,
         excluding_identity_id: int | None = None,
     ) -> int:
+        if self.erasure_checks_enabled:
+            # Called under canonical locks, including from an Apple callback with
+            # a dirty receipt. Core queries must not autoflush that receipt or
+            # unrelated pending changes. Callers count before changing authority.
+            if not session.in_transaction():
+                raise AuthorizationError("administrator availability unavailable")
+            try:
+                connection = session.connection()
+                if (
+                    connection.get_isolation_level() != "READ COMMITTED"
+                    or getattr(
+                        connection.connection.dbapi_connection, "autocommit", None
+                    )
+                    is not False
+                ):
+                    raise AuthorizationError("administrator availability unavailable")
+                acquire_admin_event_locks(connection)
+                revisions = tuple(
+                    connection.scalars(
+                        text("SELECT version_num FROM ntubtob.alembic_version")
+                    ).all()
+                )
+                if revisions not in (
+                    ("0014_account_erasure_ledger",),
+                    ("0015_account_generations",),
+                    ("0016_erasure_cancellation",),
+                    ("0017_erasure_work_items",),
+                    ("0018_erasure_privacy_mutation",),
+                    ("0019_erasure_admin_recovery",),
+                    ("0020_erasure_intake",),
+                ):
+                    raise AuthorizationError("administrator availability unavailable")
+                tables = ("people", "auth_identities", "account_erasure_jobs")
+                intake_exclusion = ""
+                if revisions == ("0020_erasure_intake",):
+                    tables += ("account_erasure_intakes",)
+                    intake_exclusion = (
+                        " AND NOT EXISTS (SELECT 1 FROM ntubtob.account_erasure_intakes j "
+                        "WHERE j.status='verified' AND (j.person_id=p.id OR "
+                        "j.auth_identity_id IN (SELECT owned.id FROM ntubtob.auth_identities owned "
+                        "WHERE owned.person_id=p.id)))"
+                    )
+                for table in tables:
+                    if (
+                        connection.scalar(
+                            text(
+                                f"SELECT pg_catalog.row_security_active('ntubtob.{table}'::pg_catalog.regclass)"
+                            )
+                        )
+                        is not False
+                    ):
+                        raise AuthorizationError(
+                            "administrator availability unavailable"
+                        )
+                return int(
+                    connection.scalar(
+                        text(
+                            "SELECT count(DISTINCT p.id) FROM ntubtob.people p "
+                            "JOIN ntubtob.auth_identities i ON i.person_id=p.id "
+                            "WHERE p.portal_access_level='admin' AND p.portal_status='active' "
+                            "AND i.status='linked' "
+                            "AND (:person IS NULL OR p.id<>:person) "
+                            "AND (:identity IS NULL OR i.id<>:identity) "
+                            "AND NOT EXISTS (SELECT 1 FROM ntubtob.account_erasure_jobs j "
+                            "WHERE j.status<>'requested' AND (j.person_id=p.id OR "
+                            "j.auth_identity_id IN (SELECT owned.id FROM ntubtob.auth_identities owned "
+                            "WHERE owned.person_id=p.id)))" + intake_exclusion
+                        ),
+                        {
+                            "person": excluding_person_id,
+                            "identity": excluding_identity_id,
+                        },
+                    )
+                    or 0
+                )
+            except SQLAlchemyError:
+                raise AuthorizationError(
+                    "administrator availability unavailable"
+                ) from None
         statement = (
             select(func.count(func.distinct(PersonRecord.id)))
             .join(
@@ -320,16 +445,15 @@ class IdentityLifecycleRepository:
             statement = statement.where(AuthIdentityRecord.id != excluding_identity_id)
         return int(session.scalar(statement) or 0)
 
-    @classmethod
     def _assert_reachable_admin_remains(
-        cls,
+        self,
         session: Session,
         *,
         excluding_person_id: int | None = None,
         excluding_identity_id: int | None = None,
     ) -> None:
         if (
-            cls._reachable_persistent_admin_count(
+            self._reachable_persistent_admin_count(
                 session,
                 excluding_person_id=excluding_person_id,
                 excluding_identity_id=excluding_identity_id,
@@ -348,6 +472,7 @@ class IdentityLifecycleRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
                 identity = session.scalar(
                     select(AuthIdentityRecord)
                     .where(
@@ -357,6 +482,9 @@ class IdentityLifecycleRepository:
                     .with_for_update()
                 )
                 if identity is not None:
+                    self._require_account_available(
+                        session, person_id=identity.person_id, identity_id=identity.id
+                    )
                     return PendingIdentityResult(self._identity(identity), False)
                 legacy = session.scalar(
                     select(LegacyLineUserRecord)
@@ -407,6 +535,8 @@ class IdentityLifecycleRepository:
     ) -> Principal | None:
         at = at or utc_now()
         with Session(self.engine) as session:
+            if self.erasure_checks_enabled:
+                acquire_admin_event_locks(session)
             row = session.scalar(
                 select(AuthIdentityRecord).where(
                     AuthIdentityRecord.provider == "line",
@@ -414,6 +544,12 @@ class IdentityLifecycleRepository:
                 )
             )
             if row is None or row.status != "linked" or row.person_id is None:
+                return None
+            try:
+                self._require_account_available(
+                    session, person_id=row.person_id, identity_id=row.id
+                )
+            except AuthorizationError:
                 return None
             person = session.get(PersonRecord, row.person_id)
             if person is None or person.portal_status != "active":
@@ -687,15 +823,18 @@ class IdentityLifecycleRepository:
                 )
                 .outerjoin(
                     LegacyLineUserRecord,
-                    LegacyLineUserRecord.line_user_id
-                    == AuthIdentityRecord.provider_subject,
+                    and_(
+                        AuthIdentityRecord.provider == "line",
+                        LegacyLineUserRecord.line_user_id
+                        == AuthIdentityRecord.provider_subject,
+                    ),
                 )
                 .outerjoin(
                     IdentityReviewThreadRecord,
                     IdentityReviewThreadRecord.auth_identity_id
                     == AuthIdentityRecord.id,
                 )
-                .where(AuthIdentityRecord.provider == "line")
+                .where(AuthIdentityRecord.provider.in_(("line", "apple")))
                 .order_by(AuthIdentityRecord.created_at.desc())
                 .limit(250)
             ).all()
@@ -708,7 +847,16 @@ class IdentityLifecycleRepository:
                 identities.append(
                     {
                         "identity_id": identity.id,
-                        "nickname": legacy.nickname if legacy else "LINE applicant",
+                        "provider": identity.provider,
+                        "nickname": (
+                            legacy.nickname
+                            if legacy
+                            else (
+                                "Apple applicant"
+                                if identity.provider == "apple"
+                                else "LINE applicant"
+                            )
+                        ),
                         "identity_status": identity.status,
                         "ignored": legacy.ignored if legacy else False,
                         "person_id": person.id if person else None,
@@ -823,6 +971,8 @@ class IdentityLifecycleRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_person_id)
                 if self._audit_exists(session, request_id):
                     raise ConflictError("request already applied")
@@ -897,8 +1047,10 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
+            self._require_account_available(session, person_id=target_person_id)
             target = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == target_person_id)
@@ -969,8 +1121,10 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
+            self._require_account_available(session, person_id=target_person_id)
             target = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == target_person_id)
@@ -1146,6 +1300,8 @@ class IdentityLifecycleRepository:
             raise ValidationError("guest_player requires guest lifecycle")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             if self._audit_exists(session, request_id):
                 raise ConflictError("request already applied")
@@ -1210,8 +1366,10 @@ class IdentityLifecycleRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_person_id)
-                subject = self._approve_member_in_transaction(
+                self._approve_member_in_transaction(
                     session,
                     identity_id,
                     member_id,
@@ -1220,7 +1378,12 @@ class IdentityLifecycleRepository:
                     now,
                     actor_person_id,
                 )
-            principal = self.resolve_line_principal(subject, now)
+                approved_person_id = session.get(
+                    AuthIdentityRecord, identity_id
+                ).person_id
+            principal = self.resolve_principal_by_ids(
+                identity_id, approved_person_id, now
+            )
             if principal is None:
                 raise ConflictError("approved principal did not resolve")
             return principal
@@ -1240,6 +1403,30 @@ class IdentityLifecycleRepository:
         strict_bootstrap: bool = False,
     ) -> str:
         """Apply the shared Member-linking invariants inside an open transaction."""
+        if self.erasure_checks_enabled:
+            # Cover the replay branch too, before the first audit lookup. Neither
+            # target is new: both must remain available before identity linking.
+            acquire_admin_event_locks(session)
+            current_identity = session.scalar(
+                select(AuthIdentityRecord)
+                .where(AuthIdentityRecord.id == identity_id)
+                .with_for_update()
+            )
+            if current_identity is not None:
+                self._require_account_available(
+                    session,
+                    person_id=current_identity.person_id,
+                    identity_id=current_identity.id,
+                )
+            current_member = session.scalar(
+                select(LegacyMemberRecord)
+                .where(LegacyMemberRecord.id == member_id)
+                .with_for_update()
+            )
+            if current_member is not None and current_member.person_id is not None:
+                self._require_account_available(
+                    session, person_id=current_member.person_id
+                )
         if self._audit_exists(session, request_id):
             identity = session.get(AuthIdentityRecord, identity_id)
             audit = session.scalar(
@@ -1249,6 +1436,8 @@ class IdentityLifecycleRepository:
             )
             if (
                 identity is None
+                or identity.provider not in {"line", "apple"}
+                or (strict_bootstrap and identity.provider != "line")
                 or identity.status != "linked"
                 or audit is None
                 or audit.action != "identity_linked"
@@ -1277,8 +1466,12 @@ class IdentityLifecycleRepository:
             .where(LegacyMemberRecord.id == member_id)
             .with_for_update()
         )
-        if identity is None or identity.provider != "line":
-            raise ConflictError("LINE identity not found")
+        if (
+            identity is None
+            or identity.provider not in {"line", "apple"}
+            or (strict_bootstrap and identity.provider != "line")
+        ):
+            raise ConflictError("supported approval identity required")
         if identity.status != "pending" or identity.person_id is not None:
             raise ConflictError("pending identity required")
         if member is None or member.person_id is None:
@@ -1290,23 +1483,26 @@ class IdentityLifecycleRepository:
         )
         if person is None or person.portal_status in {"disabled", "blocked"}:
             raise ConflictError("eligible target Person required")
-        legacy = session.scalar(
-            select(LegacyLineUserRecord)
-            .where(LegacyLineUserRecord.line_user_id == identity.provider_subject)
-            .with_for_update()
-        )
-        if legacy is None or legacy.member_id is not None:
-            raise ConflictError("unlinked legacy identity required")
-        if strict_bootstrap and legacy.ignored:
-            raise ConflictError("unignored legacy identity required")
+        legacy = None
+        if identity.provider == "line":
+            legacy = session.scalar(
+                select(LegacyLineUserRecord)
+                .where(LegacyLineUserRecord.line_user_id == identity.provider_subject)
+                .with_for_update()
+            )
+            if legacy is None or legacy.member_id is not None:
+                raise ConflictError("unlinked legacy identity required")
+            if strict_bootstrap and legacy.ignored:
+                raise ConflictError("unignored legacy identity required")
         person.portal_status = "active"
         person.version += 1
         person.updated_at = now
         identity.person_id = person.id
         identity.status = "linked"
         identity.updated_at = now
-        legacy.member_id = member.id
-        legacy.ignored = False
+        if legacy is not None:
+            legacy.member_id = member.id
+            legacy.ignored = False
         qualification = session.scalar(
             select(PersonQualificationRecord)
             .where(
@@ -1366,10 +1562,8 @@ class IdentityLifecycleRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
-                session.execute(
-                    text("SELECT pg_advisory_xact_lock(:key)"),
-                    {"key": ADMIN_LOCK_KEY},
-                )
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 if self._audit_exists(session, request_id):
                     subject = self._approve_member_in_transaction(
                         session,
@@ -1447,6 +1641,8 @@ class IdentityLifecycleRepository:
         now = utc_now()
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                acquire_admin_event_locks(session)
                 self._require_admin(session, actor_person_id)
                 identity = session.scalar(
                     select(AuthIdentityRecord)
@@ -1455,10 +1651,14 @@ class IdentityLifecycleRepository:
                 )
                 if (
                     identity is None
+                    or identity.provider not in {"line", "apple"}
                     or identity.status != "pending"
                     or identity.person_id
                 ):
                     raise ConflictError("pending identity required")
+                self._require_account_available(
+                    session, person_id=identity.person_id, identity_id=identity.id
+                )
                 if self._audit_exists(session, request_id):
                     raise ConflictError("request already applied")
                 person = PersonRecord(
@@ -1476,17 +1676,19 @@ class IdentityLifecycleRepository:
                 identity.person_id = person.id
                 identity.status = "linked"
                 identity.updated_at = now
-                legacy = session.scalar(
-                    select(LegacyLineUserRecord)
-                    .where(
-                        LegacyLineUserRecord.line_user_id == identity.provider_subject
+                if identity.provider == "line":
+                    legacy = session.scalar(
+                        select(LegacyLineUserRecord)
+                        .where(
+                            LegacyLineUserRecord.line_user_id
+                            == identity.provider_subject
+                        )
+                        .with_for_update()
                     )
-                    .with_for_update()
-                )
-                if legacy is None:
-                    raise ConflictError("legacy LINE identity required")
-                legacy.member_id = None
-                legacy.ignored = False
+                    if legacy is None:
+                        raise ConflictError("legacy LINE identity required")
+                    legacy.member_id = None
+                    legacy.ignored = False
                 for qualification in sorted(requested):
                     session.add(
                         PersonQualificationRecord(
@@ -1530,8 +1732,10 @@ class IdentityLifecycleRepository:
                         created_at=now,
                     )
                 )
-                subject = identity.provider_subject
-            principal = self.resolve_line_principal(subject, now)
+                approved_person_id = person.id
+            principal = self.resolve_principal_by_ids(
+                identity_id, approved_person_id, now
+            )
             if principal is None:
                 raise ConflictError("approved principal did not resolve")
             return principal
@@ -1551,17 +1755,27 @@ class IdentityLifecycleRepository:
     ) -> AuthIdentity:
         reason = require_reason(reason)
         now = at or utc_now()
+        if lock_boundary is not None:
+            lock_boundary()
         with Session(self.engine) as session, session.begin():
-            if lock_boundary is not None:
-                lock_boundary()
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
                 select(AuthIdentityRecord)
                 .where(AuthIdentityRecord.id == identity_id)
                 .with_for_update()
             )
-            if identity is None or identity.status != "pending" or identity.person_id:
-                raise ConflictError("only pending identities may be ignored")
+            if (
+                identity is None
+                or identity.provider != "line"
+                or identity.status != "pending"
+                or identity.person_id
+            ):
+                raise ConflictError("only pending LINE identities may be ignored")
+            self._require_account_available(
+                session, person_id=identity.person_id, identity_id=identity.id
+            )
             legacy = session.scalar(
                 select(LegacyLineUserRecord)
                 .where(LegacyLineUserRecord.line_user_id == identity.provider_subject)
@@ -1604,6 +1818,7 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
@@ -1611,21 +1826,26 @@ class IdentityLifecycleRepository:
                 .where(AuthIdentityRecord.id == identity_id)
                 .with_for_update()
             )
+            if (
+                identity is None
+                or identity.provider != "line"
+                or identity.status != "linked"
+                or identity.person_id is None
+            ):
+                raise ConflictError("linked LINE identity required")
+            if identity.id == current_identity_id:
+                raise ConflictError("cannot remap the current login identity")
+            self._require_account_available(
+                session, person_id=identity.person_id, identity_id=identity.id
+            )
             target_member = session.scalar(
                 select(LegacyMemberRecord)
                 .where(LegacyMemberRecord.id == target_member_id)
                 .with_for_update()
             )
-            if (
-                identity is None
-                or identity.status != "linked"
-                or identity.person_id is None
-            ):
-                raise ConflictError("linked identity required")
-            if identity.id == current_identity_id:
-                raise ConflictError("cannot remap the current login identity")
             if target_member is None or target_member.person_id is None:
                 raise ConflictError("target Member with Person required")
+            self._require_account_available(session, person_id=target_member.person_id)
             target = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == target_member.person_id)
@@ -1709,6 +1929,7 @@ class IdentityLifecycleRepository:
             "pending": "identity_unblocked",
         }
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
@@ -1718,6 +1939,9 @@ class IdentityLifecycleRepository:
             )
             if identity is None:
                 raise ConflictError("identity not found")
+            self._require_account_available(
+                session, person_id=identity.person_id, identity_id=identity.id
+            )
             if identity.id == current_identity_id and status != identity.status:
                 raise ConflictError("cannot change the current login identity")
             if self._audit_exists(session, request_id):
@@ -1808,6 +2032,7 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             identity = session.scalar(
@@ -1817,12 +2042,16 @@ class IdentityLifecycleRepository:
             )
             if (
                 identity is None
+                or identity.provider != "line"
                 or identity.status != "linked"
                 or identity.person_id is None
             ):
-                raise ConflictError("linked identity required")
+                raise ConflictError("linked LINE identity required")
             if identity.id == current_identity_id:
                 raise ConflictError("cannot unlink the current login identity")
+            self._require_account_available(
+                session, person_id=identity.person_id, identity_id=identity.id
+            )
             if self._audit_exists(session, request_id):
                 raise ConflictError("request already applied")
             before_person_id = identity.person_id
@@ -1880,10 +2109,12 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
             if actor_person_id == target_person_id:
                 raise ConflictError("cannot change own Person status")
+            self._require_account_available(session, person_id=target_person_id)
             target = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == target_person_id)
@@ -1973,11 +2204,15 @@ class IdentityLifecycleRepository:
         now = utc_now()
         with Session(self.engine) as session, session.begin():
             if admin_edit:
+                self._require_management_write(session)
+            acquire_admin_event_locks(session)
+            if admin_edit:
                 self._require_admin(session, actor_person_id)
             elif actor_person_id != target_person_id:
                 raise AuthorizationError(
                     "only the Person may update their display name"
                 )
+            self._require_account_available(session, person_id=target_person_id)
             target = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == target_person_id)
@@ -2044,7 +2279,10 @@ class IdentityLifecycleRepository:
             raise ValidationError("qualification validity end must follow start")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
+            self._require_account_available(session, person_id=person_id)
             person = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == person_id)
@@ -2128,7 +2366,10 @@ class IdentityLifecycleRepository:
         reason = require_reason(reason)
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
+            acquire_admin_event_locks(session)
             self._require_admin(session, actor_person_id)
+            self._require_account_available(session, person_id=person_id)
             row = session.scalar(
                 select(PersonQualificationRecord)
                 .where(
@@ -2171,6 +2412,9 @@ class IdentityLifecycleRepository:
         if not 1 <= len(cleaned) <= 1000:
             raise ValidationError("review message must contain 1 to 1000 characters")
         with Session(self.engine) as session, session.begin():
+            if actor_person_id is not None:
+                self._require_management_write(session)
+            acquire_admin_event_locks(session)
             identity = session.scalar(
                 select(AuthIdentityRecord)
                 .where(AuthIdentityRecord.id == identity_id)
@@ -2185,6 +2429,9 @@ class IdentityLifecycleRepository:
             role = "applicant" if actor_person_id is None else "admin"
             if actor_person_id is not None:
                 self._require_admin(session, actor_person_id)
+            self._require_account_available(
+                session, person_id=identity.person_id, identity_id=identity.id
+            )
             thread = self._thread(session, identity_id, now)
             if thread.status != "open":
                 raise ConflictError("review thread is closed")
@@ -2254,6 +2501,9 @@ class IdentityLifecycleRepository:
         now = now or utc_now()
         cutoff = now - REVIEW_RETENTION
         with Session(self.engine) as session, session.begin():
+            if not dry_run:
+                self._require_management_write(session)
+            acquire_admin_event_locks(session)
             threads = session.scalars(
                 select(IdentityReviewThreadRecord)
                 .where(
@@ -2332,6 +2582,8 @@ class IdentityLifecycleRepository:
             raise ValidationError("invalid legacy attendance reply")
         now = utc_now()
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, person_id=person_id)
             person = session.scalar(
                 select(PersonRecord)
                 .where(PersonRecord.id == person_id)
@@ -2816,6 +3068,8 @@ class IdentityLifecycleRepository:
             return None
         now = at or utc_now()
         with Session(self.engine) as session:
+            if self.erasure_checks_enabled:
+                acquire_admin_event_locks(session)
             identity = session.scalar(
                 select(AuthIdentityRecord).where(
                     AuthIdentityRecord.provider == provider,
@@ -2824,6 +3078,12 @@ class IdentityLifecycleRepository:
                 )
             )
             if identity is None or identity.person_id is None:
+                return None
+            try:
+                self._require_account_available(
+                    session, person_id=identity.person_id, identity_id=identity.id
+                )
+            except AuthorizationError:
                 return None
             person_row = session.get(PersonRecord, identity.person_id)
             if person_row is None or person_row.portal_status != "active":
@@ -2855,7 +3115,21 @@ class IdentityLifecycleRepository:
         """Revalidate the signed session tuple against fresh lifecycle state."""
         now = at or utc_now()
         with Session(self.engine) as session:
+            if self.erasure_checks_enabled:
+                acquire_admin_event_locks(session)
             identity = session.get(AuthIdentityRecord, identity_id)
+            if (
+                identity is None
+                or identity.status != "linked"
+                or identity.person_id != person_id
+            ):
+                return None
+            try:
+                self._require_account_available(
+                    session, person_id=person_id, identity_id=identity_id
+                )
+            except AuthorizationError:
+                return None
             person_row = session.get(PersonRecord, person_id)
             if (
                 identity is None
@@ -2892,7 +3166,8 @@ class IdentityLifecycleRepository:
     ) -> tuple[dict, ...]:
         """Return invited, open future Games visible to an active Basic principal."""
         now = at or utc_now()
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             person = session.get(PersonRecord, person_id)
             if person is None or person.portal_status != "active":
                 raise AuthorizationError("active person required")
@@ -2925,7 +3200,8 @@ class IdentityLifecycleRepository:
         """Return non-ended Events authorized by an immutable invitee snapshot."""
         now = at or utc_now()
         visible_game_ids = {game["id"] for game in self.scoped_games(person_id, now)}
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             person = session.get(PersonRecord, person_id)
             if person is None or person.portal_status != "active":
                 raise AuthorizationError("active person required")
@@ -3038,9 +3314,9 @@ class IdentityLifecycleRepository:
     ) -> dict:
         from .repository import PostgresTeamPortalRepository
 
-        return PostgresTeamPortalRepository(self.engine).event_attendance(
-            person_id, event_id, at
-        )
+        return PostgresTeamPortalRepository(
+            self.engine, erasure_checks_enabled=self.erasure_checks_enabled
+        ).event_attendance(person_id, event_id, at)
 
     def reply_to_event_attendance(
         self,
@@ -3052,9 +3328,9 @@ class IdentityLifecycleRepository:
     ) -> dict:
         from .repository import PostgresTeamPortalRepository
 
-        return PostgresTeamPortalRepository(self.engine).reply_to_event_attendance(
-            person_id, event_id, reply, apply_all, at
-        )
+        return PostgresTeamPortalRepository(
+            self.engine, erasure_checks_enabled=self.erasure_checks_enabled
+        ).reply_to_event_attendance(person_id, event_id, reply, apply_all, at)
 
     def reply_to_activity_attendance(
         self,
@@ -3066,13 +3342,14 @@ class IdentityLifecycleRepository:
     ) -> dict:
         from .repository import PostgresTeamPortalRepository
 
-        return PostgresTeamPortalRepository(self.engine).reply_to_activity_attendance(
-            person_id, event_id, activity_id, reply, at
-        )
+        return PostgresTeamPortalRepository(
+            self.engine, erasure_checks_enabled=self.erasure_checks_enabled
+        ).reply_to_activity_attendance(person_id, event_id, activity_id, reply, at)
 
     def own_attendance_reply(self, person_id: int, game_id: int) -> int | None:
         """Return only the requesting Person's latest reply, including value 5."""
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             row = session.scalar(
                 select(LegacyGameAttendanceReplyRecord)
                 .outerjoin(
@@ -3095,7 +3372,8 @@ class IdentityLifecycleRepository:
 
     def own_attendance_reply_state(self, person_id: int, game_id: int) -> dict | None:
         """Return the authoritative bounded state used for mutation recovery."""
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             row = session.scalar(
                 select(LegacyGameAttendanceReplyRecord)
                 .outerjoin(

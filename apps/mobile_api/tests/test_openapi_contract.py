@@ -6,6 +6,73 @@ CONTRACT = Path(__file__).resolve().parents[1] / "openapi.json"
 
 
 class OpenApiContractTest(unittest.TestCase):
+    def test_recovery_is_default_off_no_session_with_exact_bounded_bodies(self):
+        for suffix, fields in (
+            ("/challenge", {"provider"}),
+            ("", {"challenge_credential", "provider_assertion", "confirmed"}),
+        ):
+            operation = self.contract["paths"]["/account-erasure/recovery" + suffix][
+                "post"
+            ]
+            self.assertEqual(operation["security"], [])
+            self.assertIn("Default-off", operation["description"])
+            self.assertIn("No-store", operation["description"])
+            self.assertIn("503", operation["responses"])
+            self.assertNotIn("parameters", operation)
+            body = operation["requestBody"]["content"]["application/json"]["schema"]
+            self.assertFalse(body["additionalProperties"])
+            self.assertEqual(set(body["required"]), fields)
+            self.assertEqual(set(body["properties"]), fields)
+        body = self.contract["paths"]["/account-erasure/recovery"]["post"][
+            "requestBody"
+        ]["content"]["application/json"]["schema"]
+        self.assertIs(body["properties"]["confirmed"]["const"], True)
+        self.assertEqual(body["properties"]["challenge_credential"]["maxLength"], 4096)
+        self.assertEqual(body["properties"]["provider_assertion"]["maxLength"], 16384)
+
+    def test_recovery_success_has_six_fields_and_only_live_attached_states(self):
+        operation = self.contract["paths"]["/account-erasure/recovery"]["post"]
+        self.assertNotIn("202", operation["responses"])
+        schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        fields = {
+            "id",
+            "status",
+            "receipt_secret",
+            "requested_at",
+            "updated_at",
+            "receipt_expires_at",
+        }
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(set(schema["required"]), fields)
+        self.assertEqual(set(schema["properties"]), fields)
+        self.assertEqual(
+            set(schema["properties"]["status"]["enum"]),
+            {"requested", "verified", "processing", "needs_attention"},
+        )
+        for name in ("requested_at", "updated_at", "receipt_expires_at"):
+            self.assertEqual(schema["properties"][name]["format"], "date-time")
+
+    def test_receipt_status_has_only_minimal_public_fields_and_receipt_authority(self):
+        operation = self.contract["paths"]["/account-erasure/status"]["post"]
+        self.assertEqual(operation["security"], [])
+        schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(
+            set(schema["properties"]), {"id", "status", "requested_at", "updated_at"}
+        )
+        self.assertEqual(
+            set(schema["properties"]["status"]["enum"]),
+            {
+                "requested",
+                "verified",
+                "processing",
+                "needs_attention",
+                "online_completed",
+                "cancelled",
+                "completed",
+            },
+        )
+
     @classmethod
     def setUpClass(cls):
         cls.contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
@@ -29,6 +96,19 @@ class OpenApiContractTest(unittest.TestCase):
                 "/auth/logout",
                 "/me",
                 "/me/account-deletion",
+                "/me/account-erasure",
+                "/account-erasure/request",
+                "/account-erasure/request/challenge",
+                "/account-erasure/recovery/challenge",
+                "/account-erasure/recovery",
+                "/me/account-erasure/challenge",
+                "/account-erasure/pending/challenge",
+                "/account-erasure/receipt/challenge",
+                "/account-erasure/receipt/verify",
+                "/account-erasure/verify",
+                "/account-erasure/status",
+                "/account-erasure/cancel/challenge",
+                "/account-erasure/cancel",
                 "/games",
                 "/games/{game_id}",
                 "/events",
@@ -47,6 +127,29 @@ class OpenApiContractTest(unittest.TestCase):
                 "/officer/notifications/confirm",
                 "/devices/current",
             },
+        )
+
+    def test_erasure_candidate_is_explicitly_default_off_and_not_completed(self):
+        paths = self.contract["paths"]
+        for path in (
+            "/me/account-erasure",
+            "/account-erasure/request",
+            "/account-erasure/request/challenge",
+            "/me/account-erasure/challenge",
+            "/account-erasure/pending/challenge",
+            "/account-erasure/receipt/challenge",
+            "/account-erasure/receipt/verify",
+            "/account-erasure/verify",
+        ):
+            operation = paths[path]["post"]
+            self.assertIn("Default-off", operation["description"])
+            self.assertIn("503", operation["responses"])
+            body = operation["requestBody"]["content"]["application/json"]["schema"]
+            self.assertFalse(body["additionalProperties"])
+        self.assertEqual(paths["/account-erasure/verify"]["post"]["security"], [])
+        self.assertIn(
+            "never completed",
+            paths["/account-erasure/verify"]["post"]["responses"]["200"]["description"],
         )
 
     def test_pending_review_and_profile_contracts_are_bounded(self):

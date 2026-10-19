@@ -52,6 +52,7 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
             (["0011_event_notification_guest_lifecycle"], True),
             (["0012_persistent_admin_authority"], True),
             (["0013_account_deletion_requests"], True),
+            (["0014_account_erasure_ledger"], True),
             (["0014_unknown"], False),
             (["0013_account_deletion_requests", "branch"], False),
             ([], False),
@@ -199,6 +200,8 @@ class EventGuestLifecycleStaticTests(unittest.TestCase):
         session.scalar.side_effect = stop_at_target
         with (
             patch.object(lifecycle_module, "Session", return_value=session_manager),
+            # Probe the original authority lock order on this raw-Mock Session.
+            patch.object(lifecycle_module, "require_management_mutation"),
             self.assertRaisesRegex(RuntimeError, "lock order"),
         ):
             repository.change_person_status(
@@ -676,7 +679,7 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
 
         event_holds_snapshot = threading.Event()
         release_event_actor_read = threading.Event()
-        status_requests_snapshot = threading.Event()
+        status_requests_admin = threading.Event()
 
         def before_statement(
             _connection, _cursor, statement, parameters, _context, _many
@@ -685,11 +688,11 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
                 threading.current_thread().name.startswith("status-change")
                 and "pg_advisory_xact_lock" in statement
                 and (
-                    parameters == {"key": lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY}
-                    or parameters == (lifecycle_module.EVENT_SNAPSHOT_LOCK_KEY,)
+                    parameters == {"key": lifecycle_module.ADMIN_LOCK_KEY}
+                    or parameters == (lifecycle_module.ADMIN_LOCK_KEY,)
                 )
             ):
-                status_requests_snapshot.set()
+                status_requests_admin.set()
 
         def after_statement(
             _connection, _cursor, statement, parameters, _context, _many
@@ -704,7 +707,7 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
             ):
                 event_holds_snapshot.set()
                 if not release_event_actor_read.wait(5):
-                    raise RuntimeError("status change did not request Event lock")
+                    raise RuntimeError("status change did not request Admin lock")
 
         event.listen(self.engine, "before_cursor_execute", before_statement)
         event.listen(self.engine, "after_cursor_execute", after_statement)
@@ -729,7 +732,9 @@ class EventGuestLifecyclePostgresTests(unittest.TestCase):
                     "Fictional concurrent status exclusion",
                     "status-event-lock-order",
                 )
-                self.assertTrue(status_requests_snapshot.wait(2))
+                # Both entries now acquire ADMIN then EVENT. The second writer
+                # must block on ADMIN before touching the actor or Event lock.
+                self.assertTrue(status_requests_admin.wait(2))
                 self.assertFalse(status_future.done())
                 release_event_actor_read.set()
                 self.assertEqual(preview_future.result(timeout=5)["recipient_count"], 2)

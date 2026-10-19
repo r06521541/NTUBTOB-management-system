@@ -13,6 +13,9 @@ ACCEPTED_REVISIONS = (
     "0011_event_notification_guest_lifecycle",
     "0012_persistent_admin_authority",
     EXPECTED_REVISION,
+    "0014_account_erasure_ledger",
+    "0019_erasure_admin_recovery",
+    "0020_erasure_intake",
 )
 APPLE_LIFECYCLE_CONFIGURATION_KEYS = frozenset(
     {"audience", "client_secret", "credential_key", "notification_audience"}

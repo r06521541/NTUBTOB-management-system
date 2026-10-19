@@ -7,6 +7,7 @@ from typing import Iterable, Mapping
 PHASE_C_ENABLED_ENV = "PORTAL_DATA_PHASE_C_ENABLED"
 IDENTITY_MAINTENANCE_ENV = "WEB_PORTAL_IDENTITY_MAINTENANCE_ENABLED"
 ROLLOUT_FREEZE_ENV = "PORTAL_DATA_ROLLOUT_FREEZE_ENABLED"
+ERASURE_CHECKS_ENV = "PORTAL_DATA_ERASURE_CHECKS_ENABLED"
 ROLLOUT_SERVICES = ("web_portal", "line_webhook", "notify_cron")
 ADMIN_AUTHORITY_MODE_ENV = "WEB_PORTAL_ADMIN_AUTHORITY_MODE"
 ADMIN_AUTHORITY_MODES = frozenset({"legacy_allowlist", "persistent"})
@@ -16,6 +17,17 @@ ADMIN_LOCK_KEY = 70070
 # Preserve the accepted Event key while making every reachability writer take
 # the legacy/recovery-compatible ADMIN key first.
 EVENT_SNAPSHOT_LOCK_KEY = 0x4E545542 + 0x100000
+
+
+def erasure_checks_enabled(environment: Mapping[str, str] | None = None) -> bool:
+    """Parse one explicit policy; invalid input must never disable safeguards."""
+    values = os.environ if environment is None else environment
+    if ERASURE_CHECKS_ENV not in values:
+        return False
+    value = values[ERASURE_CHECKS_ENV]
+    if type(value) is str and value in {"true", "false"}:
+        return value == "true"
+    raise RuntimeError("invalid erasure checks configuration")
 
 
 def admin_authority_mode(
@@ -81,9 +93,14 @@ def phase_c_runtime_state(
     demo_mode: bool = False,
 ) -> PhaseCRuntimeState:
     values = os.environ if environment is None else environment
+    checks = erasure_checks_enabled(values)
     phase_c_requested = values.get(PHASE_C_ENABLED_ENV) == "true"
     maintenance_requested = values.get(IDENTITY_MAINTENANCE_ENV) == "true"
     freeze_requested = values.get(ROLLOUT_FREEZE_ENV) == "true"
+    if checks and demo_mode:
+        raise RuntimeError("erasure checks cannot run in demo mode")
+    if checks and not phase_c_requested:
+        raise RuntimeError("erasure checks require Phase C")
     if demo_mode:
         return PhaseCRuntimeState(
             False, False, False, maintenance_requested, True, "demo"
@@ -210,6 +227,8 @@ def get_identity_lifecycle_repository(
     allow_persisted_admins: bool | None = None,
 ):
     """Construct the repository lazily so imports do not connect to the database."""
+    checks = erasure_checks_enabled()
+    phase_c_runtime_state()
     from shared_module.models.db import engine
 
     from .identity_lifecycle import IdentityLifecycleRepository
@@ -219,4 +238,5 @@ def get_identity_lifecycle_repository(
         admin_member_ids,
         authority_mode=authority_mode,
         allow_persisted_admins=allow_persisted_admins,
+        erasure_checks_enabled=checks,
     )
