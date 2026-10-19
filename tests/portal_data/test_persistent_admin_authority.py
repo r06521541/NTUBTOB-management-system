@@ -204,6 +204,9 @@ class PersistentAdminAuthorityStaticTests(unittest.TestCase):
                 inspector = MagicMock()
                 inspector.has_table.return_value = True
                 # No retained privacy objects in this historical receipt fixture.
+                engine.connect.return_value.__enter__.return_value.connection.dbapi_connection.autocommit = (
+                    False
+                )
                 engine.connect.return_value.__enter__.return_value.execute.return_value.all.return_value = (
                     []
                 )

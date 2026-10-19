@@ -3,6 +3,17 @@
 ## Active integration and hosted CI — 2026-10-19
 
 Main task203-ci-integration lease1, /root; Owner explicitly resumed integration/CI.
+2026-10-20 integration correction: Main owns tools/portal_data_phase_c_migration.py,
+tests/portal_data/test_postgres_constraints.py and test_persistent_admin_authority.py;
+actual head0020 discovery exposed four errors (two share the verifier head literal).
+Only update current-head expectations and explicit transactional mock; no artifact
+regeneration, guard relaxation or runtime change. Existing failing tests are RED.
+Follow-up advisor packet: actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-ci-correction-review; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root; base=91420e9bbddb5b70367672081671e68886caed7c;
+scope=these three-file fixes; stop_conditions=edits/DB/network/secrets/Git mutation.
+ACK immediately; blocker immediately; completion actively to /root with verdict,
+paths/tests/limits/external mutations. Main alone runs actual PG tests.
 Goal: one reviewed default-off source delivery and hosted evidence, not activation.
 Core: accumulated TASK203 app/shared/migration/tests plus existing Python workflow;
 exclude TASK201/SSD recovery reports and local Flutter launcher/environment edits.

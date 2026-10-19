@@ -2,6 +2,19 @@
 
 ## Authenticated integration / CI in progress — 2026-10-19
 
+Published default-off source commit91420e9bbddb5b70367672081671e68886caed7c;
+single Draft PR270, initial hosted run39281943391 queued, no pending deployment gate.
+Main canonical local PG16 discovery1120 tests/380.900s: four errors, two skips.
+Two errors share stale verifier head0019, one metadata test upgrades only0019,
+one historical mock omits explicit DBAPI autocommit=False. Existing failing tests
+establish RED; minimal three-file correction22 offline PASS and independent
+task203-ci-correction-review lease1 ACCEPT received/handled/released.
+Focused PG attempt after full suite encountered retained Apple tables at legacy0005;
+not treated as permission to drop evidence. Existing exact test-only native downgrade
+to0004 plus Apple fixture helper restored canonical head; full discovery rerunning.
+No migration artifact regenerated or runtime guard relaxed. Source commit remains
+Draft until exact corrected hosted evidence; no activation/merge claimed.
+
 Owner restored secure GitHub CLI login. Exact origin is the public canonical
 repository; only existing standard hosted runners are selected, incremental fee0.
 Publication review task203-publication-review lease1 ACCEPT received/handled;
