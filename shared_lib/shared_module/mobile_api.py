@@ -32,6 +32,18 @@ class ProviderExchangeOutcomeUnknown(MobileApiError):
     code, status = "provider_outcome_unknown", 503
 
 
+class AppleLoginCompletionUnavailable(MobileApiError):
+    """Provider code was consumed; app completion must not be blindly replayed."""
+
+    retryable = False
+
+    def __init__(self):
+        super().__init__(
+            "stage=app_completion; provider_exchange=completed; "
+            "app_outcome=unconfirmed; do not replay the authorization code"
+        )
+
+
 class MalformedRequest(MobileApiError):
     code, status = "malformed_request", 400
 
@@ -190,6 +202,9 @@ class MobileAuthRepository(Protocol):
     def reserve_apple_code(self, **values) -> None: ...
     def mark_apple_code(self, **values) -> None: ...
     def complete_apple_code_for_pending(self, **values) -> None: ...
+    def ensure_apple_link_candidate(
+        self, subject, request_id, now, *, first_login=False
+    ) -> dict: ...
 
 
 def utc_now() -> datetime:
@@ -417,6 +432,7 @@ class AppleLifecycleAuthService(MobileAuthService):
         exchanger: AppleCodeExchanger,
         *,
         audience: str,
+        allow_first_login: bool = False,
         clock: Callable[[], datetime] = utc_now,
         token_factory: Callable[[], str] = lambda: secrets.token_urlsafe(48),
     ):
@@ -431,6 +447,10 @@ class AppleLifecycleAuthService(MobileAuthService):
         )
         self.exchanger = exchanger
         self.provider_cipher = provider_cipher
+        # Kept off in normal bootstrap until approval and deletion ship together.
+        if type(allow_first_login) is not bool:
+            raise ValueError("first-login option must be boolean")
+        self.allow_first_login = allow_first_login
 
     def exchange(
         self,
@@ -460,6 +480,15 @@ class AppleLifecycleAuthService(MobileAuthService):
             raise AuthenticationError("invalid provider assertion")
         code_hash = secret_hash(authorization_code)
         attempt_hash = secret_hash(login_attempt_id)
+        if self.allow_first_login:
+            candidate = self.repository.ensure_apple_link_candidate(
+                verified.subject,
+                "apple-enrollment-" + attempt_hash,
+                now,
+                first_login=True,
+            )
+            if candidate["status"] not in {"pending", "linked"}:
+                raise AccountUnavailable("Apple identity is unavailable")
         self.repository.reserve_apple_code(
             code_hash=code_hash,
             login_attempt_hash=attempt_hash,
@@ -482,6 +511,35 @@ class AppleLifecycleAuthService(MobileAuthService):
                 code_hash=code_hash, state="rejected", now=now
             )
             raise
+        try:
+            return self._complete_apple_login(
+                verified,
+                assertion,
+                installation_id,
+                platform,
+                credential,
+                code_hash,
+                attempt_hash,
+                now,
+            )
+        except MobileApiError:
+            raise
+        except Exception:
+            # Even a commit response can be lost. Preserve known provider success,
+            # never expose driver/token detail or infer that app storage rolled back.
+            raise AppleLoginCompletionUnavailable() from None
+
+    def _complete_apple_login(
+        self,
+        verified,
+        assertion,
+        installation_id,
+        platform,
+        credential,
+        code_hash,
+        attempt_hash,
+        now,
+    ):
         refresh = self.token_factory()
         try:
             principal = self.repository.exchange(

@@ -138,7 +138,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         setup_legacy_fixture()
         config = Config("alembic.ini")
-        command.upgrade(config, "head")
+        command.upgrade(config, "0018_erasure_privacy_mutation")
         prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
@@ -630,7 +630,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                     {"game_id": game_id},
                 )
             with self.assertRaises(Exception):
-                command.upgrade(config, "head")
+                command.upgrade(config, "0018_erasure_privacy_mutation")
             with self.engine.connect() as connection:
                 self.assertEqual(
                     connection.scalar(
@@ -655,7 +655,7 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
                         "WHERE member_id IS NULL"
                     )
                 )
-            command.upgrade(config, "head")
+            command.upgrade(config, "0018_erasure_privacy_mutation")
 
     def test_pending_conversation_throttle_ignore_and_unignore(self):
         pending = self._pending()
@@ -763,7 +763,8 @@ class PhaseCLifecyclePostgresTests(unittest.TestCase):
             )
 
     def test_non_member_guest_has_no_fake_member_and_is_excluded_after_expiry(self):
-        command.upgrade(Config("alembic.ini"), "head")
+        # Test the latest supported runtime, not a source-only candidate schema.
+        command.upgrade(Config("alembic.ini"), "0014_account_erasure_ledger")
         pending = self._pending("guest")
         now = datetime.now(timezone.utc)
         principal = self.repository.approve_non_member(

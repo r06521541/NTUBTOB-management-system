@@ -248,6 +248,8 @@ class IdentityLinkProofCodec:
             sealed = base64.b64decode(
                 token + "=" * (-len(token) % 4), altchars=b"-_", validate=True
             )
+            if base64.urlsafe_b64encode(sealed).rstrip(b"=").decode("ascii") != token:
+                raise ValueError
             if len(sealed) < 29:
                 raise ValueError
             payload = json.loads(

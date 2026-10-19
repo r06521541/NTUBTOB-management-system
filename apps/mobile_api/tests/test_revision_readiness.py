@@ -61,6 +61,9 @@ class RevisionReadinessTest(unittest.TestCase):
                 "0011_event_notification_guest_lifecycle",
                 "0012_persistent_admin_authority",
                 "0013_account_deletion_requests",
+                "0014_account_erasure_ledger",
+                "0019_erasure_admin_recovery",
+                "0020_erasure_intake",
             ),
         )
 

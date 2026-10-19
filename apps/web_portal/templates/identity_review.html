@@ -30,7 +30,8 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                         <input type="hidden" name="request_id" value="{{ request_id }}" />
                         <label for="message">自我介紹</label>
-                        <textarea id="message" name="message" minlength="1" maxlength="1000" required></textarea>
+                        <p id="review-privacy-hint" class="auth-note">只需提供核對隊員身分所需的簡短資訊。請勿提供密碼、證件號碼或他人的聯絡資料。</p>
+                        <textarea id="message" name="message" aria-describedby="review-privacy-hint" minlength="1" maxlength="1000" required></textarea>
                         <button type="submit">送出訊息</button>
                     </form>
                 {% else %}

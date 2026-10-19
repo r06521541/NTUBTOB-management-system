@@ -6,6 +6,12 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+# Register the additive ledger even when no test/runtime imported its models.
+from shared_lib.shared_module.portal_data import (  # noqa: F401
+    erasure_item_models,
+    erasure_models,
+    erasure_recovery_models,
+)
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )

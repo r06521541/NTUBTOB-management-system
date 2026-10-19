@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tests.portal_data._erasure_ledger_test_harness import (
+    remove_retained_erasure_ledger_from_isolated_test_database,
+)
 from tools import portal_data_production_bootstrap_candidate_diagnostic as diagnostic
 from tools.setup_portal_data_legacy import main as setup_legacy_fixture
 
@@ -29,7 +32,11 @@ class CandidateDiagnosticPostgresTests(unittest.TestCase):
 
     def setUp(self):
         setup_legacy_fixture()
-        command.upgrade(Config("alembic.ini"), "head")
+        remove_retained_erasure_ledger_from_isolated_test_database(self.engine)
+        with self.engine.begin() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0013_account_deletion_requests")
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -53,6 +60,11 @@ class CandidateDiagnosticPostgresTests(unittest.TestCase):
                     """
                 )
             )
+
+        with self.engine.begin() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0014_account_erasure_ledger")
 
     def _state(self, allowlist=None):
         with Session(self.engine) as session, session.begin():

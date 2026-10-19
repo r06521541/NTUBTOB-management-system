@@ -11,6 +11,9 @@ from sqlalchemy import create_engine, text
 from shared_lib.shared_module.portal_data.local_database import (
     require_local_database_url,
 )
+from tests.portal_data._erasure_ledger_test_harness import (
+    remove_retained_erasure_ledger_from_isolated_test_database,
+)
 from tools.portal_data_migration_readiness import (
     EXPECTED_REVISIONS,
     EXPECTED_TABLES,
@@ -32,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class MigrationReadinessStaticTests(unittest.TestCase):
     def test_revision_chain_is_single_and_exact(self):
         self.assertEqual(revision_chain(), EXPECTED_REVISIONS)
-        self.assertEqual(EXPECTED_REVISIONS[-1], "0013_account_deletion_requests")
+        self.assertEqual(EXPECTED_REVISIONS[-1], "0020_erasure_intake")
 
     def test_historical_suites_pin_owned_revisions_and_current_suite_owns_head(self):
         historical_suites = (
@@ -55,21 +58,30 @@ class MigrationReadinessStaticTests(unittest.TestCase):
 
         historical_event_and_authority_suites = {
             "test_mobile_notifications.py": (
-                'command.upgrade(config, "0011_event_notification_guest_lifecycle")'
+                "MobileNotificationIntegrationTest",
+                'command.upgrade(config, "0011_event_notification_guest_lifecycle")',
             ),
             "test_event_guest_lifecycle.py": (
-                'self.config, "0011_event_notification_guest_lifecycle"'
+                "EventGuestLifecyclePostgresTests",
+                'self.config, "0011_event_notification_guest_lifecycle"',
             ),
             "test_persistent_admin_authority.py": (
-                'command.upgrade(Config("alembic.ini"), "0012_persistent_admin_authority")'
+                "PersistentAdminAuthorityPostgresTests",
+                'command.upgrade(Config("alembic.ini"), "0012_persistent_admin_authority")',
             ),
         }
-        for name, expected_upgrade in historical_event_and_authority_suites.items():
+        for name, (
+            fixture_class,
+            expected_upgrade,
+        ) in historical_event_and_authority_suites.items():
             with self.subTest(name=name):
                 source = (ROOT / "tests" / "portal_data" / name).read_text(
                     encoding="utf-8"
                 )
-                setup = source.split("    def setUp(self):", 1)[1].split(
+                # Select the real database fixture, not an earlier offline unit
+                # class that may independently acquire a setUp method.
+                fixture_source = source.split(f"class {fixture_class}(", 1)[1]
+                setup = fixture_source.split("    def setUp(self):", 1)[1].split(
                     "\n    def ", 1
                 )[0]
                 self.assertIn(expected_upgrade, setup)
@@ -235,6 +247,7 @@ class MigrationReadinessPostgresTests(unittest.TestCase):
         self._execute_offline_artifact(render_sql())
 
     def _reset_to_clean_baseline(self):
+        remove_retained_erasure_ledger_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
             connection.execute(
                 text(

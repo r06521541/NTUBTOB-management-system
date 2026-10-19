@@ -203,6 +203,10 @@ class PersistentAdminAuthorityStaticTests(unittest.TestCase):
                 )
                 inspector = MagicMock()
                 inspector.has_table.return_value = True
+                # No retained privacy objects in this historical receipt fixture.
+                engine.connect.return_value.__enter__.return_value.execute.return_value.all.return_value = (
+                    []
+                )
                 with patch.object(
                     deletion_cleanup_harness, "inspect", return_value=inspector
                 ):
@@ -258,6 +262,15 @@ class PersistentAdminAuthorityStaticTests(unittest.TestCase):
 
 
 class PersistentAdminMutationUnitTests(unittest.TestCase):
+    def setUp(self):
+        # Preserve this raw-Mock fixture's authority checks; the management
+        # suspension gate is covered separately with actual PostgreSQL Sessions.
+        patcher = patch(
+            "shared_lib.shared_module.portal_data.identity_lifecycle.require_management_mutation"
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     @staticmethod
     def _person(person_id: int, access: str, version: int = 1) -> PersonRecord:
         now = datetime.now(timezone.utc)
@@ -430,6 +443,7 @@ class PersistentAdminMutationUnitTests(unittest.TestCase):
             (["0011_event_notification_guest_lifecycle"], True),
             (["0012_persistent_admin_authority"], True),
             (["0013_account_deletion_requests"], True),
+            (["0014_account_erasure_ledger"], True),
             (["0009_event_management_writes"], False),
             (["0014_unknown"], False),
             (["0013_account_deletion_requests", "branch"], False),

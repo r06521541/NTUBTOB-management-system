@@ -6,6 +6,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
+from alembic import command
+from alembic.config import Config
 from sqlalchemy import create_engine, text
 
 from shared_lib.shared_module.portal_data.domain import (
@@ -19,6 +21,9 @@ from shared_lib.shared_module.portal_data.local_database import (
 from shared_lib.shared_module.portal_data.repository import (
     InMemoryTeamPortalRepository,
     PostgresTeamPortalRepository,
+)
+from tests.portal_data._erasure_ledger_test_harness import (
+    remove_retained_erasure_ledger_from_isolated_test_database,
 )
 
 DATABASE_URL = os.environ.get("PORTAL_DATA_TEST_DATABASE_URL") or os.environ.get(
@@ -930,6 +935,7 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
         cls.engine.dispose()
 
     def setUp(self):
+        remove_retained_erasure_ledger_from_isolated_test_database(self.engine)
         with self.engine.begin() as connection:
             connection.execute(
                 text(
@@ -960,6 +966,10 @@ class PostgresRepositoryContractTests(RepositoryContractMixin, unittest.TestCase
                     """
                 )
             )
+        with self.engine.begin() as connection:
+            config = Config("alembic.ini")
+            config.attributes["connection"] = connection
+            command.upgrade(config, "0014_account_erasure_ledger")
         self.repository = PostgresTeamPortalRepository(
             self.engine, allow_persisted_event_managers=True
         )

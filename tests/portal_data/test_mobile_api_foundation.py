@@ -20,7 +20,12 @@ from shared_module.identity_linking import (
     IdentityLinkProofCodec,
     IdentityLinkService,
 )
-from shared_module.mobile_api import Conflict, HmacAccessTokenCodec
+from shared_module.mobile_api import (
+    AccountUnavailable,
+    AuthenticationError,
+    Conflict,
+    HmacAccessTokenCodec,
+)
 from shared_module.portal_data.domain import ConflictError
 from shared_module.portal_data.identity_lifecycle import IdentityLifecycleRepository
 from shared_module.portal_data.mobile_repository import MobileRepository
@@ -696,6 +701,116 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
             }
         self.assertEqual(database_columns, model_tables)
 
+    def test_exchange_rechecks_account_after_stale_preflight(self):
+        original = self.repository.lifecycle.resolve_principal
+
+        def stale(*args):
+            principal = original(*args)
+            with self.engine.begin() as connection:
+                connection.execute(
+                    text(
+                        "UPDATE ntubtob.people SET portal_status='disabled' WHERE id=:id"
+                    ),
+                    {"id": principal.person.id},
+                )
+            return principal
+
+        self.repository.lifecycle.resolve_principal = stale
+        with self.assertRaises(AccountUnavailable):
+            self.repository.exchange(
+                provider="line",
+                subject=f"mobile-{self.id()}",
+                assertion_hash="a" * 64,
+                login_attempt_hash="b" * 64,
+                installation_id_hash="c" * 64,
+                platform="ios",
+                refresh_hash="d" * 64,
+                now=NOW,
+            )
+        with self.engine.connect() as connection:
+            self.assertEqual(
+                connection.scalar(text("SELECT count(*) FROM ntubtob.mobile_sessions")),
+                0,
+            )
+
+    def test_refresh_rechecks_account_before_successor_and_saved_replay(self):
+        principal = self.repository.exchange(
+            provider="line",
+            subject=f"mobile-{self.id()}",
+            assertion_hash="a" * 64,
+            login_attempt_hash="b" * 64,
+            installation_id_hash="c" * 64,
+            platform="ios",
+            refresh_hash="d" * 64,
+            now=NOW,
+        )
+        values = dict(
+            refresh_hash="d" * 64,
+            attempt_id_hash="e" * 64,
+            request_hash="f" * 64,
+            installation_id_hash="c" * 64,
+            successor_hash="1" * 64,
+            successor="successor",
+            cipher=FakeCipher(),
+            token_codec=HmacAccessTokenCodec(b"x" * 32),
+            now=NOW + timedelta(seconds=1),
+        )
+        with self.engine.begin() as connection:
+            other_person = connection.scalar(
+                text(
+                    "INSERT INTO ntubtob.people "
+                    "(display_name, portal_access_level, portal_status, version, created_at, updated_at) "
+                    "VALUES ('Other fictional person', 'basic', 'active', 1, :now, :now) RETURNING id"
+                ),
+                {"now": NOW},
+            )
+        for replay in (False, True):
+            if replay:
+                self.repository.rotate(**values)
+            for target in ("identity", "person", "mapping"):
+                with self.subTest(replay=replay, target=target):
+                    table, column, row_id, normal, changed = {
+                        "identity": (
+                            "auth_identities",
+                            "status",
+                            principal.identity_id,
+                            "linked",
+                            "disabled",
+                        ),
+                        "person": (
+                            "people",
+                            "portal_status",
+                            principal.person_id,
+                            "active",
+                            "disabled",
+                        ),
+                        "mapping": (
+                            "auth_identities",
+                            "person_id",
+                            principal.identity_id,
+                            principal.person_id,
+                            other_person,
+                        ),
+                    }[target]
+                    with self.engine.begin() as connection:
+                        connection.execute(
+                            text(
+                                f"UPDATE ntubtob.{table} SET {column}=:changed WHERE id=:id"
+                            ),
+                            {"id": row_id, "changed": changed},
+                        )
+                    try:
+                        with self.assertRaises(AuthenticationError):
+                            self.repository.rotate(**values)
+                    finally:
+                        with self.engine.begin() as connection:
+                            connection.execute(
+                                text(
+                                    f"UPDATE ntubtob.{table} SET {column}=:status WHERE id=:id"
+                                ),
+                                {"id": row_id, "status": normal},
+                            )
+
     def test_refresh_rotation_exact_retry_and_family_replay_revoke(self):
         principal = self.repository.exchange(
             provider="line",
@@ -967,6 +1082,73 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
             )
         )
 
+    def test_idempotency_callbacks_do_not_hold_receipt_or_lifecycle_locks(self):
+        principal = self.repository.exchange(
+            provider="line",
+            subject=f"mobile-{self.id()}",
+            assertion_hash="1" * 64,
+            login_attempt_hash="2" * 64,
+            installation_id_hash="3" * 64,
+            platform="ios",
+            refresh_hash="4" * 64,
+            now=NOW,
+        )
+        constrained = create_engine(
+            DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1
+        )
+        self.addCleanup(constrained.dispose)
+        repository = MobileRepository(constrained)
+        calls = []
+
+        def probe():
+            from shared_module.portal_data.runtime import (
+                ADMIN_LOCK_KEY,
+                EVENT_SNAPSHOT_LOCK_KEY,
+            )
+
+            with constrained.begin() as connection:
+                for key in (ADMIN_LOCK_KEY, EVENT_SNAPSHOT_LOCK_KEY):
+                    self.assertTrue(
+                        connection.scalar(
+                            text("SELECT pg_try_advisory_xact_lock(:key)"),
+                            {"key": key},
+                        )
+                    )
+                self.assertIsNotNone(
+                    connection.scalar(
+                        text(
+                            "SELECT id FROM ntubtob.mobile_idempotency_records "
+                            "WHERE session_id=:session FOR UPDATE NOWAIT"
+                        ),
+                        {"session": principal.session_id},
+                    )
+                )
+
+        def reconcile():
+            probe()
+            calls.append("readback")
+            return None
+
+        def mutation():
+            probe()
+            calls.append("mutation")
+            return 200, {"changed": True}
+
+        values = dict(
+            session_id=principal.session_id,
+            person_id=principal.person_id,
+            method="PUT",
+            route="/api/v1/fictional-lock-probe",
+            key_hash="5" * 64,
+            request_hash="6" * 64,
+            mutation=mutation,
+            reconcile=reconcile,
+            now=NOW,
+        )
+        self.assertFalse(repository.idempotent(**values)[2])
+        self.assertTrue(repository.idempotent(**values)[2])
+        self.assertEqual(calls, ["readback", "mutation"])
+
     def test_idempotency_exact_replay_and_body_conflict(self):
         principal = self.repository.exchange(
             provider="line",
@@ -994,6 +1176,8 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
             self.repository.idempotent(**{**values, "request_hash": "9" * 64})
 
     def test_concurrent_same_idempotency_key_mutates_once_and_replays(self):
+        from sqlalchemy import event
+
         principal = self.repository.exchange(
             provider="line",
             subject=f"mobile-{self.id()}",
@@ -1004,8 +1188,22 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
             refresh_hash="d" * 63 + "1",
             now=NOW,
         )
+        constrained = create_engine(
+            DATABASE_URL, pool_size=1, max_overflow=0, pool_timeout=1
+        )
+        self.addCleanup(constrained.dispose)
+        repository = MobileRepository(constrained)
         entered, release = threading.Event(), threading.Event()
+        waiter_probed = threading.Event()
         calls = []
+
+        def observe_probe(
+            _connection, _cursor, statement, _parameters, _context, _many
+        ):
+            if "pg_try_advisory_xact_lock" in statement and entered.is_set():
+                waiter_probed.set()
+
+        event.listen(constrained, "after_cursor_execute", observe_probe)
 
         def mutation():
             calls.append(1)
@@ -1024,14 +1222,69 @@ class MobileApiFoundationIntegrationTest(unittest.TestCase):
             now=NOW,
         )
         with ThreadPoolExecutor(max_workers=2) as pool:
-            first = pool.submit(self.repository.idempotent, **values)
+            first = pool.submit(repository.idempotent, **values)
             self.assertTrue(entered.wait(5))
-            second = pool.submit(self.repository.idempotent, **values)
-            release.set()
+            second = pool.submit(repository.idempotent, **values)
+            try:
+                self.assertTrue(waiter_probed.wait(3))
+                self.assertEqual(calls, [1])
+                self.assertFalse(second.done())
+            finally:
+                release.set()
             results = (first.result(10), second.result(10))
         self.assertEqual(len(calls), 1)
         self.assertEqual({result[2] for result in results}, {False, True})
         self.assertEqual(results[0][1], results[1][1])
+
+    def test_committed_receipt_wins_over_failing_readback_after_commit_error(self):
+        from sqlalchemy import event
+        from sqlalchemy.orm import object_session
+
+        principal = self.repository.exchange(
+            provider="line",
+            subject=f"mobile-{self.id()}",
+            assertion_hash="1" * 64,
+            login_attempt_hash="2" * 64,
+            installation_id_hash="3" * 64,
+            platform="ios",
+            refresh_hash="4" * 64,
+            now=NOW,
+        )
+        original = self.repository._complete_idempotency
+        calls = []
+
+        def after_commit(_session):
+            raise RuntimeError("fictional commit acknowledgement failure")
+
+        def finalize(record, result, now):
+            original(record, result, now)
+            event.listen(
+                object_session(record), "after_commit", after_commit, once=True
+            )
+
+        def reconcile():
+            calls.append("readback")
+            if len(calls) > 1:
+                raise RuntimeError("readback should not run for completed receipt")
+            return None
+
+        self.repository._complete_idempotency = finalize
+        try:
+            result = self.repository.idempotent(
+                session_id=principal.session_id,
+                person_id=principal.person_id,
+                method="PUT",
+                route="/api/v1/fictional-commit-probe",
+                key_hash="5" * 64,
+                request_hash="6" * 64,
+                mutation=lambda: (200, {"saved": True}),
+                reconcile=reconcile,
+                now=NOW,
+            )
+        finally:
+            self.repository._complete_idempotency = original
+        self.assertEqual(result, (200, {"saved": True}, True))
+        self.assertEqual(calls, ["readback"])
 
     def test_finalize_failure_reconciles_saved_mutation_without_repeating_it(self):
         principal = self.repository.exchange(

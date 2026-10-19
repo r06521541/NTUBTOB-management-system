@@ -9,6 +9,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Column,
     DateTime,
     ForeignKey,
     Identity,
@@ -17,6 +18,7 @@ from sqlalchemy import (
     LargeBinary,
     SmallInteger,
     String,
+    Table,
     Text,
     UniqueConstraint,
     text,
@@ -29,6 +31,22 @@ SCHEMA = "ntubtob"
 
 class PortalDataBase(DeclarativeBase):
     pass
+
+
+# Core-only catalog metadata. No ORM executor, grants or runtime composition.
+# Candidate 0018 owns the private RLS/trigger capability; create_all does not.
+erasure_privacy_permits = Table(
+    "erasure_privacy_permits",
+    PortalDataBase.metadata,
+    Column("backend", Integer, primary_key=True),
+    Column("transaction_id", BigInteger, primary_key=True),
+    Column("table_name", Text, primary_key=True),
+    Column("row_id", BigInteger, primary_key=True),
+    Column("operation", Text, nullable=False),
+    Column("old_hash", Text, nullable=False),
+    Column("new_hash", Text),
+    schema=SCHEMA,
+)
 
 
 class PersonRecord(PortalDataBase):
@@ -227,6 +245,21 @@ class AuthIdentityRecord(PortalDataBase):
 
 Index("ix_auth_identities_person", AuthIdentityRecord.person_id)
 
+# Core-only columns: retain complete migration metadata without changing legacy
+# ORM SELECT/flush/RETURNING against pre-0015 databases. Generation-aware callers
+# must explicitly select __table__.c.account_generation after revision checks.
+# Do not assign these Columns as mapped class attributes.
+for _generation_model in (PersonRecord, AuthIdentityRecord):
+    _generation_model.__table__.append_column(
+        Column(
+            "account_generation",
+            UUID(as_uuid=False),
+            nullable=False,
+            server_default=text("pg_catalog.gen_random_uuid()"),
+        )
+    )
+del _generation_model
+
 
 class PersonQualificationRecord(PortalDataBase):
     __tablename__ = "person_qualifications"
@@ -347,10 +380,10 @@ class IdentityReviewThreadRecord(PortalDataBase):
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
-    auth_identity_id: Mapped[int] = mapped_column(
+    auth_identity_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.auth_identities.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     last_applicant_message_at: Mapped[Optional[datetime]] = mapped_column(
@@ -381,7 +414,7 @@ class IdentityReviewMessageRecord(PortalDataBase):
     __table_args__ = (
         CheckConstraint(
             "(sender_role = 'applicant' AND sender_person_id IS NULL) OR "
-            "(sender_role = 'admin' AND sender_person_id IS NOT NULL)",
+            "sender_role = 'admin'",
             name="ck_identity_review_sender",
         ),
         CheckConstraint(
@@ -694,10 +727,10 @@ class MobileNotificationPublishAuditRecord(PortalDataBase):
         ForeignKey(f"{SCHEMA}.mobile_notifications.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    actor_person_id: Mapped[int] = mapped_column(
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     audience_type: Mapped[str] = mapped_column(String(20), nullable=False)
     audience_reference_id: Mapped[Optional[int]] = mapped_column(BigInteger)
@@ -898,10 +931,10 @@ class EventNotificationPublishAuditRecord(PortalDataBase):
         ForeignKey(f"{SCHEMA}.event_audit.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    actor_person_id: Mapped[int] = mapped_column(
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     notification_type: Mapped[str] = mapped_column(String(30), nullable=False)
     event_version: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -951,10 +984,10 @@ class GuestQualificationAuditRecord(PortalDataBase):
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    actor_person_id: Mapped[int] = mapped_column(
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     expected_version: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -1192,10 +1225,10 @@ class EventRecord(PortalDataBase):
     status: Mapped[str] = mapped_column(String(20), nullable=False)
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     end_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    created_by_person_id: Mapped[int] = mapped_column(
+    created_by_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -1287,10 +1320,10 @@ class EventInviteeOverrideRecord(PortalDataBase):
     )
     action: Mapped[str] = mapped_column(String(20), nullable=False)
     participation_category: Mapped[str] = mapped_column(String(30), nullable=False)
-    actor_person_id: Mapped[int] = mapped_column(
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     reason: Mapped[str] = mapped_column(String(300), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -1313,7 +1346,7 @@ class EventInviteeRecord(PortalDataBase):
         CheckConstraint(
             "(source = 'qualification' AND source_qualification IS NOT NULL "
             "AND actor_person_id IS NULL) OR "
-            "(source IN ('manual_include', 'manual_exclude') AND actor_person_id IS NOT NULL "
+            "(source IN ('manual_include', 'manual_exclude') "
             "AND length(reason) BETWEEN 3 AND 300)",
             name="ck_event_invitee_source_fields",
         ),
@@ -1428,10 +1461,10 @@ class EventManagerRecord(PortalDataBase):
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    assigned_by_person_id: Mapped[int] = mapped_column(
+    assigned_by_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False
@@ -1459,10 +1492,10 @@ class EventAuditRecord(PortalDataBase):
         ForeignKey(f"{SCHEMA}.events.id", ondelete="CASCADE"),
         nullable=False,
     )
-    actor_person_id: Mapped[int] = mapped_column(
+    actor_person_id: Mapped[Optional[int]] = mapped_column(
         BigInteger,
         ForeignKey(f"{SCHEMA}.people.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     action: Mapped[str] = mapped_column(String(30), nullable=False)
     reason: Mapped[str] = mapped_column(String(300), nullable=False)

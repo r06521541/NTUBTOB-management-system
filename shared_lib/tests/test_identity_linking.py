@@ -8,14 +8,12 @@ from unittest.mock import MagicMock, Mock, patch
 from shared_module.identity_linking import (
     IdentityLinkConflict,
     IdentityLinkProofCodec,
-    IdentityLinkService,
     IdentityLinkResult,
+    IdentityLinkService,
     InternalWebPrincipal,
 )
-from shared_module.mobile_api import HmacAccessTokenCodec
-from shared_module.mobile_api import AuthenticationError
+from shared_module.mobile_api import AuthenticationError, HmacAccessTokenCodec
 from shared_module.portal_data.mobile_repository import MobileRepository
-
 
 NOW = datetime(2026, 8, 24, 12, 0, 0, 123456, timezone.utc)
 
@@ -23,6 +21,90 @@ NOW = datetime(2026, 8, 24, 12, 0, 0, 123456, timezone.utc)
 class IdentityLinkProofCodecTest(unittest.TestCase):
     def setUp(self):
         self.codec = IdentityLinkProofCodec(b"k" * 32)
+
+    def _fixed_tokens(self):
+        for domain in ("candidate", "fresh"):
+            for jti_length in range(16, 19):
+                values = dict(
+                    identity_id=41,
+                    provider="google",
+                    identity_updated_at=NOW,
+                    attempt_hash="b" * 64,
+                    binding_hash="c" * 64,
+                    jti="j" * jti_length,
+                    now=NOW,
+                )
+                # Fixed nonce only in these fictional encoding regression fixtures.
+                with patch(
+                    "shared_module.identity_linking.secrets.token_bytes",
+                    return_value=bytes(range(12)),
+                ):
+                    if domain == "candidate":
+                        token = self.codec.issue_candidate(
+                            assertion_hash="a" * 64, **values
+                        )
+                        verify = self.codec.verify_candidate
+                    else:
+                        token = self.codec.issue_fresh_proof(
+                            person_id=9,
+                            candidate_jti="candidate-jti-123456",
+                            **values,
+                        )
+                        verify = self.codec.verify_fresh_proof
+                yield domain, token, verify
+
+    def test_equivalent_unused_final_bits_are_rejected_for_both_proof_domains(self):
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        seen = {"candidate": set(), "fresh": set()}
+        for domain, token, verify in self._fixed_tokens():
+            remainder = len(token) % 4
+            seen[domain].add(remainder)
+            with self.subTest(domain=domain, remainder=remainder):
+                self.assertEqual(verify(token, NOW).identity_id, 41)
+                sealed = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+                self.assertEqual(
+                    base64.urlsafe_b64encode(sealed).rstrip(b"=").decode("ascii"),
+                    token,
+                )
+                if remainder == 0:
+                    continue
+                unused_bits = {2: 4, 3: 2}[remainder]
+                final_index = alphabet.index(token[-1])
+                self.assertEqual(final_index & ((1 << unused_bits) - 1), 0)
+                equivalent = token[:-1] + alphabet[final_index | 1]
+                self.assertNotEqual(equivalent, token)
+                self.assertEqual(
+                    base64.urlsafe_b64decode(equivalent + "=" * (-len(equivalent) % 4)),
+                    sealed,
+                )
+                with self.assertRaises(AuthenticationError):
+                    verify(equivalent, NOW)
+        self.assertEqual(seen, {"candidate": {0, 2, 3}, "fresh": {0, 2, 3}})
+
+    def test_padding_and_standard_base64_spellings_are_rejected(self):
+        for domain, token, verify in self._fixed_tokens():
+            standard = token.replace("-", "+").replace("_", "/")
+            self.assertNotEqual(standard, token)
+            variants = {standard, token + "=" * (-len(token) % 4)} - {token}
+            for variant in variants:
+                with self.subTest(domain=domain, length=len(token)):
+                    with self.assertRaises(AuthenticationError):
+                        verify(variant, NOW)
+
+    def test_actual_ciphertext_bit_flip_is_rejected_for_both_proof_domains(self):
+        for domain, token, verify in self._fixed_tokens():
+            with self.subTest(domain=domain, length=len(token)):
+                sealed = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
+                tampered_bytes = bytearray(sealed)
+                tampered_bytes[12] ^= 1
+                self.assertNotEqual(tampered_bytes, sealed)
+                tampered = (
+                    base64.urlsafe_b64encode(tampered_bytes)
+                    .rstrip(b"=")
+                    .decode("ascii")
+                )
+                with self.assertRaises(AuthenticationError):
+                    verify(tampered, NOW)
 
     def test_candidate_is_exact_purpose_bound_redacted_and_short_lived(self):
         token = self.codec.issue_candidate(
@@ -73,10 +155,6 @@ class IdentityLinkProofCodecTest(unittest.TestCase):
                 json.loads(decoded.decode("utf-8"))
             self.assertNotIn(b'"iid"', decoded)
             self.assertNotIn(b'"pid"', decoded)
-
-        tampered = candidate[:-1] + ("A" if candidate[-1] != "A" else "B")
-        with self.assertRaises(AuthenticationError):
-            self.codec.verify_candidate(tampered, NOW)
 
     def test_canonical_version_is_utc_microsecond_hmac(self):
         same = NOW.astimezone(timezone(timedelta(hours=8)))

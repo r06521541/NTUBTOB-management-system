@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import secrets
+import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 from shared_module.identity_linking import (
@@ -24,6 +27,17 @@ from sqlalchemy import Engine, and_, func, literal, or_, select, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .domain import AuthorizationError
+from .erasure_guard import (
+    ErasureAccessBlocked,
+    ErasureGuardUnavailable,
+    require_account_not_erasing,
+)
+from .erasure_management_gate import require_management_mutation
+from .erasure_management_guard import (
+    ManagementGuardUnavailable,
+    ManagementWritesSuspended,
+)
 from .identity_lifecycle import AUTHORITY_REVISIONS, IdentityLifecycleRepository
 from .models import (
     AccessAuditRecord,
@@ -66,9 +80,39 @@ PRE_EVENT_NOTIFICATION_REVISIONS = frozenset(
 
 
 class MobileRepository:
-    def __init__(self, engine: Engine):
+    def __init__(self, engine: Engine, *, erasure_checks_enabled: bool = False):
+        # Explicit source-integration seam, not an environment rollout switch.
+        # All other entry points must be guarded before real verification is enabled.
+        if type(erasure_checks_enabled) is not bool:
+            raise ValueError("erasure_checks_enabled must be boolean")
         self.engine = engine
-        self.lifecycle = IdentityLifecycleRepository(engine)
+        self.erasure_checks_enabled = erasure_checks_enabled
+        self.lifecycle = IdentityLifecycleRepository(
+            engine, erasure_checks_enabled=erasure_checks_enabled
+        )
+
+    @staticmethod
+    def _require_management_write(session: Session) -> None:
+        try:
+            require_management_mutation(session)
+        except (ManagementWritesSuspended, ManagementGuardUnavailable):
+            raise AccountUnavailable("management writes unavailable") from None
+
+    def _require_account_available(
+        self,
+        session: Session,
+        *,
+        person_id: int | None = None,
+        identity_id: int | None = None,
+    ) -> None:
+        if not self.erasure_checks_enabled:
+            return
+        try:
+            require_account_not_erasing(
+                session, person_id=person_id, identity_id=identity_id
+            )
+        except (ErasureAccessBlocked, ErasureGuardUnavailable):
+            raise AccountUnavailable("account access unavailable") from None
 
     def apple_lifecycle_ready(self) -> bool:
         try:
@@ -132,6 +176,8 @@ class MobileRepository:
     def complete_apple_code_for_pending(self, **values) -> None:
         """Persist a consumed code credential for an exact pending Apple identity."""
         with Session(self.engine) as session, session.begin():
+            acquire_admin_event_locks(session)
+            self._require_account_available(session, identity_id=values["identity_id"])
             code_row = session.scalar(
                 select(AppleProviderCodeExchangeRecord)
                 .where(AppleProviderCodeExchangeRecord.code_hash == values["code_hash"])
@@ -185,6 +231,8 @@ class MobileRepository:
                 revision = self._single_revision(session)
                 if revision not in APPLE_LIFECYCLE_REVISIONS:
                     raise AccountUnavailable("Apple lifecycle schema is not ready")
+                # Fence before receipt insertion as well as identity/session locks.
+                acquire_admin_event_locks(session)
                 receipt = AppleProviderNotificationRecord(
                     jti_hash=values["jti_hash"],
                     event_type=values["event_type"],
@@ -200,8 +248,6 @@ class MobileRepository:
                 )
                 session.add(receipt)
                 session.flush()
-                if receipt.disposition == "revoked":
-                    acquire_admin_event_locks(session)
                 identity = session.scalar(
                     select(AuthIdentityRecord)
                     .where(
@@ -295,6 +341,8 @@ class MobileRepository:
                         outcome = APPLE_ADMIN_RECOVERY_REQUIRED
         except IntegrityError:
             return False
+        except AuthorizationError:
+            raise AccountUnavailable("account access unavailable") from None
         return outcome
 
     def exchange(self, **values) -> MobilePrincipal:
@@ -302,15 +350,21 @@ class MobileRepository:
             values["provider"], values["subject"], values["now"]
         )
         if principal is None:
-            with Session(self.engine) as session:
+            with Session(self.engine) as session, session.begin():
+                if self.erasure_checks_enabled:
+                    acquire_admin_event_locks(session)
                 identity = session.scalar(
                     select(AuthIdentityRecord).where(
                         AuthIdentityRecord.provider == values["provider"],
                         AuthIdentityRecord.provider_subject == values["subject"],
                     )
                 )
-            if identity is not None and identity.status == "pending":
-                raise IdentityPending("identity approval is pending", identity.id)
+                if identity is not None:
+                    self._require_account_available(
+                        session, person_id=identity.person_id, identity_id=identity.id
+                    )
+                if identity is not None and identity.status == "pending":
+                    raise IdentityPending("identity approval is pending", identity.id)
             raise AccountUnavailable("linked active account is unavailable")
         now, session_id = values["now"], secrets.token_urlsafe(24)
         session_row = MobileSessionRecord(
@@ -327,6 +381,12 @@ class MobileRepository:
         )
         try:
             with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
+                self._require_account_available(
+                    session,
+                    person_id=principal.person.id,
+                    identity_id=principal.identity.id,
+                )
                 if values["provider"] == "apple":
                     code_row = session.scalar(
                         select(AppleProviderCodeExchangeRecord)
@@ -338,18 +398,15 @@ class MobileRepository:
                     )
                     if code_row is None or code_row.state != "pending":
                         raise Conflict("Apple authorization code is not pending")
-                    identity = session.scalar(
-                        select(AuthIdentityRecord)
-                        .where(
-                            AuthIdentityRecord.id == principal.identity.id,
-                            AuthIdentityRecord.provider == "apple",
-                            AuthIdentityRecord.provider_subject == values["subject"],
-                            AuthIdentityRecord.status == "linked",
-                        )
-                        .with_for_update()
-                    )
-                    if identity is None:
-                        raise AccountUnavailable("linked active account is unavailable")
+                fresh_account = self._locked_active_account(
+                    session,
+                    principal.identity.id,
+                    principal.person.id,
+                    provider=values["provider"],
+                    subject=values["subject"],
+                )
+                if fresh_account is None:
+                    raise AccountUnavailable("linked active account is unavailable")
                 session.add(session_row)
                 session.flush()
                 session.add(
@@ -412,10 +469,40 @@ class MobileRepository:
             session_id,
             principal.person.id,
             principal.identity.id,
-            principal.person.access_level,
-            principal.person.display_name,
+            fresh_account[0],
+            fresh_account[1],
             1,
         )
+
+    @staticmethod
+    def _locked_active_account(
+        session: Session,
+        identity_id: int,
+        person_id: int,
+        *,
+        provider: str | None = None,
+        subject: str | None = None,
+    ) -> tuple[str, str] | None:
+        """Recheck the exact tuple in the caller's fenced mutation transaction."""
+        identity = session.scalar(
+            select(AuthIdentityRecord)
+            .where(AuthIdentityRecord.id == identity_id)
+            .with_for_update()
+        )
+        if (
+            identity is None
+            or identity.status != "linked"
+            or identity.person_id != person_id
+            or (provider is not None and identity.provider != provider)
+            or (subject is not None and identity.provider_subject != subject)
+        ):
+            return None
+        person = session.scalar(
+            select(PersonRecord).where(PersonRecord.id == person_id).with_for_update()
+        )
+        if person is None or person.portal_status != "active":
+            return None
+        return person.portal_access_level, person.display_name
 
     def identity_link_candidate(self, provider: str, subject: str, now: datetime):
         with Session(self.engine) as session:
@@ -440,6 +527,8 @@ class MobileRepository:
     ) -> dict:
         try:
             with Session(self.engine) as session, session.begin():
+                if self.erasure_checks_enabled:
+                    acquire_admin_event_locks(session)
                 row = session.scalar(
                     select(AuthIdentityRecord)
                     .where(
@@ -473,6 +562,10 @@ class MobileRepository:
                             created_at=now,
                         )
                     )
+                else:
+                    self._require_account_available(
+                        session, person_id=row.person_id, identity_id=row.id
+                    )
                 return {
                     "identity_id": row.id,
                     "provider": row.provider,
@@ -484,10 +577,12 @@ class MobileRepository:
             raise Conflict("identity-link candidate conflict") from None
 
     def ensure_apple_link_candidate(
-        self, subject: str, request_id: str, now: datetime
+        self, subject: str, request_id: str, now: datetime, *, first_login: bool = False
     ) -> dict:
         try:
             with Session(self.engine) as session, session.begin():
+                if first_login or self.erasure_checks_enabled:
+                    acquire_admin_event_locks(session)
                 row = session.scalar(
                     select(AuthIdentityRecord)
                     .where(
@@ -516,10 +611,18 @@ class MobileRepository:
                             auth_identity_id=row.id,
                             before_state=None,
                             after_state={"status": "pending"},
-                            reason="Apple identity awaiting self-link confirmation",
+                            reason=(
+                                "Apple first login awaiting approval or existing-account proof"
+                                if first_login
+                                else "Apple identity awaiting self-link confirmation"
+                            ),
                             request_id=request_id,
                             created_at=now,
                         )
+                    )
+                else:
+                    self._require_account_available(
+                        session, person_id=row.person_id, identity_id=row.id
                     )
                 return {
                     "identity_id": row.id,
@@ -534,7 +637,12 @@ class MobileRepository:
     def ensure_line_link_candidate(
         self, subject: str, display_name: str, request_id: str, now: datetime
     ) -> dict:
-        self.lifecycle.ensure_pending_line_identity(subject, display_name, request_id)
+        try:
+            self.lifecycle.ensure_pending_line_identity(
+                subject, display_name, request_id
+            )
+        except AuthorizationError:
+            raise AccountUnavailable("account access unavailable") from None
         snapshot = self.identity_link_candidate("line", subject, now)
         if snapshot is None:
             raise Conflict("LINE identity-link candidate is unavailable")
@@ -599,6 +707,22 @@ class MobileRepository:
         now = values["now"]
         request_id = codec.audit_request_id(candidate.jti)
         with Session(self.engine) as session, session.begin():
+            if self.erasure_checks_enabled:
+                self._require_account_available(
+                    session, person_id=proof.person_id, identity_id=proof.identity_id
+                )
+                candidate_snapshot = session.scalar(
+                    select(AuthIdentityRecord).where(
+                        AuthIdentityRecord.id == candidate.identity_id
+                    )
+                )
+                if candidate_snapshot is None:
+                    raise IdentityLinkConflict("identity-link state changed")
+                self._require_account_available(
+                    session,
+                    person_id=candidate_snapshot.person_id,
+                    identity_id=candidate_snapshot.id,
+                )
             # Identity lifecycle admin mutations acquire this advisory lock,
             # then the target Person, then identity rows. Linking must use the
             # same global order to avoid Person/identity lock inversion.
@@ -819,7 +943,7 @@ class MobileRepository:
         access_epoch: int,
         now: datetime,
     ) -> MobilePrincipal | None:
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
             row = session.get(MobileSessionRecord, session_id)
             if (
                 row is None
@@ -830,6 +954,9 @@ class MobileRepository:
                 or row.refresh_family_expires_at <= now
             ):
                 return None
+            self._require_account_available(
+                session, person_id=person_id, identity_id=identity_id
+            )
         lifecycle = (
             self.lifecycle.resolve_principal_by_ids(identity_id, person_id, now)
             if hasattr(self.lifecycle, "resolve_principal_by_ids")
@@ -838,12 +965,12 @@ class MobileRepository:
         if lifecycle is None:
             return None
         return MobilePrincipal(
-            row.id,
+            session_id,
             person_id,
             identity_id,
             lifecycle.person.access_level,
             lifecycle.person.display_name,
-            row.access_epoch,
+            access_epoch,
         )
 
     def rotate(self, **values) -> tuple[TokenPair, bool]:
@@ -851,6 +978,29 @@ class MobileRepository:
         conflict = None
         result = None
         with Session(self.engine) as session, session.begin():
+            # Refresh and revocation otherwise acquire token/session rows inversely.
+            acquire_admin_event_locks(session)
+            if self.erasure_checks_enabled:
+                # Discover the scope without row locks; the canonical locks fence
+                # verification, and the normal locked checks below still apply.
+                target = session.execute(
+                    select(
+                        MobileSessionRecord.auth_identity_id,
+                        MobileSessionRecord.person_id,
+                    )
+                    .join(
+                        MobileRefreshTokenRecord,
+                        MobileRefreshTokenRecord.session_id == MobileSessionRecord.id,
+                    )
+                    .where(
+                        MobileRefreshTokenRecord.token_hash == values["refresh_hash"]
+                    )
+                ).first()
+                if target is None:
+                    raise AuthenticationError("invalid refresh token")
+                self._require_account_available(
+                    session, identity_id=target[0], person_id=target[1]
+                )
             token = session.scalar(
                 select(MobileRefreshTokenRecord)
                 .where(MobileRefreshTokenRecord.token_hash == values["refresh_hash"])
@@ -871,6 +1021,13 @@ class MobileRepository:
                 or token.expires_at <= now
             ):
                 raise AuthenticationError("inactive refresh family")
+            if (
+                self._locked_active_account(
+                    session, device.auth_identity_id, device.person_id
+                )
+                is None
+            ):
+                raise AuthenticationError("linked active account is unavailable")
             attempt = session.scalar(
                 select(MobileRefreshAttemptRecord)
                 .where(
@@ -950,6 +1107,8 @@ class MobileRepository:
 
     def logout(self, session_id: str, now: datetime) -> None:
         with Session(self.engine) as session, session.begin():
+            # Serialize cleanup; do not deny logout because erasure is in progress.
+            acquire_admin_event_locks(session)
             device = session.scalar(
                 select(MobileSessionRecord)
                 .where(MobileSessionRecord.id == session_id)
@@ -996,7 +1155,8 @@ class MobileRepository:
         limit: int,
         unread_only: bool,
     ) -> list[dict]:
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             event_lifecycle_ready = self._event_notification_columns_ready(session)
             category = (
                 MobileNotificationRecipientRecord.participation_category
@@ -1048,12 +1208,13 @@ class MobileRepository:
                     )
                 )
             rows = session.execute(statement).all()
-        return [self._notification_row(*row) for row in rows]
+            return [self._notification_row(*row) for row in rows]
 
     def notification_detail(
         self, person_id: int, notification_id: int, now: datetime
     ) -> dict | None:
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             event_lifecycle_ready = self._event_notification_columns_ready(session)
             category = (
                 MobileNotificationRecipientRecord.participation_category
@@ -1086,7 +1247,7 @@ class MobileRepository:
                 )
             )
             row = session.execute(statement).one_or_none()
-        return None if row is None else self._notification_row(*row)
+            return None if row is None else self._notification_row(*row)
 
     def notification_unread_count(self, person_id: int, now: datetime) -> int:
         statement = (
@@ -1104,7 +1265,8 @@ class MobileRepository:
                 self._visible_notification(now),
             )
         )
-        with Session(self.engine) as session:
+        with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             return int(session.scalar(statement) or 0)
 
     def mark_notification_read(
@@ -1115,6 +1277,7 @@ class MobileRepository:
             self._visible_notification(now),
         )
         with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             read_at = session.scalar(
                 update(MobileNotificationRecipientRecord)
                 .where(
@@ -1144,6 +1307,7 @@ class MobileRepository:
             self._visible_notification(now)
         )
         with Session(self.engine) as session, session.begin():
+            self._require_account_available(session, person_id=person_id)
             result = session.execute(
                 update(MobileNotificationRecipientRecord)
                 .where(
@@ -1220,7 +1384,28 @@ class MobileRepository:
         self, audience: dict, now: datetime
     ) -> tuple[int, ...]:
         with Session(self.engine) as session:
-            return self._expand_notification_recipients(session, audience, now)
+            if self.erasure_checks_enabled:
+                acquire_admin_event_locks(session)
+            return self._eligible_notification_recipients(session, audience, now)
+
+    def _eligible_notification_recipients(
+        self, session: Session, audience: dict, now: datetime
+    ) -> tuple[int, ...]:
+        recipients = self._expand_notification_recipients(session, audience, now)
+        if not self.erasure_checks_enabled:
+            return recipients
+        eligible = []
+        for person_id in recipients:
+            try:
+                require_account_not_erasing(session, person_id=person_id)
+            except ErasureAccessBlocked:
+                continue
+            except ErasureGuardUnavailable:
+                raise AccountUnavailable(
+                    "notification recipients unavailable"
+                ) from None
+            eligible.append(person_id)
+        return tuple(eligible)
 
     def notification_game_exists(self, game_id: int) -> bool:
         with Session(self.engine) as session:
@@ -1230,6 +1415,12 @@ class MobileRepository:
         route = "/api/v1/officer/notifications/confirm"
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                if self.erasure_checks_enabled:
+                    acquire_admin_event_locks(session)
+                self._require_account_available(
+                    session, person_id=values["actor_person_id"]
+                )
                 existing = session.scalar(
                     select(MobileIdempotencyRecord)
                     .where(
@@ -1244,7 +1435,7 @@ class MobileRepository:
                     return self._published_replay(existing, values["request_hash"])
 
                 draft, now = values["draft"], values["now"]
-                current_recipients = self._expand_notification_recipients(
+                current_recipients = self._eligible_notification_recipients(
                     session, draft["audience"], now
                 )
                 if current_recipients != values["recipient_ids"]:
@@ -1328,7 +1519,13 @@ class MobileRepository:
                 )
                 return response
         except IntegrityError:
-            with Session(self.engine) as session:
+            with Session(self.engine) as session, session.begin():
+                self._require_management_write(session)
+                if self.erasure_checks_enabled:
+                    acquire_admin_event_locks(session)
+                self._require_account_available(
+                    session, person_id=values["actor_person_id"]
+                )
                 existing = session.scalar(
                     select(MobileIdempotencyRecord).where(
                         MobileIdempotencyRecord.session_id == values["session_id"],
@@ -1370,6 +1567,7 @@ class MobileRepository:
     def register_fake_device(self, **values) -> dict:
         try:
             with Session(self.engine) as session, session.begin():
+                self._require_account_available(session, person_id=values["person_id"])
                 self._lock_current_device_session(session, values, verify_platform=True)
                 registration = session.scalar(
                     select(MobileDeviceRegistrationRecord)
@@ -1442,6 +1640,7 @@ class MobileRepository:
 
     def attempt_rejecting_delivery(self, **values) -> dict:
         with Session(self.engine) as session, session.begin():
+            self._require_management_write(session)
             delivery = session.scalar(
                 select(MobileNotificationDeliveryRecord)
                 .where(
@@ -1473,6 +1672,44 @@ class MobileRepository:
             }
 
     def idempotent(self, **values) -> tuple[int, dict, bool]:
+        with self._idempotency_execution_lock(values):
+            return self._idempotent_serialized(**values)
+
+    @contextmanager
+    def _idempotency_execution_lock(self, values):
+        """Own only a request lock; never lifecycle/row locks across callbacks.
+
+        Two-int advisory keys are separate from the bigint lifecycle lock space.
+        Do not enter while already holding lifecycle locks. A successful checkout
+        is detached so callbacks can borrow even a one-connection pool; closing it
+        physically releases the transaction. Busy probes return their checkout
+        before waiting. Transport failure is never retried here.
+        """
+        encoded = json.dumps(
+            [values[name] for name in ("session_id", "method", "route", "key_hash")],
+            separators=(",", ":"),
+        ).encode("utf-8")
+        key = int.from_bytes(hashlib.sha256(encoded).digest()[:4], "big", signed=True)
+        deadline = time.monotonic() + 10
+        while True:
+            with self.engine.connect() as connection, connection.begin():
+                if connection.connection.dbapi_connection.autocommit is not False:
+                    raise IdempotencyConflict("transactional idempotency required")
+                acquired = connection.scalar(
+                    text("SELECT pg_try_advisory_xact_lock(:namespace, :key)"),
+                    {"namespace": 1314144841, "key": key},
+                )
+                if acquired is True:
+                    connection.detach()
+                    yield
+                    return
+                if acquired is not False:
+                    raise IdempotencyConflict("idempotency lock state unknown")
+            if time.monotonic() >= deadline:
+                raise IdempotencyConflict("idempotency request is still running")
+            time.sleep(0.05)
+
+    def _idempotent_serialized(self, **values) -> tuple[int, dict, bool]:
         """Claim durably, serialize execution, and reconcile a saved mutation.
 
         The claim commits before the independently committing attendance service
@@ -1481,6 +1718,8 @@ class MobileRepository:
         """
         try:
             with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
+                self._require_account_available(session, person_id=values["person_id"])
                 existing = session.scalar(
                     select(MobileIdempotencyRecord)
                     .where(
@@ -1518,30 +1757,48 @@ class MobileRepository:
         mutation_started = False
         try:
             with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
+                self._require_account_available(session, person_id=values["person_id"])
                 record = self._locked_idempotency(session, values)
                 if record.state == "completed":
                     return record.response_status, record.response_body, True
-                reconciled = values.get("reconcile", lambda: None)()
-                replayed = reconciled is not None
-                if reconciled is not None:
-                    mutation_result = reconciled
-                else:
-                    mutation_started = True
-                    mutation_result = values["mutation"]()
+            reconciled = values.get("reconcile", lambda: None)()
+            replayed = reconciled is not None
+            if reconciled is not None:
+                mutation_result = reconciled
+            else:
+                mutation_started = True
+                mutation_result = values["mutation"]()
+            with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
+                self._require_account_available(session, person_id=values["person_id"])
+                record = self._locked_idempotency(session, values)
                 self._complete_idempotency(record, mutation_result, values["now"])
             return mutation_result[0], mutation_result[1], replayed
-        except Exception:
-            if not mutation_started:
+        except Exception as error:
+            # With erasure checks enabled, a fresh access denial is not an
+            # uncertain commit to reconcile. Keep the default-off contract.
+            if not mutation_started or (
+                self.erasure_checks_enabled and isinstance(error, AccountUnavailable)
+            ):
                 raise
             # The attendance transaction may already have committed.  Prove the
             # requested readback before returning instead of reporting failure.
             with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
+                self._require_account_available(session, person_id=values["person_id"])
                 record = self._locked_idempotency(session, values)
                 if record.state == "completed":
                     return record.response_status, record.response_body, True
-                reconciled = values.get("reconcile", lambda: None)()
-                if reconciled is None:
-                    raise
+            reconciled = values.get("reconcile", lambda: None)()
+            if reconciled is None:
+                raise
+            with Session(self.engine) as session, session.begin():
+                acquire_admin_event_locks(session)
+                self._require_account_available(session, person_id=values["person_id"])
+                record = self._locked_idempotency(session, values)
+                if record.state == "completed":
+                    return record.response_status, record.response_body, True
                 recovered = mutation_result or reconciled
                 self._complete_idempotency(record, recovered, values["now"])
                 return recovered[0], recovered[1], True
@@ -1560,6 +1817,8 @@ class MobileRepository:
         )
         if record is None or record.request_hash != values["request_hash"]:
             raise IdempotencyConflict("idempotency key body mismatch")
+        if record.state not in {"pending", "completed"}:
+            raise IdempotencyConflict("idempotency state unknown")
         return record
 
     @staticmethod
@@ -1570,7 +1829,8 @@ class MobileRepository:
 
     @staticmethod
     def _principal_from_device(device: MobileSessionRecord) -> MobilePrincipal:
-        # Refresh revalidates lifecycle when the access token is next used.
+        # Refresh checks the linked active tuple before issuance/replay. Requests
+        # still resolve current capabilities when the access token is used.
         return MobilePrincipal(
             device.id,
             device.person_id,

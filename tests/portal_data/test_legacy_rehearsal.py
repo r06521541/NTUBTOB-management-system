@@ -54,14 +54,15 @@ class LegacyFixtureRehearsalTests(unittest.TestCase):
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
         command.stamp(config, "0001_legacy_baseline")
-        command.upgrade(config, "head")
+        command.upgrade(config, "0018_erasure_privacy_mutation")
         prepare_event_guest_lifecycle_downgrade_for_isolated_test_database(self.engine)
         command.downgrade(config, "0004_phase_c_identity_lifecycle")
         remove_retained_apple_evidence_from_isolated_test_database(self.engine)
         command.downgrade(config, "0001_legacy_baseline")
         setup_legacy_fixture()
-        command.upgrade(config, "head")
-        command.check(config)
+        command.upgrade(config, "0018_erasure_privacy_mutation")
+        # Current-head metadata is checked in the rollback-isolated 0019 suite.
+        # This historical rewind must not acquire/drop recovery operation history.
 
         with self.engine.connect() as connection:
             names = connection.scalars(

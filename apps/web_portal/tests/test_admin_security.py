@@ -3853,6 +3853,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
             with self.subTest(local_preview=local_preview):
                 self._login_for_events()
                 repository, principal = self._event_repository()
+                repository.erasure_checks_enabled = False
                 principal.person.access_level = access_level
                 adapter = MagicMock()
                 service = MagicMock()
@@ -3894,6 +3895,7 @@ class MemberMatchingRouteTest(unittest.TestCase):
                     repository.engine,
                     expected_ids,
                     allow_persisted_event_managers=expected_mode,
+                    erasure_checks_enabled=False,
                 )
                 service_constructor.assert_called_once_with(adapter)
                 service.managed_events.assert_called_once_with(80)
