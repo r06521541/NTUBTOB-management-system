@@ -1,5 +1,14 @@
 # TASK-203 bounded review
 
+## Hosted dependency/format correction — 2026-10-20 ACCEPT
+
+task203-hosted-dependency-review lease1 source ACCEPT received/handled/released.
+Portal CI adds only existing Mobile Flask==3.0.3; exact pin/step regression protects
+against recurrence, PG15/16 matrix and all tests remain. Dart formatter diff changes
+only callback layout. Reviewer performed no tests/network/DB; Main offline evidence
+is42 contracts(one skip),6 adapter tests,52file format and1file Python quality PASS.
+Corrected pushed hosted run remains mandatory before ready/merge; no runtime grant.
+
 ## Publication and CI fixture source — 2026-10-19 ACCEPT
 
 Follow-up source review task203-ci-correction-review lease1 ACCEPT for exact current

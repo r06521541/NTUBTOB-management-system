@@ -75,7 +75,8 @@ void main() {
     transport = FlowTransport();
   });
 
-  test('dispose notifies owner invalidation before removing consumers', () async {
+  test('dispose notifies owner invalidation before removing consumers',
+      () async {
     final adapter = await open();
     await adapter.request(confirmed: true);
     final states = <(int, String?)>[];

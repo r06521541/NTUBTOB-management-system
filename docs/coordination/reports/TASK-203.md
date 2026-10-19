@@ -2,6 +2,21 @@
 
 ## Authenticated integration / CI in progress — 2026-10-19
 
+### Hosted failure correction — 2026-10-20
+
+Exact655fad1e7f4b5f4610c450bf6c17716fb910ef85 run39283447532 completed.
+Both iOS platform jobs, service suites, classifier/quick/Python quality passed.
+PG15/16 each failed five imports: new cross-API erasure tests import Mobile Flask
+app but this job installed migration/shared dependencies only (929 tests reached,
+five import errors, two skips; no full1120 claim). Android stopped at formatting
+test/account_erasure_adapter_test.dart; this job did not reach App tests/build.
+Minimal correction adds existing Mobile Flask==3.0.3 to portal test installation,
+plus RED→GREEN workflow contract tied to that existing pin; no dependency/runtime
+schema change. Adapter test diff only wraps a callback line using pinned formatter.
+CI contracts42 OK(one skip), affected adapter6PASS, whole Dart format52files0change,
+Python quality for contract1PASS and diffcheckPASS. Independent review and corrected
+exact hosted gates required before ready/merge; no skipped failures or blind rerun.
+
 2026-10-20 corrected full PG16 discovery1120/406.324s: original four errors resolved,
 but one FreshErasureDatabases DROP exceeded existing5s statement_timeout, reported
 as test+tearDownClass errors(two); two skips remain. Server log confirms timeout,

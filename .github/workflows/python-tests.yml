@@ -188,7 +188,7 @@ jobs:
             shared_lib/setup.py
 
       - name: Install portal data test dependencies
-        run: python -m pip install -r requirements-migrations.txt ./shared_lib
+        run: python -m pip install -r requirements-migrations.txt ./shared_lib Flask==3.0.3
 
       - name: Verify Phase C review artifacts
         run: |

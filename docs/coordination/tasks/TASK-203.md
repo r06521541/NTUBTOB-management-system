@@ -3,6 +3,21 @@
 ## Active integration and hosted CI — 2026-10-19
 
 Main task203-ci-integration lease1, /root; Owner explicitly resumed integration/CI.
+2026-10-20 hosted correction checkpoint: exact655fad1 run39283447532 completed;
+iOS/service/quality gates pass; Android formatting and PG15/16 fail.
+Goal: restore full selected gates, no runtime change. Core: python-tests portal_data
+dependency install, test_ci_workflow_contract regression, account_erasure_adapter_test
+formatter-only correction. Invariant: keep full matrix/negative guards/default-off.
+Tests: hosted Flask import RED, local format RED, offline workflow contracts and
+adapter tests then exact pushed hosted run; no Owner ambiguity or new fee.
+Advisor packet: task=TASK-203; branch=codex/task-202-privacy-retention-plan;
+base=head=655fad1e7f4b5f4610c450bf6c17716fb910ef85;
+actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-hosted-dependency-review; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root; scope=workflow/test/formatter-only three-file diff;
+stop_conditions=edits/DB/network/secrets/Git mutation. ACK immediately, blockers
+immediately, heartbeat10–15min; completion proactively to /root with verdict,
+exact SHA/paths/tests/limits/external mutations. Main writes/tests/commits only.
 Flutter CI correction checkpoint: full527 tests exposed one deterministic failure
 in existing production-demo action scenario after fictional2026 dates elapsed.
 Main owns BasicGamesView/MemberActionHome optional clock seam, production_demo.dart
