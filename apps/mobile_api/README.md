@@ -7,7 +7,7 @@ identity inside the locked transaction. Pending and blocked linked accounts need
 no business session. Multiple owned identities are not selected by client IDs.
 This proof has separate key/AAD/purpose from intent and cancellation; no provider
 I/O occurs under DB locks. Explicit confirmation is required, unknown commit means
-reconcile rather than retry. Not enabled by normal bootstrap or complete erasure.
+reconcile rather than retry. Disabled by default and not complete erasure.
 
 Independent Flask/Cloud Run deployment unit for the native API. Basic access
 remains isolated; Officer/Admin receive only explicitly projected bounded reads.
@@ -30,6 +30,29 @@ passes account-erasure guards to both runtime repositories and their nested
 repositories; invalid values stop construction before credential/service wiring.
 Mobile does not require Web's Phase C flag. This guard setting does not inject the
 optional account-erasure service or enable its UI, provider effects or execution.
+The separate `MOBILE_API_ERASURE_INTAKE_ENABLED` is also missing/`false` by default;
+only exact `true` injects `Dependencies.account_erasure` in the actual bootstrap.
+Other values reject startup before normal service construction. Off does not read
+the new erasure keys or instantiate erasure services. On requires the guard flag,
+the complete valid Apple lifecycle group, the existing exact LINE/Apple audiences,
+and `MOBILE_API_ERASURE_GOOGLE_AUDIENCE` as one exact member of the existing Google
+allowlist. This dedicated Google verifier uses only that audience and a mandatory
+fresh nonce; ordinary Google login is not deletion proof.
+`MOBILE_API_ERASURE_RECEIPT_KEY` and `MOBILE_API_ERASURE_PROOF_KEY` are runtime-injected
+canonical padded URL-safe base64 with at least 32 decoded bytes. They must differ
+from each other and the existing access-signing, refresh-replay and Apple provider
+encryption key material. Invalid enabled configuration fails with the fixed ASCII
+message `invalid erasure intake configuration`, without values or provider I/O.
+The five proof purposes retain separate cryptographic domains and the fixed local
+proof audience `ntubtob-mobile-account-erasure`.
+This assembly uses `ErasureIntakeRepository` and the approved
+`ErasurePlanPolicy.initial_request` policy: request-time intake needs no human
+review, while later scope review/materialization remains separately authorized.
+It supplies request, receipt, fresh verification, cancellation and recovery, not
+an executor, sealed-plan store, materializer, provider logout, scheduler or cleanup.
+The example remains off. This source composition is **not standalone rollout
+approval**: full operator/custody/guard/preflight readiness is still required;
+neither a verified request nor session revocation means erasure is complete.
 All signing, refresh-response encryption, and
 existing provider audience configuration must also be present. The
 LINE audience and bounded `MOBILE_API_GOOGLE_AUDIENCES` allowlist are separate
@@ -95,9 +118,9 @@ The staging operator package is documented in
 `docs/operations/mobile/MOBILE_STAGING.md`. It defaults to dry-run, rejects the
 production project and database identity, and does not authorize deployment.
 
-TASK-203's source-only `MobileRepository(erasure_checks_enabled=True)` is an
-explicit test/integration seam, default off and not enabled by bootstrap or an
-environment flag. It checks the attached erasure ledger for exchange, access-token
+TASK-203's `MobileRepository(erasure_checks_enabled=True)` remains default off;
+bootstrap propagates the explicit guard environment flag described above. It
+checks the attached erasure ledger for exchange, access-token
 resolution, refresh (including saved-successor replay), and identity linking;
 logout cleanup remains available. It does not make all Portal/LINE/notification or
 business mutations erasure-safe. Candidate0015 acceptance in the private guard is
@@ -107,16 +130,16 @@ token is deletion authorization.
 Do not enable real verification/fulfillment until every entry point is covered.
 
 The optional `Dependencies.account_erasure` composition is default `None` and is
-not wired by bootstrap. Its linked-account candidate exposes request, receipt-bound
+wired only by the explicit intake opt-in above. It exposes request, receipt-bound
 challenge and verification endpoints documented in OpenAPI. The encrypted challenge
 binds a server nonce and current target generations; existing provider verifiers run
 outside the mutation transaction. Local proof validation and locked generation checks
 precede committed session revocation. `verified` is neither complete access blocking
-nor deletion completion. Policy/deadline plan and keys must be explicitly injected;
-restricted requests have separate optional proof/repository dependencies;
-restricted job verification UI and fulfillment remain unfinished. Cancellation
-has a separate optional proof service and exact0016 coordinator; neither is wired
-by bootstrap. Only fictional provider/DB integration is in scope, not device SDKs.
+nor deletion completion. Intake uses the fixed initial policy and separate proof
+purposes; restricted requests use the same durable intake repository. The older
+reviewed-plan component factory remains available for explicitly composed internal
+workflows. Cancellation uses a separate proof service and the existing coordinator.
+Runtime activation, fulfillment and native SDK wiring are not implied.
 
 The default-off POST `/api/v1/account-erasure/status` reads a minimal receipt state
 without an app session, including after verification revokes sessions. It accepts

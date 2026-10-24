@@ -7,6 +7,7 @@ import os
 from app import Dependencies, create_app
 from apple_verifier import AppleIdTokenVerifier
 from cryptography.fernet import Fernet, InvalidToken
+from erasure_runtime import build_runtime_erasure_service, erasure_intake_enabled
 from google_verifier import GoogleIdTokenVerifier
 from line_verifier import LineIdTokenVerifier
 from revision_readiness import (
@@ -78,7 +79,13 @@ def revision_is_current() -> bool:
     return database_revision_is_current(engine, logger)
 
 
+intake_enabled = erasure_intake_enabled()
 checks_enabled = erasure_checks_enabled()
+account_erasure = (
+    build_runtime_erasure_service(engine=engine, checks_enabled=checks_enabled)
+    if intake_enabled
+    else None
+)
 repository = MobileRepository(engine, erasure_checks_enabled=checks_enabled)
 refresh_replay_key = required("MOBILE_REFRESH_REPLAY_KEY")
 cipher = RuntimeCipher(refresh_replay_key)
@@ -159,5 +166,6 @@ app = create_app(
         apple_auth,
         repository.apple_lifecycle_ready,
         apple_notifications,
+        account_erasure=account_erasure,
     )
 )

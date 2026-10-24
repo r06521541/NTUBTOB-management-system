@@ -2,6 +2,104 @@
 
 ## Activation readiness continuation — 2026-10-24
 
+Active advisor packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=fc70f9b6395aa4c729888619698ba74b418bc2bd;
+actor_id=/root/account_backend; role=advisor;
+claim_id=task203-online-provider-phase-design; lease_version=3; owned_paths=none;
+write=read-only; report_to=/root; scope=minimal already-approved online/provider
+phase separation using existing item/reconcile fences, online+30 raw plan cleanup
+and minimal post-online proof; propose additive schema compatibility/backfill/
+rollback before coding if needed, no new general workflow or permanent target
+tombstone. Stop on file/DB/network/cloud/Secret/Git mutation/cost. Mandatory
+ACK/heartbeat/blocker/proactive concrete design+limits then freeze.
+
+App review packet record: /root/privacy_foundation advisor
+task203-app-runtime-review lease3 same branch/base/head, ownednone/read-only,
+report_to=/root; scope current seven App runtime delta, not old own Google port.
+No Windows Flutter/DB/network/Secret/cloud/Git/file mutation/cost; mandatory
+ACK/heartbeat/blocker/proactive verdict then freeze. Main recorded this task entry
+after dispatch/completion (late, not falsely preexisting). Source-only ACCEPT and
+seven LF hashes received; Main independently reviewed writer corrections and
+accepts source, not native/live behavior. Lease completed/released. Future packets
+must be persisted before transport. Backend independent21PASS ACCEPT received/
+released,8paths Main-owned. Native advisor findings/Person narrow ACCEPT received/
+released; full Person27PG PASS50.797s after realRED. Main added real intake-only
+factory3provider PG1PASS1.252s, no jobs/plans/provider-execution created. App seven
+files safely formatted in official offline Dart container; hosted proof pending.
+Exactfc70 run40064866377 SUCCESS/all16, not proof of these newer dirty changes.
+
+Latest leases: backend task203-real-intake-bootstrap lease2 complete received/
+frozen/released;8paths now Main-owned. Advisor /root/privacy_foundation
+task203-intake-bootstrap-review lease2, same fc70 branch/base/head, ownednone/
+read-only/report_to=/root reviews those8 paths; mandatory ACK/heartbeat/blocker/
+proactive verdict then freeze, no DB/network/Secret/Git/file mutation/cost.
+App writer task203-real-app-erasure-composition lease2 REQUEST_CHANGES received;
+lease3 now owns original4 plus account_erasure_owner.dart,
+account_erasure_provider.dart and test/account_erasure_provider_test.dart.
+Correct native-auth lifecycle return race without weakening offline/currentness:
+explicit optional post-authorization bounded reachability refresh, then recheck;
+no second login. New opaque Basic root key on config/platform/store replacement,
+not connectivity changes. Add pause/resume/native-return/stale/failure tests and
+braces/analyzer self-review. Existing mandatory packet and no external ops remain.
+
+Main provider-finalization correction scope: only erasure_person_fulfillment.py
+and its PG test. Root target=non-Apple cannot use missing Apple credential rows as
+provider completion; invariant missing/unknown !=success; actual RED1FAIL3.790s
+returned confirmed/online_completed. Apple-only absence condition and fictional
+LINE succeeded baseline replace that shortcut; new negative case stays missing.
+Native advisor independently source ACCEPT, no writes; full Person suite running
+on isolated55435. No true provider/result/schema mutation or policy change.
+
+Advisor packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=fc70f9b6395aa4c729888619698ba74b418bc2bd;
+actor_id=/root/native_setup_review; role=advisor;
+claim_id=task203-provider-closure-scope; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root; scope=existing provider gate/native-token source
+and primary public Google/LINE/Apple docs only. Determine minimum actual revocation
+versus account-data deletion path, not assume new refresh-token custody necessary;
+no missing/unknown-to-success or Owner-policy relaxation. Public web read allowed;
+stop_conditions=file/DB/real-provider/Secret/Git mutation/cost or scope expansion.
+Mandatory ACK/heartbeat/blocker/proactive conclusions+primary links+limits then
+freeze; not legal/compliance or live acceptance. Main independently evaluates.
+
+Parallel writer packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=fc70f9b6395aa4c729888619698ba74b418bc2bd;
+actor_id=/root/erasure_app_adapter; role=codex-writer;
+claim_id=task203-real-app-erasure-composition; lease_version=2; report_to=/root;
+write=allowed; owned_paths=clients/flutter_app/lib/main.dart,account_erasure_entry.dart,
+account_erasure_runtime.dart and test/account_erasure_runtime_test.dart. Scope
+default-off actual real roots with existing root-owned owner/store/session, explicit
+fresh Google port and stable entry options. Strict staging-only compile flag;
+disabled no ports/storage/probe. No new dependency. Fixed public /health read-only
+credential-free bounded/no-redirect/small-body reachability probe, initially false,
+pause false/resume recheck; not service readiness. Optional entry retry callback,
+no background timers/auto owner/installation-as-authorization. Preserve lifetime,
+offline/provider gates; no SDK/global-policy bypass. Fake HTTP/lifecycle tests;
+Main isolated formatter/hosted proof, no Windows Flutter under WDAC. Mandatory
+ACK/heartbeat10–15min/immediate blockers/proactive completion then freeze.
+stop_conditions=outside paths, unsafe contract, real DB/network/cloud/Secret/Git
+mutation or costs. Main independently accepts; backend packet below is disjoint.
+
+Current writer packet (supersedes released compat lease1): task=TASK-203;
+branch=codex/account-erasure-activation-readiness;
+base=head=fc70f9b6395aa4c729888619698ba74b418bc2bd;
+actor_id=/root/account_backend; role=codex-writer;
+claim_id=task203-real-intake-bootstrap; lease_version=2; report_to=/root;
+write=allowed; owned_paths=apps/mobile_api/bootstrap.py,erasure_runtime.py,
+tests/test_erasure_bootstrap.py,tests/test_erasure_runtime.py under that service,
+its .env_example.yaml/README.md, shared_lib/shared_module/portal_data/erasure_components.py
+and its exact existing shared test. Scope actual default-off bootstrap intake/
+receipt/fresh-proof injection, sharing existing purpose-specific service assembly
+and initial policy. No executor/materializer dispatch or request-time human review.
+Explicit intake flag true requires erasure guards, valid Apple lifecycle, precise
+three-provider audiences/nonce verifiers and distinct purpose keys; absent/false
+preserves normal behavior/no new configuration IO. Invalid input fixed diagnostics,
+no value output. Source seam is NOT standalone rollout approval: full guards,
+custody/retention/operator/preflight remain prerequisites. Existing mandatory ACK,
+10–15min heartbeat, immediate blocker, proactive completion then freeze apply.
+stop_conditions=outside owned paths, true credentials, DB/network/cloud/Secret/Git
+mutation or new costs. Main independently reviews/tests; no other active delegate.
+
 Current assignments: Main=/root on codex/account-erasure-activation-readiness,
 base/head6e77e6aa17ea0b8a74e8c40413cbbdf9374a84d7. Minimal-retention-source
 lease1 REQUEST_CHANGES received/handled/released. /root/erasure_scope_review now

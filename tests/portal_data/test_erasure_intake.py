@@ -25,7 +25,10 @@ from shared_module.mobile_api import (
     VerifiedAssertion,
 )
 from shared_module.portal_data.domain import AuthorizationError
-from shared_module.portal_data.erasure_components import build_erasure_components
+from shared_module.portal_data.erasure_components import (
+    build_erasure_components,
+    build_erasure_intake_service,
+)
 from shared_module.portal_data.erasure_composition import (
     ErasurePlanPolicy,
     TrustedErasurePlanBuilder,
@@ -263,6 +266,67 @@ class IntakePostgresTests(unittest.TestCase):
                 person_id=self.person if linked else None,
                 identity_id=self.identity,
             )
+
+    def test_intake_only_runtime_factory_verifies_three_providers_without_execution(
+        self,
+    ):
+        providers = {}
+        for provider in ("apple", "google", "line"):
+            verifier = Mock()
+
+            def verify(assertion, audience, nonce, now, name=provider):
+                self.assertEqual(self.engine.pool.checkedout(), 0)
+                self.assertEqual(assertion, "fictional-proof-only")
+                self.assertEqual(audience, "fictional-" + name)
+                return VerifiedAssertion(
+                    name, self.subject, audience, nonce, now + timedelta(minutes=3)
+                )
+
+            verifier.verify.side_effect = verify
+            providers[provider] = (verifier, "fictional-" + provider)
+        self.service = build_erasure_intake_service(
+            engine=self.engine,
+            receipt_key=b"s" * 32,
+            proof_key=b"p" * 32,
+            audience="fictional-erasure",
+            proof_lifetime=timedelta(minutes=2),
+            providers=providers,
+            clock=lambda: self.now,
+        )
+        for provider in providers:
+            with self.subTest(provider=provider):
+                self.subject = "fictional-runtime-" + uuid4().hex
+                with self.engine.begin() as connection:
+                    self.identity = connection.scalar(
+                        text(
+                            "INSERT INTO ntubtob.auth_identities(provider,provider_subject,status,created_at,updated_at) "
+                            "VALUES (:provider,:subject,'pending',:now,:now) RETURNING id"
+                        ),
+                        dict(provider=provider, subject=self.subject, now=self.now),
+                    )
+                challenge = self.service.restricted_challenge(provider)
+                self.receipt = self.service.request_restricted(
+                    challenge["challenge_credential"], "fictional-proof-only", True
+                )
+                self.job_id = self.receipt["id"]
+                self.assertEqual(self.status()["status"], "requested")
+                challenge = self.service.receipt_challenge(
+                    self.job_id, self.receipt["receipt_secret"], provider
+                )
+                self.service.verify_receipt(
+                    challenge["challenge_credential"], "fictional-proof-only", True
+                )
+                self.assertEqual(self.status()["status"], "verified")
+                with self.assertRaises(ErasureAccessBlocked):
+                    self.guard()
+        self.assertEqual(
+            self.scalar("SELECT count(*) FROM ntubtob.account_erasure_jobs"), 0
+        )
+        self.assertEqual(
+            self.scalar("SELECT count(*) FROM ntubtob.account_erasure_sealed_plans"), 0
+        )
+        self.assertEqual(self.review_calls, 0)
+        self.assertEqual(self.provider_calls, 0)
 
     def test_pending_receipt_review_later_same_identity_and_original_dates_execute(
         self,

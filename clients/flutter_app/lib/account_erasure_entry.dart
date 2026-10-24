@@ -4,7 +4,7 @@ import 'account_erasure_flow.dart';
 import 'account_erasure_owner.dart';
 import 'integration.dart';
 
-/// Explicit source composition only; never loaded from environment or main.
+/// Explicit trusted composition; runtime entry activation remains default-off.
 /// The trusted factory may replace ports for tests, but receives the actual root
 /// session/transport/store. Neither construction nor opening this page starts a
 /// provider, business login, request, or persisted scope.
@@ -14,6 +14,7 @@ class AccountErasureEntryOptions {
     required this.connectivity,
     this.google,
     this.ownerFactory,
+    this.refreshConnectivity,
   });
 
   final bool Function() isOnline;
@@ -21,6 +22,8 @@ class AccountErasureEntryOptions {
   // A fresh nonce-bound port is explicit; ordinary Google login is not a fallback.
   final GoogleFreshAuthorizationPort? google;
   final AccountErasureOwner Function(AccountErasureRootContext)? ownerFactory;
+  // Explicit read-only reachability check, never a login or mutation retry.
+  final Future<void> Function()? refreshConnectivity;
 }
 
 /// Captured once when the entry is tapped, not when its route rebuilds. Its
@@ -60,6 +63,7 @@ class AccountErasureRootContext {
       apple: apple,
       line: line,
       google: google,
+      afterAuthorization: options.refreshConnectivity,
     );
   }
 }
@@ -83,6 +87,29 @@ class AccountErasureEntryPage extends StatefulWidget {
 class _AccountErasureEntryPageState extends State<AccountErasureEntryPage> {
   bool _busy = false;
   bool _unavailable = false;
+
+  Future<void> _refreshConnectivity() async {
+    if (_busy) {
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      widget.rootContext.requireCurrent();
+      await widget.rootContext.options.refreshConnectivity?.call();
+      if (!mounted) {
+        return;
+      }
+      widget.rootContext.requireCurrent();
+    } on Object {
+      if (mounted) {
+        setState(() => _unavailable = true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
 
   Future<void> _open(String action) async {
     if (_busy) {
@@ -146,6 +173,12 @@ class _AccountErasureEntryPageState extends State<AccountErasureEntryPage> {
           children: [
             const Text('選擇要驗證的登入方式，或重開此裝置的既有收據。此入口不會自動登入或送出申請。'),
             if (_unavailable) const Text('目前無法開啟；請返回並確認登入狀態。既有收據不會被覆寫。'),
+            if (widget.rootContext.options.refreshConnectivity != null)
+              TextButton(
+                key: const ValueKey('erasure-entry-refresh-connectivity'),
+                onPressed: _busy ? null : _refreshConnectivity,
+                child: const Text('重新檢查連線'),
+              ),
             if (widget.rootContext.apple != null)
               FilledButton(
                 key: const ValueKey('erasure-entry-apple'),

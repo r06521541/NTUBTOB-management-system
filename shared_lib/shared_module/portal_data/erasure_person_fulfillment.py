@@ -1250,7 +1250,9 @@ class PersonFulfillment:
                         {"id": identity.identity_id},
                     )
                     provider_ok &= outcome == ("confirmed", "succeeded") or (
-                        outcome == ("confirmed", "credential_missing") and missing
+                        identity.provider == "apple"
+                        and outcome == ("confirmed", "credential_missing")
+                        and missing
                     )
                 if not provider_ok or any(
                     not _confirmed(events, label)

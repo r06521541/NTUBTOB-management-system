@@ -2,6 +2,40 @@
 
 ## Activation-readiness candidate — 2026-10-24 (not enabled)
 
+New default-off runtime continuation: actual API bootstrap conditionally injects
+the intake/receipt/fresh-proof service, with distinct keys, exact guard opt-in,
+complete Apple configuration and singleton nonce-bound Google audience. No
+executor/materializer/store is created at intake. Actual three real App roots
+share a strict staging-only entry gate; disabled behavior remains unchanged.
+Optional post-native-auth bounded reachability refresh fixes pause/resume return
+race, without another prompt or weakened offline/currentness. Stable options/
+root across connectivity; config/platform/store replacement retires original root.
+Independent bounded source ACCEPTs received for backend/App, Main corrected App
+two lifecycle/root findings before acceptance; native tests still require hosted.
+
+Actual isolatedPG Person regression reproduced a false online completion when
+LINE credential_missing meant only no Apple credential row. Person exception now
+Apple-only, consistent with pending; fictional success fixture explicitly confirms
+its fake LINE revocation. RED1FAIL3.790s then full Person27PASS50.797s. Independent
+source ACCEPT received, no actual provider revocation inferred. Real intake-only
+factory three-provider PG regression1PASS1.252s proves receipt/fresh proof/blocking
+without review, jobs, sealed plans or execution. Rebuilt/installed shared: Mobile127,
+Web267,LINE26,notify11,broadcast28,shared-erasure244PASS. Backend focused21PASS.
+Seven owned Dart files formatted in official cached isolated Dart3.13.0; no WDAC
+bypass or local Flutter execution. New exact hosted candidate still required.
+
+Exactfc70f9b6395aa4c729888619698ba74b418bc2bd run40064866377 completed SUCCESS
+all16 jobs, including corrected Android matcher and PG15/16/native gates. Prior
+564 PG16 log reports1194 tests OK skipped2,267.083s; local full exit0 count remains
+unclaimed. These immutable runs do not prove the newer dirty runtime continuation.
+
+Provider research rejects an unnecessary assumption of long-lived Google/LINE
+refresh-token custody. Google native disconnect/access-token revoke exists; LINE
+requires deauthorize, not merely logout/revoke. Actual source still lacks that
+complete bounded adapter; no missing/unknown result is called revoked. Existing
+online/provider completion coupling needs a minimal stage-aware continuation,
+not a new generic workflow. Real cloud/custody/cost/provider/device gates remain.
+
 Latest uncommitted continuation: additive0023 private verified-retention completion
 and terminal180 minimal-evidence cleanup. Exact row permits, full stored postimage
 checks, bidirectional FK inventory, global unlinked irreversible flag; preserve

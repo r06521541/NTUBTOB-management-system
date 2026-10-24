@@ -33,6 +33,7 @@ class AccountErasureOwner {
     AppleLoginPort? apple,
     LineLoginPort? line,
     GoogleFreshAuthorizationPort? google,
+    Future<void> Function()? afterAuthorization,
     SecureIds? ids,
   })  : _store = store,
         _session = session,
@@ -42,6 +43,7 @@ class AccountErasureOwner {
         _apple = apple,
         _line = line,
         _google = google,
+        _afterAuthorization = afterAuthorization,
         _ids = ids ?? SecureIds(),
         _sessionGeneration = session.generation {
     _cleanup = _OwnerCleanup(this, SessionBoundErasureCleanup(session));
@@ -58,6 +60,7 @@ class AccountErasureOwner {
   final AppleLoginPort? _apple;
   final LineLoginPort? _line;
   final GoogleFreshAuthorizationPort? _google;
+  final Future<void> Function()? _afterAuthorization;
   final SecureIds _ids;
   late final _OwnerCleanup _cleanup;
   int _sessionGeneration;
@@ -104,14 +107,20 @@ class AccountErasureOwner {
     _requireProvider(name);
     if (name == 'apple') {
       return AppleErasureFreshProvider(_apple!,
-          requireCurrent: requireCurrent, isOnline: _isOnline);
+          requireCurrent: requireCurrent,
+          isOnline: _isOnline,
+          afterAuthorization: _afterAuthorization);
     }
     if (name == 'google') {
       return GoogleErasureFreshProvider(_google!,
-          requireCurrent: requireCurrent, isOnline: _isOnline);
+          requireCurrent: requireCurrent,
+          isOnline: _isOnline,
+          afterAuthorization: _afterAuthorization);
     }
     return LineErasureFreshProvider(_line!,
-        requireCurrent: requireCurrent, isOnline: _isOnline);
+        requireCurrent: requireCurrent,
+        isOnline: _isOnline,
+        afterAuthorization: _afterAuthorization);
   }
 
   Future<AccountErasureFlowPort> start(
