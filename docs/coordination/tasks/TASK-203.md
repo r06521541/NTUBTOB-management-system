@@ -1,6 +1,190 @@
 # TASK-203: Apple onboarding and account lifecycle
 
+## Activation readiness continuation — 2026-10-24
+
+Google native source review ACCEPT received/handled/released; historical resolved
+SDK9.2.0 evidence TASK-200 report127–135 closes dependency-scope hold, NOT a claim
+of current lock/binary. Main formatted six Dart paths using official Linux Dart
+3.13.0 isolated no-network container; Windows policy unchanged, no Flutter test claim.
+Advisor packet: task=TASK-203; actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-retention-implementation-design; lease_version=1;
+branch=codex/account-erasure-activation-readiness;
+base=head=8d1f7d46997701021fa3152ba8d143f8ff885ffb; owned_paths=none;
+write=read-only; report_to=/root; scope=minimal executable retention design for
+approved online+30 private-plan cleanup, day150 unknown-backup irreversible fence,
+day180 condition-checked minimal cleanup and pending continuity; exact existing
+tables/triggers/ports, additivity/ACL/key/restore invariants, sufficient tests.
+Do not invent provider horizon, automatic permanent hold, policy/new framework or
+new fees. Stop conditions and transport follow common packet; no DB/network/
+secrets/edits/Git mutation. This is design, not implementation or live acceptance.
+
+Google writer task203-google-fresh-proof lease1 received/frozen; Android unused
+client finding corrected (new bridge normalizes empty, existing initializer stays).
+Main owns formatting/integration now; local Windows Dart execution blocked by
+Application Control, not a test result. Source/formatter evidence will be separate.
+Advisor packet: task=TASK-203; actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-google-native-review; lease_version=1; owned_paths=none;
+branch=codex/account-erasure-activation-readiness;
+base=head=8d1f7d46997701021fa3152ba8d143f8ff885ffb;
+write=read-only; report_to=/root; scope=writer's12 Google fresh-proof paths above;
+nonce/currentness/ordinary login compatibility/native SDK signatures/config and
+source-boundary tests. No DB/network/secrets/edits/Git mutation; mandatory transport
+and stop conditions as common packet. Native compilation/live proof remain unverified.
+
+Bounded writer packet: TASK-203; actor_id=/root/privacy_foundation;
+role=codex-writer; claim_id=task203-google-fresh-proof; lease_version=1;
+branch=codex/account-erasure-activation-readiness;
+base=8d1f7d46997701021fa3152ba8d143f8ff885ffb; report_to=/root.
+Previous pending-provider claim released and accepted; new ownership ONLY
+clients/flutter_app/lib/integration.dart, lib/account_erasure_provider.dart,
+lib/account_erasure_owner.dart, new lib/google_authorization.dart,
+test/account_erasure_provider_test.dart, test/google_authorization_test.dart,
+ios/Runner/GoogleAuthorizationBridge.swift, ios/Runner/AppDelegate.swift,
+ios/Runner.xcodeproj/project.pbxproj, android/app/src/main/kotlin/tw/org/ntubtob/portal/MainActivity.kt,
+new sibling GoogleAuthorizationBridge.kt, android/app/build.gradle.kts.
+Goal: per-challenge nonce-bound fresh Google assertion, using official native
+SDK request APIs, no global nonce/reinitialize hack, ordinary login unchanged.
+Cached google_sign_in7.2.0 supports nonce only at initialization; native iOS6.3.0
+and Android7.2.16 plugin sources demonstrate per-request nonce SDK support.
+First report exact minimal design/toolchain constraints, then implement if no
+unresolved security/design choice. No copying plugin private transport APIs.
+Require nonce43 validation, current/online/singleflight, no raw errors/token logs,
+strict server assertion verification unchanged, default activation still off.
+No provider/cloud/DB/network/Secret/Git mutation or hosted runner; local fake
+focused tests/analyze allowed via restored F toolchain. Native build/live proof
+are separate evidence, not claimed from mocks. Dependency additions limited to
+existing locked native SDK libraries/versions; otherwise stop/report.
+Mandatory immediate received/executing, heartbeat10–15min, blocker immediately,
+proactive completion with dirty paths/tests/findings/limits/external mutations;
+freeze afterward. Main retains all backend, schema, runtime bootstrap work.
+
+task203-continuity-readers lease1 REQUEST_CHANGES received/handled/released:
+SQL attempt expiry and domain error mapping corrected, true local PG nine cases
+PASS; legacy affected seven modules128 PASS. Format38 owned Python paths PASS.
+Same actor new advisor claim task203-continuity-readers-rereview lease1,
+same branch/base/read-only boundaries/report-to/ACK/heartbeat as packet below;
+scope only0021 SQL deadline helper/attempt patches, reader exception mapping and
+new regressions. No live acceptance. Main full isolated PG suite running; do not
+run concurrent DB. No provider/cloud/deploy mutation has occurred.
+
+Advisor packet (new claim; prior schema/pending claims released): TASK-203;
+actor_id=/root/erasure_scope_review; role=advisor; claim_id=task203-continuity-readers;
+lease_version=1; branch=codex/account-erasure-activation-readiness;
+base=8d1f7d46997701021fa3152ba8d143f8ff885ffb; owned_paths=none; read-only;
+report_to=/root. Review current uncommitted0021 migration/resolver plus receipt,
+context/cancellation/verification/recovery/request/intake/plan-store readers and
+revision compatibility changes. Return concrete blockers, missing callers and
+tests; no acceptance of live readiness. Immediate received/executing, heartbeat
+10–15min, blocker immediately, proactive completion with paths/tests/findings/
+limits/external mutations. No DB/network/secrets/edits/Git mutation. Main owns
+all implementation and may continue separate test fixtures while review runs.
+
+Continuity design received/handled/released. Correction: no existing executor
+30-day hard stop was found; prior min(due,evidence) claim is withdrawn. Due remains
+the original overdue SLO. Main next owns additive0021 continuity migration/model/
+resolver and expiry-reader integration/tests, not writer's six frozen-scope paths.
+Compatibility: original receipt/due/evidence fields and sealed snapshot/AAD unchanged;
+operator-only exact extension events apply to same UUID across intake materialization.
+Old runtimes still expire at original horizon; do not enable continuity until every
+reader/executor is compatible. Native downgrade rejects any acknowledged event;
+only empty candidate can revert20. No production schema or external role grants.
+Key retention/readability and restoration horizon remain actual activation checks,
+not proven by the SQL event. No automatic arbitrary window or silent permanent hold.
+Design claim task203-continuity-design lease1 received/handled/released.
+Advisor packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=8d1f7d46997701021fa3152ba8d143f8ff885ffb;
+actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-continuity-schema-review; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root;
+scope=early review0021 migration, continuity Core metadata/resolver and offline tests,
+especially private ACL, same-TX root chain, materialization, downgrade/RLS/lastadmin;
+stop_conditions=edits/DB/network/secrets/Git mutation. Mandatory ACK/heartbeat/
+immediate blocker and proactive completion /root; no live acceptance assumed.
+Early REQUEST_CHANGES received: RLS downgrade and regressed SQL clock fixed;
+recovery patch now replaces exactly one marker predicate, explicitly not full
+installed-function attestation. Before final review add true-PG negative fixtures.
+Same advisor claim scope expands to writer's completed six pending-provider paths
+for independent source acceptance; writer completion received and frozen, no new
+implementation assigned. Main actual PG validation still pending.
+
+Owner explicitly requested deletion be complete/ready to enable before UI redesign,
+and to proceed without repeated prompts. Main claim task203-activation-readiness
+lease1, /root; branch codex/account-erasure-activation-readiness;
+base/head8d1f7d46997701021fa3152ba8d143f8ff885ffb. Prior source PR270 is closed;
+this is a new substantial readiness delivery, not a status-only follow-up PR.
+Standing WIRE-01 staging permissions and zero incremental fees remain; no final
+production activation/public release/real team-account deletion is authorized.
+
+Execution checkpoint:
+1. Goal: close verified product/runtime/retention gaps then prove readiness; no UI redesign.
+2. Core: erasure components/fulfillment/receipt/retention, Mobile bootstrap/Flutter entry,
+   provider proof/revocation adapters, exact staging preflight and tests.
+3. Invariant: unchanged public access/guard/proof strength, no duplicate effects,
+   no destroyed evidence while backup horizon unknown; preserve unrelated dirty files.
+4. Tests: RED first, focused offline + actual isolated PG, independent review before
+   full/hosted gates; real staging/device proof required, not replaced by mocks.
+5. Stop only for necessary Owner login/consent, new cost/authority, unsafe isolation,
+   irreversible unknown effects or policy choice not resolved by existing WIRE-01.
+
+Advisor packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=8d1f7d46997701021fa3152ba8d143f8ff885ffb;
+actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-activation-gap-review; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root; scope=readiness gaps versus current source and
+approved WIRE-01; return prioritized concrete missing behavior/paths and necessary
+Owner gates, no invented policy or claim of live verification;
+stop_conditions=edits/DB/network/secrets/Git mutation. Use mandatory reporting:
+immediate received/executing, heartbeat10–15min, blocker immediately, completion
+proactively to /root with exact SHA/paths/checks/findings/limits/external mutations.
+Main writes/tests; no other delegated claim active.
+
+Gap review received/handled/released2026-10-24: five source/runtime/custody gaps
+confirmed, not new Owner gates by themselves. Next two bounded roles, separate paths:
+
+Writer packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=8d1f7d46997701021fa3152ba8d143f8ff885ffb;
+actor_id=/root/privacy_foundation; role=codex-writer;
+claim_id=task203-pending-provider-closure; lease_version=1;
+owned_paths=shared_lib/shared_module/portal_data/erasure_composition.py,
+shared_lib/shared_module/portal_data/erasure_fulfillment.py,
+shared_lib/shared_module/portal_data/erasure_plan_store.py,
+shared_lib/tests/test_erasure_composition.py,tests/portal_data/test_erasure_fulfillment.py,
+tests/portal_data/test_erasure_plan_store.py;
+write=allowed; report_to=/root;
+scope=allow exact supported pending Apple/Google/LINE identity through existing
+capture/sealed binding/local fulfillment, preserve historical snapshot serialization
+and hash domain/Apple behavior; never equate missing Apple credential with nonApple
+revocation success. Require reviewed injected provider result; unknown/manual stays
+needs_attention. Add RED/GREEN offline and actual-PG-ready fixtures covering supported,
+unknown/cross-provider/generation drift/shared-content rejection; no schema/runtime
+enablement/provider adapter/private-data change. Main runs actual PG, writer noDB.
+stop_conditions=outside owned paths, snapshot wire/hash incompatibility requiring
+new version, guard weakening, DB/network/secrets/Git mutation. Mandatory ACK/heartbeat/
+blocker/completion to /root; freeze after completion. Root reviews independently.
+
+Advisor packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=8d1f7d46997701021fa3152ba8d143f8ff885ffb;
+actor_id=/root/erasure_scope_review; role=advisor;
+claim_id=task203-continuity-design; lease_version=1; owned_paths=none;
+write=read-only; report_to=/root;
+scope=concrete minimal continuity/retention design against current invariants:
+original request/due/receipt evidence immutable, no lost unfinished queries at180,
+executor currently enforces original deadline, pending intakes/materialized jobs,
+cancel/readback/plan/key/retention30/150/180 and independently authorized cleanup.
+Recommend exact additive schema/ports and sufficient tests, flag genuine policy
+ambiguity; do not implement or invent authorization/new framework.
+stop_conditions=edits/DB/network/secrets/Git mutation. Mandatory immediate ACK,
+heartbeat10–15min/blocker immediate, proactive final /root with paths/checks/limits.
+
 ## Active integration and hosted CI — 2026-10-19
+
+Latest2026-10-20: source integrated via PR270 normal squash merge confirmed
+8d1f7d46997701021fa3152ba8d143f8ff885ffb after all checks passed on e26d1edf104ad77aaf328454fbefaaebc45a0292
+(run39288894392). Exact merged SHA main run39290862387 completed SUCCESS, all16jobs
+green2026-10-20. Main task203-ci-integration lease1 closed; heartbeat task-203-ci
+PAUSED, no delegated roles active. This source delivery is complete, not live product
+activation; no further product branch or Owner action inferred.
+Post-merge notes local until next substantive planning commit, no extra status PR.
 
 Main task203-ci-integration lease1, /root; Owner explicitly resumed integration/CI.
 2026-10-20 hosted correction checkpoint: exact655fad1 run39283447532 completed;

@@ -16,6 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from ..erasure_cancellation_proof import CancellationContext, FreshCancellationProof
 from ..mobile_api import utc_now
+from .erasure_continuity import ContinuityUnavailable, effective_expiry
 from .erasure_intake_routing import INTAKES, receipt_table
 from .runtime import acquire_admin_event_locks
 
@@ -73,6 +74,7 @@ def _connection(session):
         ("0018_erasure_privacy_mutation",),
         ("0019_erasure_admin_recovery",),
         ("0020_erasure_intake",),
+        ("0021_erasure_continuity",),
     ):
         raise ErasureCancellationUnavailable("schema_not_ready")
     for table in (
@@ -115,7 +117,7 @@ def _job(connection, job_id):
     job = _row(
         connection,
         "SELECT id,target_kind,person_id,auth_identity_id,expected_generation,status,"
-        f"{fence},requested_at,updated_at,receipt_expires_at,receipt_secret_hash "
+        f"{fence},requested_at,updated_at,receipt_expires_at,evidence_expires_at,receipt_secret_hash "
         f"FROM ntubtob.{table} WHERE id=:id FOR UPDATE",
         id=job_id,
     )
@@ -169,11 +171,11 @@ def _target(connection, job):
         _reject()
 
 
-def _fresh_job(job, now):
+def _fresh_job(connection, job, now):
     if (
         _instant(job["requested_at"]) > now
         or _instant(job["updated_at"]) > now
-        or _instant(job["receipt_expires_at"]) <= now
+        or effective_expiry(connection, job, "receipt_expires_at") <= now
     ):
         _reject()
 
@@ -199,14 +201,14 @@ def load_cancellation_context(session, *, job_id, receipt_secret, clock=utc_now)
         ):
             _reject()
         _target(connection, job)
-        _fresh_job(job, _now(clock))
+        _fresh_job(connection, job, _now(clock))
         return CancellationContext(
             job_id,
             job["target_kind"],
             str(job["expected_generation"]),
             job["requested_at"],
         )
-    except SQLAlchemyError:
+    except (SQLAlchemyError, ContinuityUnavailable):
         raise ErasureCancellationUnavailable(
             "cancellation_context_unavailable"
         ) from None
@@ -283,7 +285,7 @@ class ErasureCancellationCoordinator:
                 _reject()
             _target(connection, job)
             now = _now(self.clock)
-            _fresh_job(job, now)
+            _fresh_job(connection, job, now)
             issued, authenticated, expires = map(
                 _instant, (proof.issued_at, proof.authenticated_at, proof.expires_at)
             )
@@ -319,7 +321,7 @@ class ErasureCancellationCoordinator:
                         dict(id=job_id, now=now),
                     )
             return CancelledErasureRequest(job_id, now)
-        except SQLAlchemyError:
+        except (SQLAlchemyError, ContinuityUnavailable):
             raise ErasureCancellationUnavailable(
                 "cancellation_storage_unavailable"
             ) from None

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from ..mobile_api import MobilePrincipal, utc_now
 from .erasure_cancellation import _connection
 from .erasure_composition import ErasurePlanPolicy, TrustedErasurePlanBuilder
+from .erasure_continuity import effective_expiry
 from .erasure_intake_routing import (
     INTAKES,
     JOBS,
@@ -47,7 +48,7 @@ def _intake_connection(session):
     connection = _connection(session)
     if tuple(
         connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
-    ) != (REVISION,):
+    ) not in {(REVISION,), ("0021_erasure_continuity",)}:
         raise ErasureRequestUnavailable("intake_schema_not_ready")
     unfiltered(connection)
     unfiltered(connection, "account_erasure_intake_attempts")
@@ -115,7 +116,7 @@ class ErasureIntakeRepository(RestrictedErasureRequestRepository):
                 or existing["target_kind"] != kind
                 or str(existing["expected_generation"]) != generation
                 or _instant(existing["requested_at"]) > now
-                or _instant(existing["receipt_expires_at"]) <= now
+                or effective_expiry(connection, existing, "receipt_expires_at") <= now
             ):
                 raise ErasureRequestRejected("intake_scope_changed")
             identifier = _uuid(existing["id"])
@@ -127,7 +128,7 @@ class ErasureIntakeRepository(RestrictedErasureRequestRepository):
                 raise ErasureRequestRejected("receipt_key_mismatch")
             return ErasureRequestReceipt(
                 identifier, secret, existing["requested_at"]
-            ), _instant(existing["receipt_expires_at"])
+            ), effective_expiry(connection, existing, "receipt_expires_at")
         identifier = str(uuid4())
         policy = self.policy_source(
             connection=connection,
@@ -392,7 +393,10 @@ class ErasureIntakeMaterializer:
                 if (
                     not intake["updated_at"]
                     <= now
-                    < min(intake["receipt_expires_at"], intake["evidence_expires_at"])
+                    < min(
+                        effective_expiry(connection, intake, "receipt_expires_at"),
+                        effective_expiry(connection, intake, "evidence_expires_at"),
+                    )
                 ):
                     raise ErasureRequestRejected("intake_expired")
                 captured = self.builder(
@@ -459,7 +463,10 @@ class ErasureIntakeMaterializer:
                 if (
                     not now
                     <= finished
-                    < min(intake["receipt_expires_at"], intake["evidence_expires_at"])
+                    < min(
+                        effective_expiry(connection, intake, "receipt_expires_at"),
+                        effective_expiry(connection, intake, "evidence_expires_at"),
+                    )
                 ):
                     raise ErasureRequestRejected("intake_expired")
             return job_id

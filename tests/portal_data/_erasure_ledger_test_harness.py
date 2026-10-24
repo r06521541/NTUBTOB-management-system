@@ -30,7 +30,7 @@ CANCELLATION_REVISION = "0016_erasure_cancellation"
 ITEM_REVISION = "0017_erasure_work_items"
 PRIVACY_REVISION = "0018_erasure_privacy_mutation"
 NATIVE_EMPTY_ONLY_REVISIONS = frozenset(
-    {"0019_erasure_admin_recovery", "0020_erasure_intake"}
+    {"0019_erasure_admin_recovery", "0020_erasure_intake", "0021_erasure_continuity"}
 )
 ITEM_OBJECTS = frozenset(
     {
@@ -580,7 +580,7 @@ def remove_retained_erasure_ledger_from_isolated_test_database(engine) -> None:
                     str(Path(__file__).resolve().parents[2] / "alembic.ini")
                 )
                 config.attributes["connection"] = connection
-                # Native0020/0019 own the empty/history/RLS checks. Do not replace
+                # Native0021/0020/0019 own empty/history/RLS checks. Do not replace
                 # them with fixture DROP statements or manually rewrite markers.
                 command.downgrade(config, PRIVACY_REVISION)
                 revisions = tuple(

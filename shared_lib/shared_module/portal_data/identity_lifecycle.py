@@ -73,6 +73,7 @@ AUTHORITY_REVISIONS = frozenset(
         "0014_account_erasure_ledger",
         "0019_erasure_admin_recovery",
         "0020_erasure_intake",
+        "0021_erasure_continuity",
     }
 )
 PRE_AUTHORITY_REVISIONS = frozenset(
@@ -378,11 +379,15 @@ class IdentityLifecycleRepository:
                     ("0018_erasure_privacy_mutation",),
                     ("0019_erasure_admin_recovery",),
                     ("0020_erasure_intake",),
+                    ("0021_erasure_continuity",),
                 ):
                     raise AuthorizationError("administrator availability unavailable")
                 tables = ("people", "auth_identities", "account_erasure_jobs")
                 intake_exclusion = ""
-                if revisions == ("0020_erasure_intake",):
+                if revisions in {
+                    ("0020_erasure_intake",),
+                    ("0021_erasure_continuity",),
+                }:
                     tables += ("account_erasure_intakes",)
                     intake_exclusion = (
                         " AND NOT EXISTS (SELECT 1 FROM ntubtob.account_erasure_intakes j "

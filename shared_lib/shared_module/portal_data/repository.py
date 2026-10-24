@@ -86,6 +86,7 @@ EVENT_LIFECYCLE_REVISIONS = frozenset(
         "0014_account_erasure_ledger",
         "0019_erasure_admin_recovery",
         "0020_erasure_intake",
+        "0021_erasure_continuity",
     }
 )
 MAX_EVENT_NOTIFICATION_RECIPIENTS = 500

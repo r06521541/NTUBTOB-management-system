@@ -10,7 +10,7 @@ class ErasureFreshProviderUnavailable implements Exception {
 /// owner generation, not a getter accepting whichever owner is now signed in.
 /// Existing native ports receive the fresh server nonce on every authorization;
 /// server-side verification remains mandatory. No session exchange or enrollment
-/// occurs here. GoogleLoginPort deliberately has no adapter: it lacks a nonce.
+/// occurs here. Google uses its separate fresh port, never ordinary login.
 class AppleErasureFreshProvider extends _NonceErasureProvider {
   AppleErasureFreshProvider(AppleLoginPort apple,
       {required void Function() requireCurrent,
@@ -23,6 +23,21 @@ class LineErasureFreshProvider extends _NonceErasureProvider {
       {required void Function() requireCurrent,
       required bool Function() isOnline})
       : super('line', line.login, requireCurrent, isOnline);
+}
+
+class GoogleErasureFreshProvider extends _NonceErasureProvider {
+  GoogleErasureFreshProvider(GoogleFreshAuthorizationPort google,
+      {required void Function() requireCurrent,
+      required bool Function() isOnline})
+      : super(
+            'google',
+            (nonce) => google.authorize(nonce, beforePrompt: () {
+                  requireCurrent();
+                  if (!isOnline())
+                    throw const ErasureFreshProviderUnavailable();
+                }),
+            requireCurrent,
+            isOnline);
 }
 
 abstract class _NonceErasureProvider implements ErasureFreshProvider {

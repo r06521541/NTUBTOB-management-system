@@ -29,10 +29,22 @@ class ProofPorts implements AppleLoginPort, LineLoginPort {
   }
 }
 
+class GoogleProofPort implements GoogleFreshAuthorizationPort {
+  GoogleProofPort(this.ports);
+  final ProofPorts ports;
+
+  @override
+  Future<String> authorize(String nonce,
+      {required void Function() beforePrompt}) {
+    beforePrompt();
+    return ports.login(nonce);
+  }
+}
+
 void main() {
   final nonce = 'n' * 43;
   final rejected = throwsA(isA<ErasureFreshProviderUnavailable>());
-  for (final name in ['apple', 'line']) {
+  for (final name in ['apple', 'google', 'line']) {
     group(name, () {
       late ProofPorts ports;
       late ErasureFreshProvider provider;
@@ -46,11 +58,14 @@ void main() {
           if (!current) throw StateError('fictional private native detail');
         }
 
-        provider = name == 'apple'
-            ? AppleErasureFreshProvider(ports,
-                requireCurrent: requireCurrent, isOnline: () => online)
-            : LineErasureFreshProvider(ports,
-                requireCurrent: requireCurrent, isOnline: () => online);
+        provider = switch (name) {
+          'apple' => AppleErasureFreshProvider(ports,
+              requireCurrent: requireCurrent, isOnline: () => online),
+          'google' => GoogleErasureFreshProvider(GoogleProofPort(ports),
+              requireCurrent: requireCurrent, isOnline: () => online),
+          _ => LineErasureFreshProvider(ports,
+              requireCurrent: requireCurrent, isOnline: () => online),
+        };
       });
 
       test('forwards fresh nonce without logout or enrollment envelope',

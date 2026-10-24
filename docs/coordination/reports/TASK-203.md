@@ -1,5 +1,78 @@
 # TASK-203 implementation evidence and scope consolidation
 
+## Activation-readiness candidate — 2026-10-24 (not enabled)
+
+New branch `codex/account-erasure-activation-readiness`, base
+`8d1f7d46997701021fa3152ba8d143f8ff885ffb`. This substantial continuation is
+not a claim that the previous source merge completed live deletion. Runtime/UI
+activation, provider/cloud/Secret/deployment/production writes remain absent.
+
+Implemented candidate: exact pending Apple/Google/LINE sealed capture/binding,
+preserving historical wire/hash domains; non-Apple credential absence is not
+silently confirmed by pending fulfillment. Additive0021 private continuity events
+preserve original requested/due/receipt/evidence metadata and same receipt UUID.
+SQL/Python readers validate the original-bound monotonic chain, including SQL
+fresh-attempt triggers. Operator extension is private and exact/idempotent;
+RLS-hidden or acknowledged evidence prevents native downgrade. Every caller must
+be compatible before enabling it. No new runtime role grant or key-retention proof.
+
+Google fresh-proof candidate uses official native per-request nonce APIs, not
+ordinary login assertions or reinitialization with a global nonce. Optional owner
+port stays null/default-off; server checks unchanged. Android unused client ID
+normalizes empty, preserving the ordinary platform contract. Direct iOS SDK9.2.0
+pin matches historical resolved evidence in TASK-200; it is not proof of a current
+lock/binary. Source reviews accepted the bounded pending/continuity/Google changes;
+live proof and native compilation are separate requirements.
+
+Evidence actually run:
+- Local PG16 pending fulfillment/plan suites48 PASS; continuity SQL/readers9 PASS,
+  including original-day181 receipt/cancellation and fresh job/intake attempts.
+- Affected seven legacy reader/intake/plan modules128 PASS before final SQL helper
+  additions; this is not evidence for the latest full candidate.
+- Shared erasure216, Mobile113, Web267, LINE26, notify11, broadcast28 PASS after
+  shared sdist rebuilt/installed. Python compileall PASS; quality42 owned Python
+  paths PASS; diff check PASS. Some later fixture-only edits separately formatted.
+- Windows Flutter execution blocked by Application Control; not RED/PASS. Same
+  Dart3.13.0 official Linux image, isolated/no-network, formatted six owned Dart
+  paths. No local Flutter analyze/test/native-build claim.
+- Full local PG first attempt had missing fixture environment and cascaded errors;
+  second ran1144 tests with6 errors (uninitialized shared base, one stale current
+  metadata head, four direct fixture-reuse target_provider errors), not green.
+  Fixed the head/fixture compatibility and launched exact CI setup on a new,
+  loopback-only disposable PG16 instance with all four required URLs. Result pending.
+
+Read-only live inventory: exact staging GCP project/service is accessible and healthy;
+no re-login needed. Existing staging storage list contains only the Cloud Build
+bucket, not an independently isolated erasure custody/backup bucket. Exact optional
+custody project search returned no accessible resource (not proof of global absence).
+No secret payload, private input file or database row was read through that UI.
+No resources/settings changed. Planned asia-east1 storage is not covered by GCS
+Always Free's three US regions; zero incremental fee authority still blocks that
+new storage operation, not offline/source work. Official public-repository standard
+Actions runners are free; current repository is public and existing CI uses standard
+ubuntu/macos runners, no larger runner or new artifact-upload step.
+
+Remaining: controlled retention cleanup/150-day backup-unknown fence, actual provider
+and internal review/operator/runtime assembly, custody/key/restore validation,
+hosted native/PG evidence, staging migration/deploy/rollback and Owner device proof.
+Do not mark ready, merge as complete or activate based on this partial candidate.
+
+## Hosted acceptance and merge — 2026-10-20
+
+All16 checks passed on exacthead e26d1edf104ad77aaf328454fbefaaebc45a0292,
+run https://github.com/r06521541/NTUBTOB-management-system/actions/runs/39288894392 .
+Includes PG15/16 full selected job, Android, both iOS platform jobs, services,
+quality/quick/classifier and final gate. Earlier local cleanup timeout is retained
+below and not retrospectively reclassified as local success.
+PR270 ready then normal squash merge with --match-head-commit, no bypass;
+API confirms merge2026-10-20T01:03:30+08:00, SHA8d1f7d46997701021fa3152ba8d143f8ff885ffb.
+Post-merge main CI39290862387 targets that exact SHA, completed SUCCESS with all16
+jobs green (API verified2026-10-20); heartbeat task-203-ci PAUSED via automation tool.
+Main integration claim closed, all delegates released. No runtime activation/migration/deploy/real
+provider or Secret operation/new fees. Worktree remains task branch to preserve
+unrelated dirty changes. Post-merge status notes deferred to next substantive
+planning commit per no-status-only-PR rule.
+
 ## Authenticated integration / CI in progress — 2026-10-19
 
 ### Hosted failure correction — 2026-10-20

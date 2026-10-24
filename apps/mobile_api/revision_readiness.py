@@ -16,6 +16,7 @@ ACCEPTED_REVISIONS = (
     "0014_account_erasure_ledger",
     "0019_erasure_admin_recovery",
     "0020_erasure_intake",
+    "0021_erasure_continuity",
 )
 APPLE_LIFECYCLE_CONFIGURATION_KEYS = frozenset(
     {"audience", "client_secret", "credential_key", "notification_audience"}

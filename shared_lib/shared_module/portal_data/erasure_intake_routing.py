@@ -18,7 +18,7 @@ def enabled(connection, revisions=None):
         revisions = tuple(
             connection.scalars(text("SELECT version_num FROM ntubtob.alembic_version"))
         )
-    return tuple(revisions) == (REVISION,)
+    return tuple(revisions) in {(REVISION,), ("0021_erasure_continuity",)}
 
 
 def unfiltered(connection, table=INTAKES):

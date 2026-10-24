@@ -69,7 +69,11 @@ def require_management_mutation(session):
                 text("SELECT version_num FROM ntubtob.alembic_version")
             ).all()
         )
-        if revisions in ((REVISION,), ("0020_erasure_intake",)):
+        if revisions in (
+            (REVISION,),
+            ("0020_erasure_intake",),
+            ("0021_erasure_continuity",),
+        ):
             require_management_writes_available(connection)
         elif len(revisions) != 1 or revisions[0] not in LEGACY_REVISIONS:
             raise ManagementGuardUnavailable("schema_not_ready")

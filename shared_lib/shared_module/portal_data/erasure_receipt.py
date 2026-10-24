@@ -18,6 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..mobile_api import utc_now
+from .erasure_continuity import ContinuityUnavailable, effective_expiry
 from .erasure_intake_routing import receipt_table
 from .runtime import acquire_admin_event_locks
 
@@ -107,6 +108,7 @@ def load_erasure_receipt(
             ("0018_erasure_privacy_mutation",),
             ("0019_erasure_admin_recovery",),
             ("0020_erasure_intake",),
+            ("0021_erasure_continuity",),
         ):
             raise ErasureReceiptUnavailable("schema_not_ready")
         if (
@@ -122,7 +124,7 @@ def load_erasure_receipt(
         job = (
             connection.execute(
                 text(
-                    "SELECT id,status,requested_at,updated_at,receipt_secret_hash,receipt_expires_at "
+                    "SELECT id,status,target_kind,expected_generation,requested_at,updated_at,receipt_secret_hash,receipt_expires_at,evidence_expires_at "
                     f"FROM ntubtob.{table} WHERE id=:id FOR UPDATE"
                 ),
                 {"id": job_id},
@@ -144,7 +146,10 @@ def load_erasure_receipt(
             now = _utc(clock())
         except Exception:
             raise ErasureReceiptUnavailable("invalid_receipt_time") from None
-        if _utc(job["receipt_expires_at"]) <= now:
+        if (
+            effective_expiry(connection, job, "receipt_expires_at", revisions=revisions)
+            <= now
+        ):
             raise ErasureReceiptRejected("receipt_unavailable")
         status = job["status"]
         known_statuses = _STATUSES | (
@@ -156,6 +161,7 @@ def load_erasure_receipt(
                 ("0018_erasure_privacy_mutation",),
                 ("0019_erasure_admin_recovery",),
                 ("0020_erasure_intake",),
+                ("0021_erasure_continuity",),
             )
             else set()
         )
@@ -165,5 +171,5 @@ def load_erasure_receipt(
         if updated_at < requested_at:
             raise ErasureReceiptUnavailable("invalid_receipt_time")
         return ErasureReceiptStatus(job_id, status, requested_at, updated_at)
-    except SQLAlchemyError:
+    except (SQLAlchemyError, ContinuityUnavailable):
         raise ErasureReceiptUnavailable("receipt_read_unavailable") from None

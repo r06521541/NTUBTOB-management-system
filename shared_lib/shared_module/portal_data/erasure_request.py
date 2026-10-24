@@ -18,6 +18,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from ..mobile_api import MobilePrincipal, utc_now
+from .erasure_continuity import effective_expiry
 from .runtime import acquire_admin_event_locks
 
 
@@ -161,6 +162,7 @@ class AccountErasureRequestRepository:
                     ("0018_erasure_privacy_mutation",),
                     ("0019_erasure_admin_recovery",),
                     ("0020_erasure_intake",),
+                    ("0021_erasure_continuity",),
                 ):
                     raise ErasureRequestUnavailable("schema_not_ready")
                 for table in (
@@ -218,7 +220,7 @@ class AccountErasureRequestRepository:
                     raise ErasureRequestRejected("active_session_required")
                 generation = _uuid(person["account_generation"])
                 job = row(
-                    "SELECT id,status,target_kind,person_id,auth_identity_id,expected_generation,receipt_secret_hash,requested_at,receipt_expires_at FROM ntubtob.account_erasure_jobs WHERE person_id=:id FOR UPDATE",
+                    "SELECT id,status,target_kind,person_id,auth_identity_id,expected_generation,receipt_secret_hash,requested_at,receipt_expires_at,evidence_expires_at FROM ntubtob.account_erasure_jobs WHERE person_id=:id FOR UPDATE",
                     id=principal.person_id,
                 )
                 if job is not None:
@@ -240,14 +242,19 @@ class AccountErasureRequestRepository:
                     ):
                         raise ErasureRequestRejected("receipt_key_mismatch")
                     if (
-                        _instant(job["receipt_expires_at"]) <= now
+                        effective_expiry(
+                            connection, job, "receipt_expires_at", revisions=revisions
+                        )
+                        <= now
                         or _instant(job["requested_at"]) > now
                     ):
                         raise ErasureRequestRejected("receipt_unavailable")
                     result = ErasureRequestReceipt(
                         job_id, secret, _instant(job["requested_at"])
                     )
-                    receipt_deadline = _instant(job["receipt_expires_at"])
+                    receipt_deadline = effective_expiry(
+                        connection, job, "receipt_expires_at", revisions=revisions
+                    )
                     if self.sealed_plan_store is not None:
                         self.sealed_plan_store.load(connection, job_id)
                 else:
@@ -277,6 +284,7 @@ class AccountErasureRequestRepository:
                                     ("0018_erasure_privacy_mutation",),
                                     ("0019_erasure_admin_recovery",),
                                     ("0020_erasure_intake",),
+                                    ("0021_erasure_continuity",),
                                 )
                                 or _uuid(adopted["id"]) != job_id
                                 or adopted["status"] != "cancelled"

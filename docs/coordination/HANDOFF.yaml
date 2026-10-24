@@ -1,14 +1,32 @@
 active_task: TASK-203
 status: in_progress
 next_actor: main-work
-base_commit: 2b8e93e9029ac9be924967696b9be544f377c456
+base_commit: 8d1f7d46997701021fa3152ba8d143f8ff885ffb
 updated_by: main-work
-updated_at: 2026-10-20
+updated_at: 2026-10-24
 worktree: C:/Users/USER/Repos/NTUBTOB-management-system
 task: docs/coordination/tasks/TASK-203.md
 report: docs/coordination/reports/TASK-203.md
 review: docs/coordination/reviews/TASK-203.md
 note: >
+  LATEST2026-10-24 Owner requests deletion fully ready before UI work. Main
+  task203-activation-readiness lease1 on codex/account-erasure-activation-readiness;
+  exact base8d1f7d46997701021fa3152ba8d143f8ff885ffb. Pending/Google writers frozen
+  and released; bounded source reviews accepted. Retention design advisor
+  task203-retention-implementation-design lease1 active; Main remains active.
+  Zero incremental fees and WIRE-01 staging boundaries remain, no final production
+  activation or real team account deletion. Source-only completion below is history,
+  not readiness acceptance. Preserve existing local closeout/recovery/privacy drafts.
+  LATEST2026-10-20 exactPRhead e26d1edf104ad77aaf328454fbefaaebc45a0292 passed all
+  hosted gates run39288894392 (PG15/16, Android/iOS, services, final). PR270 normally
+  squash-merged without bypass at2026-10-20T01:03:30+08:00; confirmed merge SHA
+  8d1f7d46997701021fa3152ba8d143f8ff885ffb. Main post-merge run39290862387 completed
+  SUCCESS with all16 jobs green, verified2026-10-20. Heartbeat task-203-ci PAUSED
+  via automation tool; Main task203-ci-integration lease1 closed, no active delegates.
+  Source integration delivery complete, not live TASK203/product activation complete.
+  Runtime remains off, no production/schema/provider/Secret/deploy mutation or fee.
+  These post-merge coordination notes stay local for next substantive planning commit;
+  do not create a separate status-only PR. Preserve unrelated preexisting dirty files.
   LATEST Owner resumed authenticated integration and CI2026-10-19. Main claim
   task203-ci-integration lease1. GitHub login and secure credential store verified;
   repository public with standard hosted runner labels, no larger runners selected.
