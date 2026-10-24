@@ -53,6 +53,7 @@ def _intake_connection(session):
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
         ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     }:
         raise ErasureRequestUnavailable("intake_schema_not_ready")
     unfiltered(connection)

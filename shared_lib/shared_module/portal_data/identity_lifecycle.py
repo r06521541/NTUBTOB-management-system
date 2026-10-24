@@ -76,6 +76,7 @@ AUTHORITY_REVISIONS = frozenset(
         "0021_erasure_continuity",
         "0022_erasure_retention",
         "0023_erasure_minimal_retention",
+        "0024_erasure_provider_phases",
     }
 )
 PRE_AUTHORITY_REVISIONS = frozenset(
@@ -384,6 +385,7 @@ class IdentityLifecycleRepository:
                     ("0021_erasure_continuity",),
                     ("0022_erasure_retention",),
                     ("0023_erasure_minimal_retention",),
+                    ("0024_erasure_provider_phases",),
                 ):
                     raise AuthorizationError("administrator availability unavailable")
                 tables = ("people", "auth_identities", "account_erasure_jobs")
@@ -393,6 +395,7 @@ class IdentityLifecycleRepository:
                     ("0021_erasure_continuity",),
                     ("0022_erasure_retention",),
                     ("0023_erasure_minimal_retention",),
+                    ("0024_erasure_provider_phases",),
                 }:
                     tables += ("account_erasure_intakes",)
                     intake_exclusion = (

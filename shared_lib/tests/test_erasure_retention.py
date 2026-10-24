@@ -132,6 +132,36 @@ class RetentionPolicyTests(unittest.TestCase):
         self.assertTrue(result.private_plan_due)
         self.assertFalse(result.minimal_evidence_eligible)
 
+    def test_exact_phase_revision_can_release_plan_but_not_unresolved_evidence(self):
+        facts = replace(
+            self.facts, unresolved_effects=True, nonprovider_work_confirmed=True
+        )
+        result = evaluate_retention(
+            facts, now=self.now, schema_revision="0024_erasure_provider_phases"
+        )
+        self.assertTrue(result.private_plan_due)
+        self.assertFalse(result.minimal_evidence_eligible)
+        self.assertFalse(
+            evaluate_retention(
+                replace(facts, nonprovider_work_confirmed=False),
+                now=self.now,
+                schema_revision="0024_erasure_provider_phases",
+            ).private_plan_due
+        )
+        for revision in (None, "0023_erasure_minimal_retention", "future"):
+            self.assertFalse(
+                evaluate_retention(
+                    facts, now=self.now, schema_revision=revision
+                ).private_plan_due
+            )
+        self.assertFalse(
+            evaluate_retention(
+                replace(facts, executor_needs_plan=True),
+                now=self.now,
+                schema_revision="0024_erasure_provider_phases",
+            ).private_plan_due
+        )
+
     def test_day180_is_only_a_check_not_expiry_cleanup(self):
         for changes in (
             dict(

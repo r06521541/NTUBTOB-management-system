@@ -82,6 +82,7 @@ class ErasurePlanStore:
             ("0021_erasure_continuity",),
             ("0022_erasure_retention",),
             ("0023_erasure_minimal_retention",),
+            ("0024_erasure_provider_phases",),
         ):
             _reject("schema_not_ready")
         for name in (
@@ -241,6 +242,8 @@ class ErasurePlanStore:
                 job = self._locked(connection, job_id)
                 if job["status"] == "requested":
                     _reject("verified_job_required")
+                if job["status"] in {"online_completed", "completed"}:
+                    _reject("receipt_read_required")
                 snapshot = self.load(connection, job_id)
         except SealedPlanRejected:
             raise

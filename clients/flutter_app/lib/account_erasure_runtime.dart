@@ -35,7 +35,7 @@ class ErasureReachability extends ChangeNotifier {
       {http.Client Function()? clientFactory,
       this.timeout = const Duration(seconds: 5)})
       : _uri = apiBaseUrl.replace(path: '/health', query: null, fragment: null),
-        _clientFactory = clientFactory ?? http.Client {
+        _clientFactory = clientFactory ?? http.Client.new {
     if (apiBaseUrl.scheme != 'https' ||
         apiBaseUrl.host.isEmpty ||
         apiBaseUrl.userInfo.isNotEmpty ||

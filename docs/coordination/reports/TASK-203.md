@@ -2,6 +2,46 @@
 
 ## Activation-readiness candidate — 2026-10-24 (not enabled)
 
+Current0024 source checkpoint: exact revision separates verified local cleanup
+from provider/backup closure. Unresolved provider no longer retains the local
+account after every nonprovider item and restore suppression are confirmed;
+it never becomes full completed or authorizes new dispatch. Late trusted evidence
+can close only an existing started provider item, without the deleted target or
+raw plan. Plan+30 purge requires both item and legacy-step nonprovider closure;
+runtime RLS inventory includes steps. Missing/manual/unknown never permit full
+completion/minimal180. Older revisions keep the original guarded policy.
+No new tables/statuses/grants/long-term Google or LINE token custody.
+
+Actual RED18:15PASS/3FAIL12.636s (last outcome sequence consumed by manual result,
+same-timestamp downgrade, unresolved nonprovider legacy step). Corrected frozen
+18 realPG PASS10.508s on fresh localhost55438, independent source ACCEPT received.
+First fixture attempt3errors and next6errors were test isolation/inventory/replay
+preconditions, not semantic RED: retained55435 untouched, new tests use existing
+FreshErasureDatabases owned clones, never trigger disabling or evidence deletion.
+Upgrade refuses historical false completion; unused native downgrade restores
+exact function bodies/ACL. Used incompatible histories refuse native downgrade.
+Old seq3 non-success history remains unresolved; no automatic repair/backfill.
+
+Main37Python quality PASS; readiness29runOK/skipped6. Shared rebuilt/reinstalled
+offline after initial filesystem permission rejection; installed Mobile127/Web267/
+LINE26/notify11/broadcast28PASS. Current fullPG16 running, not yet called green.
+Exactd64ebcfbeba81bf18e6a966483435e16cf7e7318 hosted40065730871 FAILURE:
+PG15/16/services PASS; Android analyzer rejects Client class vs constructor tearoff
+(Main fixes http.Client.new); iOS unsigned reports Development Team/Provisioning
+requirement, not proven same cause. No signing settings changed to mask failure.
+Same-PR corrected exact candidate must earn its own hosted evidence.
+
+Remaining live gate is unchanged zero-incremental-fee authority: observed staging
+has no isolated erasure/backup bucket. Taiwan GCS is outside Always Free regions;
+five new single-location Secret versions could cost USD0.30/month if existing
+billing-account free quota is consumed, before storage/operations/transfer.
+Account-wide quota/Taiwan dynamic SKU rates not verified; no all-in estimate or
+zero-cost promise. No bucket/key/IAM/provider/deploy mutation performed. Actual
+review/operator/custody/backup proof and provider-specific bounded adapters still
+need integration before real account handling, never infer readiness from CI.
+Sources rechecked2026-10-24: https://cloud.google.com/storage/pricing and
+https://cloud.google.com/secret-manager/pricing . No budget increase assumed.
+
 New default-off runtime continuation: actual API bootstrap conditionally injects
 the intake/receipt/fresh-proof service, with distinct keys, exact guard opt-in,
 complete Apple configuration and singleton nonce-bound Google audience. No

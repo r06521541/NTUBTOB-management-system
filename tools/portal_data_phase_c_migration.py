@@ -130,7 +130,7 @@ def verify_artifact() -> None:
         raise PhaseCMigrationError("invalid checksum sidecar")
     config = Config(str(ROOT / "alembic.ini"))
     heads = ScriptDirectory.from_config(config).get_heads()
-    if heads != ["0023_erasure_minimal_retention"]:
+    if heads != ["0024_erasure_provider_phases"]:
         raise PhaseCMigrationError(f"unexpected Alembic heads: {heads}")
     verify_sql(sql, checksum)
 

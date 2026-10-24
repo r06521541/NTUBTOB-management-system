@@ -2,6 +2,96 @@
 
 ## Activation readiness continuation — 2026-10-24
 
+Runtime correction reviewer lease5 ACCEPT received/handled/released. No active
+delegates remain. Main owns frozen integration, full localhost55438 PG session63458
+and next exact hosted candidate on samePR271. This is not activation acceptance;
+zero-fee/custody/provider/Owner-device boundaries remain unchanged.
+
+Provider-phase writer lease4 and compatibility writer lease4 completions received,
+handled and released; reviewer task203-provider-phase-review lease4 ACCEPT received,
+handled and released. Main verified frozen18 realPG PASS10.508s after3 genuine RED;
+37Python quality PASS. Original failed fixture attempts remain report evidence,
+not product regressions or authority to weaken native history preservation.
+
+New bounded review packet task=TASK-203; same branch/base/head=d64ebcfbeba81bf18e6a966483435e16cf7e7318;
+actor_id=/root/privacy_foundation; role=advisor;
+claim_id=task203-runtime-correction-review; lease_version=5; owned_paths=none;
+write=read-only; report_to=/root; scope=Main's three Dart dirty paths only:
+lib/account_erasure_runtime.dart constructor tearoff, lib/account_erasure_status.dart
+online wording and test/account_erasure_status_test.dart under clients/flutter_app.
+Check no misleading full-completion claim or public receipt contract change;
+no new implementation/native/DB/network/Git/Secret/cloud/fee actions. Mandatory
+ACK/heartbeat/blockers/proactive verdict+limits then freeze. Native evidence is CI.
+
+Current checkpoint: exactd64 hosted40065730871 completed FAILURE: PG15/16 and
+services PASS; Android analyze/iOS unsigned fail on Client constructor tearoff.
+Main fixes to http.Client.new; not yet claimed hosted PASS. First0024 PG fixture
+run3/errors3 correctly hit native downgrade refusal after committed new phase
+history. Retain localhost55435 unchanged; do not weaken guards or disable triggers.
+Writer lease4 corrects new tests with existing FreshErasureDatabases owned clones;
+new localhost55438 fictional container is Main verification only. Compatibility
+writer27paths completion received/frozen; Main final verification pending.
+
+Review packet task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=d64ebcfbeba81bf18e6a966483435e16cf7e7318;
+actor_id=/root/privacy_foundation; role=advisor;
+claim_id=task203-provider-phase-review; lease_version=4; owned_paths=none;
+write=read-only; report_to=/root; scope=independent source review of0024 exact-only
+phase separation and six backend modules/pure retention, plus exact24 compatibility;
+challenge mutation/dispatch fences, provider unknown never success, full completion,
+plan retention/nonprovider closure, upgrade/downgrade/ACL/RLS and post-online scope.
+Writer still fixes test isolation and two announced conservative SQL cases; do not
+accept moving snapshot, report findings then wait for Main final frozen hashes.
+Stop file/Git/DB/network/cloud/Secret/provider/fee mutation; no actual Flutter.
+Mandatory received/executing, heartbeat/blockers, proactive verdict/tests/limits
+and exact current SHA/dirty paths; Main retains acceptance and real PG testing.
+
+Phase separation design received/handled/released at immutable
+d64ebcfbeba81bf18e6a966483435e16cf7e7318. Main accepts already-approved policy:
+online completion means verified local cleanup, not third-party revocation;
+unresolved provider must not keep local account indefinitely or become success.
+Migration proposal0024: additive function/constraint semantics only, no new target
+table/status/long-term credential collection. Exact24-only new behavior; old schema
+keeps previous guarded policy. No backfill to success. Upgrade refuses historical
+completed rows lacking real provider closure. Downgrade refuses unresolved new
+online/provider histories/post-online events/other incompatible used semantics;
+empty/unused reverses exact function bodies/markers without discarding evidence.
+Original23 retention completion/180 cleanup stays fail-closed; provider stage only
+proven revoked, never missing/manual/unknown as success. Online+30 raw plan purge
+may proceed once all nonprovider work/custody proved, preserving minimal outcomes.
+
+Five-line checkpoint: goal=local/provider/backup phases without new workflow;
+core=0024, fixed finalizers/provider event+reconcile/plan purge/pure retention;
+invariants=nonprovider exact workset+restore proof, no post-online new dispatch or
+target resurrection, no missing-to-success/automatic retry/permanent raw plan;
+tests=RED then real PG mixed/unknown/late evidence/30purge/no full-completion,
+ACL/RLS/rollback/old schema; blocker=no new Owner decision for approved semantics.
+
+Writer packet task=TASK-203; branch=codex/account-erasure-activation-readiness;
+base=head=d64ebcfbeba81bf18e6a966483435e16cf7e7318;
+actor_id=/root/account_backend; role=codex-writer;
+claim_id=task203-provider-phase-implementation; lease_version=4; report_to=/root;
+write=allowed; owned_paths=migrations/versions/0024_erasure_provider_phases.py,
+shared_lib/shared_module/portal_data/{erasure_fulfillment.py,
+erasure_person_fulfillment.py,erasure_provider_execution.py,
+erasure_provider_reconciliation.py,erasure_plan_store.py},
+shared_lib/shared_module/portal_data/erasure_retention.py, shared_lib/tests/test_erasure_retention.py,
+tests/portal_data/test_erasure_provider_phases.py plus existing focused
+test_erasure_provider_reconciliation.py/test_erasure_retention.py (confirm names).
+Scope exact minimal above, include24 compatibility within owned modules. No edits
+old migrations/other paths; no actual DB/network/Secret/Git/cloud/fee actions.
+Main owns actual PG/independent review. Mandatory ACK/heartbeat/blocker/proactive
+dirty/tests/limits/external then freeze. Stop on unknown existing semantics needing
+broader change; do not silently widen dispatch/reconcile capability.
+
+Compatibility writer packet same task/branch/base/head/mandatory protocol:
+actor_id=/root/erasure_scope_review; role=codex-writer;
+claim_id=task203-schema24-compat; lease_version=4; write=allowed; report_to=/root;
+owned_paths=existing exact23 compatibility readers/tools/readiness/current-head
+assertions/native harness EXCEPT all provider-phase writer paths above; append24,
+preserve historical23 fixtures and fail-closed native downgrade. No new migration/
+phase predicate edits/DB/network/Secret/Git/cloud/fees. Main integrates exact24.
+
 Active advisor packet: task=TASK-203; branch=codex/account-erasure-activation-readiness;
 base=head=fc70f9b6395aa4c729888619698ba74b418bc2bd;
 actor_id=/root/account_backend; role=advisor;

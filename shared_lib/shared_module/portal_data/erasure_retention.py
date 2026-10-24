@@ -69,6 +69,7 @@ class RetentionFacts:
     executor_needs_plan: bool
     authority_target_detached: bool
     backup: BackupObservation | None
+    nonprovider_work_confirmed: bool = False
 
 
 @dataclass(frozen=True)
@@ -94,16 +95,20 @@ def _boolean(value):
         _reject()
 
 
-def evaluate_retention(facts, *, now):
+def evaluate_retention(facts, *, now, schema_revision=None):
     """Return eligibility only; stale/unknown inventory is never zero retention.
 
     online+30 controls identifiable working copies, not the shared encryption
     key. Request+180 and effective receipt/evidence expiry are necessary but not
     sufficient for minimal-ledger cleanup. An unfinished request is retained;
     continuity is a separate explicit operator action, never automatic here.
+    Only exact schema24 with independently established nonprovider completion
+    may release the plan while provider effects remain unresolved. This does
+    not make their minimal evidence eligible for removal.
     """
     if type(facts) is not RetentionFacts:
         _reject()
+    _boolean(facts.nonprovider_work_confirmed)
     now = _instant(now)
     requested = _instant(facts.requested_at)
     receipt = _instant(facts.receipt_until)
@@ -168,7 +173,15 @@ def evaluate_retention(facts, *, now):
         facts.status in {"online_completed", "completed"}
         and online is not None
         and now - online >= timedelta(days=30)
-        and no_pending_work
+        and (
+            no_pending_work
+            or (
+                schema_revision == "0024_erasure_provider_phases"
+                and type(schema_revision) is str
+                and facts.nonprovider_work_confirmed
+                and not facts.executor_needs_plan
+            )
+        )
         and custody_ready
     )
     minimal = (

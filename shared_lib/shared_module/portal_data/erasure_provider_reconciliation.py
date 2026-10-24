@@ -4,6 +4,8 @@ Trusted inspect_outcome must verify existing, exact-item provider evidence witho
 network I/O, DB mutation or commit. Absence, inference from a deleted credential,
 and operator belief are not proof. No runtime adapter enables this coordinator.
 It neither completes erasure nor clears the job's needs_attention state.
+On exact schema24, reconciliation records only proven success: unresolved
+observations must not consume the final sequence or manufacture completion.
 """
 
 import hmac
@@ -42,7 +44,9 @@ class ProviderErasureReconciler:
             stage = "reconciliation"
             with execution.Session(self.engine) as session, session.begin():
                 connection = execution._connection(session)
-                job, item = execution._locked(connection, job_id, item_id)
+                job, item = execution._locked(
+                    connection, job_id, item_id, allow_online=True
+                )
                 if job["irreversible_started_at"] is None:
                     raise execution._Rejected("dispatch_fence_missing")
                 # No current live target requirement: subsequent erasure may have
@@ -66,7 +70,15 @@ class ProviderErasureReconciler:
                     )
                     for row in history
                 ]
-                if states not in (
+                manual = (
+                    len(states) == 2
+                    and states[0] == (1, "started", "in_progress")
+                    and states[1][:2] == (2, "confirmed")
+                    and states[1][2]
+                    in {"credential_missing", "manual_action_needed", "not_applicable"}
+                    and execution._provider_phases(connection)
+                )
+                if not manual and states not in (
                     [(1, "started", "in_progress")],
                     [(1, "started", "in_progress"), (2, "unknown", "response_unknown")],
                 ):
@@ -83,6 +95,11 @@ class ProviderErasureReconciler:
                     or evidence.expected_generation != str(job["expected_generation"])
                     or type(evidence.result) is not str
                     or evidence.result not in execution.ProviderErasureExecutor.RESULTS
+                    or (manual and evidence.result != "succeeded")
+                    or (
+                        evidence.result != "succeeded"
+                        and execution._provider_phases(connection)
+                    )
                 ):
                     raise execution._Rejected("evidence_not_verified")
                 known_result = evidence.result

@@ -3,8 +3,10 @@
 The trusted caller captures before requesting and retains this sealed snapshot.
 Reviews are explicit whole-free-content decisions, not inferred authorship or a
 public permission API. No raw credentials are projected; full SQL row digests
-include ciphertext/token versions. Unknown custody/provider effects permit local
-cleanup but retain roots and credentials. No backup completion/runtime wiring.
+include ciphertext/token versions. Exact schema24 permits local root/credential
+removal with unresolved providers, but still requires verified restore custody
+and all nonprovider work. Older schemas retain their guarded completion rule.
+No backup completion/runtime wiring.
 This is not a free-text mention scanner. The trusted upstream inventory must add
 reviewed rows without account FKs explicitly; lack of an FK is not a review.
 Exact reviewed shared-game text patches preserve the game and its schedule.
@@ -49,6 +51,7 @@ from .erasure_privacy_execution import PrivacyDispositionExecutor
 from .erasure_provider_execution import (
     PreparedProviderEffect,
     ProviderErasureExecutor,
+    _provider_phases,
     _Rejected,
     _uuid,
 )
@@ -308,6 +311,7 @@ def _lock(connection):
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
         ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     ):
         raise _Rejected("schema_not_ready")
     connection.execute(
@@ -354,6 +358,7 @@ def _lock(connection):
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
         ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     }
     for table in PortalDataBase.metadata.tables.values():
         if table.name == "account_erasure_intakes" and not intake_schema:
@@ -1253,6 +1258,11 @@ class PersonFulfillment:
                         identity.provider == "apple"
                         and outcome == ("confirmed", "credential_missing")
                         and missing
+                    )
+                if _provider_phases(connection):
+                    provider_ok = all(
+                        "provider:" + str(identity.identity_id) in events
+                        for identity in snapshot.identities
                     )
                 if not provider_ok or any(
                     not _confirmed(events, label)

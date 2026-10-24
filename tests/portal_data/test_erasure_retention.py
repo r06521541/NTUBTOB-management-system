@@ -363,6 +363,7 @@ class RetentionPostgresTests(unittest.TestCase):
         record_custody=True,
         unfinished=False,
         capture_plan=True,
+        provider_result=None,
     ):
         if capture_plan:
             self.capture_plan()
@@ -402,19 +403,45 @@ class RetentionPostgresTests(unittest.TestCase):
                 ),
                 dict(item=item, seq=sequence, kind=kind, result=result, now=online),
             )
-        if unfinished:
+        if unfinished or provider_result is not None:
+            provider_item = str(uuid4())
             self.connection.execute(
                 text(
                     "INSERT INTO ntubtob.account_erasure_items(id,job_id,stage,binding_hash,expected_generation,created_at) VALUES(:id,:job,'provider_revocation',:hash,:generation,:now)"
                 ),
                 dict(
-                    id=str(uuid4()),
+                    id=provider_item,
                     job=self.job,
                     hash="e" * 64,
                     generation=self.generation,
                     now=online,
                 ),
             )
+            if provider_result is not None:
+                for sequence, kind, result in (
+                    (1, "started", "in_progress"),
+                    (
+                        2,
+                        (
+                            "unknown"
+                            if provider_result == "response_unknown"
+                            else "confirmed"
+                        ),
+                        provider_result,
+                    ),
+                ):
+                    self.connection.execute(
+                        text(
+                            "INSERT INTO ntubtob.account_erasure_item_events(item_id,event_sequence,event_kind,result_code,occurred_at) VALUES(:item,:seq,:kind,:result,:now)"
+                        ),
+                        dict(
+                            item=provider_item,
+                            seq=sequence,
+                            kind=kind,
+                            result=result,
+                            now=online,
+                        ),
+                    )
         self.fixture.update(
             self.job,
             status="online_completed",

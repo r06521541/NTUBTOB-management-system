@@ -9,9 +9,9 @@ port, not a boolean or successful HMAC. Only fictional ports are tested here.
 Apple, Google and LINE pending identities require their own reviewed provider
 preparation; absence of an Apple credential is not non-Apple provider evidence.
 
-Unknown provider/custody outcomes do not prevent owned local cleanup, but retain
-the identity/credential and needs_attention. This avoids pretending the current
-item schema/reconciler supports post-online evidence. Person, LINE legacy stores,
+On exact schema24, unresolved provider outcomes do not retain the local target;
+custody and every nonprovider item still require proof. Older revisions retain
+their guarded identity/credential finalization. Person, LINE legacy stores,
 shared/admin content, backup completion, and runtime enablement are not supported.
 """
 
@@ -31,6 +31,7 @@ from ..mobile_api import utc_now
 from .erasure_provider_execution import (
     PreparedProviderEffect,
     ProviderErasureExecutor,
+    _provider_phases,
     _Rejected,
     _time,
     _uuid,
@@ -161,6 +162,7 @@ def _connection(session):
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
         ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     ):
         raise _Rejected("schema_not_ready")
     for table in (
@@ -269,6 +271,7 @@ def _inventory(connection, identity_id):
         ("0021_erasure_continuity",),
         ("0022_erasure_retention",),
         ("0023_erasure_minimal_retention",),
+        ("0024_erasure_provider_phases",),
     }:
         expected.add(
             (
@@ -622,6 +625,7 @@ class PendingIdentityFulfillment:
                         ("0021_erasure_continuity",),
                         ("0022_erasure_retention",),
                         ("0023_erasure_minimal_retention",),
+                        ("0024_erasure_provider_phases",),
                     ):
                         raise _Rejected("schema_not_ready")
                     self._context_on(connection, job_id, snapshot)
@@ -810,6 +814,10 @@ class PendingIdentityFulfillment:
                     and _identity(connection, snapshot.identity_id)["provider"]
                     == "apple"
                 )
+                if _provider_phases(connection):
+                    # Exact workset is checked by _context. A durable start must
+                    # exist: no new dispatch can be created after target removal.
+                    provider_ok = "provider" in events
                 if not provider_ok or any(
                     not _confirmed(events, label)
                     for label in items

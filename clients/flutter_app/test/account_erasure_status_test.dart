@@ -40,6 +40,15 @@ Widget page(Reader reader) =>
     MaterialApp(home: AccountErasureStatusPage(reader: reader));
 
 void main() {
+  test('online completion distinguishes provider and backup closure', () {
+    expect(AccountErasureStatus.parse(envelope('online_completed')).status,
+        'online_completed');
+    final message = AccountErasureStatus.messages['online_completed']!;
+    expect(message, contains('第三方授權'));
+    expect(message, contains('備份'));
+    expect(message, contains('尚非整體完成'));
+    expect(envelope('online_completed').length, 4);
+  });
   test('rejects unknown envelope', () {
     expect(() => AccountErasureStatus.parse({}), throwsFormatException);
   });

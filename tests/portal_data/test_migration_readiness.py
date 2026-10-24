@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class MigrationReadinessStaticTests(unittest.TestCase):
     def test_revision_chain_is_single_and_exact(self):
         self.assertEqual(revision_chain(), EXPECTED_REVISIONS)
-        self.assertEqual(EXPECTED_REVISIONS[-1], "0023_erasure_minimal_retention")
+        self.assertEqual(EXPECTED_REVISIONS[-1], "0024_erasure_provider_phases")
 
     def test_candidate23_keeps_exact_runtime_and_native_fixture_compatibility(self):
         from shared_lib.shared_module.portal_data.erasure_intake_routing import enabled
@@ -49,7 +49,11 @@ class MigrationReadinessStaticTests(unittest.TestCase):
             NATIVE_EMPTY_ONLY_REVISIONS,
         )
 
-        for revision in ("0022_erasure_retention", "0023_erasure_minimal_retention"):
+        for revision in (
+            "0022_erasure_retention",
+            "0023_erasure_minimal_retention",
+            "0024_erasure_provider_phases",
+        ):
             with self.subTest(revision=revision):
                 self.assertTrue(enabled(None, (revision,)))
                 self.assertIn(revision, AUTHORITY_REVISIONS)
@@ -75,6 +79,27 @@ class MigrationReadinessStaticTests(unittest.TestCase):
             ) as native,
             patch.object(ledger, "_sealed_plan_inventory") as inventory,
             self.assertRaisesRegex(RuntimeError, "minimal_retention_irreversible"),
+        ):
+            ledger.remove_retained_erasure_ledger_from_isolated_test_database(engine)
+        native.assert_called_once()
+        self.assertIs(native.call_args.args[0].attributes["connection"], connection)
+        self.assertEqual(native.call_args.args[1], ledger.PRIVACY_REVISION)
+        inventory.assert_not_called()
+        self.assertEqual(fixture.ddl(connection), [])
+
+    def test_candidate24_native_refusal_never_reaches_fixture_ddl(self):
+        from tests.portal_data import _erasure_ledger_test_harness as ledger
+        from tests.portal_data.test_erasure_harness import ErasureHarnessTests
+
+        fixture = ErasureHarnessTests()
+        engine, connection = fixture.fixture("0024_erasure_provider_phases")
+        with (
+            patch(
+                "alembic.command.downgrade",
+                side_effect=RuntimeError("fictional_provider_phase_retained"),
+            ) as native,
+            patch.object(ledger, "_sealed_plan_inventory") as inventory,
+            self.assertRaisesRegex(RuntimeError, "fictional_provider_phase_retained"),
         ):
             ledger.remove_retained_erasure_ledger_from_isolated_test_database(engine)
         native.assert_called_once()

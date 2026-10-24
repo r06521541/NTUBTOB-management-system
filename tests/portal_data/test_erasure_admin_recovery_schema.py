@@ -277,7 +277,7 @@ class AdminRecoveryPostgresTests(unittest.TestCase):
     def test_current_metadata_has_no_pending_migration(self):
         config = Config(str(ROOT / "alembic.ini"))
         config.attributes["connection"] = self.connection
-        command.upgrade(config, "0023_erasure_minimal_retention")
+        command.upgrade(config, "0024_erasure_provider_phases")
         command.check(config)
 
     def test_exact_operation_pointer_epoch_and_session_user_are_atomic(self):

@@ -165,6 +165,7 @@ class AccountErasureRequestRepository:
                     ("0021_erasure_continuity",),
                     ("0022_erasure_retention",),
                     ("0023_erasure_minimal_retention",),
+                    ("0024_erasure_provider_phases",),
                 ):
                     raise ErasureRequestUnavailable("schema_not_ready")
                 for table in (
@@ -289,6 +290,7 @@ class AccountErasureRequestRepository:
                                     ("0021_erasure_continuity",),
                                     ("0022_erasure_retention",),
                                     ("0023_erasure_minimal_retention",),
+                                    ("0024_erasure_provider_phases",),
                                 )
                                 or _uuid(adopted["id"]) != job_id
                                 or adopted["status"] != "cancelled"
